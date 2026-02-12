@@ -1,5 +1,88 @@
 export namespace models {
 	
+	export class Assignment {
+	    id: string;
+	    documentId: string;
+	    documentType: string;
+	    executorId: string;
+	    executorName?: string;
+	    content: string;
+	    // Go type: time
+	    deadline?: any;
+	    status: string;
+	    report?: string;
+	    documentNumber?: string;
+	    documentSubject?: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Assignment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.documentId = source["documentId"];
+	        this.documentType = source["documentType"];
+	        this.executorId = source["executorId"];
+	        this.executorName = source["executorName"];
+	        this.content = source["content"];
+	        this.deadline = this.convertValues(source["deadline"], null);
+	        this.status = source["status"];
+	        this.report = source["report"];
+	        this.documentNumber = source["documentNumber"];
+	        this.documentSubject = source["documentSubject"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AssignmentFilter {
+	    search?: string;
+	    documentId?: string;
+	    executorId?: string;
+	    status?: string;
+	    dateFrom?: string;
+	    dateTo?: string;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.search = source["search"];
+	        this.documentId = source["documentId"];
+	        this.executorId = source["executorId"];
+	        this.status = source["status"];
+	        this.dateFrom = source["dateFrom"];
+	        this.dateTo = source["dateTo"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	    }
+	}
 	export class CreateUserRequest {
 	    login: string;
 	    password: string;
@@ -17,6 +100,56 @@ export namespace models {
 	        this.fullName = source["fullName"];
 	        this.roles = source["roles"];
 	    }
+	}
+	export class DashboardStats {
+	    role: string;
+	    myAssignmentsNew?: number;
+	    myAssignmentsInProgress?: number;
+	    myAssignmentsOverdue?: number;
+	    incomingCountMonth?: number;
+	    outgoingCountMonth?: number;
+	    allAssignmentsOverdue?: number;
+	    userCount?: number;
+	    totalDocuments?: number;
+	    dbSize?: string;
+	    expiringAssignments?: Assignment[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DashboardStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.role = source["role"];
+	        this.myAssignmentsNew = source["myAssignmentsNew"];
+	        this.myAssignmentsInProgress = source["myAssignmentsInProgress"];
+	        this.myAssignmentsOverdue = source["myAssignmentsOverdue"];
+	        this.incomingCountMonth = source["incomingCountMonth"];
+	        this.outgoingCountMonth = source["outgoingCountMonth"];
+	        this.allAssignmentsOverdue = source["allAssignmentsOverdue"];
+	        this.userCount = source["userCount"];
+	        this.totalDocuments = source["totalDocuments"];
+	        this.dbSize = source["dbSize"];
+	        this.expiringAssignments = this.convertValues(source["expiringAssignments"], Assignment);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class DocumentFilter {
 	    nomenclatureId?: string;
@@ -266,6 +399,111 @@ export namespace models {
 		    }
 		    return a;
 		}
+	}
+	export class OutgoingDocument {
+	    id: string;
+	    nomenclatureId: string;
+	    nomenclatureName?: string;
+	    outgoingNumber: string;
+	    // Go type: time
+	    outgoingDate: any;
+	    documentTypeId: string;
+	    documentTypeName?: string;
+	    subject: string;
+	    pagesCount: number;
+	    content: string;
+	    senderOrgId: string;
+	    senderOrgName?: string;
+	    senderSignatory: string;
+	    senderExecutor: string;
+	    recipientOrgId: string;
+	    recipientOrgName?: string;
+	    addressee: string;
+	    createdBy: string;
+	    createdByName?: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    attachmentsCount?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new OutgoingDocument(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.nomenclatureId = source["nomenclatureId"];
+	        this.nomenclatureName = source["nomenclatureName"];
+	        this.outgoingNumber = source["outgoingNumber"];
+	        this.outgoingDate = this.convertValues(source["outgoingDate"], null);
+	        this.documentTypeId = source["documentTypeId"];
+	        this.documentTypeName = source["documentTypeName"];
+	        this.subject = source["subject"];
+	        this.pagesCount = source["pagesCount"];
+	        this.content = source["content"];
+	        this.senderOrgId = source["senderOrgId"];
+	        this.senderOrgName = source["senderOrgName"];
+	        this.senderSignatory = source["senderSignatory"];
+	        this.senderExecutor = source["senderExecutor"];
+	        this.recipientOrgId = source["recipientOrgId"];
+	        this.recipientOrgName = source["recipientOrgName"];
+	        this.addressee = source["addressee"];
+	        this.createdBy = source["createdBy"];
+	        this.createdByName = source["createdByName"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.attachmentsCount = source["attachmentsCount"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class OutgoingDocumentFilter {
+	    nomenclatureIds?: string[];
+	    documentTypeId?: string;
+	    orgId?: string;
+	    dateFrom?: string;
+	    dateTo?: string;
+	    search?: string;
+	    outgoingNumber?: string;
+	    recipientName?: string;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new OutgoingDocumentFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.nomenclatureIds = source["nomenclatureIds"];
+	        this.documentTypeId = source["documentTypeId"];
+	        this.orgId = source["orgId"];
+	        this.dateFrom = source["dateFrom"];
+	        this.dateTo = source["dateTo"];
+	        this.search = source["search"];
+	        this.outgoingNumber = source["outgoingNumber"];
+	        this.recipientName = source["recipientName"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	    }
 	}
 	export class PagedResult {
 	    items: any;

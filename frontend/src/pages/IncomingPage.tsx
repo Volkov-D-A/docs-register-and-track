@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
     Typography, Table, Button, Modal, Form, Input, Select, DatePicker,
-    InputNumber, Space, Row, Col, Tag, message, Popconfirm, AutoComplete, Collapse,
+    InputNumber, Space, Row, Col, Tag, message, Popconfirm, AutoComplete, Collapse, Tabs,
 } from 'antd';
+import AssignmentList from '../components/AssignmentList';
 import {
     PlusOutlined, SearchOutlined, EyeOutlined, DeleteOutlined, EditOutlined,
     FilterOutlined, ClearOutlined,
@@ -446,23 +447,34 @@ const IncomingPage: React.FC = () => {
                     <Button key="close" type="primary" onClick={() => setViewModalOpen(false)}>Закрыть</Button>,
                 ]}>
                 {viewDoc && (
-                    <Row gutter={[16, 12]}>
-                        <Col span={12}><Text type="secondary">Рег. номер:</Text> <Text strong>{viewDoc.incomingNumber}</Text></Col>
-                        <Col span={12}><Text type="secondary">Дата:</Text> <Text strong>{dayjs(viewDoc.incomingDate).format('DD.MM.YYYY')}</Text></Col>
-                        <Col span={12}><Text type="secondary">Исх. №:</Text> {viewDoc.outgoingNumberSender || '—'}</Col>
-                        <Col span={12}><Text type="secondary">Дата исх.:</Text> {viewDoc.outgoingDateSender ? dayjs(viewDoc.outgoingDateSender).format('DD.MM.YYYY') : '—'}</Col>
-                        <Col span={24}><Text type="secondary">Тип:</Text> <Tag>{viewDoc.documentTypeName}</Tag></Col>
-                        <Col span={24}><Text type="secondary">Содержание:</Text> <Text strong>{viewDoc.subject}</Text></Col>
-                        <Col span={12}><Text type="secondary">Отправитель:</Text> {viewDoc.senderOrgName}</Col>
-                        <Col span={12}><Text type="secondary">Получатель:</Text> {viewDoc.recipientOrgName}</Col>
-                        <Col span={12}><Text type="secondary">Подписант:</Text> {viewDoc.senderSignatory || '—'}</Col>
-                        <Col span={12}><Text type="secondary">Кому:</Text> {viewDoc.addressee || '—'}</Col>
-                        <Col span={24}><Text type="secondary">Резолюция:</Text> <Text strong>{viewDoc.resolution || '—'}</Text></Col>
-                        {viewDoc.content && <Col span={24}><Text type="secondary">Подробно:</Text><br />{viewDoc.content}</Col>}
-                        <Col span={12}><Text type="secondary">Листов:</Text> {viewDoc.pagesCount}</Col>
-                        <Col span={12}><Text type="secondary">Номенклатура:</Text> {viewDoc.nomenclatureName}</Col>
-                        <Col span={24}><Text type="secondary">Зарегистрировал:</Text> {viewDoc.createdByName} ({dayjs(viewDoc.createdAt).format('DD.MM.YYYY HH:mm')})</Col>
-                    </Row>
+                    <Tabs defaultActiveKey="info" items={[
+                        {
+                            key: 'info', label: 'Информация',
+                            children: (
+                                <Row gutter={[16, 12]}>
+                                    <Col span={12}><Text type="secondary">Рег. номер:</Text> <Text strong>{viewDoc.incomingNumber}</Text></Col>
+                                    <Col span={12}><Text type="secondary">Дата:</Text> <Text strong>{dayjs(viewDoc.incomingDate).format('DD.MM.YYYY')}</Text></Col>
+                                    <Col span={12}><Text type="secondary">Исх. №:</Text> {viewDoc.outgoingNumberSender || '—'}</Col>
+                                    <Col span={12}><Text type="secondary">Дата исх.:</Text> {viewDoc.outgoingDateSender ? dayjs(viewDoc.outgoingDateSender).format('DD.MM.YYYY') : '—'}</Col>
+                                    <Col span={24}><Text type="secondary">Тип:</Text> <Tag>{viewDoc.documentTypeName}</Tag></Col>
+                                    <Col span={24}><Text type="secondary">Содержание:</Text> <Text strong>{viewDoc.subject}</Text></Col>
+                                    <Col span={12}><Text type="secondary">Отправитель:</Text> {viewDoc.senderOrgName}</Col>
+                                    <Col span={12}><Text type="secondary">Получатель:</Text> {viewDoc.recipientOrgName}</Col>
+                                    <Col span={12}><Text type="secondary">Подписант:</Text> {viewDoc.senderSignatory || '—'}</Col>
+                                    <Col span={12}><Text type="secondary">Кому:</Text> {viewDoc.addressee || '—'}</Col>
+                                    <Col span={24}><Text type="secondary">Резолюция:</Text> <Text strong>{viewDoc.resolution || '—'}</Text></Col>
+                                    {viewDoc.content && <Col span={24}><Text type="secondary">Подробно:</Text><br />{viewDoc.content}</Col>}
+                                    <Col span={12}><Text type="secondary">Листов:</Text> {viewDoc.pagesCount}</Col>
+                                    <Col span={12}><Text type="secondary">Номенклатура:</Text> {viewDoc.nomenclatureName}</Col>
+                                    <Col span={24}><Text type="secondary">Зарегистрировал:</Text> {viewDoc.createdByName} ({dayjs(viewDoc.createdAt).format('DD.MM.YYYY HH:mm')})</Col>
+                                </Row>
+                            )
+                        },
+                        {
+                            key: 'assignments', label: 'Поручения',
+                            children: <AssignmentList documentId={viewDoc.id} documentType="incoming" />
+                        }
+                    ]} />
                 )}
             </Modal>
         </div>

@@ -160,6 +160,19 @@ type DocumentFilter struct {
 	PageSize         int      `json:"pageSize"`
 }
 
+type OutgoingDocumentFilter struct {
+	NomenclatureIDs []string `json:"nomenclatureIds,omitempty"`
+	DocumentTypeID  string   `json:"documentTypeId,omitempty"`
+	OrgID           string   `json:"orgId,omitempty"` // Recipient Org
+	DateFrom        string   `json:"dateFrom,omitempty"`
+	DateTo          string   `json:"dateTo,omitempty"`
+	Search          string   `json:"search,omitempty"`
+	OutgoingNumber  string   `json:"outgoingNumber,omitempty"`
+	RecipientName   string   `json:"recipientName,omitempty"`
+	Page            int      `json:"page"`
+	PageSize        int      `json:"pageSize"`
+}
+
 // PagedResult — постраничный результат
 type PagedResult struct {
 	Items      interface{} `json:"items"`

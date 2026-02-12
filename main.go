@@ -54,6 +54,8 @@ func main() {
 	nomenclatureRepo := repository.NewNomenclatureRepository(db)
 	referenceRepo := repository.NewReferenceRepository(db)
 	incomingDocRepo := repository.NewIncomingDocumentRepository(db)
+	outgoingDocRepo := repository.NewOutgoingDocumentRepository(db)
+	assignmentRepo := repository.NewAssignmentRepository(db)
 
 	// Создание сервисов
 	authService := services.NewAuthService(userRepo)
@@ -61,6 +63,9 @@ func main() {
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
 	referenceService := services.NewReferenceService(referenceRepo, authService)
 	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, authService)
+	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, authService)
+	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService)
+	dashboardService := services.NewDashboardService(db, authService)
 
 	// Запуск приложения Wails
 	err = wails.Run(&options.App{
@@ -77,6 +82,9 @@ func main() {
 			nomenclatureService.SetContext(ctx)
 			referenceService.SetContext(ctx)
 			incomingDocService.SetContext(ctx)
+			outgoingDocService.SetContext(ctx)
+			assignmentService.SetContext(ctx)
+			dashboardService.SetContext(ctx)
 		},
 		Bind: []interface{}{
 			authService,
@@ -84,6 +92,9 @@ func main() {
 			nomenclatureService,
 			referenceService,
 			incomingDocService,
+			outgoingDocService,
+			assignmentService,
+			dashboardService,
 		},
 	})
 

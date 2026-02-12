@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import IncomingPage from './pages/IncomingPage';
+import OutgoingPage from './pages/OutgoingPage';
+import AssignmentsPage from './pages/AssignmentsPage';
 import MainLayout from './components/MainLayout';
 import { Typography } from 'antd';
 
@@ -32,9 +34,9 @@ function App() {
             case 'incoming':
                 return <IncomingPage />;
             case 'outgoing':
-                return <PlaceholderPage title="Исходящие документы" />;
+                return <OutgoingPage />;
             case 'assignments':
-                return <PlaceholderPage title="Поручения" />;
+                return <AssignmentsPage />;
             case 'settings':
                 return <SettingsPage />;
             case 'profile':
