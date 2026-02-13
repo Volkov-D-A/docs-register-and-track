@@ -25,7 +25,7 @@ func (s *DashboardService) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-func (s *DashboardService) GetStats() (*models.DashboardStats, error) {
+func (s *DashboardService) GetStats(requestedRole string) (*models.DashboardStats, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -35,11 +35,28 @@ func (s *DashboardService) GetStats() (*models.DashboardStats, error) {
 		return nil, err
 	}
 
+	// Determine effective role
 	role := "executor"
-	if s.auth.HasRole("admin") {
-		role = "admin"
-	} else if s.auth.HasRole("clerk") {
-		role = "clerk"
+	
+	// If a specific role is requested, verify user has it
+	if requestedRole != "" {
+		if s.auth.HasRole(requestedRole) {
+			role = requestedRole
+		} else {
+			// Fallback or error? Let's fallback to default hierarchy for now to be safe
+			if s.auth.HasRole("admin") {
+				role = "admin"
+			} else if s.auth.HasRole("clerk") {
+				role = "clerk"
+			}
+		}
+	} else {
+		// Default hierarchy if no role requested
+		if s.auth.HasRole("admin") {
+			role = "admin"
+		} else if s.auth.HasRole("clerk") {
+			role = "clerk"
+		}
 	}
 
 	// Initialize with empty slice to avoid null in JSON

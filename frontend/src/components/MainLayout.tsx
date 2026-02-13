@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space } from 'antd';
+import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Select } from 'antd';
 import {
     DashboardOutlined,
     InboxOutlined,
@@ -114,6 +114,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageCh
                     justifyContent: 'flex-end',
                     borderBottom: '1px solid #f0f0f0',
                 }}>
+                    {user?.roles && user.roles.length > 1 && (
+                        <div style={{ marginRight: 16 }}>
+                            <span style={{ marginRight: 8, color: '#888' }}>Роль:</span>
+                            <Select
+                                value={useAuthStore.getState().currentRole}
+                                onChange={(val: string) => useAuthStore.getState().setCurrentRole(val)}
+                                style={{ width: 140 }}
+                                options={[
+                                    { value: 'admin', label: 'Администратор' },
+                                    { value: 'clerk', label: 'Делопроизводитель' },
+                                    { value: 'executor', label: 'Исполнитель' },
+                                ].filter(opt => user.roles.includes(opt.value))}
+                            />
+                        </div>
+                    )}
+
                     <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenu }} placement="bottomRight">
                         <Space style={{ cursor: 'pointer' }}>
                             <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1677ff' }} />

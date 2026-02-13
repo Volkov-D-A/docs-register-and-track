@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS departments (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE users
+ADD COLUMN department_id UUID REFERENCES departments (id) ON DELETE SET NULL;

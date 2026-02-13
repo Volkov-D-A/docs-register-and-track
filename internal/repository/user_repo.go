@@ -22,12 +22,19 @@ func NewUserRepository(db *database.DB) *UserRepository {
 func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
 	user := &models.User{}
 
+	var departmentID sql.NullString
+	var departmentName sql.NullString
+
 	err := r.db.QueryRow(`
-		SELECT id, login, password_hash, full_name, is_active, created_at, updated_at
-		FROM users WHERE login = $1
+		SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+		       d.id, d.name
+		FROM users u
+		LEFT JOIN departments d ON u.department_id = d.id
+		WHERE u.login = $1
 	`, login).Scan(
 		&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
 		&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+		&departmentID, &departmentName,
 	)
 
 	if err == sql.ErrNoRows {
@@ -35,6 +42,16 @@ func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user by login: %w", err)
+	}
+
+	if departmentID.Valid {
+		uid, _ := uuid.Parse(departmentID.String)
+		user.DepartmentID = &uid
+		user.Department = &models.Department{
+			ID:    uid,
+			IDStr: uid.String(),
+			Name:  departmentName.String,
+		}
 	}
 
 	user.FillIDStr()
@@ -51,12 +68,19 @@ func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
 func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 	user := &models.User{}
 
+	var departmentID sql.NullString
+	var departmentName sql.NullString
+
 	err := r.db.QueryRow(`
-		SELECT id, login, password_hash, full_name, is_active, created_at, updated_at
-		FROM users WHERE id = $1
+		SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+		       d.id, d.name
+		FROM users u
+		LEFT JOIN departments d ON u.department_id = d.id
+		WHERE u.id = $1
 	`, id).Scan(
 		&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
 		&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+		&departmentID, &departmentName,
 	)
 
 	if err == sql.ErrNoRows {
@@ -64,6 +88,16 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user by id: %w", err)
+	}
+
+	if departmentID.Valid {
+		uid, _ := uuid.Parse(departmentID.String)
+		user.DepartmentID = &uid
+		user.Department = &models.Department{
+			ID:    uid,
+			IDStr: uid.String(),
+			Name:  departmentName.String,
+		}
 	}
 
 	user.FillIDStr()
@@ -79,8 +113,11 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT id, login, password_hash, full_name, is_active, created_at, updated_at
-		FROM users ORDER BY full_name
+		SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+		       d.id, d.name
+		FROM users u
+		LEFT JOIN departments d ON u.department_id = d.id
+		ORDER BY u.full_name
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all users: %w", err)
@@ -90,11 +127,25 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 	var users []models.User
 	for rows.Next() {
 		var user models.User
+		var departmentID sql.NullString
+		var departmentName sql.NullString
+
 		if err := rows.Scan(
 			&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
 			&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+			&departmentID, &departmentName,
 		); err != nil {
 			return nil, err
+		}
+
+		if departmentID.Valid {
+			uid, _ := uuid.Parse(departmentID.String)
+			user.DepartmentID = &uid
+			user.Department = &models.Department{
+				ID:    uid,
+				IDStr: uid.String(),
+				Name:  departmentName.String,
+			}
 		}
 
 		user.FillIDStr()
@@ -117,11 +168,18 @@ func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, err
 	}
 
 	var userID uuid.UUID
+	var depID *uuid.UUID
+	if req.DepartmentID != "" {
+		if uid, err := uuid.Parse(req.DepartmentID); err == nil {
+			depID = &uid
+		}
+	}
+
 	err = r.db.QueryRow(`
-		INSERT INTO users (login, password_hash, full_name)
-		VALUES ($1, $2, $3)
+		INSERT INTO users (login, password_hash, full_name, department_id)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id
-	`, req.Login, passwordHash, req.FullName).Scan(&userID)
+	`, req.Login, passwordHash, req.FullName, depID).Scan(&userID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
@@ -145,10 +203,17 @@ func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, err
 		return nil, fmt.Errorf("invalid user ID: %w", err)
 	}
 
+	var depID *uuid.UUID
+	if req.DepartmentID != "" {
+		if uid, err := uuid.Parse(req.DepartmentID); err == nil {
+			depID = &uid
+		}
+	}
+
 	_, err = r.db.Exec(`
-		UPDATE users SET login = $1, full_name = $2, is_active = $3, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $4
-	`, req.Login, req.FullName, req.IsActive, uid)
+		UPDATE users SET login = $1, full_name = $2, is_active = $3, department_id = $4, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $5
+	`, req.Login, req.FullName, req.IsActive, depID, uid)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
@@ -195,9 +260,11 @@ func (r *UserRepository) GetUserRoles(userID uuid.UUID) ([]string, error) {
 
 func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT DISTINCT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at
+		SELECT DISTINCT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+		       d.id, d.name
 		FROM users u
 		JOIN user_roles ur ON u.id = ur.user_id
+		LEFT JOIN departments d ON u.department_id = d.id
 		WHERE ur.role = 'executor' AND u.is_active = true
 		ORDER BY u.full_name
 	`)
@@ -209,12 +276,27 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	var users []models.User
 	for rows.Next() {
 		var user models.User
+		var departmentID sql.NullString
+		var departmentName sql.NullString
+
 		if err := rows.Scan(
 			&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
 			&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+			&departmentID, &departmentName,
 		); err != nil {
 			return nil, err
 		}
+
+		if departmentID.Valid {
+			uid, _ := uuid.Parse(departmentID.String)
+			user.DepartmentID = &uid
+			user.Department = &models.Department{
+				ID:    uid,
+				IDStr: uid.String(),
+				Name:  departmentName.String,
+			}
+		}
+
 		user.FillIDStr()
 		roles, err := r.GetUserRoles(user.ID)
 		if err != nil {

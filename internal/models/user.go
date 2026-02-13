@@ -7,15 +7,17 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID `json:"-"`
-	IDStr        string    `json:"id"`
-	Login        string    `json:"login"`
-	PasswordHash string    `json:"-"`
-	FullName     string    `json:"fullName"`
-	IsActive     bool      `json:"isActive"`
-	Roles        []string  `json:"roles"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID           uuid.UUID   `json:"-"`
+	IDStr        string      `json:"id"`
+	Login        string      `json:"login"`
+	PasswordHash string      `json:"-"`
+	FullName     string      `json:"fullName"`
+	IsActive     bool        `json:"isActive"`
+	Roles        []string    `json:"roles"`
+	CreatedAt    time.Time   `json:"createdAt"`
+	UpdatedAt    time.Time   `json:"updatedAt"`
+	DepartmentID *uuid.UUID  `json:"-"`
+	Department   *Department `json:"department,omitempty"`
 }
 
 // FillIDStr заполняет строковое представление ID
@@ -31,18 +33,20 @@ type UserRole struct {
 }
 
 type CreateUserRequest struct {
-	Login    string   `json:"login"`
-	Password string   `json:"password"`
-	FullName string   `json:"fullName"`
-	Roles    []string `json:"roles"`
+	Login        string   `json:"login"`
+	Password     string   `json:"password"`
+	FullName     string   `json:"fullName"`
+	Roles        []string `json:"roles"`
+	DepartmentID string   `json:"departmentId"`
 }
 
 type UpdateUserRequest struct {
-	ID       string   `json:"id"`
-	Login    string   `json:"login"`
-	FullName string   `json:"fullName"`
-	IsActive bool     `json:"isActive"`
-	Roles    []string `json:"roles"`
+	ID           string   `json:"id"`
+	Login        string   `json:"login"`
+	FullName     string   `json:"fullName"`
+	IsActive     bool     `json:"isActive"`
+	Roles        []string `json:"roles"`
+	DepartmentID string   `json:"departmentId"`
 }
 
 type LoginRequest struct {

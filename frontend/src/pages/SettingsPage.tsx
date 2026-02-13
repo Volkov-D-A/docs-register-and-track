@@ -330,8 +330,8 @@ const OrganizationsTab: React.FC = () => {
   );
 };
 
-// === Пользователи ===
-const UsersTab: React.FC = () => {
+// === Подразделения ===
+const DepartmentsTab: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -341,9 +341,110 @@ const UsersTab: React.FC = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const { GetAllUsers } = await import('../../wailsjs/go/services/UserService');
-      const items = await GetAllUsers();
+      const { GetAllDepartments } = await import('../../wailsjs/go/services/DepartmentService');
+      const items = await GetAllDepartments();
       setData(items || []);
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onSave = async (values: any) => {
+    try {
+      if (editItem) {
+        const { UpdateDepartment } = await import('../../wailsjs/go/services/DepartmentService');
+        await UpdateDepartment(editItem.id, values.name);
+      } else {
+        const { CreateDepartment } = await import('../../wailsjs/go/services/DepartmentService');
+        await CreateDepartment(values.name);
+      }
+      message.success(editItem ? 'Обновлено' : 'Создано');
+      setModalOpen(false);
+      form.resetFields();
+      setEditItem(null);
+      load();
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+  };
+
+  const onDelete = async (id: string) => {
+    try {
+      const { DeleteDepartment } = await import('../../wailsjs/go/services/DepartmentService');
+      await DeleteDepartment(id);
+      message.success('Удалено');
+      load();
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+  };
+
+  const columns = [
+    { title: 'Наименование', dataIndex: 'name', key: 'name' },
+    {
+      title: 'Действия', key: 'actions', width: 100,
+      render: (_: any, record: any) => (
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => {
+            setEditItem(record);
+            form.setFieldsValue(record);
+            setModalOpen(true);
+          }} />
+          <Popconfirm title="Удалить?" onConfirm={() => onDelete(record.id)}>
+            <Button size="small" icon={<DeleteOutlined />} danger />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+        setEditItem(null);
+        form.resetFields();
+        setModalOpen(true);
+      }} style={{ marginBottom: 16 }}>Добавить подразделение</Button>
+
+      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} size="small" pagination={false} />
+
+      <Modal
+        title={editItem ? 'Редактировать подразделение' : 'Новое подразделение'}
+        open={modalOpen}
+        onCancel={() => { setModalOpen(false); setEditItem(null); }}
+        onOk={() => form.submit()}
+      >
+        <Form form={form} layout="vertical" onFinish={onSave}>
+          <Form.Item name="name" label="Наименование" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
+};
+
+// === Пользователи ===
+const UsersTab: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [form] = Form.useForm();
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { GetAllUsers } = await import('../../wailsjs/go/services/UserService');
+      const { GetAllDepartments } = await import('../../wailsjs/go/services/DepartmentService');
+
+      const [users, deps] = await Promise.all([GetAllUsers(), GetAllDepartments()]);
+      setData(users || []);
+      setDepartments(deps || []);
     } catch (err: any) {
       message.error(err?.message || String(err));
     }
@@ -380,6 +481,10 @@ const UsersTab: React.FC = () => {
   const columns = [
     { title: 'Логин', dataIndex: 'login', key: 'login', width: 150 },
     { title: 'ФИО', dataIndex: 'fullName', key: 'fullName' },
+    {
+      title: 'Подразделение', dataIndex: 'department', key: 'department',
+      render: (dep: any) => dep?.name || '-',
+    },
     {
       title: 'Роли', dataIndex: 'roles', key: 'roles',
       render: (roles: string[]) => (roles || []).map(r => (
@@ -433,6 +538,13 @@ const UsersTab: React.FC = () => {
           <Form.Item name="fullName" label="ФИО" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
+          <Form.Item name="departmentId" label="Подразделение" rules={[{ required: true }]}>
+            <Select showSearch optionFilterProp="children">
+              {departments.map(d => (
+                <Select.Option key={d.id} value={d.id}>{d.name}</Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
           <Form.Item name="roles" label="Роли" rules={[{ required: true }]}>
             <Select mode="multiple">
               <Select.Option value="admin">Администратор</Select.Option>
@@ -462,6 +574,7 @@ const SettingsPage: React.FC = () => {
           { key: 'nomenclature', label: 'Номенклатура дел', children: <NomenclatureTab /> },
           { key: 'documentTypes', label: 'Типы документов', children: <DocumentTypesTab /> },
           { key: 'organizations', label: 'Организации', children: <OrganizationsTab /> },
+          { key: 'departments', label: 'Подразделения', children: <DepartmentsTab /> },
           { key: 'users', label: 'Пользователи', children: <UsersTab /> },
         ]}
       />

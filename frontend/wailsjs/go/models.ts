@@ -88,6 +88,7 @@ export namespace models {
 	    password: string;
 	    fullName: string;
 	    roles: string[];
+	    departmentId: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateUserRequest(source);
@@ -99,6 +100,7 @@ export namespace models {
 	        this.password = source["password"];
 	        this.fullName = source["fullName"];
 	        this.roles = source["roles"];
+	        this.departmentId = source["departmentId"];
 	    }
 	}
 	export class DashboardStats {
@@ -131,6 +133,44 @@ export namespace models {
 	        this.totalDocuments = source["totalDocuments"];
 	        this.dbSize = source["dbSize"];
 	        this.expiringAssignments = this.convertValues(source["expiringAssignments"], Assignment);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Department {
+	    id: string;
+	    name: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Department(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -529,6 +569,7 @@ export namespace models {
 	    fullName: string;
 	    isActive: boolean;
 	    roles: string[];
+	    departmentId: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateUserRequest(source);
@@ -541,6 +582,7 @@ export namespace models {
 	        this.fullName = source["fullName"];
 	        this.isActive = source["isActive"];
 	        this.roles = source["roles"];
+	        this.departmentId = source["departmentId"];
 	    }
 	}
 	export class User {
@@ -553,6 +595,7 @@ export namespace models {
 	    createdAt: any;
 	    // Go type: time
 	    updatedAt: any;
+	    department?: Department;
 	
 	    static createFrom(source: any = {}) {
 	        return new User(source);
@@ -567,6 +610,7 @@ export namespace models {
 	        this.roles = source["roles"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.department = this.convertValues(source["department"], Department);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

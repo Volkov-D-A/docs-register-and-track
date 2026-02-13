@@ -13,7 +13,7 @@ import { useAuthStore } from '../store/useAuthStore';
 const { Title, Text } = Typography;
 
 const DashboardPage: React.FC = () => {
-    const { user, hasRole } = useAuthStore();
+    const { user, hasRole, currentRole } = useAuthStore();
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
 
@@ -21,7 +21,8 @@ const DashboardPage: React.FC = () => {
         setLoading(true);
         try {
             const { GetStats } = await import('../../wailsjs/go/services/DashboardService');
-            const data = await GetStats();
+            // Pass currentRole to GetStats. If null/undefined, backend handles default.
+            const data = await GetStats(currentRole || '');
             setStats(data);
         } catch (err: any) {
             console.error(err);
@@ -33,9 +34,10 @@ const DashboardPage: React.FC = () => {
 
     useEffect(() => {
         loadStats();
-    }, []);
+    }, [currentRole]); // Reload when role changes
 
-    const role = stats?.role || user?.roles?.[0] || 'executor';
+    // Use currentRole for view determination, fallback to stats.role if needed
+    const activeRole = currentRole || stats?.role || user?.roles?.[0] || 'executor';
 
     if (loading && !stats) {
         return <div style={{ textAlign: 'center', marginTop: 50 }}><Spin size="large" /></div>;
@@ -174,9 +176,9 @@ const DashboardPage: React.FC = () => {
                 <Button icon={<ReloadOutlined />} onClick={loadStats} disabled={loading}>Обновить</Button>
             </div>
 
-            {role === 'admin' && renderAdminView()}
-            {role === 'clerk' && renderClerkView()}
-            {role !== 'admin' && role !== 'clerk' && renderExecutorView()}
+            {activeRole === 'admin' && renderAdminView()}
+            {activeRole === 'clerk' && renderClerkView()}
+            {activeRole !== 'admin' && activeRole !== 'clerk' && renderExecutorView()}
         </div>
     );
 };
