@@ -338,12 +338,21 @@ const DepartmentsTab: React.FC = () => {
   const [editItem, setEditItem] = useState<any>(null);
   const [form] = Form.useForm();
 
+  const [nomenclatureList, setNomenclatureList] = useState<any[]>([]);
+
   const load = async () => {
     setLoading(true);
     try {
       const { GetAllDepartments } = await import('../../wailsjs/go/services/DepartmentService');
-      const items = await GetAllDepartments();
+      const { GetAll } = await import('../../wailsjs/go/services/NomenclatureService');
+
+      const [items, nomenclature] = await Promise.all([
+        GetAllDepartments(),
+        GetAll(0, ""), // Fetch all nomenclature
+      ]);
+
       setData(items || []);
+      setNomenclatureList(nomenclature || []);
     } catch (err: any) {
       message.error(err?.message || String(err));
     }
@@ -356,10 +365,10 @@ const DepartmentsTab: React.FC = () => {
     try {
       if (editItem) {
         const { UpdateDepartment } = await import('../../wailsjs/go/services/DepartmentService');
-        await UpdateDepartment(editItem.id, values.name);
+        await UpdateDepartment(editItem.id, values.name, values.nomenclatureIds);
       } else {
         const { CreateDepartment } = await import('../../wailsjs/go/services/DepartmentService');
-        await CreateDepartment(values.name);
+        await CreateDepartment(values.name, values.nomenclatureIds);
       }
       message.success(editItem ? 'Обновлено' : 'Создано');
       setModalOpen(false);
@@ -420,6 +429,15 @@ const DepartmentsTab: React.FC = () => {
         <Form form={form} layout="vertical" onFinish={onSave}>
           <Form.Item name="name" label="Наименование" rules={[{ required: true }]}>
             <Input />
+          </Form.Item>
+          <Form.Item name="nomenclatureIds" label="Видимые дела">
+            <Select mode="multiple" optionFilterProp="children" showSearch>
+              {nomenclatureList.map(n => (
+                <Select.Option key={n.id} value={n.id}>
+                  {n.index} {n.name}
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
         </Form>
       </Modal>

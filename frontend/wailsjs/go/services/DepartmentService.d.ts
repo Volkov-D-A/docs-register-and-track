@@ -3,7 +3,7 @@
 import {models} from '../models';
 import {context} from '../models';
 
-export function CreateDepartment(arg1:string):Promise<models.Department>;
+export function CreateDepartment(arg1:string,arg2:Array<string>):Promise<models.Department>;
 
 export function DeleteDepartment(arg1:string):Promise<void>;
 
@@ -11,4 +11,4 @@ export function GetAllDepartments():Promise<Array<models.Department>>;
 
 export function SetContext(arg1:context.Context):Promise<void>;
 
-export function UpdateDepartment(arg1:string,arg2:string):Promise<models.Department>;
+export function UpdateDepartment(arg1:string,arg2:string,arg3:Array<string>):Promise<models.Department>;

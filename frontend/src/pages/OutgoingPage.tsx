@@ -11,11 +11,18 @@ import {
 import dayjs from 'dayjs';
 import locale from 'antd/es/date-picker/locale/ru_RU';
 
+import { useAuthStore } from '../store/useAuthStore';
+
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 const OutgoingPage: React.FC = () => {
+    const { user, currentRole } = useAuthStore();
+    const isExecutorOnly = currentRole === 'executor';
+    // Скрываем фильтр, если пользователь — исполнитель без админских прав
+    const filterDisabled = isExecutorOnly;
+
     // Данные
     const [data, setData] = useState<any[]>([]);
     const [totalCount, setTotalCount] = useState(0);
@@ -86,7 +93,9 @@ const OutgoingPage: React.FC = () => {
             const { GetList } = await import('../../wailsjs/go/services/OutgoingDocumentService');
             const result = await GetList({
                 search, page, pageSize,
-                nomenclatureIds: filterNomenclatureIds,
+                nomenclatureIds: currentRole === 'executor'
+                    ? ((user?.department?.nomenclatureIds && user.department.nomenclatureIds.length > 0) ? user.department.nomenclatureIds : ['00000000-0000-0000-0000-000000000000'])
+                    : filterNomenclatureIds,
                 documentTypeId: '', orgId: '',
                 dateFrom: filterDateFrom, dateTo: filterDateTo,
                 outgoingNumber: filterOutgoingNumber,
@@ -219,17 +228,21 @@ const OutgoingPage: React.FC = () => {
             render: (_: any, r: any) => (
                 <Space>
                     <Button size="small" icon={<EyeOutlined />} onClick={() => { setViewDoc(r); setViewModalOpen(true); }} />
-                    <Button size="small" icon={<EditOutlined />} onClick={() => {
-                        setEditDoc(r);
-                        editForm.setFieldsValue({
-                            ...r,
-                            outgoingDate: dayjs(r.outgoingDate),
-                        });
-                        setEditModalOpen(true);
-                    }} />
-                    <Popconfirm title="Удалить?" onConfirm={() => onDelete(r.id)}>
-                        <Button size="small" icon={<DeleteOutlined />} danger />
-                    </Popconfirm>
+                    {!isExecutorOnly && (
+                        <>
+                            <Button size="small" icon={<EditOutlined />} onClick={() => {
+                                setEditDoc(r);
+                                editForm.setFieldsValue({
+                                    ...r,
+                                    outgoingDate: dayjs(r.outgoingDate),
+                                });
+                                setEditModalOpen(true);
+                            }} />
+                            <Popconfirm title="Удалить?" onConfirm={() => onDelete(r.id)}>
+                                <Button size="small" icon={<DeleteOutlined />} danger />
+                            </Popconfirm>
+                        </>
+                    )}
                 </Space>
             )
         }
@@ -240,20 +253,24 @@ const OutgoingPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Title level={4} style={{ margin: 0 }}>Исходящие документы</Title>
                 <Space>
-                    <Select
-                        mode="multiple" size="middle" style={{ minWidth: 250 }}
-                        placeholder="Все дела"
-                        value={filterNomenclatureIds}
-                        onChange={(vals: string[]) => { setFilterNomenclatureIds(vals); setPage(1); }}
-                        allowClear
-                        options={nomenclatures.map((n: any) => ({ value: n.id, label: `${n.index} — ${n.name}` }))}
-                    />
+                    {!filterDisabled && (
+                        <Select
+                            mode="multiple" size="middle" style={{ minWidth: 250 }}
+                            placeholder="Все дела"
+                            value={filterNomenclatureIds}
+                            onChange={(vals: string[]) => { setFilterNomenclatureIds(vals); setPage(1); }}
+                            allowClear
+                            options={nomenclatures.map((n: any) => ({ value: n.id, label: `${n.index} — ${n.name}` }))}
+                        />
+                    )}
                     <Input.Search placeholder="Поиск по содержанию..." allowClear onSearch={setSearch} style={{ width: 250 }} prefix={<SearchOutlined />} />
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-                        registerForm.resetFields();
-                        registerForm.setFieldsValue({ outgoingDate: dayjs(), pagesCount: 1 });
-                        setRegisterModalOpen(true);
-                    }}>Зарегистрировать</Button>
+                    {!isExecutorOnly && (
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+                            registerForm.resetFields();
+                            registerForm.setFieldsValue({ outgoingDate: dayjs(), pagesCount: 1 });
+                            setRegisterModalOpen(true);
+                        }}>Зарегистрировать</Button>
+                    )}
                 </Space>
             </div>
 

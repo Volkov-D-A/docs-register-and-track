@@ -28,6 +28,15 @@ function App() {
     }
 
     const renderPage = () => {
+        // Проверка прав доступа для администратора
+        // Администратор не должен иметь доступа к документам и поручениям
+        const { currentRole } = useAuthStore.getState();
+        if (currentRole === 'admin' && ['incoming', 'outgoing', 'assignments'].includes(currentPage)) {
+            // Если администратор пытается зайти на запрещенную страницу, показываем дашборд
+            // Можно добавить уведомление, но пока просто редирект (рендеринг другой страницы)
+            return <DashboardPage />;
+        }
+
         switch (currentPage) {
             case 'dashboard':
                 return <DashboardPage />;

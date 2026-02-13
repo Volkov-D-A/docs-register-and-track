@@ -16,6 +16,7 @@ type IncomingDocumentService struct {
 	repo    *repository.IncomingDocumentRepository
 	nomRepo *repository.NomenclatureRepository
 	refRepo *repository.ReferenceRepository
+	depRepo *repository.DepartmentRepository
 	auth    *AuthService
 }
 
@@ -23,12 +24,14 @@ func NewIncomingDocumentService(
 	repo *repository.IncomingDocumentRepository,
 	nomRepo *repository.NomenclatureRepository,
 	refRepo *repository.ReferenceRepository,
+	depRepo *repository.DepartmentRepository,
 	auth *AuthService,
 ) *IncomingDocumentService {
 	return &IncomingDocumentService{
 		repo:    repo,
 		nomRepo: nomRepo,
 		refRepo: refRepo,
+		depRepo: depRepo,
 		auth:    auth,
 	}
 }
@@ -42,6 +45,80 @@ func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*models
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
+
+	user, err := s.auth.GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+
+	// Если пользователь — исполнитель, ограничиваем видимость
+	if s.auth.HasRole("executor") && !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
+		if user.DepartmentID != nil {
+			allowedNomenclatures, err := s.depRepo.GetNomenclatureIDs(*user.DepartmentID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get allowed nomenclatures: %w", err)
+			}
+			// Если нет доступных номенклатур, возвращаем пустой результат или ошибку?
+			// Лучше просто фильтровать по пустым, тогда ничего не найдет.
+			if len(allowedNomenclatures) == 0 {
+				return &models.PagedResult{
+					Items:      []models.IncomingDocument{},
+					TotalCount: 0,
+					Page:       filter.Page,
+					PageSize:   filter.PageSize,
+				}, nil
+			}
+
+			// Если фильтр по номенклатуре уже задан, проверяем пересечение
+			if len(filter.NomenclatureIDs) > 0 {
+				// Оставляем только те, которые есть в allowedNomenclatures
+				var intersection []string
+				allowedMap := make(map[string]bool)
+				for _, id := range allowedNomenclatures {
+					allowedMap[id] = true
+				}
+				for _, id := range filter.NomenclatureIDs {
+					if allowedMap[id] {
+						intersection = append(intersection, id)
+					}
+				}
+				filter.NomenclatureIDs = intersection
+			} else if filter.NomenclatureID != "" {
+				// Если задан один ID, проверяем его наличие в allowed
+				allowed := false
+				for _, id := range allowedNomenclatures {
+					if id == filter.NomenclatureID {
+						allowed = true
+						break
+					}
+				}
+				if !allowed {
+					// Недоступна -> пустой результат
+					return &models.PagedResult{
+						Items:      []models.IncomingDocument{},
+						TotalCount: 0,
+						Page:       filter.Page,
+						PageSize:   filter.PageSize,
+					}, nil
+				}
+				// ID остается в фильтре
+			} else {
+				// Фильтр пустой -> подставляем все доступные
+				filter.NomenclatureIDs = allowedNomenclatures
+			}
+		} else {
+			// Исполнитель без отдела ничего не видит? Или видит все?
+			// По логике задачи: "разрешенных в справочнике подразделений к которому они относятся".
+			// Если не относится ни к какому -> ничего не видит.
+			return &models.PagedResult{
+				Items:      []models.IncomingDocument{},
+				TotalCount: 0,
+				Page:       filter.Page,
+				PageSize:   filter.PageSize,
+			}, nil
+		}
+	}
+
 	return s.repo.GetList(filter)
 }
 

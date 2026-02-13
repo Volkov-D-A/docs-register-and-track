@@ -1,12 +1,19 @@
 import { create } from 'zustand';
 import { Login, Logout, ChangePassword } from '../../wailsjs/go/services/AuthService';
 
+interface Department {
+    id: string;
+    name: string;
+    nomenclatureIds: string[];
+}
+
 interface User {
     id: string;
     login: string;
     fullName: string;
     isActive: boolean;
     roles: string[];
+    department?: Department;
 }
 
 interface AuthState {
@@ -38,9 +45,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             // Default role logic: use first role or specific priority
             let defaultRole = 'executor';
             if (user.roles && user.roles.length > 0) {
-                 if (user.roles.includes('admin')) defaultRole = 'admin';
-                 else if (user.roles.includes('clerk')) defaultRole = 'clerk';
-                 else defaultRole = user.roles[0];
+                if (user.roles.includes('admin')) defaultRole = 'admin';
+                else if (user.roles.includes('clerk')) defaultRole = 'clerk';
+                else defaultRole = user.roles[0];
             }
 
             set({
@@ -50,6 +57,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     fullName: user.fullName,
                     isActive: user.isActive,
                     roles: user.roles || [],
+                    department: user.department ? {
+                        id: user.department.id,
+                        name: user.department.name,
+                        nomenclatureIds: user.department.nomenclatureIds || []
+                    } : undefined,
                 },
                 isAuthenticated: true,
                 isLoading: false,
@@ -83,8 +95,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     clearError: () => set({ error: null }),
 
     hasRole: (role: string) => {
-        const { user } = get();
-        return user?.roles?.includes(role) ?? false;
+        const { currentRole } = get();
+        // If currentRole is set, we only check against it.
+        // If currentRole is not set (e.g. initial load), we might want to fall back to user roles or return false.
+        // Given the requirement "only active role counts", we should check if currentRole matches.
+        return currentRole === role;
     },
 
     setCurrentRole: (role: string) => {

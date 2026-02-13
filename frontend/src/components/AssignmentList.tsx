@@ -17,7 +17,8 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<any>(null);
-    const { user, hasRole } = useAuthStore();
+    const { user, hasRole, currentRole } = useAuthStore();
+    const isExecutorOnly = currentRole === 'executor';
 
     // Report modal
     const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -101,7 +102,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
         {
             title: '', key: 'actions', width: 150,
             render: (_: any, r: any) => {
-                const isExecutor = user?.id === r.executorId;
+                const isExecutor = user?.id === r.executorId && currentRole === 'executor';
                 const isAdmin = hasRole('admin');
                 const canEdit = isAdmin;
 
@@ -154,9 +155,11 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
     return (
         <div>
             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditAssignment(null); setModalOpen(true); }}>
-                    Добавить поручение
-                </Button>
+                {!isExecutorOnly && (
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditAssignment(null); setModalOpen(true); }}>
+                        Добавить поручение
+                    </Button>
+                )}
             </div>
 
             <Table

@@ -33,14 +33,14 @@ func (s *DepartmentService) GetAllDepartments() ([]models.Department, error) {
 	return s.repo.GetAll()
 }
 
-func (s *DepartmentService) CreateDepartment(name string) (*models.Department, error) {
+func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []string) (*models.Department, error) {
 	if !s.auth.HasRole("admin") {
 		return nil, fmt.Errorf("недостаточно прав")
 	}
-	return s.repo.Create(name)
+	return s.repo.Create(name, nomenclatureIDs)
 }
 
-func (s *DepartmentService) UpdateDepartment(id, name string) (*models.Department, error) {
+func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []string) (*models.Department, error) {
 	if !s.auth.HasRole("admin") {
 		return nil, fmt.Errorf("недостаточно прав")
 	}
@@ -48,7 +48,7 @@ func (s *DepartmentService) UpdateDepartment(id, name string) (*models.Departmen
 	if err != nil {
 		return nil, fmt.Errorf("invalid department ID: %w", err)
 	}
-	return s.repo.Update(uid, name)
+	return s.repo.Update(uid, name, nomenclatureIDs)
 }
 
 func (s *DepartmentService) DeleteDepartment(id string) error {

@@ -10,11 +10,18 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
+import { useAuthStore } from '../store/useAuthStore';
+
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 const IncomingPage: React.FC = () => {
+    const { user, currentRole } = useAuthStore();
+    const isExecutorOnly = currentRole === 'executor';
+    // Скрываем фильтр, если пользователь — исполнитель без админских прав
+    const filterDisabled = isExecutorOnly;
+
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [totalCount, setTotalCount] = useState(0);
@@ -101,7 +108,9 @@ const IncomingPage: React.FC = () => {
                 outgoingDateTo: filterOutDateTo,
                 resolution: filterNoResolution ? '' : filterResolution,
                 noResolution: filterNoResolution,
-                nomenclatureIds: filterNomenclatureIds,
+                nomenclatureIds: currentRole === 'executor'
+                    ? ((user?.department?.nomenclatureIds && user.department.nomenclatureIds.length > 0) ? user.department.nomenclatureIds : ['00000000-0000-0000-0000-000000000000'])
+                    : filterNomenclatureIds,
             });
             setData(result?.items || []);
             setTotalCount(result?.totalCount || 0);
@@ -205,10 +214,14 @@ const IncomingPage: React.FC = () => {
             render: (_: any, record: any) => (
                 <Space size={4}>
                     <Button size="small" icon={<EyeOutlined />} onClick={() => { setViewDoc(record); setViewModalOpen(true); }} />
-                    <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
-                    <Popconfirm title="Удалить документ?" onConfirm={() => onDelete(record.id)}>
-                        <Button size="small" icon={<DeleteOutlined />} danger />
-                    </Popconfirm>
+                    {!isExecutorOnly && (
+                        <>
+                            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
+                            <Popconfirm title="Удалить документ?" onConfirm={() => onDelete(record.id)}>
+                                <Button size="small" icon={<DeleteOutlined />} danger />
+                            </Popconfirm>
+                        </>
+                    )}
                 </Space>
             ),
         },
@@ -323,20 +336,24 @@ const IncomingPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Title level={4} style={{ margin: 0 }}>Входящие документы</Title>
                 <Space>
-                    <Select
-                        mode="multiple" size="middle" style={{ minWidth: 250 }}
-                        placeholder="Все дела"
-                        value={filterNomenclatureIds}
-                        onChange={(vals: string[]) => { setFilterNomenclatureIds(vals); setPage(1); }}
-                        allowClear
-                        options={nomenclatures.map((n: any) => ({ value: n.id, label: `${n.index} — ${n.name}` }))}
-                    />
+                    {!filterDisabled && (
+                        <Select
+                            mode="multiple" size="middle" style={{ minWidth: 250 }}
+                            placeholder="Все дела"
+                            value={filterNomenclatureIds}
+                            onChange={(vals: string[]) => { setFilterNomenclatureIds(vals); setPage(1); }}
+                            allowClear
+                            options={nomenclatures.map((n: any) => ({ value: n.id, label: `${n.index} — ${n.name}` }))}
+                        />
+                    )}
                     <Input.Search placeholder="Поиск по содержанию..." allowClear onSearch={setSearch} style={{ width: 250 }} prefix={<SearchOutlined />} />
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-                        registerForm.resetFields();
-                        registerForm.setFieldsValue({ incomingDate: dayjs(), pagesCount: 1 });
-                        setRegisterModalOpen(true);
-                    }}>Зарегистрировать</Button>
+                    {!isExecutorOnly && (
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+                            registerForm.resetFields();
+                            registerForm.setFieldsValue({ incomingDate: dayjs(), pagesCount: 1 });
+                            setRegisterModalOpen(true);
+                        }}>Зарегистрировать</Button>
+                    )}
                 </Space>
             </div>
 
@@ -443,7 +460,7 @@ const IncomingPage: React.FC = () => {
             <Modal title={`Входящий документ ${viewDoc?.incomingNumber || ''}`} open={viewModalOpen}
                 onCancel={() => setViewModalOpen(false)} width={700}
                 footer={[
-                    <Button key="edit" icon={<EditOutlined />} onClick={() => { setViewModalOpen(false); openEdit(viewDoc); }}>Редактировать</Button>,
+                    !isExecutorOnly && <Button key="edit" icon={<EditOutlined />} onClick={() => { setViewModalOpen(false); openEdit(viewDoc); }}>Редактировать</Button>,
                     <Button key="close" type="primary" onClick={() => setViewModalOpen(false)}>Закрыть</Button>,
                 ]}>
                 {viewDoc && (

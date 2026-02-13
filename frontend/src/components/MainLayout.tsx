@@ -21,7 +21,7 @@ interface MainLayoutProps {
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageChange }) => {
-    const { user, logout, hasRole } = useAuthStore();
+    const { user, logout, hasRole, currentRole } = useAuthStore();
 
     const menuItems = [
         {
@@ -29,21 +29,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageCh
             icon: <DashboardOutlined />,
             label: 'Дашборд',
         },
-        {
-            key: 'incoming',
-            icon: <InboxOutlined />,
-            label: 'Входящие',
-        },
-        {
-            key: 'outgoing',
-            icon: <SendOutlined />,
-            label: 'Исходящие',
-        },
-        {
-            key: 'assignments',
-            icon: <CheckSquareOutlined />,
-            label: 'Поручения',
-        },
+        ...(currentRole !== 'admin' ? [
+            {
+                key: 'incoming',
+                icon: <InboxOutlined />,
+                label: 'Входящие',
+            },
+            {
+                key: 'outgoing',
+                icon: <SendOutlined />,
+                label: 'Исходящие',
+            },
+            {
+                key: 'assignments',
+                icon: <CheckSquareOutlined />,
+                label: 'Поручения',
+            },
+        ] : []),
         ...(hasRole('admin') ? [{
             key: 'settings',
             icon: <SettingOutlined />,
@@ -119,7 +121,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageCh
                             <span style={{ marginRight: 8, color: '#888' }}>Роль:</span>
                             <Select
                                 value={useAuthStore.getState().currentRole}
-                                onChange={(val: string) => useAuthStore.getState().setCurrentRole(val)}
+                                onChange={(val: string) => {
+                                    useAuthStore.getState().setCurrentRole(val);
+                                    onPageChange('dashboard');
+                                }}
                                 style={{ width: 140 }}
                                 options={[
                                     { value: 'admin', label: 'Администратор' },

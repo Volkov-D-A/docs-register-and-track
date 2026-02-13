@@ -17,7 +17,7 @@ const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 const AssignmentsPage: React.FC = () => {
-    const { user, hasRole } = useAuthStore();
+    const { user, hasRole, currentRole } = useAuthStore();
     const [activeTab, setActiveTab] = useState('inbox');
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -160,7 +160,7 @@ const AssignmentsPage: React.FC = () => {
         {
             title: 'Действия', key: 'actions', width: 140,
             render: (_: any, r: any) => {
-                const isExecutor = user?.id === r.executorId;
+                const isExecutor = user?.id === r.executorId && currentRole === 'executor';
                 const isAdmin = hasRole('admin');
                 const canEdit = isAdmin;
 

@@ -16,6 +16,7 @@ type OutgoingDocumentService struct {
 	repo    *repository.OutgoingDocumentRepository
 	refRepo *repository.ReferenceRepository
 	nomRepo *repository.NomenclatureRepository
+	depRepo *repository.DepartmentRepository
 	auth    *AuthService
 }
 
@@ -23,12 +24,14 @@ func NewOutgoingDocumentService(
 	repo *repository.OutgoingDocumentRepository,
 	refRepo *repository.ReferenceRepository,
 	nomRepo *repository.NomenclatureRepository,
+	depRepo *repository.DepartmentRepository,
 	auth *AuthService,
 ) *OutgoingDocumentService {
 	return &OutgoingDocumentService{
 		repo:    repo,
 		refRepo: refRepo,
 		nomRepo: nomRepo,
+		depRepo: depRepo,
 		auth:    auth,
 	}
 }
@@ -157,6 +160,54 @@ func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) 
 	if filter.PageSize < 1 {
 		filter.PageSize = 20
 	}
+
+	user, err := s.auth.GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+
+	// Если пользователь — исполнитель, ограничиваем видимость
+	if s.auth.HasRole("executor") && !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
+		if user.DepartmentID != nil {
+			allowedNomenclatures, err := s.depRepo.GetNomenclatureIDs(*user.DepartmentID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get allowed nomenclatures: %w", err)
+			}
+
+			if len(allowedNomenclatures) == 0 {
+				return &models.PagedResult{
+					Items:      []models.OutgoingDocument{},
+					TotalCount: 0,
+					Page:       filter.Page,
+					PageSize:   filter.PageSize,
+				}, nil
+			}
+
+			if len(filter.NomenclatureIDs) > 0 {
+				var intersection []string
+				allowedMap := make(map[string]bool)
+				for _, id := range allowedNomenclatures {
+					allowedMap[id] = true
+				}
+				for _, id := range filter.NomenclatureIDs {
+					if allowedMap[id] {
+						intersection = append(intersection, id)
+					}
+				}
+				filter.NomenclatureIDs = intersection
+			} else {
+				filter.NomenclatureIDs = allowedNomenclatures
+			}
+		} else {
+			return &models.PagedResult{
+				Items:      []models.OutgoingDocument{},
+				TotalCount: 0,
+				Page:       filter.Page,
+				PageSize:   filter.PageSize,
+			}, nil
+		}
+	}
+
 	return s.repo.GetList(filter)
 }
 
