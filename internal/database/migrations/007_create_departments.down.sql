@@ -1,3 +1,0 @@
-ALTER TABLE users DROP COLUMN IF EXISTS department_id;
-
-DROP TABLE IF EXISTS departments;
