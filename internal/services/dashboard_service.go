@@ -66,9 +66,10 @@ func (s *DashboardService) GetStats(requestedRole string, period string) (*model
 		ExpiringAssignments: []models.Assignment{},
 	}
 
-	if role == "admin" {
+	switch role {
+	case "admin":
 		return s.getAdminStats(stats)
-	} else if role == "clerk" {
+	case "clerk":
 		// Calculate period dates
 		now := time.Now()
 		// End date is effectively "now" or end of day, but for ">=" logic "now" is fine if we want up to now.
@@ -87,7 +88,7 @@ func (s *DashboardService) GetStats(requestedRole string, period string) (*model
 		}
 
 		return s.getClerkStats(stats, startDate)
-	} else {
+	default:
 		// Executor (default)
 		return s.getExecutorStats(stats, user.ID)
 	}

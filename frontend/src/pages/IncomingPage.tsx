@@ -4,6 +4,7 @@ import {
     InputNumber, Space, Row, Col, Tag, message, Popconfirm, AutoComplete, Collapse, Tabs,
 } from 'antd';
 import AssignmentList from '../components/AssignmentList';
+import FileListComponent from '../components/FileListComponent';
 import {
     PlusOutlined, SearchOutlined, EyeOutlined, DeleteOutlined, EditOutlined,
     FilterOutlined, ClearOutlined,
@@ -597,6 +598,10 @@ const IncomingPage: React.FC = () => {
                         {
                             key: 'assignments', label: 'Поручения',
                             children: <AssignmentList documentId={viewDoc.id} documentType="incoming" />
+                        },
+                        {
+                            key: 'files', label: 'Файлы',
+                            children: <FileListComponent documentId={viewDoc.id} documentType="incoming" readOnly={false} />
                         }
                     ]} />
                 )}

@@ -57,6 +57,8 @@ func main() {
 	outgoingDocRepo := repository.NewOutgoingDocumentRepository(db)
 	assignmentRepo := repository.NewAssignmentRepository(db)
 	departmentRepo := repository.NewDepartmentRepository(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	attachmentRepo := repository.NewAttachmentRepository(db)
 
 	// Создание сервисов
 	authService := services.NewAuthService(userRepo)
@@ -68,6 +70,8 @@ func main() {
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService)
 	dashboardService := services.NewDashboardService(db, authService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService)
+	settingsService := services.NewSettingsService(settingsRepo, authService)
+	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService)
 
 	// Запуск приложения Wails
 	err = wails.Run(&options.App{
@@ -88,6 +92,8 @@ func main() {
 			assignmentService.SetContext(ctx)
 			dashboardService.SetContext(ctx)
 			departmentService.SetContext(ctx)
+			settingsService.SetContext(ctx)
+			attachmentService.SetContext(ctx)
 		},
 		Bind: []interface{}{
 			authService,
@@ -99,6 +105,8 @@ func main() {
 			assignmentService,
 			dashboardService,
 			departmentService,
+			settingsService,
+			attachmentService,
 		},
 	})
 

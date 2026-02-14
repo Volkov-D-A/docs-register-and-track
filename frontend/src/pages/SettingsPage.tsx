@@ -581,6 +581,63 @@ const UsersTab: React.FC = () => {
   );
 };
 
+// === Системные настройки ===
+const SystemSettingsTab: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+  const [form] = Form.useForm();
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { GetAll } = await import('../../wailsjs/go/services/SettingsService');
+      const settings = await GetAll();
+      if (settings) {
+        const values: any = {};
+        settings.forEach((s: any) => values[s.key] = s.value);
+        form.setFieldsValue(values);
+      }
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onSave = async (values: any) => {
+    setLoading(true);
+    try {
+      const { Update } = await import('../../wailsjs/go/services/SettingsService');
+      // Save each setting
+      for (const key in values) {
+        await Update(key, String(values[key]));
+      }
+      message.success('Настройки сохранены');
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <Form form={form} layout="vertical" onFinish={onSave}>
+        <Form.Item name="max_file_size_mb" label="Максимальный размер файла (МБ)" rules={[{ required: true }]}>
+          <InputNumber min={1} max={1000} style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="allowed_file_types" label="Разрешенные типы файлов (через запятую)" rules={[{ required: true }]}>
+          <Input placeholder=".pdf, .doc, .docx" />
+        </Form.Item>
+        <Form.Item>
+          <Button type="primary" htmlType="submit" loading={loading} icon={<EditOutlined />}>
+            Сохранить
+          </Button>
+        </Form.Item>
+      </Form>
+    </div>
+  );
+};
+
 // === Основная страница ===
 const SettingsPage: React.FC = () => {
   return (
@@ -594,6 +651,7 @@ const SettingsPage: React.FC = () => {
           { key: 'organizations', label: 'Организации', children: <OrganizationsTab /> },
           { key: 'departments', label: 'Подразделения', children: <DepartmentsTab /> },
           { key: 'users', label: 'Пользователи', children: <UsersTab /> },
+          { key: 'system', label: 'Системные настройки', children: <SystemSettingsTab /> },
         ]}
       />
     </div>

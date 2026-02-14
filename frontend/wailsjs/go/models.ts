@@ -90,6 +90,55 @@ export namespace models {
 	        this.pageSize = source["pageSize"];
 	    }
 	}
+	export class Attachment {
+	    id: string;
+	    documentId: string;
+	    documentType: string;
+	    filename: string;
+	    filepath: string;
+	    fileSize: number;
+	    contentType: string;
+	    uploadedBy: string;
+	    uploadedByName?: string;
+	    // Go type: time
+	    uploadedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Attachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.documentId = source["documentId"];
+	        this.documentType = source["documentType"];
+	        this.filename = source["filename"];
+	        this.filepath = source["filepath"];
+	        this.fileSize = source["fileSize"];
+	        this.contentType = source["contentType"];
+	        this.uploadedBy = source["uploadedBy"];
+	        this.uploadedByName = source["uploadedByName"];
+	        this.uploadedAt = this.convertValues(source["uploadedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CreateUserRequest {
 	    login: string;
 	    password: string;
@@ -334,6 +383,20 @@ export namespace models {
 		    }
 		    return a;
 		}
+	}
+	export class DownloadResponse {
+	    filename: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filename = source["filename"];
+	        this.content = source["content"];
+	    }
 	}
 	export class IncomingDocument {
 	    id: string;
@@ -582,6 +645,43 @@ export namespace models {
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	    }
+	}
+	export class SystemSetting {
+	    key: string;
+	    value: string;
+	    description: string;
+	    // Go type: time
+	    updatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new SystemSetting(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.value = source["value"];
+	        this.description = source["description"];
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class UpdateUserRequest {
 	    id: string;
