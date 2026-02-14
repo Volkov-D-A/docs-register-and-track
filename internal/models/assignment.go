@@ -18,10 +18,11 @@ type Assignment struct {
 	ExecutorIDStr string    `json:"executorId"`
 	ExecutorName  string    `json:"executorName,omitempty"`
 
-	Content  string     `json:"content"`
-	Deadline *time.Time `json:"deadline,omitempty"`
-	Status   string     `json:"status"` // new, in_progress, completed, cancelled, returned
-	Report   string     `json:"report,omitempty"`
+	Content     string     `json:"content"`
+	Deadline    *time.Time `json:"deadline,omitempty"`
+	Status      string     `json:"status"` // new, in_progress, completed, cancelled, returned, finished
+	Report      string     `json:"report,omitempty"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
 
 	DocumentNumber  string `json:"documentNumber,omitempty"`
 	DocumentSubject string `json:"documentSubject,omitempty"`
@@ -37,12 +38,14 @@ func (a *Assignment) FillIDStr() {
 }
 
 type AssignmentFilter struct {
-	Search     string `json:"search,omitempty"`
-	DocumentID string `json:"documentId,omitempty"`
-	ExecutorID string `json:"executorId,omitempty"`
-	Status     string `json:"status,omitempty"`
-	DateFrom   string `json:"dateFrom,omitempty"`
-	DateTo     string `json:"dateTo,omitempty"`
-	Page       int    `json:"page"`
-	PageSize   int    `json:"pageSize"`
+	Search       string `json:"search,omitempty"`
+	DocumentID   string `json:"documentId,omitempty"`
+	ExecutorID   string `json:"executorId,omitempty"`
+	Status       string `json:"status,omitempty"`
+	DateFrom     string `json:"dateFrom,omitempty"`
+	DateTo       string `json:"dateTo,omitempty"`
+	OverdueOnly  bool   `json:"overdueOnly"` // Added field
+	ShowFinished bool   `json:"showFinished"`
+	Page         int    `json:"page"`
+	PageSize     int    `json:"pageSize"`
 }

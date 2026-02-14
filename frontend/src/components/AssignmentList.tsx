@@ -30,7 +30,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
         setLoading(true);
         try {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
-            const result = await GetList({ documentId, page: 1, pageSize: 100 });
+            const result = await GetList({ documentId, page: 1, pageSize: 100, showFinished: true, overdueOnly: false });
             setData(result?.items || []);
         } catch (err) {
             console.error(err);
@@ -86,13 +86,28 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
         },
         {
             title: 'Статус', dataIndex: 'status', key: 'status', width: 120,
-            render: (status: string) => {
+            render: (status: string, record: any) => {
                 let color = 'default';
                 let text = status;
+
+                // Check for overdue completion (only for completed status)
+                // If completedAt is after deadline (day granularity)
+                const isOverdue = status === 'completed' && record.completedAt && record.deadline &&
+                    dayjs(record.completedAt).isAfter(dayjs(record.deadline), 'day');
+
                 switch (status) {
                     case 'new': color = 'blue'; text = 'Новое'; break;
                     case 'in_progress': color = 'orange'; text = 'В работе'; break;
-                    case 'completed': color = 'green'; text = 'Исполнено'; break;
+                    case 'completed':
+                        if (isOverdue) {
+                            color = 'red';
+                            text = 'Исполнено (просрочено)';
+                        } else {
+                            color = 'green';
+                            text = 'Исполнено';
+                        }
+                        break;
+                    case 'finished': color = 'geekblue'; text = 'Завершен'; break;
                     case 'cancelled': color = 'red'; text = 'Отменено'; break;
                     case 'returned': color = 'volcano'; text = 'Возврат'; break;
                 }
@@ -129,7 +144,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
                         {/* Complete: Executor, status=in_progress */}
                         {isExecutor && r.status === 'in_progress' && (
                             <Tooltip title="Исполнить">
-                                <Button size="small" icon={<CheckCircleOutlined />} type="primary" ghost
+                                <Button size="small" icon={<CheckCircleOutlined />}
                                     onClick={() => { setCurrentAssignmentId(r.id); setReportText(r.report || ''); setReportModalOpen(true); }} />
                             </Tooltip>
                         )}

@@ -26,7 +26,7 @@ const IncomingPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [totalCount, setTotalCount] = useState(0);
     const [page, setPage] = useState(1);
-    const [pageSize] = useState(20);
+    const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState('');
 
     // Фильтры
@@ -109,7 +109,7 @@ const IncomingPage: React.FC = () => {
                 resolution: filterNoResolution ? '' : filterResolution,
                 noResolution: filterNoResolution,
                 nomenclatureIds: currentRole === 'executor'
-                    ? ((user?.department?.nomenclatureIds && user.department.nomenclatureIds.length > 0) ? user.department.nomenclatureIds : ['00000000-0000-0000-0000-000000000000'])
+                    ? ((user?.department?.nomenclatureIds?.length) ? user.department.nomenclatureIds : ['00000000-0000-0000-0000-000000000000'])
                     : filterNomenclatureIds,
             });
             setData(result?.items || []);
@@ -201,18 +201,60 @@ const IncomingPage: React.FC = () => {
     };
 
     const columns = [
-        { title: '№', key: 'idx', width: 50, render: (_: any, __: any, idx: number) => (page - 1) * pageSize + idx + 1 },
-        { title: 'Рег. номер', dataIndex: 'incomingNumber', key: 'incomingNumber', width: 120 },
-        { title: 'Дата', dataIndex: 'incomingDate', key: 'incomingDate', width: 100, render: (v: string) => v ? dayjs(v).format('DD.MM.YYYY') : '' },
-        { title: 'Корреспондент', dataIndex: 'senderOrgName', key: 'senderOrgName', width: 180, ellipsis: true },
-        { title: 'Исх. №', key: 'outgoing', width: 130, render: (_: any, r: any) => r.outgoingNumberSender || '—' },
-        { title: 'Содержание', dataIndex: 'subject', key: 'subject', ellipsis: true },
-        { title: 'Тип', dataIndex: 'documentTypeName', key: 'documentTypeName', width: 110, render: (v: string) => <Tag>{v}</Tag> },
-        { title: 'Резолюция', dataIndex: 'resolution', key: 'resolution', width: 120, ellipsis: true, render: (v: string | null) => v || <Text type="secondary">—</Text> },
         {
-            title: '', key: 'actions', width: 110,
+            title: 'Номер / Дата',
+            key: 'number',
+            width: 140,
+            render: (_: any, r: any) => (
+                <div>
+                    <div style={{ fontWeight: 600 }}>{r.incomingNumber}</div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                        от {dayjs(r.incomingDate).format('DD.MM.YYYY')}
+                    </div>
+                </div>
+            )
+        },
+        {
+            title: 'Отправитель',
+            key: 'sender',
+            width: 250,
+            render: (_: any, r: any) => (
+                <div>
+                    <div style={{ fontWeight: 600 }}>{r.senderOrgName}</div>
+                    {(r.outgoingNumberSender || r.outgoingDateSender) && (
+                        <div style={{ fontSize: 12, color: '#666' }}>
+                            Исх: {r.outgoingNumberSender} {r.outgoingDateSender ? `от ${dayjs(r.outgoingDateSender).format('DD.MM.YYYY')}` : ''}
+                        </div>
+                    )}
+                </div>
+            )
+        },
+        {
+            title: 'Краткое содержание',
+            key: 'content',
+            render: (_: any, r: any) => (
+                <div>
+                    <div style={{ fontWeight: 500 }}>{r.subject}</div>
+                </div>
+            )
+        },
+        {
+            title: 'Адресат / Резолюция',
+            key: 'addressee',
+            width: 220,
+            render: (_: any, r: any) => (
+                <div style={{ fontSize: 12 }}>
+                    <div>Кому: {r.addressee}</div>
+                    {r.resolution && <div style={{ marginTop: 4, fontStyle: 'italic', color: '#555' }}>Рез: {r.resolution}</div>}
+                </div>
+            )
+        },
+        {
+            title: 'Действия',
+            key: 'actions',
+            width: 120,
             render: (_: any, record: any) => (
-                <Space size={4}>
+                <Space>
                     <Button size="small" icon={<EyeOutlined />} onClick={() => { setViewDoc(record); setViewModalOpen(true); }} />
                     {!isExecutorOnly && (
                         <>
@@ -441,7 +483,11 @@ const IncomingPage: React.FC = () => {
             />
 
             <Table columns={columns} dataSource={data} rowKey="id" loading={loading} size="small"
-                pagination={{ current: page, pageSize, total: totalCount, onChange: setPage, showTotal: (total) => `Всего: ${total}` }}
+                pagination={{
+                    current: page, pageSize, total: totalCount,
+                    onChange: (p, ps) => { setPage(p); setPageSize(ps); },
+                    showSizeChanger: true, pageSizeOptions: ['10', '20', '50']
+                }}
             />
 
             {/* Регистрация */}

@@ -52,6 +52,9 @@ func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
 			IDStr: uid.String(),
 			Name:  departmentName.String,
 		}
+		if noms, err := r.getDepartmentNomenclatureIDs(uid); err == nil {
+			user.Department.NomenclatureIDs = noms
+		}
 	}
 
 	user.FillIDStr()
@@ -97,6 +100,9 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 			ID:    uid,
 			IDStr: uid.String(),
 			Name:  departmentName.String,
+		}
+		if noms, err := r.getDepartmentNomenclatureIDs(uid); err == nil {
+			user.Department.NomenclatureIDs = noms
 		}
 	}
 
@@ -145,6 +151,11 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 				ID:    uid,
 				IDStr: uid.String(),
 				Name:  departmentName.String,
+			}
+		}
+		if user.Department != nil {
+			if noms, err := r.getDepartmentNomenclatureIDs(user.Department.ID); err == nil {
+				user.Department.NomenclatureIDs = noms
 			}
 		}
 
@@ -296,6 +307,11 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 				Name:  departmentName.String,
 			}
 		}
+		if user.Department != nil {
+			if noms, err := r.getDepartmentNomenclatureIDs(user.Department.ID); err == nil {
+				user.Department.NomenclatureIDs = noms
+			}
+		}
 
 		user.FillIDStr()
 		roles, err := r.GetUserRoles(user.ID)
@@ -328,6 +344,29 @@ func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) err
 		return err
 	}
 	return r.UpdatePassword(userID, hash)
+}
+
+func (r *UserRepository) getDepartmentNomenclatureIDs(departmentID uuid.UUID) ([]string, error) {
+	query := `
+		SELECT nomenclature_id
+		FROM department_nomenclature
+		WHERE department_id = $1
+	`
+	rows, err := r.db.Query(query, departmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id.String())
+	}
+	return ids, nil
 }
 
 func VerifyPassword(hashedPassword, password string) bool {

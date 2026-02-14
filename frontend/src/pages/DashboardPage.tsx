@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Typography, Card, Row, Col, Statistic, List, Tag, Spin, message,
-    Button, Empty
+    Button, Empty, Select
 } from 'antd';
 import {
     ClockCircleOutlined, FileTextOutlined, CheckCircleOutlined,
@@ -11,18 +11,21 @@ import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 
 const { Title, Text } = Typography;
+const { Option } = Select;
 
 const DashboardPage: React.FC = () => {
     const { user, hasRole, currentRole } = useAuthStore();
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [period, setPeriod] = useState<string>('month');
 
     const loadStats = async () => {
         setLoading(true);
         try {
             const { GetStats } = await import('../../wailsjs/go/services/DashboardService');
             // Pass currentRole to GetStats. If null/undefined, backend handles default.
-            const data = await GetStats(currentRole || '');
+            // @ts-ignore
+            const data = await GetStats(currentRole || '', period);
             setStats(data);
         } catch (err: any) {
             console.error(err);
@@ -34,7 +37,7 @@ const DashboardPage: React.FC = () => {
 
     useEffect(() => {
         loadStats();
-    }, [currentRole]); // Reload when role changes
+    }, [currentRole, period]); // Reload when role or period changes
 
     // Use currentRole for view determination, fallback to stats.role if needed
     const activeRole = currentRole || stats?.role || user?.roles?.[0] || 'executor';
@@ -50,7 +53,7 @@ const DashboardPage: React.FC = () => {
             <Statistic
                 title={<span style={{ fontWeight: 500 }}>{title}</span>}
                 value={value}
-                prefix={icon && <span style={{ color, marginRight: 8, fontSize: 20 }}>{icon}</span>}
+                prefix={icon && <span style={{ color, marginRight: 8, fontSize: 24 }}>{icon}</span>}
                 suffix={suffix}
                 valueStyle={{ fontWeight: 600 }}
             />
@@ -105,14 +108,30 @@ const DashboardPage: React.FC = () => {
         <>
             <Title level={4}>Моя статистика</Title>
             <Row gutter={[16, 16]}>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Новые" value={stats?.myAssignmentsNew || 0} icon={<FileTextOutlined />} color="#1890ff" />
+                <Col xs={24} sm={6}>
+                    <StatCard title="Новые" value={stats?.myAssignmentsNew || 0} icon={<FileTextOutlined />} color="#69c0ff" />
                 </Col>
-                <Col xs={24} sm={8}>
-                    <StatCard title="В работе" value={stats?.myAssignmentsInProgress || 0} icon={<ClockCircleOutlined />} color="#fa8c16" />
+                <Col xs={24} sm={6}>
+                    <StatCard title="В работе" value={stats?.myAssignmentsInProgress || 0} icon={<ClockCircleOutlined />} color="#ffc069" />
                 </Col>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Просрочено" value={stats?.myAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff4d4f" />
+                <Col xs={24} sm={6}>
+                    <StatCard title="Просрочено (активные)" value={stats?.myAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
+                </Col>
+                <Col xs={24} sm={6}>
+                    <StatCard
+                        title="Завершено"
+                        value={stats?.myAssignmentsFinished || 0}
+                        icon={<CheckCircleOutlined />}
+                        color="#95de64"
+                        suffix={
+                            (stats?.myAssignmentsFinishedLate > 0) ? (
+                                <span style={{ marginLeft: 12, fontSize: 'inherit' }}>
+                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 24 }} />
+                                    <span style={{ color: 'black' }}>{stats.myAssignmentsFinishedLate}</span>
+                                </span>
+                            ) : null
+                        }
+                    />
                 </Col>
             </Row>
 
@@ -122,16 +141,45 @@ const DashboardPage: React.FC = () => {
 
     const renderClerkView = () => (
         <>
-            <Title level={4}>Статистика за текущий месяц</Title>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Title level={4} style={{ margin: 0 }}>
+                    Статистика: {
+                        period === 'month' ? 'Текущий месяц' :
+                            period === 'quarter' ? 'Текущий квартал' :
+                                'Текущий год'
+                    }
+                </Title>
+                <Select value={period} style={{ width: 160 }} onChange={setPeriod}>
+                    <Option value="month">Текущий месяц</Option>
+                    <Option value="quarter">Текущий квартал</Option>
+                    <Option value="year">Текущий год</Option>
+                </Select>
+            </div>
             <Row gutter={[16, 16]}>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Входящие" value={stats?.incomingCountMonth || 0} icon={<FileTextOutlined />} color="#52c41a" />
+                <Col xs={24} sm={6}>
+                    <StatCard title="Входящие" value={stats?.incomingCountMonth || 0} icon={<FileTextOutlined />} color="#95de64" />
                 </Col>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Исходящие" value={stats?.outgoingCountMonth || 0} icon={<FileTextOutlined />} color="#722ed1" />
+                <Col xs={24} sm={6}>
+                    <StatCard title="Исходящие" value={stats?.outgoingCountMonth || 0} icon={<FileTextOutlined />} color="#b37feb" />
                 </Col>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Просрочено (всего)" value={stats?.allAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff4d4f" />
+                <Col xs={24} sm={6}>
+                    <StatCard title="Просрочено (всего)" value={stats?.allAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
+                </Col>
+                <Col xs={24} sm={6}>
+                    <StatCard
+                        title="Завершено (всего)"
+                        value={stats?.allAssignmentsFinished || 0}
+                        icon={<CheckCircleOutlined />}
+                        color="#95de64"
+                        suffix={
+                            (stats?.allAssignmentsFinishedLate > 0) ? (
+                                <span style={{ marginLeft: 12, fontSize: 'inherit' }}>
+                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 24 }} />
+                                    <span style={{ color: 'black' }}>{stats.allAssignmentsFinishedLate}</span>
+                                </span>
+                            ) : null
+                        }
+                    />
                 </Col>
             </Row>
 

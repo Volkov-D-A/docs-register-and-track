@@ -94,7 +94,7 @@ const OutgoingPage: React.FC = () => {
             const result = await GetList({
                 search, page, pageSize,
                 nomenclatureIds: currentRole === 'executor'
-                    ? ((user?.department?.nomenclatureIds && user.department.nomenclatureIds.length > 0) ? user.department.nomenclatureIds : ['00000000-0000-0000-0000-000000000000'])
+                    ? ((user?.department?.nomenclatureIds?.length) ? user.department.nomenclatureIds : ['00000000-0000-0000-0000-000000000000'])
                     : filterNomenclatureIds,
                 documentTypeId: '', orgId: '',
                 dateFrom: filterDateFrom, dateTo: filterDateTo,

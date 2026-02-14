@@ -11,6 +11,8 @@ export namespace models {
 	    deadline?: any;
 	    status: string;
 	    report?: string;
+	    // Go type: time
+	    completedAt?: any;
 	    documentNumber?: string;
 	    documentSubject?: string;
 	    // Go type: time
@@ -33,6 +35,7 @@ export namespace models {
 	        this.deadline = this.convertValues(source["deadline"], null);
 	        this.status = source["status"];
 	        this.report = source["report"];
+	        this.completedAt = this.convertValues(source["completedAt"], null);
 	        this.documentNumber = source["documentNumber"];
 	        this.documentSubject = source["documentSubject"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
@@ -64,6 +67,8 @@ export namespace models {
 	    status?: string;
 	    dateFrom?: string;
 	    dateTo?: string;
+	    overdueOnly: boolean;
+	    showFinished: boolean;
 	    page: number;
 	    pageSize: number;
 	
@@ -79,6 +84,8 @@ export namespace models {
 	        this.status = source["status"];
 	        this.dateFrom = source["dateFrom"];
 	        this.dateTo = source["dateTo"];
+	        this.overdueOnly = source["overdueOnly"];
+	        this.showFinished = source["showFinished"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	    }
@@ -108,9 +115,13 @@ export namespace models {
 	    myAssignmentsNew?: number;
 	    myAssignmentsInProgress?: number;
 	    myAssignmentsOverdue?: number;
+	    myAssignmentsFinished?: number;
+	    myAssignmentsFinishedLate?: number;
 	    incomingCountMonth?: number;
 	    outgoingCountMonth?: number;
 	    allAssignmentsOverdue?: number;
+	    allAssignmentsFinished?: number;
+	    allAssignmentsFinishedLate?: number;
 	    userCount?: number;
 	    totalDocuments?: number;
 	    dbSize?: string;
@@ -126,9 +137,13 @@ export namespace models {
 	        this.myAssignmentsNew = source["myAssignmentsNew"];
 	        this.myAssignmentsInProgress = source["myAssignmentsInProgress"];
 	        this.myAssignmentsOverdue = source["myAssignmentsOverdue"];
+	        this.myAssignmentsFinished = source["myAssignmentsFinished"];
+	        this.myAssignmentsFinishedLate = source["myAssignmentsFinishedLate"];
 	        this.incomingCountMonth = source["incomingCountMonth"];
 	        this.outgoingCountMonth = source["outgoingCountMonth"];
 	        this.allAssignmentsOverdue = source["allAssignmentsOverdue"];
+	        this.allAssignmentsFinished = source["allAssignmentsFinished"];
+	        this.allAssignmentsFinishedLate = source["allAssignmentsFinishedLate"];
 	        this.userCount = source["userCount"];
 	        this.totalDocuments = source["totalDocuments"];
 	        this.dbSize = source["dbSize"];

@@ -79,7 +79,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageCh
     };
 
     return (
-        <Layout style={{ minHeight: '100vh' }}>
+        <Layout style={{ height: '100vh' }}>
             <Sider
                 theme="light"
                 width={220}
@@ -107,7 +107,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageCh
                 />
             </Sider>
 
-            <Layout>
+            <Layout style={{ height: '100vh', overflow: 'hidden' }}>
                 <Header style={{
                     background: '#fff',
                     padding: '0 24px',
@@ -143,8 +143,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageCh
                     </Dropdown>
                 </Header>
 
-                <Content style={{ margin: 24, padding: 24, background: '#fff', borderRadius: 8 }}>
-                    {children}
+                <Content style={{ overflowY: 'auto', padding: 24, height: 'calc(100vh - 64px)' }}>
+                    <div style={{ background: '#fff', padding: 24, borderRadius: 8, minHeight: '100%' }}>
+                        {children}
+                    </div>
                 </Content>
             </Layout>
         </Layout>

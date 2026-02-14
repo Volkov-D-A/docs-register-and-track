@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -25,7 +26,7 @@ func (s *DashboardService) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-func (s *DashboardService) GetStats(requestedRole string) (*models.DashboardStats, error) {
+func (s *DashboardService) GetStats(requestedRole string, period string) (*models.DashboardStats, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -37,7 +38,7 @@ func (s *DashboardService) GetStats(requestedRole string) (*models.DashboardStat
 
 	// Determine effective role
 	role := "executor"
-	
+
 	// If a specific role is requested, verify user has it
 	if requestedRole != "" {
 		if s.auth.HasRole(requestedRole) {
@@ -68,7 +69,24 @@ func (s *DashboardService) GetStats(requestedRole string) (*models.DashboardStat
 	if role == "admin" {
 		return s.getAdminStats(stats)
 	} else if role == "clerk" {
-		return s.getClerkStats(stats)
+		// Calculate period dates
+		now := time.Now()
+		// End date is effectively "now" or end of day, but for ">=" logic "now" is fine if we want up to now.
+		// Usually for stats "current month" means from 1st to now.
+
+		var startDate time.Time
+		switch period {
+		case "quarter":
+			month := int(now.Month())
+			qStartMonth := ((month-1)/3)*3 + 1
+			startDate = time.Date(now.Year(), time.Month(qStartMonth), 1, 0, 0, 0, 0, now.Location())
+		case "year":
+			startDate = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+		default: // "month" or empty
+			startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		}
+
+		return s.getClerkStats(stats, startDate)
 	} else {
 		// Executor (default)
 		return s.getExecutorStats(stats, user.ID)
@@ -89,18 +107,35 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 	}
 
 	// 2. Overdue count (status in ('new', 'in_progress') AND deadline < NOW())
+	// OR status is 'completed' AND completed_at::date > deadline
 	err = s.db.QueryRow(`
 		SELECT COUNT(*) 
 		FROM assignments 
 		WHERE executor_id = $1 
-		  AND status IN ('new', 'in_progress') 
-		  AND deadline < CURRENT_DATE
+		  AND (
+		      (status IN ('new', 'in_progress') AND deadline < CURRENT_DATE)
+		      OR
+		      (status = 'completed' AND completed_at::date > deadline)
+		  )
 	`, userID).Scan(&stats.MyAssignmentsOverdue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get overdue count: %w", err)
 	}
 
+	// 2.1 Finished (total) and Finished Late
+	err = s.db.QueryRow(`
+		SELECT 
+			COUNT(*) FILTER (WHERE status = 'finished'),
+			COUNT(*) FILTER (WHERE status = 'finished' AND completed_at::date > deadline)
+		FROM assignments 
+		WHERE executor_id = $1
+	`, userID).Scan(&stats.MyAssignmentsFinished, &stats.MyAssignmentsFinishedLate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get finished counts: %w", err)
+	}
+
 	// 3. Expiring assignments (deadline within next 3 days)
+	// Only active assignments
 	rows, err := s.db.Query(`
 		SELECT 
 			a.id, a.content, a.deadline, a.status,
@@ -139,29 +174,59 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 	return stats, nil
 }
 
-func (s *DashboardService) getClerkStats(stats *models.DashboardStats) (*models.DashboardStats, error) {
-	// 1. Doc counts for current month - Fixed date_trunc
+func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate time.Time) (*models.DashboardStats, error) {
+	// 1. Doc counts for period
 	err := s.db.QueryRow(`
 		SELECT 
-			(SELECT COUNT(*) FROM incoming_documents WHERE date_trunc('month', created_at) = date_trunc('month', CURRENT_DATE)),
-			(SELECT COUNT(*) FROM outgoing_documents WHERE date_trunc('month', created_at) = date_trunc('month', CURRENT_DATE))
-	`).Scan(&stats.IncomingCountMonth, &stats.OutgoingCountMonth)
+			(SELECT COUNT(*) FROM incoming_documents WHERE created_at >= $1),
+			(SELECT COUNT(*) FROM outgoing_documents WHERE created_at >= $1)
+	`, startDate).Scan(&stats.IncomingCountMonth, &stats.OutgoingCountMonth)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get doc counts: %w", err)
 	}
 
 	// 2. All overdue count
+	// Strict interpretation: Assignments that are overdue NOW.
+	// Period interpretation: Assignments with deadline IN PERIOD that are overdue?
+	// The user asked "statistics for documents and assignments [for a period]".
+	// For overdue, usually you want to know what is overdue *right now*, regardless of when it was created.
+	// However, if we must apply the period, "Overdue projects started/deadlined in this period" makes sense.
+	// Let's stick to "Deadline >= startDate" for consistency if we want "Overdue assignments OF THIS PERIOD".
+	// But commonly "Overdue" is a current state.
+	// The request says "for statistics ... make choice of period".
+	// Let's assume the user wants to see stats relevant to that period.
+	// For "Overdue", it might mean "Assignments with deadline in this period that are overdue".
 	err = s.db.QueryRow(`
 		SELECT COUNT(*) 
 		FROM assignments 
-		WHERE status IN ('new', 'in_progress') 
-		  AND deadline < CURRENT_DATE
-	`).Scan(&stats.AllAssignmentsOverdue)
+		WHERE deadline >= $1 
+		  AND (
+		      (status IN ('new', 'in_progress') AND deadline < CURRENT_DATE)
+		      OR 
+		      (status = 'completed' AND completed_at::date > deadline)
+		  )
+	`, startDate).Scan(&stats.AllAssignmentsOverdue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get overdue count: %w", err)
 	}
 
+	// 3. Finished (all time in period) and Finished Late - NEW
+	// Fallback to updated_at if completed_at is NULL (for old data)
+	err = s.db.QueryRow(`
+		SELECT 
+			COUNT(*) FILTER (WHERE status = 'finished'),
+			COUNT(*) FILTER (WHERE status = 'finished' AND COALESCE(completed_at, updated_at)::date > deadline)
+		FROM assignments
+		WHERE status = 'finished' AND COALESCE(completed_at, updated_at) >= $1
+	`, startDate).Scan(&stats.AllAssignmentsFinished, &stats.AllAssignmentsFinishedLate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all finished counts: %w", err)
+	}
+
 	// 3. All expiring assignments (global) - Increased interval to 7 days for clerks
+	// Expiring is always "Future", so period doesn't quite apply, or it applies to "Active assignments in this period"?
+	// "Expiring" list is usually "What to look at NOW". Unlikely to need period filter here.
+	// We will leave expiring list as "Next 7 days from NOW".
 	rows, err := s.db.Query(`
 		SELECT 
 			a.id, a.content, a.deadline, a.status,

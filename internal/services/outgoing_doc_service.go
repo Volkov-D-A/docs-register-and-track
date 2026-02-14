@@ -194,6 +194,14 @@ func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) 
 						intersection = append(intersection, id)
 					}
 				}
+				if len(intersection) == 0 {
+					return &models.PagedResult{
+						Items:      []models.OutgoingDocument{},
+						TotalCount: 0,
+						Page:       filter.Page,
+						PageSize:   filter.PageSize,
+					}, nil
+				}
 				filter.NomenclatureIDs = intersection
 			} else {
 				filter.NomenclatureIDs = allowedNomenclatures

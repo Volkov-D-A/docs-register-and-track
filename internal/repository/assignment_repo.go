@@ -59,15 +59,16 @@ func (r *AssignmentRepository) Update(
 	content string,
 	deadline *time.Time,
 	status, report string,
+	completedAt *time.Time,
 ) (*models.Assignment, error) {
 	query := `
 		UPDATE assignments
 		SET executor_id = $1, content = $2, deadline = $3,
-		    status = $4, report = $5, updated_at = NOW()
-		WHERE id = $6
+		    status = $4, report = $5, completed_at = $6, updated_at = NOW()
+		WHERE id = $7
 	`
 
-	_, err := r.db.Exec(query, executorID, content, deadline, status, report, id)
+	_, err := r.db.Exec(query, executorID, content, deadline, status, report, completedAt, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update assignment: %w", err)
 	}
@@ -85,7 +86,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 		SELECT
 			a.id, a.document_id, a.document_type,
 			a.executor_id, u_executor.full_name,
-			a.content, a.deadline, a.status, a.report,
+			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
 			COALESCE(inc.subject, out.subject) as doc_subject
@@ -98,6 +99,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 
 	var a models.Assignment
 	var deadline sql.NullTime
+	var completedAt sql.NullTime
 	var report sql.NullString
 	var docNumber sql.NullString
 	var docSubject sql.NullString
@@ -105,7 +107,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	err := r.db.QueryRow(query, id).Scan(
 		&a.ID, &a.DocumentID, &a.DocumentType,
 		&a.ExecutorID, &a.ExecutorName,
-		&a.Content, &deadline, &a.Status, &report,
+		&a.Content, &deadline, &a.Status, &report, &completedAt,
 		&a.CreatedAt, &a.UpdatedAt,
 		&docNumber, &docSubject,
 	)
@@ -119,6 +121,9 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 
 	if deadline.Valid {
 		a.Deadline = &deadline.Time
+	}
+	if completedAt.Valid {
+		a.CompletedAt = &completedAt.Time
 	}
 	if report.Valid {
 		a.Report = report.String
@@ -139,7 +144,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		SELECT
 			a.id, a.document_id, a.document_type,
 			a.executor_id, u_executor.full_name,
-			a.content, a.deadline, a.status, a.report,
+			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
 			COALESCE(inc.subject, out.subject) as doc_subject
@@ -163,18 +168,43 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		args = append(args, filter.ExecutorID)
 		argIdx++
 	}
+
+	if filter.OverdueOnly {
+		// Overdue: deadline < current_date AND status not in (completed, finished, cancelled)
+		// OR status is completed but completed_at > deadline
+		// We use deadline < CURRENT_DATE because if deadline is today, it's not overdue yet until tomorrow?
+		// Usually "overdue" means deadline < today.
+		// However, some definitions allow today. Let's assume deadline < NOW() or CURRENT_DATE.
+		// Let's use strict CURRENT_DATE comparison for "deadline < today".
+		where = append(where, "(a.deadline < CURRENT_DATE AND (a.status NOT IN ('completed', 'finished', 'cancelled') OR (a.status = 'completed' AND a.completed_at::date > a.deadline)))")
+	}
+
 	if filter.Status != "" {
+		// If ShowFinished is false, we must strictly forbid "finished" status
+		// even if the user explicitly requested it (though frontend should prevent this).
+		if !filter.ShowFinished && filter.Status == "finished" {
+			// Return empty result efficiently
+			return &models.PagedResult{Items: []models.Assignment{}, TotalCount: 0, Page: filter.Page, PageSize: filter.PageSize}, nil
+		}
+
 		where = append(where, fmt.Sprintf("a.status = $%d", argIdx))
 		args = append(args, filter.Status)
 		argIdx++
+	} else {
+		// If status is not specified, hide 'finished' unless ShowFinished is true
+		if !filter.ShowFinished {
+			where = append(where, fmt.Sprintf("a.status != $%d", argIdx))
+			args = append(args, "finished")
+			argIdx++
+		}
 	}
 	if filter.DateFrom != "" {
-		where = append(where, fmt.Sprintf("a.created_at >= $%d", argIdx))
+		where = append(where, fmt.Sprintf("a.deadline >= $%d", argIdx))
 		args = append(args, filter.DateFrom)
 		argIdx++
 	}
 	if filter.DateTo != "" {
-		where = append(where, fmt.Sprintf("a.created_at <= $%d", argIdx))
+		where = append(where, fmt.Sprintf("a.deadline <= $%d", argIdx))
 		args = append(args, filter.DateTo+" 23:59:59")
 		argIdx++
 	}
@@ -189,7 +219,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	query += " WHERE " + strings.Join(where, " AND ")
 
 	// Count query
-	countQuery := "SELECT COUNT(*) FROM assignments a WHERE " + strings.Join(where, " AND ")
+	countQuery := "SELECT COUNT(*) FROM assignments a LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming' LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing' WHERE " + strings.Join(where, " AND ")
 	var totalCount int
 	if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count assignments: %w", err)
@@ -209,6 +239,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	for rows.Next() {
 		var a models.Assignment
 		var deadline sql.NullTime
+		var completedAt sql.NullTime
 		var report sql.NullString
 		var docNumber sql.NullString
 		var docSubject sql.NullString
@@ -216,7 +247,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		if err := rows.Scan(
 			&a.ID, &a.DocumentID, &a.DocumentType,
 			&a.ExecutorID, &a.ExecutorName,
-			&a.Content, &deadline, &a.Status, &report,
+			&a.Content, &deadline, &a.Status, &report, &completedAt,
 			&a.CreatedAt, &a.UpdatedAt,
 			&docNumber, &docSubject,
 		); err != nil {
@@ -225,6 +256,9 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 
 		if deadline.Valid {
 			a.Deadline = &deadline.Time
+		}
+		if completedAt.Valid {
+			a.CompletedAt = &completedAt.Time
 		}
 		if report.Valid {
 			a.Report = report.String
