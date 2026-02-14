@@ -14,3 +14,8 @@ func parseUUID(s string) (uuid.UUID, error) {
 	}
 	return id, nil
 }
+
+// formatDocumentNumber — форматирование номера документа
+func formatDocumentNumber(index string, number int) string {
+	return fmt.Sprintf("%s/%d", index, number)
+}

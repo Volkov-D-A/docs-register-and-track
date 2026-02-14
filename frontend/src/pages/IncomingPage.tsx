@@ -514,23 +514,84 @@ const IncomingPage: React.FC = () => {
                         {
                             key: 'info', label: 'Информация',
                             children: (
-                                <Row gutter={[16, 12]}>
-                                    <Col span={12}><Text type="secondary">Рег. номер:</Text> <Text strong>{viewDoc.incomingNumber}</Text></Col>
-                                    <Col span={12}><Text type="secondary">Дата:</Text> <Text strong>{dayjs(viewDoc.incomingDate).format('DD.MM.YYYY')}</Text></Col>
-                                    <Col span={12}><Text type="secondary">Исх. №:</Text> {viewDoc.outgoingNumberSender || '—'}</Col>
-                                    <Col span={12}><Text type="secondary">Дата исх.:</Text> {viewDoc.outgoingDateSender ? dayjs(viewDoc.outgoingDateSender).format('DD.MM.YYYY') : '—'}</Col>
-                                    <Col span={24}><Text type="secondary">Тип:</Text> <Tag>{viewDoc.documentTypeName}</Tag></Col>
-                                    <Col span={24}><Text type="secondary">Содержание:</Text> <Text strong>{viewDoc.subject}</Text></Col>
-                                    <Col span={12}><Text type="secondary">Отправитель:</Text> {viewDoc.senderOrgName}</Col>
-                                    <Col span={12}><Text type="secondary">Получатель:</Text> {viewDoc.recipientOrgName}</Col>
-                                    <Col span={12}><Text type="secondary">Подписант:</Text> {viewDoc.senderSignatory || '—'}</Col>
-                                    <Col span={12}><Text type="secondary">Кому:</Text> {viewDoc.addressee || '—'}</Col>
-                                    <Col span={24}><Text type="secondary">Резолюция:</Text> <Text strong>{viewDoc.resolution || '—'}</Text></Col>
-                                    {viewDoc.content && <Col span={24}><Text type="secondary">Подробно:</Text><br />{viewDoc.content}</Col>}
-                                    <Col span={12}><Text type="secondary">Листов:</Text> {viewDoc.pagesCount}</Col>
-                                    <Col span={12}><Text type="secondary">Номенклатура:</Text> {viewDoc.nomenclatureName}</Col>
-                                    <Col span={24}><Text type="secondary">Зарегистрировал:</Text> {viewDoc.createdByName} ({dayjs(viewDoc.createdAt).format('DD.MM.YYYY HH:mm')})</Col>
-                                </Row>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    <Row gutter={16}>
+                                        <Col span={12}>
+                                            <Tag>{viewDoc.documentTypeName}</Tag> <Text type="secondary" style={{ fontSize: 12 }}>Рег. номер:</Text> <Text strong>{viewDoc.incomingNumber}</Text>
+                                        </Col>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Дата:</Text> <Text strong>{dayjs(viewDoc.incomingDate).format('DD.MM.YYYY')}</Text>
+                                        </Col>
+                                    </Row>
+                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {viewDoc.nomenclatureName}</Col></Row>
+
+                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+
+                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Отправитель:</Text> {viewDoc.senderOrgName}</Col></Row>
+                                    <Row gutter={16}>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Исх. №:</Text> {viewDoc.outgoingNumberSender || '—'}
+                                        </Col>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Дата исх.:</Text> {viewDoc.outgoingDateSender ? dayjs(viewDoc.outgoingDateSender).format('DD.MM.YYYY') : '—'}
+                                        </Col>
+                                    </Row>
+                                    <Row gutter={16}>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Подписант:</Text> {viewDoc.senderSignatory || '—'}
+                                        </Col>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Исполнитель:</Text> {viewDoc.senderExecutor || '—'}
+                                        </Col>
+                                    </Row>
+                                    {(viewDoc.intermediateNumber || viewDoc.intermediateDate) && (
+                                        <Row gutter={16}>
+                                            <Col span={12}>
+                                                <Text type="secondary" style={{ fontSize: 12 }}>Промежуточный №:</Text> {viewDoc.intermediateNumber || '—'}
+                                            </Col>
+                                            <Col span={12}>
+                                                <Text type="secondary" style={{ fontSize: 12 }}>Промежуточная дата:</Text> {viewDoc.intermediateDate ? dayjs(viewDoc.intermediateDate).format('DD.MM.YYYY') : '—'}
+                                            </Col>
+                                        </Row>
+                                    )}
+
+                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+
+                                    <Row gutter={16}>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Получатель:</Text> {viewDoc.recipientOrgName}
+                                        </Col>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Адресат:</Text> {viewDoc.addressee || '—'}
+                                        </Col>
+                                    </Row>
+
+                                    <div>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Краткое содержание:</Text>
+                                        <div style={{ fontWeight: 500, lineHeight: 1.2 }}>{viewDoc.subject}</div>
+                                    </div>
+
+                                    <div>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Резолюция:</Text>
+                                        <div style={{ fontStyle: 'italic', background: '#fafafa', padding: '4px 8px', borderRadius: 4 }}>{viewDoc.resolution || '—'}</div>
+                                    </div>
+
+                                    {viewDoc.content && (
+                                        <div>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
+                                            <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, maxHeight: 100, overflowY: 'auto', background: '#fafafa', padding: 8, borderRadius: 4 }}>{viewDoc.content}</div>
+                                        </div>
+                                    )}
+
+                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+
+                                    <Row gutter={16} style={{ fontSize: 12, color: '#888' }}>
+                                        <Col span={8}>Листов: {viewDoc.pagesCount}</Col>
+                                        <Col span={16} style={{ textAlign: 'right' }}>
+                                            Зарегистрировал: {viewDoc.createdByName} <br /> ({dayjs(viewDoc.createdAt).format('DD.MM.YYYY HH:mm')})
+                                        </Col>
+                                    </Row>
+                                </div>
                             )
                         },
                         {

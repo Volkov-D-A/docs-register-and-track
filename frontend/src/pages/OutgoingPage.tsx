@@ -185,7 +185,7 @@ const OutgoingPage: React.FC = () => {
                     <div style={{ fontSize: 12, color: '#888' }}>
                         от {dayjs(r.outgoingDate).format('DD.MM.YYYY')}
                     </div>
-                    <Tag style={{ marginTop: 4 }}>{r.nomenclatureName?.split('—')[0]}</Tag>
+
                 </div>
             )
         },
@@ -475,19 +475,46 @@ const OutgoingPage: React.FC = () => {
                         {
                             key: 'info', label: 'Информация',
                             children: (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                    <Row><Col span={8} style={{ color: '#888' }}>Дата:</Col><Col span={16}>{dayjs(viewDoc.outgoingDate).format('DD.MM.YYYY')}</Col></Row>
-                                    <Row><Col span={8} style={{ color: '#888' }}>Вид документа:</Col><Col span={16}>{viewDoc.documentTypeName}</Col></Row>
-                                    <Row><Col span={8} style={{ color: '#888' }}>Номенклатура:</Col><Col span={16}>{viewDoc.nomenclatureName}</Col></Row>
-                                    <div style={{ height: 1, background: '#eee', margin: '8px 0' }} />
-                                    <Row><Col span={8} style={{ color: '#888' }}>Получатель:</Col><Col span={16}>{viewDoc.recipientOrgName}</Col></Row>
-                                    <Row><Col span={8} style={{ color: '#888' }}>Адресат:</Col><Col span={16}>{viewDoc.addressee}</Col></Row>
-                                    <div style={{ height: 1, background: '#eee', margin: '8px 0' }} />
-                                    <Row><Col span={8} style={{ color: '#888' }}>Подписал:</Col><Col span={16}>{viewDoc.senderSignatory}</Col></Row>
-                                    <Row><Col span={8} style={{ color: '#888' }}>Исполнитель:</Col><Col span={16}>{viewDoc.senderExecutor}</Col></Row>
-                                    <div style={{ height: 1, background: '#eee', margin: '8px 0' }} />
-                                    <div><Text type="secondary">Краткое содержание:</Text><div style={{ marginTop: 4 }}>{viewDoc.subject}</div></div>
-                                    {viewDoc.content && <div><Text type="secondary">Содержание:</Text><div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{viewDoc.content}</div></div>}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    <Row gutter={16}>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Дата:</Text> <Text strong>{dayjs(viewDoc.outgoingDate).format('DD.MM.YYYY')}</Text>
+                                        </Col>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Вид:</Text> <Tag>{viewDoc.documentTypeName}</Tag>
+                                        </Col>
+                                    </Row>
+                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {viewDoc.nomenclatureName}</Col></Row>
+
+                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+
+                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Получатель:</Text> {viewDoc.recipientOrgName}</Col></Row>
+                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Адресат:</Text> {viewDoc.addressee}</Col></Row>
+
+                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+
+                                    <Row gutter={16}>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Подписал:</Text> {viewDoc.senderSignatory}
+                                        </Col>
+                                        <Col span={12}>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Исполнитель:</Text> {viewDoc.senderExecutor}
+                                        </Col>
+                                    </Row>
+
+                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+
+                                    <div>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Краткое содержание:</Text>
+                                        <div style={{ fontWeight: 500, lineHeight: 1.2 }}>{viewDoc.subject}</div>
+                                    </div>
+
+                                    {viewDoc.content && (
+                                        <div>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
+                                            <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, maxHeight: 100, overflowY: 'auto', background: '#fafafa', padding: 8, borderRadius: 4 }}>{viewDoc.content}</div>
+                                        </div>
+                                    )}
                                 </div>
                             )
                         },

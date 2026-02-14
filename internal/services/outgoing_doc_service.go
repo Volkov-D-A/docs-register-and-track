@@ -83,7 +83,7 @@ func (s *OutgoingDocumentService) Register(
 	if err != nil {
 		return nil, fmt.Errorf("ошибка автонумерации: %w", err)
 	}
-	outgoingNumber := fmt.Sprintf("%s-%d", index, nextNum)
+	outgoingNumber := formatDocumentNumber(index, nextNum)
 
 	// Парсинг даты
 	outDate, err := time.Parse("2006-01-02", outgoingDate)

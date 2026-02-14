@@ -171,7 +171,7 @@ func (s *IncomingDocumentService) Register(
 	if err != nil {
 		return nil, fmt.Errorf("ошибка автонумерации: %w", err)
 	}
-	incomingNumberStr := fmt.Sprintf("%s-%d", index, nextNum)
+	incomingNumberStr := formatDocumentNumber(index, nextNum)
 
 	incDate, err := time.Parse("2006-01-02", incomingDate)
 	if err != nil {

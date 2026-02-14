@@ -113,7 +113,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 
 	// Основной запрос с JOIN'ами
 	dataQuery := fmt.Sprintf(`
-		SELECT d.id, d.nomenclature_id, n.name,
+		SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
 			d.incoming_number, d.incoming_date, d.outgoing_number_sender, d.outgoing_date_sender,
 			d.intermediate_number, d.intermediate_date,
 			d.document_type_id, dt.name,
@@ -174,7 +174,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocument, error) {
 	doc := &models.IncomingDocument{}
 	err := r.db.QueryRow(`
-		SELECT d.id, d.nomenclature_id, n.name,
+		SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
 			d.incoming_number, d.incoming_date, d.outgoing_number_sender, d.outgoing_date_sender,
 			d.intermediate_number, d.intermediate_date,
 			d.document_type_id, dt.name,

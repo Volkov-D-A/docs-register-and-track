@@ -163,33 +163,17 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*models.Ass
 
 	// Calculate completedAt
 	var completedAt *time.Time
-	if status == "completed" {
+	switch status {
+	case "completed":
 		now := time.Now()
 		completedAt = &now
-	} else if status == "new" || status == "in_progress" {
+	case "new", "in_progress":
 		// Reset completion time if moved back to active
 		completedAt = nil
-	} else {
-		// For other statuses (cancelled, finished, returned), keep existing completedAt
-		// OR clear it?
-		// Finished usually follows completed.
-		// Returned follows completed.
-		// Cancelled can happen anytime.
-		// If "finished" (archive), we should probably keep the original completed date to know when it was done.
-		// If "returned", it goes back to work? No, usually returned means "not accepted", so it should probably be treated as not completed?
-		// But in this system, "returned" seems to be a state from which you can go to "in_progress"?
-		// Let's look at frontend:
-		// Return/Cancel: Admin, status=completed/in_progress -> updateStatus(r.id, 'returned')
-		// Executor, status=new/returned -> updateStatus(r.id, 'in_progress')
-		// So 'returned' assumes it needs work. So CompletedAt should be nil.
-		// 'finished' means "accepted and done". So CompletedAt should stay.
-		// 'cancelled' means "not done". So CompletedAt should be nil.
-
-		if status == "finished" {
-			completedAt = existing.CompletedAt
-		} else {
-			completedAt = nil
-		}
+	case "finished":
+		completedAt = existing.CompletedAt
+	default:
+		completedAt = nil
 	}
 
 	return s.repo.Update(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, report, completedAt)
