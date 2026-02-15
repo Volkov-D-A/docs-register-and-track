@@ -349,6 +349,57 @@ export namespace models {
 	        this.pageSize = source["pageSize"];
 	    }
 	}
+	export class DocumentLink {
+	    id: string;
+	    sourceType: string;
+	    sourceId: string;
+	    targetType: string;
+	    targetId: string;
+	    linkType: string;
+	    createdBy: string;
+	    // Go type: time
+	    createdAt: any;
+	    sourceNumber?: string;
+	    targetNumber?: string;
+	    targetSubject?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentLink(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.sourceType = source["sourceType"];
+	        this.sourceId = source["sourceId"];
+	        this.targetType = source["targetType"];
+	        this.targetId = source["targetId"];
+	        this.linkType = source["linkType"];
+	        this.createdBy = source["createdBy"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.sourceNumber = source["sourceNumber"];
+	        this.targetNumber = source["targetNumber"];
+	        this.targetSubject = source["targetSubject"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DocumentType {
 	    id: string;
 	    name: string;
@@ -751,6 +802,86 @@ export namespace models {
 		    return a;
 		}
 	}
+
+}
+
+export namespace services {
+	
+	export class GraphEdge {
+	    id: string;
+	    source: string;
+	    target: string;
+	    label: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GraphEdge(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.source = source["source"];
+	        this.target = source["target"];
+	        this.label = source["label"];
+	    }
+	}
+	export class GraphNode {
+	    id: string;
+	    label: string;
+	    type: string;
+	    subject: string;
+	    date: string;
+	    sender: string;
+	    recipient: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GraphNode(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.type = source["type"];
+	        this.subject = source["subject"];
+	        this.date = source["date"];
+	        this.sender = source["sender"];
+	        this.recipient = source["recipient"];
+	    }
+	}
+	export class GraphData {
+	    nodes: GraphNode[];
+	    edges: GraphEdge[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GraphData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.nodes = this.convertValues(source["nodes"], GraphNode);
+	        this.edges = this.convertValues(source["edges"], GraphEdge);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 
 }
 

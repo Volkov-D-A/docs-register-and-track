@@ -5,6 +5,8 @@ import {
 } from 'antd';
 import AssignmentList from '../components/AssignmentList';
 import FileListComponent from '../components/FileListComponent';
+import { LinksTab } from '../components/DocumentLinks/LinksTab';
+
 import {
     PlusOutlined, SearchOutlined, EyeOutlined, DeleteOutlined, EditOutlined,
     FilterOutlined, ClearOutlined
@@ -526,7 +528,12 @@ const OutgoingPage: React.FC = () => {
                         {
                             key: 'files', label: 'Файлы',
                             children: <FileListComponent documentId={viewDoc.id} documentType="outgoing" readOnly={false} />
+                        },
+                        {
+                            key: 'links', label: 'Связи',
+                            children: <LinksTab documentId={viewDoc.id} documentType="outgoing" documentNumber={viewDoc.outgoingNumber} />
                         }
+
                     ]} />
                 )}
             </Modal>

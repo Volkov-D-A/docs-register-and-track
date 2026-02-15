@@ -56,7 +56,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		argIdx++
 	}
 	if filter.Search != "" {
-		where = append(where, fmt.Sprintf("(d.subject ILIKE $%d OR d.content ILIKE $%d)", argIdx, argIdx))
+		where = append(where, fmt.Sprintf("(d.subject ILIKE $%d OR d.content ILIKE $%d OR d.incoming_number ILIKE $%d)", argIdx, argIdx, argIdx))
 		args = append(args, "%"+filter.Search+"%")
 		argIdx++
 	}
