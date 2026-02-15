@@ -291,16 +291,16 @@ CREATE TABLE acknowledgments (
     document_type VARCHAR(50) NOT NULL, -- 'incoming' or 'outgoing'
     creator_id UUID NOT NULL REFERENCES users (id),
     content TEXT DEFAULT '',
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE acknowledgment_users (
     id UUID PRIMARY KEY,
     acknowledgment_id UUID NOT NULL REFERENCES acknowledgments (id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    viewed_at TIMESTAMP,
-    confirmed_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    viewed_at TIMESTAMP WITH TIME ZONE,
+    confirmed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (acknowledgment_id, user_id)
 );
