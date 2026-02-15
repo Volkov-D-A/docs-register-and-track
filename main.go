@@ -29,15 +29,15 @@ func main() {
 	// Подключение к БД
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Printf("Warning: Failed to connect to database: %v", err)
+	} else {
+		defer db.Close()
+		// Применение миграций
+		if err := db.RunMigrations("internal/database/migrations"); err != nil {
+			log.Fatalf("Failed to run migrations: %v", err)
+		}
+		fmt.Println("Database migrations applied successfully")
 	}
-	defer db.Close()
-
-	// Применение миграций
-	if err := db.RunMigrations("internal/database/migrations"); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
-	}
-	fmt.Println("Database migrations applied successfully")
 
 	// Создание репозиториев
 	userRepo := repository.NewUserRepository(db)
