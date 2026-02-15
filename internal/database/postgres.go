@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"os"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -30,6 +31,19 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 }
 
 func (db *DB) RunMigrations(migrationsPath string) error {
+	// Check if directory exists
+	info, err := os.Stat(migrationsPath)
+	if os.IsNotExist(err) {
+		fmt.Printf("Migration directory %s not found. Skipping migrations.\n", migrationsPath)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check migration directory: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("migration path %s is not a directory", migrationsPath)
+	}
+
 	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
 	if err != nil {
 		return fmt.Errorf("failed to create migration driver: %w", err)

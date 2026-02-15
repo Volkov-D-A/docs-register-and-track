@@ -3,7 +3,7 @@ import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Space,
   Typography, Popconfirm, message, Switch, Tag,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
@@ -451,7 +451,9 @@ const UsersTab: React.FC = () => {
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
+  const [passwordForm] = Form.useForm();
   const [form] = Form.useForm();
 
   const load = async () => {
@@ -490,6 +492,19 @@ const UsersTab: React.FC = () => {
     }
   };
 
+  const onPasswordChange = async (values: any) => {
+    try {
+      const { ResetPassword } = await import('../../wailsjs/go/services/UserService');
+      await ResetPassword(editItem.id, values.newPassword);
+      message.success('Пароль успешно изменен');
+      setPasswordModalOpen(false);
+      passwordForm.resetFields();
+      setEditItem(null);
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+  };
+
   const roleLabels: Record<string, string> = {
     admin: 'Администратор',
     clerk: 'Делопроизводитель',
@@ -516,13 +531,19 @@ const UsersTab: React.FC = () => {
       render: (v: boolean) => v ? <Tag color="green">Да</Tag> : <Tag color="red">Нет</Tag>,
     },
     {
-      title: 'Действия', key: 'actions', width: 80,
+      title: 'Действия', key: 'actions', width: 120,
       render: (_: any, record: any) => (
-        <Button size="small" icon={<EditOutlined />} onClick={() => {
-          setEditItem(record);
-          form.setFieldsValue({ ...record });
-          setModalOpen(true);
-        }} />
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => {
+            setEditItem(record);
+            form.setFieldsValue({ ...record });
+            setModalOpen(true);
+          }} />
+          <Button size="small" icon={<KeyOutlined />} onClick={() => {
+            setEditItem(record);
+            setPasswordModalOpen(true);
+          }} title="Сменить пароль" />
+        </Space>
       ),
     },
   ];
@@ -575,6 +596,24 @@ const UsersTab: React.FC = () => {
               <Switch />
             </Form.Item>
           )}
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`Смена пароля для пользователя ${editItem?.login}`}
+        open={passwordModalOpen}
+        onCancel={() => { setPasswordModalOpen(false); setEditItem(null); passwordForm.resetFields(); }}
+        onOk={() => passwordForm.submit()}
+        width={400}
+      >
+        <Form form={passwordForm} layout="vertical" onFinish={onPasswordChange}>
+          <Form.Item
+            name="newPassword"
+            label="Новый пароль"
+            rules={[{ required: true, min: 6, message: 'Минимум 6 символов' }]}
+          >
+            <Input.Password />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

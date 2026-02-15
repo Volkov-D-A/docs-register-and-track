@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
 type Config struct {
@@ -42,6 +41,5 @@ func Load(configPath string) (*Config, error) {
 }
 
 func GetDefaultConfigPath() string {
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".docflow", "config.json")
+	return "config.json"
 }
