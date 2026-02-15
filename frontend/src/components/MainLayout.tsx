@@ -95,7 +95,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageCh
                     borderBottom: '1px solid #f0f0f0',
                 }}>
                     <Text strong style={{ fontSize: 16, color: '#1677ff' }}>
-                        📄 Документооборот
+                        📄 УСЗН Озерск
                     </Text>
                 </div>
                 <Menu

@@ -31,7 +31,7 @@ const LoginPage: React.FC = () => {
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
                     <div style={{ textAlign: 'center' }}>
                         <Title level={3} style={{ marginBottom: 4 }}>
-                            Документооборот
+                            УСЗН Озерск
                         </Title>
                         <Text type="secondary">
                             Система регистрации документов
