@@ -23,17 +23,7 @@ func main() {
 	// Загрузка конфигурации
 	cfg, err := config.Load(config.GetDefaultConfigPath())
 	if err != nil {
-		log.Printf("Warning: Could not load config: %v. Using defaults.", err)
-		cfg = &config.Config{
-			Database: config.DatabaseConfig{
-				Host:     "localhost",
-				Port:     5432,
-				User:     "docflow",
-				Password: "docflow_password",
-				DBName:   "docflow",
-				SSLMode:  "disable",
-			},
-		}
+		log.Printf("Warning: Could not load config: %v.", err)
 	}
 
 	// Подключение к БД

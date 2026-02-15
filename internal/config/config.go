@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 type Config struct {
@@ -41,5 +42,5 @@ func Load(configPath string) (*Config, error) {
 }
 
 func GetDefaultConfigPath() string {
-	return "config.json"
+	return filepath.Join("config", "config.json")
 }
