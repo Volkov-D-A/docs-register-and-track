@@ -3,7 +3,7 @@
 import {models} from '../models';
 import {context} from '../models';
 
-export function Create(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<models.Assignment>;
+export function Create(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:Array<string>):Promise<models.Assignment>;
 
 export function Delete(arg1:string):Promise<void>;
 
@@ -13,6 +13,6 @@ export function GetList(arg1:models.AssignmentFilter):Promise<models.PagedResult
 
 export function SetContext(arg1:context.Context):Promise<void>;
 
-export function Update(arg1:string,arg2:string,arg3:string,arg4:string):Promise<models.Assignment>;
+export function Update(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<string>):Promise<models.Assignment>;
 
 export function UpdateStatus(arg1:string,arg2:string,arg3:string):Promise<models.Assignment>;

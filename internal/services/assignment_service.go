@@ -40,6 +40,7 @@ func (s *AssignmentService) Create(
 	executorID string,
 	content string,
 	deadline string,
+	coExecutorIDs []string,
 ) (*models.Assignment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -64,7 +65,7 @@ func (s *AssignmentService) Create(
 		deadlineTime = &t
 	}
 
-	return s.repo.Create(docUUID, documentType, execUUID, content, deadlineTime)
+	return s.repo.Create(docUUID, documentType, execUUID, content, deadlineTime, coExecutorIDs)
 }
 
 // Update — редактирование (админ)
@@ -73,6 +74,7 @@ func (s *AssignmentService) Update(
 	executorID string,
 	content string,
 	deadline string,
+	coExecutorIDs []string,
 ) (*models.Assignment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -111,7 +113,7 @@ func (s *AssignmentService) Update(
 		deadlineTime = &t
 	}
 
-	return s.repo.Update(uid, execUUID, content, deadlineTime, existing.Status, existing.Report, existing.CompletedAt)
+	return s.repo.Update(uid, execUUID, content, deadlineTime, existing.Status, existing.Report, existing.CompletedAt, coExecutorIDs)
 }
 
 // UpdateStatus — изменение статуса (исполнитель или админ)
@@ -176,7 +178,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*models.Ass
 		completedAt = nil
 	}
 
-	return s.repo.Update(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, report, completedAt)
+	return s.repo.Update(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, report, completedAt, existing.CoExecutorIDs)
 }
 
 func (s *AssignmentService) GetByID(id string) (*models.Assignment, error) {

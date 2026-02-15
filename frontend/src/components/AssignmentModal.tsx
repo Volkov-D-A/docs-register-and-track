@@ -55,7 +55,8 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                     initialValues.id,
                     values.executorId,
                     values.content,
-                    values.deadline?.format('YYYY-MM-DD') || ''
+                    values.deadline?.format('YYYY-MM-DD') || '',
+                    values.coExecutorIds || []
                 );
                 message.success('Поручение обновлено');
             } else {
@@ -65,7 +66,8 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                     documentType,
                     values.executorId,
                     values.content,
-                    values.deadline?.format('YYYY-MM-DD') || ''
+                    values.deadline?.format('YYYY-MM-DD') || '',
+                    values.coExecutorIds || []
                 );
                 message.success('Поручение создано');
             }
@@ -88,12 +90,33 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
             okText={isEdit ? "Сохранить" : "Создать"}
         >
             <Form form={form} layout="vertical" onFinish={handleSubmit}>
-                <Form.Item name="executorId" label="Исполнитель" rules={[{ required: true, message: 'Выберите исполнителя' }]}>
+                <Form.Item name="executorId" label="Ответственный исполнитель" rules={[{ required: true, message: 'Выберите исполнителя' }]}>
                     <Select placeholder="Выберите сотрудника" showSearch filterOption={(input, option) =>
                         (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                     }
                         options={executors.map((u: any) => ({ value: u.id, label: u.fullName }))}
                     />
+                </Form.Item>
+
+                <Form.Item shouldUpdate={(prev, curr) => prev.executorId !== curr.executorId}>
+                    {({ getFieldValue }) => {
+                        const executorId = getFieldValue('executorId');
+                        return (
+                            <Form.Item name="coExecutorIds" label="Соисполнители">
+                                <Select
+                                    mode="multiple"
+                                    placeholder="Выберите соисполнителей"
+                                    showSearch
+                                    filterOption={(input, option) =>
+                                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                    }
+                                    options={executors
+                                        .filter((u: any) => u.id !== executorId) // Exclude main executor
+                                        .map((u: any) => ({ value: u.id, label: u.fullName }))}
+                                />
+                            </Form.Item>
+                        );
+                    }}
                 </Form.Item>
 
                 <Form.Item name="deadline" label="Срок исполнения">

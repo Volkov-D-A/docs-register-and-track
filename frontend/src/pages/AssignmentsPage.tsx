@@ -196,7 +196,19 @@ const AssignmentsPage: React.FC = () => {
             )
         },
         { title: 'Поручение', dataIndex: 'content', key: 'content' },
-        { title: 'Исполнитель', dataIndex: 'executorName', key: 'executorName', width: 140 },
+        {
+            title: 'Исполнитель', key: 'executorName', width: 200,
+            render: (_: any, r: any) => (
+                <div>
+                    <div>{r.executorName}</div>
+                    {r.coExecutors && r.coExecutors.length > 0 && (
+                        <div style={{ fontSize: '11px', color: '#888' }}>
+                            + {r.coExecutors.map((u: any) => u.fullName).join(', ')}
+                        </div>
+                    )}
+                </div>
+            )
+        },
         {
             title: 'Срок', dataIndex: 'deadline', key: 'deadline', width: 90,
             render: (v: string) => v ? dayjs(v).format('DD.MM.YYYY') : '',

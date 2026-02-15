@@ -26,10 +26,17 @@ func (r *AssignmentRepository) Create(
 	executorID uuid.UUID,
 	content string,
 	deadline *time.Time,
+	coExecutorIDs []string,
 ) (*models.Assignment, error) {
 	var id uuid.UUID
 	var createdAt, updatedAt time.Time
 	var status = "new"
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
 
 	query := `
 		INSERT INTO assignments (
@@ -40,7 +47,7 @@ func (r *AssignmentRepository) Create(
 		RETURNING id, created_at, updated_at
 	`
 
-	err := r.db.QueryRow(
+	err = tx.QueryRow(
 		query,
 		documentID, documentType, executorID,
 		content, deadline, status,
@@ -48,6 +55,29 @@ func (r *AssignmentRepository) Create(
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create assignment: %w", err)
+	}
+
+	// Insert co-executors
+	if len(coExecutorIDs) > 0 {
+		stmt, err := tx.Prepare("INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)")
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare co-executors statement: %w", err)
+		}
+		defer stmt.Close()
+
+		for _, coExecID := range coExecutorIDs {
+			uid, err := uuid.Parse(coExecID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid co-executor ID %s: %w", coExecID, err)
+			}
+			if _, err := stmt.Exec(id, uid); err != nil {
+				return nil, fmt.Errorf("failed to insert co-executor %s: %w", coExecID, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return r.GetByID(id)
@@ -60,7 +90,14 @@ func (r *AssignmentRepository) Update(
 	deadline *time.Time,
 	status, report string,
 	completedAt *time.Time,
+	coExecutorIDs []string,
 ) (*models.Assignment, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	query := `
 		UPDATE assignments
 		SET executor_id = $1, content = $2, deadline = $3,
@@ -68,9 +105,38 @@ func (r *AssignmentRepository) Update(
 		WHERE id = $7
 	`
 
-	_, err := r.db.Exec(query, executorID, content, deadline, status, report, completedAt, id)
+	_, err = tx.Exec(query, executorID, content, deadline, status, report, completedAt, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update assignment: %w", err)
+	}
+
+	// Update co-executors
+	// 1. Delete existing
+	if _, err := tx.Exec("DELETE FROM assignment_co_executors WHERE assignment_id = $1", id); err != nil {
+		return nil, fmt.Errorf("failed to delete old co-executors: %w", err)
+	}
+
+	// 2. Insert new
+	if len(coExecutorIDs) > 0 {
+		stmt, err := tx.Prepare("INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)")
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare co-executors statement: %w", err)
+		}
+		defer stmt.Close()
+
+		for _, coExecID := range coExecutorIDs {
+			uid, err := uuid.Parse(coExecID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid co-executor ID %s: %w", coExecID, err)
+			}
+			if _, err := stmt.Exec(id, uid); err != nil {
+				return nil, fmt.Errorf("failed to insert co-executor %s: %w", coExecID, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return r.GetByID(id)
@@ -136,6 +202,35 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	}
 
 	a.FillIDStr()
+
+	// Fetch co-executors
+	coExecQuery := `
+		SELECT u.id, u.login, u.full_name
+		FROM assignment_co_executors ce
+		JOIN users u ON ce.user_id = u.id
+		WHERE ce.assignment_id = $1
+	`
+	ceRows, err := r.db.Query(coExecQuery, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get co-executors: %w", err)
+	}
+	defer ceRows.Close()
+
+	var coExecutors []models.User
+	var coExecutorIDs []string
+
+	for ceRows.Next() {
+		var u models.User
+		if err := ceRows.Scan(&u.ID, &u.Login, &u.FullName); err != nil {
+			return nil, err
+		}
+		u.FillIDStr()
+		coExecutors = append(coExecutors, u)
+		coExecutorIDs = append(coExecutorIDs, u.IDStr)
+	}
+	a.CoExecutors = coExecutors
+	a.CoExecutorIDs = coExecutorIDs
+
 	return &a, nil
 }
 
@@ -164,7 +259,8 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		argIdx++
 	}
 	if filter.ExecutorID != "" {
-		where = append(where, fmt.Sprintf("a.executor_id = $%d", argIdx))
+		// Filter by main executor OR co-executor
+		where = append(where, fmt.Sprintf("(a.executor_id = $%d OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $%d))", argIdx, argIdx))
 		args = append(args, filter.ExecutorID)
 		argIdx++
 	}
@@ -270,6 +366,32 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 			a.DocumentSubject = docSubject.String
 		}
 		a.FillIDStr()
+
+		// Fetch co-executors for each assignment (N+1 but acceptable for small page sizes)
+		// Optimization: could be done with a separate query for all IDs if needed
+		coExecQuery := `
+			SELECT u.id, u.login, u.full_name
+			FROM assignment_co_executors ce
+			JOIN users u ON ce.user_id = u.id
+			WHERE ce.assignment_id = $1
+		`
+		ceRows, err := r.db.Query(coExecQuery, a.ID)
+		if err == nil {
+			var coExecutors []models.User
+			var coExecutorIDs []string
+			for ceRows.Next() {
+				var u models.User
+				if err := ceRows.Scan(&u.ID, &u.Login, &u.FullName); err == nil {
+					u.FillIDStr()
+					coExecutors = append(coExecutors, u)
+					coExecutorIDs = append(coExecutorIDs, u.IDStr)
+				}
+			}
+			ceRows.Close()
+			a.CoExecutors = coExecutors
+			a.CoExecutorIDs = coExecutorIDs
+		}
+
 		items = append(items, a)
 	}
 

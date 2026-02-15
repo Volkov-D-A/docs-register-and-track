@@ -27,6 +27,10 @@ type Assignment struct {
 	DocumentNumber  string `json:"documentNumber,omitempty"`
 	DocumentSubject string `json:"documentSubject,omitempty"`
 
+	// Co-executors
+	CoExecutors   []User   `json:"coExecutors,omitempty"`
+	CoExecutorIDs []string `json:"coExecutorIds,omitempty"`
+
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

@@ -100,8 +100,9 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 		SELECT 
 			COUNT(*) FILTER (WHERE status = 'new'),
 			COUNT(*) FILTER (WHERE status = 'in_progress')
-		FROM assignments 
+		FROM assignments a
 		WHERE executor_id = $1
+		OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1)
 	`, userID).Scan(&stats.MyAssignmentsNew, &stats.MyAssignmentsInProgress)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status counts: %w", err)
@@ -111,8 +112,8 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 	// OR status is 'completed' AND completed_at::date > deadline
 	err = s.db.QueryRow(`
 		SELECT COUNT(*) 
-		FROM assignments 
-		WHERE executor_id = $1 
+		FROM assignments a
+		WHERE (executor_id = $1 OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1))
 		  AND (
 		      (status IN ('new', 'in_progress') AND deadline < CURRENT_DATE)
 		      OR
@@ -128,8 +129,8 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 		SELECT 
 			COUNT(*) FILTER (WHERE status = 'finished'),
 			COUNT(*) FILTER (WHERE status = 'finished' AND completed_at::date > deadline)
-		FROM assignments 
-		WHERE executor_id = $1
+		FROM assignments a
+		WHERE (executor_id = $1 OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1))
 	`, userID).Scan(&stats.MyAssignmentsFinished, &stats.MyAssignmentsFinishedLate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get finished counts: %w", err)
@@ -144,7 +145,7 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 		FROM assignments a
 		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
 		LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing'
-		WHERE a.executor_id = $1 
+		WHERE (a.executor_id = $1 OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1))
 		  AND a.status IN ('new', 'in_progress')
 		  AND a.deadline BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '3 days')
 		ORDER BY a.deadline ASC
