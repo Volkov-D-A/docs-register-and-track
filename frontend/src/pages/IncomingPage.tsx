@@ -4,6 +4,7 @@ import {
     InputNumber, Space, Row, Col, Tag, message, Popconfirm, AutoComplete, Collapse, Tabs,
 } from 'antd';
 import AssignmentList from '../components/AssignmentList';
+import AcknowledgmentList from '../components/AcknowledgmentList';
 import FileListComponent from '../components/FileListComponent';
 import { LinksTab } from '../components/DocumentLinks/LinksTab';
 
@@ -608,6 +609,10 @@ const IncomingPage: React.FC = () => {
                         {
                             key: 'links', label: 'Связи',
                             children: <LinksTab documentId={viewDoc.id} documentType="incoming" documentNumber={viewDoc.incomingNumber} />
+                        },
+                        {
+                            key: 'acknowledgments', label: 'Ознакомление',
+                            children: <AcknowledgmentList documentId={viewDoc.id} documentType="incoming" />
                         }
 
                     ]} />

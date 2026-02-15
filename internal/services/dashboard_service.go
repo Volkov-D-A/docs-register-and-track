@@ -141,8 +141,11 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 	rows, err := s.db.Query(`
 		SELECT 
 			a.id, a.content, a.deadline, a.status,
+			a.document_id, a.document_type,
+			u.full_name as executor_name,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
 		FROM assignments a
+		LEFT JOIN users u ON a.executor_id = u.id
 		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
 		LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing'
 		WHERE (a.executor_id = $1 OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1))
@@ -159,8 +162,9 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 		var a models.Assignment
 		var docNumber sql.NullString
 		var deadline sql.NullTime
+		var executorName sql.NullString
 
-		if err := rows.Scan(&a.ID, &a.Content, &deadline, &a.Status, &docNumber); err != nil {
+		if err := rows.Scan(&a.ID, &a.Content, &deadline, &a.Status, &a.DocumentID, &a.DocumentType, &executorName, &docNumber); err != nil {
 			return nil, err
 		}
 		if deadline.Valid {
@@ -168,6 +172,9 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 		}
 		if docNumber.Valid {
 			a.DocumentNumber = docNumber.String
+		}
+		if executorName.Valid {
+			a.ExecutorName = executorName.String
 		}
 		a.FillIDStr()
 		stats.ExpiringAssignments = append(stats.ExpiringAssignments, a)
@@ -232,6 +239,7 @@ func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate
 	rows, err := s.db.Query(`
 		SELECT 
 			a.id, a.content, a.deadline, a.status,
+			a.document_id, a.document_type,
 			u.full_name as executor_name,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
 		FROM assignments a
@@ -253,7 +261,7 @@ func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate
 		var deadline sql.NullTime
 		var executorName sql.NullString
 
-		if err := rows.Scan(&a.ID, &a.Content, &deadline, &a.Status, &executorName, &docNumber); err != nil {
+		if err := rows.Scan(&a.ID, &a.Content, &deadline, &a.Status, &a.DocumentID, &a.DocumentType, &executorName, &docNumber); err != nil {
 			return nil, err
 		}
 		if deadline.Valid {

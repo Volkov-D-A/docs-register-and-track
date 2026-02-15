@@ -1,1 +1,0 @@
-DROP TABLE IF EXISTS assignment_co_executors;

@@ -5,10 +5,12 @@ import {
 } from 'antd';
 import {
     ClockCircleOutlined, FileTextOutlined, CheckCircleOutlined,
-    UserOutlined, DatabaseOutlined, ReloadOutlined
+    UserOutlined, DatabaseOutlined, ReloadOutlined, EyeOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
+
+import DocumentViewModal from '../components/DocumentViewModal';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -18,6 +20,12 @@ const DashboardPage: React.FC = () => {
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [period, setPeriod] = useState<string>('month');
+    const [pendingAcks, setPendingAcks] = useState<any[]>([]);
+
+    // View Modal State
+    const [viewDocId, setViewDocId] = useState('');
+    const [viewDocType, setViewDocType] = useState<'incoming' | 'outgoing'>('incoming');
+    const [viewModalOpen, setViewModalOpen] = useState(false);
 
     const loadStats = async () => {
         setLoading(true);
@@ -27,6 +35,18 @@ const DashboardPage: React.FC = () => {
             // @ts-ignore
             const data = await GetStats(currentRole || '', period);
             setStats(data);
+
+            // Load pending acknowledgments
+            // @ts-ignore
+            const { GetPendingForCurrentUser, GetAllActive } = await import('../../wailsjs/go/services/AcknowledgmentService');
+
+            let acks = [];
+            if (currentRole === 'admin' || currentRole === 'clerk') {
+                acks = await GetAllActive();
+            } else {
+                acks = await GetPendingForCurrentUser();
+            }
+            setPendingAcks(acks || []);
         } catch (err: any) {
             console.error(err);
             message.error('Ошибка загрузки дашборда: ' + (err.message || String(err)));
@@ -38,6 +58,18 @@ const DashboardPage: React.FC = () => {
     useEffect(() => {
         loadStats();
     }, [currentRole, period]); // Reload when role or period changes
+
+    const onAcknowledge = async (id: string) => {
+        try {
+            // @ts-ignore
+            const { MarkConfirmed } = await import('../../wailsjs/go/services/AcknowledgmentService');
+            await MarkConfirmed(id);
+            message.success('Ознакомлен');
+            loadStats();
+        } catch (err: any) {
+            message.error(err?.message || String(err));
+        }
+    };
 
     // Use currentRole for view determination, fallback to stats.role if needed
     const activeRole = currentRole || stats?.role || user?.roles?.[0] || 'executor';
@@ -61,8 +93,9 @@ const DashboardPage: React.FC = () => {
     );
 
     const ExpiringList = ({ list, title = 'Истекающий срок исполнения' }: any) => (
-        <Card title={title} bordered={false} style={{ marginTop: 24, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <Card title={title} bordered={false} size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <List
+                size="small"
                 dataSource={list || []}
                 renderItem={(item: any) => {
                     const diff = dayjs(item.deadline).diff(dayjs(), 'day');
@@ -79,15 +112,27 @@ const DashboardPage: React.FC = () => {
                                     </Tag>
                                 }
                                 title={
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>{item.content}</span>
-                                        {item.documentNumber && <Tag>{item.documentNumber}</Tag>}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <Text style={{ whiteSpace: 'pre-wrap', marginRight: 8, wordBreak: 'break-word' }}>{item.content}</Text>
+                                        {item.documentNumber && (
+                                            <Tag
+                                                style={{ cursor: 'pointer' }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setViewDocId(item.documentId);
+                                                    setViewDocType(item.documentType);
+                                                    setViewModalOpen(true);
+                                                }}
+                                            >
+                                                {item.documentNumber}
+                                            </Tag>
+                                        )}
                                     </div>
                                 }
                                 description={
                                     <div>
                                         {item.executorName && <span style={{ marginRight: 10 }}><UserOutlined /> {item.executorName}</span>}
-                                        <span style={{ fontSize: 12 }}>Статус: {
+                                        <span style={{ fontSize: 12 }}>{
                                             item.status === 'new' ? 'Новое' :
                                                 item.status === 'in_progress' ? 'В работе' : item.status
                                         }</span>
@@ -97,17 +142,72 @@ const DashboardPage: React.FC = () => {
                         </List.Item>
                     );
                 }}
-                locale={{ emptyText: <Empty description="Нет срочных поручений" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                locale={{ emptyText: <Empty description="Нет поручений" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
             />
         </Card>
     );
+
+    const PendingAcksList = () => {
+        const hasItems = pendingAcks && pendingAcks.length > 0;
+        const title = (activeRole === 'admin' || activeRole === 'clerk') ? "Все текущие ознакомления" : "Мои ознакомления";
+        return (
+            <Card title={title} bordered={false} size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #faad14' }}>
+                <List
+                    size="small"
+                    dataSource={pendingAcks}
+                    renderItem={(item: any) => (
+                        <List.Item>
+                            <List.Item.Meta
+                                title={
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginRight: 8 }}>{item.content || 'Без описания'}</Text>
+                                        <Tag
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setViewDocId(item.documentId);
+                                                setViewDocType(item.documentType as 'incoming' | 'outgoing');
+                                                setViewModalOpen(true);
+                                            }}
+                                        >
+                                            {item.documentNumber || (item.documentType === 'incoming' ? 'Bx' : 'Исх')}
+                                        </Tag>
+                                    </div>
+                                }
+                                description={
+                                    (activeRole === 'admin' || activeRole === 'clerk') ? (
+                                        <div style={{ marginTop: 8 }}>
+                                            {item.users && item.users.length > 0 ? (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                    {item.users.map((u: any) => (
+                                                        <Tag key={u.userId} color={u.confirmedAt ? 'green' : 'default'} style={{ marginRight: 0 }}>
+                                                            {u.userName}
+                                                        </Tag>
+                                                    ))}
+                                                </div>
+                                            ) : <Text type="secondary" style={{ fontSize: 12 }}>Нет участников</Text>}
+                                        </div>
+                                    ) : (
+                                        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-start' }}>
+                                            <Button size="small" type="primary" onClick={() => onAcknowledge(item.id)}>ознакомлен</Button>
+                                        </div>
+                                    )
+                                }
+                            />
+                        </List.Item>
+                    )}
+                    locale={{ emptyText: <Empty description="Нет документов" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                />
+            </Card>
+        );
+    };
 
     // --- Views ---
 
     const renderExecutorView = () => (
         <>
             <Title level={4}>Моя статистика</Title>
-            <Row gutter={[16, 16]}>
+            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                 <Col xs={24} sm={6}>
                     <StatCard title="Новые" value={stats?.myAssignmentsNew || 0} icon={<FileTextOutlined />} color="#69c0ff" />
                 </Col>
@@ -115,7 +215,7 @@ const DashboardPage: React.FC = () => {
                     <StatCard title="В работе" value={stats?.myAssignmentsInProgress || 0} icon={<ClockCircleOutlined />} color="#ffc069" />
                 </Col>
                 <Col xs={24} sm={6}>
-                    <StatCard title="Просрочено (активные)" value={stats?.myAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
+                    <StatCard title="Просрочено" value={stats?.myAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
                 </Col>
                 <Col xs={24} sm={6}>
                     <StatCard
@@ -125,8 +225,8 @@ const DashboardPage: React.FC = () => {
                         color="#95de64"
                         suffix={
                             (stats?.myAssignmentsFinishedLate > 0) ? (
-                                <span style={{ marginLeft: 12, fontSize: 'inherit' }}>
-                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 24 }} />
+                                <span style={{ marginLeft: 8, fontSize: 'inherit' }}>
+                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 16 }} />
                                     <span style={{ color: 'black' }}>{stats.myAssignmentsFinishedLate}</span>
                                 </span>
                             ) : null
@@ -135,7 +235,14 @@ const DashboardPage: React.FC = () => {
                 </Col>
             </Row>
 
-            <ExpiringList list={stats?.expiringAssignments} title="Мои срочные поручения" />
+            <Row gutter={[16, 16]}>
+                <Col xs={24} md={12}>
+                    <PendingAcksList />
+                </Col>
+                <Col xs={24} md={12}>
+                    <ExpiringList list={stats?.expiringAssignments} title="Срочные поручения" />
+                </Col>
+            </Row>
         </>
     );
 
@@ -143,19 +250,15 @@ const DashboardPage: React.FC = () => {
         <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Title level={4} style={{ margin: 0 }}>
-                    Статистика: {
-                        period === 'month' ? 'Текущий месяц' :
-                            period === 'quarter' ? 'Текущий квартал' :
-                                'Текущий год'
-                    }
+                    Статистика ({period === 'month' ? 'Месяц' : period === 'quarter' ? 'Квартал' : 'Год'})
                 </Title>
-                <Select value={period} style={{ width: 160 }} onChange={setPeriod}>
-                    <Option value="month">Текущий месяц</Option>
-                    <Option value="quarter">Текущий квартал</Option>
-                    <Option value="year">Текущий год</Option>
+                <Select value={period} style={{ width: 140 }} onChange={setPeriod} size="small">
+                    <Option value="month">Месяц</Option>
+                    <Option value="quarter">Квартал</Option>
+                    <Option value="year">Год</Option>
                 </Select>
             </div>
-            <Row gutter={[16, 16]}>
+            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                 <Col xs={24} sm={6}>
                     <StatCard title="Входящие" value={stats?.incomingCountMonth || 0} icon={<FileTextOutlined />} color="#95de64" />
                 </Col>
@@ -163,18 +266,18 @@ const DashboardPage: React.FC = () => {
                     <StatCard title="Исходящие" value={stats?.outgoingCountMonth || 0} icon={<FileTextOutlined />} color="#b37feb" />
                 </Col>
                 <Col xs={24} sm={6}>
-                    <StatCard title="Просрочено (всего)" value={stats?.allAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
+                    <StatCard title="Просрочено" value={stats?.allAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
                 </Col>
                 <Col xs={24} sm={6}>
                     <StatCard
-                        title="Завершено (всего)"
+                        title="Завершено"
                         value={stats?.allAssignmentsFinished || 0}
                         icon={<CheckCircleOutlined />}
                         color="#95de64"
                         suffix={
                             (stats?.allAssignmentsFinishedLate > 0) ? (
-                                <span style={{ marginLeft: 12, fontSize: 'inherit' }}>
-                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 24 }} />
+                                <span style={{ marginLeft: 8, fontSize: 'inherit' }}>
+                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 16 }} />
                                     <span style={{ color: 'black' }}>{stats.allAssignmentsFinishedLate}</span>
                                 </span>
                             ) : null
@@ -183,37 +286,31 @@ const DashboardPage: React.FC = () => {
                 </Col>
             </Row>
 
-            <ExpiringList list={stats?.expiringAssignments} title="Все поручения с истекающим сроком" />
+            <Row gutter={[16, 16]}>
+                <Col xs={24} md={12}>
+                    <PendingAcksList />
+                </Col>
+                <Col xs={24} md={12}>
+                    <ExpiringList list={stats?.expiringAssignments} title="Все срочные" />
+                </Col>
+            </Row>
         </>
     );
 
     const renderAdminView = () => (
         <>
-            <Title level={4}>Системная статистика</Title>
+            <Title level={4}>Система</Title>
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={8}>
                     <StatCard title="Пользователи" value={stats?.userCount || 0} icon={<UserOutlined />} color="#1890ff" />
                 </Col>
                 <Col xs={24} sm={8}>
-                    <StatCard title="Всего документов" value={stats?.totalDocuments || 0} icon={<FileTextOutlined />} />
+                    <StatCard title="Документы" value={stats?.totalDocuments || 0} icon={<FileTextOutlined />} />
                 </Col>
                 <Col xs={24} sm={8}>
-                    <StatCard title="Размер БД" value={stats?.dbSize || "N/A"} icon={<DatabaseOutlined />} color="#52c41a" />
+                    <StatCard title="БД" value={stats?.dbSize || "N/A"} icon={<DatabaseOutlined />} color="#52c41a" />
                 </Col>
             </Row>
-
-            {/* Admin also sees clerk view stats for overview */}
-            <div style={{ marginTop: 24 }}>
-                <Title level={5}>Документация и контроль</Title>
-                <Row gutter={[16, 16]}>
-                    <Col xs={24} sm={12}>
-                        <StatCard title="Входящие (мес)" value={stats?.incomingCountMonth || 0} icon={<FileTextOutlined />} color="#52c41a" />
-                    </Col>
-                    <Col xs={24} sm={12}>
-                        <StatCard title="Исходящие (мес)" value={stats?.outgoingCountMonth || 0} icon={<FileTextOutlined />} color="#722ed1" />
-                    </Col>
-                </Row>
-            </div>
         </>
     );
 
@@ -227,6 +324,13 @@ const DashboardPage: React.FC = () => {
             {activeRole === 'admin' && renderAdminView()}
             {activeRole === 'clerk' && renderClerkView()}
             {activeRole !== 'admin' && activeRole !== 'clerk' && renderExecutorView()}
+
+            <DocumentViewModal
+                open={viewModalOpen}
+                onCancel={() => setViewModalOpen(false)}
+                documentId={viewDocId}
+                documentType={viewDocType}
+            />
         </div>
     );
 };

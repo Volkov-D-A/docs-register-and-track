@@ -12,6 +12,8 @@ import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import AssignmentModal from '../components/AssignmentModal';
 
+import DocumentViewModal from '../components/DocumentViewModal';
+
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
@@ -42,7 +44,7 @@ const AssignmentsPage: React.FC = () => {
     const [reportText, setReportText] = useState('');
 
     // View Document
-    const [viewDoc, setViewDoc] = useState<any>(null);
+    const [viewDocId, setViewDocId] = useState<string>('');
     const [viewDocType, setViewDocType] = useState<'incoming' | 'outgoing'>('incoming');
     const [viewModalOpen, setViewModalOpen] = useState(false);
 
@@ -159,26 +161,10 @@ const AssignmentsPage: React.FC = () => {
         setFilterOverdue(true);
     };
 
-    const handleViewDocument = async (id: string, type: string) => {
-        setLoading(true);
-        try {
-            let doc;
-            if (type === 'incoming') {
-                const { GetByID } = await import('../../wailsjs/go/services/IncomingDocumentService');
-                doc = await GetByID(id);
-                setViewDocType('incoming');
-            } else {
-                const { GetByID } = await import('../../wailsjs/go/services/OutgoingDocumentService');
-                doc = await GetByID(id);
-                setViewDocType('outgoing');
-            }
-            setViewDoc(doc);
-            setViewModalOpen(true);
-        } catch (err: any) {
-            message.error(err?.message || String(err));
-        } finally {
-            setLoading(false);
-        }
+    const handleViewDocument = (id: string, type: string) => {
+        setViewDocId(id);
+        setViewDocType(type as 'incoming' | 'outgoing');
+        setViewModalOpen(true);
     };
 
     const columns = [
@@ -416,54 +402,17 @@ const AssignmentsPage: React.FC = () => {
                 />
             </Modal>
 
-            <Modal
-                title={`Карточка документа (${viewDocType === 'incoming' ? 'Входящий' : 'Исходящий'})`}
+            <DocumentViewModal
                 open={viewModalOpen}
                 onCancel={() => setViewModalOpen(false)}
-                footer={[
-                    <Button key="close" type="primary" onClick={() => setViewModalOpen(false)}>Закрыть</Button>,
-                ]}
-                width={700}
-            >
-                {viewDoc && (
-                    <Row gutter={[16, 12]}>
-                        {viewDocType === 'incoming' ? (
-                            <>
-                                <Col span={12}><Text type="secondary">Рег. номер:</Text> <Text strong>{viewDoc.incomingNumber}</Text></Col>
-                                <Col span={12}><Text type="secondary">Дата:</Text> <Text strong>{dayjs(viewDoc.incomingDate).format('DD.MM.YYYY')}</Text></Col>
-                                <Col span={12}><Text type="secondary">Исх. №:</Text> {viewDoc.outgoingNumberSender || '—'}</Col>
-                                <Col span={12}><Text type="secondary">Дата исх.:</Text> {viewDoc.outgoingDateSender ? dayjs(viewDoc.outgoingDateSender).format('DD.MM.YYYY') : '—'}</Col>
-                                <Col span={24}><Text type="secondary">Тип:</Text> <Tag>{viewDoc.documentTypeName}</Tag></Col>
-                                <Col span={24}><Text type="secondary">Содержание:</Text> <Text strong>{viewDoc.subject}</Text></Col>
-                                <Col span={12}><Text type="secondary">Отправитель:</Text> {viewDoc.senderOrgName}</Col>
-                                <Col span={12}><Text type="secondary">Получатель:</Text> {viewDoc.recipientOrgName}</Col>
-                                <Col span={12}><Text type="secondary">Подписант:</Text> {viewDoc.senderSignatory || '—'}</Col>
-                                <Col span={12}><Text type="secondary">Кому:</Text> {viewDoc.addressee || '—'}</Col>
-                                <Col span={24}><Text type="secondary">Резолюция:</Text> <Text strong>{viewDoc.resolution || '—'}</Text></Col>
-                                {viewDoc.content && <Col span={24}><Text type="secondary">Подробно:</Text><br />{viewDoc.content}</Col>}
-                                <Col span={12}><Text type="secondary">Листов:</Text> {viewDoc.pagesCount}</Col>
-                                <Col span={12}><Text type="secondary">Номенклатура:</Text> {viewDoc.nomenclatureName}</Col>
-                            </>
-                        ) : (
-                            <>
-                                <Col span={12}><Text type="secondary">Номер:</Text> <Text strong>{viewDoc.outgoingNumber}</Text></Col>
-                                <Col span={12}><Text type="secondary">Дата:</Text> <Text strong>{dayjs(viewDoc.outgoingDate).format('DD.MM.YYYY')}</Text></Col>
-                                <Col span={24}><Text type="secondary">Тип:</Text> <Tag>{viewDoc.documentTypeName}</Tag></Col>
-                                <Col span={24}><Text type="secondary">Краткое содержание:</Text> <Text strong>{viewDoc.subject}</Text></Col>
-                                <Col span={12}><Text type="secondary">Получатель:</Text> {viewDoc.recipientOrgName}</Col>
-                                <Col span={12}><Text type="secondary">Адресат:</Text> {viewDoc.addressee}</Col>
-                                <Col span={12}><Text type="secondary">Подписал:</Text> {viewDoc.senderSignatory}</Col>
-                                <Col span={12}><Text type="secondary">Исполнитель:</Text> {viewDoc.senderExecutor}</Col>
-                                {viewDoc.content && <Col span={24}><Text type="secondary">Содержание:</Text><br /><div style={{ whiteSpace: 'pre-wrap' }}>{viewDoc.content}</div></Col>}
-                                <Col span={12}><Text type="secondary">Листов:</Text> {viewDoc.pagesCount}</Col>
-                                <Col span={12}><Text type="secondary">Номенклатура:</Text> {viewDoc.nomenclatureName}</Col>
-                            </>
-                        )}
-                    </Row>
-                )}
-            </Modal>
+                documentId={viewDocId}
+                documentType={viewDocType}
+            />
         </div>
     );
+
+
+
 };
 
 export default AssignmentsPage;

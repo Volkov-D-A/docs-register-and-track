@@ -25,9 +25,9 @@ func (s *UserService) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-// GetAllUsers — получить всех пользователей (только admin)
+// GetAllUsers — получить всех пользователей (только admin или clerk)
 func (s *UserService) GetAllUsers() ([]models.User, error) {
-	if !s.auth.HasRole("admin") {
+	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, ErrNotAuthenticated
 	}
 	return s.userRepo.GetAll()

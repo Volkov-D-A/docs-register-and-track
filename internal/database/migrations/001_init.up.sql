@@ -156,8 +156,7 @@ CREATE TABLE outgoing_documents (
     nomenclature_id UUID NOT NULL REFERENCES nomenclature(id),
 
 -- Numbers and dates
-outgoing_number VARCHAR(50) NOT NULL,
-outgoing_date DATE NOT NULL,
+outgoing_number VARCHAR(50) NOT NULL, outgoing_date DATE NOT NULL,
 
 -- About document
 document_type_id UUID NOT NULL REFERENCES document_types (id),
@@ -235,3 +234,73 @@ CREATE TABLE assignments (
 CREATE INDEX idx_assignments_executor ON assignments (executor_id);
 
 CREATE INDEX idx_assignments_document ON assignments (document_id);
+
+-- 12. Attachments
+CREATE TABLE IF NOT EXISTS attachments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
+    document_id UUID NOT NULL, -- Generic link to incoming or outgoing document
+    document_type VARCHAR(50) NOT NULL, -- 'incoming' or 'outgoing'
+    filename VARCHAR(255) NOT NULL,
+    file_size BIGINT NOT NULL,
+    content_type VARCHAR(100),
+    content BYTEA,
+    uploaded_by UUID NOT NULL REFERENCES users (id),
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_attachments_document ON attachments (document_id);
+
+-- 13. System Settings
+CREATE TABLE IF NOT EXISTS system_settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value TEXT NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Default settings
+INSERT INTO
+    system_settings (key, value, description)
+VALUES (
+        'max_file_size_mb',
+        '10',
+        'Максимальный размер файла (МБ)'
+    ),
+    (
+        'allowed_file_types',
+        '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.png,.zip,.rar',
+        'Разрешенные типы файлов (через запятую)'
+    );
+
+-- 14. Assignment Co-Executors
+CREATE TABLE assignment_co_executors (
+    assignment_id UUID NOT NULL REFERENCES assignments (id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (assignment_id, user_id)
+);
+
+CREATE INDEX idx_assignment_co_executors_assignment ON assignment_co_executors (assignment_id);
+
+CREATE INDEX idx_assignment_co_executors_user ON assignment_co_executors (user_id);
+
+-- 15. Acknowledgments
+CREATE TABLE acknowledgments (
+    id UUID PRIMARY KEY,
+    document_id UUID NOT NULL,
+    document_type VARCHAR(50) NOT NULL, -- 'incoming' or 'outgoing'
+    creator_id UUID NOT NULL REFERENCES users (id),
+    content TEXT DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMP
+);
+
+CREATE TABLE acknowledgment_users (
+    id UUID PRIMARY KEY,
+    acknowledgment_id UUID NOT NULL REFERENCES acknowledgments (id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    viewed_at TIMESTAMP,
+    confirmed_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (acknowledgment_id, user_id)
+);

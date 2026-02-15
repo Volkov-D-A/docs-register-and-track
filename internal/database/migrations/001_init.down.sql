@@ -1,3 +1,13 @@
+DROP TABLE IF EXISTS acknowledgment_users;
+
+DROP TABLE IF EXISTS acknowledgments;
+
+DROP TABLE IF EXISTS assignment_co_executors;
+
+DROP TABLE IF EXISTS system_settings;
+
+DROP TABLE IF EXISTS attachments;
+
 DROP TABLE IF EXISTS assignments;
 
 DROP TABLE IF EXISTS document_links;
