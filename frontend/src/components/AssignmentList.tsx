@@ -131,11 +131,14 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
             render: (_: any, r: any) => {
                 const isExecutor = user?.id === r.executorId && currentRole === 'executor';
                 const isAdmin = hasRole('admin');
-                const canEdit = isAdmin;
+                const isClerk = hasRole('clerk');
+
+                // Admin can edit all. Clerk can edit if not finished.
+                const canEdit = isAdmin || (isClerk && r.status !== 'finished');
 
                 return (
                     <Space size={2}>
-                        {/* Edit/Delete for Admin */}
+                        {/* Edit/Delete for Admin or Clerk */}
                         {canEdit && (
                             <>
                                 <Button size="small" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />

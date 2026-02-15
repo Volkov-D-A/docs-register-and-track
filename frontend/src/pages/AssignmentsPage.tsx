@@ -247,7 +247,10 @@ const AssignmentsPage: React.FC = () => {
             render: (_: any, r: any) => {
                 const isExecutor = user?.id === r.executorId && currentRole === 'executor';
                 const isAdmin = hasRole('admin');
-                const canEdit = isAdmin;
+                const isClerk = hasRole('clerk');
+
+                // Admin can edit all. Clerk can edit if not finished.
+                const canEdit = isAdmin || (isClerk && r.status !== 'finished');
 
                 return (
                     <Space size={2}>

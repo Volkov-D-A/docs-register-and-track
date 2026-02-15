@@ -41,6 +41,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                     controllerId: initialValues.controllerId,
                     content: initialValues.content,
                     deadline: initialValues.deadline ? dayjs(initialValues.deadline) : null,
+                    coExecutorIds: initialValues.coExecutorIds || (initialValues.coExecutors?.map((u: any) => u.id) || []),
                 });
             }
         }

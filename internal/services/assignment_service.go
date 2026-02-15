@@ -94,9 +94,16 @@ func (s *AssignmentService) Update(
 		return nil, fmt.Errorf("assignment not found")
 	}
 
-	// Only admin can edit assignment details
-	if !s.auth.HasRole("admin") {
+	// Check permissions
+	// Admin or Clerk can edit
+	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, fmt.Errorf("permission denied")
+	}
+
+	// Restriction: cannot edit finished assignments (unless admin, maybe? original request said "cannot edit finished", implies strict rule)
+	// Let's apply strict rule for clerks. Admins might need to fix mistakes, but let's follow "Завершенные поручения редактировать и удалять нельзя" strictly for the requested feature (clerks).
+	if existing.Status == "finished" && !s.auth.HasRole("admin") {
+		return nil, fmt.Errorf("cannot edit finished assignment")
 	}
 
 	execUUID, err := uuid.Parse(executorID)
@@ -223,8 +230,14 @@ func (s *AssignmentService) Delete(id string) error {
 		return nil
 	}
 
-	if !s.auth.HasRole("admin") {
+	// Admin or Clerk can delete
+	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return fmt.Errorf("permission denied")
+	}
+
+	// Restriction: cannot delete finished assignments
+	if existing.Status == "finished" && !s.auth.HasRole("admin") {
+		return fmt.Errorf("cannot delete finished assignment")
 	}
 
 	return s.repo.Delete(uid)
