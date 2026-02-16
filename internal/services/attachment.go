@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/google/uuid"
@@ -207,8 +208,17 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 
 // OpenFile opens the file with the default application
 func (s *AttachmentService) OpenFile(path string) error {
-	// For Linux, use xdg-open
-	cmd := exec.Command("xdg-open", path)
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", path)
+	case "darwin":
+		cmd = exec.Command("open", path)
+	default:
+		cmd = exec.Command("xdg-open", path)
+	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to open file: %v", err)
 	}
@@ -218,8 +228,17 @@ func (s *AttachmentService) OpenFile(path string) error {
 // OpenFolder opens the folder containing the file
 func (s *AttachmentService) OpenFolder(path string) error {
 	dir := filepath.Dir(path)
-	// For Linux, use xdg-open on the directory
-	cmd := exec.Command("xdg-open", dir)
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer", dir)
+	case "darwin":
+		cmd = exec.Command("open", dir)
+	default:
+		cmd = exec.Command("xdg-open", dir)
+	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to open folder: %v", err)
 	}
