@@ -6,6 +6,9 @@ import (
 	"docflow/internal/repository"
 	"encoding/base64"
 	"fmt"
+	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -152,9 +155,73 @@ func (s *AttachmentService) Delete(idStr string) error {
 	return nil
 }
 
-// OpenFile opens the file in default viewer (optional feature)
-func (s *AttachmentService) OpenFile(idStr string) error {
-	// runtime.BrowserOpenURL could be used if we served files via HTTP
-	// For local app, we might just return path to frontend or let frontend handle "download"
+// DownloadToDisk saves the file to the user's Downloads directory and returns the full path
+func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid attachment ID")
+	}
+
+	// Get metadata
+	attachment, err := s.repo.GetByID(id)
+	if err != nil {
+		return "", err
+	}
+
+	// Get content
+	content, err := s.repo.GetContent(id)
+	if err != nil {
+		return "", fmt.Errorf("failed to get file content: %v", err)
+	}
+
+	// Determine download path
+	// For Linux, typically ~/Downloads
+	// We can try to use os/user to find home directory
+	// Note: Wails might have a specific way, but standard Go works too.
+	currentUser, err := user.Current()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current user: %v", err)
+	}
+
+	// Construct path
+	// Assuming standardized "Downloads" folder. 
+	// For a more robust solution, xdg-user-dir DOWNLOAD could be used, but ~/Downloads is a safe default for now.
+	downloadDir := filepath.Join(currentUser.HomeDir, "Downloads")
+	
+	// Create directory if not exists (unlikely but safe)
+	if err := os.MkdirAll(downloadDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create download directory: %v", err)
+	}
+
+	// Clean filename to prevent path traversal or invalid chars
+	cleanFilename := filepath.Base(attachment.Filename)
+	fullPath := filepath.Join(downloadDir, cleanFilename)
+
+	// Write file
+	if err := os.WriteFile(fullPath, content, 0644); err != nil {
+		return "", fmt.Errorf("failed to write file: %v", err)
+	}
+
+	return fullPath, nil
+}
+
+// OpenFile opens the file with the default application
+func (s *AttachmentService) OpenFile(path string) error {
+	// For Linux, use xdg-open
+	cmd := exec.Command("xdg-open", path)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to open file: %v", err)
+	}
+	return nil
+}
+
+// OpenFolder opens the folder containing the file
+func (s *AttachmentService) OpenFolder(path string) error {
+	dir := filepath.Dir(path)
+	// For Linux, use xdg-open on the directory
+	cmd := exec.Command("xdg-open", dir)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to open folder: %v", err)
+	}
 	return nil
 }

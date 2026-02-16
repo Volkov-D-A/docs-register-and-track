@@ -10,12 +10,20 @@ export function Download(arg1) {
   return window['go']['services']['AttachmentService']['Download'](arg1);
 }
 
+export function DownloadToDisk(arg1) {
+  return window['go']['services']['AttachmentService']['DownloadToDisk'](arg1);
+}
+
 export function GetList(arg1) {
   return window['go']['services']['AttachmentService']['GetList'](arg1);
 }
 
 export function OpenFile(arg1) {
   return window['go']['services']['AttachmentService']['OpenFile'](arg1);
+}
+
+export function OpenFolder(arg1) {
+  return window['go']['services']['AttachmentService']['OpenFolder'](arg1);
 }
 
 export function SetContext(arg1) {

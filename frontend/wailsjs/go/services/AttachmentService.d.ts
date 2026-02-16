@@ -7,9 +7,13 @@ export function Delete(arg1:string):Promise<void>;
 
 export function Download(arg1:string):Promise<models.DownloadResponse>;
 
+export function DownloadToDisk(arg1:string):Promise<string>;
+
 export function GetList(arg1:string):Promise<Array<models.Attachment>>;
 
 export function OpenFile(arg1:string):Promise<void>;
+
+export function OpenFolder(arg1:string):Promise<void>;
 
 export function SetContext(arg1:context.Context):Promise<void>;
 

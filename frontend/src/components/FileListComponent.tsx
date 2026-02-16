@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { List, Button, Upload, message, Popconfirm, Avatar, Typography, Tooltip } from 'antd';
+import { List, Button, Upload, message, Popconfirm, Avatar, Typography, Tooltip, notification } from 'antd';
 import { UploadOutlined, DownloadOutlined, DeleteOutlined, FileOutlined, FilePdfOutlined, FileImageOutlined, FileWordOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 import { useAuthStore } from '../store/useAuthStore';
@@ -19,6 +19,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [api, contextHolder] = notification.useNotification();
 
     const loadFiles = async () => {
         setLoading(true);
@@ -69,42 +70,44 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
 
     const handleDownload = async (file: any) => {
         try {
-            const { Download } = await import('../../wailsjs/go/services/AttachmentService');
-            // Returns base64 string, filename
-            // However, Wails Go method returns (string, string, error).
-            // In JS/TS generated code, it might return Promise<string> or object depending on binding generation.
-            // Usually multiple returns come as array or object?
-            // Actually standard Wails V2 returns the first return value if no error, or throws error.
-            // Wait, if Go returns multiple values, Wails returns them as an array in JS?
-            // Let's assume standard behavior: Wails handles multiple returns by checking if binding supports it. 
-            // If not, maybe it returns just the first one?
-            // Actually, best practice in Wails is to return a struct if you want multiple values. 
-            // My Go code returns (string, string, error). This might be problematic in standard Wails fetch if not handled.
-            // Let's assume the generated code handles it or returns an array.
+            const { DownloadToDisk, OpenFile, OpenFolder } = await import('../../wailsjs/go/services/AttachmentService');
 
-            // Re-checking AttachmentService.go: 
-            // func (s *AttachmentService) Download(idStr string) (string, string, error)
+            // Start download
+            message.loading({ content: 'Скачивание файла...', key: 'download' });
 
-            // If Wails generates TS, it usually returns Promise<string> if only one value, or Promise<[string, string]> if multiple on some versions?
-            // Safer approach: Let's assume it returns the base64 string, and we use the filename from the file object we already have.
+            const savedPath = await DownloadToDisk(file.id);
 
-            // Wait, if I cannot be sure, I should check wails docs or assume I might need to adjust Go code to return a struct.
-            // But for now let's hope it returns the first string (content).
+            message.success({ content: 'Файл скачан', key: 'download' });
 
-            // Wails should return the struct now
-            const result = await Download(file.id);
-            const contentBase64 = result.content;
-            const filename = result.filename || file.filename;
+            // Show notification with actions
+            const key = `open${Date.now()}`;
+            api.open({
+                message: 'Скачивание завершено',
+                description: `Файл сохранен: ${savedPath}`,
+                icon: <FileOutlined style={{ color: '#108ee9' }} />,
+                key,
+                duration: 0, // Keep open until user interacts
+                btn: (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <Button type="primary" size="small" onClick={async () => {
+                            await OpenFile(savedPath);
+                            api.destroy(key);
+                        }}>
+                            Открыть
+                        </Button>
+                        <Button size="small" onClick={async () => {
+                            await OpenFolder(savedPath);
+                            api.destroy(key);
+                        }}>
+                            В папку
+                        </Button>
+                    </div>
+                ),
+            });
 
-            // Create download link
-            const a = document.createElement('a');
-            a.href = `data:application/octet-stream;base64,${contentBase64}`;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
         } catch (err: any) {
-            message.error(err?.message || 'Ошибка скачивания');
+            console.error(err);
+            message.error({ content: err?.message || 'Ошибка скачивания', key: 'download' });
         }
     };
 
@@ -134,6 +137,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
 
     return (
         <div style={{ padding: 16 }}>
+            {contextHolder}
             {canEdit && (
                 <div style={{ marginBottom: 16 }}>
                     <Upload {...props}>
