@@ -7,6 +7,7 @@ import AssignmentList from '../components/AssignmentList';
 import AcknowledgmentList from '../components/AcknowledgmentList';
 import FileListComponent from '../components/FileListComponent';
 import { LinksTab } from '../components/DocumentLinks/LinksTab';
+import DocumentViewModal from '../components/DocumentViewModal';
 
 import {
     PlusOutlined, SearchOutlined, EyeOutlined, DeleteOutlined, EditOutlined,
@@ -52,7 +53,7 @@ const OutgoingPage: React.FC = () => {
     // Модалки
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
-    const [viewDoc, setViewDoc] = useState<any>(null);
+    const [viewDocId, setViewDocId] = useState<string>('');
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [editDoc, setEditDoc] = useState<any>(null);
 
@@ -231,7 +232,7 @@ const OutgoingPage: React.FC = () => {
             width: 120,
             render: (_: any, r: any) => (
                 <Space>
-                    <Button size="small" icon={<EyeOutlined />} onClick={() => { setViewDoc(r); setViewModalOpen(true); }} />
+                    <Button size="small" icon={<EyeOutlined />} onClick={() => { setViewDocId(r.id); setViewModalOpen(true); }} />
                     {!isExecutorOnly && (
                         <>
                             <Button size="small" icon={<EditOutlined />} onClick={() => {
@@ -467,81 +468,12 @@ const OutgoingPage: React.FC = () => {
             </Modal>
 
             {/* Просмотр */}
-            <Modal
-                title={`Исходящий документ №${viewDoc?.outgoingNumber}`}
+            <DocumentViewModal
                 open={viewModalOpen}
                 onCancel={() => setViewModalOpen(false)}
-                footer={[<Button key="close" onClick={() => setViewModalOpen(false)}>Закрыть</Button>]}
-                width={700}
-            >
-                {viewDoc && (
-                    <Tabs defaultActiveKey="info" items={[
-                        {
-                            key: 'info', label: 'Информация',
-                            children: (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                    <Row gutter={16}>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Дата:</Text> <Text strong>{dayjs(viewDoc.outgoingDate).format('DD.MM.YYYY')}</Text>
-                                        </Col>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Вид:</Text> <Tag>{viewDoc.documentTypeName}</Tag>
-                                        </Col>
-                                    </Row>
-                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {viewDoc.nomenclatureName}</Col></Row>
-
-                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
-
-                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Получатель:</Text> {viewDoc.recipientOrgName}</Col></Row>
-                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Адресат:</Text> {viewDoc.addressee}</Col></Row>
-
-                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
-
-                                    <Row gutter={16}>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Подписал:</Text> {viewDoc.senderSignatory}
-                                        </Col>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Исполнитель:</Text> {viewDoc.senderExecutor}
-                                        </Col>
-                                    </Row>
-
-                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
-
-                                    <div>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Краткое содержание:</Text>
-                                        <div style={{ fontWeight: 500, lineHeight: 1.2 }}>{viewDoc.subject}</div>
-                                    </div>
-
-                                    {viewDoc.content && (
-                                        <div>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
-                                            <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, maxHeight: 100, overflowY: 'auto', background: '#fafafa', padding: 8, borderRadius: 4 }}>{viewDoc.content}</div>
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        },
-                        {
-                            key: 'assignments', label: 'Поручения',
-                            children: <AssignmentList documentId={viewDoc.id} documentType="outgoing" />
-                        },
-                        {
-                            key: 'files', label: 'Файлы',
-                            children: <FileListComponent documentId={viewDoc.id} documentType="outgoing" readOnly={false} />
-                        },
-                        {
-                            key: 'links', label: 'Связи',
-                            children: <LinksTab documentId={viewDoc.id} documentType="outgoing" documentNumber={viewDoc.outgoingNumber} />
-                        },
-                        {
-                            key: 'acknowledgments', label: 'Ознакомление',
-                            children: <AcknowledgmentList documentId={viewDoc.id} documentType="outgoing" />
-                        }
-
-                    ]} />
-                )}
-            </Modal>
+                documentId={viewDocId}
+                documentType="outgoing"
+            />
         </div>
     );
 };

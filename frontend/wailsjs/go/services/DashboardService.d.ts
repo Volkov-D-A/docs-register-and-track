@@ -3,6 +3,6 @@
 import {models} from '../models';
 import {context} from '../models';
 
-export function GetStats(arg1:string,arg2:string):Promise<models.DashboardStats>;
+export function GetStats(arg1:string,arg2:string,arg3:string):Promise<models.DashboardStats>;
 
 export function SetContext(arg1:context.Context):Promise<void>;

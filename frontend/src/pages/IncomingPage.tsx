@@ -7,6 +7,7 @@ import AssignmentList from '../components/AssignmentList';
 import AcknowledgmentList from '../components/AcknowledgmentList';
 import FileListComponent from '../components/FileListComponent';
 import { LinksTab } from '../components/DocumentLinks/LinksTab';
+import DocumentViewModal from '../components/DocumentViewModal';
 
 import {
     PlusOutlined, SearchOutlined, EyeOutlined, DeleteOutlined, EditOutlined,
@@ -48,7 +49,7 @@ const IncomingPage: React.FC = () => {
     // Модалки
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
-    const [viewDoc, setViewDoc] = useState<any>(null);
+    const [viewDocId, setViewDocId] = useState<string>('');
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [editDoc, setEditDoc] = useState<any>(null);
 
@@ -259,7 +260,7 @@ const IncomingPage: React.FC = () => {
             width: 120,
             render: (_: any, record: any) => (
                 <Space>
-                    <Button size="small" icon={<EyeOutlined />} onClick={() => { setViewDoc(record); setViewModalOpen(true); }} />
+                    <Button size="small" icon={<EyeOutlined />} onClick={() => { setViewDocId(record.id); setViewModalOpen(true); }} />
                     {!isExecutorOnly && (
                         <>
                             <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
@@ -507,117 +508,12 @@ const IncomingPage: React.FC = () => {
             </Modal>
 
             {/* Просмотр */}
-            <Modal title={`Входящий документ ${viewDoc?.incomingNumber || ''}`} open={viewModalOpen}
-                onCancel={() => setViewModalOpen(false)} width={700}
-                footer={[
-                    !isExecutorOnly && <Button key="edit" icon={<EditOutlined />} onClick={() => { setViewModalOpen(false); openEdit(viewDoc); }}>Редактировать</Button>,
-                    <Button key="close" type="primary" onClick={() => setViewModalOpen(false)}>Закрыть</Button>,
-                ]}>
-                {viewDoc && (
-                    <Tabs defaultActiveKey="info" items={[
-                        {
-                            key: 'info', label: 'Информация',
-                            children: (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                    <Row gutter={16}>
-                                        <Col span={12}>
-                                            <Tag>{viewDoc.documentTypeName}</Tag> <Text type="secondary" style={{ fontSize: 12 }}>Рег. номер:</Text> <Text strong>{viewDoc.incomingNumber}</Text>
-                                        </Col>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Дата:</Text> <Text strong>{dayjs(viewDoc.incomingDate).format('DD.MM.YYYY')}</Text>
-                                        </Col>
-                                    </Row>
-                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {viewDoc.nomenclatureName}</Col></Row>
-
-                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
-
-                                    <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Отправитель:</Text> {viewDoc.senderOrgName}</Col></Row>
-                                    <Row gutter={16}>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Исх. №:</Text> {viewDoc.outgoingNumberSender || '—'}
-                                        </Col>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Дата исх.:</Text> {viewDoc.outgoingDateSender ? dayjs(viewDoc.outgoingDateSender).format('DD.MM.YYYY') : '—'}
-                                        </Col>
-                                    </Row>
-                                    <Row gutter={16}>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Подписант:</Text> {viewDoc.senderSignatory || '—'}
-                                        </Col>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Исполнитель:</Text> {viewDoc.senderExecutor || '—'}
-                                        </Col>
-                                    </Row>
-                                    {(viewDoc.intermediateNumber || viewDoc.intermediateDate) && (
-                                        <Row gutter={16}>
-                                            <Col span={12}>
-                                                <Text type="secondary" style={{ fontSize: 12 }}>Промежуточный №:</Text> {viewDoc.intermediateNumber || '—'}
-                                            </Col>
-                                            <Col span={12}>
-                                                <Text type="secondary" style={{ fontSize: 12 }}>Промежуточная дата:</Text> {viewDoc.intermediateDate ? dayjs(viewDoc.intermediateDate).format('DD.MM.YYYY') : '—'}
-                                            </Col>
-                                        </Row>
-                                    )}
-
-                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
-
-                                    <Row gutter={16}>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Получатель:</Text> {viewDoc.recipientOrgName}
-                                        </Col>
-                                        <Col span={12}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Адресат:</Text> {viewDoc.addressee || '—'}
-                                        </Col>
-                                    </Row>
-
-                                    <div>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Краткое содержание:</Text>
-                                        <div style={{ fontWeight: 500, lineHeight: 1.2 }}>{viewDoc.subject}</div>
-                                    </div>
-
-                                    <div>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Резолюция:</Text>
-                                        <div style={{ fontStyle: 'italic', background: '#fafafa', padding: '4px 8px', borderRadius: 4 }}>{viewDoc.resolution || '—'}</div>
-                                    </div>
-
-                                    {viewDoc.content && (
-                                        <div>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
-                                            <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, maxHeight: 100, overflowY: 'auto', background: '#fafafa', padding: 8, borderRadius: 4 }}>{viewDoc.content}</div>
-                                        </div>
-                                    )}
-
-                                    <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
-
-                                    <Row gutter={16} style={{ fontSize: 12, color: '#888' }}>
-                                        <Col span={8}>Листов: {viewDoc.pagesCount}</Col>
-                                        <Col span={16} style={{ textAlign: 'right' }}>
-                                            Зарегистрировал: {viewDoc.createdByName} <br /> ({dayjs(viewDoc.createdAt).format('DD.MM.YYYY HH:mm')})
-                                        </Col>
-                                    </Row>
-                                </div>
-                            )
-                        },
-                        {
-                            key: 'assignments', label: 'Поручения',
-                            children: <AssignmentList documentId={viewDoc.id} documentType="incoming" />
-                        },
-                        {
-                            key: 'files', label: 'Файлы',
-                            children: <FileListComponent documentId={viewDoc.id} documentType="incoming" readOnly={false} />
-                        },
-                        {
-                            key: 'links', label: 'Связи',
-                            children: <LinksTab documentId={viewDoc.id} documentType="incoming" documentNumber={viewDoc.incomingNumber} />
-                        },
-                        {
-                            key: 'acknowledgments', label: 'Ознакомление',
-                            children: <AcknowledgmentList documentId={viewDoc.id} documentType="incoming" />
-                        }
-
-                    ]} />
-                )}
-            </Modal>
+            <DocumentViewModal
+                open={viewModalOpen}
+                onCancel={() => setViewModalOpen(false)}
+                documentId={viewDocId}
+                documentType="incoming"
+            />
         </div>
     );
 };

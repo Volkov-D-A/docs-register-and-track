@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Typography, Card, Row, Col, Statistic, List, Tag, Spin, message,
-    Button, Empty, Select
+    Button, Empty, Select, DatePicker
 } from 'antd';
 import {
     ClockCircleOutlined, FileTextOutlined, CheckCircleOutlined,
@@ -19,7 +19,7 @@ const DashboardPage: React.FC = () => {
     const { user, hasRole, currentRole } = useAuthStore();
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
-    const [period, setPeriod] = useState<string>('month');
+    const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
     const [pendingAcks, setPendingAcks] = useState<any[]>([]);
 
     // View Modal State
@@ -33,7 +33,7 @@ const DashboardPage: React.FC = () => {
             const { GetStats } = await import('../../wailsjs/go/services/DashboardService');
             // Pass currentRole to GetStats. If null/undefined, backend handles default.
             // @ts-ignore
-            const data = await GetStats(currentRole || '', period);
+            const data = await GetStats(currentRole || '', dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD'));
             setStats(data);
 
             // Load pending acknowledgments
@@ -57,7 +57,7 @@ const DashboardPage: React.FC = () => {
 
     useEffect(() => {
         loadStats();
-    }, [currentRole, period]); // Reload when role or period changes
+    }, [currentRole, dateRange]); // Reload when role or period changes
 
     const onAcknowledge = async (id: string) => {
         try {
@@ -250,20 +250,24 @@ const DashboardPage: React.FC = () => {
         <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Title level={4} style={{ margin: 0 }}>
-                    Статистика ({period === 'month' ? 'Месяц' : period === 'quarter' ? 'Квартал' : 'Год'})
+                    Статистика за период
                 </Title>
-                <Select value={period} style={{ width: 140 }} onChange={setPeriod} size="small">
-                    <Option value="month">Месяц</Option>
-                    <Option value="quarter">Квартал</Option>
-                    <Option value="year">Год</Option>
-                </Select>
+                <DatePicker.RangePicker
+                    value={dateRange}
+                    onChange={(dates) => {
+                        if (dates && dates[0] && dates[1]) {
+                            setDateRange([dates[0], dates[1]]);
+                        }
+                    }}
+                    allowClear={false}
+                />
             </div>
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                 <Col xs={24} sm={6}>
-                    <StatCard title="Входящие" value={stats?.incomingCountMonth || 0} icon={<FileTextOutlined />} color="#95de64" />
+                    <StatCard title="Входящие" value={stats?.incomingCount || 0} icon={<FileTextOutlined />} color="#95de64" />
                 </Col>
                 <Col xs={24} sm={6}>
-                    <StatCard title="Исходящие" value={stats?.outgoingCountMonth || 0} icon={<FileTextOutlined />} color="#b37feb" />
+                    <StatCard title="Исходящие" value={stats?.outgoingCount || 0} icon={<FileTextOutlined />} color="#b37feb" />
                 </Col>
                 <Col xs={24} sm={6}>
                     <StatCard title="Просрочено" value={stats?.allAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />

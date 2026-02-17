@@ -26,7 +26,7 @@ func (s *DashboardService) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-func (s *DashboardService) GetStats(requestedRole string, period string) (*models.DashboardStats, error) {
+func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateStr string) (*models.DashboardStats, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -70,24 +70,33 @@ func (s *DashboardService) GetStats(requestedRole string, period string) (*model
 	case "admin":
 		return s.getAdminStats(stats)
 	case "clerk":
-		// Calculate period dates
-		now := time.Now()
-		// End date is effectively "now" or end of day, but for ">=" logic "now" is fine if we want up to now.
-		// Usually for stats "current month" means from 1st to now.
 
-		var startDate time.Time
-		switch period {
-		case "quarter":
-			month := int(now.Month())
-			qStartMonth := ((month-1)/3)*3 + 1
-			startDate = time.Date(now.Year(), time.Month(qStartMonth), 1, 0, 0, 0, 0, now.Location())
-		case "year":
-			startDate = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
-		default: // "month" or empty
+		// Parse dates
+		var startDate, endDate time.Time
+		var err error
+
+		if startDateStr == "" || endDateStr == "" {
+			// Default to current month if empty
+			now := time.Now()
 			startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+			endDate = startDate.AddDate(0, 1, -1).Add(24*time.Hour - time.Nanosecond)
+		} else {
+			// Assume format "2006-01-02"
+			startDate, err = time.Parse("2006-01-02", startDateStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid start date: %w", err)
+			}
+			// For end date, we want the end of that day, so parse and add almost 24h or just compare date part in SQL
+			// Let's parse as provided and assume it's 00:00:00, so we might want to set it to 23:59:59 if it's inclusive
+			// Or strictly if the frontend sends "2023-01-01" to "2023-01-31", we want up to 2023-01-31 23:59:59.
+			endDateParsed, err := time.Parse("2006-01-02", endDateStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid end date: %w", err)
+			}
+			endDate = endDateParsed.Add(24*time.Hour - time.Nanosecond)
 		}
 
-		return s.getClerkStats(stats, startDate)
+		return s.getClerkStats(stats, startDate, endDate)
 	default:
 		// Executor (default)
 		return s.getExecutorStats(stats, user.ID)
@@ -183,13 +192,13 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 	return stats, nil
 }
 
-func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate time.Time) (*models.DashboardStats, error) {
+func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate, endDate time.Time) (*models.DashboardStats, error) {
 	// 1. Doc counts for period
 	err := s.db.QueryRow(`
 		SELECT 
-			(SELECT COUNT(*) FROM incoming_documents WHERE created_at >= $1),
-			(SELECT COUNT(*) FROM outgoing_documents WHERE created_at >= $1)
-	`, startDate).Scan(&stats.IncomingCountMonth, &stats.OutgoingCountMonth)
+			(SELECT COUNT(*) FROM incoming_documents WHERE created_at BETWEEN $1 AND $2),
+			(SELECT COUNT(*) FROM outgoing_documents WHERE created_at BETWEEN $1 AND $2)
+	`, startDate, endDate).Scan(&stats.IncomingCount, &stats.OutgoingCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get doc counts: %w", err)
 	}
@@ -208,13 +217,13 @@ func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate
 	err = s.db.QueryRow(`
 		SELECT COUNT(*) 
 		FROM assignments 
-		WHERE deadline >= $1 
+		WHERE deadline BETWEEN $1 AND $2 
 		  AND (
 		      (status IN ('new', 'in_progress') AND deadline < CURRENT_DATE)
 		      OR 
 		      (status = 'completed' AND completed_at::date > deadline)
 		  )
-	`, startDate).Scan(&stats.AllAssignmentsOverdue)
+	`, startDate, endDate).Scan(&stats.AllAssignmentsOverdue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get overdue count: %w", err)
 	}
@@ -226,8 +235,8 @@ func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate
 			COUNT(*) FILTER (WHERE status = 'finished'),
 			COUNT(*) FILTER (WHERE status = 'finished' AND COALESCE(completed_at, updated_at)::date > deadline)
 		FROM assignments
-		WHERE status = 'finished' AND COALESCE(completed_at, updated_at) >= $1
-	`, startDate).Scan(&stats.AllAssignmentsFinished, &stats.AllAssignmentsFinishedLate)
+		WHERE status = 'finished' AND COALESCE(completed_at, updated_at) BETWEEN $1 AND $2
+	`, startDate, endDate).Scan(&stats.AllAssignmentsFinished, &stats.AllAssignmentsFinishedLate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all finished counts: %w", err)
 	}

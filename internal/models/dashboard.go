@@ -12,8 +12,8 @@ type DashboardStats struct {
 	MyAssignmentsFinishedLate int `json:"myAssignmentsFinishedLate,omitempty"`
 
 	// Clerk Stats
-	IncomingCountMonth         int `json:"incomingCountMonth,omitempty"`
-	OutgoingCountMonth         int `json:"outgoingCountMonth,omitempty"`
+	IncomingCount              int `json:"incomingCount,omitempty"`
+	OutgoingCount              int `json:"outgoingCount,omitempty"`
 	AllAssignmentsOverdue      int `json:"allAssignmentsOverdue,omitempty"`
 	AllAssignmentsFinished     int `json:"allAssignmentsFinished,omitempty"`
 	AllAssignmentsFinishedLate int `json:"allAssignmentsFinishedLate,omitempty"`

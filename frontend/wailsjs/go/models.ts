@@ -402,8 +402,8 @@ export namespace models {
 	    myAssignmentsOverdue?: number;
 	    myAssignmentsFinished?: number;
 	    myAssignmentsFinishedLate?: number;
-	    incomingCountMonth?: number;
-	    outgoingCountMonth?: number;
+	    incomingCount?: number;
+	    outgoingCount?: number;
 	    allAssignmentsOverdue?: number;
 	    allAssignmentsFinished?: number;
 	    allAssignmentsFinishedLate?: number;
@@ -424,8 +424,8 @@ export namespace models {
 	        this.myAssignmentsOverdue = source["myAssignmentsOverdue"];
 	        this.myAssignmentsFinished = source["myAssignmentsFinished"];
 	        this.myAssignmentsFinishedLate = source["myAssignmentsFinishedLate"];
-	        this.incomingCountMonth = source["incomingCountMonth"];
-	        this.outgoingCountMonth = source["outgoingCountMonth"];
+	        this.incomingCount = source["incomingCount"];
+	        this.outgoingCount = source["outgoingCount"];
 	        this.allAssignmentsOverdue = source["allAssignmentsOverdue"];
 	        this.allAssignmentsFinished = source["allAssignmentsFinished"];
 	        this.allAssignmentsFinishedLate = source["allAssignmentsFinishedLate"];
