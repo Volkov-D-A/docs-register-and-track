@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Typography, Table, Button, Modal, Form, Input, Select, DatePicker,
-    Space, Row, Col, Tag, message, Popconfirm, Tooltip, Switch
+    Space, Row, Col, Tag, Popconfirm, Tooltip, Switch, App
 } from 'antd';
 import {
     PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined,
@@ -19,6 +19,7 @@ const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 const AssignmentsPage: React.FC = () => {
+    const { message } = App.useApp();
     const { user, currentRole, hasRole } = useAuthStore();
     // const [activeTab, setActiveTab] = useState('inbox'); // Removed
     const [data, setData] = useState<any[]>([]);

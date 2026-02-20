@@ -199,7 +199,7 @@ func (s *AssignmentService) GetByID(id string) (*models.Assignment, error) {
 	return s.repo.GetByID(uid)
 }
 
-func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*models.PagedResult, error) {
+func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}

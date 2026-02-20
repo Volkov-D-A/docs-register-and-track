@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"docflow/internal/database"
 	"docflow/internal/models"
@@ -234,7 +235,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	return &a, nil
 }
 
-func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.PagedResult, error) {
+func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error) {
 	query := `
 		SELECT
 			a.id, a.document_id, a.document_type,
@@ -280,7 +281,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		// even if the user explicitly requested it (though frontend should prevent this).
 		if !filter.ShowFinished && filter.Status == "finished" {
 			// Return empty result efficiently
-			return &models.PagedResult{Items: []models.Assignment{}, TotalCount: 0, Page: filter.Page, PageSize: filter.PageSize}, nil
+			return &models.PagedResult[models.Assignment]{Items: []models.Assignment{}, TotalCount: 0, Page: filter.Page, PageSize: filter.PageSize}, nil
 		}
 
 		where = append(where, fmt.Sprintf("a.status = $%d", argIdx))
@@ -321,6 +322,17 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		return nil, fmt.Errorf("failed to count assignments: %w", err)
 	}
 
+	// Pagination defaults
+	if filter.PageSize <= 0 {
+		filter.PageSize = 20
+	}
+	if filter.PageSize > 100 {
+		filter.PageSize = 100
+	}
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+
 	// Pagination
 	query += fmt.Sprintf(" ORDER BY a.created_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
 	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
@@ -332,6 +344,9 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	defer rows.Close()
 
 	var items []models.Assignment
+	var assignmentIDs []uuid.UUID
+	assignmentIndex := map[uuid.UUID]int{} // assignment ID -> index in items
+
 	for rows.Next() {
 		var a models.Assignment
 		var deadline sql.NullTime
@@ -367,35 +382,41 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		}
 		a.FillIDStr()
 
-		// Fetch co-executors for each assignment (N+1 but acceptable for small page sizes)
-		// Optimization: could be done with a separate query for all IDs if needed
-		coExecQuery := `
-			SELECT u.id, u.login, u.full_name
-			FROM assignment_co_executors ce
-			JOIN users u ON ce.user_id = u.id
-			WHERE ce.assignment_id = $1
-		`
-		ceRows, err := r.db.Query(coExecQuery, a.ID)
-		if err == nil {
-			var coExecutors []models.User
-			var coExecutorIDs []string
-			for ceRows.Next() {
-				var u models.User
-				if err := ceRows.Scan(&u.ID, &u.Login, &u.FullName); err == nil {
-					u.FillIDStr()
-					coExecutors = append(coExecutors, u)
-					coExecutorIDs = append(coExecutorIDs, u.IDStr)
-				}
-			}
-			ceRows.Close()
-			a.CoExecutors = coExecutors
-			a.CoExecutorIDs = coExecutorIDs
-		}
-
+		assignmentIndex[a.ID] = len(items)
+		assignmentIDs = append(assignmentIDs, a.ID)
 		items = append(items, a)
 	}
 
-	return &models.PagedResult{
+	// Batch-fetch co-executors for all assignments in one query instead of N+1
+	if len(assignmentIDs) > 0 {
+		coExecQuery := `
+			SELECT ce.assignment_id, u.id, u.login, u.full_name
+			FROM assignment_co_executors ce
+			JOIN users u ON ce.user_id = u.id
+			WHERE ce.assignment_id = ANY($1)
+		`
+		ceRows, err := r.db.Query(coExecQuery, pq.Array(assignmentIDs))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get co-executors: %w", err)
+		}
+		defer ceRows.Close()
+
+		for ceRows.Next() {
+			var assignmentID uuid.UUID
+			var u models.User
+			if err := ceRows.Scan(&assignmentID, &u.ID, &u.Login, &u.FullName); err != nil {
+				return nil, fmt.Errorf("failed to scan co-executor: %w", err)
+			}
+			u.FillIDStr()
+
+			if idx, ok := assignmentIndex[assignmentID]; ok {
+				items[idx].CoExecutors = append(items[idx].CoExecutors, u)
+				items[idx].CoExecutorIDs = append(items[idx].CoExecutorIDs, u.IDStr)
+			}
+		}
+	}
+
+	return &models.PagedResult[models.Assignment]{
 		Items:      items,
 		TotalCount: totalCount,
 		Page:       filter.Page,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, DatePicker, message } from 'antd';
+import { Modal, Form, Input, Select, DatePicker, App } from 'antd';
 import dayjs from 'dayjs';
 
 interface AssignmentModalProps {
@@ -17,6 +17,7 @@ const { TextArea } = Input;
 const AssignmentModal: React.FC<AssignmentModalProps> = ({
     open, onCancel, onSuccess, documentId, documentType, initialValues, isEdit
 }) => {
+    const { message } = App.useApp();
     const [form] = Form.useForm();
     const [executors, setExecutors] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);

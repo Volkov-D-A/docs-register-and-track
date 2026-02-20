@@ -21,7 +21,7 @@ func NewOutgoingDocumentRepository(db *database.DB) *OutgoingDocumentRepository 
 	return &OutgoingDocumentRepository{db: db}
 }
 
-func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult, error) {
+func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error) {
 	where := []string{"1=1"}
 	args := []interface{}{}
 	argIdx := 1
@@ -76,6 +76,17 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		return nil, fmt.Errorf("failed to count documents: %w", err)
 	}
 
+	// Pagination defaults
+	if filter.PageSize <= 0 {
+		filter.PageSize = 20
+	}
+	if filter.PageSize > 100 {
+		filter.PageSize = 100
+	}
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+
 	// Data
 	offset := (filter.Page - 1) * filter.PageSize
 	query := fmt.Sprintf(`
@@ -127,7 +138,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		items = append(items, doc)
 	}
 
-	return &models.PagedResult{
+	return &models.PagedResult[models.OutgoingDocument]{
 		Items:      items,
 		TotalCount: totalCount,
 		Page:       filter.Page,

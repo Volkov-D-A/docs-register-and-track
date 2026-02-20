@@ -54,15 +54,15 @@ func main() {
 
 	// Создание сервисов
 	authService := services.NewAuthService(userRepo)
+	settingsService := services.NewSettingsService(settingsRepo, authService)
 	userService := services.NewUserService(userRepo, authService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
 	referenceService := services.NewReferenceService(referenceRepo, authService)
 	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, departmentRepo, authService)
-	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, authService)
+	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, authService, settingsService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService)
 	dashboardService := services.NewDashboardService(db, authService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService)
-	settingsService := services.NewSettingsService(settingsRepo, authService)
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService)

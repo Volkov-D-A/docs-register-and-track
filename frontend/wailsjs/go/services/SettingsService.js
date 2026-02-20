@@ -14,6 +14,10 @@ export function GetMaxFileSize() {
   return window['go']['services']['SettingsService']['GetMaxFileSize']();
 }
 
+export function GetOrganizationName() {
+  return window['go']['services']['SettingsService']['GetOrganizationName']();
+}
+
 export function SetContext(arg1) {
   return window['go']['services']['SettingsService']['SetContext'](arg1);
 }

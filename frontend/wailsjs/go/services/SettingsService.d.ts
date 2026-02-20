@@ -9,6 +9,8 @@ export function GetAllowedFileTypes():Promise<Array<string>>;
 
 export function GetMaxFileSize():Promise<number>;
 
+export function GetOrganizationName():Promise<string>;
+
 export function SetContext(arg1:context.Context):Promise<void>;
 
 export function Update(arg1:string,arg2:string):Promise<void>;

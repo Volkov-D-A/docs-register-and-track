@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"docflow/internal/models"
@@ -139,4 +140,40 @@ func (s *AuthService) HasRole(role string) bool {
 		}
 	}
 	return false
+}
+
+// NeedsInitialSetup — проверяет, нужна ли первоначальная настройка (нет пользователей в БД)
+func (s *AuthService) NeedsInitialSetup() (bool, error) {
+	count, err := s.userRepo.CountUsers()
+	if err != nil {
+		return false, fmt.Errorf("ошибка проверки пользователей: %w", err)
+	}
+	return count == 0, nil
+}
+
+// InitialSetup — создаёт администратора при первом запуске (работает только если пользователей в БД нет)
+func (s *AuthService) InitialSetup(password string) error {
+	count, err := s.userRepo.CountUsers()
+	if err != nil {
+		return fmt.Errorf("ошибка проверки пользователей: %w", err)
+	}
+	if count > 0 {
+		return fmt.Errorf("начальная настройка уже выполнена")
+	}
+
+	if len(password) < 6 {
+		return fmt.Errorf("пароль должен содержать минимум 6 символов")
+	}
+
+	_, err = s.userRepo.Create(models.CreateUserRequest{
+		Login:    "admin",
+		Password: password,
+		FullName: "Администратор",
+		Roles:    []string{"admin"},
+	})
+	if err != nil {
+		return fmt.Errorf("ошибка создания администратора: %w", err)
+	}
+
+	return nil
 }

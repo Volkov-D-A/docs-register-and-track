@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, App as AntdApp } from 'antd';
 import ruRU from 'antd/locale/ru_RU';
 import App from './App';
 import './style.css';
@@ -16,7 +16,9 @@ root.render(
         borderRadius: 6,
       },
     }}>
-      <App />
+      <AntdApp>
+        <App />
+      </AntdApp>
     </ConfigProvider>
   </React.StrictMode>
 );

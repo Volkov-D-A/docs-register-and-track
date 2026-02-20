@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Typography, Card, Row, Col, Statistic, List, Tag, Spin, message,
+    Typography, Card, Row, Col, Statistic, Tag, Spin, App,
     Button, Empty, Select, DatePicker
 } from 'antd';
 import {
@@ -16,6 +16,7 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 const DashboardPage: React.FC = () => {
+    const { message } = App.useApp();
     const { user, hasRole, currentRole } = useAuthStore();
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
@@ -81,42 +82,42 @@ const DashboardPage: React.FC = () => {
     // --- Sub-components --
 
     const StatCard = ({ title, value, icon, color = '#1890ff', suffix = '' }: any) => (
-        <Card bordered={false} style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <Card variant="borderless" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <Statistic
                 title={<span style={{ fontWeight: 500 }}>{title}</span>}
                 value={value}
                 prefix={icon && <span style={{ color, marginRight: 8, fontSize: 24 }}>{icon}</span>}
                 suffix={suffix}
-                valueStyle={{ fontWeight: 600 }}
+                styles={{ content: { fontWeight: 600 } }}
             />
         </Card>
     );
 
     const ExpiringList = ({ list, title = 'Истекающий срок исполнения' }: any) => (
-        <Card title={title} bordered={false} size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <List
-                size="small"
-                dataSource={list || []}
-                renderItem={(item: any) => {
-                    const diff = dayjs(item.deadline).diff(dayjs(), 'day');
-                    let color = 'green';
-                    if (diff < 0) color = 'red';
-                    else if (diff <= 3) color = 'orange';
+        <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            {(!list || list.length === 0) ? (
+                <Empty description="Нет поручений" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {list.map((item: any) => {
+                        const diff = dayjs(item.deadline).diff(dayjs(), 'day');
+                        let color = 'green';
+                        if (diff < 0) color = 'red';
+                        else if (diff <= 3) color = 'orange';
 
-                    return (
-                        <List.Item>
-                            <List.Item.Meta
-                                avatar={
-                                    <Tag color={color}>
+                        return (
+                            <div key={item.id || Math.random()} style={{ display: 'flex', gap: 12, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                                <div style={{ flexShrink: 0, marginTop: 2 }}>
+                                    <Tag color={color} style={{ margin: 0 }}>
                                         {dayjs(item.deadline).format('DD.MM')}
                                     </Tag>
-                                }
-                                title={
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                                         <Text style={{ whiteSpace: 'pre-wrap', marginRight: 8, wordBreak: 'break-word' }}>{item.content}</Text>
                                         {item.documentNumber && (
                                             <Tag
-                                                style={{ cursor: 'pointer' }}
+                                                style={{ cursor: 'pointer', margin: 0, flexShrink: 0 }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setViewDocId(item.documentId);
@@ -128,22 +129,19 @@ const DashboardPage: React.FC = () => {
                                             </Tag>
                                         )}
                                     </div>
-                                }
-                                description={
-                                    <div>
+                                    <div style={{ color: 'rgba(0, 0, 0, 0.45)' }}>
                                         {item.executorName && <span style={{ marginRight: 10 }}><UserOutlined /> {item.executorName}</span>}
                                         <span style={{ fontSize: 12 }}>{
                                             item.status === 'new' ? 'Новое' :
                                                 item.status === 'in_progress' ? 'В работе' : item.status
                                         }</span>
                                     </div>
-                                }
-                            />
-                        </List.Item>
-                    );
-                }}
-                locale={{ emptyText: <Empty description="Нет поручений" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-            />
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </Card>
     );
 
@@ -151,53 +149,49 @@ const DashboardPage: React.FC = () => {
         const hasItems = pendingAcks && pendingAcks.length > 0;
         const title = (activeRole === 'admin' || activeRole === 'clerk') ? "Все текущие ознакомления" : "Мои ознакомления";
         return (
-            <Card title={title} bordered={false} size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #faad14' }}>
-                <List
-                    size="small"
-                    dataSource={pendingAcks}
-                    renderItem={(item: any) => (
-                        <List.Item>
-                            <List.Item.Meta
-                                title={
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginRight: 8 }}>{item.content || 'Без описания'}</Text>
-                                        <Tag
-                                            style={{ cursor: 'pointer' }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setViewDocId(item.documentId);
-                                                setViewDocType(item.documentType as 'incoming' | 'outgoing');
-                                                setViewModalOpen(true);
-                                            }}
-                                        >
-                                            {item.documentNumber || (item.documentType === 'incoming' ? 'Bx' : 'Исх')}
-                                        </Tag>
+            <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #faad14' }}>
+                {!hasItems ? (
+                    <Empty description="Нет документов" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {pendingAcks.map((item: any) => (
+                            <div key={item.id} style={{ paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                                    <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginRight: 8 }}>{item.content || 'Без описания'}</Text>
+                                    <Tag
+                                        style={{ cursor: 'pointer', margin: 0, flexShrink: 0 }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setViewDocId(item.documentId);
+                                            setViewDocType(item.documentType as 'incoming' | 'outgoing');
+                                            setViewModalOpen(true);
+                                        }}
+                                    >
+                                        {item.documentNumber || (item.documentType === 'incoming' ? 'Bx' : 'Исх')}
+                                    </Tag>
+                                </div>
+
+                                {(activeRole === 'admin' || activeRole === 'clerk') ? (
+                                    <div style={{ marginTop: 8 }}>
+                                        {item.users && item.users.length > 0 ? (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                {item.users.map((u: any) => (
+                                                    <Tag key={u.userId} color={u.confirmedAt ? 'green' : 'default'} style={{ margin: 0 }}>
+                                                        {u.userName}
+                                                    </Tag>
+                                                ))}
+                                            </div>
+                                        ) : <Text type="secondary" style={{ fontSize: 12 }}>Нет участников</Text>}
                                     </div>
-                                }
-                                description={
-                                    (activeRole === 'admin' || activeRole === 'clerk') ? (
-                                        <div style={{ marginTop: 8 }}>
-                                            {item.users && item.users.length > 0 ? (
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                                    {item.users.map((u: any) => (
-                                                        <Tag key={u.userId} color={u.confirmedAt ? 'green' : 'default'} style={{ marginRight: 0 }}>
-                                                            {u.userName}
-                                                        </Tag>
-                                                    ))}
-                                                </div>
-                                            ) : <Text type="secondary" style={{ fontSize: 12 }}>Нет участников</Text>}
-                                        </div>
-                                    ) : (
-                                        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-start' }}>
-                                            <Button size="small" type="primary" onClick={() => onAcknowledge(item.id)}>ознакомлен</Button>
-                                        </div>
-                                    )
-                                }
-                            />
-                        </List.Item>
-                    )}
-                    locale={{ emptyText: <Empty description="Нет документов" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-                />
+                                ) : (
+                                    <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-start' }}>
+                                        <Button size="small" type="primary" onClick={() => onAcknowledge(item.id)}>ознакомлен</Button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </Card>
         );
     };

@@ -12,12 +12,13 @@ import (
 )
 
 type OutgoingDocumentService struct {
-	ctx     context.Context
-	repo    *repository.OutgoingDocumentRepository
-	refRepo *repository.ReferenceRepository
-	nomRepo *repository.NomenclatureRepository
-	depRepo *repository.DepartmentRepository
-	auth    *AuthService
+	ctx             context.Context
+	repo            *repository.OutgoingDocumentRepository
+	refRepo         *repository.ReferenceRepository
+	nomRepo         *repository.NomenclatureRepository
+	depRepo         *repository.DepartmentRepository
+	auth            *AuthService
+	settingsService *SettingsService
 }
 
 func NewOutgoingDocumentService(
@@ -26,13 +27,15 @@ func NewOutgoingDocumentService(
 	nomRepo *repository.NomenclatureRepository,
 	depRepo *repository.DepartmentRepository,
 	auth *AuthService,
+	settingsService *SettingsService,
 ) *OutgoingDocumentService {
 	return &OutgoingDocumentService{
-		repo:    repo,
-		refRepo: refRepo,
-		nomRepo: nomRepo,
-		depRepo: depRepo,
-		auth:    auth,
+		repo:            repo,
+		refRepo:         refRepo,
+		nomRepo:         nomRepo,
+		depRepo:         depRepo,
+		auth:            auth,
+		settingsService: settingsService,
 	}
 }
 
@@ -73,7 +76,8 @@ func (s *OutgoingDocumentService) Register(
 	// Обычно это "Наша Организация".
 	// Для упрощения, пока создадим/найдем организацию "Наша Организация" или возьмем первую попавшуюся.
 	// TODO: Вынести ID "Нашей Организации" в конфиг или настройки.
-	senderOrg, err := s.refRepo.FindOrCreateOrganization("НАША ОРГАНИЗАЦИЯ")
+	orgName := s.settingsService.GetOrganizationName()
+	senderOrg, err := s.refRepo.FindOrCreateOrganization(orgName)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка вашей организации: %w", err)
 	}
@@ -88,12 +92,15 @@ func (s *OutgoingDocumentService) Register(
 	// Парсинг даты
 	outDate, err := time.Parse("2006-01-02", outgoingDate)
 	if err != nil {
-		outDate = time.Now()
+		return nil, fmt.Errorf("неверный формат даты исходящего документа: %w", err)
 	}
 
 	// ID текущего пользователя
 	createdByStr := s.auth.GetCurrentUserID()
-	createdBy, _ := uuid.Parse(createdByStr)
+	createdBy, err := uuid.Parse(createdByStr)
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
 
 	return s.repo.Create(
 		nomID, docTypeID, senderOrg.ID, recipientOrg.ID, createdBy,
@@ -149,7 +156,7 @@ func (s *OutgoingDocumentService) Update(
 }
 
 // GetList — получение списка с фильтрацией
-func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult, error) {
+func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -166,53 +173,24 @@ func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) 
 		return nil, err
 	}
 
-	// Если пользователь — исполнитель, ограничиваем видимость
+	// Если пользователь — исполнитель, ограничиваем видимость по номенклатурам подразделения
 	if s.auth.HasRole("executor") && !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		if user.DepartmentID != nil {
-			allowedNomenclatures, err := s.depRepo.GetNomenclatureIDs(*user.DepartmentID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get allowed nomenclatures: %w", err)
-			}
-
-			if len(allowedNomenclatures) == 0 {
-				return &models.PagedResult{
-					Items:      []models.OutgoingDocument{},
-					TotalCount: 0,
-					Page:       filter.Page,
-					PageSize:   filter.PageSize,
-				}, nil
-			}
-
-			if len(filter.NomenclatureIDs) > 0 {
-				var intersection []string
-				allowedMap := make(map[string]bool)
-				for _, id := range allowedNomenclatures {
-					allowedMap[id] = true
-				}
-				for _, id := range filter.NomenclatureIDs {
-					if allowedMap[id] {
-						intersection = append(intersection, id)
-					}
-				}
-				if len(intersection) == 0 {
-					return &models.PagedResult{
-						Items:      []models.OutgoingDocument{},
-						TotalCount: 0,
-						Page:       filter.Page,
-						PageSize:   filter.PageSize,
-					}, nil
-				}
-				filter.NomenclatureIDs = intersection
-			} else {
-				filter.NomenclatureIDs = allowedNomenclatures
-			}
-		} else {
-			return &models.PagedResult{
+		filteredIDs, empty, err := filterNomenclaturesByDepartment(
+			user.DepartmentID, s.depRepo, filter.NomenclatureIDs, "",
+		)
+		if err != nil {
+			return nil, err
+		}
+		if empty {
+			return &models.PagedResult[models.OutgoingDocument]{
 				Items:      []models.OutgoingDocument{},
 				TotalCount: 0,
 				Page:       filter.Page,
 				PageSize:   filter.PageSize,
 			}, nil
+		}
+		if filteredIDs != nil {
+			filter.NomenclatureIDs = filteredIDs
 		}
 	}
 

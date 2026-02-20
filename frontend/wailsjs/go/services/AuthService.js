@@ -18,6 +18,10 @@ export function HasRole(arg1) {
   return window['go']['services']['AuthService']['HasRole'](arg1);
 }
 
+export function InitialSetup(arg1) {
+  return window['go']['services']['AuthService']['InitialSetup'](arg1);
+}
+
 export function IsAuthenticated() {
   return window['go']['services']['AuthService']['IsAuthenticated']();
 }
@@ -28,6 +32,10 @@ export function Login(arg1, arg2) {
 
 export function Logout() {
   return window['go']['services']['AuthService']['Logout']();
+}
+
+export function NeedsInitialSetup() {
+  return window['go']['services']['AuthService']['NeedsInitialSetup']();
 }
 
 export function SetContext(arg1) {

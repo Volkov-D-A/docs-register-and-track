@@ -9,7 +9,7 @@ export function GetByID(arg1:string):Promise<models.IncomingDocument>;
 
 export function GetCount():Promise<number>;
 
-export function GetList(arg1:models.DocumentFilter):Promise<models.PagedResult>;
+export function GetList(arg1:models.DocumentFilter):Promise<models.PagedResult_docflow_internal_models_IncomingDocument_>;
 
 export function Register(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:string,arg9:string,arg10:string,arg11:string,arg12:number,arg13:string,arg14:string,arg15:string,arg16:string):Promise<models.IncomingDocument>;
 

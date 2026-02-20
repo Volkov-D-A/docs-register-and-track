@@ -64,3 +64,11 @@ func (s *SettingsService) GetAllowedFileTypes() ([]string, error) {
 	}
 	return types, nil
 }
+
+func (s *SettingsService) GetOrganizationName() string {
+	setting, err := s.repo.Get("organization_name")
+	if err != nil || setting.Value == "" {
+		return "НАША ОРГАНИЗАЦИЯ"
+	}
+	return setting.Value
+}

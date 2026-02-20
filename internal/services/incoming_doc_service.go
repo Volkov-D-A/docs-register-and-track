@@ -41,7 +41,7 @@ func (s *IncomingDocumentService) SetContext(ctx context.Context) {
 }
 
 // GetList — список входящих документов с фильтрацией
-func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*models.PagedResult, error) {
+func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -51,71 +51,24 @@ func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*models
 		return nil, err
 	}
 
-	// Если пользователь — исполнитель, ограничиваем видимость
+	// Если пользователь — исполнитель, ограничиваем видимость по номенклатурам подразделения
 	if s.auth.HasRole("executor") && !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		if user.DepartmentID != nil {
-			allowedNomenclatures, err := s.depRepo.GetNomenclatureIDs(*user.DepartmentID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get allowed nomenclatures: %w", err)
-			}
-			// Если нет доступных номенклатур, возвращаем пустой результат или ошибку?
-			// Лучше просто фильтровать по пустым, тогда ничего не найдет.
-			if len(allowedNomenclatures) == 0 {
-				return &models.PagedResult{
-					Items:      []models.IncomingDocument{},
-					TotalCount: 0,
-					Page:       filter.Page,
-					PageSize:   filter.PageSize,
-				}, nil
-			}
-
-			// Если фильтр по номенклатуре уже задан, проверяем пересечение
-			if len(filter.NomenclatureIDs) > 0 {
-				// Оставляем только те, которые есть в allowedNomenclatures
-				var intersection []string
-				allowedMap := make(map[string]bool)
-				for _, id := range allowedNomenclatures {
-					allowedMap[id] = true
-				}
-				for _, id := range filter.NomenclatureIDs {
-					if allowedMap[id] {
-						intersection = append(intersection, id)
-					}
-				}
-				filter.NomenclatureIDs = intersection
-			} else if filter.NomenclatureID != "" {
-				// Если задан один ID, проверяем его наличие в allowed
-				allowed := false
-				for _, id := range allowedNomenclatures {
-					if id == filter.NomenclatureID {
-						allowed = true
-						break
-					}
-				}
-				if !allowed {
-					// Недоступна -> пустой результат
-					return &models.PagedResult{
-						Items:      []models.IncomingDocument{},
-						TotalCount: 0,
-						Page:       filter.Page,
-						PageSize:   filter.PageSize,
-					}, nil
-				}
-				// ID остается в фильтре
-			} else {
-				// Фильтр пустой -> подставляем все доступные
-				filter.NomenclatureIDs = allowedNomenclatures
-			}
-		} else {
-			// Исполнитель без отдела ничего не видит? Или видит все?
-			// По логике задачи: "разрешенных в справочнике подразделений к которому они относятся".
-			// Если не относится ни к какому -> ничего не видит.
-			return &models.PagedResult{
+		filteredIDs, empty, err := filterNomenclaturesByDepartment(
+			user.DepartmentID, s.depRepo, filter.NomenclatureIDs, filter.NomenclatureID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if empty {
+			return &models.PagedResult[models.IncomingDocument]{
 				Items:      []models.IncomingDocument{},
 				TotalCount: 0,
 				Page:       filter.Page,
 				PageSize:   filter.PageSize,
 			}, nil
+		}
+		if filteredIDs != nil {
+			filter.NomenclatureIDs = filteredIDs
 		}
 	}
 
@@ -175,11 +128,11 @@ func (s *IncomingDocumentService) Register(
 
 	incDate, err := time.Parse("2006-01-02", incomingDate)
 	if err != nil {
-		incDate = time.Now()
+		return nil, fmt.Errorf("неверный формат даты поступления: %w", err)
 	}
 	outDate, err := time.Parse("2006-01-02", outgoingDateSender)
 	if err != nil {
-		outDate = time.Now()
+		return nil, fmt.Errorf("неверный формат даты исходящего документа отправителя: %w", err)
 	}
 
 	var intNumPtr *string
@@ -199,7 +152,10 @@ func (s *IncomingDocumentService) Register(
 	}
 
 	createdByStr := s.auth.GetCurrentUserID()
-	createdBy, _ := uuid.Parse(createdByStr)
+	createdBy, err := uuid.Parse(createdByStr)
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
 
 	return s.repo.Create(
 		nomID, docTypeID, senderOrg.ID, recipientOrg.ID, createdBy,

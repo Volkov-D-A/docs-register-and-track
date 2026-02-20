@@ -33,26 +33,6 @@ CREATE TABLE user_roles (
 
 CREATE INDEX idx_user_roles_user_id ON user_roles (user_id);
 
--- Initial Admin (password: admin123)
-INSERT INTO
-    users (
-        login,
-        password_hash,
-        full_name
-    )
-VALUES (
-        'admin',
-        '$2a$10$QWk7gI0Jh.F7CrdXImFzI.meruiFwSWHNBpzhKCAVex4QgAPaFCm6',
-        'Администратор'
-    );
-
-INSERT INTO
-    user_roles (user_id, role)
-SELECT id, 'admin'
-FROM users
-WHERE
-    login = 'admin';
-
 -- 4. Nomenclature
 CREATE TABLE nomenclature (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
@@ -263,13 +243,18 @@ INSERT INTO
     system_settings (key, value, description)
 VALUES (
         'max_file_size_mb',
-        '10',
+        '15',
         'Максимальный размер файла (МБ)'
     ),
     (
         'allowed_file_types',
-        '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.png,.zip,.rar',
+        '.pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.jpg,.png',
         'Разрешенные типы файлов (через запятую)'
+    ),
+    (
+        'organization_name',
+        'НАША ОРГАНИЗАЦИЯ',
+        'Название организации-отправителя для исходящих документов'
     );
 
 -- 14. Assignment Co-Executors

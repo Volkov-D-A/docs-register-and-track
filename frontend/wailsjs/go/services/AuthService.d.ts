@@ -11,10 +11,14 @@ export function GetCurrentUserID():Promise<string>;
 
 export function HasRole(arg1:string):Promise<boolean>;
 
+export function InitialSetup(arg1:string):Promise<void>;
+
 export function IsAuthenticated():Promise<boolean>;
 
 export function Login(arg1:string,arg2:string):Promise<models.User>;
 
 export function Logout():Promise<void>;
+
+export function NeedsInitialSetup():Promise<boolean>;
 
 export function SetContext(arg1:context.Context):Promise<void>;

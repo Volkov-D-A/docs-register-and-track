@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Typography, Table, Button, Modal, Form, Input, Select, DatePicker,
-    InputNumber, Space, Row, Col, Tag, message, Popconfirm, AutoComplete, Collapse, Tabs,
+    InputNumber, Space, Row, Col, Tag, Popconfirm, AutoComplete, Collapse, Tabs, App,
 } from 'antd';
 import AssignmentList from '../components/AssignmentList';
 import AcknowledgmentList from '../components/AcknowledgmentList';
@@ -22,6 +22,7 @@ const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 const IncomingPage: React.FC = () => {
+    const { message } = App.useApp();
     const { user, currentRole } = useAuthStore();
     const isExecutorOnly = currentRole === 'executor';
     // Скрываем фильтр, если пользователь — исполнитель без админских прав

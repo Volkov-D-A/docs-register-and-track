@@ -9,7 +9,7 @@ export function Delete(arg1:string):Promise<void>;
 
 export function GetByID(arg1:string):Promise<models.Assignment>;
 
-export function GetList(arg1:models.AssignmentFilter):Promise<models.PagedResult>;
+export function GetList(arg1:models.AssignmentFilter):Promise<models.PagedResult_docflow_internal_models_Assignment_>;
 
 export function SetContext(arg1:context.Context):Promise<void>;
 

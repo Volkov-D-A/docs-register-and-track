@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { List, Button, Upload, message, Popconfirm, Avatar, Typography, Tooltip, notification } from 'antd';
+import { Button, Upload, Popconfirm, Typography, Tooltip, notification, Space, Spin, Empty, App } from 'antd';
 import { UploadOutlined, DownloadOutlined, DeleteOutlined, FileOutlined, FilePdfOutlined, FileImageOutlined, FileWordOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 import { useAuthStore } from '../store/useAuthStore';
@@ -13,6 +13,7 @@ interface FileListComponentProps {
 }
 
 const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, documentType, readOnly }) => {
+    const { message } = App.useApp();
     const { currentRole } = useAuthStore();
     const canEdit = !readOnly && (currentRole === 'clerk' || currentRole === 'admin');
 
@@ -146,35 +147,45 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                 </div>
             )}
 
-            <List
-                loading={loading}
-                itemLayout="horizontal"
-                dataSource={files}
-                renderItem={(item) => (
-                    <List.Item
-                        actions={[
-                            <Tooltip title="Скачать">
-                                <Button type="text" icon={<DownloadOutlined />} onClick={() => handleDownload(item)} />
-                            </Tooltip>,
-                            canEdit && (
-                                <Popconfirm title="Удалить файл?" onConfirm={() => handleDelete(item.id)}>
-                                    <Button type="text" danger icon={<DeleteOutlined />} />
-                                </Popconfirm>
-                            )
-                        ].filter(Boolean)}
-                    >
-                        <List.Item.Meta
-                            avatar={<Avatar icon={getIcon(item.filename)} style={{ backgroundColor: 'transparent', color: 'inherit' }} />}
-                            title={<a onClick={() => handleDownload(item)}>{item.filename}</a>}
-                            description={
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                    {(item.fileSize / 1024).toFixed(1)} KB • {item.uploadedByName} • {new Date(item.uploadedAt).toLocaleDateString()}
-                                </Text>
-                            }
-                        />
-                    </List.Item>
-                )}
-            />
+            {loading ? (
+                <div style={{ textAlign: 'center', padding: 20 }}>
+                    <Spin />
+                </div>
+            ) : files.length === 0 ? (
+                <Empty description="Нет прикрепленных файлов" />
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {files.map((item) => (
+                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, border: '1px solid #f0f0f0', borderRadius: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {getIcon(item.filename)}
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                    <div style={{ marginBottom: 4 }}>
+                                        <a onClick={() => handleDownload(item)} style={{ color: '#1677ff', fontWeight: 500, wordBreak: 'break-word' }}>
+                                            {item.filename}
+                                        </a>
+                                    </div>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                        {(item.fileSize / 1024).toFixed(1)} KB • {item.uploadedByName} • {new Date(item.uploadedAt).toLocaleDateString()}
+                                    </Text>
+                                </div>
+                            </div>
+                            <Space style={{ flexShrink: 0, marginLeft: 16 }}>
+                                <Tooltip title="Скачать">
+                                    <Button type="text" icon={<DownloadOutlined />} onClick={() => handleDownload(item)} />
+                                </Tooltip>
+                                {canEdit && (
+                                    <Popconfirm title="Удалить файл?" onConfirm={() => handleDelete(item.id)}>
+                                        <Button type="text" danger icon={<DeleteOutlined />} />
+                                    </Popconfirm>
+                                )}
+                            </Space>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

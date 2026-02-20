@@ -21,7 +21,7 @@ func NewIncomingDocumentRepository(db *database.DB) *IncomingDocumentRepository 
 	return &IncomingDocumentRepository{db: db}
 }
 
-func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*models.PagedResult, error) {
+func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error) {
 	where := []string{"1=1"}
 	args := []interface{}{}
 	argIdx := 1
@@ -106,6 +106,9 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 	if filter.PageSize <= 0 {
 		filter.PageSize = 20
 	}
+	if filter.PageSize > 100 {
+		filter.PageSize = 100
+	}
 	if filter.Page <= 0 {
 		filter.Page = 1
 	}
@@ -163,7 +166,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		items = append(items, doc)
 	}
 
-	return &models.PagedResult{
+	return &models.PagedResult[models.IncomingDocument]{
 		Items:      items,
 		TotalCount: totalCount,
 		Page:       filter.Page,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Tag, Space, Popconfirm, message, Modal, Input, Tooltip } from 'antd';
+import { Table, Button, Tag, Space, Popconfirm, Modal, Input, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, PlayCircleOutlined, CloseCircleOutlined, UndoOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
@@ -13,6 +13,7 @@ interface AssignmentListProps {
 const { TextArea } = Input;
 
 const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentType }) => {
+    const { message } = App.useApp();
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);

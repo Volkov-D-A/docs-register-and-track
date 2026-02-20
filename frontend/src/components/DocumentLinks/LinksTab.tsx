@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button, List, Popconfirm, Modal, Select, message, Tabs, Tag, Switch, Space } from 'antd';
+import { Button, Popconfirm, Modal, Select, Tag, Switch, Space, Empty, Spin, App } from 'antd';
 import { LinkOutlined, DeleteOutlined, PlusOutlined, ApartmentOutlined, UnlockOutlined, LockOutlined } from '@ant-design/icons';
 import { LinkDocuments, UnlinkDocument, GetDocumentLinks, models } from '../../types/link';
 import { LinkGraph } from './LinkGraph';
@@ -12,6 +12,7 @@ interface LinksTabProps {
 }
 
 export const LinksTab = ({ documentId, documentType, documentNumber }: LinksTabProps) => {
+    const { message } = App.useApp();
     const [links, setLinks] = useState<models.DocumentLink[]>([]);
     const [loading, setLoading] = useState(false);
     const [isModalVisible, setIsModalVisible] = useState(false);
@@ -148,24 +149,27 @@ export const LinksTab = ({ documentId, documentType, documentNumber }: LinksTabP
         const direction = isSource ? "->" : "<-";
 
         return (
-            <List.Item
-                actions={[
+            <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderBottom: '1px solid #f0f0f0' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flex: 1, minWidth: 0 }}>
+                    <div style={{ marginTop: 4 }}>
+                        <LinkOutlined style={{ fontSize: 18, color: '#1677ff' }} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                            <Tag color="blue">{typeLabel}</Tag>
+                            {direction} {otherType === 'incoming' ? 'Входящий' : 'Исходящий'} № {otherNumber || '???'}
+                        </div>
+                        <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 13, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                            {otherSubject}
+                        </div>
+                    </div>
+                </div>
+                <div style={{ flexShrink: 0, marginLeft: 16 }}>
                     <Popconfirm title="Удалить связь?" onConfirm={() => handleUnlink(item.id)}>
                         <Button type="text" danger icon={<DeleteOutlined />} />
                     </Popconfirm>
-                ]}
-            >
-                <List.Item.Meta
-                    avatar={<LinkOutlined />}
-                    title={
-                        <span>
-                            <Tag color="blue">{typeLabel}</Tag>
-                            {direction} {otherType === 'incoming' ? 'Входящий' : 'Исходящий'} № {otherNumber || '???'}
-                        </span>
-                    }
-                    description={otherSubject}
-                />
-            </List.Item>
+                </div>
+            </div>
         );
     };
 
@@ -180,12 +184,17 @@ export const LinksTab = ({ documentId, documentType, documentNumber }: LinksTabP
                 </Button>
             </div>
 
-            <List
-                loading={loading}
-                dataSource={links}
-                renderItem={renderLinkItem}
-                locale={{ emptyText: 'Нет связанных документов' }}
-            />
+            {loading ? (
+                <div style={{ textAlign: 'center', padding: 20 }}>
+                    <Spin />
+                </div>
+            ) : links.length === 0 ? (
+                <Empty description="Нет связанных документов" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {links.map(renderLinkItem)}
+                </div>
+            )}
 
             <Modal
                 title="Добавить связь"

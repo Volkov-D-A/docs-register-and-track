@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Tag, Space, Popconfirm, message, Tooltip } from 'antd';
+import { Table, Button, Tag, Space, Popconfirm, Tooltip, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EyeOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
@@ -11,6 +11,7 @@ interface AcknowledgmentListProps {
 }
 
 const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, documentType }) => {
+    const { message } = App.useApp();
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);

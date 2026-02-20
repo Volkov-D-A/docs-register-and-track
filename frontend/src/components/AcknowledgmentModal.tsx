@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, message } from 'antd';
+import { Modal, Form, Input, Select, App } from 'antd';
 import { useAuthStore } from '../store/useAuthStore';
 
 interface AcknowledgmentModalProps {
@@ -11,6 +11,7 @@ interface AcknowledgmentModalProps {
 }
 
 const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCancel, onSuccess, documentId, documentType }) => {
+    const { message } = App.useApp();
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<any[]>([]);

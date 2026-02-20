@@ -54,7 +54,10 @@ func (s *AcknowledgmentService) Create(
 	}
 
 	creatorID := s.auth.GetCurrentUserID()
-	creatorUUID, _ := uuid.Parse(creatorID)
+	creatorUUID, err := uuid.Parse(creatorID)
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
 
 	ack := &models.Acknowledgment{
 		ID:           uuid.New(),

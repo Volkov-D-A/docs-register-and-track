@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Space,
-  Typography, Popconfirm, message, Switch, Tag,
+  Typography, Popconfirm, Switch, Tag, App
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons';
 
@@ -9,6 +9,7 @@ const { Title } = Typography;
 
 // === Номенклатура ===
 const NomenclatureTab: React.FC = () => {
+  const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -144,6 +145,7 @@ const NomenclatureTab: React.FC = () => {
 
 // === Типы документов ===
 const DocumentTypesTab: React.FC = () => {
+  const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -241,6 +243,7 @@ const DocumentTypesTab: React.FC = () => {
 
 // === Организации ===
 const OrganizationsTab: React.FC = () => {
+  const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -332,6 +335,7 @@ const OrganizationsTab: React.FC = () => {
 
 // === Подразделения ===
 const DepartmentsTab: React.FC = () => {
+  const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -447,6 +451,7 @@ const DepartmentsTab: React.FC = () => {
 
 // === Пользователи ===
 const UsersTab: React.FC = () => {
+  const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -622,6 +627,7 @@ const UsersTab: React.FC = () => {
 
 // === Системные настройки ===
 const SystemSettingsTab: React.FC = () => {
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
 
@@ -661,6 +667,9 @@ const SystemSettingsTab: React.FC = () => {
   return (
     <div style={{ maxWidth: 600 }}>
       <Form form={form} layout="vertical" onFinish={onSave}>
+        <Form.Item name="organization_name" label="Название организации" rules={[{ required: true }]}>
+          <Input placeholder="Название вашей организации" />
+        </Form.Item>
         <Form.Item name="max_file_size_mb" label="Максимальный размер файла (МБ)" rules={[{ required: true }]}>
           <InputNumber min={1} max={1000} style={{ width: '100%' }} />
         </Form.Item>
@@ -684,6 +693,7 @@ const SettingsPage: React.FC = () => {
       <Title level={4}>Настройки</Title>
       <Tabs
         defaultActiveKey="nomenclature"
+        destroyOnHidden
         items={[
           { key: 'nomenclature', label: 'Номенклатура дел', children: <NomenclatureTab /> },
           { key: 'documentTypes', label: 'Типы документов', children: <DocumentTypesTab /> },

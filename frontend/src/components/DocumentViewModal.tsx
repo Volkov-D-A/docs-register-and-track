@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Tabs, Row, Col, Typography, Tag, Button, Spin, message } from 'antd';
+import { Modal, Tabs, Row, Col, Typography, Tag, Button, Spin, App } from 'antd';
 import dayjs from 'dayjs';
 import AssignmentList from './AssignmentList';
 import AcknowledgmentList from './AcknowledgmentList';
@@ -18,6 +18,7 @@ interface DocumentViewModalProps {
 }
 
 const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, documentId, documentType }) => {
+    const { message } = App.useApp();
     const { currentRole } = useAuthStore();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);

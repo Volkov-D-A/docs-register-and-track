@@ -104,6 +104,10 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 
 // GetList returns attachments for a document
 func (s *AttachmentService) GetList(documentIDStr string) ([]models.Attachment, error) {
+	if !s.authService.IsAuthenticated() {
+		return nil, &models.AppError{Code: 401, Message: "Unauthorized"}
+	}
+
 	documentID, err := uuid.Parse(documentIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID")
@@ -185,10 +189,10 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	}
 
 	// Construct path
-	// Assuming standardized "Downloads" folder. 
+	// Assuming standardized "Downloads" folder.
 	// For a more robust solution, xdg-user-dir DOWNLOAD could be used, but ~/Downloads is a safe default for now.
 	downloadDir := filepath.Join(currentUser.HomeDir, "Downloads")
-	
+
 	// Create directory if not exists (unlikely but safe)
 	if err := os.MkdirAll(downloadDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create download directory: %v", err)
@@ -206,8 +210,55 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	return fullPath, nil
 }
 
+// getDownloadDir returns the current user's Downloads directory path
+func (s *AttachmentService) getDownloadDir() (string, error) {
+	currentUser, err := user.Current()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current user: %v", err)
+	}
+	return filepath.Join(currentUser.HomeDir, "Downloads"), nil
+}
+
+// validatePathInDownloads checks that the given path is inside the Downloads directory
+// to prevent arbitrary path execution attacks
+func (s *AttachmentService) validatePathInDownloads(path string) error {
+	downloadDir, err := s.getDownloadDir()
+	if err != nil {
+		return err
+	}
+
+	// Resolve symlinks and relative path components
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("invalid path: %v", err)
+	}
+	evalPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		// File may not exist yet (for OpenFolder), try evaluating parent
+		evalPath = absPath
+	}
+
+	absDownloadDir, err := filepath.Abs(downloadDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve download directory: %v", err)
+	}
+
+	// Ensure the path is within the Downloads directory
+	rel, err := filepath.Rel(absDownloadDir, evalPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("access denied: path is outside the download directory")
+	}
+
+	return nil
+}
+
 // OpenFile opens the file with the default application
+// Only allows opening files within the user's Downloads directory
 func (s *AttachmentService) OpenFile(path string) error {
+	if err := s.validatePathInDownloads(path); err != nil {
+		return err
+	}
+
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {
@@ -226,7 +277,12 @@ func (s *AttachmentService) OpenFile(path string) error {
 }
 
 // OpenFolder opens the folder containing the file
+// Only allows opening folders within the user's Downloads directory
 func (s *AttachmentService) OpenFolder(path string) error {
+	if err := s.validatePathInDownloads(path); err != nil {
+		return err
+	}
+
 	dir := filepath.Dir(path)
 	var cmd *exec.Cmd
 

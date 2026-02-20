@@ -119,7 +119,7 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+		SELECT u.id, u.login, u.full_name, u.is_active, u.created_at, u.updated_at,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -137,7 +137,7 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 		var departmentName sql.NullString
 
 		if err := rows.Scan(
-			&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
+			&user.ID, &user.Login, &user.FullName,
 			&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 			&departmentID, &departmentName,
 		); err != nil {
@@ -178,7 +178,6 @@ func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, err
 		return nil, err
 	}
 
-	var userID uuid.UUID
 	var depID *uuid.UUID
 	if req.DepartmentID != "" {
 		if uid, err := uuid.Parse(req.DepartmentID); err == nil {
@@ -186,7 +185,14 @@ func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, err
 		}
 	}
 
-	err = r.db.QueryRow(`
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var userID uuid.UUID
+	err = tx.QueryRow(`
 		INSERT INTO users (login, password_hash, full_name, department_id)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id
@@ -197,12 +203,16 @@ func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, err
 	}
 
 	for _, role := range req.Roles {
-		_, err := r.db.Exec(`
+		_, err := tx.Exec(`
 			INSERT INTO user_roles (user_id, role) VALUES ($1, $2)
 		`, userID, role)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add role %s: %w", role, err)
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return r.GetByID(userID)
@@ -221,7 +231,13 @@ func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, err
 		}
 	}
 
-	_, err = r.db.Exec(`
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`
 		UPDATE users SET login = $1, full_name = $2, is_active = $3, department_id = $4, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $5
 	`, req.Login, req.FullName, req.IsActive, depID, uid)
@@ -231,18 +247,22 @@ func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, err
 	}
 
 	// Обновляем роли: удаляем старые, добавляем новые
-	_, err = r.db.Exec(`DELETE FROM user_roles WHERE user_id = $1`, uid)
+	_, err = tx.Exec(`DELETE FROM user_roles WHERE user_id = $1`, uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clear roles: %w", err)
 	}
 
 	for _, role := range req.Roles {
-		_, err := r.db.Exec(`
+		_, err := tx.Exec(`
 			INSERT INTO user_roles (user_id, role) VALUES ($1, $2)
 		`, uid, role)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add role %s: %w", role, err)
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return r.GetByID(uid)
@@ -271,7 +291,7 @@ func (r *UserRepository) GetUserRoles(userID uuid.UUID) ([]string, error) {
 
 func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT DISTINCT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+		SELECT DISTINCT u.id, u.login, u.full_name, u.is_active, u.created_at, u.updated_at,
 		       d.id, d.name
 		FROM users u
 		JOIN user_roles ur ON u.id = ur.user_id
@@ -291,7 +311,7 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 		var departmentName sql.NullString
 
 		if err := rows.Scan(
-			&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
+			&user.ID, &user.Login, &user.FullName,
 			&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 			&departmentID, &departmentName,
 		); err != nil {
@@ -380,4 +400,11 @@ func HashPassword(password string) (string, error) {
 		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
 	return string(hash), nil
+}
+
+// CountUsers returns the total number of users in the database
+func (r *UserRepository) CountUsers() (int, error) {
+	var count int
+	err := r.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	return count, err
 }
