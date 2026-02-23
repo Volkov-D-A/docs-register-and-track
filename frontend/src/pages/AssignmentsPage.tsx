@@ -28,7 +28,7 @@ const AssignmentsPage: React.FC = () => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
-    // Filters
+    // Фильтры
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -37,7 +37,7 @@ const AssignmentsPage: React.FC = () => {
     const [filterOverdue, setFilterOverdue] = useState(false);
     const [showFinished, setShowFinished] = useState(false);
 
-    // Modals
+    // Модальные окна
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<any>(null);
     const [reportModalOpen, setReportModalOpen] = useState(false);

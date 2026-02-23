@@ -30,13 +30,13 @@ func (s *SettingsService) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-// GetAll returns all system settings
+// GetAll — получить все системные настройки
 func (s *SettingsService) GetAll() ([]models.SystemSetting, error) {
-	// Only admin can view all settings (or maybe everyone needs to see constraints? Let's allow read for now)
+	// Пока разрешаем чтение всем авторизованным пользователям
 	return s.repo.GetAll()
 }
 
-// Update updates a setting value
+// Update — обновить значение настройки
 func (s *SettingsService) Update(key, value string) error {
 	if !s.authService.HasRole("admin") {
 		return &models.AppError{Code: 403, Message: "Permission denied"}
@@ -68,12 +68,12 @@ func (s *SettingsService) RollbackMigration() error {
 	return s.db.RollbackMigration(migrationsPath)
 }
 
-// Helper methods for other services
+// Вспомогательные методы для других сервисов
 
 func (s *SettingsService) GetMaxFileSize() (int64, error) {
 	setting, err := s.repo.Get("max_file_size_mb")
 	if err != nil {
-		return 10 * 1024 * 1024, nil // Default 10MB
+		return 10 * 1024 * 1024, nil // По умолчанию 10 МБ
 	}
 	mb, err := strconv.Atoi(setting.Value)
 	if err != nil {

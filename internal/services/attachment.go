@@ -35,15 +35,15 @@ func (s *AttachmentService) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-// Upload handles file upload
+// Upload — загрузка файла
 func (s *AttachmentService) Upload(documentIDStr string, documentType string, filename string, contentBase64 string) (*models.Attachment, error) {
 	currentUser, err := s.authService.GetCurrentUser()
 	if err != nil {
-		return nil, &models.AppError{Code: 401, Message: "Unauthorized"}
+		return nil, &models.AppError{Code: 401, Message: "Требуется авторизация"}
 	}
 
 	if !s.authService.HasRole("clerk") && !s.authService.HasRole("admin") {
-		return nil, &models.AppError{Code: 403, Message: "Permission denied: only clerks can upload files"}
+		return nil, &models.AppError{Code: 403, Message: "Недостаточно прав: загружать файлы могут только делопроизводители"}
 	}
 
 	documentID, err := uuid.Parse(documentIDStr)
@@ -51,8 +51,8 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		return nil, fmt.Errorf("invalid document ID")
 	}
 
-	// 1. Decode content
-	// Remove data URI prefix if present (e.g. "data:application/pdf;base64,")
+	// 1. Декодирование содержимого
+	// Удаление префикса data URI, если присутствует (например, "data:application/pdf;base64,")
 	if idx := strings.Index(contentBase64, ","); idx != -1 {
 		contentBase64 = contentBase64[idx+1:]
 	}
@@ -62,13 +62,13 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		return nil, fmt.Errorf("failed to decode file content: %v", err)
 	}
 
-	// 2. Validate Size
+	// 2. Проверка размера
 	maxSize, _ := s.settingsService.GetMaxFileSize() // returns bytes
 	if int64(len(data)) > maxSize {
 		return nil, fmt.Errorf("file size exceeds maximum allowed size (%d MB)", maxSize/(1024*1024))
 	}
 
-	// 3. Validate Type
+	// 3. Проверка типа файла
 	allowedTypes, _ := s.settingsService.GetAllowedFileTypes()
 	ext := strings.ToLower(filepath.Ext(filename))
 	allowed := false
@@ -82,13 +82,13 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		return nil, fmt.Errorf("file type '%s' is not allowed", ext)
 	}
 
-	// 4. Save to DB
+	// 4. Сохранение в БД
 	attachment := &models.Attachment{
 		DocumentID:   documentID,
 		DocumentType: documentType,
 		Filename:     filename,
 		FileSize:     int64(len(data)),
-		ContentType:  ext, // simplified content type
+		ContentType:  ext, // упрощённый тип содержимого
 		Content:      data,
 		UploadedBy:   currentUser.ID,
 	}
@@ -102,10 +102,10 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 	return attachment, nil
 }
 
-// GetList returns attachments for a document
+// GetList — получить вложения документа
 func (s *AttachmentService) GetList(documentIDStr string) ([]models.Attachment, error) {
 	if !s.authService.IsAuthenticated() {
-		return nil, &models.AppError{Code: 401, Message: "Unauthorized"}
+		return nil, &models.AppError{Code: 401, Message: "Требуется авторизация"}
 	}
 
 	documentID, err := uuid.Parse(documentIDStr)
@@ -115,20 +115,20 @@ func (s *AttachmentService) GetList(documentIDStr string) ([]models.Attachment, 
 	return s.repo.GetByDocumentID(documentID)
 }
 
-// Download returns the file content as base64
+// Download — получить содержимое файла в формате base64
 func (s *AttachmentService) Download(idStr string) (*models.DownloadResponse, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid attachment ID")
 	}
 
-	// Get metadata for filename
+	// Получение метаданных файла
 	attachment, err := s.repo.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get content from DB
+	// Получение содержимого из БД
 	content, err := s.repo.GetContent(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file content: %v", err)
@@ -140,11 +140,11 @@ func (s *AttachmentService) Download(idStr string) (*models.DownloadResponse, er
 	}, nil
 }
 
-// Delete removes attachment
+// Delete — удалить вложение
 func (s *AttachmentService) Delete(idStr string) error {
-	// Check permissions
+	// Проверка прав доступа
 	if !s.authService.HasRole("clerk") && !s.authService.HasRole("admin") {
-		return &models.AppError{Code: 403, Message: "Permission denied: only clerks can delete files"}
+		return &models.AppError{Code: 403, Message: "Недостаточно прав: удалять файлы могут только делопроизводители"}
 	}
 
 	id, err := uuid.Parse(idStr)
@@ -152,7 +152,7 @@ func (s *AttachmentService) Delete(idStr string) error {
 		return fmt.Errorf("invalid attachment ID")
 	}
 
-	// Remove from DB
+	// Удаление из БД
 	if err := s.repo.Delete(id); err != nil {
 		return err
 	}
@@ -160,49 +160,44 @@ func (s *AttachmentService) Delete(idStr string) error {
 	return nil
 }
 
-// DownloadToDisk saves the file to the user's Downloads directory and returns the full path
+// DownloadToDisk — сохранить файл в папку «Загрузки» пользователя и вернуть полный путь
 func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return "", fmt.Errorf("invalid attachment ID")
 	}
 
-	// Get metadata
+	// Получение метаданных
 	attachment, err := s.repo.GetByID(id)
 	if err != nil {
 		return "", err
 	}
 
-	// Get content
+	// Получение содержимого
 	content, err := s.repo.GetContent(id)
 	if err != nil {
 		return "", fmt.Errorf("failed to get file content: %v", err)
 	}
 
-	// Determine download path
-	// For Linux, typically ~/Downloads
-	// We can try to use os/user to find home directory
-	// Note: Wails might have a specific way, but standard Go works too.
+	// Определение пути для сохранения
 	currentUser, err := user.Current()
 	if err != nil {
 		return "", fmt.Errorf("failed to get current user: %v", err)
 	}
 
-	// Construct path
-	// Assuming standardized "Downloads" folder.
-	// For a more robust solution, xdg-user-dir DOWNLOAD could be used, but ~/Downloads is a safe default for now.
+	// Формирование пути к папке "Downloads"
 	downloadDir := filepath.Join(currentUser.HomeDir, "Downloads")
 
-	// Create directory if not exists (unlikely but safe)
+	// Создание директории, если не существует
 	if err := os.MkdirAll(downloadDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create download directory: %v", err)
 	}
 
-	// Clean filename to prevent path traversal or invalid chars
+	// Очистка имени файла для предотвращения обхода пути
 	cleanFilename := filepath.Base(attachment.Filename)
 	fullPath := filepath.Join(downloadDir, cleanFilename)
 
-	// Write file
+	// Запись файла
 	if err := os.WriteFile(fullPath, content, 0644); err != nil {
 		return "", fmt.Errorf("failed to write file: %v", err)
 	}
@@ -210,7 +205,7 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	return fullPath, nil
 }
 
-// getDownloadDir returns the current user's Downloads directory path
+// getDownloadDir — получить путь к папке «Загрузки» текущего пользователя
 func (s *AttachmentService) getDownloadDir() (string, error) {
 	currentUser, err := user.Current()
 	if err != nil {
@@ -219,22 +214,22 @@ func (s *AttachmentService) getDownloadDir() (string, error) {
 	return filepath.Join(currentUser.HomeDir, "Downloads"), nil
 }
 
-// validatePathInDownloads checks that the given path is inside the Downloads directory
-// to prevent arbitrary path execution attacks
+// validatePathInDownloads — проверка, что путь находится внутри папки «Загрузки»
+// для предотвращения атак через произвольные пути
 func (s *AttachmentService) validatePathInDownloads(path string) error {
 	downloadDir, err := s.getDownloadDir()
 	if err != nil {
 		return err
 	}
 
-	// Resolve symlinks and relative path components
+	// Разрешение символических ссылок и относительных путей
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("invalid path: %v", err)
 	}
 	evalPath, err := filepath.EvalSymlinks(absPath)
 	if err != nil {
-		// File may not exist yet (for OpenFolder), try evaluating parent
+		// Файл может ещё не существовать (для OpenFolder), пробуем относительный путь
 		evalPath = absPath
 	}
 
@@ -243,7 +238,7 @@ func (s *AttachmentService) validatePathInDownloads(path string) error {
 		return fmt.Errorf("failed to resolve download directory: %v", err)
 	}
 
-	// Ensure the path is within the Downloads directory
+	// Убеждаемся, что путь находится внутри папки «Загрузки»
 	rel, err := filepath.Rel(absDownloadDir, evalPath)
 	if err != nil || strings.HasPrefix(rel, "..") {
 		return fmt.Errorf("access denied: path is outside the download directory")
@@ -252,8 +247,8 @@ func (s *AttachmentService) validatePathInDownloads(path string) error {
 	return nil
 }
 
-// OpenFile opens the file with the default application
-// Only allows opening files within the user's Downloads directory
+// OpenFile — открыть файл в приложении по умолчанию
+// Разрешено только для файлов в папке «Загрузки» пользователя
 func (s *AttachmentService) OpenFile(path string) error {
 	if err := s.validatePathInDownloads(path); err != nil {
 		return err
@@ -276,8 +271,8 @@ func (s *AttachmentService) OpenFile(path string) error {
 	return nil
 }
 
-// OpenFolder opens the folder containing the file
-// Only allows opening folders within the user's Downloads directory
+// OpenFolder — открыть папку, содержащую файл
+// Разрешено только для папок в директории «Загрузки» пользователя
 func (s *AttachmentService) OpenFolder(path string) error {
 	if err := s.validatePathInDownloads(path); err != nil {
 		return err

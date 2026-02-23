@@ -37,7 +37,7 @@ func (s *LinkService) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-// LinkDocuments creates a link between two documents
+// LinkDocuments — создать связь между двумя документами
 func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, targetType, linkType string) (*models.DocumentLink, error) {
 	userIDStr := s.authService.GetCurrentUserID()
 	if userIDStr == "" {
@@ -57,7 +57,7 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, target
 		return nil, fmt.Errorf("invalid target ID: %w", err)
 	}
 
-	// Basic validation: prevent self-linking
+	// Базовая валидация: запрет связи документа с самим собой
 	if sourceID == targetID {
 		return nil, fmt.Errorf("cannot link document to itself")
 	}
@@ -84,17 +84,17 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, target
 	return link, nil
 }
 
-// UnlinkDocument removes a link
+// UnlinkDocument — удалить связь
 func (s *LinkService) UnlinkDocument(idStr string) error {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
-	// Optional: check permissions
+	// TODO: проверка прав доступа
 	return s.repo.Delete(s.ctx, id)
 }
 
-// GetDocumentLinks returns direct links for a document
+// GetDocumentLinks — получить прямые связи документа
 func (s *LinkService) GetDocumentLinks(docIDStr string) ([]models.DocumentLink, error) {
 	docID, err := uuid.Parse(docIDStr)
 	if err != nil {
@@ -103,32 +103,32 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]models.DocumentLink, 
 	return s.repo.GetByDocumentID(s.ctx, docID)
 }
 
-// GraphNode represents a node in the visualization graph
+// GraphNode — узел графа визуализации связей
 type GraphNode struct {
 	ID        string `json:"id"`
-	Label     string `json:"label"` // Document number
-	Type      string `json:"type"`  // incoming/outgoing
+	Label     string `json:"label"` // Номер документа
+	Type      string `json:"type"`  // входящий/исходящий
 	Subject   string `json:"subject"`
 	Date      string `json:"date"`
 	Sender    string `json:"sender"`
 	Recipient string `json:"recipient"`
 }
 
-// GraphEdge represents a link in the visualization graph
+// GraphEdge — ребро графа визуализации связей
 type GraphEdge struct {
 	ID     string `json:"id"`
 	Source string `json:"source"`
 	Target string `json:"target"`
-	Label  string `json:"label"` // link type
+	Label  string `json:"label"` // тип связи
 }
 
-// GraphData holds nodes and edges for frontend
+// GraphData — данные графа (узлы и рёбра) для фронтенда
 type GraphData struct {
 	Nodes []GraphNode `json:"nodes"`
 	Edges []GraphEdge `json:"edges"`
 }
 
-// GetDocumentFlow returns the graph data for visualization
+// GetDocumentFlow — получить данные графа для визуализации
 func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 	rootID, err := uuid.Parse(rootIDStr)
 	if err != nil {
@@ -140,18 +140,11 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 		return nil, err
 	}
 
-	// Collect unique document IDs to fetch details
-	docIDs := make(map[uuid.UUID]string) // ID -> Type
-	// Include root document in case it has no links but we want to show it?
-	// Actually GetGraph relies on links. If no links, we might just return the root doc.
+	// Собираем уникальные ID документов для получения детальной информации
+	docIDs := make(map[uuid.UUID]string) // ID -> тип документа
 
-	// Check if links is empty, if so, just return root doc
+	// Если связей нет — возвращаем пустой граф
 	if len(links) == 0 {
-		// Need to know type of root doc to fetch it.
-		// We'll iterate links to find types.
-		// If 0 links, we can try to find it in both tables or ask frontend to pass type.
-		// For now, let's assume we return empty graph if no links, OR we can try to fetch root.
-		// But we don't know the type.
 		return &GraphData{Nodes: []GraphNode{}, Edges: []GraphEdge{}}, nil
 	}
 
@@ -160,12 +153,11 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 		docIDs[l.TargetID] = l.TargetType
 	}
 
-	// Fetch document details
+	// Получение деталей документов
 	nodes := []GraphNode{}
 
-	// Helper to fetch doc info
-	// This creates N queries, could be optimized with WHERE IN list if needed
-	// But graph is usually small (< 20 nodes)
+	// Получение информации о документах
+	// Создаёт N запросов; можно оптимизировать через WHERE IN, но граф обычно маленький (< 20 узлов)
 	for id, docType := range docIDs {
 		var label, subject, dateStr, sender, recipient string
 
@@ -179,7 +171,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 				if sender == "" {
 					sender = "Неизвестно"
 				}
-				recipient = doc.RecipientOrgName // Likely "Our Org"
+				recipient = doc.RecipientOrgName // Обычно "Наша Организация"
 			}
 		} else if docType == "outgoing" {
 			doc, err := s.outgoingDocRepo.GetByID(id)
@@ -187,7 +179,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 				label = doc.OutgoingNumber
 				subject = doc.Subject
 				dateStr = doc.OutgoingDate.Format("02.01.2006")
-				sender = doc.SenderOrgName // Likely "Our Org"
+				sender = doc.SenderOrgName // Обычно "Наша Организация"
 				recipient = doc.RecipientOrgName
 				if recipient == "" {
 					recipient = "Неизвестно"
@@ -196,7 +188,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 		}
 
 		if label == "" {
-			label = "Unknown"
+			label = "Неизвестно"
 		}
 
 		nodes = append(nodes, GraphNode{

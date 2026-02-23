@@ -443,7 +443,7 @@ func HashPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
-// CountUsers returns the total number of users in the database
+// CountUsers — получить общее количество пользователей в базе данных
 func (r *UserRepository) CountUsers() (int, error) {
 	var count int
 	err := r.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)

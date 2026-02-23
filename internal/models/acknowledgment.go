@@ -12,7 +12,7 @@ type Acknowledgment struct {
 	IDStr          string    `json:"id"`
 	DocumentID     uuid.UUID `json:"-"`
 	DocumentIDStr  string    `json:"documentId"`
-	DocumentType   string    `json:"documentType"` // 'incoming' or 'outgoing'
+	DocumentType   string    `json:"documentType"` // 'incoming' или 'outgoing'
 	DocumentNumber string    `json:"documentNumber,omitempty"`
 
 	CreatorID    uuid.UUID `json:"-"`
@@ -23,9 +23,9 @@ type Acknowledgment struct {
 	CreatedAt   time.Time  `json:"createdAt"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 
-	// Users involved in acknowledgment
+	// Пользователи ознакомления
 	Users   []AcknowledgmentUser `json:"users,omitempty"`
-	UserIDs []string             `json:"userIds,omitempty"` // For creation
+	UserIDs []string             `json:"userIds,omitempty"` // Для создания
 }
 
 func (a *Acknowledgment) FillIDStr() {

@@ -41,7 +41,7 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 }
 
 func (db *DB) RunMigrations(migrationsPath string) error {
-	// Check if directory exists
+	// Проверка наличия директории миграций
 	info, err := os.Stat(migrationsPath)
 	if os.IsNotExist(err) {
 		fmt.Printf("Migration directory %s not found. Skipping migrations.\n", migrationsPath)

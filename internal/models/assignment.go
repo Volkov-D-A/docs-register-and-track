@@ -12,7 +12,7 @@ type Assignment struct {
 	IDStr         string    `json:"id"`
 	DocumentID    uuid.UUID `json:"-"`
 	DocumentIDStr string    `json:"documentId"`
-	DocumentType  string    `json:"documentType"` // 'incoming' or 'outgoing'
+	DocumentType  string    `json:"documentType"` // 'incoming' или 'outgoing'
 
 	ExecutorID    uuid.UUID `json:"-"`
 	ExecutorIDStr string    `json:"executorId"`
@@ -27,7 +27,7 @@ type Assignment struct {
 	DocumentNumber  string `json:"documentNumber,omitempty"`
 	DocumentSubject string `json:"documentSubject,omitempty"`
 
-	// Co-executors
+	// Соисполнители
 	CoExecutors   []User   `json:"coExecutors,omitempty"`
 	CoExecutorIDs []string `json:"coExecutorIds,omitempty"`
 
@@ -48,7 +48,7 @@ type AssignmentFilter struct {
 	Status       string `json:"status,omitempty"`
 	DateFrom     string `json:"dateFrom,omitempty"`
 	DateTo       string `json:"dateTo,omitempty"`
-	OverdueOnly  bool   `json:"overdueOnly"` // Added field
+	OverdueOnly  bool   `json:"overdueOnly"` // Фильтр просроченных
 	ShowFinished bool   `json:"showFinished"`
 	Page         int    `json:"page"`
 	PageSize     int    `json:"pageSize"`

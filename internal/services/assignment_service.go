@@ -14,7 +14,7 @@ import (
 type AssignmentService struct {
 	ctx      context.Context
 	repo     *repository.AssignmentRepository
-	userRepo *repository.UserRepository // For validation
+	userRepo *repository.UserRepository // Для валидации
 	auth     *AuthService
 }
 
@@ -85,25 +85,24 @@ func (s *AssignmentService) Update(
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
 
-	// Check permissions
+	// Проверка прав доступа
 	existing, err := s.repo.GetByID(uid)
 	if err != nil {
 		return nil, err
 	}
 	if existing == nil {
-		return nil, fmt.Errorf("assignment not found")
+		return nil, fmt.Errorf("поручение не найдено")
 	}
 
-	// Check permissions
-	// Admin or Clerk can edit
+	// Проверка прав
+	// Редактировать могут админ и делопроизводитель
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("permission denied")
+		return nil, fmt.Errorf("недостаточно прав")
 	}
 
-	// Restriction: cannot edit finished assignments (unless admin, maybe? original request said "cannot edit finished", implies strict rule)
-	// Let's apply strict rule for clerks. Admins might need to fix mistakes, but let's follow "Завершенные поручения редактировать и удалять нельзя" strictly for the requested feature (clerks).
+	// Завершенные поручения редактировать нельзя (кроме админа)
 	if existing.Status == "finished" && !s.auth.HasRole("admin") {
-		return nil, fmt.Errorf("cannot edit finished assignment")
+		return nil, fmt.Errorf("нельзя редактировать завершённое поручение")
 	}
 
 	execUUID, err := uuid.Parse(executorID)
@@ -139,16 +138,16 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*models.Ass
 		return nil, err
 	}
 	if existing == nil {
-		return nil, fmt.Errorf("assignment not found")
+		return nil, fmt.Errorf("поручение не найдено")
 	}
 
 	currentUserID := s.auth.GetCurrentUserID()
 	isExecutor := existing.ExecutorID.String() == currentUserID
 	isAdmin := s.auth.HasRole("admin")
 
-	// Rules
-	// Admin: all
-	// Executor: in_progress, completed
+	// Правила доступа
+	// Админ: все статусы
+	// Исполнитель: in_progress, completed
 
 	isClerk := s.auth.HasRole("clerk")
 
@@ -156,7 +155,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*models.Ass
 	if isAdmin {
 		allowed = true
 	} else if isClerk {
-		// Clerk can finish or return assignments ONLY if they are currently completed (executed)
+		// Делопроизводитель может завершить или вернуть поручение только из статуса "completed"
 		if existing.Status == "completed" && (status == "finished" || status == "returned") {
 			allowed = true
 		}
@@ -167,17 +166,17 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*models.Ass
 	}
 
 	if !allowed {
-		return nil, fmt.Errorf("permission denied to set status %s", status)
+		return nil, fmt.Errorf("недостаточно прав для установки статуса %s", status)
 	}
 
-	// Calculate completedAt
+	// Вычисление даты завершения
 	var completedAt *time.Time
 	switch status {
 	case "completed":
 		now := time.Now()
 		completedAt = &now
 	case "new", "in_progress":
-		// Reset completion time if moved back to active
+		// Сброс даты завершения при возврате в активный статус
 		completedAt = nil
 	case "finished":
 		completedAt = existing.CompletedAt
@@ -203,7 +202,7 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*models.Pag
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	// Defaults
+	// Значения по умолчанию
 	if filter.Page < 1 {
 		filter.Page = 1
 	}
@@ -230,14 +229,14 @@ func (s *AssignmentService) Delete(id string) error {
 		return nil
 	}
 
-	// Admin or Clerk can delete
+	// Удалять могут админ и делопроизводитель
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return fmt.Errorf("permission denied")
+		return fmt.Errorf("недостаточно прав")
 	}
 
-	// Restriction: cannot delete finished assignments
+	// Завершенные поручения удалять нельзя (кроме админа)
 	if existing.Status == "finished" && !s.auth.HasRole("admin") {
-		return fmt.Errorf("cannot delete finished assignment")
+		return fmt.Errorf("нельзя удалить завершённое поручение")
 	}
 
 	return s.repo.Delete(uid)

@@ -18,7 +18,7 @@ func NewLinkRepository(db *database.DB) *LinkRepository {
 	return &LinkRepository{db: db}
 }
 
-// Create creates a new link between documents
+// Create — создать новую связь между документами
 func (r *LinkRepository) Create(ctx context.Context, link *models.DocumentLink) error {
 	query := `
 		INSERT INTO document_links (
@@ -36,14 +36,14 @@ func (r *LinkRepository) Create(ctx context.Context, link *models.DocumentLink) 
 	).Scan(&link.ID, &link.CreatedAt)
 }
 
-// Delete removes a link by ID
+// Delete — удалить связь по ID
 func (r *LinkRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM document_links WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
-// GetByDocumentID fetches all links where the document is either source or target
+// GetByDocumentID — получить все связи, где документ является источником или целью
 func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) ([]models.DocumentLink, error) {
 	query := `
 		SELECT 
@@ -107,10 +107,10 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 	return links, nil
 }
 
-// GetGraph fetches the connected graph of documents using a recursive CTE
-// It finds all documents connected to the rootID, traversing both directions
+// GetGraph — получить связанный граф документов с помощью рекурсивного CTE.
+// Находит все документы, связанные с rootID, обходя оба направления
 func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]models.DocumentLink, error) {
-	// Recursive CTE to find all connected links
+	// Рекурсивный CTE для поиска всех связанных документов
 	query := `
 		WITH RECURSIVE doc_graph AS (
 			-- Base case: direct links to/from the root document

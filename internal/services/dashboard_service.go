@@ -36,15 +36,15 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 		return nil, err
 	}
 
-	// Determine effective role
+	// Определение эффективной роли
 	role := "executor"
 
-	// If a specific role is requested, verify user has it
+	// Если запрошена конкретная роль, проверяем наличие у пользователя
 	if requestedRole != "" {
 		if s.auth.HasRole(requestedRole) {
 			role = requestedRole
 		} else {
-			// Fallback or error? Let's fallback to default hierarchy for now to be safe
+			// Фолбэк на иерархию ролей по умолчанию
 			if s.auth.HasRole("admin") {
 				role = "admin"
 			} else if s.auth.HasRole("clerk") {
@@ -52,7 +52,7 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 			}
 		}
 	} else {
-		// Default hierarchy if no role requested
+		// Иерархия ролей по умолчанию, если роль не запрошена
 		if s.auth.HasRole("admin") {
 			role = "admin"
 		} else if s.auth.HasRole("clerk") {
@@ -60,7 +60,7 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 		}
 	}
 
-	// Initialize with empty slice to avoid null in JSON
+	// Инициализация пустым списком для избежания null в JSON
 	stats := &models.DashboardStats{
 		Role:                role,
 		ExpiringAssignments: []models.Assignment{},
@@ -81,14 +81,12 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 			startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 			endDate = startDate.AddDate(0, 1, -1).Add(24*time.Hour - time.Nanosecond)
 		} else {
-			// Assume format "2006-01-02"
+			// Формат даты "2006-01-02"
 			startDate, err = time.Parse("2006-01-02", startDateStr)
 			if err != nil {
 				return nil, fmt.Errorf("invalid start date: %w", err)
 			}
-			// For end date, we want the end of that day, so parse and add almost 24h or just compare date part in SQL
-			// Let's parse as provided and assume it's 00:00:00, so we might want to set it to 23:59:59 if it's inclusive
-			// Or strictly if the frontend sends "2023-01-01" to "2023-01-31", we want up to 2023-01-31 23:59:59.
+			// Для конечной даты устанавливаем 23:59:59, чтобы включить последний день
 			endDateParsed, err := time.Parse("2006-01-02", endDateStr)
 			if err != nil {
 				return nil, fmt.Errorf("invalid end date: %w", err)
@@ -98,13 +96,13 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 
 		return s.getClerkStats(stats, startDate, endDate)
 	default:
-		// Executor (default)
+		// Исполнитель (по умолчанию)
 		return s.getExecutorStats(stats, user.ID)
 	}
 }
 
 func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID uuid.UUID) (*models.DashboardStats, error) {
-	// 1. Counts by status
+	// 1. Количество по статусам
 	err := s.db.QueryRow(`
 		SELECT 
 			COUNT(*) FILTER (WHERE status = 'new'),
@@ -117,8 +115,8 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 		return nil, fmt.Errorf("failed to get status counts: %w", err)
 	}
 
-	// 2. Overdue count (status in ('new', 'in_progress') AND deadline < NOW())
-	// OR status is 'completed' AND completed_at::date > deadline
+	// 2. Просроченные (status in ('new', 'in_progress') AND deadline < NOW())
+	// ИЛИ status = 'completed' AND completed_at::date > deadline
 	err = s.db.QueryRow(`
 		SELECT COUNT(*) 
 		FROM assignments a
@@ -133,7 +131,7 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 		return nil, fmt.Errorf("failed to get overdue count: %w", err)
 	}
 
-	// 2.1 Finished (total) and Finished Late
+	// 2.1 Завершенные (всего) и завершенные с опозданием
 	err = s.db.QueryRow(`
 		SELECT 
 			COUNT(*) FILTER (WHERE status = 'finished'),
@@ -145,8 +143,8 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 		return nil, fmt.Errorf("failed to get finished counts: %w", err)
 	}
 
-	// 3. Expiring assignments (deadline within next 3 days)
-	// Only active assignments
+	// 3. Истекающие поручения (срок в течение 3 дней)
+	// Только активные поручения
 	rows, err := s.db.Query(`
 		SELECT 
 			a.id, a.content, a.deadline, a.status,
@@ -193,7 +191,7 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 }
 
 func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate, endDate time.Time) (*models.DashboardStats, error) {
-	// 1. Doc counts for period
+	// 1. Количество документов за период
 	err := s.db.QueryRow(`
 		SELECT 
 			(SELECT COUNT(*) FROM incoming_documents WHERE created_at BETWEEN $1 AND $2),
@@ -203,17 +201,8 @@ func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate
 		return nil, fmt.Errorf("failed to get doc counts: %w", err)
 	}
 
-	// 2. All overdue count
-	// Strict interpretation: Assignments that are overdue NOW.
-	// Period interpretation: Assignments with deadline IN PERIOD that are overdue?
-	// The user asked "statistics for documents and assignments [for a period]".
-	// For overdue, usually you want to know what is overdue *right now*, regardless of when it was created.
-	// However, if we must apply the period, "Overdue projects started/deadlined in this period" makes sense.
-	// Let's stick to "Deadline >= startDate" for consistency if we want "Overdue assignments OF THIS PERIOD".
-	// But commonly "Overdue" is a current state.
-	// The request says "for statistics ... make choice of period".
-	// Let's assume the user wants to see stats relevant to that period.
-	// For "Overdue", it might mean "Assignments with deadline in this period that are overdue".
+	// 2. Просроченные поручения
+	// Поручения со сроком в указанном периоде, которые просрочены
 	err = s.db.QueryRow(`
 		SELECT COUNT(*) 
 		FROM assignments 
@@ -228,8 +217,8 @@ func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate
 		return nil, fmt.Errorf("failed to get overdue count: %w", err)
 	}
 
-	// 3. Finished (all time in period) and Finished Late - NEW
-	// Fallback to updated_at if completed_at is NULL (for old data)
+	// 3. Завершенные за период и завершенные с опозданием
+	// Фолбэк на updated_at, если completed_at == NULL (для старых данных)
 	err = s.db.QueryRow(`
 		SELECT 
 			COUNT(*) FILTER (WHERE status = 'finished'),
@@ -241,10 +230,8 @@ func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate
 		return nil, fmt.Errorf("failed to get all finished counts: %w", err)
 	}
 
-	// 3. All expiring assignments (global) - Increased interval to 7 days for clerks
-	// Expiring is always "Future", so period doesn't quite apply, or it applies to "Active assignments in this period"?
-	// "Expiring" list is usually "What to look at NOW". Unlikely to need period filter here.
-	// We will leave expiring list as "Next 7 days from NOW".
+	// 4. Истекающие поручения (глобально) — интервал 7 дней для делопроизводителей
+	// Список истекающих — всегда от текущей даты, не зависит от выбранного периода
 	rows, err := s.db.Query(`
 		SELECT 
 			a.id, a.content, a.deadline, a.status,
@@ -290,13 +277,13 @@ func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate
 }
 
 func (s *DashboardService) getAdminStats(stats *models.DashboardStats) (*models.DashboardStats, error) {
-	// 1. User count
+	// 1. Количество пользователей
 	err := s.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&stats.UserCount)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. Total docs
+	// 2. Всего документов
 	var inc, out int
 	err = s.db.QueryRow("SELECT (SELECT COUNT(*) FROM incoming_documents), (SELECT COUNT(*) FROM outgoing_documents)").Scan(&inc, &out)
 	if err != nil {
@@ -304,7 +291,7 @@ func (s *DashboardService) getAdminStats(stats *models.DashboardStats) (*models.
 	}
 	stats.TotalDocuments = inc + out
 
-	// 3. DB Size (Postgres specific) - handled gracefully
+	// 3. Размер БД (PostgreSQL)
 	err = s.db.QueryRow("SELECT pg_size_pretty(pg_database_size(current_database()))").Scan(&stats.DBSize)
 	if err != nil {
 		stats.DBSize = "N/A"

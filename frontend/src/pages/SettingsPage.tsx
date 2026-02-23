@@ -352,7 +352,7 @@ const DepartmentsTab: React.FC = () => {
 
       const [items, nomenclature] = await Promise.all([
         GetAllDepartments(),
-        GetAll(0, ""), // Fetch all nomenclature
+        GetAll(0, ""), // Загрузка всех номенклатур
       ]);
 
       setData(items || []);
@@ -653,7 +653,7 @@ const SystemSettingsTab: React.FC = () => {
     setLoading(true);
     try {
       const { Update } = await import('../../wailsjs/go/services/SettingsService');
-      // Save each setting
+      // Сохранение каждой настройки
       for (const key in values) {
         await Update(key, String(values[key]));
       }

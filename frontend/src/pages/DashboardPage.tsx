@@ -23,7 +23,7 @@ const DashboardPage: React.FC = () => {
     const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
     const [pendingAcks, setPendingAcks] = useState<any[]>([]);
 
-    // View Modal State
+    // Состояние модального окна просмотра
     const [viewDocId, setViewDocId] = useState('');
     const [viewDocType, setViewDocType] = useState<'incoming' | 'outgoing'>('incoming');
     const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -32,12 +32,12 @@ const DashboardPage: React.FC = () => {
         setLoading(true);
         try {
             const { GetStats } = await import('../../wailsjs/go/services/DashboardService');
-            // Pass currentRole to GetStats. If null/undefined, backend handles default.
+            // Передаём текущую роль в GetStats
             // @ts-ignore
             const data = await GetStats(currentRole || '', dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD'));
             setStats(data);
 
-            // Load pending acknowledgments
+            // Загрузка ожидающих ознакомлений
             // @ts-ignore
             const { GetPendingForCurrentUser, GetAllActive } = await import('../../wailsjs/go/services/AcknowledgmentService');
 
@@ -58,7 +58,7 @@ const DashboardPage: React.FC = () => {
 
     useEffect(() => {
         loadStats();
-    }, [currentRole, dateRange]); // Reload when role or period changes
+    }, [currentRole, dateRange]); // Перезагрузка при смене роли или периода
 
     const onAcknowledge = async (id: string) => {
         try {
@@ -72,14 +72,14 @@ const DashboardPage: React.FC = () => {
         }
     };
 
-    // Use currentRole for view determination, fallback to stats.role if needed
+    // Определение отображения по текущей роли
     const activeRole = currentRole || stats?.role || user?.roles?.[0] || 'executor';
 
     if (loading && !stats) {
         return <div style={{ textAlign: 'center', marginTop: 50 }}><Spin size="large" /></div>;
     }
 
-    // --- Sub-components --
+    // --- Подкомпоненты ---
 
     const StatCard = ({ title, value, icon, color = '#1890ff', suffix = '' }: any) => (
         <Card variant="borderless" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
@@ -196,7 +196,7 @@ const DashboardPage: React.FC = () => {
         );
     };
 
-    // --- Views ---
+    // --- Представления ---
 
     const renderExecutorView = () => (
         <>

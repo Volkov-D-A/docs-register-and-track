@@ -24,7 +24,7 @@ func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
 	}
 	defer tx.Rollback()
 
-	// 1. Create Acknowledgment
+	// 1. Создание ознакомления
 	query := `
 		INSERT INTO acknowledgments (id, document_id, document_type, creator_id, content, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -34,7 +34,7 @@ func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
 		return fmt.Errorf("failed to create acknowledgment: %w", err)
 	}
 
-	// 2. Create AcknowledgmentUsers
+	// 2. Создание пользователей ознакомления
 	userQuery := `
 		INSERT INTO acknowledgment_users (id, acknowledgment_id, user_id, created_at)
 		VALUES ($1, $2, $3, $4)
@@ -81,7 +81,7 @@ func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]mode
 		}
 		a.DocumentNumber = docNumber
 
-		// Load users
+		// Загрузка пользователей
 		users, err := r.GetUsersByAcknowledgmentID(a.ID)
 		if err != nil {
 			return nil, err
@@ -126,7 +126,7 @@ func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentID(ackID uuid.UUID) (
 }
 
 func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models.Acknowledgment, error) {
-	// Select acknowledgments where the user has not confirmed yet
+	// Выборка ознакомлений, которые пользователь ещё не подтвердил
 	query := `
 		SELECT 
 			a.id, a.document_id, a.document_type, a.creator_id, a.content, a.created_at, a.completed_at,
@@ -159,8 +159,7 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 		}
 		a.DocumentNumber = docNumber
 
-		// We might not need all users here, but let's load them for consistency or UI context
-		// Optimally, we might partial load, but for now simple
+		// Загрузка пользователей для контекста
 		users, err := r.GetUsersByAcknowledgmentID(a.ID)
 		if err != nil {
 			return nil, err
@@ -192,7 +191,7 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 
 	now := time.Now()
 
-	// 1. Update user status
+	// 1. Обновление статуса пользователя
 	query := `
 		UPDATE acknowledgment_users
 		SET confirmed_at = $1, viewed_at = COALESCE(viewed_at, $1)
@@ -203,7 +202,7 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 		return err
 	}
 
-	// 2. Check if all users confirmed
+	// 2. Проверка, все ли пользователи подтвердили
 	checkQuery := `
 		SELECT COUNT(*) 
 		FROM acknowledgment_users 
@@ -215,7 +214,7 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 		return err
 	}
 
-	// 3. If no remaining, update main acknowledgment completed_at
+	// 3. Если все подтвердили, обновляем completed_at основного ознакомления
 	if remaining == 0 {
 		updateQuery := `
 			UPDATE acknowledgments

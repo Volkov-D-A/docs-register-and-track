@@ -163,7 +163,7 @@ type DocumentFilter struct {
 type OutgoingDocumentFilter struct {
 	NomenclatureIDs []string `json:"nomenclatureIds,omitempty"`
 	DocumentTypeID  string   `json:"documentTypeId,omitempty"`
-	OrgID           string   `json:"orgId,omitempty"` // Recipient Org
+	OrgID           string   `json:"orgId,omitempty"` // Организация-получатель
 	DateFrom        string   `json:"dateFrom,omitempty"`
 	DateTo          string   `json:"dateTo,omitempty"`
 	Search          string   `json:"search,omitempty"`

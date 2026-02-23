@@ -58,7 +58,7 @@ func (r *AssignmentRepository) Create(
 		return nil, fmt.Errorf("failed to create assignment: %w", err)
 	}
 
-	// Insert co-executors
+	// Вставка соисполнителей
 	if len(coExecutorIDs) > 0 {
 		stmt, err := tx.Prepare("INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)")
 		if err != nil {
@@ -111,13 +111,13 @@ func (r *AssignmentRepository) Update(
 		return nil, fmt.Errorf("failed to update assignment: %w", err)
 	}
 
-	// Update co-executors
-	// 1. Delete existing
+	// Обновление соисполнителей
+	// 1. Удаление существующих
 	if _, err := tx.Exec("DELETE FROM assignment_co_executors WHERE assignment_id = $1", id); err != nil {
 		return nil, fmt.Errorf("failed to delete old co-executors: %w", err)
 	}
 
-	// 2. Insert new
+	// 2. Вставка новых
 	if len(coExecutorIDs) > 0 {
 		stmt, err := tx.Prepare("INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)")
 		if err != nil {
@@ -180,7 +180,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, nil // Not found
+		return nil, nil // Не найдено
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get assignment: %w", err)
@@ -204,7 +204,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 
 	a.FillIDStr()
 
-	// Fetch co-executors
+	// Получение соисполнителей
 	coExecQuery := `
 		SELECT u.id, u.login, u.full_name
 		FROM assignment_co_executors ce
@@ -260,27 +260,22 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		argIdx++
 	}
 	if filter.ExecutorID != "" {
-		// Filter by main executor OR co-executor
+		// Фильтр по основному исполнителю ИЛИ соисполнителю
 		where = append(where, fmt.Sprintf("(a.executor_id = $%d OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $%d))", argIdx, argIdx))
 		args = append(args, filter.ExecutorID)
 		argIdx++
 	}
 
 	if filter.OverdueOnly {
-		// Overdue: deadline < current_date AND status not in (completed, finished, cancelled)
-		// OR status is completed but completed_at > deadline
-		// We use deadline < CURRENT_DATE because if deadline is today, it's not overdue yet until tomorrow?
-		// Usually "overdue" means deadline < today.
-		// However, some definitions allow today. Let's assume deadline < NOW() or CURRENT_DATE.
-		// Let's use strict CURRENT_DATE comparison for "deadline < today".
+		// Просроченные: deadline < CURRENT_DATE и статус не в (завершенных),
+		// или статус completed, но completed_at > deadline
 		where = append(where, "(a.deadline < CURRENT_DATE AND (a.status NOT IN ('completed', 'finished', 'cancelled') OR (a.status = 'completed' AND a.completed_at::date > a.deadline)))")
 	}
 
 	if filter.Status != "" {
-		// If ShowFinished is false, we must strictly forbid "finished" status
-		// even if the user explicitly requested it (though frontend should prevent this).
+		// Если ShowFinished = false, запрещаем статус "finished"
 		if !filter.ShowFinished && filter.Status == "finished" {
-			// Return empty result efficiently
+			// Возвращаем пустой результат
 			return &models.PagedResult[models.Assignment]{Items: []models.Assignment{}, TotalCount: 0, Page: filter.Page, PageSize: filter.PageSize}, nil
 		}
 
@@ -288,7 +283,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		args = append(args, filter.Status)
 		argIdx++
 	} else {
-		// If status is not specified, hide 'finished' unless ShowFinished is true
+		// Если статус не указан, скрываем 'finished' если ShowFinished = false
 		if !filter.ShowFinished {
 			where = append(where, fmt.Sprintf("a.status != $%d", argIdx))
 			args = append(args, "finished")
@@ -315,14 +310,14 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 
 	query += " WHERE " + strings.Join(where, " AND ")
 
-	// Count query
+	// Запрос количества
 	countQuery := "SELECT COUNT(*) FROM assignments a LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming' LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing' WHERE " + strings.Join(where, " AND ")
 	var totalCount int
 	if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count assignments: %w", err)
 	}
 
-	// Pagination defaults
+	// Пагинация по умолчанию
 	if filter.PageSize <= 0 {
 		filter.PageSize = 20
 	}
@@ -333,7 +328,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		filter.Page = 1
 	}
 
-	// Pagination
+	// Пагинация
 	query += fmt.Sprintf(" ORDER BY a.created_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
 	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
 
@@ -345,7 +340,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 
 	var items []models.Assignment
 	var assignmentIDs []uuid.UUID
-	assignmentIndex := map[uuid.UUID]int{} // assignment ID -> index in items
+	assignmentIndex := map[uuid.UUID]int{} // ID поручения -> индекс в items
 
 	for rows.Next() {
 		var a models.Assignment
@@ -387,7 +382,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		items = append(items, a)
 	}
 
-	// Batch-fetch co-executors for all assignments in one query instead of N+1
+	// Пакетная загрузка соисполнителей одним запросом вместо N+1
 	if len(assignmentIDs) > 0 {
 		coExecQuery := `
 			SELECT ce.assignment_id, u.id, u.login, u.full_name

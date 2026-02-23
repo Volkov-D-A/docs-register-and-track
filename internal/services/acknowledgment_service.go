@@ -43,9 +43,9 @@ func (s *AcknowledgmentService) Create(
 		return nil, ErrNotAuthenticated
 	}
 
-	// Permission: Clerk or Admin
+	// Проверка прав: делопроизводитель или админ
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("permission denied")
+		return nil, fmt.Errorf("недостаточно прав")
 	}
 
 	docUUID, err := uuid.Parse(documentID)
@@ -71,7 +71,7 @@ func (s *AcknowledgmentService) Create(
 	for _, uidStr := range userIds {
 		uUUID, err := uuid.Parse(uidStr)
 		if err != nil {
-			continue // or error out
+			continue // пропускаем невалидные ID
 		}
 		ack.Users = append(ack.Users, models.AcknowledgmentUser{
 			ID:               uuid.New(),
@@ -82,7 +82,7 @@ func (s *AcknowledgmentService) Create(
 	}
 
 	if len(ack.Users) == 0 {
-		return nil, fmt.Errorf("no users selected for acknowledgment")
+		return nil, fmt.Errorf("не выбраны пользователи для ознакомления")
 	}
 
 	err = s.repo.Create(ack)
@@ -90,7 +90,7 @@ func (s *AcknowledgmentService) Create(
 		return nil, err
 	}
 
-	// Prepare result with strings filled
+	// Заполнение строковых ID для результата
 	ack.FillIDStr()
 	return ack, nil
 }
@@ -120,7 +120,7 @@ func (s *AcknowledgmentService) GetAllActive() ([]models.Acknowledgment, error) 
 		return nil, ErrNotAuthenticated
 	}
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("permission denied")
+		return nil, fmt.Errorf("недостаточно прав")
 	}
 	return s.repo.GetAllActive()
 }
@@ -157,10 +157,9 @@ func (s *AcknowledgmentService) Delete(id string) error {
 	if !s.auth.IsAuthenticated() {
 		return ErrNotAuthenticated
 	}
-	// Only creator (clerk/admin) should delete? Or just admin?
-	// Let's allow admin and clerk.
+	// Удалять могут админ и делопроизводитель
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return fmt.Errorf("permission denied")
+		return fmt.Errorf("недостаточно прав")
 	}
 
 	ackUUID, err := uuid.Parse(id)

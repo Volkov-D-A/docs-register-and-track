@@ -42,7 +42,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             const user = await Login(username, password);
-            // Default role logic: use first role or specific priority
+            // Логика ролей по умолчанию: использовать первую роль или по приоритету
             let defaultRole = 'executor';
             if (user.roles && user.roles.length > 0) {
                 if (user.roles.includes('admin')) defaultRole = 'admin';
@@ -96,9 +96,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     hasRole: (role: string) => {
         const { currentRole } = get();
-        // If currentRole is set, we only check against it.
-        // If currentRole is not set (e.g. initial load), we might want to fall back to user roles or return false.
-        // Given the requirement "only active role counts", we should check if currentRole matches.
+        // Если currentRole установлена, проверяем только её.
+        // Если не установлена — возвращаем false.
+        // Согласно требованиям, учитывается только активная роль.
         return currentRole === role;
     },
 

@@ -69,14 +69,14 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 
 	whereClause := strings.Join(where, " AND ")
 
-	// Count
+	// Подсчёт
 	var totalCount int
 	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM outgoing_documents d WHERE %s`, whereClause)
 	if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count documents: %w", err)
 	}
 
-	// Pagination defaults
+	// Пагинация по умолчанию
 	if filter.PageSize <= 0 {
 		filter.PageSize = 20
 	}
@@ -87,7 +87,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		filter.Page = 1
 	}
 
-	// Data
+	// Данные
 	offset := (filter.Page - 1) * filter.PageSize
 	query := fmt.Sprintf(`
 		SELECT 
