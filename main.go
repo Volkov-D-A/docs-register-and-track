@@ -69,7 +69,7 @@ func main() {
 
 	// Запуск приложения Wails
 	err = wails.Run(&options.App{
-		Title:  "Документооборот",
+		Title:  "Система регистрации документов",
 		Width:  1280,
 		Height: 1000,
 		AssetServer: &assetserver.Options{
