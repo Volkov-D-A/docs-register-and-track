@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 
 	"docflow/internal/database"
 	"docflow/internal/models"
+	"docflow/internal/security"
 )
 
 type UserRepository struct {
@@ -173,11 +173,11 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 }
 
 func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, error) {
-	if err := ValidatePassword(req.Password); err != nil {
+	if err := security.ValidatePassword(req.Password); err != nil {
 		return nil, err
 	}
 
-	passwordHash, err := HashPassword(req.Password)
+	passwordHash, err := security.HashPassword(req.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -363,10 +363,10 @@ func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string
 }
 
 func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) error {
-	if err := ValidatePassword(newPassword); err != nil {
+	if err := security.ValidatePassword(newPassword); err != nil {
 		return err
 	}
-	hash, err := HashPassword(newPassword)
+	hash, err := security.HashPassword(newPassword)
 	if err != nil {
 		return err
 	}
@@ -394,53 +394,6 @@ func (r *UserRepository) getDepartmentNomenclatureIDs(departmentID uuid.UUID) ([
 		ids = append(ids, id.String())
 	}
 	return ids, nil
-}
-
-func VerifyPassword(hashedPassword, password string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-	return err == nil
-}
-
-// ValidatePassword проверяет пароль на требования безопасности:
-// минимум 8 символов, заглавные и строчные буквы, цифра или спецсимвол
-func ValidatePassword(password string) error {
-	if len(password) < 8 {
-		return fmt.Errorf("пароль должен содержать минимум 8 символов")
-	}
-
-	var hasUpper, hasLower, hasDigit, hasSpecial bool
-	for _, ch := range password {
-		switch {
-		case 'A' <= ch && ch <= 'Z':
-			hasUpper = true
-		case 'a' <= ch && ch <= 'z':
-			hasLower = true
-		case '0' <= ch && ch <= '9':
-			hasDigit = true
-		default:
-			hasSpecial = true
-		}
-	}
-
-	if !hasUpper {
-		return fmt.Errorf("пароль должен содержать хотя бы одну заглавную букву")
-	}
-	if !hasLower {
-		return fmt.Errorf("пароль должен содержать хотя бы одну строчную букву")
-	}
-	if !hasDigit && !hasSpecial {
-		return fmt.Errorf("пароль должен содержать хотя бы одну цифру или спецсимвол")
-	}
-
-	return nil
-}
-
-func HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("failed to hash password: %w", err)
-	}
-	return string(hash), nil
 }
 
 // CountUsers — получить общее количество пользователей в базе данных

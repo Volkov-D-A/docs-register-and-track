@@ -111,7 +111,10 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]models.Acknowledgm
 		return nil, ErrNotAuthenticated
 	}
 	userID := s.auth.GetCurrentUserID()
-	userUUID, _ := uuid.Parse(userID)
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
 	return s.repo.GetPendingForUser(userUUID)
 }
 
@@ -134,7 +137,10 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 		return fmt.Errorf("invalid acknowledgment ID: %w", err)
 	}
 	userID := s.auth.GetCurrentUserID()
-	userUUID, _ := uuid.Parse(userID)
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return ErrNotAuthenticated
+	}
 
 	return s.repo.MarkViewed(ackUUID, userUUID)
 }
@@ -148,7 +154,10 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 		return fmt.Errorf("invalid acknowledgment ID: %w", err)
 	}
 	userID := s.auth.GetCurrentUserID()
-	userUUID, _ := uuid.Parse(userID)
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return ErrNotAuthenticated
+	}
 
 	return s.repo.MarkConfirmed(ackUUID, userUUID)
 }

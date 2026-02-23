@@ -11,6 +11,7 @@ import (
 	"docflow/internal/database"
 	"docflow/internal/models"
 	"docflow/internal/repository"
+	"docflow/internal/security"
 )
 
 const migrationsPathAuth = "internal/database/migrations"
@@ -62,7 +63,7 @@ func (s *AuthService) Login(login, password string) (*models.User, error) {
 		return nil, ErrInvalidCredentials
 	}
 
-	if !repository.VerifyPassword(user.PasswordHash, password) {
+	if !security.VerifyPassword(user.PasswordHash, password) {
 		return nil, ErrInvalidCredentials
 	}
 
@@ -112,15 +113,15 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 		return err
 	}
 
-	if !repository.VerifyPassword(dbUser.PasswordHash, oldPassword) {
+	if !security.VerifyPassword(dbUser.PasswordHash, oldPassword) {
 		return ErrWrongPassword
 	}
 
-	if err := repository.ValidatePassword(newPassword); err != nil {
+	if err := security.ValidatePassword(newPassword); err != nil {
 		return err
 	}
 
-	newHash, err := repository.HashPassword(newPassword)
+	newHash, err := security.HashPassword(newPassword)
 	if err != nil {
 		return err
 	}
@@ -200,7 +201,7 @@ func (s *AuthService) InitialSetup(password string) error {
 		return fmt.Errorf("начальная настройка уже выполнена")
 	}
 
-	if err := repository.ValidatePassword(password); err != nil {
+	if err := security.ValidatePassword(password); err != nil {
 		return err
 	}
 

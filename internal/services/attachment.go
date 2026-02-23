@@ -254,15 +254,16 @@ func (s *AttachmentService) OpenFile(path string) error {
 		return err
 	}
 
+	cleanPath := filepath.Clean(path)
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", path)
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", cleanPath)
 	case "darwin":
-		cmd = exec.Command("open", path)
+		cmd = exec.Command("open", cleanPath)
 	default:
-		cmd = exec.Command("xdg-open", path)
+		cmd = exec.Command("xdg-open", cleanPath)
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -278,7 +279,7 @@ func (s *AttachmentService) OpenFolder(path string) error {
 		return err
 	}
 
-	dir := filepath.Dir(path)
+	dir := filepath.Clean(filepath.Dir(path))
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {
