@@ -6,9 +6,14 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/lib/pq"
+
+	"docflow/internal/database"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 )
+
+const migrationsPathAuth = "internal/database/migrations"
 
 var (
 	ErrInvalidCredentials = errors.New("неверный логин или пароль")
@@ -19,15 +24,26 @@ var (
 
 type AuthService struct {
 	ctx         context.Context
+	db          *database.DB
 	userRepo    *repository.UserRepository
 	currentUser *models.User
 	mu          sync.RWMutex
 }
 
-func NewAuthService(userRepo *repository.UserRepository) *AuthService {
+func NewAuthService(db *database.DB, userRepo *repository.UserRepository) *AuthService {
 	return &AuthService{
+		db:       db,
 		userRepo: userRepo,
 	}
+}
+
+// isTableNotExistsError проверяет, является ли ошибка «таблица не существует» (PostgreSQL 42P01).
+func isTableNotExistsError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Code == "42P01" // undefined_table
+	}
+	return false
 }
 
 // SetContext вызывается из OnStartup для сохранения контекста Wails
@@ -100,6 +116,10 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 		return ErrWrongPassword
 	}
 
+	if err := repository.ValidatePassword(newPassword); err != nil {
+		return err
+	}
+
 	newHash, err := repository.HashPassword(newPassword)
 	if err != nil {
 		return err
@@ -142,17 +162,36 @@ func (s *AuthService) HasRole(role string) bool {
 	return false
 }
 
-// NeedsInitialSetup — проверяет, нужна ли первоначальная настройка (нет пользователей в БД)
+// NeedsInitialSetup — проверяет, нужна ли первоначальная настройка.
+// Возвращает true если таблицы ещё не созданы (миграции не применены) или пользователей в БД нет.
 func (s *AuthService) NeedsInitialSetup() (bool, error) {
 	count, err := s.userRepo.CountUsers()
 	if err != nil {
+		if isTableNotExistsError(err) {
+			// Таблицы ещё не созданы — нужна первоначальная настройка (включая миграции)
+			return true, nil
+		}
 		return false, fmt.Errorf("ошибка проверки пользователей: %w", err)
 	}
 	return count == 0, nil
 }
 
-// InitialSetup — создаёт администратора при первом запуске (работает только если пользователей в БД нет)
+// InitialSetup — создаёт администратора при первом запуске.
+// Если таблицы не существуют, автоматически запускает миграции перед созданием пользователя.
 func (s *AuthService) InitialSetup(password string) error {
+	// Проверяем, существуют ли таблицы; если нет — запускаем миграции
+	_, err := s.userRepo.CountUsers()
+	if err != nil {
+		if isTableNotExistsError(err) {
+			if migErr := s.db.RunMigrations(migrationsPathAuth); migErr != nil {
+				return fmt.Errorf("ошибка применения миграций: %w", migErr)
+			}
+		} else {
+			return fmt.Errorf("ошибка проверки пользователей: %w", err)
+		}
+	}
+
+	// После миграций повторно проверяем — вдруг пользователи уже есть
 	count, err := s.userRepo.CountUsers()
 	if err != nil {
 		return fmt.Errorf("ошибка проверки пользователей: %w", err)
@@ -161,8 +200,8 @@ func (s *AuthService) InitialSetup(password string) error {
 		return fmt.Errorf("начальная настройка уже выполнена")
 	}
 
-	if len(password) < 6 {
-		return fmt.Errorf("пароль должен содержать минимум 6 символов")
+	if err := repository.ValidatePassword(password); err != nil {
+		return err
 	}
 
 	_, err = s.userRepo.Create(models.CreateUserRequest{

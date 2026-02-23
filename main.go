@@ -46,7 +46,7 @@ func main() {
 	acknowledgmentRepo := repository.NewAcknowledgmentRepository(db)
 
 	// Создание сервисов
-	authService := services.NewAuthService(userRepo)
+	authService := services.NewAuthService(db, userRepo)
 	settingsService := services.NewSettingsService(db, settingsRepo, authService)
 	userService := services.NewUserService(userRepo, authService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
