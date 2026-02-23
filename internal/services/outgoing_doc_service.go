@@ -136,7 +136,7 @@ func (s *OutgoingDocumentService) Update(
 		return nil, fmt.Errorf("ошибка организации получателя: %w", err)
 	}
 
-	senderOrg, err := s.refRepo.FindOrCreateOrganization("НАША ОРГАНИЗАЦИЯ")
+	senderOrg, err := s.refRepo.FindOrCreateOrganization(s.settingsService.GetOrganizationName())
 	if err != nil {
 		return nil, fmt.Errorf("ошибка вашей организации: %w", err)
 	}

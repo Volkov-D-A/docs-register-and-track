@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"embed"
-	"fmt"
 	"log"
 
 	"github.com/wailsapp/wails/v2"
@@ -29,15 +28,9 @@ func main() {
 	// Подключение к БД
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
-		log.Printf("Warning: Failed to connect to database: %v", err)
-	} else {
-		defer db.Close()
-		// Применение миграций
-		if err := db.RunMigrations("internal/database/migrations"); err != nil {
-			log.Fatalf("Failed to run migrations: %v", err)
-		}
-		fmt.Println("Database migrations applied successfully")
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	defer db.Close()
 
 	// Создание репозиториев
 	userRepo := repository.NewUserRepository(db)
@@ -54,7 +47,7 @@ func main() {
 
 	// Создание сервисов
 	authService := services.NewAuthService(userRepo)
-	settingsService := services.NewSettingsService(settingsRepo, authService)
+	settingsService := services.NewSettingsService(db, settingsRepo, authService)
 	userService := services.NewUserService(userRepo, authService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
 	referenceService := services.NewReferenceService(referenceRepo, authService)

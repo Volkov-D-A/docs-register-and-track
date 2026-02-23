@@ -14,8 +14,20 @@ export function GetMaxFileSize() {
   return window['go']['services']['SettingsService']['GetMaxFileSize']();
 }
 
+export function GetMigrationStatus() {
+  return window['go']['services']['SettingsService']['GetMigrationStatus']();
+}
+
 export function GetOrganizationName() {
   return window['go']['services']['SettingsService']['GetOrganizationName']();
+}
+
+export function RollbackMigration() {
+  return window['go']['services']['SettingsService']['RollbackMigration']();
+}
+
+export function RunMigrations() {
+  return window['go']['services']['SettingsService']['RunMigrations']();
 }
 
 export function SetContext(arg1) {

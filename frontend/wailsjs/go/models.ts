@@ -1,3 +1,26 @@
+export namespace database {
+	
+	export class MigrationStatus {
+	    currentVersion: number;
+	    dirty: boolean;
+	    totalAvailable: number;
+	    upToDate: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MigrationStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentVersion = source["currentVersion"];
+	        this.dirty = source["dirty"];
+	        this.totalAvailable = source["totalAvailable"];
+	        this.upToDate = source["upToDate"];
+	    }
+	}
+
+}
+
 export namespace models {
 	
 	export class AcknowledgmentUser {

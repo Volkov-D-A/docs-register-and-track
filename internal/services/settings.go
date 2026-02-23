@@ -2,20 +2,25 @@ package services
 
 import (
 	"context"
+	"docflow/internal/database"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 	"strconv"
 	"strings"
 )
 
+const migrationsPath = "internal/database/migrations"
+
 type SettingsService struct {
 	ctx         context.Context
+	db          *database.DB
 	repo        *repository.SettingsRepository
 	authService *AuthService
 }
 
-func NewSettingsService(repo *repository.SettingsRepository, authService *AuthService) *SettingsService {
+func NewSettingsService(db *database.DB, repo *repository.SettingsRepository, authService *AuthService) *SettingsService {
 	return &SettingsService{
+		db:          db,
 		repo:        repo,
 		authService: authService,
 	}
@@ -37,6 +42,30 @@ func (s *SettingsService) Update(key, value string) error {
 		return &models.AppError{Code: 403, Message: "Permission denied"}
 	}
 	return s.repo.Update(key, value)
+}
+
+// RunMigrations запускает миграции БД (только admin).
+func (s *SettingsService) RunMigrations() error {
+	if !s.authService.HasRole("admin") {
+		return &models.AppError{Code: 403, Message: "Недостаточно прав для управления миграциями"}
+	}
+	return s.db.RunMigrations(migrationsPath)
+}
+
+// GetMigrationStatus возвращает текущий статус миграций БД (только admin).
+func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error) {
+	if !s.authService.HasRole("admin") {
+		return nil, &models.AppError{Code: 403, Message: "Недостаточно прав для просмотра статуса миграций"}
+	}
+	return s.db.GetMigrationStatus(migrationsPath)
+}
+
+// RollbackMigration откатывает последнюю миграцию БД (только admin).
+func (s *SettingsService) RollbackMigration() error {
+	if !s.authService.HasRole("admin") {
+		return &models.AppError{Code: 403, Message: "Недостаточно прав для отката миграций"}
+	}
+	return s.db.RollbackMigration(migrationsPath)
 }
 
 // Helper methods for other services

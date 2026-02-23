@@ -3,7 +3,7 @@ import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Space,
   Typography, Popconfirm, Switch, Tag, App
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
@@ -686,6 +686,144 @@ const SystemSettingsTab: React.FC = () => {
   );
 };
 
+// === Миграции БД ===
+const MigrationsTab: React.FC = () => {
+  const { message, modal } = App.useApp();
+  const [loading, setLoading] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [rollingBack, setRollingBack] = useState(false);
+  const [status, setStatus] = useState<any>(null);
+
+  const loadStatus = async () => {
+    setLoading(true);
+    try {
+      const { GetMigrationStatus } = await import('../../wailsjs/go/services/SettingsService');
+      const result = await GetMigrationStatus();
+      setStatus(result);
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadStatus(); }, []);
+
+  const onRunMigrations = () => {
+    modal.confirm({
+      title: 'Запуск миграций',
+      content: 'Вы уверены, что хотите применить миграции базы данных? Убедитесь, что все пользователи завершили работу в системе.',
+      okText: 'Запустить',
+      cancelText: 'Отмена',
+      okType: 'primary',
+      onOk: async () => {
+        setRunning(true);
+        try {
+          const { RunMigrations } = await import('../../wailsjs/go/services/SettingsService');
+          await RunMigrations();
+          message.success('Миграции успешно применены');
+          await loadStatus();
+        } catch (err: any) {
+          message.error(err?.message || String(err));
+        }
+        setRunning(false);
+      },
+    });
+  };
+
+  const onRollback = () => {
+    modal.confirm({
+      title: 'Откат миграции',
+      content: 'Вы уверены, что хотите откатить последнюю миграцию? Это может привести к потере данных, добавленных в новых таблицах/столбцах.',
+      okText: 'Откатить',
+      cancelText: 'Отмена',
+      okType: 'primary',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setRollingBack(true);
+        try {
+          const { RollbackMigration } = await import('../../wailsjs/go/services/SettingsService');
+          await RollbackMigration();
+          message.success('Миграция успешно откачена');
+          await loadStatus();
+        } catch (err: any) {
+          message.error(err?.message || String(err));
+        }
+        setRollingBack(false);
+      },
+    });
+  };
+
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <div style={{
+        padding: 24,
+        background: '#fafafa',
+        borderRadius: 8,
+        border: '1px solid #f0f0f0',
+        marginBottom: 16,
+      }}>
+        <Typography.Title level={5} style={{ marginTop: 0 }}>
+          <DatabaseOutlined style={{ marginRight: 8 }} />
+          Статус миграций базы данных
+        </Typography.Title>
+
+        {loading ? (
+          <Typography.Text type="secondary">Загрузка...</Typography.Text>
+        ) : status ? (
+          <Space direction="vertical" size="small" style={{ width: '100%' }}>
+            <div>
+              <Typography.Text strong>Текущая версия: </Typography.Text>
+              <Typography.Text>{status.currentVersion || 0}</Typography.Text>
+            </div>
+            <div>
+              <Typography.Text strong>Доступно миграций: </Typography.Text>
+              <Typography.Text>{status.totalAvailable}</Typography.Text>
+            </div>
+            <div>
+              <Typography.Text strong>Статус: </Typography.Text>
+              {status.upToDate ? (
+                <Tag icon={<CheckCircleOutlined />} color="success">Актуальна</Tag>
+              ) : status.dirty ? (
+                <Tag icon={<WarningOutlined />} color="error">Ошибка миграции (dirty)</Tag>
+              ) : (
+                <Tag icon={<WarningOutlined />} color="warning">Требуется обновление</Tag>
+              )}
+            </div>
+          </Space>
+        ) : (
+          <Typography.Text type="secondary">Не удалось получить статус</Typography.Text>
+        )}
+      </div>
+
+      <Space size="small" style={{ marginBottom: 8 }}>
+        <Button
+          type="primary"
+          icon={<DatabaseOutlined />}
+          onClick={onRunMigrations}
+          loading={running}
+          disabled={status?.upToDate}
+        >
+          Применить миграции
+        </Button>
+        <Button
+          danger
+          icon={<DeleteOutlined />}
+          onClick={onRollback}
+          loading={rollingBack}
+          disabled={!status?.currentVersion}
+        >
+          Откатить последнюю
+        </Button>
+      </Space>
+      <div>
+        <Typography.Text type="secondary">
+          Перед запуском или откатом миграций убедитесь, что все пользователи завершили работу
+        </Typography.Text>
+      </div>
+    </div>
+  );
+};
+
 // === Основная страница ===
 const SettingsPage: React.FC = () => {
   return (
@@ -701,6 +839,7 @@ const SettingsPage: React.FC = () => {
           { key: 'departments', label: 'Подразделения', children: <DepartmentsTab /> },
           { key: 'users', label: 'Пользователи', children: <UsersTab /> },
           { key: 'system', label: 'Системные настройки', children: <SystemSettingsTab /> },
+          { key: 'migrations', label: 'Миграции БД', children: <MigrationsTab /> },
         ]}
       />
     </div>
