@@ -22,10 +22,6 @@ export function Register(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, a
   return window['go']['services']['OutgoingDocumentService']['Register'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
 }
 
-export function SetContext(arg1) {
-  return window['go']['services']['OutgoingDocumentService']['SetContext'](arg1);
-}
-
 export function Update(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10) {
   return window['go']['services']['OutgoingDocumentService']['Update'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
 }

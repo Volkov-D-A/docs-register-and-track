@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 )
 
 type IncomingDocumentService struct {
-	ctx     context.Context
 	repo    *repository.IncomingDocumentRepository
 	nomRepo *repository.NomenclatureRepository
 	refRepo *repository.ReferenceRepository
@@ -35,10 +33,6 @@ func NewIncomingDocumentService(
 		depRepo: depRepo,
 		auth:    auth,
 	}
-}
-
-func (s *IncomingDocumentService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // GetList — список входящих документов с фильтрацией

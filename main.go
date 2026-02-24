@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"embed"
 	"log"
 
@@ -69,21 +68,7 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
-		OnStartup: func(ctx context.Context) {
-			authService.SetContext(ctx)
-			userService.SetContext(ctx)
-			nomenclatureService.SetContext(ctx)
-			referenceService.SetContext(ctx)
-			incomingDocService.SetContext(ctx)
-			outgoingDocService.SetContext(ctx)
-			assignmentService.SetContext(ctx)
-			dashboardService.SetContext(ctx)
-			departmentService.SetContext(ctx)
-			settingsService.SetContext(ctx)
-			attachmentService.SetContext(ctx)
-			linkService.SetContext(ctx)
-			acknowledgmentService.SetContext(ctx)
-		},
+
 		Bind: []interface{}{
 			authService,
 			userService,

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 )
 
 type AcknowledgmentService struct {
-	ctx      context.Context
 	repo     *repository.AcknowledgmentRepository
 	userRepo *repository.UserRepository
 	auth     *AuthService
@@ -29,10 +27,6 @@ func NewAcknowledgmentService(
 		userRepo: userRepo,
 		auth:     auth,
 	}
-}
-
-func (s *AcknowledgmentService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 func (s *AcknowledgmentService) Create(

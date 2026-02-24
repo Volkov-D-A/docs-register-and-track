@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 )
 
 type OutgoingDocumentService struct {
-	ctx             context.Context
 	repo            *repository.OutgoingDocumentRepository
 	refRepo         *repository.ReferenceRepository
 	nomRepo         *repository.NomenclatureRepository
@@ -38,10 +36,6 @@ func NewOutgoingDocumentService(
 		auth:            auth,
 		settingsService: settingsService,
 	}
-}
-
-func (s *OutgoingDocumentService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // Register — регистрация нового исходящего документа

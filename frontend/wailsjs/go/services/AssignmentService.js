@@ -18,10 +18,6 @@ export function GetList(arg1) {
   return window['go']['services']['AssignmentService']['GetList'](arg1);
 }
 
-export function SetContext(arg1) {
-  return window['go']['services']['AssignmentService']['SetContext'](arg1);
-}
-
 export function Update(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['services']['AssignmentService']['Update'](arg1, arg2, arg3, arg4, arg5);
 }

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"docflow/internal/dto"
 	"docflow/internal/repository"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 )
 
 type DepartmentService struct {
-	ctx  context.Context
 	repo *repository.DepartmentRepository
 	auth *AuthService
 }
@@ -20,10 +18,6 @@ func NewDepartmentService(repo *repository.DepartmentRepository, auth *AuthServi
 		repo: repo,
 		auth: auth,
 	}
-}
-
-func (s *DepartmentService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 func (s *DepartmentService) GetAllDepartments() ([]dto.Department, error) {

@@ -18,10 +18,6 @@ export function ResetPassword(arg1, arg2) {
   return window['go']['services']['UserService']['ResetPassword'](arg1, arg2);
 }
 
-export function SetContext(arg1) {
-  return window['go']['services']['UserService']['SetContext'](arg1);
-}
-
 export function UpdateUser(arg1) {
   return window['go']['services']['UserService']['UpdateUser'](arg1);
 }

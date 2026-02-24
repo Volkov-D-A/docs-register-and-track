@@ -17,7 +17,6 @@ type LinkService struct {
 	incomingDocRepo *repository.IncomingDocumentRepository
 	outgoingDocRepo *repository.OutgoingDocumentRepository
 	authService     *AuthService
-	ctx             context.Context
 }
 
 func NewLinkService(
@@ -32,10 +31,6 @@ func NewLinkService(
 		outgoingDocRepo: outgoingDocRepo,
 		authService:     authService,
 	}
-}
-
-func (s *LinkService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // LinkDocuments — создать связь между двумя документами
@@ -73,7 +68,7 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, target
 		CreatedAt:  time.Now(),
 	}
 
-	if err := s.repo.Create(s.ctx, link); err != nil {
+	if err := s.repo.Create(context.Background(), link); err != nil {
 		return nil, fmt.Errorf("failed to create link: %w", err)
 	}
 
@@ -86,8 +81,7 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
-	// TODO: проверка прав доступа
-	return s.repo.Delete(s.ctx, id)
+	return s.repo.Delete(context.Background(), id)
 }
 
 // GetDocumentLinks — получить прямые связи документа
@@ -96,7 +90,7 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
 	}
-	res, err := s.repo.GetByDocumentID(s.ctx, docID)
+	res, err := s.repo.GetByDocumentID(context.Background(), docID)
 	return dto.MapDocumentLinks(res), err
 }
 
@@ -132,7 +126,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
 	}
 
-	links, err := s.repo.GetGraph(s.ctx, rootID)
+	links, err := s.repo.GetGraph(context.Background(), rootID)
 	if err != nil {
 		return nil, err
 	}

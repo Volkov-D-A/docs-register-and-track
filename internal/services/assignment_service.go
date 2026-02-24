@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 )
 
 type AssignmentService struct {
-	ctx      context.Context
 	repo     *repository.AssignmentRepository
 	userRepo *repository.UserRepository // Для валидации
 	auth     *AuthService
@@ -29,10 +27,6 @@ func NewAssignmentService(
 		userRepo: userRepo,
 		auth:     auth,
 	}
-}
-
-func (s *AssignmentService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // Create — создание поручения

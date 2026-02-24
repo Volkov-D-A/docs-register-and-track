@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -14,17 +13,12 @@ import (
 )
 
 type DashboardService struct {
-	ctx  context.Context
 	db   *database.DB
 	auth *AuthService
 }
 
 func NewDashboardService(db *database.DB, auth *AuthService) *DashboardService {
 	return &DashboardService{db: db, auth: auth}
-}
-
-func (s *DashboardService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateStr string) (*dto.DashboardStats, error) {

@@ -30,10 +30,6 @@ export function RunMigrations() {
   return window['go']['services']['SettingsService']['RunMigrations']();
 }
 
-export function SetContext(arg1) {
-  return window['go']['services']['SettingsService']['SetContext'](arg1);
-}
-
 export function Update(arg1, arg2) {
   return window['go']['services']['SettingsService']['Update'](arg1, arg2);
 }

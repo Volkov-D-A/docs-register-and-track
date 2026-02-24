@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"docflow/internal/database"
 	"docflow/internal/models"
 	"docflow/internal/repository"
@@ -12,7 +11,6 @@ import (
 const migrationsPath = "internal/database/migrations"
 
 type SettingsService struct {
-	ctx         context.Context
 	db          *database.DB
 	repo        *repository.SettingsRepository
 	authService *AuthService
@@ -24,10 +22,6 @@ func NewSettingsService(db *database.DB, repo *repository.SettingsRepository, au
 		repo:        repo,
 		authService: authService,
 	}
-}
-
-func (s *SettingsService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // GetAll — получить все системные настройки

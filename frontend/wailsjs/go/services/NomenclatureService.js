@@ -18,10 +18,6 @@ export function GetAll(arg1, arg2) {
   return window['go']['services']['NomenclatureService']['GetAll'](arg1, arg2);
 }
 
-export function SetContext(arg1) {
-  return window['go']['services']['NomenclatureService']['SetContext'](arg1);
-}
-
 export function Update(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['services']['NomenclatureService']['Update'](arg1, arg2, arg3, arg4, arg5, arg6);
 }

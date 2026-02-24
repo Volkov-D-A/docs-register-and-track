@@ -29,7 +29,3 @@ export function MarkConfirmed(arg1) {
 export function MarkViewed(arg1) {
   return window['go']['services']['AcknowledgmentService']['MarkViewed'](arg1);
 }
-
-export function SetContext(arg1) {
-  return window['go']['services']['AcknowledgmentService']['SetContext'](arg1);
-}

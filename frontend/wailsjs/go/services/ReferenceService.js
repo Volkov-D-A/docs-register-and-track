@@ -30,10 +30,6 @@ export function SearchOrganizations(arg1) {
   return window['go']['services']['ReferenceService']['SearchOrganizations'](arg1);
 }
 
-export function SetContext(arg1) {
-  return window['go']['services']['ReferenceService']['SetContext'](arg1);
-}
-
 export function UpdateDocumentType(arg1, arg2) {
   return window['go']['services']['ReferenceService']['UpdateDocumentType'](arg1, arg2);
 }

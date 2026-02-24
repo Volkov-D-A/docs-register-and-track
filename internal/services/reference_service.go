@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -11,17 +10,12 @@ import (
 )
 
 type ReferenceService struct {
-	ctx  context.Context
 	repo *repository.ReferenceRepository
 	auth *AuthService
 }
 
 func NewReferenceService(repo *repository.ReferenceRepository, auth *AuthService) *ReferenceService {
 	return &ReferenceService{repo: repo, auth: auth}
-}
-
-func (s *ReferenceService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // === Типы документов ===

@@ -26,10 +26,6 @@ export function OpenFolder(arg1) {
   return window['go']['services']['AttachmentService']['OpenFolder'](arg1);
 }
 
-export function SetContext(arg1) {
-  return window['go']['services']['AttachmentService']['SetContext'](arg1);
-}
-
 export function Upload(arg1, arg2, arg3, arg4) {
   return window['go']['services']['AttachmentService']['Upload'](arg1, arg2, arg3, arg4);
 }

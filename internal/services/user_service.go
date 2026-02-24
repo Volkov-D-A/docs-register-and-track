@@ -1,15 +1,12 @@
 package services
 
 import (
-	"context"
-
 	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 )
 
 type UserService struct {
-	ctx      context.Context
 	userRepo *repository.UserRepository
 	auth     *AuthService
 }
@@ -19,11 +16,6 @@ func NewUserService(userRepo *repository.UserRepository, auth *AuthService) *Use
 		userRepo: userRepo,
 		auth:     auth,
 	}
-}
-
-// SetContext вызывается из OnStartup
-func (s *UserService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // GetAllUsers — получить всех пользователей (только admin или clerk)

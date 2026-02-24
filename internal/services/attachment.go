@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
@@ -18,7 +17,6 @@ import (
 )
 
 type AttachmentService struct {
-	ctx             context.Context
 	repo            *repository.AttachmentRepository
 	settingsService *SettingsService
 	authService     *AuthService
@@ -30,10 +28,6 @@ func NewAttachmentService(repo *repository.AttachmentRepository, settingsService
 		settingsService: settingsService,
 		authService:     authService,
 	}
-}
-
-func (s *AttachmentService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // Upload — загрузка файла

@@ -5,7 +5,3 @@
 export function GetStats(arg1, arg2, arg3) {
   return window['go']['services']['DashboardService']['GetStats'](arg1, arg2, arg3);
 }
-
-export function SetContext(arg1) {
-  return window['go']['services']['DashboardService']['SetContext'](arg1);
-}

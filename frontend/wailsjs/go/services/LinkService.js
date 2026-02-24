@@ -14,10 +14,6 @@ export function LinkDocuments(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['services']['LinkService']['LinkDocuments'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function SetContext(arg1) {
-  return window['go']['services']['LinkService']['SetContext'](arg1);
-}
-
 export function UnlinkDocument(arg1) {
   return window['go']['services']['LinkService']['UnlinkDocument'](arg1);
 }

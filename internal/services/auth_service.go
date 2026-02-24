@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -25,7 +24,6 @@ var (
 )
 
 type AuthService struct {
-	ctx         context.Context
 	db          *database.DB
 	userRepo    *repository.UserRepository
 	currentUser *models.User
@@ -46,11 +44,6 @@ func isTableNotExistsError(err error) bool {
 		return pqErr.Code == "42P01" // undefined_table
 	}
 	return false
-}
-
-// SetContext вызывается из OnStartup для сохранения контекста Wails
-func (s *AuthService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // Login — вход пользователя (Wails binding)

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -12,17 +11,12 @@ import (
 )
 
 type NomenclatureService struct {
-	ctx  context.Context
 	repo *repository.NomenclatureRepository
 	auth *AuthService
 }
 
 func NewNomenclatureService(repo *repository.NomenclatureRepository, auth *AuthService) *NomenclatureService {
 	return &NomenclatureService{repo: repo, auth: auth}
-}
-
-func (s *NomenclatureService) SetContext(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // GetAll — получить все дела номенклатуры
