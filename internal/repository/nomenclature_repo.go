@@ -54,7 +54,7 @@ func (r *NomenclatureRepository) GetAll(year int, direction string) ([]models.No
 		); err != nil {
 			return nil, err
 		}
-		item.FillIDStr()
+
 		items = append(items, item)
 	}
 	return items, nil
@@ -76,7 +76,7 @@ func (r *NomenclatureRepository) GetByID(id uuid.UUID) (*models.Nomenclature, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nomenclature by id: %w", err)
 	}
-	item.FillIDStr()
+
 	return item, nil
 }
 
@@ -150,7 +150,7 @@ func (r *NomenclatureRepository) GetActiveByDirection(direction string, year int
 		); err != nil {
 			return nil, err
 		}
-		item.FillIDStr()
+
 		items = append(items, item)
 	}
 	return items, nil

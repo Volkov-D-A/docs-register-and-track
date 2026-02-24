@@ -162,7 +162,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
-		doc.FillIDStr()
+
 		items = append(items, doc)
 	}
 
@@ -214,7 +214,7 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 		return nil, fmt.Errorf("failed to get incoming document: %w", err)
 	}
 
-	doc.FillIDStr()
+
 	return doc, nil
 }
 

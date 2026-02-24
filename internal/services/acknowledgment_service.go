@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 )
@@ -38,7 +39,7 @@ func (s *AcknowledgmentService) Create(
 	documentID, documentType string,
 	content string,
 	userIds []string,
-) (*models.Acknowledgment, error) {
+) (*dto.Acknowledgment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -91,11 +92,11 @@ func (s *AcknowledgmentService) Create(
 	}
 
 	// Заполнение строковых ID для результата
-	ack.FillIDStr()
-	return ack, nil
+
+	return dto.MapAcknowledgment(ack), nil
 }
 
-func (s *AcknowledgmentService) GetList(documentID string) ([]models.Acknowledgment, error) {
+func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -103,10 +104,11 @@ func (s *AcknowledgmentService) GetList(documentID string) ([]models.Acknowledgm
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
 	}
-	return s.repo.GetByDocumentID(docUUID)
+	res, err := s.repo.GetByDocumentID(docUUID)
+	return dto.MapAcknowledgments(res), err
 }
 
-func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]models.Acknowledgment, error) {
+func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -115,17 +117,19 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]models.Acknowledgm
 	if err != nil {
 		return nil, ErrNotAuthenticated
 	}
-	return s.repo.GetPendingForUser(userUUID)
+	res, err := s.repo.GetPendingForUser(userUUID)
+	return dto.MapAcknowledgments(res), err
 }
 
-func (s *AcknowledgmentService) GetAllActive() ([]models.Acknowledgment, error) {
+func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, fmt.Errorf("недостаточно прав")
 	}
-	return s.repo.GetAllActive()
+	res, err := s.repo.GetAllActive()
+	return dto.MapAcknowledgments(res), err
 }
 
 func (s *AcknowledgmentService) MarkViewed(ackID string) error {

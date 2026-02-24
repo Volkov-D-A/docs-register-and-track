@@ -52,13 +52,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
             set({
                 user: {
-                    id: user.id,
+                    id: (user as any).id || '',
                     login: user.login,
                     fullName: user.fullName,
                     isActive: user.isActive,
                     roles: user.roles || [],
                     department: user.department ? {
-                        id: user.department.id,
+                        id: (user.department as any).id || '',
                         name: user.department.name,
                         nomenclatureIds: user.department.nomenclatureIds || []
                     } : undefined,

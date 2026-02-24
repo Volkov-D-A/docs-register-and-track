@@ -202,8 +202,6 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 		a.DocumentSubject = docSubject.String
 	}
 
-	a.FillIDStr()
-
 	// Получение соисполнителей
 	coExecQuery := `
 		SELECT u.id, u.login, u.full_name
@@ -225,9 +223,9 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 		if err := ceRows.Scan(&u.ID, &u.Login, &u.FullName); err != nil {
 			return nil, err
 		}
-		u.FillIDStr()
+
 		coExecutors = append(coExecutors, u)
-		coExecutorIDs = append(coExecutorIDs, u.IDStr)
+		coExecutorIDs = append(coExecutorIDs, u.ID.String())
 	}
 	a.CoExecutors = coExecutors
 	a.CoExecutorIDs = coExecutorIDs
@@ -375,7 +373,6 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		if docSubject.Valid {
 			a.DocumentSubject = docSubject.String
 		}
-		a.FillIDStr()
 
 		assignmentIndex[a.ID] = len(items)
 		assignmentIDs = append(assignmentIDs, a.ID)
@@ -402,11 +399,10 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 			if err := ceRows.Scan(&assignmentID, &u.ID, &u.Login, &u.FullName); err != nil {
 				return nil, fmt.Errorf("failed to scan co-executor: %w", err)
 			}
-			u.FillIDStr()
 
 			if idx, ok := assignmentIndex[assignmentID]; ok {
 				items[idx].CoExecutors = append(items[idx].CoExecutors, u)
-				items[idx].CoExecutorIDs = append(items[idx].CoExecutorIDs, u.IDStr)
+				items[idx].CoExecutorIDs = append(items[idx].CoExecutorIDs, u.ID.String())
 			}
 		}
 	}

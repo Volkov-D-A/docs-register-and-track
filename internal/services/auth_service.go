@@ -9,6 +9,7 @@ import (
 	"github.com/lib/pq"
 
 	"docflow/internal/database"
+	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 	"docflow/internal/security"
@@ -53,7 +54,7 @@ func (s *AuthService) SetContext(ctx context.Context) {
 }
 
 // Login — вход пользователя (Wails binding)
-func (s *AuthService) Login(login, password string) (*models.User, error) {
+func (s *AuthService) Login(login, password string) (*dto.User, error) {
 	user, err := s.userRepo.GetByLogin(login)
 	if err != nil {
 		return nil, err
@@ -75,7 +76,7 @@ func (s *AuthService) Login(login, password string) (*models.User, error) {
 	s.currentUser = user
 	s.mu.Unlock()
 
-	return user, nil
+	return dto.MapUser(user), nil
 }
 
 // Logout — выход
@@ -87,7 +88,7 @@ func (s *AuthService) Logout() error {
 }
 
 // GetCurrentUser — получить текущего пользователя
-func (s *AuthService) GetCurrentUser() (*models.User, error) {
+func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -95,7 +96,7 @@ func (s *AuthService) GetCurrentUser() (*models.User, error) {
 		return nil, ErrNotAuthenticated
 	}
 
-	return s.currentUser, nil
+	return dto.MapUser(s.currentUser), nil
 }
 
 // ChangePassword — смена пароля

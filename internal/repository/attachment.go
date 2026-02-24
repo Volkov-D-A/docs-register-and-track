@@ -66,7 +66,7 @@ func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attach
 			return nil, err
 		}
 		a.UploadedByName = uploadedByName.String
-		a.FillIDStr()
+
 		attachments = append(attachments, a)
 	}
 	return attachments, nil

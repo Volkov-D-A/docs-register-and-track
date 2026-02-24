@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 )
@@ -41,7 +42,7 @@ func (s *AssignmentService) Create(
 	content string,
 	deadline string,
 	coExecutorIDs []string,
-) (*models.Assignment, error) {
+) (*dto.Assignment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -65,7 +66,8 @@ func (s *AssignmentService) Create(
 		deadlineTime = &t
 	}
 
-	return s.repo.Create(docUUID, documentType, execUUID, content, deadlineTime, coExecutorIDs)
+	res, err := s.repo.Create(docUUID, documentType, execUUID, content, deadlineTime, coExecutorIDs)
+	return dto.MapAssignment(res), err
 }
 
 // Update — редактирование (админ)
@@ -75,7 +77,7 @@ func (s *AssignmentService) Update(
 	content string,
 	deadline string,
 	coExecutorIDs []string,
-) (*models.Assignment, error) {
+) (*dto.Assignment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -119,11 +121,12 @@ func (s *AssignmentService) Update(
 		deadlineTime = &t
 	}
 
-	return s.repo.Update(uid, execUUID, content, deadlineTime, existing.Status, existing.Report, existing.CompletedAt, coExecutorIDs)
+	res, err := s.repo.Update(uid, execUUID, content, deadlineTime, existing.Status, existing.Report, existing.CompletedAt, coExecutorIDs)
+	return dto.MapAssignment(res), err
 }
 
 // UpdateStatus — изменение статуса (исполнитель или админ)
-func (s *AssignmentService) UpdateStatus(id, status, report string) (*models.Assignment, error) {
+func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assignment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -184,10 +187,11 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*models.Ass
 		completedAt = nil
 	}
 
-	return s.repo.Update(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, report, completedAt, existing.CoExecutorIDs)
+	res, err := s.repo.Update(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, report, completedAt, existing.CoExecutorIDs)
+	return dto.MapAssignment(res), err
 }
 
-func (s *AssignmentService) GetByID(id string) (*models.Assignment, error) {
+func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -195,10 +199,11 @@ func (s *AssignmentService) GetByID(id string) (*models.Assignment, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.GetByID(uid)
+	res, err := s.repo.GetByID(uid)
+	return dto.MapAssignment(res), err
 }
 
-func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error) {
+func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -209,7 +214,16 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*models.Pag
 	if filter.PageSize < 1 {
 		filter.PageSize = 20
 	}
-	return s.repo.GetList(filter)
+	res, err := s.repo.GetList(filter)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.PagedResult[dto.Assignment]{
+		Items:      dto.MapAssignments(res.Items),
+		TotalCount: res.TotalCount,
+		Page:       res.Page,
+		PageSize:   res.PageSize,
+	}, nil
 }
 
 func (s *AssignmentService) Delete(id string) error {

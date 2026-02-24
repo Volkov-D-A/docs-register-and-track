@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"docflow/internal/models"
+	"docflow/internal/dto"
 	"docflow/internal/repository"
 	"fmt"
 
@@ -26,21 +26,23 @@ func (s *DepartmentService) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-func (s *DepartmentService) GetAllDepartments() ([]models.Department, error) {
+func (s *DepartmentService) GetAllDepartments() ([]dto.Department, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	return s.repo.GetAll()
+	res, err := s.repo.GetAll()
+	return dto.MapDepartments(res), err
 }
 
-func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []string) (*models.Department, error) {
+func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []string) (*dto.Department, error) {
 	if !s.auth.HasRole("admin") {
 		return nil, fmt.Errorf("недостаточно прав")
 	}
-	return s.repo.Create(name, nomenclatureIDs)
+	res, err := s.repo.Create(name, nomenclatureIDs)
+	return dto.MapDepartment(res), err
 }
 
-func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []string) (*models.Department, error) {
+func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []string) (*dto.Department, error) {
 	if !s.auth.HasRole("admin") {
 		return nil, fmt.Errorf("недостаточно прав")
 	}
@@ -48,7 +50,8 @@ func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []
 	if err != nil {
 		return nil, fmt.Errorf("invalid department ID: %w", err)
 	}
-	return s.repo.Update(uid, name, nomenclatureIDs)
+	res, err := s.repo.Update(uid, name, nomenclatureIDs)
+	return dto.MapDepartment(res), err
 }
 
 func (s *DepartmentService) DeleteDepartment(id string) error {

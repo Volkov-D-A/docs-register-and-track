@@ -35,7 +35,7 @@ func (r *ReferenceRepository) GetAllDocumentTypes() ([]models.DocumentType, erro
 		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
 			return nil, err
 		}
-		item.FillIDStr()
+
 		items = append(items, item)
 	}
 	return items, nil
@@ -57,7 +57,7 @@ func (r *ReferenceRepository) CreateDocumentType(name string) (*models.DocumentT
 	if err != nil {
 		return nil, err
 	}
-	item.FillIDStr()
+
 	return item, nil
 }
 
@@ -94,7 +94,7 @@ func (r *ReferenceRepository) GetAllOrganizations() ([]models.Organization, erro
 		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
 			return nil, err
 		}
-		item.FillIDStr()
+
 		items = append(items, item)
 	}
 	return items, nil
@@ -108,7 +108,7 @@ func (r *ReferenceRepository) FindOrCreateOrganization(name string) (*models.Org
 	`, name).Scan(&item.ID, &item.Name, &item.CreatedAt)
 
 	if err == nil {
-		item.FillIDStr()
+
 		return &item, nil
 	}
 
@@ -131,7 +131,7 @@ func (r *ReferenceRepository) FindOrCreateOrganization(name string) (*models.Org
 	if err != nil {
 		return nil, err
 	}
-	item.FillIDStr()
+
 	return &item, nil
 }
 
@@ -152,7 +152,7 @@ func (r *ReferenceRepository) SearchOrganizations(query string) ([]models.Organi
 		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
 			return nil, err
 		}
-		item.FillIDStr()
+
 		items = append(items, item)
 	}
 	return items, nil

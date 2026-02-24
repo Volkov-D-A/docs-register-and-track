@@ -87,11 +87,6 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 			return nil, err
 		}
 
-		l.IDStr = l.ID.String()
-		l.SourceIDStr = l.SourceID.String()
-		l.TargetIDStr = l.TargetID.String()
-		l.CreatedByStr = l.CreatedBy.String()
-
 		if sourceNum.Valid {
 			l.SourceNumber = sourceNum.String
 		}
@@ -151,10 +146,6 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 		); err != nil {
 			return nil, err
 		}
-		l.IDStr = l.ID.String()
-		l.SourceIDStr = l.SourceID.String()
-		l.TargetIDStr = l.TargetID.String()
-		l.CreatedByStr = l.CreatedBy.String()
 		links = append(links, l)
 	}
 	return links, nil

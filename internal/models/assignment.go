@@ -8,15 +8,12 @@ import (
 
 // Assignment — поручение по документу
 type Assignment struct {
-	ID            uuid.UUID `json:"-"`
-	IDStr         string    `json:"id"`
-	DocumentID    uuid.UUID `json:"-"`
-	DocumentIDStr string    `json:"documentId"`
-	DocumentType  string    `json:"documentType"` // 'incoming' или 'outgoing'
+	ID           uuid.UUID `json:"-"`
+	DocumentID   uuid.UUID `json:"-"`
+	DocumentType string    `json:"documentType"` // 'incoming' или 'outgoing'
 
-	ExecutorID    uuid.UUID `json:"-"`
-	ExecutorIDStr string    `json:"executorId"`
-	ExecutorName  string    `json:"executorName,omitempty"`
+	ExecutorID   uuid.UUID `json:"-"`
+	ExecutorName string    `json:"executorName,omitempty"`
 
 	Content     string     `json:"content"`
 	Deadline    *time.Time `json:"deadline,omitempty"`
@@ -33,12 +30,6 @@ type Assignment struct {
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
-}
-
-func (a *Assignment) FillIDStr() {
-	a.IDStr = a.ID.String()
-	a.DocumentIDStr = a.DocumentID.String()
-	a.ExecutorIDStr = a.ExecutorID.String()
 }
 
 type AssignmentFilter struct {

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 )
@@ -26,27 +27,30 @@ func (s *UserService) SetContext(ctx context.Context) {
 }
 
 // GetAllUsers — получить всех пользователей (только admin или clerk)
-func (s *UserService) GetAllUsers() ([]models.User, error) {
+func (s *UserService) GetAllUsers() ([]dto.User, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, ErrNotAuthenticated
 	}
-	return s.userRepo.GetAll()
+	res, err := s.userRepo.GetAll()
+	return dto.MapUsers(res), err
 }
 
 // CreateUser — создать пользователя (только admin)
-func (s *UserService) CreateUser(req models.CreateUserRequest) (*models.User, error) {
+func (s *UserService) CreateUser(req models.CreateUserRequest) (*dto.User, error) {
 	if !s.auth.HasRole("admin") {
 		return nil, ErrNotAuthenticated
 	}
-	return s.userRepo.Create(req)
+	res, err := s.userRepo.Create(req)
+	return dto.MapUser(res), err
 }
 
 // UpdateUser — обновить пользователя (только admin)
-func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*models.User, error) {
+func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*dto.User, error) {
 	if !s.auth.HasRole("admin") {
 		return nil, ErrNotAuthenticated
 	}
-	return s.userRepo.Update(req)
+	res, err := s.userRepo.Update(req)
+	return dto.MapUser(res), err
 }
 
 // ResetPassword — сброс пароля (только admin)
@@ -64,9 +68,10 @@ func (s *UserService) ResetPassword(userID string, newPassword string) error {
 }
 
 // GetExecutors — получить список исполнителей
-func (s *UserService) GetExecutors() ([]models.User, error) {
+func (s *UserService) GetExecutors() ([]dto.User, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	return s.userRepo.GetExecutors()
+	res, err := s.userRepo.GetExecutors()
+	return dto.MapUsers(res), err
 }

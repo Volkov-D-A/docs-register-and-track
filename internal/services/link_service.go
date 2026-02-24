@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 )
@@ -38,7 +39,7 @@ func (s *LinkService) SetContext(ctx context.Context) {
 }
 
 // LinkDocuments — создать связь между двумя документами
-func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, targetType, linkType string) (*models.DocumentLink, error) {
+func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, targetType, linkType string) (*dto.DocumentLink, error) {
 	userIDStr := s.authService.GetCurrentUserID()
 	if userIDStr == "" {
 		return nil, fmt.Errorf("unauthorized")
@@ -76,12 +77,7 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, target
 		return nil, fmt.Errorf("failed to create link: %w", err)
 	}
 
-	link.IDStr = link.ID.String()
-	link.SourceIDStr = link.SourceID.String()
-	link.TargetIDStr = link.TargetID.String()
-	link.CreatedByStr = link.CreatedBy.String()
-
-	return link, nil
+	return dto.MapDocumentLink(link), nil
 }
 
 // UnlinkDocument — удалить связь
@@ -95,12 +91,13 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 }
 
 // GetDocumentLinks — получить прямые связи документа
-func (s *LinkService) GetDocumentLinks(docIDStr string) ([]models.DocumentLink, error) {
+func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, error) {
 	docID, err := uuid.Parse(docIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
 	}
-	return s.repo.GetByDocumentID(s.ctx, docID)
+	res, err := s.repo.GetByDocumentID(s.ctx, docID)
+	return dto.MapDocumentLinks(res), err
 }
 
 // GraphNode — узел графа визуализации связей
@@ -205,9 +202,9 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 	edges := []GraphEdge{}
 	for _, l := range links {
 		edges = append(edges, GraphEdge{
-			ID:     l.IDStr,
-			Source: l.SourceIDStr,
-			Target: l.TargetIDStr,
+			ID:     l.ID.String(),
+			Source: l.SourceID.String(),
+			Target: l.TargetID.String(),
 			Label:  l.LinkType,
 		})
 	}

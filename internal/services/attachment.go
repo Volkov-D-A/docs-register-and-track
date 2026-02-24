@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 	"encoding/base64"
@@ -36,7 +37,7 @@ func (s *AttachmentService) SetContext(ctx context.Context) {
 }
 
 // Upload — загрузка файла
-func (s *AttachmentService) Upload(documentIDStr string, documentType string, filename string, contentBase64 string) (*models.Attachment, error) {
+func (s *AttachmentService) Upload(documentIDStr string, documentType string, filename string, contentBase64 string) (*dto.Attachment, error) {
 	currentUser, err := s.authService.GetCurrentUser()
 	if err != nil {
 		return nil, &models.AppError{Code: 401, Message: "Требуется авторизация"}
@@ -90,20 +91,20 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		FileSize:     int64(len(data)),
 		ContentType:  ext, // упрощённый тип содержимого
 		Content:      data,
-		UploadedBy:   currentUser.ID,
+		UploadedBy:   uuid.MustParse(currentUser.ID),
 	}
 
 	if err := s.repo.Create(attachment); err != nil {
 		return nil, err
 	}
-	attachment.FillIDStr()
+
 	attachment.UploadedByName = currentUser.FullName
 
-	return attachment, nil
+	return dto.MapAttachment(attachment), nil
 }
 
 // GetList — получить вложения документа
-func (s *AttachmentService) GetList(documentIDStr string) ([]models.Attachment, error) {
+func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, error) {
 	if !s.authService.IsAuthenticated() {
 		return nil, &models.AppError{Code: 401, Message: "Требуется авторизация"}
 	}
@@ -112,7 +113,8 @@ func (s *AttachmentService) GetList(documentIDStr string) ([]models.Attachment, 
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID")
 	}
-	return s.repo.GetByDocumentID(documentID)
+	res, err := s.repo.GetByDocumentID(documentID)
+	return dto.MapAttachments(res), err
 }
 
 // Download — получить содержимое файла в формате base64

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 )
@@ -50,7 +51,7 @@ func (s *OutgoingDocumentService) Register(
 	outgoingDate string,
 	subject, content string, pagesCount int,
 	senderSignatory, senderExecutor string,
-) (*models.OutgoingDocument, error) {
+) (*dto.OutgoingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, fmt.Errorf("недостаточно прав для регистрации документов")
 	}
@@ -102,12 +103,13 @@ func (s *OutgoingDocumentService) Register(
 		return nil, ErrNotAuthenticated
 	}
 
-	return s.repo.Create(
+	res, err := s.repo.Create(
 		nomID, docTypeID, senderOrg.ID, recipientOrg.ID, createdBy,
 		outgoingNumber, outDate,
 		subject, content, pagesCount,
 		senderSignatory, senderExecutor, addressee,
 	)
+	return dto.MapOutgoingDocument(res), err
 }
 
 // Update — редактирование исходящего документа
@@ -117,7 +119,7 @@ func (s *OutgoingDocumentService) Update(
 	outgoingDate string,
 	subject, content string, pagesCount int,
 	senderSignatory, senderExecutor string,
-) (*models.OutgoingDocument, error) {
+) (*dto.OutgoingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, fmt.Errorf("недостаточно прав для редактирования документов")
 	}
@@ -146,17 +148,18 @@ func (s *OutgoingDocumentService) Update(
 		outDate = time.Now()
 	}
 
-	return s.repo.Update(
+	res, err := s.repo.Update(
 		uid,
 		docTypeID, senderOrg.ID, recipientOrg.ID,
 		outDate,
 		subject, content, pagesCount,
 		senderSignatory, senderExecutor, addressee,
 	)
+	return dto.MapOutgoingDocument(res), err
 }
 
 // GetList — получение списка с фильтрацией
-func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error) {
+func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) (*dto.PagedResult[dto.OutgoingDocument], error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -175,15 +178,21 @@ func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) 
 
 	// Если пользователь — исполнитель, ограничиваем видимость по номенклатурам подразделения
 	if s.auth.HasRole("executor") && !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
+		var deptID *uuid.UUID
+		if user.Department != nil {
+			if parsed, err := uuid.Parse(user.Department.ID); err == nil {
+				deptID = &parsed
+			}
+		}
 		filteredIDs, empty, err := filterNomenclaturesByDepartment(
-			user.DepartmentID, s.depRepo, filter.NomenclatureIDs, "",
+			deptID, s.depRepo, filter.NomenclatureIDs, "",
 		)
 		if err != nil {
 			return nil, err
 		}
 		if empty {
-			return &models.PagedResult[models.OutgoingDocument]{
-				Items:      []models.OutgoingDocument{},
+			return &dto.PagedResult[dto.OutgoingDocument]{
+				Items:      []dto.OutgoingDocument{},
 				TotalCount: 0,
 				Page:       filter.Page,
 				PageSize:   filter.PageSize,
@@ -194,11 +203,20 @@ func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) 
 		}
 	}
 
-	return s.repo.GetList(filter)
+	res, err := s.repo.GetList(filter)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.PagedResult[dto.OutgoingDocument]{
+		Items:      dto.MapOutgoingDocuments(res.Items),
+		TotalCount: res.TotalCount,
+		Page:       res.Page,
+		PageSize:   res.PageSize,
+	}, nil
 }
 
 // GetByID — получение документа по ID
-func (s *OutgoingDocumentService) GetByID(id string) (*models.OutgoingDocument, error) {
+func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -206,7 +224,8 @@ func (s *OutgoingDocumentService) GetByID(id string) (*models.OutgoingDocument, 
 	if err != nil {
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.GetByID(uid)
+	res, err := s.repo.GetByID(uid)
+	return dto.MapOutgoingDocument(res), err
 }
 
 // Delete — удаление документа

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"docflow/internal/dto"
 	"docflow/internal/models"
 	"docflow/internal/repository"
 )
@@ -41,7 +42,7 @@ func (s *IncomingDocumentService) SetContext(ctx context.Context) {
 }
 
 // GetList — список входящих документов с фильтрацией
-func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error) {
+func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*dto.PagedResult[dto.IncomingDocument], error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -53,15 +54,21 @@ func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*models
 
 	// Если пользователь — исполнитель, ограничиваем видимость по номенклатурам подразделения
 	if s.auth.HasRole("executor") && !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
+		var deptID *uuid.UUID
+		if user.Department != nil {
+			if parsed, err := uuid.Parse(user.Department.ID); err == nil {
+				deptID = &parsed
+			}
+		}
 		filteredIDs, empty, err := filterNomenclaturesByDepartment(
-			user.DepartmentID, s.depRepo, filter.NomenclatureIDs, filter.NomenclatureID,
+			deptID, s.depRepo, filter.NomenclatureIDs, filter.NomenclatureID,
 		)
 		if err != nil {
 			return nil, err
 		}
 		if empty {
-			return &models.PagedResult[models.IncomingDocument]{
-				Items:      []models.IncomingDocument{},
+			return &dto.PagedResult[dto.IncomingDocument]{
+				Items:      []dto.IncomingDocument{},
 				TotalCount: 0,
 				Page:       filter.Page,
 				PageSize:   filter.PageSize,
@@ -72,11 +79,20 @@ func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*models
 		}
 	}
 
-	return s.repo.GetList(filter)
+	res, err := s.repo.GetList(filter)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.PagedResult[dto.IncomingDocument]{
+		Items:      dto.MapIncomingDocuments(res.Items),
+		TotalCount: res.TotalCount,
+		Page:       res.Page,
+		PageSize:   res.PageSize,
+	}, nil
 }
 
 // GetByID — получить документ по ID
-func (s *IncomingDocumentService) GetByID(id string) (*models.IncomingDocument, error) {
+func (s *IncomingDocumentService) GetByID(id string) (*dto.IncomingDocument, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -84,7 +100,8 @@ func (s *IncomingDocumentService) GetByID(id string) (*models.IncomingDocument, 
 	if err != nil {
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.GetByID(uid)
+	res, err := s.repo.GetByID(uid)
+	return dto.MapIncomingDocument(res), err
 }
 
 // Register — регистрация нового входящего документа
@@ -97,7 +114,7 @@ func (s *IncomingDocumentService) Register(
 	subject, content string, pagesCount int,
 	senderSignatory, senderExecutor, addressee string,
 	resolution string,
-) (*models.IncomingDocument, error) {
+) (*dto.IncomingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, fmt.Errorf("недостаточно прав для регистрации документов")
 	}
@@ -157,7 +174,7 @@ func (s *IncomingDocumentService) Register(
 		return nil, ErrNotAuthenticated
 	}
 
-	return s.repo.Create(
+	res, err := s.repo.Create(
 		nomID, docTypeID, senderOrg.ID, recipientOrg.ID, createdBy,
 		incomingNumberStr, incDate,
 		outgoingNumberSender, outDate,
@@ -166,6 +183,7 @@ func (s *IncomingDocumentService) Register(
 		senderSignatory, senderExecutor, addressee,
 		resPtr,
 	)
+	return dto.MapIncomingDocument(res), err
 }
 
 // Update — редактирование входящего документа
@@ -178,7 +196,7 @@ func (s *IncomingDocumentService) Update(
 	subject, content string, pagesCount int,
 	senderSignatory, senderExecutor, addressee string,
 	resolution string,
-) (*models.IncomingDocument, error) {
+) (*dto.IncomingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, fmt.Errorf("недостаточно прав для редактирования документов")
 	}
@@ -222,7 +240,7 @@ func (s *IncomingDocumentService) Update(
 		resPtr = &resolution
 	}
 
-	return s.repo.Update(
+	res, err := s.repo.Update(
 		uid,
 		docTypeID, senderOrg.ID, recipientOrg.ID,
 		outgoingNumberSender, outDate,
@@ -231,6 +249,7 @@ func (s *IncomingDocumentService) Update(
 		senderSignatory, senderExecutor, addressee,
 		resPtr,
 	)
+	return dto.MapIncomingDocument(res), err
 }
 
 // GetCount — количество для дашборда

@@ -35,7 +35,6 @@ func (r *DepartmentRepository) GetAll() ([]models.Department, error) {
 		if err := rows.Scan(&d.ID, &d.Name, &d.CreatedAt, &d.UpdatedAt); err != nil {
 			return nil, err
 		}
-		d.FillIDStr()
 
 		// Загружаем номенклатуру
 		if err := r.loadNomenclature(&d); err != nil {
@@ -73,9 +72,9 @@ func (r *DepartmentRepository) loadNomenclature(d *models.Department) error {
 		); err != nil {
 			return err
 		}
-		n.FillIDStr()
+
 		d.Nomenclature = append(d.Nomenclature, n)
-		d.NomenclatureIDs = append(d.NomenclatureIDs, n.IDStr)
+		d.NomenclatureIDs = append(d.NomenclatureIDs, n.ID.String())
 	}
 	return nil
 }
@@ -122,7 +121,6 @@ func (r *DepartmentRepository) Create(name string, nomenclatureIDs []string) (*m
 	if err != nil {
 		return nil, err
 	}
-	d.FillIDStr()
 
 	if len(nomenclatureIDs) > 0 {
 		stmt, err := tx.Prepare("INSERT INTO department_nomenclature (department_id, nomenclature_id) VALUES ($1, $2)")
@@ -174,7 +172,6 @@ func (r *DepartmentRepository) Update(id uuid.UUID, name string, nomenclatureIDs
 		}
 		return nil, err
 	}
-	d.FillIDStr()
 
 	// Обновляем связи
 	_, err = tx.Exec("DELETE FROM department_nomenclature WHERE department_id = $1", id)

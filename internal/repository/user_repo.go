@@ -48,16 +48,13 @@ func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
 		uid, _ := uuid.Parse(departmentID.String)
 		user.DepartmentID = &uid
 		user.Department = &models.Department{
-			ID:    uid,
-			IDStr: uid.String(),
-			Name:  departmentName.String,
+			ID:   uid,
+			Name: departmentName.String,
 		}
 		if noms, err := r.getDepartmentNomenclatureIDs(uid); err == nil {
 			user.Department.NomenclatureIDs = noms
 		}
 	}
-
-	user.FillIDStr()
 
 	roles, err := r.GetUserRoles(user.ID)
 	if err != nil {
@@ -97,16 +94,13 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 		uid, _ := uuid.Parse(departmentID.String)
 		user.DepartmentID = &uid
 		user.Department = &models.Department{
-			ID:    uid,
-			IDStr: uid.String(),
-			Name:  departmentName.String,
+			ID:   uid,
+			Name: departmentName.String,
 		}
 		if noms, err := r.getDepartmentNomenclatureIDs(uid); err == nil {
 			user.Department.NomenclatureIDs = noms
 		}
 	}
-
-	user.FillIDStr()
 
 	roles, err := r.GetUserRoles(user.ID)
 	if err != nil {
@@ -148,9 +142,8 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 			uid, _ := uuid.Parse(departmentID.String)
 			user.DepartmentID = &uid
 			user.Department = &models.Department{
-				ID:    uid,
-				IDStr: uid.String(),
-				Name:  departmentName.String,
+				ID:   uid,
+				Name: departmentName.String,
 			}
 		}
 		if user.Department != nil {
@@ -158,8 +151,6 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 				user.Department.NomenclatureIDs = noms
 			}
 		}
-
-		user.FillIDStr()
 
 		roles, err := r.GetUserRoles(user.ID)
 		if err != nil {
@@ -326,9 +317,8 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 			uid, _ := uuid.Parse(departmentID.String)
 			user.DepartmentID = &uid
 			user.Department = &models.Department{
-				ID:    uid,
-				IDStr: uid.String(),
-				Name:  departmentName.String,
+				ID:   uid,
+				Name: departmentName.String,
 			}
 		}
 		if user.Department != nil {
@@ -337,7 +327,6 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 			}
 		}
 
-		user.FillIDStr()
 		roles, err := r.GetUserRoles(user.ID)
 		if err != nil {
 			return nil, err

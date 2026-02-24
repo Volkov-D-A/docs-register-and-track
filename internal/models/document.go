@@ -8,11 +8,9 @@ import (
 
 // IncomingDocument — входящий документ
 type IncomingDocument struct {
-	ID                uuid.UUID `json:"-"`
-	IDStr             string    `json:"id"`
-	NomenclatureID    uuid.UUID `json:"-"`
-	NomenclatureIDStr string    `json:"nomenclatureId"`
-	NomenclatureName  string    `json:"nomenclatureName,omitempty"`
+	ID               uuid.UUID `json:"-"`
+	NomenclatureID   uuid.UUID `json:"-"`
+	NomenclatureName string    `json:"nomenclatureName,omitempty"`
 
 	// Номера и даты
 	IncomingNumber       string     `json:"incomingNumber"`
@@ -23,32 +21,28 @@ type IncomingDocument struct {
 	IntermediateDate     *time.Time `json:"intermediateDate,omitempty"`
 
 	// О документе
-	DocumentTypeID    uuid.UUID `json:"-"`
-	DocumentTypeIDStr string    `json:"documentTypeId"`
-	DocumentTypeName  string    `json:"documentTypeName,omitempty"`
-	Subject           string    `json:"subject"`
-	PagesCount        int       `json:"pagesCount"`
-	Content           string    `json:"content"`
+	DocumentTypeID   uuid.UUID `json:"-"`
+	DocumentTypeName string    `json:"documentTypeName,omitempty"`
+	Subject          string    `json:"subject"`
+	PagesCount       int       `json:"pagesCount"`
+	Content          string    `json:"content"`
 
 	// Отправитель
 	SenderOrgID     uuid.UUID `json:"-"`
-	SenderOrgIDStr  string    `json:"senderOrgId"`
 	SenderOrgName   string    `json:"senderOrgName,omitempty"`
 	SenderSignatory string    `json:"senderSignatory"`
 	SenderExecutor  string    `json:"senderExecutor"`
 
 	// Получатель
-	RecipientOrgID    uuid.UUID `json:"-"`
-	RecipientOrgIDStr string    `json:"recipientOrgId"`
-	RecipientOrgName  string    `json:"recipientOrgName,omitempty"`
-	Addressee         string    `json:"addressee"`
+	RecipientOrgID   uuid.UUID `json:"-"`
+	RecipientOrgName string    `json:"recipientOrgName,omitempty"`
+	Addressee        string    `json:"addressee"`
 
 	// Резолюция
 	Resolution *string `json:"resolution,omitempty"`
 
 	// Метаданные
 	CreatedBy     uuid.UUID `json:"-"`
-	CreatedByStr  string    `json:"createdBy"`
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
@@ -58,51 +52,36 @@ type IncomingDocument struct {
 	AssignmentsCount int `json:"assignmentsCount,omitempty"`
 }
 
-func (d *IncomingDocument) FillIDStr() {
-	d.IDStr = d.ID.String()
-	d.NomenclatureIDStr = d.NomenclatureID.String()
-	d.DocumentTypeIDStr = d.DocumentTypeID.String()
-	d.SenderOrgIDStr = d.SenderOrgID.String()
-	d.RecipientOrgIDStr = d.RecipientOrgID.String()
-	d.CreatedByStr = d.CreatedBy.String()
-}
-
 // OutgoingDocument — исходящий документ
 type OutgoingDocument struct {
-	ID                uuid.UUID `json:"-"`
-	IDStr             string    `json:"id"`
-	NomenclatureID    uuid.UUID `json:"-"`
-	NomenclatureIDStr string    `json:"nomenclatureId"`
-	NomenclatureName  string    `json:"nomenclatureName,omitempty"`
+	ID               uuid.UUID `json:"-"`
+	NomenclatureID   uuid.UUID `json:"-"`
+	NomenclatureName string    `json:"nomenclatureName,omitempty"`
 
 	// Номера и даты
 	OutgoingNumber string    `json:"outgoingNumber"`
 	OutgoingDate   time.Time `json:"outgoingDate"`
 
 	// О документе
-	DocumentTypeID    uuid.UUID `json:"-"`
-	DocumentTypeIDStr string    `json:"documentTypeId"`
-	DocumentTypeName  string    `json:"documentTypeName,omitempty"`
-	Subject           string    `json:"subject"`
-	PagesCount        int       `json:"pagesCount"`
-	Content           string    `json:"content"`
+	DocumentTypeID   uuid.UUID `json:"-"`
+	DocumentTypeName string    `json:"documentTypeName,omitempty"`
+	Subject          string    `json:"subject"`
+	PagesCount       int       `json:"pagesCount"`
+	Content          string    `json:"content"`
 
 	// Отправитель
 	SenderOrgID     uuid.UUID `json:"-"`
-	SenderOrgIDStr  string    `json:"senderOrgId"`
 	SenderOrgName   string    `json:"senderOrgName,omitempty"`
 	SenderSignatory string    `json:"senderSignatory"`
 	SenderExecutor  string    `json:"senderExecutor"`
 
 	// Получатель
-	RecipientOrgID    uuid.UUID `json:"-"`
-	RecipientOrgIDStr string    `json:"recipientOrgId"`
-	RecipientOrgName  string    `json:"recipientOrgName,omitempty"`
-	Addressee         string    `json:"addressee"`
+	RecipientOrgID   uuid.UUID `json:"-"`
+	RecipientOrgName string    `json:"recipientOrgName,omitempty"`
+	Addressee        string    `json:"addressee"`
 
 	// Метаданные
 	CreatedBy     uuid.UUID `json:"-"`
-	CreatedByStr  string    `json:"createdBy"`
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
@@ -111,29 +90,16 @@ type OutgoingDocument struct {
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
-func (d *OutgoingDocument) FillIDStr() {
-	d.IDStr = d.ID.String()
-	d.NomenclatureIDStr = d.NomenclatureID.String()
-	d.DocumentTypeIDStr = d.DocumentTypeID.String()
-	d.SenderOrgIDStr = d.SenderOrgID.String()
-	d.RecipientOrgIDStr = d.RecipientOrgID.String()
-	d.CreatedByStr = d.CreatedBy.String()
-}
-
 // DocumentLink — связь между документами
 type DocumentLink struct {
-	ID           uuid.UUID `json:"-"`
-	IDStr        string    `json:"id"`
-	SourceType   string    `json:"sourceType"`
-	SourceID     uuid.UUID `json:"-"`
-	SourceIDStr  string    `json:"sourceId"`
-	TargetType   string    `json:"targetType"`
-	TargetID     uuid.UUID `json:"-"`
-	TargetIDStr  string    `json:"targetId"`
-	LinkType     string    `json:"linkType"`
-	CreatedBy    uuid.UUID `json:"-"`
-	CreatedByStr string    `json:"createdBy"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID         uuid.UUID `json:"-"`
+	SourceType string    `json:"sourceType"`
+	SourceID   uuid.UUID `json:"-"`
+	TargetType string    `json:"targetType"`
+	TargetID   uuid.UUID `json:"-"`
+	LinkType   string    `json:"linkType"`
+	CreatedBy  uuid.UUID `json:"-"`
+	CreatedAt  time.Time `json:"createdAt"`
 
 	SourceNumber  string `json:"sourceNumber,omitempty"`
 	TargetNumber  string `json:"targetNumber,omitempty"`

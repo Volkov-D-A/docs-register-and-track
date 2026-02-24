@@ -8,7 +8,6 @@ import (
 
 type User struct {
 	ID           uuid.UUID   `json:"-"`
-	IDStr        string      `json:"id"`
 	Login        string      `json:"login"`
 	PasswordHash string      `json:"-"`
 	FullName     string      `json:"fullName"`
@@ -18,11 +17,6 @@ type User struct {
 	UpdatedAt    time.Time   `json:"updatedAt"`
 	DepartmentID *uuid.UUID  `json:"-"`
 	Department   *Department `json:"department,omitempty"`
-}
-
-// FillIDStr заполняет строковое представление ID
-func (u *User) FillIDStr() {
-	u.IDStr = u.ID.String()
 }
 
 type UserRole struct {

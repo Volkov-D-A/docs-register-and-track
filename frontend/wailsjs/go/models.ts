@@ -21,7 +21,7 @@ export namespace database {
 
 }
 
-export namespace models {
+export namespace dto {
 	
 	export class AcknowledgmentUser {
 	    id: string;
@@ -319,36 +319,6 @@ export namespace models {
 		    return a;
 		}
 	}
-	export class AssignmentFilter {
-	    search?: string;
-	    documentId?: string;
-	    executorId?: string;
-	    status?: string;
-	    dateFrom?: string;
-	    dateTo?: string;
-	    overdueOnly: boolean;
-	    showFinished: boolean;
-	    page: number;
-	    pageSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new AssignmentFilter(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.search = source["search"];
-	        this.documentId = source["documentId"];
-	        this.executorId = source["executorId"];
-	        this.status = source["status"];
-	        this.dateFrom = source["dateFrom"];
-	        this.dateTo = source["dateTo"];
-	        this.overdueOnly = source["overdueOnly"];
-	        this.showFinished = source["showFinished"];
-	        this.page = source["page"];
-	        this.pageSize = source["pageSize"];
-	    }
-	}
 	export class Attachment {
 	    id: string;
 	    documentId: string;
@@ -397,26 +367,6 @@ export namespace models {
 		    }
 		    return a;
 		}
-	}
-	export class CreateUserRequest {
-	    login: string;
-	    password: string;
-	    fullName: string;
-	    roles: string[];
-	    departmentId: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new CreateUserRequest(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.login = source["login"];
-	        this.password = source["password"];
-	        this.fullName = source["fullName"];
-	        this.roles = source["roles"];
-	        this.departmentId = source["departmentId"];
-	    }
 	}
 	export class DashboardStats {
 	    role: string;
@@ -477,48 +427,6 @@ export namespace models {
 		}
 	}
 	
-	export class DocumentFilter {
-	    nomenclatureId?: string;
-	    nomenclatureIds?: string[];
-	    documentTypeId?: string;
-	    orgId?: string;
-	    dateFrom?: string;
-	    dateTo?: string;
-	    search?: string;
-	    incomingNumber?: string;
-	    outgoingNumber?: string;
-	    senderName?: string;
-	    outgoingDateFrom?: string;
-	    outgoingDateTo?: string;
-	    resolution?: string;
-	    noResolution?: boolean;
-	    page: number;
-	    pageSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new DocumentFilter(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.nomenclatureId = source["nomenclatureId"];
-	        this.nomenclatureIds = source["nomenclatureIds"];
-	        this.documentTypeId = source["documentTypeId"];
-	        this.orgId = source["orgId"];
-	        this.dateFrom = source["dateFrom"];
-	        this.dateTo = source["dateTo"];
-	        this.search = source["search"];
-	        this.incomingNumber = source["incomingNumber"];
-	        this.outgoingNumber = source["outgoingNumber"];
-	        this.senderName = source["senderName"];
-	        this.outgoingDateFrom = source["outgoingDateFrom"];
-	        this.outgoingDateTo = source["outgoingDateTo"];
-	        this.resolution = source["resolution"];
-	        this.noResolution = source["noResolution"];
-	        this.page = source["page"];
-	        this.pageSize = source["pageSize"];
-	    }
-	}
 	export class DocumentLink {
 	    id: string;
 	    sourceType: string;
@@ -604,20 +512,6 @@ export namespace models {
 		    }
 		    return a;
 		}
-	}
-	export class DownloadResponse {
-	    filename: string;
-	    content: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new DownloadResponse(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.filename = source["filename"];
-	        this.content = source["content"];
-	    }
 	}
 	export class IncomingDocument {
 	    id: string;
@@ -819,6 +713,225 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class PagedResult_docflow_internal_dto_Assignment_ {
+	    items: Assignment[];
+	    totalCount: number;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PagedResult_docflow_internal_dto_Assignment_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], Assignment);
+	        this.totalCount = source["totalCount"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PagedResult_docflow_internal_dto_IncomingDocument_ {
+	    items: IncomingDocument[];
+	    totalCount: number;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PagedResult_docflow_internal_dto_IncomingDocument_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], IncomingDocument);
+	        this.totalCount = source["totalCount"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PagedResult_docflow_internal_dto_OutgoingDocument_ {
+	    items: OutgoingDocument[];
+	    totalCount: number;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PagedResult_docflow_internal_dto_OutgoingDocument_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], OutgoingDocument);
+	        this.totalCount = source["totalCount"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace models {
+	
+	export class AssignmentFilter {
+	    search?: string;
+	    documentId?: string;
+	    executorId?: string;
+	    status?: string;
+	    dateFrom?: string;
+	    dateTo?: string;
+	    overdueOnly: boolean;
+	    showFinished: boolean;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.search = source["search"];
+	        this.documentId = source["documentId"];
+	        this.executorId = source["executorId"];
+	        this.status = source["status"];
+	        this.dateFrom = source["dateFrom"];
+	        this.dateTo = source["dateTo"];
+	        this.overdueOnly = source["overdueOnly"];
+	        this.showFinished = source["showFinished"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	    }
+	}
+	export class CreateUserRequest {
+	    login: string;
+	    password: string;
+	    fullName: string;
+	    roles: string[];
+	    departmentId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateUserRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.login = source["login"];
+	        this.password = source["password"];
+	        this.fullName = source["fullName"];
+	        this.roles = source["roles"];
+	        this.departmentId = source["departmentId"];
+	    }
+	}
+	export class DocumentFilter {
+	    nomenclatureId?: string;
+	    nomenclatureIds?: string[];
+	    documentTypeId?: string;
+	    orgId?: string;
+	    dateFrom?: string;
+	    dateTo?: string;
+	    search?: string;
+	    incomingNumber?: string;
+	    outgoingNumber?: string;
+	    senderName?: string;
+	    outgoingDateFrom?: string;
+	    outgoingDateTo?: string;
+	    resolution?: string;
+	    noResolution?: boolean;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.nomenclatureId = source["nomenclatureId"];
+	        this.nomenclatureIds = source["nomenclatureIds"];
+	        this.documentTypeId = source["documentTypeId"];
+	        this.orgId = source["orgId"];
+	        this.dateFrom = source["dateFrom"];
+	        this.dateTo = source["dateTo"];
+	        this.search = source["search"];
+	        this.incomingNumber = source["incomingNumber"];
+	        this.outgoingNumber = source["outgoingNumber"];
+	        this.senderName = source["senderName"];
+	        this.outgoingDateFrom = source["outgoingDateFrom"];
+	        this.outgoingDateTo = source["outgoingDateTo"];
+	        this.resolution = source["resolution"];
+	        this.noResolution = source["noResolution"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	    }
+	}
+	export class DownloadResponse {
+	    filename: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filename = source["filename"];
+	        this.content = source["content"];
+	    }
+	}
 	export class OutgoingDocumentFilter {
 	    nomenclatureIds?: string[];
 	    documentTypeId?: string;
@@ -848,114 +961,6 @@ export namespace models {
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	    }
-	}
-	export class PagedResult_docflow_internal_models_Assignment_ {
-	    items: Assignment[];
-	    totalCount: number;
-	    page: number;
-	    pageSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new PagedResult_docflow_internal_models_Assignment_(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.items = this.convertValues(source["items"], Assignment);
-	        this.totalCount = source["totalCount"];
-	        this.page = source["page"];
-	        this.pageSize = source["pageSize"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class PagedResult_docflow_internal_models_IncomingDocument_ {
-	    items: IncomingDocument[];
-	    totalCount: number;
-	    page: number;
-	    pageSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new PagedResult_docflow_internal_models_IncomingDocument_(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.items = this.convertValues(source["items"], IncomingDocument);
-	        this.totalCount = source["totalCount"];
-	        this.page = source["page"];
-	        this.pageSize = source["pageSize"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class PagedResult_docflow_internal_models_OutgoingDocument_ {
-	    items: OutgoingDocument[];
-	    totalCount: number;
-	    page: number;
-	    pageSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new PagedResult_docflow_internal_models_OutgoingDocument_(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.items = this.convertValues(source["items"], OutgoingDocument);
-	        this.totalCount = source["totalCount"];
-	        this.page = source["page"];
-	        this.pageSize = source["pageSize"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class SystemSetting {
 	    key: string;

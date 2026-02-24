@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"docflow/internal/models"
+	"docflow/internal/dto"
 	"docflow/internal/repository"
 )
 
@@ -26,18 +26,20 @@ func (s *ReferenceService) SetContext(ctx context.Context) {
 
 // === Типы документов ===
 
-func (s *ReferenceService) GetDocumentTypes() ([]models.DocumentType, error) {
+func (s *ReferenceService) GetDocumentTypes() ([]dto.DocumentType, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	return s.repo.GetAllDocumentTypes()
+	res, err := s.repo.GetAllDocumentTypes()
+	return dto.MapDocumentTypes(res), err
 }
 
-func (s *ReferenceService) CreateDocumentType(name string) (*models.DocumentType, error) {
+func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, error) {
 	if !s.auth.HasRole("admin") {
 		return nil, fmt.Errorf("недостаточно прав")
 	}
-	return s.repo.CreateDocumentType(name)
+	res, err := s.repo.CreateDocumentType(name)
+	return dto.MapDocumentType(res), err
 }
 
 func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
@@ -64,25 +66,28 @@ func (s *ReferenceService) DeleteDocumentType(id string) error {
 
 // === Организации ===
 
-func (s *ReferenceService) GetOrganizations() ([]models.Organization, error) {
+func (s *ReferenceService) GetOrganizations() ([]dto.Organization, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	return s.repo.GetAllOrganizations()
+	res, err := s.repo.GetAllOrganizations()
+	return dto.MapOrganizations(res), err
 }
 
-func (s *ReferenceService) SearchOrganizations(query string) ([]models.Organization, error) {
+func (s *ReferenceService) SearchOrganizations(query string) ([]dto.Organization, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	return s.repo.SearchOrganizations(query)
+	res, err := s.repo.SearchOrganizations(query)
+	return dto.MapOrganizations(res), err
 }
 
-func (s *ReferenceService) FindOrCreateOrganization(name string) (*models.Organization, error) {
+func (s *ReferenceService) FindOrCreateOrganization(name string) (*dto.Organization, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	return s.repo.FindOrCreateOrganization(name)
+	res, err := s.repo.FindOrCreateOrganization(name)
+	return dto.MapOrganization(res), err
 }
 
 func (s *ReferenceService) UpdateOrganization(id string, name string) error {

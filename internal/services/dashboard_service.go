@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"docflow/internal/database"
+	"docflow/internal/dto"
 	"docflow/internal/models"
 )
 
@@ -26,7 +27,7 @@ func (s *DashboardService) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateStr string) (*models.DashboardStats, error) {
+func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateStr string) (*dto.DashboardStats, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
@@ -66,14 +67,14 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 		ExpiringAssignments: []models.Assignment{},
 	}
 
+	var result *models.DashboardStats
 	switch role {
 	case "admin":
-		return s.getAdminStats(stats)
+		result, err = s.getAdminStats(stats)
 	case "clerk":
 
 		// Parse dates
 		var startDate, endDate time.Time
-		var err error
 
 		if startDateStr == "" || endDateStr == "" {
 			// Default to current month if empty
@@ -94,11 +95,18 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 			endDate = endDateParsed.Add(24*time.Hour - time.Nanosecond)
 		}
 
-		return s.getClerkStats(stats, startDate, endDate)
+		result, err = s.getClerkStats(stats, startDate, endDate)
 	default:
 		// Исполнитель (по умолчанию)
-		return s.getExecutorStats(stats, user.ID)
+		uid, _ := uuid.Parse(user.ID)
+		result, err = s.getExecutorStats(stats, uid)
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return dto.MapDashboardStats(result), nil
 }
 
 func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID uuid.UUID) (*models.DashboardStats, error) {
@@ -183,7 +191,7 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 		if executorName.Valid {
 			a.ExecutorName = executorName.String
 		}
-		a.FillIDStr()
+
 		stats.ExpiringAssignments = append(stats.ExpiringAssignments, a)
 	}
 
@@ -269,7 +277,7 @@ func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate
 		if executorName.Valid {
 			a.ExecutorName = executorName.String
 		}
-		a.FillIDStr()
+
 		stats.ExpiringAssignments = append(stats.ExpiringAssignments, a)
 	}
 
