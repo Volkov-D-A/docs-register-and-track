@@ -28,7 +28,11 @@ const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCance
             // @ts-ignore
             const { GetAllUsers } = await import('../../wailsjs/go/services/UserService');
             const data = await GetAllUsers();
-            setUsers(data || []);
+            const allUsers = data || [];
+            const filteredUsers = allUsers.filter((u: any) =>
+                u.roles?.includes('executor') || u.roles?.includes('clerk')
+            );
+            setUsers(filteredUsers);
         } catch (err) {
             console.error(err);
         }
