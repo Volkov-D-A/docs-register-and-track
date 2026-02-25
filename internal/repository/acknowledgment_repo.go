@@ -68,7 +68,7 @@ func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]mode
 	}
 	defer rows.Close()
 
-	var result []models.Acknowledgment
+	result := make([]models.Acknowledgment, 0)
 	for rows.Next() {
 		var a models.Acknowledgment
 		var docNumber string
@@ -111,7 +111,7 @@ func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentID(ackID uuid.UUID) (
 	}
 	defer rows.Close()
 
-	var result []models.AcknowledgmentUser
+	result := make([]models.AcknowledgmentUser, 0)
 	for rows.Next() {
 		var au models.AcknowledgmentUser
 		err := rows.Scan(
@@ -151,7 +151,7 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 	}
 	defer rows.Close()
 
-	var result []models.Acknowledgment
+	result := make([]models.Acknowledgment, 0)
 	for rows.Next() {
 		var a models.Acknowledgment
 		var docNumber string
@@ -256,7 +256,7 @@ func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, erro
 	}
 	defer rows.Close()
 
-	var result []models.Acknowledgment
+	result := make([]models.Acknowledgment, 0)
 	for rows.Next() {
 		var a models.Acknowledgment
 		var docNumber string

@@ -118,7 +118,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 	}
 	defer rows.Close()
 
-	var items []models.OutgoingDocument
+	items := make([]models.OutgoingDocument, 0)
 	for rows.Next() {
 		var doc models.OutgoingDocument
 		err := rows.Scan(

@@ -115,7 +115,7 @@ func (r *DashboardRepository) GetExpiringAssignments(userID *uuid.UUID, days int
 	}
 	defer rows.Close()
 
-	var assignments []models.Assignment
+	assignments := make([]models.Assignment, 0)
 	for rows.Next() {
 		var a models.Assignment
 		var docNumber sql.NullString

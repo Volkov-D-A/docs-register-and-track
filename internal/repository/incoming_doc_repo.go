@@ -166,7 +166,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 	}
 	defer rows.Close()
 
-	var items []models.IncomingDocument
+	items := make([]models.IncomingDocument, 0)
 	for rows.Next() {
 		doc, err := scanIncomingDoc(rows)
 		if err != nil {

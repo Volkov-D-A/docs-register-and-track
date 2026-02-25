@@ -44,7 +44,7 @@ func (r *NomenclatureRepository) GetAll(year int, direction string) ([]models.No
 	}
 	defer rows.Close()
 
-	var items []models.Nomenclature
+	items := make([]models.Nomenclature, 0)
 	for rows.Next() {
 		var item models.Nomenclature
 		if err := rows.Scan(
@@ -143,7 +143,7 @@ func (r *NomenclatureRepository) GetActiveByDirection(direction string, year int
 	}
 	defer rows.Close()
 
-	var items []models.Nomenclature
+	items := make([]models.Nomenclature, 0)
 	for rows.Next() {
 		var item models.Nomenclature
 		if err := rows.Scan(

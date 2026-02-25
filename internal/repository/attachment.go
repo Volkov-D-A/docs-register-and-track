@@ -56,7 +56,7 @@ func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attach
 	}
 	defer rows.Close()
 
-	var attachments []models.Attachment
+	attachments := make([]models.Attachment, 0)
 	for rows.Next() {
 		var a models.Attachment
 		var uploadedByName sql.NullString

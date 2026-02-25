@@ -29,7 +29,7 @@ func (r *DepartmentRepository) GetAll() ([]models.Department, error) {
 	}
 	defer rows.Close()
 
-	var departments []models.Department
+	departments := make([]models.Department, 0)
 	for rows.Next() {
 		var d models.Department
 		if err := rows.Scan(&d.ID, &d.Name, &d.CreatedAt, &d.UpdatedAt); err != nil {
@@ -91,7 +91,7 @@ func (r *DepartmentRepository) GetNomenclatureIDs(departmentID uuid.UUID) ([]str
 	}
 	defer rows.Close()
 
-	var ids []string
+	ids := make([]string, 0)
 	for rows.Next() {
 		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {

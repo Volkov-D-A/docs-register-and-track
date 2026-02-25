@@ -30,7 +30,7 @@ func (r *SettingsRepository) GetAll() ([]models.SystemSetting, error) {
 	}
 	defer rows.Close()
 
-	var settings []models.SystemSetting
+	settings := make([]models.SystemSetting, 0)
 	for rows.Next() {
 		var s models.SystemSetting
 		if err := rows.Scan(&s.Key, &s.Value, &s.Description, &s.UpdatedAt); err != nil {

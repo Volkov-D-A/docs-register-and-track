@@ -215,8 +215,8 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	}
 	defer ceRows.Close()
 
-	var coExecutors []models.User
-	var coExecutorIDs []string
+	coExecutors := make([]models.User, 0)
+	coExecutorIDs := make([]string, 0)
 
 	for ceRows.Next() {
 		var u models.User
@@ -339,8 +339,8 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	}
 	defer rows.Close()
 
-	var items []models.Assignment
-	var assignmentIDs []uuid.UUID
+	items := make([]models.Assignment, 0)
+	assignmentIDs := make([]uuid.UUID, 0)
 	assignmentIndex := map[uuid.UUID]int{} // ID поручения -> индекс в items
 
 	for rows.Next() {

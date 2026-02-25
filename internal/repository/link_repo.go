@@ -74,7 +74,7 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 	}
 	defer rows.Close()
 
-	var links []models.DocumentLink
+	links := make([]models.DocumentLink, 0)
 	for rows.Next() {
 		var l models.DocumentLink
 		var sourceNum, targetNum, targetSubj sql.NullString
@@ -139,7 +139,7 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 	}
 	defer rows.Close()
 
-	var links []models.DocumentLink
+	links := make([]models.DocumentLink, 0)
 	for rows.Next() {
 		var l models.DocumentLink
 		if err := rows.Scan(

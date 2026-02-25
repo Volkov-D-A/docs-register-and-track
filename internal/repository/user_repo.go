@@ -90,9 +90,9 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 	}
 	defer rows.Close()
 
-	var users []models.User
-	var userIDs []uuid.UUID
-	var departmentIDs []uuid.UUID
+	users := make([]models.User, 0)
+	userIDs := make([]uuid.UUID, 0)
+	departmentIDs := make([]uuid.UUID, 0)
 	departmentIndexes := make(map[uuid.UUID][]int) // departmentID -> indexes of users with this department
 
 	for rows.Next() {
@@ -254,7 +254,7 @@ func (r *UserRepository) GetUserRoles(userID uuid.UUID) ([]string, error) {
 	}
 	defer rows.Close()
 
-	var roles []string
+	roles := make([]string, 0)
 	for rows.Next() {
 		var role string
 		if err := rows.Scan(&role); err != nil {
@@ -284,9 +284,9 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	}
 	defer rows.Close()
 
-	var users []models.User
-	var userIDs []uuid.UUID
-	var departmentIDs []uuid.UUID
+	users := make([]models.User, 0)
+	userIDs := make([]uuid.UUID, 0)
+	departmentIDs := make([]uuid.UUID, 0)
 	departmentIndexes := make(map[uuid.UUID][]int)
 
 	for rows.Next() {
@@ -452,7 +452,7 @@ func (r *UserRepository) getDepartmentNomenclatureIDs(departmentID uuid.UUID) ([
 	}
 	defer rows.Close()
 
-	var ids []string
+	ids := make([]string, 0)
 	for rows.Next() {
 		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {

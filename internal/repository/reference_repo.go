@@ -29,7 +29,7 @@ func (r *ReferenceRepository) GetAllDocumentTypes() ([]models.DocumentType, erro
 	}
 	defer rows.Close()
 
-	var items []models.DocumentType
+	items := make([]models.DocumentType, 0)
 	for rows.Next() {
 		var item models.DocumentType
 		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
@@ -91,7 +91,7 @@ func (r *ReferenceRepository) GetAllOrganizations() ([]models.Organization, erro
 	}
 	defer rows.Close()
 
-	var items []models.Organization
+	items := make([]models.Organization, 0)
 	for rows.Next() {
 		var item models.Organization
 		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
@@ -152,7 +152,7 @@ func (r *ReferenceRepository) SearchOrganizations(query string) ([]models.Organi
 	}
 	defer rows.Close()
 
-	var items []models.Organization
+	items := make([]models.Organization, 0)
 	for rows.Next() {
 		var item models.Organization
 		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
