@@ -146,3 +146,28 @@ type PagedResult[T any] struct {
 	Page       int `json:"page"`
 	PageSize   int `json:"pageSize"`
 }
+
+// GraphNode — узел графа визуализации связей
+type GraphNode struct {
+	ID        string `json:"id"`
+	Label     string `json:"label"` // Номер документа
+	Type      string `json:"type"`  // входящий/исходящий
+	Subject   string `json:"subject"`
+	Date      string `json:"date"`
+	Sender    string `json:"sender"`
+	Recipient string `json:"recipient"`
+}
+
+// GraphEdge — ребро графа визуализации связей
+type GraphEdge struct {
+	ID     string `json:"id"`
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Label  string `json:"label"` // тип связи
+}
+
+// GraphData — данные графа (узлы и рёбра) для фронтенда
+type GraphData struct {
+	Nodes []GraphNode `json:"nodes"`
+	Edges []GraphEdge `json:"edges"`
+}

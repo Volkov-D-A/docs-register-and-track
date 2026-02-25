@@ -17,6 +17,8 @@ CREATE INDEX idx_assignments_executor ON assignments (executor_id);
 
 CREATE INDEX idx_assignments_document ON assignments (document_id);
 
+CREATE INDEX idx_assignments_deadline ON assignments (deadline);
+
 -- 14. Assignment Co-Executors
 CREATE TABLE assignment_co_executors (
     assignment_id UUID NOT NULL REFERENCES assignments (id) ON DELETE CASCADE,

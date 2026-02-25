@@ -93,33 +93,8 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 	return dto.MapDocumentLinks(res), err
 }
 
-// GraphNode — узел графа визуализации связей
-type GraphNode struct {
-	ID        string `json:"id"`
-	Label     string `json:"label"` // Номер документа
-	Type      string `json:"type"`  // входящий/исходящий
-	Subject   string `json:"subject"`
-	Date      string `json:"date"`
-	Sender    string `json:"sender"`
-	Recipient string `json:"recipient"`
-}
-
-// GraphEdge — ребро графа визуализации связей
-type GraphEdge struct {
-	ID     string `json:"id"`
-	Source string `json:"source"`
-	Target string `json:"target"`
-	Label  string `json:"label"` // тип связи
-}
-
-// GraphData — данные графа (узлы и рёбра) для фронтенда
-type GraphData struct {
-	Nodes []GraphNode `json:"nodes"`
-	Edges []GraphEdge `json:"edges"`
-}
-
 // GetDocumentFlow — получить данные графа для визуализации
-func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
+func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, error) {
 	rootID, err := uuid.Parse(rootIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
@@ -135,7 +110,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 
 	// Если связей нет — возвращаем пустой граф
 	if len(links) == 0 {
-		return &GraphData{Nodes: []GraphNode{}, Edges: []GraphEdge{}}, nil
+		return &models.GraphData{Nodes: []models.GraphNode{}, Edges: []models.GraphEdge{}}, nil
 	}
 
 	for _, l := range links {
@@ -144,7 +119,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 	}
 
 	// Получение деталей документов
-	nodes := []GraphNode{}
+	nodes := []models.GraphNode{}
 
 	// Получение информации о документах
 	// Создаёт N запросов; можно оптимизировать через WHERE IN, но граф обычно маленький (< 20 узлов)
@@ -181,7 +156,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 			label = "Неизвестно"
 		}
 
-		nodes = append(nodes, GraphNode{
+		nodes = append(nodes, models.GraphNode{
 			ID:        id.String(),
 			Label:     label,
 			Type:      docType,
@@ -192,9 +167,9 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 		})
 	}
 
-	edges := []GraphEdge{}
+	edges := []models.GraphEdge{}
 	for _, l := range links {
-		edges = append(edges, GraphEdge{
+		edges = append(edges, models.GraphEdge{
 			ID:     l.ID.String(),
 			Source: l.SourceID.String(),
 			Target: l.TargetID.String(),
@@ -202,5 +177,5 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*GraphData, error) {
 		})
 	}
 
-	return &GraphData{Nodes: nodes, Edges: edges}, nil
+	return &models.GraphData{Nodes: nodes, Edges: edges}, nil
 }
