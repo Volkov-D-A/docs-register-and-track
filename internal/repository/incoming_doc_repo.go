@@ -21,6 +21,43 @@ func NewIncomingDocumentRepository(db *database.DB) *IncomingDocumentRepository 
 	return &IncomingDocumentRepository{db: db}
 }
 
+// incomingDocSelectBase — базовый SELECT с JOIN'ами для входящих документов.
+const incomingDocSelectBase = `
+	SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
+		d.incoming_number, d.incoming_date, d.outgoing_number_sender, d.outgoing_date_sender,
+		d.intermediate_number, d.intermediate_date,
+		d.document_type_id, dt.name,
+		d.subject, d.pages_count, d.content,
+		d.sender_org_id, so.name, d.sender_signatory, d.sender_executor,
+		d.recipient_org_id, ro.name, d.addressee,
+		d.resolution,
+		d.created_by, u.full_name,
+		d.created_at, d.updated_at
+	FROM incoming_documents d
+	LEFT JOIN nomenclature n ON d.nomenclature_id = n.id
+	LEFT JOIN document_types dt ON d.document_type_id = dt.id
+	LEFT JOIN organizations so ON d.sender_org_id = so.id
+	LEFT JOIN organizations ro ON d.recipient_org_id = ro.id
+	LEFT JOIN users u ON d.created_by = u.id`
+
+// scanIncomingDoc сканирует строку результата в структуру IncomingDocument.
+func scanIncomingDoc(scanner interface{ Scan(...interface{}) error }) (*models.IncomingDocument, error) {
+	doc := &models.IncomingDocument{}
+	err := scanner.Scan(
+		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
+		&doc.IncomingNumber, &doc.IncomingDate, &doc.OutgoingNumberSender, &doc.OutgoingDateSender,
+		&doc.IntermediateNumber, &doc.IntermediateDate,
+		&doc.DocumentTypeID, &doc.DocumentTypeName,
+		&doc.Subject, &doc.PagesCount, &doc.Content,
+		&doc.SenderOrgID, &doc.SenderOrgName, &doc.SenderSignatory, &doc.SenderExecutor,
+		&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
+		&doc.Resolution,
+		&doc.CreatedBy, &doc.CreatedByName,
+		&doc.CreatedAt, &doc.UpdatedAt,
+	)
+	return doc, err
+}
+
 func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error) {
 	where := []string{"1=1"}
 	args := []interface{}{}
@@ -114,28 +151,12 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 	}
 	offset := (filter.Page - 1) * filter.PageSize
 
-	// Основной запрос с JOIN'ами
-	dataQuery := fmt.Sprintf(`
-		SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
-			d.incoming_number, d.incoming_date, d.outgoing_number_sender, d.outgoing_date_sender,
-			d.intermediate_number, d.intermediate_date,
-			d.document_type_id, dt.name,
-			d.subject, d.pages_count, d.content,
-			d.sender_org_id, so.name, d.sender_signatory, d.sender_executor,
-			d.recipient_org_id, ro.name, d.addressee,
-			d.resolution,
-			d.created_by, u.full_name,
-			d.created_at, d.updated_at
-		FROM incoming_documents d
-		LEFT JOIN nomenclature n ON d.nomenclature_id = n.id
-		LEFT JOIN document_types dt ON d.document_type_id = dt.id
-		LEFT JOIN organizations so ON d.sender_org_id = so.id
-		LEFT JOIN organizations ro ON d.recipient_org_id = ro.id
-		LEFT JOIN users u ON d.created_by = u.id
+	// Основной запрос с использованием базового SELECT
+	dataQuery := fmt.Sprintf(`%s
 		WHERE %s
 		ORDER BY d.incoming_date DESC, d.incoming_number DESC
 		LIMIT $%d OFFSET $%d
-	`, whereClause, argIdx, argIdx+1)
+	`, incomingDocSelectBase, whereClause, argIdx, argIdx+1)
 
 	args = append(args, filter.PageSize, offset)
 
@@ -147,23 +168,11 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 
 	var items []models.IncomingDocument
 	for rows.Next() {
-		var doc models.IncomingDocument
-		if err := rows.Scan(
-			&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
-			&doc.IncomingNumber, &doc.IncomingDate, &doc.OutgoingNumberSender, &doc.OutgoingDateSender,
-			&doc.IntermediateNumber, &doc.IntermediateDate,
-			&doc.DocumentTypeID, &doc.DocumentTypeName,
-			&doc.Subject, &doc.PagesCount, &doc.Content,
-			&doc.SenderOrgID, &doc.SenderOrgName, &doc.SenderSignatory, &doc.SenderExecutor,
-			&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
-			&doc.Resolution,
-			&doc.CreatedBy, &doc.CreatedByName,
-			&doc.CreatedAt, &doc.UpdatedAt,
-		); err != nil {
+		doc, err := scanIncomingDoc(rows)
+		if err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
-
-		items = append(items, doc)
+		items = append(items, *doc)
 	}
 
 	return &models.PagedResult[models.IncomingDocument]{
@@ -175,37 +184,8 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 }
 
 func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocument, error) {
-	doc := &models.IncomingDocument{}
-	err := r.db.QueryRow(`
-		SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
-			d.incoming_number, d.incoming_date, d.outgoing_number_sender, d.outgoing_date_sender,
-			d.intermediate_number, d.intermediate_date,
-			d.document_type_id, dt.name,
-			d.subject, d.pages_count, d.content,
-			d.sender_org_id, so.name, d.sender_signatory, d.sender_executor,
-			d.recipient_org_id, ro.name, d.addressee,
-			d.resolution,
-			d.created_by, u.full_name,
-			d.created_at, d.updated_at
-		FROM incoming_documents d
-		LEFT JOIN nomenclature n ON d.nomenclature_id = n.id
-		LEFT JOIN document_types dt ON d.document_type_id = dt.id
-		LEFT JOIN organizations so ON d.sender_org_id = so.id
-		LEFT JOIN organizations ro ON d.recipient_org_id = ro.id
-		LEFT JOIN users u ON d.created_by = u.id
-		WHERE d.id = $1
-	`, id).Scan(
-		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
-		&doc.IncomingNumber, &doc.IncomingDate, &doc.OutgoingNumberSender, &doc.OutgoingDateSender,
-		&doc.IntermediateNumber, &doc.IntermediateDate,
-		&doc.DocumentTypeID, &doc.DocumentTypeName,
-		&doc.Subject, &doc.PagesCount, &doc.Content,
-		&doc.SenderOrgID, &doc.SenderOrgName, &doc.SenderSignatory, &doc.SenderExecutor,
-		&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
-		&doc.Resolution,
-		&doc.CreatedBy, &doc.CreatedByName,
-		&doc.CreatedAt, &doc.UpdatedAt,
-	)
+	query := incomingDocSelectBase + " WHERE d.id = $1"
+	doc, err := scanIncomingDoc(r.db.QueryRow(query, id))
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -213,7 +193,6 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 	if err != nil {
 		return nil, fmt.Errorf("failed to get incoming document: %w", err)
 	}
-
 
 	return doc, nil
 }

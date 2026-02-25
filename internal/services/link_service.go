@@ -9,20 +9,19 @@ import (
 
 	"docflow/internal/dto"
 	"docflow/internal/models"
-	"docflow/internal/repository"
 )
 
 type LinkService struct {
-	repo            *repository.LinkRepository
-	incomingDocRepo *repository.IncomingDocumentRepository
-	outgoingDocRepo *repository.OutgoingDocumentRepository
+	repo            LinkStore
+	incomingDocRepo IncomingDocStore
+	outgoingDocRepo OutgoingDocStore
 	authService     *AuthService
 }
 
 func NewLinkService(
-	repo *repository.LinkRepository,
-	incomingDocRepo *repository.IncomingDocumentRepository,
-	outgoingDocRepo *repository.OutgoingDocumentRepository,
+	repo LinkStore,
+	incomingDocRepo IncomingDocStore,
+	outgoingDocRepo OutgoingDocStore,
 	authService *AuthService,
 ) *LinkService {
 	return &LinkService{

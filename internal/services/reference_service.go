@@ -6,15 +6,15 @@ import (
 	"github.com/google/uuid"
 
 	"docflow/internal/dto"
-	"docflow/internal/repository"
+	"docflow/internal/models"
 )
 
 type ReferenceService struct {
-	repo *repository.ReferenceRepository
+	repo ReferenceStore
 	auth *AuthService
 }
 
-func NewReferenceService(repo *repository.ReferenceRepository, auth *AuthService) *ReferenceService {
+func NewReferenceService(repo ReferenceStore, auth *AuthService) *ReferenceService {
 	return &ReferenceService{repo: repo, auth: auth}
 }
 
@@ -30,7 +30,7 @@ func (s *ReferenceService) GetDocumentTypes() ([]dto.DocumentType, error) {
 
 func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, error) {
 	if !s.auth.HasRole("admin") {
-		return nil, fmt.Errorf("недостаточно прав")
+		return nil, models.ErrForbidden
 	}
 	res, err := s.repo.CreateDocumentType(name)
 	return dto.MapDocumentType(res), err
@@ -38,7 +38,7 @@ func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, e
 
 func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
 	if !s.auth.HasRole("admin") {
-		return fmt.Errorf("недостаточно прав")
+		return models.ErrForbidden
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -49,7 +49,7 @@ func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
 
 func (s *ReferenceService) DeleteDocumentType(id string) error {
 	if !s.auth.HasRole("admin") {
-		return fmt.Errorf("недостаточно прав")
+		return models.ErrForbidden
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -86,7 +86,7 @@ func (s *ReferenceService) FindOrCreateOrganization(name string) (*dto.Organizat
 
 func (s *ReferenceService) UpdateOrganization(id string, name string) error {
 	if !s.auth.HasRole("admin") {
-		return fmt.Errorf("недостаточно прав")
+		return models.ErrForbidden
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {

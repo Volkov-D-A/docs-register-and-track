@@ -8,23 +8,22 @@ import (
 
 	"docflow/internal/dto"
 	"docflow/internal/models"
-	"docflow/internal/repository"
 )
 
 type OutgoingDocumentService struct {
-	repo            *repository.OutgoingDocumentRepository
-	refRepo         *repository.ReferenceRepository
-	nomRepo         *repository.NomenclatureRepository
-	depRepo         *repository.DepartmentRepository
+	repo            OutgoingDocStore
+	refRepo         ReferenceStore
+	nomRepo         NomenclatureStore
+	depRepo         DepartmentStore
 	auth            *AuthService
 	settingsService *SettingsService
 }
 
 func NewOutgoingDocumentService(
-	repo *repository.OutgoingDocumentRepository,
-	refRepo *repository.ReferenceRepository,
-	nomRepo *repository.NomenclatureRepository,
-	depRepo *repository.DepartmentRepository,
+	repo OutgoingDocStore,
+	refRepo ReferenceStore,
+	nomRepo NomenclatureStore,
+	depRepo DepartmentStore,
 	auth *AuthService,
 	settingsService *SettingsService,
 ) *OutgoingDocumentService {
@@ -47,7 +46,7 @@ func (s *OutgoingDocumentService) Register(
 	senderSignatory, senderExecutor string,
 ) (*dto.OutgoingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("недостаточно прав для регистрации документов")
+		return nil, models.NewForbidden("недостаточно прав для регистрации документов")
 	}
 
 	// Парсинг UUID
@@ -115,7 +114,7 @@ func (s *OutgoingDocumentService) Update(
 	senderSignatory, senderExecutor string,
 ) (*dto.OutgoingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("недостаточно прав для редактирования документов")
+		return nil, models.NewForbidden("недостаточно прав для редактирования документов")
 	}
 
 	uid, err := uuid.Parse(id)
@@ -225,7 +224,7 @@ func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, err
 // Delete — удаление документа
 func (s *OutgoingDocumentService) Delete(id string) error {
 	if !s.auth.HasRole("admin") {
-		return fmt.Errorf("недостаточно прав")
+		return models.ErrForbidden
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {

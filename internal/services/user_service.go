@@ -3,15 +3,14 @@ package services
 import (
 	"docflow/internal/dto"
 	"docflow/internal/models"
-	"docflow/internal/repository"
 )
 
 type UserService struct {
-	userRepo *repository.UserRepository
+	userRepo UserStore
 	auth     *AuthService
 }
 
-func NewUserService(userRepo *repository.UserRepository, auth *AuthService) *UserService {
+func NewUserService(userRepo UserStore, auth *AuthService) *UserService {
 	return &UserService{
 		userRepo: userRepo,
 		auth:     auth,

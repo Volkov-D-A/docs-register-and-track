@@ -541,7 +541,7 @@ const UsersTab: React.FC = () => {
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => {
             setEditItem(record);
-            form.setFieldsValue({ ...record });
+            form.setFieldsValue({ ...record, departmentId: record.department?.id });
             setModalOpen(true);
           }} />
           <Button size="small" icon={<KeyOutlined />} onClick={() => {

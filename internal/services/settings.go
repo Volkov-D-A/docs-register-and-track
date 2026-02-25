@@ -3,7 +3,6 @@ package services
 import (
 	"docflow/internal/database"
 	"docflow/internal/models"
-	"docflow/internal/repository"
 	"strconv"
 	"strings"
 )
@@ -12,11 +11,11 @@ const migrationsPath = "internal/database/migrations"
 
 type SettingsService struct {
 	db          *database.DB
-	repo        *repository.SettingsRepository
+	repo        SettingsStore
 	authService *AuthService
 }
 
-func NewSettingsService(db *database.DB, repo *repository.SettingsRepository, authService *AuthService) *SettingsService {
+func NewSettingsService(db *database.DB, repo SettingsStore, authService *AuthService) *SettingsService {
 	return &SettingsService{
 		db:          db,
 		repo:        repo,
@@ -33,7 +32,7 @@ func (s *SettingsService) GetAll() ([]models.SystemSetting, error) {
 // Update — обновить значение настройки
 func (s *SettingsService) Update(key, value string) error {
 	if !s.authService.HasRole("admin") {
-		return &models.AppError{Code: 403, Message: "Permission denied"}
+		return models.ErrForbidden
 	}
 	return s.repo.Update(key, value)
 }
@@ -41,7 +40,7 @@ func (s *SettingsService) Update(key, value string) error {
 // RunMigrations запускает миграции БД (только admin).
 func (s *SettingsService) RunMigrations() error {
 	if !s.authService.HasRole("admin") {
-		return &models.AppError{Code: 403, Message: "Недостаточно прав для управления миграциями"}
+		return models.NewForbidden("Недостаточно прав для управления миграциями")
 	}
 	return s.db.RunMigrations(migrationsPath)
 }
@@ -49,7 +48,7 @@ func (s *SettingsService) RunMigrations() error {
 // GetMigrationStatus возвращает текущий статус миграций БД (только admin).
 func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error) {
 	if !s.authService.HasRole("admin") {
-		return nil, &models.AppError{Code: 403, Message: "Недостаточно прав для просмотра статуса миграций"}
+		return nil, models.NewForbidden("Недостаточно прав для просмотра статуса миграций")
 	}
 	return s.db.GetMigrationStatus(migrationsPath)
 }
@@ -57,7 +56,7 @@ func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error
 // RollbackMigration откатывает последнюю миграцию БД (только admin).
 func (s *SettingsService) RollbackMigration() error {
 	if !s.authService.HasRole("admin") {
-		return &models.AppError{Code: 403, Message: "Недостаточно прав для отката миграций"}
+		return models.NewForbidden("Недостаточно прав для отката миграций")
 	}
 	return s.db.RollbackMigration(migrationsPath)
 }

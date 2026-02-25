@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-
-	"docflow/internal/repository"
 )
 
 // parseUUID — парсинг строки UUID с обработкой ошибок
@@ -32,7 +30,7 @@ func formatDocumentNumber(index string, number int) string {
 //   - filterNomID: одиночный NomenclatureID из фильтра (используется, если filterNomIDs пуст)
 func filterNomenclaturesByDepartment(
 	departmentID *uuid.UUID,
-	depRepo *repository.DepartmentRepository,
+	depRepo DepartmentStore,
 	filterNomIDs []string,
 	filterNomID string,
 ) (filteredIDs []string, isEmpty bool, err error) {

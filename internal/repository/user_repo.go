@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"docflow/internal/database"
 	"docflow/internal/models"
@@ -19,19 +20,22 @@ func NewUserRepository(db *database.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
+// userSelectBase — базовый SELECT для получения пользователя с department.
+const userSelectBase = `
+	SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+	       d.id, d.name
+	FROM users u
+	LEFT JOIN departments d ON u.department_id = d.id`
+
+// getUserByCondition — общий метод для получения пользователя по произвольному условию WHERE.
+func (r *UserRepository) getUserByCondition(whereClause string, arg interface{}) (*models.User, error) {
 	user := &models.User{}
 
 	var departmentID sql.NullString
 	var departmentName sql.NullString
 
-	err := r.db.QueryRow(`
-		SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
-		       d.id, d.name
-		FROM users u
-		LEFT JOIN departments d ON u.department_id = d.id
-		WHERE u.login = $1
-	`, login).Scan(
+	query := userSelectBase + " " + whereClause
+	err := r.db.QueryRow(query, arg).Scan(
 		&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
 		&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 		&departmentID, &departmentName,
@@ -41,7 +45,7 @@ func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user by login: %w", err)
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	if departmentID.Valid {
@@ -65,50 +69,12 @@ func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
 	return user, nil
 }
 
+func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
+	return r.getUserByCondition("WHERE u.login = $1", login)
+}
+
 func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
-	user := &models.User{}
-
-	var departmentID sql.NullString
-	var departmentName sql.NullString
-
-	err := r.db.QueryRow(`
-		SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
-		       d.id, d.name
-		FROM users u
-		LEFT JOIN departments d ON u.department_id = d.id
-		WHERE u.id = $1
-	`, id).Scan(
-		&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
-		&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
-		&departmentID, &departmentName,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user by id: %w", err)
-	}
-
-	if departmentID.Valid {
-		uid, _ := uuid.Parse(departmentID.String)
-		user.DepartmentID = &uid
-		user.Department = &models.Department{
-			ID:   uid,
-			Name: departmentName.String,
-		}
-		if noms, err := r.getDepartmentNomenclatureIDs(uid); err == nil {
-			user.Department.NomenclatureIDs = noms
-		}
-	}
-
-	roles, err := r.GetUserRoles(user.ID)
-	if err != nil {
-		return nil, err
-	}
-	user.Roles = roles
-
-	return user, nil
+	return r.getUserByCondition("WHERE u.id = $1", id)
 }
 
 func (r *UserRepository) GetAll() ([]models.User, error) {
@@ -125,6 +91,10 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 	defer rows.Close()
 
 	var users []models.User
+	var userIDs []uuid.UUID
+	var departmentIDs []uuid.UUID
+	departmentIndexes := make(map[uuid.UUID][]int) // departmentID -> indexes of users with this department
+
 	for rows.Next() {
 		var user models.User
 		var departmentID sql.NullString
@@ -145,19 +115,31 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 				ID:   uid,
 				Name: departmentName.String,
 			}
-		}
-		if user.Department != nil {
-			if noms, err := r.getDepartmentNomenclatureIDs(user.Department.ID); err == nil {
-				user.Department.NomenclatureIDs = noms
+			if _, exists := departmentIndexes[uid]; !exists {
+				departmentIDs = append(departmentIDs, uid)
 			}
+			departmentIndexes[uid] = append(departmentIndexes[uid], len(users))
 		}
 
-		roles, err := r.GetUserRoles(user.ID)
-		if err != nil {
-			return nil, err
-		}
-		user.Roles = roles
+		userIDs = append(userIDs, user.ID)
 		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(users) == 0 {
+		return users, nil
+	}
+
+	// Batch-загрузка ролей для всех пользователей одним запросом
+	if err := r.batchLoadUserRoles(users, userIDs); err != nil {
+		return nil, err
+	}
+
+	// Batch-загрузка номенклатур подразделений одним запросом
+	if err := r.batchLoadDepartmentNomenclatures(users, departmentIDs, departmentIndexes); err != nil {
+		return nil, err
 	}
 
 	return users, nil
@@ -300,6 +282,10 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	defer rows.Close()
 
 	var users []models.User
+	var userIDs []uuid.UUID
+	var departmentIDs []uuid.UUID
+	departmentIndexes := make(map[uuid.UUID][]int)
+
 	for rows.Next() {
 		var user models.User
 		var departmentID sql.NullString
@@ -320,19 +306,31 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 				ID:   uid,
 				Name: departmentName.String,
 			}
-		}
-		if user.Department != nil {
-			if noms, err := r.getDepartmentNomenclatureIDs(user.Department.ID); err == nil {
-				user.Department.NomenclatureIDs = noms
+			if _, exists := departmentIndexes[uid]; !exists {
+				departmentIDs = append(departmentIDs, uid)
 			}
+			departmentIndexes[uid] = append(departmentIndexes[uid], len(users))
 		}
 
-		roles, err := r.GetUserRoles(user.ID)
-		if err != nil {
-			return nil, err
-		}
-		user.Roles = roles
+		userIDs = append(userIDs, user.ID)
 		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(users) == 0 {
+		return users, nil
+	}
+
+	// Batch-загрузка ролей одним запросом
+	if err := r.batchLoadUserRoles(users, userIDs); err != nil {
+		return nil, err
+	}
+
+	// Batch-загрузка номенклатур подразделений одним запросом
+	if err := r.batchLoadDepartmentNomenclatures(users, departmentIDs, departmentIndexes); err != nil {
+		return nil, err
 	}
 
 	return users, nil
@@ -360,6 +358,83 @@ func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) err
 		return err
 	}
 	return r.UpdatePassword(userID, hash)
+}
+
+// batchLoadUserRoles загружает роли для всех пользователей одним SQL-запросом
+// вместо N отдельных запросов (решение проблемы N+1).
+func (r *UserRepository) batchLoadUserRoles(users []models.User, userIDs []uuid.UUID) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	// Создаём индекс userID -> позиция в слайсе users
+	userIndex := make(map[uuid.UUID]int, len(userIDs))
+	for i, uid := range userIDs {
+		userIndex[uid] = i
+	}
+
+	rows, err := r.db.Query(`
+		SELECT user_id, role FROM user_roles WHERE user_id = ANY($1)
+	`, pq.Array(userIDs))
+	if err != nil {
+		return fmt.Errorf("failed to batch load user roles: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var userID uuid.UUID
+		var role string
+		if err := rows.Scan(&userID, &role); err != nil {
+			return err
+		}
+		if idx, ok := userIndex[userID]; ok {
+			users[idx].Roles = append(users[idx].Roles, role)
+		}
+	}
+	return rows.Err()
+}
+
+// batchLoadDepartmentNomenclatures загружает номенклатуры подразделений одним SQL-запросом
+// вместо N отдельных запросов (решение проблемы N+1).
+func (r *UserRepository) batchLoadDepartmentNomenclatures(users []models.User, departmentIDs []uuid.UUID, departmentIndexes map[uuid.UUID][]int) error {
+	if len(departmentIDs) == 0 {
+		return nil
+	}
+
+	rows, err := r.db.Query(`
+		SELECT department_id, nomenclature_id
+		FROM department_nomenclature
+		WHERE department_id = ANY($1)
+	`, pq.Array(departmentIDs))
+	if err != nil {
+		return fmt.Errorf("failed to batch load department nomenclatures: %w", err)
+	}
+	defer rows.Close()
+
+	// Собираем номенклатуры по departmentID
+	nomMap := make(map[uuid.UUID][]string)
+	for rows.Next() {
+		var depID uuid.UUID
+		var nomID uuid.UUID
+		if err := rows.Scan(&depID, &nomID); err != nil {
+			return err
+		}
+		nomMap[depID] = append(nomMap[depID], nomID.String())
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	// Присваиваем номенклатуры пользователям
+	for depID, noms := range nomMap {
+		for _, idx := range departmentIndexes[depID] {
+			if users[idx].Department != nil {
+				users[idx].Department.NomenclatureIDs = noms
+			}
+		}
+	}
+
+	return nil
 }
 
 func (r *UserRepository) getDepartmentNomenclatureIDs(departmentID uuid.UUID) ([]string, error) {

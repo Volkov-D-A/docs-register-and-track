@@ -8,18 +8,17 @@ import (
 
 	"docflow/internal/dto"
 	"docflow/internal/models"
-	"docflow/internal/repository"
 )
 
 type AcknowledgmentService struct {
-	repo     *repository.AcknowledgmentRepository
-	userRepo *repository.UserRepository
+	repo     AcknowledgmentStore
+	userRepo UserStore
 	auth     *AuthService
 }
 
 func NewAcknowledgmentService(
-	repo *repository.AcknowledgmentRepository,
-	userRepo *repository.UserRepository,
+	repo AcknowledgmentStore,
+	userRepo UserStore,
 	auth *AuthService,
 ) *AcknowledgmentService {
 	return &AcknowledgmentService{
@@ -40,7 +39,7 @@ func (s *AcknowledgmentService) Create(
 
 	// Проверка прав: делопроизводитель или админ
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("недостаточно прав")
+		return nil, models.ErrForbidden
 	}
 
 	docUUID, err := uuid.Parse(documentID)
@@ -120,7 +119,7 @@ func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 		return nil, ErrNotAuthenticated
 	}
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("недостаточно прав")
+		return nil, models.ErrForbidden
 	}
 	res, err := s.repo.GetAllActive()
 	return dto.MapAcknowledgments(res), err
@@ -166,7 +165,7 @@ func (s *AcknowledgmentService) Delete(id string) error {
 	}
 	// Удалять могут админ и делопроизводитель
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return fmt.Errorf("недостаточно прав")
+		return models.ErrForbidden
 	}
 
 	ackUUID, err := uuid.Parse(id)

@@ -43,6 +43,7 @@ func main() {
 	attachmentRepo := repository.NewAttachmentRepository(db)
 	linkRepo := repository.NewLinkRepository(db)
 	acknowledgmentRepo := repository.NewAcknowledgmentRepository(db)
+	dashboardRepo := repository.NewDashboardRepository(db)
 
 	// Создание сервисов
 	authService := services.NewAuthService(db, userRepo)
@@ -53,7 +54,7 @@ func main() {
 	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, departmentRepo, authService)
 	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, authService, settingsService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService)
-	dashboardService := services.NewDashboardService(db, authService)
+	dashboardService := services.NewDashboardService(dashboardRepo, authService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService)
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService)

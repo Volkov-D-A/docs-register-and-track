@@ -3,7 +3,6 @@ package services
 import (
 	"docflow/internal/dto"
 	"docflow/internal/models"
-	"docflow/internal/repository"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -17,12 +16,12 @@ import (
 )
 
 type AttachmentService struct {
-	repo            *repository.AttachmentRepository
+	repo            AttachmentStore
 	settingsService *SettingsService
 	authService     *AuthService
 }
 
-func NewAttachmentService(repo *repository.AttachmentRepository, settingsService *SettingsService, authService *AuthService) *AttachmentService {
+func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService) *AttachmentService {
 	return &AttachmentService{
 		repo:            repo,
 		settingsService: settingsService,
@@ -34,11 +33,11 @@ func NewAttachmentService(repo *repository.AttachmentRepository, settingsService
 func (s *AttachmentService) Upload(documentIDStr string, documentType string, filename string, contentBase64 string) (*dto.Attachment, error) {
 	currentUser, err := s.authService.GetCurrentUser()
 	if err != nil {
-		return nil, &models.AppError{Code: 401, Message: "Требуется авторизация"}
+		return nil, models.ErrUnauthorized
 	}
 
 	if !s.authService.HasRole("clerk") && !s.authService.HasRole("admin") {
-		return nil, &models.AppError{Code: 403, Message: "Недостаточно прав: загружать файлы могут только делопроизводители"}
+		return nil, models.NewForbidden("Недостаточно прав: загружать файлы могут только делопроизводители")
 	}
 
 	documentID, err := uuid.Parse(documentIDStr)
@@ -100,7 +99,7 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 // GetList — получить вложения документа
 func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, error) {
 	if !s.authService.IsAuthenticated() {
-		return nil, &models.AppError{Code: 401, Message: "Требуется авторизация"}
+		return nil, models.ErrUnauthorized
 	}
 
 	documentID, err := uuid.Parse(documentIDStr)
@@ -140,7 +139,7 @@ func (s *AttachmentService) Download(idStr string) (*models.DownloadResponse, er
 func (s *AttachmentService) Delete(idStr string) error {
 	// Проверка прав доступа
 	if !s.authService.HasRole("clerk") && !s.authService.HasRole("admin") {
-		return &models.AppError{Code: 403, Message: "Недостаточно прав: удалять файлы могут только делопроизводители"}
+		return models.NewForbidden("Недостаточно прав: удалять файлы могут только делопроизводители")
 	}
 
 	id, err := uuid.Parse(idStr)

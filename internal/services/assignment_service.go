@@ -8,18 +8,17 @@ import (
 
 	"docflow/internal/dto"
 	"docflow/internal/models"
-	"docflow/internal/repository"
 )
 
 type AssignmentService struct {
-	repo     *repository.AssignmentRepository
-	userRepo *repository.UserRepository // Для валидации
+	repo     AssignmentStore
+	userRepo UserStore // Для валидации
 	auth     *AuthService
 }
 
 func NewAssignmentService(
-	repo *repository.AssignmentRepository,
-	userRepo *repository.UserRepository,
+	repo AssignmentStore,
+	userRepo UserStore,
 	auth *AuthService,
 ) *AssignmentService {
 	return &AssignmentService{
@@ -93,7 +92,7 @@ func (s *AssignmentService) Update(
 	// Проверка прав
 	// Редактировать могут админ и делопроизводитель
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("недостаточно прав")
+		return nil, models.ErrForbidden
 	}
 
 	// Завершенные поручения редактировать нельзя (кроме админа)
@@ -163,7 +162,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	}
 
 	if !allowed {
-		return nil, fmt.Errorf("недостаточно прав для установки статуса %s", status)
+		return nil, models.NewForbidden(fmt.Sprintf("недостаточно прав для установки статуса %s", status))
 	}
 
 	// Вычисление даты завершения
@@ -239,7 +238,7 @@ func (s *AssignmentService) Delete(id string) error {
 
 	// Удалять могут админ и делопроизводитель
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return fmt.Errorf("недостаточно прав")
+		return models.ErrForbidden
 	}
 
 	// Завершенные поручения удалять нельзя (кроме админа)

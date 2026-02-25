@@ -7,15 +7,15 @@ import (
 	"github.com/google/uuid"
 
 	"docflow/internal/dto"
-	"docflow/internal/repository"
+	"docflow/internal/models"
 )
 
 type NomenclatureService struct {
-	repo *repository.NomenclatureRepository
+	repo NomenclatureStore
 	auth *AuthService
 }
 
-func NewNomenclatureService(repo *repository.NomenclatureRepository, auth *AuthService) *NomenclatureService {
+func NewNomenclatureService(repo NomenclatureStore, auth *AuthService) *NomenclatureService {
 	return &NomenclatureService{repo: repo, auth: auth}
 }
 
@@ -41,7 +41,7 @@ func (s *NomenclatureService) GetActiveForDirection(direction string) ([]dto.Nom
 // Create — создать дело номенклатуры (только admin/clerk)
 func (s *NomenclatureService) Create(name, index string, year int, direction string) (*dto.Nomenclature, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("недостаточно прав")
+		return nil, models.ErrForbidden
 	}
 	res, err := s.repo.Create(name, index, year, direction)
 	return dto.MapNomenclature(res), err
@@ -50,7 +50,7 @@ func (s *NomenclatureService) Create(name, index string, year int, direction str
 // Update — обновить дело номенклатуры
 func (s *NomenclatureService) Update(id string, name, index string, year int, direction string, isActive bool) (*dto.Nomenclature, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("недостаточно прав")
+		return nil, models.ErrForbidden
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -63,7 +63,7 @@ func (s *NomenclatureService) Update(id string, name, index string, year int, di
 // Delete — удалить дело номенклатуры
 func (s *NomenclatureService) Delete(id string) error {
 	if !s.auth.HasRole("admin") {
-		return fmt.Errorf("недостаточно прав")
+		return models.ErrForbidden
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {

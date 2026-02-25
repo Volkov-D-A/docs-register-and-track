@@ -2,18 +2,18 @@ package services
 
 import (
 	"docflow/internal/dto"
-	"docflow/internal/repository"
+	"docflow/internal/models"
 	"fmt"
 
 	"github.com/google/uuid"
 )
 
 type DepartmentService struct {
-	repo *repository.DepartmentRepository
+	repo DepartmentStore
 	auth *AuthService
 }
 
-func NewDepartmentService(repo *repository.DepartmentRepository, auth *AuthService) *DepartmentService {
+func NewDepartmentService(repo DepartmentStore, auth *AuthService) *DepartmentService {
 	return &DepartmentService{
 		repo: repo,
 		auth: auth,
@@ -30,7 +30,7 @@ func (s *DepartmentService) GetAllDepartments() ([]dto.Department, error) {
 
 func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []string) (*dto.Department, error) {
 	if !s.auth.HasRole("admin") {
-		return nil, fmt.Errorf("недостаточно прав")
+		return nil, models.ErrForbidden
 	}
 	res, err := s.repo.Create(name, nomenclatureIDs)
 	return dto.MapDepartment(res), err
@@ -38,7 +38,7 @@ func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []stri
 
 func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []string) (*dto.Department, error) {
 	if !s.auth.HasRole("admin") {
-		return nil, fmt.Errorf("недостаточно прав")
+		return nil, models.ErrForbidden
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -50,7 +50,7 @@ func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []
 
 func (s *DepartmentService) DeleteDepartment(id string) error {
 	if !s.auth.HasRole("admin") {
-		return fmt.Errorf("недостаточно прав")
+		return models.ErrForbidden
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {

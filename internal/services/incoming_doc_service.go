@@ -8,22 +8,21 @@ import (
 
 	"docflow/internal/dto"
 	"docflow/internal/models"
-	"docflow/internal/repository"
 )
 
 type IncomingDocumentService struct {
-	repo    *repository.IncomingDocumentRepository
-	nomRepo *repository.NomenclatureRepository
-	refRepo *repository.ReferenceRepository
-	depRepo *repository.DepartmentRepository
+	repo    IncomingDocStore
+	nomRepo NomenclatureStore
+	refRepo ReferenceStore
+	depRepo DepartmentStore
 	auth    *AuthService
 }
 
 func NewIncomingDocumentService(
-	repo *repository.IncomingDocumentRepository,
-	nomRepo *repository.NomenclatureRepository,
-	refRepo *repository.ReferenceRepository,
-	depRepo *repository.DepartmentRepository,
+	repo IncomingDocStore,
+	nomRepo NomenclatureStore,
+	refRepo ReferenceStore,
+	depRepo DepartmentStore,
 	auth *AuthService,
 ) *IncomingDocumentService {
 	return &IncomingDocumentService{
@@ -110,7 +109,7 @@ func (s *IncomingDocumentService) Register(
 	resolution string,
 ) (*dto.IncomingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("недостаточно прав для регистрации документов")
+		return nil, models.NewForbidden("недостаточно прав для регистрации документов")
 	}
 
 	nomID, err := uuid.Parse(nomenclatureID)
@@ -192,7 +191,7 @@ func (s *IncomingDocumentService) Update(
 	resolution string,
 ) (*dto.IncomingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, fmt.Errorf("недостаточно прав для редактирования документов")
+		return nil, models.NewForbidden("недостаточно прав для редактирования документов")
 	}
 
 	uid, err := uuid.Parse(id)
@@ -257,7 +256,7 @@ func (s *IncomingDocumentService) GetCount() (int, error) {
 // Delete — удаление документа
 func (s *IncomingDocumentService) Delete(id string) error {
 	if !s.auth.HasRole("admin") {
-		return fmt.Errorf("недостаточно прав")
+		return models.ErrForbidden
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {

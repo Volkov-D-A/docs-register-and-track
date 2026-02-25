@@ -10,27 +10,26 @@ import (
 	"docflow/internal/database"
 	"docflow/internal/dto"
 	"docflow/internal/models"
-	"docflow/internal/repository"
 	"docflow/internal/security"
 )
 
 const migrationsPathAuth = "internal/database/migrations"
 
 var (
-	ErrInvalidCredentials = errors.New("неверный логин или пароль")
-	ErrUserNotActive      = errors.New("пользователь деактивирован")
-	ErrNotAuthenticated   = errors.New("требуется авторизация")
-	ErrWrongPassword      = errors.New("неверный текущий пароль")
+	ErrInvalidCredentials = models.ErrInvalidCredentials
+	ErrUserNotActive      = models.ErrUserNotActive
+	ErrNotAuthenticated   = models.ErrUnauthorized
+	ErrWrongPassword      = models.ErrWrongPassword
 )
 
 type AuthService struct {
 	db          *database.DB
-	userRepo    *repository.UserRepository
+	userRepo    UserStore
 	currentUser *models.User
 	mu          sync.RWMutex
 }
 
-func NewAuthService(db *database.DB, userRepo *repository.UserRepository) *AuthService {
+func NewAuthService(db *database.DB, userRepo UserStore) *AuthService {
 	return &AuthService{
 		db:       db,
 		userRepo: userRepo,
