@@ -1075,6 +1075,20 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class UpdateProfileRequest {
+	    login: string;
+	    fullName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateProfileRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.login = source["login"];
+	        this.fullName = source["fullName"];
+	    }
+	}
 	export class UpdateUserRequest {
 	    id: string;
 	    login: string;

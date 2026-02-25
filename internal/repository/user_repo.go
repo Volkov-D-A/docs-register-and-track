@@ -363,6 +363,19 @@ func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) err
 	return r.UpdatePassword(userID, hash)
 }
 
+func (r *UserRepository) UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error {
+	_, err := r.db.Exec(`
+		UPDATE users SET login = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $3
+	`, req.Login, req.FullName, userID)
+
+	if err != nil {
+		return fmt.Errorf("failed to update profile: %w", err)
+	}
+
+	return nil
+}
+
 // batchLoadUserRoles загружает роли для всех пользователей одним SQL-запросом
 // вместо N отдельных запросов (решение проблемы N+1).
 func (r *UserRepository) batchLoadUserRoles(users []models.User, userIDs []uuid.UUID) error {

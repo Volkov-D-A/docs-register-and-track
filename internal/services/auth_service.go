@@ -122,6 +122,32 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 	return s.userRepo.UpdatePassword(user.ID, newHash)
 }
 
+// UpdateProfile — обновление профиля текущего пользователя
+func (s *AuthService) UpdateProfile(req models.UpdateProfileRequest) error {
+	s.mu.RLock()
+	user := s.currentUser
+	s.mu.RUnlock()
+
+	if user == nil {
+		return ErrNotAuthenticated
+	}
+
+	if err := s.userRepo.UpdateProfile(user.ID, req); err != nil {
+		return err
+	}
+
+	updatedUser, err := s.userRepo.GetByID(user.ID)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	s.currentUser = updatedUser
+	s.mu.Unlock()
+
+	return nil
+}
+
 // IsAuthenticated — проверка авторизации
 func (s *AuthService) IsAuthenticated() bool {
 	s.mu.RLock()

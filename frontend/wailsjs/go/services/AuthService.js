@@ -37,3 +37,7 @@ export function Logout() {
 export function NeedsInitialSetup() {
   return window['go']['services']['AuthService']['NeedsInitialSetup']();
 }
+
+export function UpdateProfile(arg1) {
+  return window['go']['services']['AuthService']['UpdateProfile'](arg1);
+}

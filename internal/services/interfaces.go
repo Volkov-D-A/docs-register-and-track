@@ -19,6 +19,7 @@ type UserStore interface {
 	GetExecutors() ([]models.User, error)
 	UpdatePassword(userID uuid.UUID, newPasswordHash string) error
 	ResetPassword(userID uuid.UUID, newPassword string) error
+	UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error
 	CountUsers() (int, error)
 }
 

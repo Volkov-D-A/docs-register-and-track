@@ -6,18 +6,13 @@ import SettingsPage from './pages/SettingsPage';
 import IncomingPage from './pages/IncomingPage';
 import OutgoingPage from './pages/OutgoingPage';
 import AssignmentsPage from './pages/AssignmentsPage';
+import ProfilePage from './pages/ProfilePage';
 import MainLayout from './components/MainLayout';
 import { Typography } from 'antd';
 
 const { Title } = Typography;
 
 // Заглушки для страниц
-const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
-    <div>
-        <Title level={4}>{title}</Title>
-        <p>Раздел в разработке</p>
-    </div>
-);
 
 function App() {
     const { isAuthenticated } = useAuthStore();
@@ -56,7 +51,7 @@ function App() {
             case 'settings':
                 return <SettingsPage />;
             case 'profile':
-                return <PlaceholderPage title="Профиль пользователя" />;
+                return <ProfilePage />;
             default:
                 return <DashboardPage />;
         }

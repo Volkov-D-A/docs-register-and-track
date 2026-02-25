@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { Login, Logout, ChangePassword } from '../../wailsjs/go/services/AuthService';
+import { Login, Logout, ChangePassword, UpdateProfile } from '../../wailsjs/go/services/AuthService';
+import { models } from '../../wailsjs/go/models';
 
 interface Department {
     id: string;
@@ -26,6 +27,7 @@ interface AuthState {
     login: (username: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
+    updateProfile: (login: string, fullName: string) => Promise<void>;
     clearError: () => void;
     hasRole: (role: string) => boolean;
     setCurrentRole: (role: string) => void;
@@ -88,6 +90,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ isLoading: false });
         } catch (err: any) {
             set({ error: err?.message || String(err) || 'Ошибка смены пароля', isLoading: false });
+            throw err;
+        }
+    },
+
+    updateProfile: async (login: string, fullName: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            const req = new models.UpdateProfileRequest();
+            req.login = login;
+            req.fullName = fullName;
+            
+            await UpdateProfile(req);
+            
+            // Обновляем данные пользователя в store
+            const { user } = get();
+            if (user) {
+                set({ user: { ...user, login, fullName }, isLoading: false });
+            } else {
+                set({ isLoading: false });
+            }
+        } catch (err: any) {
+            set({ error: err?.message || String(err) || 'Ошибка обновления профиля', isLoading: false });
             throw err;
         }
     },

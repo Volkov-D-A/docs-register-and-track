@@ -43,6 +43,11 @@ type UpdateUserRequest struct {
 	DepartmentID string   `json:"departmentId"`
 }
 
+type UpdateProfileRequest struct {
+	Login    string `json:"login"`
+	FullName string `json:"fullName"`
+}
+
 type LoginRequest struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
