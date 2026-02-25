@@ -138,7 +138,7 @@ func (s *OutgoingDocumentService) Update(
 
 	outDate, err := time.Parse("2006-01-02", outgoingDate)
 	if err != nil {
-		outDate = time.Now()
+		return nil, models.NewBadRequest("неверный формат даты исходящего документа")
 	}
 
 	res, err := s.repo.Update(

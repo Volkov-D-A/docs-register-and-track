@@ -137,6 +137,9 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 
 		items = append(items, doc)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return &models.PagedResult[models.OutgoingDocument]{
 		Items:      items,
@@ -182,7 +185,6 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 	if err != nil {
 		return nil, fmt.Errorf("failed to get outgoing document: %w", err)
 	}
-
 
 	return &doc, nil
 }

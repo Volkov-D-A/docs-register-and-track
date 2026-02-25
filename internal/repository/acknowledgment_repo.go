@@ -88,8 +88,10 @@ func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]mode
 		}
 		a.Users = users
 
-
 		result = append(result, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return result, nil
 }
@@ -121,6 +123,9 @@ func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentID(ackID uuid.UUID) (
 		}
 
 		result = append(result, au)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return result, nil
 }
@@ -166,8 +171,10 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 		}
 		a.Users = users
 
-
 		result = append(result, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return result, nil
 }
@@ -268,8 +275,10 @@ func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, erro
 		}
 		a.Users = users
 
-
 		result = append(result, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return result, nil
 }

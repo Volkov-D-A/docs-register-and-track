@@ -227,6 +227,9 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 		coExecutors = append(coExecutors, u)
 		coExecutorIDs = append(coExecutorIDs, u.ID.String())
 	}
+	if err := ceRows.Err(); err != nil {
+		return nil, err
+	}
 	a.CoExecutors = coExecutors
 	a.CoExecutorIDs = coExecutorIDs
 
@@ -378,8 +381,9 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		assignmentIDs = append(assignmentIDs, a.ID)
 		items = append(items, a)
 	}
-
-	// Пакетная загрузка соисполнителей одним запросом вместо N+1
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	if len(assignmentIDs) > 0 {
 		coExecQuery := `
 			SELECT ce.assignment_id, u.id, u.login, u.full_name
@@ -404,6 +408,9 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 				items[idx].CoExecutors = append(items[idx].CoExecutors, u)
 				items[idx].CoExecutorIDs = append(items[idx].CoExecutorIDs, u.ID.String())
 			}
+		}
+		if err := ceRows.Err(); err != nil {
+			return nil, err
 		}
 	}
 

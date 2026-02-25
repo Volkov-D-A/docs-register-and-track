@@ -214,7 +214,7 @@ func (s *IncomingDocumentService) Update(
 
 	outDate, err := time.Parse("2006-01-02", outgoingDateSender)
 	if err != nil {
-		outDate = time.Now()
+		return nil, models.NewBadRequest("неверный формат даты исходящего документа отправителя")
 	}
 
 	var intNumPtr *string

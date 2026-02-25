@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"log"
 
@@ -29,7 +30,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
 
 	// Создание репозиториев
 	userRepo := repository.NewUserRepository(db)
@@ -69,6 +69,10 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
+		OnShutdown: func(ctx context.Context) {
+			log.Println("Gracefully shutting down database connection...")
+			db.Close()
+		},
 
 		Bind: []interface{}{
 			authService,

@@ -174,6 +174,9 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		}
 		items = append(items, *doc)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
 
 	return &models.PagedResult[models.IncomingDocument]{
 		Items:      items,

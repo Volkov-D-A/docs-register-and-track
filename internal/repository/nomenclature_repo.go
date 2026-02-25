@@ -57,6 +57,9 @@ func (r *NomenclatureRepository) GetAll(year int, direction string) ([]models.No
 
 		items = append(items, item)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -152,6 +155,9 @@ func (r *NomenclatureRepository) GetActiveByDirection(direction string, year int
 		}
 
 		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return items, nil
 }

@@ -99,6 +99,9 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 
 		links = append(links, l)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return links, nil
 }
 
@@ -147,6 +150,9 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 			return nil, err
 		}
 		links = append(links, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return links, nil
 }

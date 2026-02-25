@@ -69,6 +69,9 @@ func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attach
 
 		attachments = append(attachments, a)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return attachments, nil
 }
 

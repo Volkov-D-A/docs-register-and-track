@@ -76,7 +76,7 @@ func (r *DepartmentRepository) loadNomenclature(d *models.Department) error {
 		d.Nomenclature = append(d.Nomenclature, n)
 		d.NomenclatureIDs = append(d.NomenclatureIDs, n.ID.String())
 	}
-	return nil
+	return rows.Err()
 }
 
 func (r *DepartmentRepository) GetNomenclatureIDs(departmentID uuid.UUID) ([]string, error) {
@@ -98,6 +98,9 @@ func (r *DepartmentRepository) GetNomenclatureIDs(departmentID uuid.UUID) ([]str
 			return nil, err
 		}
 		ids = append(ids, id.String())
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return ids, nil
 }

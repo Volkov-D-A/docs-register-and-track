@@ -38,6 +38,9 @@ func (r *SettingsRepository) GetAll() ([]models.SystemSetting, error) {
 		}
 		settings = append(settings, s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return settings, nil
 }
 

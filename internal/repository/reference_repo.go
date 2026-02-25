@@ -38,6 +38,9 @@ func (r *ReferenceRepository) GetAllDocumentTypes() ([]models.DocumentType, erro
 
 		items = append(items, item)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -97,6 +100,9 @@ func (r *ReferenceRepository) GetAllOrganizations() ([]models.Organization, erro
 
 		items = append(items, item)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -154,6 +160,9 @@ func (r *ReferenceRepository) SearchOrganizations(query string) ([]models.Organi
 		}
 
 		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return items, nil
 }
