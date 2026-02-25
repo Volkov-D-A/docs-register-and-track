@@ -656,6 +656,16 @@ const SystemSettingsTab: React.FC = () => {
       // Сохранение каждой настройки
       for (const key in values) {
         await Update(key, String(values[key]));
+
+        // Автоматически добавляем в справочник организаций
+        if (key === 'organization_name' && values[key] && String(values[key]).trim() !== '') {
+          try {
+            const { FindOrCreateOrganization } = await import('../../wailsjs/go/services/ReferenceService');
+            await FindOrCreateOrganization(String(values[key]).trim());
+          } catch (e) {
+            console.error('Failed to add organization to directory:', e);
+          }
+        }
       }
       message.success('Настройки сохранены');
     } catch (err: any) {

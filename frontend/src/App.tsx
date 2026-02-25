@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from './store/useAuthStore';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -22,6 +22,13 @@ const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
 function App() {
     const { isAuthenticated } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
+
+    // При входе в приложение всегда перенаправляем на дашборд
+    useEffect(() => {
+        if (isAuthenticated) {
+            setCurrentPage('dashboard');
+        }
+    }, [isAuthenticated]);
 
     if (!isAuthenticated) {
         return <LoginPage />;

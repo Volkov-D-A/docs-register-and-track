@@ -149,7 +149,7 @@ const DashboardPage: React.FC = () => {
         const hasItems = pendingAcks && pendingAcks.length > 0;
         const title = (activeRole === 'admin' || activeRole === 'clerk') ? "Все текущие ознакомления" : "Мои ознакомления";
         return (
-            <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #faad14' }}>
+            <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                 {!hasItems ? (
                     <Empty description="Нет документов" image={Empty.PRESENTED_IMAGE_SIMPLE} />
                 ) : (
