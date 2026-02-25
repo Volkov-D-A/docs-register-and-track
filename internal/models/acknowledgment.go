@@ -25,6 +25,7 @@ type Acknowledgment struct {
 	UserIDs []string             `json:"userIds,omitempty"` // Для создания
 }
 
+// AcknowledgmentUser описывает связь пользователя с задачей на ознакомление.
 type AcknowledgmentUser struct {
 	ID               uuid.UUID  `json:"-"`
 	AcknowledgmentID uuid.UUID  `json:"-"`
@@ -35,6 +36,7 @@ type AcknowledgmentUser struct {
 	CreatedAt        time.Time  `json:"createdAt"`
 }
 
+// AcknowledgmentFilter описывает параметры фильтрации задач на ознакомление.
 type AcknowledgmentFilter struct {
 	DocumentID   string `json:"documentId,omitempty"`
 	UserID       string `json:"userId,omitempty"`

@@ -2,17 +2,19 @@ package dto
 
 import "time"
 
+// User описывает DTO пользователя.
 type User struct {
-	ID           string      `json:"id"`
-	Login        string      `json:"login"`
-	FullName     string      `json:"fullName"`
-	IsActive     bool        `json:"isActive"`
-	Roles        []string    `json:"roles"`
-	CreatedAt    time.Time   `json:"createdAt"`
-	UpdatedAt    time.Time   `json:"updatedAt"`
-	Department   *Department `json:"department,omitempty"`
+	ID         string      `json:"id"`
+	Login      string      `json:"login"`
+	FullName   string      `json:"fullName"`
+	IsActive   bool        `json:"isActive"`
+	Roles      []string    `json:"roles"`
+	CreatedAt  time.Time   `json:"createdAt"`
+	UpdatedAt  time.Time   `json:"updatedAt"`
+	Department *Department `json:"department,omitempty"`
 }
 
+// UserRole описывает DTO роли пользователя.
 type UserRole struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"userId"`
@@ -20,6 +22,7 @@ type UserRole struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// Department описывает DTO подразделения.
 type Department struct {
 	ID              string         `json:"id"`
 	Name            string         `json:"name"`
@@ -29,6 +32,7 @@ type Department struct {
 	UpdatedAt       time.Time      `json:"updatedAt"`
 }
 
+// Nomenclature описывает DTO номенклатуры дел.
 type Nomenclature struct {
 	ID         string    `json:"id"`
 	Name       string    `json:"name"`
@@ -41,12 +45,14 @@ type Nomenclature struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
+// Organization описывает DTO организации.
 type Organization struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// DocumentType описывает DTO типа документа.
 type DocumentType struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
@@ -55,10 +61,11 @@ type DocumentType struct {
 
 // Новые структуры для ответов (DTO)
 
+// IncomingDocument описывает DTO входящего документа.
 type IncomingDocument struct {
-	ID                string     `json:"id"`
-	NomenclatureID    string     `json:"nomenclatureId"`
-	NomenclatureName  string     `json:"nomenclatureName,omitempty"`
+	ID               string `json:"id"`
+	NomenclatureID   string `json:"nomenclatureId"`
+	NomenclatureName string `json:"nomenclatureName,omitempty"`
 
 	IncomingNumber       string     `json:"incomingNumber"`
 	IncomingDate         time.Time  `json:"incomingDate"`
@@ -67,20 +74,20 @@ type IncomingDocument struct {
 	IntermediateNumber   *string    `json:"intermediateNumber,omitempty"`
 	IntermediateDate     *time.Time `json:"intermediateDate,omitempty"`
 
-	DocumentTypeID    string    `json:"documentTypeId"`
-	DocumentTypeName  string    `json:"documentTypeName,omitempty"`
-	Subject           string    `json:"subject"`
-	PagesCount        int       `json:"pagesCount"`
-	Content           string    `json:"content"`
+	DocumentTypeID   string `json:"documentTypeId"`
+	DocumentTypeName string `json:"documentTypeName,omitempty"`
+	Subject          string `json:"subject"`
+	PagesCount       int    `json:"pagesCount"`
+	Content          string `json:"content"`
 
-	SenderOrgID     string    `json:"senderOrgId"`
-	SenderOrgName   string    `json:"senderOrgName,omitempty"`
-	SenderSignatory string    `json:"senderSignatory"`
-	SenderExecutor  string    `json:"senderExecutor"`
+	SenderOrgID     string `json:"senderOrgId"`
+	SenderOrgName   string `json:"senderOrgName,omitempty"`
+	SenderSignatory string `json:"senderSignatory"`
+	SenderExecutor  string `json:"senderExecutor"`
 
-	RecipientOrgID    string    `json:"recipientOrgId"`
-	RecipientOrgName  string    `json:"recipientOrgName,omitempty"`
-	Addressee         string    `json:"addressee"`
+	RecipientOrgID   string `json:"recipientOrgId"`
+	RecipientOrgName string `json:"recipientOrgName,omitempty"`
+	Addressee        string `json:"addressee"`
 
 	Resolution *string `json:"resolution,omitempty"`
 
@@ -93,28 +100,29 @@ type IncomingDocument struct {
 	AssignmentsCount int `json:"assignmentsCount,omitempty"`
 }
 
+// OutgoingDocument описывает DTO исходящего документа.
 type OutgoingDocument struct {
-	ID                string    `json:"id"`
-	NomenclatureID    string    `json:"nomenclatureId"`
-	NomenclatureName  string    `json:"nomenclatureName,omitempty"`
+	ID               string `json:"id"`
+	NomenclatureID   string `json:"nomenclatureId"`
+	NomenclatureName string `json:"nomenclatureName,omitempty"`
 
 	OutgoingNumber string    `json:"outgoingNumber"`
 	OutgoingDate   time.Time `json:"outgoingDate"`
 
-	DocumentTypeID    string    `json:"documentTypeId"`
-	DocumentTypeName  string    `json:"documentTypeName,omitempty"`
-	Subject           string    `json:"subject"`
-	PagesCount        int       `json:"pagesCount"`
-	Content           string    `json:"content"`
+	DocumentTypeID   string `json:"documentTypeId"`
+	DocumentTypeName string `json:"documentTypeName,omitempty"`
+	Subject          string `json:"subject"`
+	PagesCount       int    `json:"pagesCount"`
+	Content          string `json:"content"`
 
-	SenderOrgID     string    `json:"senderOrgId"`
-	SenderOrgName   string    `json:"senderOrgName,omitempty"`
-	SenderSignatory string    `json:"senderSignatory"`
-	SenderExecutor  string    `json:"senderExecutor"`
+	SenderOrgID     string `json:"senderOrgId"`
+	SenderOrgName   string `json:"senderOrgName,omitempty"`
+	SenderSignatory string `json:"senderSignatory"`
+	SenderExecutor  string `json:"senderExecutor"`
 
-	RecipientOrgID    string    `json:"recipientOrgId"`
-	RecipientOrgName  string    `json:"recipientOrgName,omitempty"`
-	Addressee         string    `json:"addressee"`
+	RecipientOrgID   string `json:"recipientOrgId"`
+	RecipientOrgName string `json:"recipientOrgName,omitempty"`
+	Addressee        string `json:"addressee"`
 
 	CreatedBy     string    `json:"createdBy"`
 	CreatedByName string    `json:"createdByName,omitempty"`
@@ -124,21 +132,23 @@ type OutgoingDocument struct {
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
+// DocumentLink описывает DTO связи между документами.
 type DocumentLink struct {
-	ID           string    `json:"id"`
-	SourceType   string    `json:"sourceType"`
-	SourceID     string    `json:"sourceId"`
-	TargetType   string    `json:"targetType"`
-	TargetID     string    `json:"targetId"`
-	LinkType     string    `json:"linkType"`
-	CreatedBy    string    `json:"createdBy"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID         string    `json:"id"`
+	SourceType string    `json:"sourceType"`
+	SourceID   string    `json:"sourceId"`
+	TargetType string    `json:"targetType"`
+	TargetID   string    `json:"targetId"`
+	LinkType   string    `json:"linkType"`
+	CreatedBy  string    `json:"createdBy"`
+	CreatedAt  time.Time `json:"createdAt"`
 
 	SourceNumber  string `json:"sourceNumber,omitempty"`
 	TargetNumber  string `json:"targetNumber,omitempty"`
 	TargetSubject string `json:"targetSubject,omitempty"`
 }
 
+// Attachment описывает DTO прикрепленного файла.
 type Attachment struct {
 	ID             string    `json:"id"`
 	DocumentID     string    `json:"documentId"`
@@ -152,18 +162,20 @@ type Attachment struct {
 	UploadedAt     time.Time `json:"uploadedAt"`
 }
 
+// DownloadResponse описывает DTO ответа при скачивании файла.
 type DownloadResponse struct {
 	Filename string `json:"filename"`
 	Content  string `json:"content"` // base64
 }
 
+// Assignment описывает DTO поручения.
 type Assignment struct {
-	ID            string    `json:"id"`
-	DocumentID    string    `json:"documentId"`
-	DocumentType  string    `json:"documentType"`
+	ID           string `json:"id"`
+	DocumentID   string `json:"documentId"`
+	DocumentType string `json:"documentType"`
 
-	ExecutorID    string    `json:"executorId"`
-	ExecutorName  string    `json:"executorName,omitempty"`
+	ExecutorID   string `json:"executorId"`
+	ExecutorName string `json:"executorName,omitempty"`
 
 	Content     string     `json:"content"`
 	Deadline    *time.Time `json:"deadline,omitempty"`
@@ -181,14 +193,15 @@ type Assignment struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// Acknowledgment описывает DTO задачи на ознакомление.
 type Acknowledgment struct {
-	ID             string    `json:"id"`
-	DocumentID     string    `json:"documentId"`
-	DocumentType   string    `json:"documentType"`
-	DocumentNumber string    `json:"documentNumber,omitempty"`
+	ID             string `json:"id"`
+	DocumentID     string `json:"documentId"`
+	DocumentType   string `json:"documentType"`
+	DocumentNumber string `json:"documentNumber,omitempty"`
 
-	CreatorID    string    `json:"creatorId"`
-	CreatorName  string    `json:"creatorName,omitempty"`
+	CreatorID   string `json:"creatorId"`
+	CreatorName string `json:"creatorName,omitempty"`
 
 	Content     string     `json:"content"`
 	CreatedAt   time.Time  `json:"createdAt"`
@@ -198,15 +211,17 @@ type Acknowledgment struct {
 	UserIDs []string             `json:"userIds,omitempty"`
 }
 
+// AcknowledgmentUser описывает DTO связи пользователя с задачей на ознакомление.
 type AcknowledgmentUser struct {
-	ID               string     `json:"id"`
-	UserID           string     `json:"userId"`
-	UserName         string     `json:"userName,omitempty"`
-	ViewedAt         *time.Time `json:"viewedAt,omitempty"`
-	ConfirmedAt      *time.Time `json:"confirmedAt,omitempty"`
-	CreatedAt        time.Time  `json:"createdAt"`
+	ID          string     `json:"id"`
+	UserID      string     `json:"userId"`
+	UserName    string     `json:"userName,omitempty"`
+	ViewedAt    *time.Time `json:"viewedAt,omitempty"`
+	ConfirmedAt *time.Time `json:"confirmedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
 }
 
+// PagedResult описывает DTO постраничного результата.
 type PagedResult[T any] struct {
 	Items      []T `json:"items"`
 	TotalCount int `json:"totalCount"`
@@ -214,6 +229,7 @@ type PagedResult[T any] struct {
 	PageSize   int `json:"pageSize"`
 }
 
+// DashboardStats описывает DTO статистики для дашборда.
 type DashboardStats struct {
 	Role string `json:"role"`
 

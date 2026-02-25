@@ -18,6 +18,10 @@ const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
+/**
+ * Страница управления поручениями.
+ * Позволяет просматривать, фильтровать, создавать и менять статусы поручений в зависимости от роли.
+ */
 const AssignmentsPage: React.FC = () => {
     const { message } = App.useApp();
     const { user, currentRole, hasRole } = useAuthStore();

@@ -12,10 +12,12 @@ import (
 	"docflow/internal/security"
 )
 
+// UserRepository предоставляет методы для работы с пользователями в БД.
 type UserRepository struct {
 	db *database.DB
 }
 
+// NewUserRepository создает новый экземпляр UserRepository.
 func NewUserRepository(db *database.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
@@ -69,14 +71,17 @@ func (r *UserRepository) getUserByCondition(whereClause string, arg interface{})
 	return user, nil
 }
 
+// GetByLogin возвращает пользователя по его логину.
 func (r *UserRepository) GetByLogin(login string) (*models.User, error) {
 	return r.getUserByCondition("WHERE u.login = $1", login)
 }
 
+// GetByID возвращает пользователя по его ID.
 func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 	return r.getUserByCondition("WHERE u.id = $1", id)
 }
 
+// GetAll возвращает список всех пользователей.
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`
 		SELECT u.id, u.login, u.full_name, u.is_active, u.created_at, u.updated_at,
@@ -145,6 +150,7 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 	return users, nil
 }
 
+// Create создает нового пользователя в БД.
 func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, error) {
 	if err := security.ValidatePassword(req.Password); err != nil {
 		return nil, err
@@ -195,6 +201,7 @@ func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, err
 	return r.GetByID(userID)
 }
 
+// Update обновляет данные существующего пользователя.
 func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, error) {
 	uid, err := uuid.Parse(req.ID)
 	if err != nil {
@@ -245,6 +252,7 @@ func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, err
 	return r.GetByID(uid)
 }
 
+// GetUserRoles возвращает список ролей пользователя по его ID.
 func (r *UserRepository) GetUserRoles(userID uuid.UUID) ([]string, error) {
 	rows, err := r.db.Query(`
 		SELECT role FROM user_roles WHERE user_id = $1
@@ -269,6 +277,7 @@ func (r *UserRepository) GetUserRoles(userID uuid.UUID) ([]string, error) {
 	return roles, nil
 }
 
+// GetExecutors возвращает список всех активных пользователей с ролью 'executor' (исполнитель).
 func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	rows, err := r.db.Query(`
 		SELECT DISTINCT u.id, u.login, u.full_name, u.is_active, u.created_at, u.updated_at,
@@ -339,6 +348,7 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	return users, nil
 }
 
+// UpdatePassword обновляет хэш пароля пользователя.
 func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string) error {
 	_, err := r.db.Exec(`
 		UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
@@ -352,6 +362,7 @@ func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string
 	return nil
 }
 
+// ResetPassword сбрасывает (изменяет) пароль пользователя.
 func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) error {
 	if err := security.ValidatePassword(newPassword); err != nil {
 		return err
@@ -363,6 +374,7 @@ func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) err
 	return r.UpdatePassword(userID, hash)
 }
 
+// UpdateProfile обновляет данные профиля пользователя (логин, ФИО).
 func (r *UserRepository) UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error {
 	_, err := r.db.Exec(`
 		UPDATE users SET login = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP
@@ -479,7 +491,7 @@ func (r *UserRepository) getDepartmentNomenclatureIDs(departmentID uuid.UUID) ([
 	return ids, nil
 }
 
-// CountUsers — получить общее количество пользователей в базе данных
+// CountUsers возвращает общее количество пользователей в базе данных.
 func (r *UserRepository) CountUsers() (int, error) {
 	var count int
 	err := r.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)

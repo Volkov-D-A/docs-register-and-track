@@ -5,12 +5,19 @@ import { LinkDocuments, UnlinkDocument, GetDocumentLinks, models } from '../../t
 import { LinkGraph } from './LinkGraph';
 import dayjs from 'dayjs';
 
+/**
+ * Свойства вкладки связей документа.
+ */
 interface LinksTabProps {
     documentId: string;
     documentType: 'incoming' | 'outgoing';
     documentNumber: string; // Passed for context
 }
 
+/**
+ * Вкладка для отображения и управления связями документа.
+ * Позволяет добавлять новые связи между документами и просматривать граф связей.
+ */
 export const LinksTab = ({ documentId, documentType, documentNumber }: LinksTabProps) => {
     const { message } = App.useApp();
     const [links, setLinks] = useState<models.DocumentLink[]>([]);

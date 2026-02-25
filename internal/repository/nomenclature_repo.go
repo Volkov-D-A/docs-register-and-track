@@ -11,14 +11,17 @@ import (
 	"docflow/internal/models"
 )
 
+// NomenclatureRepository предоставляет методы для работы со справочником номенклатуры дел в БД.
 type NomenclatureRepository struct {
 	db *database.DB
 }
 
+// NewNomenclatureRepository создает новый экземпляр NomenclatureRepository.
 func NewNomenclatureRepository(db *database.DB) *NomenclatureRepository {
 	return &NomenclatureRepository{db: db}
 }
 
+// GetAll возвращает список номенклатурных дел, с возможностью фильтрации по году и направлению.
 func (r *NomenclatureRepository) GetAll(year int, direction string) ([]models.Nomenclature, error) {
 	query := `SELECT id, name, index, year, direction, next_number, is_active, created_at, updated_at
 		FROM nomenclature WHERE 1=1`
@@ -63,6 +66,7 @@ func (r *NomenclatureRepository) GetAll(year int, direction string) ([]models.No
 	return items, nil
 }
 
+// GetByID возвращает дело по его ID.
 func (r *NomenclatureRepository) GetByID(id uuid.UUID) (*models.Nomenclature, error) {
 	item := &models.Nomenclature{}
 	err := r.db.QueryRow(`
@@ -83,6 +87,7 @@ func (r *NomenclatureRepository) GetByID(id uuid.UUID) (*models.Nomenclature, er
 	return item, nil
 }
 
+// Create создает новую запись в номенклатуре дел.
 func (r *NomenclatureRepository) Create(name, index string, year int, direction string) (*models.Nomenclature, error) {
 	var id uuid.UUID
 	err := r.db.QueryRow(`
@@ -96,6 +101,7 @@ func (r *NomenclatureRepository) Create(name, index string, year int, direction 
 	return r.GetByID(id)
 }
 
+// Update обновляет данные существующего дела в номенклатуре.
 func (r *NomenclatureRepository) Update(id uuid.UUID, name, index string, year int, direction string, isActive bool) (*models.Nomenclature, error) {
 	_, err := r.db.Exec(`
 		UPDATE nomenclature SET name = $1, index = $2, year = $3, direction = $4, is_active = $5, updated_at = $6
@@ -107,6 +113,7 @@ func (r *NomenclatureRepository) Update(id uuid.UUID, name, index string, year i
 	return r.GetByID(id)
 }
 
+// Delete удаляет запись из номенклатуры дел по её ID.
 func (r *NomenclatureRepository) Delete(id uuid.UUID) error {
 	_, err := r.db.Exec(`DELETE FROM nomenclature WHERE id = $1`, id)
 	if err != nil {

@@ -32,6 +32,7 @@ type Assignment struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// AssignmentFilter описывает параметры фильтрации поручений.
 type AssignmentFilter struct {
 	Search       string `json:"search,omitempty"`
 	DocumentID   string `json:"documentId,omitempty"`

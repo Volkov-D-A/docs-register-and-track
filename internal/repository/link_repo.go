@@ -10,10 +10,12 @@ import (
 	"docflow/internal/models"
 )
 
+// LinkRepository предоставляет методы для работы со связями между документами в БД.
 type LinkRepository struct {
 	db *database.DB
 }
 
+// NewLinkRepository создает новый экземпляр LinkRepository.
 func NewLinkRepository(db *database.DB) *LinkRepository {
 	return &LinkRepository{db: db}
 }

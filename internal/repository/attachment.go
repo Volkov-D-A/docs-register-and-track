@@ -8,14 +8,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// AttachmentRepository предоставляет методы для работы с вложениями (файлами) в БД.
 type AttachmentRepository struct {
 	db *database.DB
 }
 
+// NewAttachmentRepository создает новый экземпляр AttachmentRepository.
 func NewAttachmentRepository(db *database.DB) *AttachmentRepository {
 	return &AttachmentRepository{db: db}
 }
 
+// Create сохраняет новое вложение в БД.
 func (r *AttachmentRepository) Create(a *models.Attachment) error {
 	return r.db.QueryRow(
 		`INSERT INTO attachments (document_id, document_type, filename, content, file_size, content_type, uploaded_by)
@@ -25,11 +28,13 @@ func (r *AttachmentRepository) Create(a *models.Attachment) error {
 	).Scan(&a.ID, &a.UploadedAt)
 }
 
+// Delete удаляет вложение по его ID.
 func (r *AttachmentRepository) Delete(id uuid.UUID) error {
 	_, err := r.db.Exec("DELETE FROM attachments WHERE id = $1", id)
 	return err
 }
 
+// GetByID возвращает метаданные вложения (без контента) по ID.
 func (r *AttachmentRepository) GetByID(id uuid.UUID) (*models.Attachment, error) {
 	var a models.Attachment
 	if err := r.db.QueryRow(
@@ -42,6 +47,7 @@ func (r *AttachmentRepository) GetByID(id uuid.UUID) (*models.Attachment, error)
 	return &a, nil
 }
 
+// GetByDocumentID возвращает все вложения, прикрепленные к определенному документу.
 func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attachment, error) {
 	rows, err := r.db.Query(
 		`SELECT a.id, a.document_id, a.document_type, a.filename, a.file_size, a.content_type, a.uploaded_by, a.uploaded_at, u.full_name
@@ -75,6 +81,7 @@ func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attach
 	return attachments, nil
 }
 
+// GetContent возвращает бинарное содержимое файла вложения по его ID.
 func (r *AttachmentRepository) GetContent(id uuid.UUID) ([]byte, error) {
 	var content []byte
 	err := r.db.QueryRow("SELECT content FROM attachments WHERE id = $1", id).Scan(&content)

@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, App } from 'antd';
 import { useAuthStore } from '../store/useAuthStore';
 
+/**
+ * Свойства модального окна создания задачи на ознакомление.
+ */
 interface AcknowledgmentModalProps {
     open: boolean;
     onCancel: () => void;
@@ -10,6 +13,14 @@ interface AcknowledgmentModalProps {
     documentType: string;
 }
 
+/**
+ * Модальное окно для отправки документа на ознакомление.
+ * @param open Флаг открытия модального окна
+ * @param onCancel Обработчик отмены
+ * @param onSuccess Обработчик успешного создания задачи
+ * @param documentId Идентификатор документа
+ * @param documentType Тип документа
+ */
 const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCancel, onSuccess, documentId, documentType }) => {
     const { message } = App.useApp();
     const [form] = Form.useForm();

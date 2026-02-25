@@ -22,6 +22,7 @@ var (
 	ErrWrongPassword      = models.ErrWrongPassword
 )
 
+// AuthService предоставляет бизнес-логику для аутентификации и авторизации пользователей.
 type AuthService struct {
 	db          *database.DB
 	userRepo    UserStore
@@ -29,6 +30,7 @@ type AuthService struct {
 	mu          sync.RWMutex
 }
 
+// NewAuthService создает новый экземпляр AuthService.
 func NewAuthService(db *database.DB, userRepo UserStore) *AuthService {
 	return &AuthService{
 		db:       db,

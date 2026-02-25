@@ -10,6 +10,7 @@ import (
 	"docflow/internal/models"
 )
 
+// IncomingDocumentService предоставляет бизнес-логику для работы с входящими документами.
 type IncomingDocumentService struct {
 	repo    IncomingDocStore
 	nomRepo NomenclatureStore
@@ -18,6 +19,7 @@ type IncomingDocumentService struct {
 	auth    *AuthService
 }
 
+// NewIncomingDocumentService создает новый экземпляр IncomingDocumentService.
 func NewIncomingDocumentService(
 	repo IncomingDocStore,
 	nomRepo NomenclatureStore,
@@ -34,7 +36,7 @@ func NewIncomingDocumentService(
 	}
 }
 
-// GetList — список входящих документов с фильтрацией
+// GetList возвращает список входящих документов с учетом фильтров и прав доступа (для исполнителя видимость ограничена).
 func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*dto.PagedResult[dto.IncomingDocument], error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -84,7 +86,7 @@ func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*dto.Pa
 	}, nil
 }
 
-// GetByID — получить документ по ID
+// GetByID возвращает входящий документ по его ID.
 func (s *IncomingDocumentService) GetByID(id string) (*dto.IncomingDocument, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -97,7 +99,8 @@ func (s *IncomingDocumentService) GetByID(id string) (*dto.IncomingDocument, err
 	return dto.MapIncomingDocument(res), err
 }
 
-// Register — регистрация нового входящего документа
+// Register регистрирует новый входящий документ в системе.
+// Доступно только администраторам и делопроизводителям.
 func (s *IncomingDocumentService) Register(
 	nomenclatureID, documentTypeID string,
 	senderOrgName, recipientOrgName string,
@@ -179,7 +182,8 @@ func (s *IncomingDocumentService) Register(
 	return dto.MapIncomingDocument(res), err
 }
 
-// Update — редактирование входящего документа
+// Update обновляет данные существующего входящего документа.
+// Доступно только администраторам и делопроизводителям.
 func (s *IncomingDocumentService) Update(
 	id, documentTypeID string,
 	senderOrgName, recipientOrgName string,
@@ -245,7 +249,7 @@ func (s *IncomingDocumentService) Update(
 	return dto.MapIncomingDocument(res), err
 }
 
-// GetCount — количество для дашборда
+// GetCount возвращает общее количество входящих документов (например, для дашборда).
 func (s *IncomingDocumentService) GetCount() (int, error) {
 	if !s.auth.IsAuthenticated() {
 		return 0, ErrNotAuthenticated
@@ -253,7 +257,8 @@ func (s *IncomingDocumentService) GetCount() (int, error) {
 	return s.repo.GetCount()
 }
 
-// Delete — удаление документа
+// Delete удаляет входящий документ по его ID.
+// Доступно только администраторам.
 func (s *IncomingDocumentService) Delete(id string) error {
 	if !s.auth.HasRole("admin") {
 		return models.ErrForbidden

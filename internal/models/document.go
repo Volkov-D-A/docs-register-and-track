@@ -126,6 +126,7 @@ type DocumentFilter struct {
 	PageSize         int      `json:"pageSize"`
 }
 
+// OutgoingDocumentFilter описывает параметры фильтрации исходящих документов.
 type OutgoingDocumentFilter struct {
 	NomenclatureIDs []string `json:"nomenclatureIds,omitempty"`
 	DocumentTypeID  string   `json:"documentTypeId,omitempty"`

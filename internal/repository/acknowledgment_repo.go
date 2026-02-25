@@ -9,14 +9,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// AcknowledgmentRepository предоставляет методы для работы с задачами на ознакомление в БД.
 type AcknowledgmentRepository struct {
 	db *database.DB
 }
 
+// NewAcknowledgmentRepository создает новый экземпляр AcknowledgmentRepository.
 func NewAcknowledgmentRepository(db *database.DB) *AcknowledgmentRepository {
 	return &AcknowledgmentRepository{db: db}
 }
 
+// Create создает новую задачу на ознакомление в БД.
 func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -49,6 +52,7 @@ func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
 	return tx.Commit()
 }
 
+// GetByDocumentID возвращает все задачи на ознакомление для заданного документа.
 func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error) {
 	query := `
 		SELECT 
@@ -96,6 +100,7 @@ func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]mode
 	return result, nil
 }
 
+// GetUsersByAcknowledgmentID возвращает список пользователей, связанных с задачей на ознакомление.
 func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error) {
 	query := `
 		SELECT 
@@ -130,6 +135,7 @@ func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentID(ackID uuid.UUID) (
 	return result, nil
 }
 
+// GetPendingForUser возвращает список невыполненных задач на ознакомление для конкретного пользователя.
 func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models.Acknowledgment, error) {
 	// Выборка ознакомлений, которые пользователь ещё не подтвердил
 	query := `
@@ -179,6 +185,7 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 	return result, nil
 }
 
+// MarkViewed отмечает задачу как просмотренную пользователем.
 func (r *AcknowledgmentRepository) MarkViewed(ackID, userID uuid.UUID) error {
 	query := `
 		UPDATE acknowledgment_users
@@ -189,6 +196,7 @@ func (r *AcknowledgmentRepository) MarkViewed(ackID, userID uuid.UUID) error {
 	return err
 }
 
+// MarkConfirmed отмечает задачу на ознакомление как подтвержденную (выполненную) пользователем.
 func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error {
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -237,6 +245,7 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 	return tx.Commit()
 }
 
+// GetAllActive возвращает все активные (не завершенные) задачи на ознакомление.
 func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, error) {
 	query := `
 		SELECT 
@@ -283,6 +292,7 @@ func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, erro
 	return result, nil
 }
 
+// Delete удаляет задачу на ознакомление по её ID.
 func (r *AcknowledgmentRepository) Delete(id uuid.UUID) error {
 	query := `DELETE FROM acknowledgments WHERE id = $1`
 	_, err := r.db.Exec(query, id)

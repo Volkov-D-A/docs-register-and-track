@@ -5,6 +5,9 @@ import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import AssignmentModal from './AssignmentModal';
 
+/**
+ * Свойства компонента AssignmentList.
+ */
 interface AssignmentListProps {
     documentId: string;
     documentType: 'incoming' | 'outgoing';
@@ -12,6 +15,11 @@ interface AssignmentListProps {
 
 const { TextArea } = Input;
 
+/**
+ * Компонент списка поручений по документу.
+ * @param documentId Идентификатор документа
+ * @param documentType Тип документа
+ */
 const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentType }) => {
     const { message } = App.useApp();
     const [data, setData] = useState<any[]>([]);

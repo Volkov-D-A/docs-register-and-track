@@ -13,10 +13,12 @@ import (
 	"docflow/internal/models"
 )
 
+// IncomingDocumentRepository предоставляет методы для работы с входящими документами в БД.
 type IncomingDocumentRepository struct {
 	db *database.DB
 }
 
+// NewIncomingDocumentRepository создает новый экземпляр IncomingDocumentRepository.
 func NewIncomingDocumentRepository(db *database.DB) *IncomingDocumentRepository {
 	return &IncomingDocumentRepository{db: db}
 }
@@ -58,6 +60,7 @@ func scanIncomingDoc(scanner interface{ Scan(...interface{}) error }) (*models.I
 	return doc, err
 }
 
+// GetList возвращает список входящих документов с учетом фильтрации и пагинации.
 func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error) {
 	where := []string{"1=1"}
 	args := []interface{}{}
@@ -186,6 +189,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 	}, nil
 }
 
+// GetByID возвращает входящий документ по его ID.
 func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocument, error) {
 	query := incomingDocSelectBase + " WHERE d.id = $1"
 	doc, err := scanIncomingDoc(r.db.QueryRow(query, id))
@@ -200,6 +204,7 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 	return doc, nil
 }
 
+// Create создает новый входящий документ в базе данных.
 func (r *IncomingDocumentRepository) Create(
 	nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy uuid.UUID,
 	incomingNumber string, incomingDate time.Time,
@@ -236,6 +241,7 @@ func (r *IncomingDocumentRepository) Create(
 	return r.GetByID(id)
 }
 
+// Update обновляет данные существующего входящего документа.
 func (r *IncomingDocumentRepository) Update(
 	id uuid.UUID,
 	documentTypeID, senderOrgID, recipientOrgID uuid.UUID,
@@ -270,6 +276,7 @@ func (r *IncomingDocumentRepository) Update(
 	return r.GetByID(id)
 }
 
+// Delete удаляет входящий документ по его ID.
 func (r *IncomingDocumentRepository) Delete(id uuid.UUID) error {
 	_, err := r.db.Exec(`DELETE FROM incoming_documents WHERE id = $1`, id)
 	if err != nil {

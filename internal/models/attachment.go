@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Attachment представляет собой прикрепленный к документу файл.
 type Attachment struct {
 	ID             uuid.UUID `json:"-"`
 	DocumentID     uuid.UUID `json:"-"`
@@ -20,6 +21,7 @@ type Attachment struct {
 	UploadedAt     time.Time `json:"uploadedAt"`
 }
 
+// DownloadResponse описывает ответ сервера при скачивании файла.
 type DownloadResponse struct {
 	Filename string `json:"filename"`
 	Content  string `json:"content"` // в формате Base64

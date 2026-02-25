@@ -10,12 +10,14 @@ import (
 	"docflow/internal/models"
 )
 
+// AcknowledgmentService предоставляет бизнес-логику для работы с задачами на ознакомление.
 type AcknowledgmentService struct {
 	repo     AcknowledgmentStore
 	userRepo UserStore
 	auth     *AuthService
 }
 
+// NewAcknowledgmentService создает новый экземпляр AcknowledgmentService.
 func NewAcknowledgmentService(
 	repo AcknowledgmentStore,
 	userRepo UserStore,
@@ -28,6 +30,7 @@ func NewAcknowledgmentService(
 	}
 }
 
+// Create создает новую задачу на ознакомление для указанных пользователей.
 func (s *AcknowledgmentService) Create(
 	documentID, documentType string,
 	content string,
@@ -89,6 +92,7 @@ func (s *AcknowledgmentService) Create(
 	return dto.MapAcknowledgment(ack), nil
 }
 
+// GetList возвращает список задач на ознакомление для конкретного документа.
 func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -101,6 +105,7 @@ func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment
 	return dto.MapAcknowledgments(res), err
 }
 
+// GetPendingForCurrentUser возвращает список невыполненных задач на ознакомление для текущего авторизованного пользователя.
 func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -114,6 +119,8 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 	return dto.MapAcknowledgments(res), err
 }
 
+// GetAllActive возвращает список всех активных (не завершенных) задач на ознакомление в системе.
+// Доступно только администраторам и делопроизводителям.
 func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -125,6 +132,7 @@ func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 	return dto.MapAcknowledgments(res), err
 }
 
+// MarkViewed отмечает задачу на ознакомление как просмотренную текущим пользователем.
 func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 	if !s.auth.IsAuthenticated() {
 		return ErrNotAuthenticated
@@ -142,6 +150,7 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 	return s.repo.MarkViewed(ackUUID, userUUID)
 }
 
+// MarkConfirmed отмечает задачу на ознакомление как выполненную (подтвержденную) текущим пользователем.
 func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 	if !s.auth.IsAuthenticated() {
 		return ErrNotAuthenticated
@@ -159,6 +168,7 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 	return s.repo.MarkConfirmed(ackUUID, userUUID)
 }
 
+// Delete удаляет задачу на ознакомление по её ID.
 func (s *AcknowledgmentService) Delete(id string) error {
 	if !s.auth.IsAuthenticated() {
 		return ErrNotAuthenticated

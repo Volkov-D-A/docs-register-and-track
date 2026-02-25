@@ -10,16 +10,19 @@ import (
 	"docflow/internal/models"
 )
 
+// ReferenceRepository предоставляет методы для работы со справочниками (типы документов, организации) в БД.
 type ReferenceRepository struct {
 	db *database.DB
 }
 
+// NewReferenceRepository создает новый экземпляр ReferenceRepository.
 func NewReferenceRepository(db *database.DB) *ReferenceRepository {
 	return &ReferenceRepository{db: db}
 }
 
 // === Типы документов ===
 
+// GetAllDocumentTypes возвращает все типы документов.
 func (r *ReferenceRepository) GetAllDocumentTypes() ([]models.DocumentType, error) {
 	rows, err := r.db.Query(`
 		SELECT id, name, created_at FROM document_types ORDER BY name
@@ -44,6 +47,7 @@ func (r *ReferenceRepository) GetAllDocumentTypes() ([]models.DocumentType, erro
 	return items, nil
 }
 
+// CreateDocumentType создает новый тип документа.
 func (r *ReferenceRepository) CreateDocumentType(name string) (*models.DocumentType, error) {
 	var id uuid.UUID
 	err := r.db.QueryRow(`
@@ -64,6 +68,7 @@ func (r *ReferenceRepository) CreateDocumentType(name string) (*models.DocumentT
 	return item, nil
 }
 
+// UpdateDocumentType обновляет тип документа.
 func (r *ReferenceRepository) UpdateDocumentType(id uuid.UUID, name string) error {
 	_, err := r.db.Exec(`UPDATE document_types SET name = $1 WHERE id = $2`, name, id)
 	if err != nil {
@@ -72,6 +77,7 @@ func (r *ReferenceRepository) UpdateDocumentType(id uuid.UUID, name string) erro
 	return nil
 }
 
+// DeleteDocumentType удаляет тип документа.
 func (r *ReferenceRepository) DeleteDocumentType(id uuid.UUID) error {
 	_, err := r.db.Exec(`DELETE FROM document_types WHERE id = $1`, id)
 	if err != nil {
@@ -82,6 +88,7 @@ func (r *ReferenceRepository) DeleteDocumentType(id uuid.UUID) error {
 
 // === Организации ===
 
+// GetAllOrganizations возвращает все организации-корреспонденты.
 func (r *ReferenceRepository) GetAllOrganizations() ([]models.Organization, error) {
 	rows, err := r.db.Query(`
 		SELECT id, name, created_at FROM organizations ORDER BY name
@@ -106,6 +113,7 @@ func (r *ReferenceRepository) GetAllOrganizations() ([]models.Organization, erro
 	return items, nil
 }
 
+// FindOrCreateOrganization ищет организацию по имени и возвращает её ID, если не найдена - создает новую.
 func (r *ReferenceRepository) FindOrCreateOrganization(name string) (*models.Organization, error) {
 	// Сначала ищем существующую
 	var item models.Organization
@@ -141,6 +149,7 @@ func (r *ReferenceRepository) FindOrCreateOrganization(name string) (*models.Org
 	return &item, nil
 }
 
+// SearchOrganizations выполняет поиск организаций по названию.
 func (r *ReferenceRepository) SearchOrganizations(query string) ([]models.Organization, error) {
 	rows, err := r.db.Query(`
 		SELECT id, name, created_at FROM organizations
@@ -167,6 +176,7 @@ func (r *ReferenceRepository) SearchOrganizations(query string) ([]models.Organi
 	return items, nil
 }
 
+// UpdateOrganization обновляет название организации.
 func (r *ReferenceRepository) UpdateOrganization(id uuid.UUID, name string) error {
 	_, err := r.db.Exec(`UPDATE organizations SET name = $1 WHERE id = $2`, name, id)
 	if err != nil {
@@ -175,6 +185,7 @@ func (r *ReferenceRepository) UpdateOrganization(id uuid.UUID, name string) erro
 	return nil
 }
 
+// DeleteOrganization удаляет организацию.
 func (r *ReferenceRepository) DeleteOrganization(id uuid.UUID) error {
 	_, err := r.db.Exec(`DELETE FROM organizations WHERE id = $1`, id)
 	if err != nil {

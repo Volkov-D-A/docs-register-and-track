@@ -10,6 +10,7 @@ import (
 	"docflow/internal/models"
 )
 
+// OutgoingDocumentService предоставляет бизнес-логику для работы с исходящими документами.
 type OutgoingDocumentService struct {
 	repo            OutgoingDocStore
 	refRepo         ReferenceStore
@@ -19,6 +20,7 @@ type OutgoingDocumentService struct {
 	settingsService *SettingsService
 }
 
+// NewOutgoingDocumentService создает новый экземпляр OutgoingDocumentService.
 func NewOutgoingDocumentService(
 	repo OutgoingDocStore,
 	refRepo ReferenceStore,
@@ -37,7 +39,7 @@ func NewOutgoingDocumentService(
 	}
 }
 
-// Register — регистрация нового исходящего документа
+// Register регистрирует новый исходящий документ в системе.
 func (s *OutgoingDocumentService) Register(
 	nomenclatureID, documentTypeID string,
 	recipientOrgName, addressee string,
@@ -105,7 +107,7 @@ func (s *OutgoingDocumentService) Register(
 	return dto.MapOutgoingDocument(res), err
 }
 
-// Update — редактирование исходящего документа
+// Update обновляет данные существующего исходящего документа.
 func (s *OutgoingDocumentService) Update(
 	id, documentTypeID string,
 	recipientOrgName, addressee string,
@@ -151,7 +153,7 @@ func (s *OutgoingDocumentService) Update(
 	return dto.MapOutgoingDocument(res), err
 }
 
-// GetList — получение списка с фильтрацией
+// GetList возвращает список исходящих документов с фильтрацией и ограничением видимости для исполнителей.
 func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) (*dto.PagedResult[dto.OutgoingDocument], error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -208,7 +210,7 @@ func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) 
 	}, nil
 }
 
-// GetByID — получение документа по ID
+// GetByID возвращает исходящий документ по его ID.
 func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -221,7 +223,7 @@ func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, err
 	return dto.MapOutgoingDocument(res), err
 }
 
-// Delete — удаление документа
+// Delete удаляет исходящий документ по его ID (доступно только администраторам).
 func (s *OutgoingDocumentService) Delete(id string) error {
 	if !s.auth.HasRole("admin") {
 		return models.ErrForbidden
@@ -233,7 +235,7 @@ func (s *OutgoingDocumentService) Delete(id string) error {
 	return s.repo.Delete(uid)
 }
 
-// GetCount — количество для дашборда
+// GetCount возвращает общее количество исходящих документов (для дашборда).
 func (s *OutgoingDocumentService) GetCount() (int, error) {
 	if !s.auth.IsAuthenticated() {
 		return 0, ErrNotAuthenticated

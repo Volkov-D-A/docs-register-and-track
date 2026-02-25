@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 )
 
+// Config хранит основную конфигурацию приложения.
 type Config struct {
 	Database DatabaseConfig `json:"database"`
 }
 
+// DatabaseConfig хранит настройки подключения к базе данных PostgreSQL.
 type DatabaseConfig struct {
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
@@ -20,6 +22,7 @@ type DatabaseConfig struct {
 	SSLMode  string `json:"sslmode"`
 }
 
+// ConnectionString формирует строку подключения к базе данных.
 func (d DatabaseConfig) ConnectionString() string {
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
@@ -27,6 +30,7 @@ func (d DatabaseConfig) ConnectionString() string {
 	)
 }
 
+// Load загружает конфигурацию из файла по указанному пути.
 func Load(configPath string) (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -41,6 +45,7 @@ func Load(configPath string) (*Config, error) {
 	return &cfg, nil
 }
 
+// GetDefaultConfigPath возвращает путь к файлу конфигурации по умолчанию.
 func GetDefaultConfigPath() string {
 	return filepath.Join("config", "config.json")
 }

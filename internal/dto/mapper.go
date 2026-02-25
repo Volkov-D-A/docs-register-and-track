@@ -4,6 +4,7 @@ import (
 	"docflow/internal/models"
 )
 
+// MapUser преобразует модель User в DTO User.
 func MapUser(m *models.User) *User {
 	if m == nil {
 		return nil
@@ -24,6 +25,7 @@ func MapUser(m *models.User) *User {
 	}
 }
 
+// MapDepartment преобразует модель Department в DTO Department.
 func MapDepartment(m *models.Department) *Department {
 	if m == nil {
 		return nil
@@ -45,6 +47,7 @@ func MapDepartment(m *models.Department) *Department {
 	}
 }
 
+// MapNomenclature преобразует модель Nomenclature в DTO Nomenclature.
 func MapNomenclature(m *models.Nomenclature) *Nomenclature {
 	if m == nil {
 		return nil
@@ -62,6 +65,7 @@ func MapNomenclature(m *models.Nomenclature) *Nomenclature {
 	}
 }
 
+// MapOrganization преобразует модель Organization в DTO Organization.
 func MapOrganization(m *models.Organization) *Organization {
 	if m == nil {
 		return nil
@@ -73,6 +77,7 @@ func MapOrganization(m *models.Organization) *Organization {
 	}
 }
 
+// MapDocumentType преобразует модель DocumentType в DTO DocumentType.
 func MapDocumentType(m *models.DocumentType) *DocumentType {
 	if m == nil {
 		return nil
@@ -84,6 +89,7 @@ func MapDocumentType(m *models.DocumentType) *DocumentType {
 	}
 }
 
+// MapIncomingDocument преобразует модель IncomingDocument в DTO.
 func MapIncomingDocument(m *models.IncomingDocument) *IncomingDocument {
 	if m == nil {
 		return nil
@@ -120,6 +126,7 @@ func MapIncomingDocument(m *models.IncomingDocument) *IncomingDocument {
 	}
 }
 
+// MapOutgoingDocument преобразует модель OutgoingDocument в DTO.
 func MapOutgoingDocument(m *models.OutgoingDocument) *OutgoingDocument {
 	if m == nil {
 		return nil
@@ -150,6 +157,7 @@ func MapOutgoingDocument(m *models.OutgoingDocument) *OutgoingDocument {
 	}
 }
 
+// MapDocumentLink преобразует связь документов в DTO.
 func MapDocumentLink(m *models.DocumentLink) *DocumentLink {
 	if m == nil {
 		return nil
@@ -169,6 +177,7 @@ func MapDocumentLink(m *models.DocumentLink) *DocumentLink {
 	}
 }
 
+// MapAttachment преобразует файл вложения в DTO.
 func MapAttachment(m *models.Attachment) *Attachment {
 	if m == nil {
 		return nil
@@ -187,6 +196,7 @@ func MapAttachment(m *models.Attachment) *Attachment {
 	}
 }
 
+// MapAssignment преобразует поручение в DTO.
 func MapAssignment(m *models.Assignment) *Assignment {
 	if m == nil {
 		return nil
@@ -221,6 +231,7 @@ func MapAssignment(m *models.Assignment) *Assignment {
 	}
 }
 
+// MapAcknowledgment преобразует задачу на ознакомление в DTO.
 func MapAcknowledgment(m *models.Acknowledgment) *Acknowledgment {
 	if m == nil {
 		return nil
@@ -250,6 +261,7 @@ func MapAcknowledgment(m *models.Acknowledgment) *Acknowledgment {
 	}
 }
 
+// MapAcknowledgmentUser преобразует связь пользователя с задачей на ознакомление в DTO.
 func MapAcknowledgmentUser(m *models.AcknowledgmentUser) *AcknowledgmentUser {
 	if m == nil {
 		return nil
@@ -266,6 +278,7 @@ func MapAcknowledgmentUser(m *models.AcknowledgmentUser) *AcknowledgmentUser {
 
 // Функции-мапперы для слайсов
 
+// MapUsers преобразует список пользователей в DTO.
 func MapUsers(m []models.User) []User {
 	if m == nil {
 		return nil
@@ -280,6 +293,7 @@ func MapUsers(m []models.User) []User {
 	return res
 }
 
+// MapDepartments преобразует список подразделений в DTO.
 func MapDepartments(m []models.Department) []Department {
 	if m == nil {
 		return nil
@@ -294,6 +308,7 @@ func MapDepartments(m []models.Department) []Department {
 	return res
 }
 
+// MapNomenclatures преобразует список номенклатур дел в DTO.
 func MapNomenclatures(m []models.Nomenclature) []Nomenclature {
 	if m == nil {
 		return nil
@@ -308,6 +323,7 @@ func MapNomenclatures(m []models.Nomenclature) []Nomenclature {
 	return res
 }
 
+// MapOrganizations преобразует список организаций в DTO.
 func MapOrganizations(m []models.Organization) []Organization {
 	if m == nil {
 		return nil
@@ -322,6 +338,7 @@ func MapOrganizations(m []models.Organization) []Organization {
 	return res
 }
 
+// MapDocumentTypes преобразует список типов документов в DTO.
 func MapDocumentTypes(m []models.DocumentType) []DocumentType {
 	if m == nil {
 		return nil
@@ -336,6 +353,7 @@ func MapDocumentTypes(m []models.DocumentType) []DocumentType {
 	return res
 }
 
+// MapIncomingDocuments преобразует список входящих документов в DTO.
 func MapIncomingDocuments(m []models.IncomingDocument) []IncomingDocument {
 	if m == nil {
 		return nil
@@ -350,6 +368,7 @@ func MapIncomingDocuments(m []models.IncomingDocument) []IncomingDocument {
 	return res
 }
 
+// MapOutgoingDocuments преобразует список исходящих документов в DTO.
 func MapOutgoingDocuments(m []models.OutgoingDocument) []OutgoingDocument {
 	if m == nil {
 		return nil
@@ -364,6 +383,7 @@ func MapOutgoingDocuments(m []models.OutgoingDocument) []OutgoingDocument {
 	return res
 }
 
+// MapDocumentLinks преобразует список связей документов в DTO.
 func MapDocumentLinks(m []models.DocumentLink) []DocumentLink {
 	if m == nil {
 		return nil
@@ -378,6 +398,7 @@ func MapDocumentLinks(m []models.DocumentLink) []DocumentLink {
 	return res
 }
 
+// MapAttachments преобразует список вложений в DTO.
 func MapAttachments(m []models.Attachment) []Attachment {
 	if m == nil {
 		return nil
@@ -392,6 +413,7 @@ func MapAttachments(m []models.Attachment) []Attachment {
 	return res
 }
 
+// MapAssignments преобразует список поручений в DTO.
 func MapAssignments(m []models.Assignment) []Assignment {
 	if m == nil {
 		return nil
@@ -406,6 +428,7 @@ func MapAssignments(m []models.Assignment) []Assignment {
 	return res
 }
 
+// MapAcknowledgments преобразует список задач на ознакомление в DTO.
 func MapAcknowledgments(m []models.Acknowledgment) []Acknowledgment {
 	if m == nil {
 		return nil
@@ -420,6 +443,7 @@ func MapAcknowledgments(m []models.Acknowledgment) []Acknowledgment {
 	return res
 }
 
+// MapDashboardStats преобразует статистику дашборда в DTO.
 func MapDashboardStats(m *models.DashboardStats) *DashboardStats {
 	if m == nil {
 		return nil

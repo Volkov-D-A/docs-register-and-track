@@ -15,12 +15,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// AttachmentService предоставляет бизнес-логику для работы с вложениями (файлами) документов.
 type AttachmentService struct {
 	repo            AttachmentStore
 	settingsService *SettingsService
 	authService     *AuthService
 }
 
+// NewAttachmentService создает новый экземпляр AttachmentService.
 func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService) *AttachmentService {
 	return &AttachmentService{
 		repo:            repo,

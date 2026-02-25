@@ -9,7 +9,7 @@ import (
 	"docflow/internal/models"
 )
 
-// UserStore — интерфейс для работы с пользователями.
+// UserStore — интерфейс для работы с пользователями в хранилище (БД).
 type UserStore interface {
 	GetByLogin(login string) (*models.User, error)
 	GetByID(id uuid.UUID) (*models.User, error)
@@ -23,7 +23,7 @@ type UserStore interface {
 	CountUsers() (int, error)
 }
 
-// IncomingDocStore — интерфейс для работы с входящими документами.
+// IncomingDocStore — интерфейс для работы с входящими документами в хранилище.
 type IncomingDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error)
 	GetByID(id uuid.UUID) (*models.IncomingDocument, error)
@@ -49,7 +49,7 @@ type IncomingDocStore interface {
 	GetCount() (int, error)
 }
 
-// OutgoingDocStore — интерфейс для работы с исходящими документами.
+// OutgoingDocStore — интерфейс для работы с исходящими документами в хранилище.
 type OutgoingDocStore interface {
 	GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error)
 	GetByID(id uuid.UUID) (*models.OutgoingDocument, error)
@@ -70,7 +70,7 @@ type OutgoingDocStore interface {
 	GetCount() (int, error)
 }
 
-// NomenclatureStore — интерфейс для работы с номенклатурой дел.
+// NomenclatureStore — интерфейс для работы с номенклатурой дел в хранилище.
 type NomenclatureStore interface {
 	GetAll(year int, direction string) ([]models.Nomenclature, error)
 	GetByID(id uuid.UUID) (*models.Nomenclature, error)
@@ -81,7 +81,7 @@ type NomenclatureStore interface {
 	GetActiveByDirection(direction string, year int) ([]models.Nomenclature, error)
 }
 
-// ReferenceStore — интерфейс для справочников (типы документов, организации).
+// ReferenceStore — интерфейс для работы со справочниками (типы документов, организации) в хранилище.
 type ReferenceStore interface {
 	GetAllDocumentTypes() ([]models.DocumentType, error)
 	CreateDocumentType(name string) (*models.DocumentType, error)
@@ -94,7 +94,7 @@ type ReferenceStore interface {
 	DeleteOrganization(id uuid.UUID) error
 }
 
-// AssignmentStore — интерфейс для работы с поручениями.
+// AssignmentStore — интерфейс для работы с поручениями в хранилище.
 type AssignmentStore interface {
 	Create(
 		documentID uuid.UUID, documentType string,
@@ -112,7 +112,7 @@ type AssignmentStore interface {
 	GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error)
 }
 
-// DepartmentStore — интерфейс для работы с подразделениями.
+// DepartmentStore — интерфейс для работы с подразделениями в хранилище.
 type DepartmentStore interface {
 	GetAll() ([]models.Department, error)
 	GetNomenclatureIDs(departmentID uuid.UUID) ([]string, error)
@@ -121,14 +121,14 @@ type DepartmentStore interface {
 	Delete(id uuid.UUID) error
 }
 
-// SettingsStore — интерфейс для системных настроек.
+// SettingsStore — интерфейс для работы с системными настройками в хранилище.
 type SettingsStore interface {
 	Get(key string) (*models.SystemSetting, error)
 	GetAll() ([]models.SystemSetting, error)
 	Update(key, value string) error
 }
 
-// AttachmentStore — интерфейс для работы с вложениями.
+// AttachmentStore — интерфейс для работы с вложениями (файлами) в хранилище.
 type AttachmentStore interface {
 	Create(a *models.Attachment) error
 	Delete(id uuid.UUID) error
@@ -137,7 +137,7 @@ type AttachmentStore interface {
 	GetContent(id uuid.UUID) ([]byte, error)
 }
 
-// LinkStore — интерфейс для связей между документами.
+// LinkStore — интерфейс для работы со связями между документами в хранилище.
 type LinkStore interface {
 	Create(ctx context.Context, link *models.DocumentLink) error
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -145,7 +145,7 @@ type LinkStore interface {
 	GetGraph(ctx context.Context, rootID uuid.UUID) ([]models.DocumentLink, error)
 }
 
-// AcknowledgmentStore — интерфейс для ознакомлений.
+// AcknowledgmentStore — интерфейс для работы с задачами на ознакомление в хранилище.
 type AcknowledgmentStore interface {
 	Create(a *models.Acknowledgment) error
 	GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error)
@@ -156,7 +156,7 @@ type AcknowledgmentStore interface {
 	Delete(id uuid.UUID) error
 }
 
-// DashboardStore — интерфейс для запросов дашборда.
+// DashboardStore — интерфейс для получения аналитических данных дашборда из хранилища.
 type DashboardStore interface {
 	GetExecutorStatusCounts(userID uuid.UUID) (newCount, inProgressCount int, err error)
 	GetExecutorOverdueCount(userID uuid.UUID) (int, error)

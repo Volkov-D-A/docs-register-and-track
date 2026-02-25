@@ -8,11 +8,13 @@ import (
 	"github.com/google/uuid"
 )
 
+// DepartmentService предоставляет бизнес-логику для работы с подразделениями.
 type DepartmentService struct {
 	repo DepartmentStore
 	auth *AuthService
 }
 
+// NewDepartmentService создает новый экземпляр DepartmentService.
 func NewDepartmentService(repo DepartmentStore, auth *AuthService) *DepartmentService {
 	return &DepartmentService{
 		repo: repo,
@@ -20,6 +22,7 @@ func NewDepartmentService(repo DepartmentStore, auth *AuthService) *DepartmentSe
 	}
 }
 
+// GetAllDepartments возвращает список всех подразделений.
 func (s *DepartmentService) GetAllDepartments() ([]dto.Department, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -28,6 +31,7 @@ func (s *DepartmentService) GetAllDepartments() ([]dto.Department, error) {
 	return dto.MapDepartments(res), err
 }
 
+// CreateDepartment создает новое подразделение.
 func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []string) (*dto.Department, error) {
 	if !s.auth.HasRole("admin") {
 		return nil, models.ErrForbidden
@@ -36,6 +40,7 @@ func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []stri
 	return dto.MapDepartment(res), err
 }
 
+// UpdateDepartment обновляет данные существующего подразделения.
 func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []string) (*dto.Department, error) {
 	if !s.auth.HasRole("admin") {
 		return nil, models.ErrForbidden
@@ -48,6 +53,7 @@ func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []
 	return dto.MapDepartment(res), err
 }
 
+// DeleteDepartment удаляет подразделение по его ID.
 func (s *DepartmentService) DeleteDepartment(id string) error {
 	if !s.auth.HasRole("admin") {
 		return models.ErrForbidden

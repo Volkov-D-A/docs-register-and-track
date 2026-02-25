@@ -21,6 +21,10 @@ const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
+/**
+ * Страница входящих документов.
+ * Обеспечивает отображение списка, фильтрацию, регистрацию и редактирование входящей корреспонденции.
+ */
 const IncomingPage: React.FC = () => {
     const { message } = App.useApp();
     const { user, currentRole } = useAuthStore();

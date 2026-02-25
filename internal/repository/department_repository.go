@@ -9,14 +9,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// DepartmentRepository предоставляет методы для работы со справочником подразделений (отделов) в БД.
 type DepartmentRepository struct {
 	db *database.DB
 }
 
+// NewDepartmentRepository создает новый экземпляр DepartmentRepository.
 func NewDepartmentRepository(db *database.DB) *DepartmentRepository {
 	return &DepartmentRepository{db: db}
 }
 
+// GetAll возвращает список всех подразделений.
 func (r *DepartmentRepository) GetAll() ([]models.Department, error) {
 	query := `
 		SELECT id, name, created_at, updated_at
@@ -79,6 +82,7 @@ func (r *DepartmentRepository) loadNomenclature(d *models.Department) error {
 	return rows.Err()
 }
 
+// GetNomenclatureIDs возвращает список ID номенклатур, привязанных к подразделению.
 func (r *DepartmentRepository) GetNomenclatureIDs(departmentID uuid.UUID) ([]string, error) {
 	query := `
 		SELECT nomenclature_id
@@ -105,6 +109,7 @@ func (r *DepartmentRepository) GetNomenclatureIDs(departmentID uuid.UUID) ([]str
 	return ids, nil
 }
 
+// Create создает новое подразделение и связывает его с указанными номенклатурами.
 func (r *DepartmentRepository) Create(name string, nomenclatureIDs []string) (*models.Department, error) {
 	id := uuid.New()
 
@@ -154,6 +159,7 @@ func (r *DepartmentRepository) Create(name string, nomenclatureIDs []string) (*m
 	return &d, nil
 }
 
+// Update обновляет данные существующего подразделения.
 func (r *DepartmentRepository) Update(id uuid.UUID, name string, nomenclatureIDs []string) (*models.Department, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -208,6 +214,7 @@ func (r *DepartmentRepository) Update(id uuid.UUID, name string, nomenclatureIDs
 	return &d, nil
 }
 
+// Delete удаляет подразделение по его ID.
 func (r *DepartmentRepository) Delete(id uuid.UUID) error {
 	query := `DELETE FROM departments WHERE id = $1`
 	result, err := r.db.Exec(query, id)

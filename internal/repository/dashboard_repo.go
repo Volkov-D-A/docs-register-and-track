@@ -16,6 +16,7 @@ type DashboardRepository struct {
 	db *database.DB
 }
 
+// NewDashboardRepository создает новый экземпляр DashboardRepository.
 func NewDashboardRepository(db *database.DB) *DashboardRepository {
 	return &DashboardRepository{db: db}
 }

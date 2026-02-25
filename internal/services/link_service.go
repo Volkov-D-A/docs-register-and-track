@@ -11,6 +11,7 @@ import (
 	"docflow/internal/models"
 )
 
+// LinkService предоставляет бизнес-логику для управления связями между документами.
 type LinkService struct {
 	repo            LinkStore
 	incomingDocRepo IncomingDocStore
@@ -18,6 +19,7 @@ type LinkService struct {
 	authService     *AuthService
 }
 
+// NewLinkService создает новый экземпляр LinkService.
 func NewLinkService(
 	repo LinkStore,
 	incomingDocRepo IncomingDocStore,
@@ -32,7 +34,7 @@ func NewLinkService(
 	}
 }
 
-// LinkDocuments — создать связь между двумя документами
+// LinkDocuments создает связь указанного типа между двумя документами.
 func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, targetType, linkType string) (*dto.DocumentLink, error) {
 	userIDStr := s.authService.GetCurrentUserID()
 	if userIDStr == "" {
@@ -74,7 +76,7 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, target
 	return dto.MapDocumentLink(link), nil
 }
 
-// UnlinkDocument — удалить связь
+// UnlinkDocument удаляет связь между документами по её ID.
 func (s *LinkService) UnlinkDocument(idStr string) error {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -83,7 +85,7 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 	return s.repo.Delete(context.Background(), id)
 }
 
-// GetDocumentLinks — получить прямые связи документа
+// GetDocumentLinks возвращает список всех прямых связей для указанного документа.
 func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, error) {
 	docID, err := uuid.Parse(docIDStr)
 	if err != nil {
@@ -93,7 +95,7 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 	return dto.MapDocumentLinks(res), err
 }
 
-// GetDocumentFlow — получить данные графа для визуализации
+// GetDocumentFlow возвращает граф связей для документа, включая связанные узлы (документы) и ребра (связи) для визуализации.
 func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, error) {
 	rootID, err := uuid.Parse(rootIDStr)
 	if err != nil {

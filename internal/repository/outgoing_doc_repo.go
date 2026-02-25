@@ -13,14 +13,17 @@ import (
 	"docflow/internal/models"
 )
 
+// OutgoingDocumentRepository предоставляет методы для работы с исходящими документами в БД.
 type OutgoingDocumentRepository struct {
 	db *database.DB
 }
 
+// NewOutgoingDocumentRepository создает новый экземпляр OutgoingDocumentRepository.
 func NewOutgoingDocumentRepository(db *database.DB) *OutgoingDocumentRepository {
 	return &OutgoingDocumentRepository{db: db}
 }
 
+// GetList возвращает список исходящих документов с учетом фильтрации и пагинации.
 func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error) {
 	where := []string{"1=1"}
 	args := []interface{}{}
@@ -149,6 +152,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 	}, nil
 }
 
+// GetByID возвращает исходящий документ по его ID.
 func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocument, error) {
 	var doc models.OutgoingDocument
 	err := r.db.QueryRow(`
@@ -189,6 +193,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 	return &doc, nil
 }
 
+// Create создает новый исходящий документ в базе данных.
 func (r *OutgoingDocumentRepository) Create(
 	nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy uuid.UUID,
 	outgoingNumber string, outgoingDate time.Time,
@@ -218,6 +223,7 @@ func (r *OutgoingDocumentRepository) Create(
 	return r.GetByID(id)
 }
 
+// Update обновляет данные существующего исходящего документа.
 func (r *OutgoingDocumentRepository) Update(
 	id uuid.UUID,
 	documentTypeID, senderOrgID, recipientOrgID uuid.UUID,
@@ -246,11 +252,13 @@ func (r *OutgoingDocumentRepository) Update(
 	return r.GetByID(id)
 }
 
+// Delete удаляет исходящий документ по его ID.
 func (r *OutgoingDocumentRepository) Delete(id uuid.UUID) error {
 	_, err := r.db.Exec(`DELETE FROM outgoing_documents WHERE id = $1`, id)
 	return err
 }
 
+// GetCount возвращает общее количество исходящих документов (для дашборда).
 func (r *OutgoingDocumentRepository) GetCount() (int, error) {
 	var count int
 	if err := r.db.QueryRow(`SELECT COUNT(*) FROM outgoing_documents`).Scan(&count); err != nil {

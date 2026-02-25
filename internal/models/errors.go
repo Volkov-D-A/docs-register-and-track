@@ -8,6 +8,7 @@ type AppError struct {
 	Message string `json:"message"`
 }
 
+// Error реализует интерфейс error, возвращая форматированное сообщение об ошибке.
 func (e *AppError) Error() string {
 	return fmt.Sprintf("Error %d: %s", e.Code, e.Message)
 }

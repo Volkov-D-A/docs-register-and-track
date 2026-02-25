@@ -2,6 +2,7 @@ package models
 
 import "time"
 
+// SystemSetting представляет собой системную настройку.
 type SystemSetting struct {
 	Key         string    `json:"key"`
 	Value       string    `json:"value"`

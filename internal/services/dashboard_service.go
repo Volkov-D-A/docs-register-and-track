@@ -10,15 +10,18 @@ import (
 	"docflow/internal/models"
 )
 
+// DashboardService предоставляет бизнес-логику для формирования данных дашборда.
 type DashboardService struct {
 	repo DashboardStore
 	auth *AuthService
 }
 
+// NewDashboardService создает новый экземпляр DashboardService.
 func NewDashboardService(repo DashboardStore, auth *AuthService) *DashboardService {
 	return &DashboardService{repo: repo, auth: auth}
 }
 
+// GetStats возвращает статистику для дашборда в зависимости от роли пользователя.
 func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateStr string) (*dto.DashboardStats, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated

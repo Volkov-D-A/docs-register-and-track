@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, DatePicker, App } from 'antd';
 import dayjs from 'dayjs';
 
+/**
+ * Свойства модального окна создания/редактирования поручения.
+ */
 interface AssignmentModalProps {
     open: boolean;
     onCancel: () => void;
@@ -14,6 +17,16 @@ interface AssignmentModalProps {
 
 const { TextArea } = Input;
 
+/**
+ * Модальное окно для создания и редактирования поручений.
+ * @param open Флаг открытия модального окна
+ * @param onCancel Обработчик отмены
+ * @param onSuccess Обработчик успешного создания/редактирования
+ * @param documentId Идентификатор документа
+ * @param documentType Тип документа
+ * @param initialValues Начальные значения (при редактировании)
+ * @param isEdit Флаг режима редактирования
+ */
 const AssignmentModal: React.FC<AssignmentModalProps> = ({
     open, onCancel, onSuccess, documentId, documentType, initialValues, isEdit
 }) => {

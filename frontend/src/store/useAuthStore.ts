@@ -2,12 +2,18 @@ import { create } from 'zustand';
 import { Login, Logout, ChangePassword, UpdateProfile } from '../../wailsjs/go/services/AuthService';
 import { models } from '../../wailsjs/go/models';
 
+/**
+ * Интерфейс, описывающий подразделение пользователя.
+ */
 interface Department {
     id: string;
     name: string;
     nomenclatureIds: string[];
 }
 
+/**
+ * Интерфейс, описывающий пользователя системы.
+ */
 interface User {
     id: string;
     login: string;
@@ -17,6 +23,9 @@ interface User {
     department?: Department;
 }
 
+/**
+ * Интерфейс хранилища состояния аутентификации.
+ */
 interface AuthState {
     user: User | null;
     isAuthenticated: boolean;
@@ -33,6 +42,9 @@ interface AuthState {
     setCurrentRole: (role: string) => void;
 }
 
+/**
+ * Хранилище состояния аутентификации Zustand.
+ */
 export const useAuthStore = create<AuthState>((set, get) => ({
     user: null,
     isAuthenticated: false,
@@ -100,9 +112,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             const req = new models.UpdateProfileRequest();
             req.login = login;
             req.fullName = fullName;
-            
+
             await UpdateProfile(req);
-            
+
             // Обновляем данные пользователя в store
             const { user } = get();
             if (user) {

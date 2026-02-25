@@ -9,12 +9,14 @@ import (
 
 const migrationsPath = "internal/database/migrations"
 
+// SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {
 	db          *database.DB
 	repo        SettingsStore
 	authService *AuthService
 }
 
+// NewSettingsService создает новый экземпляр SettingsService.
 func NewSettingsService(db *database.DB, repo SettingsStore, authService *AuthService) *SettingsService {
 	return &SettingsService{
 		db:          db,
@@ -23,13 +25,13 @@ func NewSettingsService(db *database.DB, repo SettingsStore, authService *AuthSe
 	}
 }
 
-// GetAll — получить все системные настройки
+// GetAll возвращает все системные настройки.
 func (s *SettingsService) GetAll() ([]models.SystemSetting, error) {
 	// Пока разрешаем чтение всем авторизованным пользователям
 	return s.repo.GetAll()
 }
 
-// Update — обновить значение настройки
+// Update обновляет значение настройки по ключу (только для администраторов).
 func (s *SettingsService) Update(key, value string) error {
 	if !s.authService.HasRole("admin") {
 		return models.ErrForbidden
@@ -63,6 +65,7 @@ func (s *SettingsService) RollbackMigration() error {
 
 // Вспомогательные методы для других сервисов
 
+// GetMaxFileSize возвращает максимальный допустимый размер файла в байтах.
 func (s *SettingsService) GetMaxFileSize() (int64, error) {
 	setting, err := s.repo.Get("max_file_size_mb")
 	if err != nil {
@@ -75,6 +78,7 @@ func (s *SettingsService) GetMaxFileSize() (int64, error) {
 	return int64(mb) * 1024 * 1024, nil
 }
 
+// GetAllowedFileTypes возвращает список разрешенных расширений файлов.
 func (s *SettingsService) GetAllowedFileTypes() ([]string, error) {
 	setting, err := s.repo.Get("allowed_file_types")
 	if err != nil {
@@ -87,6 +91,7 @@ func (s *SettingsService) GetAllowedFileTypes() ([]string, error) {
 	return types, nil
 }
 
+// GetOrganizationName возвращает название основной организации из настроек.
 func (s *SettingsService) GetOrganizationName() string {
 	setting, err := s.repo.Get("organization_name")
 	if err != nil || setting.Value == "" {

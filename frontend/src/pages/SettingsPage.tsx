@@ -8,6 +8,9 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlin
 const { Title } = Typography;
 
 // === Номенклатура ===
+/**
+ * Вкладка управления справочником номенклатуры дел.
+ */
 const NomenclatureTab: React.FC = () => {
   const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
@@ -144,6 +147,9 @@ const NomenclatureTab: React.FC = () => {
 };
 
 // === Типы документов ===
+/**
+ * Вкладка управления справочником типов документов.
+ */
 const DocumentTypesTab: React.FC = () => {
   const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
@@ -242,6 +248,9 @@ const DocumentTypesTab: React.FC = () => {
 };
 
 // === Организации ===
+/**
+ * Вкладка управления справочником организаций.
+ */
 const OrganizationsTab: React.FC = () => {
   const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
@@ -334,6 +343,9 @@ const OrganizationsTab: React.FC = () => {
 };
 
 // === Подразделения ===
+/**
+ * Вкладка управления справочником подразделений организации.
+ */
 const DepartmentsTab: React.FC = () => {
   const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
@@ -450,6 +462,9 @@ const DepartmentsTab: React.FC = () => {
 };
 
 // === Пользователи ===
+/**
+ * Вкладка управления пользователями системы (создание, роли, отделы, пароли).
+ */
 const UsersTab: React.FC = () => {
   const { message } = App.useApp();
   const [data, setData] = useState<any[]>([]);
@@ -626,6 +641,9 @@ const UsersTab: React.FC = () => {
 };
 
 // === Системные настройки ===
+/**
+ * Вкладка основных (глобальных) системных настроек.
+ */
 const SystemSettingsTab: React.FC = () => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
@@ -697,6 +715,9 @@ const SystemSettingsTab: React.FC = () => {
 };
 
 // === Миграции БД ===
+/**
+ * Вкладка управления миграциями базы данных.
+ */
 const MigrationsTab: React.FC = () => {
   const { message, modal } = App.useApp();
   const [loading, setLoading] = useState(false);
@@ -835,6 +856,10 @@ const MigrationsTab: React.FC = () => {
 };
 
 // === Основная страница ===
+/**
+ * Страница настроек системы. 
+ * Объединяет все административные справочники и системные опции во вкладках.
+ */
 const SettingsPage: React.FC = () => {
   return (
     <div>

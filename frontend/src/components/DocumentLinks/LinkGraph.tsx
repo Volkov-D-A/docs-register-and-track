@@ -17,6 +17,9 @@ import {
 import '@xyflow/react/dist/style.css';
 import { GetDocumentFlow, services } from '../../types/link';
 
+/**
+ * Свойства компонента графа связей.
+ */
 interface LinkGraphProps {
     rootId: string;
     isLocked?: boolean;
@@ -82,6 +85,9 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], rootId: string) => {
     };
 };
 
+/**
+ * Компонент отрисовки содержимого графа связей (ReactFlow).
+ */
 const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
     const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -175,6 +181,9 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
     );
 };
 
+/**
+ * Обёртка для графа связей документа, предоставляющая контекст ReactFlow.
+ */
 export const LinkGraph = (props: LinkGraphProps) => {
     return (
         <div style={{ height: '600px', border: '1px solid #eee' }}>

@@ -6,12 +6,22 @@ import { useAuthStore } from '../store/useAuthStore';
 
 const { Text } = Typography;
 
+/**
+ * Свойства компонента списка прикрепленных файлов.
+ */
 interface FileListComponentProps {
     documentId: string;
     documentType: string;
     readOnly?: boolean;
 }
 
+/**
+ * Компонент управления прикрепленными файлами.
+ * Позволяет просматривать, загружать, скачивать и удалять файлы, прикрепленные к документу.
+ * @param documentId Идентификатор документа
+ * @param documentType Тип документа
+ * @param readOnly Флаг режима только для чтения
+ */
 const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, documentType, readOnly }) => {
     const { message } = App.useApp();
     const { currentRole } = useAuthStore();

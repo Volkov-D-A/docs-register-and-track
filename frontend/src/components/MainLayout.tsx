@@ -14,12 +14,22 @@ import { useAuthStore } from '../store/useAuthStore';
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
+/**
+ * Свойства основного слоя (мэйкапа) приложения.
+ */
 interface MainLayoutProps {
     children: React.ReactNode;
     currentPage: string;
     onPageChange: (page: string) => void;
 }
 
+/**
+ * Основной макет приложения (сайдбар, шапка, контентная часть).
+ * Осуществляет навигацию и отображение инфо о пользователе.
+ * @param children Дочерние элементы (контент страницы)
+ * @param currentPage Текущая активная страница (для выделения в меню)
+ * @param onPageChange Обработчик смены страницы
+ */
 const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageChange }) => {
     const { user, logout, hasRole, currentRole } = useAuthStore();
 

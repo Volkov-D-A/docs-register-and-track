@@ -5,11 +5,19 @@ import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import AcknowledgmentModal from './AcknowledgmentModal';
 
+/**
+ * Свойства компонента AcknowledgmentList.
+ */
 interface AcknowledgmentListProps {
     documentId: string;
     documentType: 'incoming' | 'outgoing';
 }
 
+/**
+ * Компонент списка ознакомлений с документом.
+ * @param documentId Идентификатор документа
+ * @param documentType Тип документа
+ */
 const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, documentType }) => {
     const { message } = App.useApp();
     const [data, setData] = useState<any[]>([]);

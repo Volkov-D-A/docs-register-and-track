@@ -15,6 +15,10 @@ import DocumentViewModal from '../components/DocumentViewModal';
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+/**
+ * Главная страница дашборда (панель управления).
+ * Отображает статистику системы в зависимости от роли текущего пользователя.
+ */
 const DashboardPage: React.FC = () => {
     const { message } = App.useApp();
     const { user, hasRole, currentRole } = useAuthStore();

@@ -10,16 +10,18 @@ import (
 	"docflow/internal/models"
 )
 
+// NomenclatureService предоставляет бизнес-логику для работы с номенклатурой дел.
 type NomenclatureService struct {
 	repo NomenclatureStore
 	auth *AuthService
 }
 
+// NewNomenclatureService создает новый экземпляр NomenclatureService.
 func NewNomenclatureService(repo NomenclatureStore, auth *AuthService) *NomenclatureService {
 	return &NomenclatureService{repo: repo, auth: auth}
 }
 
-// GetAll — получить все дела номенклатуры
+// GetAll возвращает все дела номенклатуры за указанный год и по указанному направлению.
 func (s *NomenclatureService) GetAll(year int, direction string) ([]dto.Nomenclature, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -28,7 +30,7 @@ func (s *NomenclatureService) GetAll(year int, direction string) ([]dto.Nomencla
 	return dto.MapNomenclatures(res), err
 }
 
-// GetActiveForDirection — активные дела для выбора при регистрации
+// GetActiveForDirection возвращает активные дела для выбора при регистрации документов.
 func (s *NomenclatureService) GetActiveForDirection(direction string) ([]dto.Nomenclature, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -38,7 +40,7 @@ func (s *NomenclatureService) GetActiveForDirection(direction string) ([]dto.Nom
 	return dto.MapNomenclatures(res), err
 }
 
-// Create — создать дело номенклатуры (только admin/clerk)
+// Create создает новое дело номенклатуры (доступно только администраторам и делопроизводителям).
 func (s *NomenclatureService) Create(name, index string, year int, direction string) (*dto.Nomenclature, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, models.ErrForbidden
@@ -47,7 +49,7 @@ func (s *NomenclatureService) Create(name, index string, year int, direction str
 	return dto.MapNomenclature(res), err
 }
 
-// Update — обновить дело номенклатуры
+// Update обновляет существующее дело номенклатуры.
 func (s *NomenclatureService) Update(id string, name, index string, year int, direction string, isActive bool) (*dto.Nomenclature, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, models.ErrForbidden
@@ -60,7 +62,7 @@ func (s *NomenclatureService) Update(id string, name, index string, year int, di
 	return dto.MapNomenclature(res), err
 }
 
-// Delete — удалить дело номенклатуры
+// Delete удаляет дело номенклатуры по его ID (доступно только администраторам).
 func (s *NomenclatureService) Delete(id string) error {
 	if !s.auth.HasRole("admin") {
 		return models.ErrForbidden

@@ -5,6 +5,10 @@ import { useAuthStore } from '../store/useAuthStore';
 
 const { Title, Text } = Typography;
 
+/**
+ * Страница профиля пользователя.
+ * Позволяет просматривать информацию о профиле, редактировать данные и менять пароль.
+ */
 const ProfilePage: React.FC = () => {
     const { user, currentRole, changePassword, updateProfile, isLoading, error, clearError } = useAuthStore();
     const [profileForm] = Form.useForm();

@@ -13,14 +13,17 @@ import (
 	"docflow/internal/models"
 )
 
+// AssignmentRepository предоставляет методы для работы с поручениями в БД.
 type AssignmentRepository struct {
 	db *database.DB
 }
 
+// NewAssignmentRepository создает новый экземпляр AssignmentRepository.
 func NewAssignmentRepository(db *database.DB) *AssignmentRepository {
 	return &AssignmentRepository{db: db}
 }
 
+// Create создает новое поручение в базе данных.
 func (r *AssignmentRepository) Create(
 	documentID uuid.UUID,
 	documentType string,
@@ -84,6 +87,7 @@ func (r *AssignmentRepository) Create(
 	return r.GetByID(id)
 }
 
+// Update обновляет данные существующего поручения в БД.
 func (r *AssignmentRepository) Update(
 	id uuid.UUID,
 	executorID uuid.UUID,
@@ -143,11 +147,13 @@ func (r *AssignmentRepository) Update(
 	return r.GetByID(id)
 }
 
+// Delete удаляет поручение по его ID.
 func (r *AssignmentRepository) Delete(id uuid.UUID) error {
 	_, err := r.db.Exec("DELETE FROM assignments WHERE id = $1", id)
 	return err
 }
 
+// GetByID возвращает поручение по его ID.
 func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error) {
 	query := `
 		SELECT
@@ -236,6 +242,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	return &a, nil
 }
 
+// GetList возвращает список поручений с учетом фильтрации и пагинации.
 func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error) {
 	query := `
 		SELECT

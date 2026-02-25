@@ -15,6 +15,7 @@ import (
 	"docflow/internal/config"
 )
 
+// DB представляет собой обертку над подключением к базе данных SQL.
 type DB struct {
 	*sql.DB
 }
@@ -27,6 +28,7 @@ type MigrationStatus struct {
 	UpToDate       bool `json:"upToDate"`
 }
 
+// Connect устанавливает подключение к базе данных PostgreSQL и возвращает обертку DB.
 func Connect(cfg config.DatabaseConfig) (*DB, error) {
 	db, err := sql.Open("postgres", cfg.ConnectionString())
 	if err != nil {
@@ -40,6 +42,7 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 	return &DB{db}, nil
 }
 
+// RunMigrations применяет все доступные миграции из указанной директории к базе данных.
 func (db *DB) RunMigrations(migrationsPath string) error {
 	// Проверка наличия директории миграций
 	info, err := os.Stat(migrationsPath)

@@ -10,6 +10,9 @@ import { useAuthStore } from '../store/useAuthStore';
 
 const { Text } = Typography;
 
+/**
+ * Свойства модального окна просмотра документа.
+ */
 interface DocumentViewModalProps {
     open: boolean;
     onCancel: () => void;
@@ -17,6 +20,14 @@ interface DocumentViewModalProps {
     documentType: 'incoming' | 'outgoing';
 }
 
+/**
+ * Модальное окно просмотра деталей документа (входящего или исходящего).
+ * Содержит вкладки с информацией, файлами, связями, поручениями и листом ознакомления.
+ * @param open Флаг открытия модального окна
+ * @param onCancel Обработчик отмены/закрытия
+ * @param documentId Идентификатор документа
+ * @param documentType Тип документа
+ */
 const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, documentId, documentType }) => {
     const { message } = App.useApp();
     const { currentRole } = useAuthStore();

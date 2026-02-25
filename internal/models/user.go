@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// User представляет собой сущность пользователя системы.
 type User struct {
 	ID           uuid.UUID   `json:"-"`
 	Login        string      `json:"login"`
@@ -19,6 +20,7 @@ type User struct {
 	Department   *Department `json:"department,omitempty"`
 }
 
+// UserRole представляет собой связь пользователя с его ролью в системе.
 type UserRole struct {
 	ID        uuid.UUID `json:"-"`
 	UserID    uuid.UUID `json:"-"`
@@ -26,6 +28,7 @@ type UserRole struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// CreateUserRequest описывает полезную нагрузку для создания нового пользователя.
 type CreateUserRequest struct {
 	Login        string   `json:"login"`
 	Password     string   `json:"password"`
@@ -34,6 +37,7 @@ type CreateUserRequest struct {
 	DepartmentID string   `json:"departmentId"`
 }
 
+// UpdateUserRequest описывает полезную нагрузку для обновления данных существующего пользователя администратором.
 type UpdateUserRequest struct {
 	ID           string   `json:"id"`
 	Login        string   `json:"login"`
@@ -43,16 +47,19 @@ type UpdateUserRequest struct {
 	DepartmentID string   `json:"departmentId"`
 }
 
+// UpdateProfileRequest описывает полезную нагрузку для обновления профиля самим пользователем.
 type UpdateProfileRequest struct {
 	Login    string `json:"login"`
 	FullName string `json:"fullName"`
 }
 
+// LoginRequest описывает учетные данные пользователя для входа в систему.
 type LoginRequest struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
+// ChangePasswordRequest описывает запрос пользователя на смену пароля.
 type ChangePasswordRequest struct {
 	OldPassword string `json:"oldPassword"`
 	NewPassword string `json:"newPassword"`

@@ -6,6 +6,10 @@ import { NeedsInitialSetup, InitialSetup } from '../../wailsjs/go/services/AuthS
 
 const { Title, Text } = Typography;
 
+/**
+ * Страница авторизации и первоначальной настройки системы.
+ * Позволяет войти в систему или создать пароль администратора при первом запуске.
+ */
 const LoginPage: React.FC = () => {
     const { login, isLoading, error, clearError } = useAuthStore();
     const [form] = Form.useForm();

@@ -10,12 +10,14 @@ import (
 	"docflow/internal/models"
 )
 
+// AssignmentService предоставляет бизнес-логику для работы с поручениями.
 type AssignmentService struct {
 	repo     AssignmentStore
 	userRepo UserStore // Для валидации
 	auth     *AuthService
 }
 
+// NewAssignmentService создает новый экземпляр AssignmentService.
 func NewAssignmentService(
 	repo AssignmentStore,
 	userRepo UserStore,
@@ -184,6 +186,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	return dto.MapAssignment(res), err
 }
 
+// GetByID возвращает поручение по его ID.
 func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -196,6 +199,7 @@ func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 	return dto.MapAssignment(res), err
 }
 
+// GetList возвращает список поручений с учетом фильтрации.
 func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
@@ -219,6 +223,7 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 	}, nil
 }
 
+// Delete удаляет поручение по его ID (только для незавершенных, если не админ).
 func (s *AssignmentService) Delete(id string) error {
 	if !s.auth.IsAuthenticated() {
 		return ErrNotAuthenticated
