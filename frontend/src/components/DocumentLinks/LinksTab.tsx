@@ -257,7 +257,7 @@ export const LinksTab = ({ documentId, documentType, documentNumber }: LinksTabP
                 onCancel={() => setIsGraphVisible(false)}
                 width={1000}
                 footer={null}
-                destroyOnClose={true}
+                destroyOnHidden={true}
                 styles={{ body: { height: '600px', padding: 0 } }}
             >
                 {isGraphVisible && <LinkGraph rootId={documentId} isLocked={isLocked} />}

@@ -93,12 +93,12 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
             // Show notification with actions
             const key = `open${Date.now()}`;
             api.open({
-                message: 'Скачивание завершено',
+                title: 'Скачивание завершено',
                 description: `Файл сохранен: ${savedPath}`,
                 icon: <FileOutlined style={{ color: '#108ee9' }} />,
                 key,
                 duration: 0, // Keep open until user interacts
-                btn: (
+                actions: (
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <Button type="primary" size="small" onClick={async () => {
                             await OpenFile(savedPath);

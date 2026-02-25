@@ -801,7 +801,7 @@ const MigrationsTab: React.FC = () => {
         {loading ? (
           <Typography.Text type="secondary">Загрузка...</Typography.Text>
         ) : status ? (
-          <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <Space orientation="vertical" size="small" style={{ width: '100%' }}>
             <div>
               <Typography.Text strong>Текущая версия: </Typography.Text>
               <Typography.Text>{status.currentVersion || 0}</Typography.Text>

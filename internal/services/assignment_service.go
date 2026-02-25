@@ -141,23 +141,21 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 
 	currentUserID := s.auth.GetCurrentUserID()
 	isExecutor := existing.ExecutorID.String() == currentUserID
+
 	isAdmin := s.auth.HasRole("admin")
-
-	// Правила доступа
-	// Админ: все статусы
-	// Исполнитель: in_progress, completed
-
 	isClerk := s.auth.HasRole("clerk")
 
 	allowed := false
 	if isAdmin {
 		allowed = true
-	} else if isClerk {
+	}
+	if isClerk {
 		// Делопроизводитель может завершить или вернуть поручение только из статуса "completed"
 		if existing.Status == "completed" && (status == "finished" || status == "returned") {
 			allowed = true
 		}
-	} else if isExecutor {
+	}
+	if isExecutor {
 		if status == "in_progress" || status == "completed" {
 			allowed = true
 		}

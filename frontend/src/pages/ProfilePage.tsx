@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Typography, Space, Divider, message, Descriptions, Tag, Row, Col } from 'antd';
+import { Card, Form, Input, Button, Typography, Space, Divider, Descriptions, Tag, Row, Col, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -11,19 +11,20 @@ const { Title, Text } = Typography;
  */
 const ProfilePage: React.FC = () => {
     const { user, currentRole, changePassword, updateProfile, isLoading, error, clearError } = useAuthStore();
+    const { message } = App.useApp();
     const [profileForm] = Form.useForm();
     const [passwordForm] = Form.useForm();
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
 
     useEffect(() => {
-        if (user) {
+        if (isEditingProfile && user) {
             profileForm.setFieldsValue({
                 login: user.login,
                 fullName: user.fullName,
             });
         }
-    }, [user, profileForm]);
+    }, [isEditingProfile, user, profileForm]);
 
     useEffect(() => {
         if (error) {
@@ -69,7 +70,7 @@ const ProfilePage: React.FC = () => {
 
             <Row gutter={[24, 24]}>
                 <Col xs={24} md={12}>
-                    <Card title={<Space><UserOutlined /> Основная информация</Space>} bordered={false}>
+                    <Card title={<Space><UserOutlined /> Основная информация</Space>} variant="borderless">
                         {!isEditingProfile ? (
                             <>
                                 <Descriptions column={1} bordered size="small">
@@ -138,7 +139,7 @@ const ProfilePage: React.FC = () => {
                 </Col>
 
                 <Col xs={24} md={12}>
-                    <Card title={<Space><LockOutlined /> Безопасность</Space>} bordered={false}>
+                    <Card title={<Space><LockOutlined /> Безопасность</Space>} variant="borderless">
                         {!isChangingPassword ? (
                             <Button onClick={() => setIsChangingPassword(true)}>
                                 Изменить пароль
