@@ -8,7 +8,8 @@ import OutgoingPage from './pages/OutgoingPage';
 import AssignmentsPage from './pages/AssignmentsPage';
 import ProfilePage from './pages/ProfilePage';
 import MainLayout from './components/MainLayout';
-import { Typography } from 'antd';
+import { Typography, Modal, Button } from 'antd';
+import { CheckDBConnection, ReconnectDB } from '../wailsjs/go/services/SystemService';
 
 const { Title } = Typography;
 
@@ -17,6 +18,8 @@ const { Title } = Typography;
 function App() {
     const { isAuthenticated } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
+    const [dbConnected, setDbConnected] = useState<boolean>(true);
+    const [checkingDb, setCheckingDb] = useState<boolean>(false);
 
     // При входе в приложение всегда перенаправляем на дашборд
     useEffect(() => {
@@ -25,8 +28,62 @@ function App() {
         }
     }, [isAuthenticated]);
 
+    // Проверка базы данных при запуске
+    useEffect(() => {
+        const checkDb = async () => {
+            try {
+                const isConnected = await CheckDBConnection();
+                setDbConnected(isConnected);
+            } catch (err) {
+                console.error("DB Check failed:", err);
+                setDbConnected(false);
+            }
+        };
+        checkDb();
+    }, []);
+
+    const handleReconnect = async () => {
+        setCheckingDb(true);
+        try {
+            const isConnected = await ReconnectDB();
+            setDbConnected(isConnected);
+        } catch (err) {
+            console.error("DB Reconnect failed:", err);
+            setDbConnected(false);
+        } finally {
+            setCheckingDb(false);
+        }
+    };
+
+    const dbErrorModal = (
+        <Modal
+            title="Ошибка подключения базы данных"
+            open={!dbConnected}
+            closable={false}
+            keyboard={false}
+            maskClosable={false}
+            footer={[
+                <Button
+                    key="reconnect"
+                    type="primary"
+                    loading={checkingDb}
+                    onClick={handleReconnect}
+                >
+                    Повторное подключение
+                </Button>
+            ]}
+        >
+            <p>Соединение с базой данных недоступно. Пожалуйста, проверьте настройки базы данных и попробуйте снова.</p>
+        </Modal>
+    );
+
     if (!isAuthenticated) {
-        return <LoginPage />;
+        return (
+            <>
+                {dbErrorModal}
+                {dbConnected && <LoginPage />}
+            </>
+        );
     }
 
     const renderPage = () => {
@@ -58,9 +115,14 @@ function App() {
     };
 
     return (
-        <MainLayout currentPage={currentPage} onPageChange={setCurrentPage}>
-            {renderPage()}
-        </MainLayout>
+        <>
+            {dbErrorModal}
+            {dbConnected && (
+                <MainLayout currentPage={currentPage} onPageChange={setCurrentPage}>
+                    {renderPage()}
+                </MainLayout>
+            )}
+        </>
     );
 }
 

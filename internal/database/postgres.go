@@ -32,11 +32,13 @@ type MigrationStatus struct {
 func Connect(cfg config.DatabaseConfig) (*DB, error) {
 	db, err := sql.Open("postgres", cfg.ConnectionString())
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, fmt.Errorf("failed to open database connection pool: %w", err)
 	}
 
+	// We ping the database but do not return an error if it fails.
+	// This allows the application to start and show a reconnect UI.
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		fmt.Printf("Warning: Failed to ping database on startup: %v\n", err)
 	}
 
 	return &DB{db}, nil

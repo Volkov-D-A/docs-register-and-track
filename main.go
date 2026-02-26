@@ -28,7 +28,7 @@ func main() {
 	// Подключение к БД
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Printf("Warning: Failed to establish database connection pool: %v", err)
 	}
 
 	// Создание репозиториев
@@ -59,6 +59,7 @@ func main() {
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService)
+	systemService := services.NewSystemService(db)
 
 	// Запуск приложения Wails
 	err = wails.Run(&options.App{
@@ -88,6 +89,7 @@ func main() {
 			attachmentService,
 			linkService,
 			acknowledgmentService,
+			systemService,
 		},
 	})
 
