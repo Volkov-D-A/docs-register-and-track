@@ -18,7 +18,10 @@ const { Title } = Typography;
 function App() {
     const { isAuthenticated } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
+
+    // Состояние подключения к базе данных
     const [dbConnected, setDbConnected] = useState<boolean>(true);
+    // Флаг загрузки при попытке переподключения к БД
     const [checkingDb, setCheckingDb] = useState<boolean>(false);
 
     // При входе в приложение всегда перенаправляем на дашборд
@@ -42,6 +45,7 @@ function App() {
         checkDb();
     }, []);
 
+    // Обработчик кнопки переподключения к базе данных
     const handleReconnect = async () => {
         setCheckingDb(true);
         try {
@@ -55,6 +59,8 @@ function App() {
         }
     };
 
+    // Компонент модального окна для отображения ошибки подключения к БД.
+    // Окно блокирует дальнейшее взаимодействие с интерфейсом до успешного подключения.
     const dbErrorModal = (
         <Modal
             title="Ошибка подключения базы данных"

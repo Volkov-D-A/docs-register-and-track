@@ -6,7 +6,7 @@ import (
 	"docflow/internal/database"
 )
 
-// SystemService предоставляет системные методы дляフロントенда (проверка БД и др.).
+// SystemService предоставляет системные методы для фронтенда (проверка БД и др.).
 type SystemService struct {
 	ctx context.Context
 	db  *database.DB
