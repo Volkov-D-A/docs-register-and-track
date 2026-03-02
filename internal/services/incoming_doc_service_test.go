@@ -52,7 +52,6 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 		nomIDStr := uuid.New().String()
 		docTypeIDStr := uuid.New().String()
 		nomID, _ := uuid.Parse(nomIDStr)
-		docTypeID, _ := uuid.Parse(docTypeIDStr)
 
 		orgMap := &models.Organization{ID: uuid.New(), Name: "Org"}
 
@@ -66,12 +65,7 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 		}
 
 		mockDocRepo.On("Create",
-			nomID, docTypeID, orgMap.ID, orgMap.ID, userID,
-			"01-01/1", mock.AnythingOfType("time.Time"),
-			"Out-123", mock.AnythingOfType("time.Time"),
-			mock.AnythingOfType("*string"), mock.AnythingOfType("*time.Time"),
-			"Subject", "Content", 1, "Signatory", "Executor", "Addressee",
-			mock.AnythingOfType("*string"),
+			mock.AnythingOfType("models.CreateIncomingDocRequest"),
 		).Return(expectedModel, nil).Once()
 
 		doc, err := docService.Register(

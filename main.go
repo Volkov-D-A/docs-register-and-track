@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -30,8 +31,14 @@ func main() {
 		if err != nil {
 			log.Fatalf("Ошибка шифрования: %v", err)
 		}
-		fmt.Println("Зашифрованный пароль для config.json:")
-		fmt.Println(encrypted)
+		// Wails собирается как GUI-приложение (без консоли), поэтому
+		// записываем результат в файл рядом с исполняемым файлом.
+		outputFile := "encrypted_password.txt"
+		content := fmt.Sprintf("Зашифрованный пароль для поля \"password\" в config.json:\n\n%s\n", encrypted)
+		if err := os.WriteFile(outputFile, []byte(content), 0600); err != nil {
+			log.Fatalf("Ошибка записи файла: %v", err)
+		}
+		log.Printf("Результат записан в файл: %s", outputFile)
 		return
 	}
 

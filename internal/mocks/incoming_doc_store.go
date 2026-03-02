@@ -7,8 +7,6 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
-	time "time"
-
 	uuid "github.com/google/uuid"
 )
 
@@ -17,9 +15,9 @@ type IncomingDocStore struct {
 	mock.Mock
 }
 
-// Create предоставляет мок-функцию с заданными полями: nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy, incomingNumber, incomingDate, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution
-func (_m *IncomingDocStore) Create(nomenclatureID uuid.UUID, documentTypeID uuid.UUID, senderOrgID uuid.UUID, recipientOrgID uuid.UUID, createdBy uuid.UUID, incomingNumber string, incomingDate time.Time, outgoingNumberSender string, outgoingDateSender time.Time, intermediateNumber *string, intermediateDate *time.Time, subject string, content string, pagesCount int, senderSignatory string, senderExecutor string, addressee string, resolution *string) (*models.IncomingDocument, error) {
-	ret := _m.Called(nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy, incomingNumber, incomingDate, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution)
+// Create предоставляет мок-функцию с заданными полями: req
+func (_m *IncomingDocStore) Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error) {
+	ret := _m.Called(req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -27,19 +25,19 @@ func (_m *IncomingDocStore) Create(nomenclatureID uuid.UUID, documentTypeID uuid
 
 	var r0 *models.IncomingDocument
 	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, time.Time, string, time.Time, *string, *time.Time, string, string, int, string, string, string, *string) (*models.IncomingDocument, error)); ok {
-		return rf(nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy, incomingNumber, incomingDate, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution)
+	if rf, ok := ret.Get(0).(func(models.CreateIncomingDocRequest) (*models.IncomingDocument, error)); ok {
+		return rf(req)
 	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, time.Time, string, time.Time, *string, *time.Time, string, string, int, string, string, string, *string) *models.IncomingDocument); ok {
-		r0 = rf(nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy, incomingNumber, incomingDate, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution)
+	if rf, ok := ret.Get(0).(func(models.CreateIncomingDocRequest) *models.IncomingDocument); ok {
+		r0 = rf(req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.IncomingDocument)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, time.Time, string, time.Time, *string, *time.Time, string, string, int, string, string, string, *string) error); ok {
-		r1 = rf(nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy, incomingNumber, incomingDate, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution)
+	if rf, ok := ret.Get(1).(func(models.CreateIncomingDocRequest) error); ok {
+		r1 = rf(req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -153,9 +151,9 @@ func (_m *IncomingDocStore) GetList(filter models.DocumentFilter) (*models.Paged
 	return r0, r1
 }
 
-// Update предоставляет мок-функцию с заданными полями: id, documentTypeID, senderOrgID, recipientOrgID, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution
-func (_m *IncomingDocStore) Update(id uuid.UUID, documentTypeID uuid.UUID, senderOrgID uuid.UUID, recipientOrgID uuid.UUID, outgoingNumberSender string, outgoingDateSender time.Time, intermediateNumber *string, intermediateDate *time.Time, subject string, content string, pagesCount int, senderSignatory string, senderExecutor string, addressee string, resolution *string) (*models.IncomingDocument, error) {
-	ret := _m.Called(id, documentTypeID, senderOrgID, recipientOrgID, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution)
+// Update предоставляет мок-функцию с заданными полями: req
+func (_m *IncomingDocStore) Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error) {
+	ret := _m.Called(req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Update")
@@ -163,19 +161,19 @@ func (_m *IncomingDocStore) Update(id uuid.UUID, documentTypeID uuid.UUID, sende
 
 	var r0 *models.IncomingDocument
 	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, time.Time, *string, *time.Time, string, string, int, string, string, string, *string) (*models.IncomingDocument, error)); ok {
-		return rf(id, documentTypeID, senderOrgID, recipientOrgID, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution)
+	if rf, ok := ret.Get(0).(func(models.UpdateIncomingDocRequest) (*models.IncomingDocument, error)); ok {
+		return rf(req)
 	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, time.Time, *string, *time.Time, string, string, int, string, string, string, *string) *models.IncomingDocument); ok {
-		r0 = rf(id, documentTypeID, senderOrgID, recipientOrgID, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution)
+	if rf, ok := ret.Get(0).(func(models.UpdateIncomingDocRequest) *models.IncomingDocument); ok {
+		r0 = rf(req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.IncomingDocument)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, time.Time, *string, *time.Time, string, string, int, string, string, string, *string) error); ok {
-		r1 = rf(id, documentTypeID, senderOrgID, recipientOrgID, outgoingNumberSender, outgoingDateSender, intermediateNumber, intermediateDate, subject, content, pagesCount, senderSignatory, senderExecutor, addressee, resolution)
+	if rf, ok := ret.Get(1).(func(models.UpdateIncomingDocRequest) error); ok {
+		r1 = rf(req)
 	} else {
 		r1 = ret.Error(1)
 	}

@@ -27,24 +27,8 @@ type UserStore interface {
 type IncomingDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error)
 	GetByID(id uuid.UUID) (*models.IncomingDocument, error)
-	Create(
-		nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy uuid.UUID,
-		incomingNumber string, incomingDate time.Time,
-		outgoingNumberSender string, outgoingDateSender time.Time,
-		intermediateNumber *string, intermediateDate *time.Time,
-		subject, content string, pagesCount int,
-		senderSignatory, senderExecutor, addressee string,
-		resolution *string,
-	) (*models.IncomingDocument, error)
-	Update(
-		id uuid.UUID,
-		documentTypeID, senderOrgID, recipientOrgID uuid.UUID,
-		outgoingNumberSender string, outgoingDateSender time.Time,
-		intermediateNumber *string, intermediateDate *time.Time,
-		subject, content string, pagesCount int,
-		senderSignatory, senderExecutor, addressee string,
-		resolution *string,
-	) (*models.IncomingDocument, error)
+	Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error)
+	Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error)
 	Delete(id uuid.UUID) error
 	GetCount() (int, error)
 }
@@ -53,19 +37,8 @@ type IncomingDocStore interface {
 type OutgoingDocStore interface {
 	GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error)
 	GetByID(id uuid.UUID) (*models.OutgoingDocument, error)
-	Create(
-		nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy uuid.UUID,
-		outgoingNumber string, outgoingDate time.Time,
-		subject, content string, pagesCount int,
-		senderSignatory, senderExecutor, addressee string,
-	) (*models.OutgoingDocument, error)
-	Update(
-		id uuid.UUID,
-		documentTypeID, senderOrgID, recipientOrgID uuid.UUID,
-		outgoingDate time.Time,
-		subject, content string, pagesCount int,
-		senderSignatory, senderExecutor, addressee string,
-	) (*models.OutgoingDocument, error)
+	Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error)
+	Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error)
 	Delete(id uuid.UUID) error
 	GetCount() (int, error)
 }

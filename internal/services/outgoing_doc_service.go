@@ -98,12 +98,21 @@ func (s *OutgoingDocumentService) Register(
 		return nil, ErrNotAuthenticated
 	}
 
-	res, err := s.repo.Create(
-		nomID, docTypeID, senderOrg.ID, recipientOrg.ID, createdBy,
-		outgoingNumber, outDate,
-		subject, content, pagesCount,
-		senderSignatory, senderExecutor, addressee,
-	)
+	res, err := s.repo.Create(models.CreateOutgoingDocRequest{
+		NomenclatureID:  nomID,
+		DocumentTypeID:  docTypeID,
+		SenderOrgID:     senderOrg.ID,
+		RecipientOrgID:  recipientOrg.ID,
+		CreatedBy:       createdBy,
+		OutgoingNumber:  outgoingNumber,
+		OutgoingDate:    outDate,
+		Subject:         subject,
+		Content:         content,
+		PagesCount:      pagesCount,
+		SenderSignatory: senderSignatory,
+		SenderExecutor:  senderExecutor,
+		Addressee:       addressee,
+	})
 	return dto.MapOutgoingDocument(res), err
 }
 
@@ -143,13 +152,19 @@ func (s *OutgoingDocumentService) Update(
 		return nil, models.NewBadRequest("неверный формат даты исходящего документа")
 	}
 
-	res, err := s.repo.Update(
-		uid,
-		docTypeID, senderOrg.ID, recipientOrg.ID,
-		outDate,
-		subject, content, pagesCount,
-		senderSignatory, senderExecutor, addressee,
-	)
+	res, err := s.repo.Update(models.UpdateOutgoingDocRequest{
+		ID:              uid,
+		DocumentTypeID:  docTypeID,
+		SenderOrgID:     senderOrg.ID,
+		RecipientOrgID:  recipientOrg.ID,
+		OutgoingDate:    outDate,
+		Subject:         subject,
+		Content:         content,
+		PagesCount:      pagesCount,
+		SenderSignatory: senderSignatory,
+		SenderExecutor:  senderExecutor,
+		Addressee:       addressee,
+	})
 	return dto.MapOutgoingDocument(res), err
 }
 

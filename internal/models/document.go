@@ -172,3 +172,76 @@ type GraphData struct {
 	Nodes []GraphNode `json:"nodes"`
 	Edges []GraphEdge `json:"edges"`
 }
+
+// CreateIncomingDocRequest — запрос на создание входящего документа (уровень репозитория).
+type CreateIncomingDocRequest struct {
+	NomenclatureID       uuid.UUID
+	DocumentTypeID       uuid.UUID
+	SenderOrgID          uuid.UUID
+	RecipientOrgID       uuid.UUID
+	CreatedBy            uuid.UUID
+	IncomingNumber       string
+	IncomingDate         time.Time
+	OutgoingNumberSender string
+	OutgoingDateSender   time.Time
+	IntermediateNumber   *string
+	IntermediateDate     *time.Time
+	Subject              string
+	Content              string
+	PagesCount           int
+	SenderSignatory      string
+	SenderExecutor       string
+	Addressee            string
+	Resolution           *string
+}
+
+// UpdateIncomingDocRequest — запрос на обновление входящего документа (уровень репозитория).
+type UpdateIncomingDocRequest struct {
+	ID                   uuid.UUID
+	DocumentTypeID       uuid.UUID
+	SenderOrgID          uuid.UUID
+	RecipientOrgID       uuid.UUID
+	OutgoingNumberSender string
+	OutgoingDateSender   time.Time
+	IntermediateNumber   *string
+	IntermediateDate     *time.Time
+	Subject              string
+	Content              string
+	PagesCount           int
+	SenderSignatory      string
+	SenderExecutor       string
+	Addressee            string
+	Resolution           *string
+}
+
+// CreateOutgoingDocRequest — запрос на создание исходящего документа (уровень репозитория).
+type CreateOutgoingDocRequest struct {
+	NomenclatureID  uuid.UUID
+	DocumentTypeID  uuid.UUID
+	SenderOrgID     uuid.UUID
+	RecipientOrgID  uuid.UUID
+	CreatedBy       uuid.UUID
+	OutgoingNumber  string
+	OutgoingDate    time.Time
+	Subject         string
+	Content         string
+	PagesCount      int
+	SenderSignatory string
+	SenderExecutor  string
+	Addressee       string
+}
+
+// UpdateOutgoingDocRequest — запрос на обновление исходящего документа (уровень репозитория).
+type UpdateOutgoingDocRequest struct {
+	ID              uuid.UUID
+	DocumentTypeID  uuid.UUID
+	SenderOrgID     uuid.UUID
+	RecipientOrgID  uuid.UUID
+	OutgoingDate    time.Time
+	Subject         string
+	Content         string
+	PagesCount      int
+	SenderSignatory string
+	SenderExecutor  string
+	Addressee       string
+}

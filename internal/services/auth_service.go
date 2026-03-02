@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 
 	"docflow/internal/database"
@@ -93,17 +94,25 @@ func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 	return dto.MapUser(s.currentUser), nil
 }
 
+// getCurrentUserID возвращает ID текущего пользователя, безопасно копируя его под блокировкой.
+// Возвращает uuid.Nil и ошибку, если пользователь не авторизован.
+func (s *AuthService) getCurrentUserIDSafe() (uuid.UUID, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.currentUser == nil {
+		return uuid.Nil, ErrNotAuthenticated
+	}
+	return s.currentUser.ID, nil
+}
+
 // ChangePassword — смена пароля
 func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
-	s.mu.RLock()
-	user := s.currentUser
-	s.mu.RUnlock()
-
-	if user == nil {
-		return ErrNotAuthenticated
+	userID, err := s.getCurrentUserIDSafe()
+	if err != nil {
+		return err
 	}
 
-	dbUser, err := s.userRepo.GetByID(user.ID)
+	dbUser, err := s.userRepo.GetByID(userID)
 	if err != nil {
 		return err
 	}
@@ -121,24 +130,21 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 		return err
 	}
 
-	return s.userRepo.UpdatePassword(user.ID, newHash)
+	return s.userRepo.UpdatePassword(userID, newHash)
 }
 
 // UpdateProfile — обновление профиля текущего пользователя
 func (s *AuthService) UpdateProfile(req models.UpdateProfileRequest) error {
-	s.mu.RLock()
-	user := s.currentUser
-	s.mu.RUnlock()
-
-	if user == nil {
-		return ErrNotAuthenticated
-	}
-
-	if err := s.userRepo.UpdateProfile(user.ID, req); err != nil {
+	userID, err := s.getCurrentUserIDSafe()
+	if err != nil {
 		return err
 	}
 
-	updatedUser, err := s.userRepo.GetByID(user.ID)
+	if err := s.userRepo.UpdateProfile(userID, req); err != nil {
+		return err
+	}
+
+	updatedUser, err := s.userRepo.GetByID(userID)
 	if err != nil {
 		return err
 	}

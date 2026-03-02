@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -194,12 +193,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 }
 
 // Create создает новый исходящий документ в базе данных.
-func (r *OutgoingDocumentRepository) Create(
-	nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy uuid.UUID,
-	outgoingNumber string, outgoingDate time.Time,
-	subject, content string, pagesCount int,
-	senderSignatory, senderExecutor, addressee string,
-) (*models.OutgoingDocument, error) {
+func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error) {
 	var id uuid.UUID
 	err := r.db.QueryRow(`
 		INSERT INTO outgoing_documents (
@@ -210,10 +204,10 @@ func (r *OutgoingDocumentRepository) Create(
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 		RETURNING id
 	`,
-		nomenclatureID, outgoingNumber, outgoingDate,
-		documentTypeID, subject, pagesCount, content,
-		senderOrgID, senderSignatory, senderExecutor,
-		recipientOrgID, addressee, createdBy,
+		req.NomenclatureID, req.OutgoingNumber, req.OutgoingDate,
+		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.RecipientOrgID, req.Addressee, req.CreatedBy,
 	).Scan(&id)
 
 	if err != nil {
@@ -224,13 +218,7 @@ func (r *OutgoingDocumentRepository) Create(
 }
 
 // Update обновляет данные существующего исходящего документа.
-func (r *OutgoingDocumentRepository) Update(
-	id uuid.UUID,
-	documentTypeID, senderOrgID, recipientOrgID uuid.UUID,
-	outgoingDate time.Time,
-	subject, content string, pagesCount int,
-	senderSignatory, senderExecutor, addressee string,
-) (*models.OutgoingDocument, error) {
+func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error) {
 	_, err := r.db.Exec(`
 		UPDATE outgoing_documents SET
 			document_type_id = $1, subject = $2, pages_count = $3, content = $4,
@@ -239,17 +227,17 @@ func (r *OutgoingDocumentRepository) Update(
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = $11
 	`,
-		documentTypeID, subject, pagesCount, content,
-		senderOrgID, senderSignatory, senderExecutor,
-		recipientOrgID, addressee, outgoingDate,
-		id,
+		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.RecipientOrgID, req.Addressee, req.OutgoingDate,
+		req.ID,
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update outgoing document: %w", err)
 	}
 
-	return r.GetByID(id)
+	return r.GetByID(req.ID)
 }
 
 // Delete удаляет исходящий документ по его ID.

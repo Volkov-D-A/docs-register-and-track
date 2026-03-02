@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -205,15 +204,7 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 }
 
 // Create создает новый входящий документ в базе данных.
-func (r *IncomingDocumentRepository) Create(
-	nomenclatureID, documentTypeID, senderOrgID, recipientOrgID, createdBy uuid.UUID,
-	incomingNumber string, incomingDate time.Time,
-	outgoingNumberSender string, outgoingDateSender time.Time,
-	intermediateNumber *string, intermediateDate *time.Time,
-	subject, content string, pagesCount int,
-	senderSignatory, senderExecutor, addressee string,
-	resolution *string,
-) (*models.IncomingDocument, error) {
+func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error) {
 	var id uuid.UUID
 	err := r.db.QueryRow(`
 		INSERT INTO incoming_documents (
@@ -226,12 +217,12 @@ func (r *IncomingDocumentRepository) Create(
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 		RETURNING id
 	`,
-		nomenclatureID, incomingNumber, incomingDate,
-		outgoingNumberSender, outgoingDateSender,
-		intermediateNumber, intermediateDate,
-		documentTypeID, subject, pagesCount, content,
-		senderOrgID, senderSignatory, senderExecutor,
-		recipientOrgID, addressee, resolution, createdBy,
+		req.NomenclatureID, req.IncomingNumber, req.IncomingDate,
+		req.OutgoingNumberSender, req.OutgoingDateSender,
+		req.IntermediateNumber, req.IntermediateDate,
+		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.RecipientOrgID, req.Addressee, req.Resolution, req.CreatedBy,
 	).Scan(&id)
 
 	if err != nil {
@@ -242,15 +233,7 @@ func (r *IncomingDocumentRepository) Create(
 }
 
 // Update обновляет данные существующего входящего документа.
-func (r *IncomingDocumentRepository) Update(
-	id uuid.UUID,
-	documentTypeID, senderOrgID, recipientOrgID uuid.UUID,
-	outgoingNumberSender string, outgoingDateSender time.Time,
-	intermediateNumber *string, intermediateDate *time.Time,
-	subject, content string, pagesCount int,
-	senderSignatory, senderExecutor, addressee string,
-	resolution *string,
-) (*models.IncomingDocument, error) {
+func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error) {
 	_, err := r.db.Exec(`
 		UPDATE incoming_documents SET
 			outgoing_number_sender = $1, outgoing_date_sender = $2,
@@ -261,19 +244,19 @@ func (r *IncomingDocumentRepository) Update(
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = $15
 	`,
-		outgoingNumberSender, outgoingDateSender,
-		intermediateNumber, intermediateDate,
-		documentTypeID, subject, pagesCount, content,
-		senderOrgID, senderSignatory, senderExecutor,
-		recipientOrgID, addressee, resolution,
-		id,
+		req.OutgoingNumberSender, req.OutgoingDateSender,
+		req.IntermediateNumber, req.IntermediateDate,
+		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.RecipientOrgID, req.Addressee, req.Resolution,
+		req.ID,
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update incoming document: %w", err)
 	}
 
-	return r.GetByID(id)
+	return r.GetByID(req.ID)
 }
 
 // Delete удаляет входящий документ по его ID.

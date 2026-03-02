@@ -170,15 +170,26 @@ func (s *IncomingDocumentService) Register(
 		return nil, ErrNotAuthenticated
 	}
 
-	res, err := s.repo.Create(
-		nomID, docTypeID, senderOrg.ID, recipientOrg.ID, createdBy,
-		incomingNumberStr, incDate,
-		outgoingNumberSender, outDate,
-		intNumPtr, intDatePtr,
-		subject, content, pagesCount,
-		senderSignatory, senderExecutor, addressee,
-		resPtr,
-	)
+	res, err := s.repo.Create(models.CreateIncomingDocRequest{
+		NomenclatureID:       nomID,
+		DocumentTypeID:       docTypeID,
+		SenderOrgID:          senderOrg.ID,
+		RecipientOrgID:       recipientOrg.ID,
+		CreatedBy:            createdBy,
+		IncomingNumber:       incomingNumberStr,
+		IncomingDate:         incDate,
+		OutgoingNumberSender: outgoingNumberSender,
+		OutgoingDateSender:   outDate,
+		IntermediateNumber:   intNumPtr,
+		IntermediateDate:     intDatePtr,
+		Subject:              subject,
+		Content:              content,
+		PagesCount:           pagesCount,
+		SenderSignatory:      senderSignatory,
+		SenderExecutor:       senderExecutor,
+		Addressee:            addressee,
+		Resolution:           resPtr,
+	})
 	return dto.MapIncomingDocument(res), err
 }
 
@@ -237,15 +248,23 @@ func (s *IncomingDocumentService) Update(
 		resPtr = &resolution
 	}
 
-	res, err := s.repo.Update(
-		uid,
-		docTypeID, senderOrg.ID, recipientOrg.ID,
-		outgoingNumberSender, outDate,
-		intNumPtr, intDatePtr,
-		subject, content, pagesCount,
-		senderSignatory, senderExecutor, addressee,
-		resPtr,
-	)
+	res, err := s.repo.Update(models.UpdateIncomingDocRequest{
+		ID:                   uid,
+		DocumentTypeID:       docTypeID,
+		SenderOrgID:          senderOrg.ID,
+		RecipientOrgID:       recipientOrg.ID,
+		OutgoingNumberSender: outgoingNumberSender,
+		OutgoingDateSender:   outDate,
+		IntermediateNumber:   intNumPtr,
+		IntermediateDate:     intDatePtr,
+		Subject:              subject,
+		Content:              content,
+		PagesCount:           pagesCount,
+		SenderSignatory:      senderSignatory,
+		SenderExecutor:       senderExecutor,
+		Addressee:            addressee,
+		Resolution:           resPtr,
+	})
 	return dto.MapIncomingDocument(res), err
 }
 
