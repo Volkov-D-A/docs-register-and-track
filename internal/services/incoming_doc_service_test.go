@@ -97,3 +97,79 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 		authService.Logout()
 	})
 }
+
+func setupIncomingDocService(t *testing.T, role string) (
+	*IncomingDocumentService, *mocks.IncomingDocStore, *mocks.NomenclatureStore, *mocks.ReferenceStore, *mocks.DepartmentStore,
+) {
+	t.Helper()
+	docRepo := mocks.NewIncomingDocStore(t)
+	nomRepo := mocks.NewNomenclatureStore(t)
+	refRepo := mocks.NewReferenceStore(t)
+	depRepo := mocks.NewDepartmentStore(t)
+	userRepo := mocks.NewUserStore(t)
+	auth := NewAuthService(nil, userRepo)
+
+	password := "Passw0rd!"
+	hash, _ := security.HashPassword(password)
+	user := &models.User{
+		ID:           uuid.New(),
+		Login:        role + "_inc",
+		PasswordHash: hash,
+		IsActive:     true,
+		Roles:        []string{role},
+	}
+	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+	auth.Login(user.Login, password)
+
+	svc := NewIncomingDocumentService(docRepo, nomRepo, refRepo, depRepo, auth)
+	return svc, docRepo, nomRepo, refRepo, depRepo
+}
+
+func TestIncomingDocumentService_GetByID(t *testing.T) {
+	docID := uuid.New()
+
+	t.Run("success", func(t *testing.T) {
+		svc, repo, _, _, _ := setupIncomingDocService(t, "executor")
+		repo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, Subject: "Тема"}, nil).Once()
+		result, err := svc.GetByID(docID.String())
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, docID.String(), result.ID)
+	})
+
+	t.Run("invalid ID", func(t *testing.T) {
+		svc, _, _, _, _ := setupIncomingDocService(t, "executor")
+		result, err := svc.GetByID("not-uuid")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ID")
+		assert.Nil(t, result)
+	})
+}
+
+func TestIncomingDocumentService_Delete(t *testing.T) {
+	docID := uuid.New()
+
+	t.Run("success admin", func(t *testing.T) {
+		svc, repo, _, _, _ := setupIncomingDocService(t, "admin")
+		repo.On("Delete", docID).Return(nil).Once()
+		err := svc.Delete(docID.String())
+		require.NoError(t, err)
+	})
+
+	t.Run("forbidden clerk", func(t *testing.T) {
+		svc, _, _, _, _ := setupIncomingDocService(t, "clerk")
+		err := svc.Delete(docID.String())
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+	})
+}
+
+func TestIncomingDocumentService_GetCount(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		svc, repo, _, _, _ := setupIncomingDocService(t, "executor")
+		repo.On("GetCount").Return(15, nil).Once()
+		count, err := svc.GetCount()
+		require.NoError(t, err)
+		assert.Equal(t, 15, count)
+	})
+}

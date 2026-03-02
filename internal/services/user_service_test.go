@@ -71,3 +71,95 @@ func TestUserService_GetAllUsers(t *testing.T) {
 		assert.Nil(t, users)
 	})
 }
+
+func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore) {
+	t.Helper()
+	mockRepo := mocks.NewUserStore(t)
+	authRepo := mocks.NewUserStore(t)
+	auth := NewAuthService(nil, authRepo)
+
+	password := "Passw0rd!"
+	hash, _ := security.HashPassword(password)
+	user := &models.User{
+		ID:           uuid.New(),
+		Login:        role + "_usr",
+		PasswordHash: hash,
+		IsActive:     true,
+		Roles:        []string{role},
+	}
+	authRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+	auth.Login(user.Login, password)
+
+	return NewUserService(mockRepo, auth), mockRepo
+}
+
+func TestUserService_CreateUser(t *testing.T) {
+	t.Run("success admin", func(t *testing.T) {
+		svc, repo := setupUserService(t, "admin")
+		req := models.CreateUserRequest{Login: "newuser", Password: "Pass1234!", FullName: "New User", Roles: []string{"executor"}}
+		repo.On("Create", req).Return(&models.User{ID: uuid.New(), Login: "newuser"}, nil).Once()
+		result, err := svc.CreateUser(req)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+	})
+
+	t.Run("forbidden clerk", func(t *testing.T) {
+		svc, _ := setupUserService(t, "clerk")
+		result, err := svc.CreateUser(models.CreateUserRequest{})
+		require.Error(t, err)
+		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestUserService_UpdateUser(t *testing.T) {
+	t.Run("success admin", func(t *testing.T) {
+		svc, repo := setupUserService(t, "admin")
+		uid := uuid.New()
+		req := models.UpdateUserRequest{ID: uid.String(), FullName: "Updated", Roles: []string{"executor"}, IsActive: true}
+		repo.On("Update", req).Return(&models.User{ID: uid, FullName: "Updated"}, nil).Once()
+		result, err := svc.UpdateUser(req)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+	})
+
+	t.Run("forbidden executor", func(t *testing.T) {
+		svc, _ := setupUserService(t, "executor")
+		result, err := svc.UpdateUser(models.UpdateUserRequest{})
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestUserService_ResetPassword(t *testing.T) {
+	uid := uuid.New()
+
+	t.Run("success admin", func(t *testing.T) {
+		svc, repo := setupUserService(t, "admin")
+		repo.On("ResetPassword", uid, "NewPass123!").Return(nil).Once()
+		err := svc.ResetPassword(uid.String(), "NewPass123!")
+		require.NoError(t, err)
+	})
+
+	t.Run("forbidden executor", func(t *testing.T) {
+		svc, _ := setupUserService(t, "executor")
+		err := svc.ResetPassword(uid.String(), "NewPass123!")
+		require.Error(t, err)
+	})
+
+	t.Run("invalid ID", func(t *testing.T) {
+		svc, _ := setupUserService(t, "admin")
+		err := svc.ResetPassword("not-uuid", "NewPass123!")
+		require.Error(t, err)
+	})
+}
+
+func TestUserService_GetExecutors(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		svc, repo := setupUserService(t, "executor")
+		repo.On("GetExecutors").Return([]models.User{{ID: uuid.New()}}, nil).Once()
+		result, err := svc.GetExecutors()
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+	})
+}

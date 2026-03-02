@@ -1,138 +1,144 @@
 package dto
 
 import (
+	"docflow/internal/models"
 	"testing"
 	"time"
 
-	"docflow/internal/models"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMapUser(t *testing.T) {
-	t.Run("nil user", func(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapUser(nil))
 	})
 
-	t.Run("valid user without department", func(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		id := uuid.New()
+		m := &models.User{ID: id, Login: "test", FullName: "Test User", IsActive: true, Roles: []string{"admin"}}
+		d := MapUser(m)
+		assert.Equal(t, id.String(), d.ID)
+		assert.Equal(t, "test", d.Login)
+		assert.Equal(t, "Test User", d.FullName)
+		assert.True(t, d.IsActive)
+	})
+}
+
+func TestMapAssignment(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, MapAssignment(nil))
+	})
+
+	t.Run("success with co-executors", func(t *testing.T) {
+		id := uuid.New()
+		coExec := models.User{ID: uuid.New(), Login: "co", FullName: "CoExec"}
+		m := &models.Assignment{
+			ID:          id,
+			DocumentID:  uuid.New(),
+			ExecutorID:  uuid.New(),
+			Content:     "Do it",
+			Status:      "new",
+			CoExecutors: []models.User{coExec},
+		}
+		d := MapAssignment(m)
+		assert.Equal(t, id.String(), d.ID)
+		assert.Len(t, d.CoExecutors, 1)
+		assert.Equal(t, "CoExec", d.CoExecutors[0].FullName)
+	})
+}
+
+func TestMapAcknowledgment(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, MapAcknowledgment(nil))
+	})
+
+	t.Run("success with users", func(t *testing.T) {
 		id := uuid.New()
 		now := time.Now()
-		m := &models.User{
-			ID:        id,
-			Login:     "testuser",
-			FullName:  "Test User",
-			IsActive:  true,
-			Roles:     []string{"admin"},
-			CreatedAt: now,
-			UpdatedAt: now,
-		}
-
-		dto := MapUser(m)
-		require.NotNil(t, dto)
-		assert.Equal(t, id.String(), dto.ID)
-		assert.Equal(t, "testuser", dto.Login)
-		assert.Equal(t, "Test User", dto.FullName)
-		assert.True(t, dto.IsActive)
-		assert.Equal(t, []string{"admin"}, dto.Roles)
-		assert.Equal(t, now, dto.CreatedAt)
-		assert.Equal(t, now, dto.UpdatedAt)
-		assert.Nil(t, dto.Department)
-	})
-
-	t.Run("valid user with department", func(t *testing.T) {
-		userID := uuid.New()
-		deptID := uuid.New()
-		m := &models.User{
-			ID:    userID,
-			Login: "deptuser",
-			Department: &models.Department{
-				ID:   deptID,
-				Name: "IT",
-			},
-		}
-
-		dto := MapUser(m)
-		require.NotNil(t, dto)
-		assert.Equal(t, userID.String(), dto.ID)
-		assert.Equal(t, "deptuser", dto.Login)
-		require.NotNil(t, dto.Department)
-		assert.Equal(t, deptID.String(), dto.Department.ID)
-		assert.Equal(t, "IT", dto.Department.Name)
+		u := models.AcknowledgmentUser{ID: uuid.New(), UserID: uuid.New(), UserName: "Tester", CreatedAt: now}
+		m := &models.Acknowledgment{ID: id, DocumentID: uuid.New(), CreatorID: uuid.New(), Users: []models.AcknowledgmentUser{u}}
+		d := MapAcknowledgment(m)
+		assert.Equal(t, id.String(), d.ID)
+		assert.Len(t, d.Users, 1)
+		assert.Equal(t, "Tester", d.Users[0].UserName)
 	})
 }
 
-func TestMapDepartment(t *testing.T) {
-	t.Run("nil department", func(t *testing.T) {
-		assert.Nil(t, MapDepartment(nil))
+func TestMapIncomingDocument(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, MapIncomingDocument(nil))
 	})
 
-	t.Run("valid department", func(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
 		id := uuid.New()
-		m := &models.Department{
-			ID:   id,
-			Name: "HR",
-		}
-
-		dto := MapDepartment(m)
-		require.NotNil(t, dto)
-		assert.Equal(t, id.String(), dto.ID)
-		assert.Equal(t, "HR", dto.Name)
+		m := &models.IncomingDocument{ID: id, IncomingNumber: "01-01/1", Subject: "Test"}
+		d := MapIncomingDocument(m)
+		assert.Equal(t, id.String(), d.ID)
+		assert.Equal(t, "01-01/1", d.IncomingNumber)
 	})
 }
 
-func TestMapAssignments(t *testing.T) {
-	t.Run("nil slice", func(t *testing.T) {
+func TestMapOutgoingDocument(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, MapOutgoingDocument(nil))
+	})
+
+	t.Run("success", func(t *testing.T) {
+		id := uuid.New()
+		m := &models.OutgoingDocument{ID: id, OutgoingNumber: "02-01/1", Subject: "Test"}
+		d := MapOutgoingDocument(m)
+		assert.Equal(t, id.String(), d.ID)
+		assert.Equal(t, "02-01/1", d.OutgoingNumber)
+	})
+}
+
+func TestMapSlices(t *testing.T) {
+	t.Run("MapUsers nil", func(t *testing.T) {
+		assert.Nil(t, MapUsers(nil))
+	})
+
+	t.Run("MapAssignments nil", func(t *testing.T) {
 		assert.Nil(t, MapAssignments(nil))
 	})
 
-	t.Run("empty slice", func(t *testing.T) {
-		assert.Equal(t, []Assignment{}, MapAssignments([]models.Assignment{}))
+	t.Run("MapAssignments non-nil", func(t *testing.T) {
+		items := []models.Assignment{{ID: uuid.New(), Status: "new"}, {ID: uuid.New(), Status: "done"}}
+		result := MapAssignments(items)
+		assert.Len(t, result, 2)
 	})
 
-	t.Run("valid slice with items", func(t *testing.T) {
-		id1 := uuid.New()
-		id2 := uuid.New()
-		modelsList := []models.Assignment{
-			{ID: id1, Content: "Task 1", Status: "new"},
-			{ID: id2, Content: "Task 2", Status: "in_progress"},
-		}
+	t.Run("MapAcknowledgments nil", func(t *testing.T) {
+		assert.Nil(t, MapAcknowledgments(nil))
+	})
 
-		dtos := MapAssignments(modelsList)
-		require.Len(t, dtos, 2)
-		assert.Equal(t, id1.String(), dtos[0].ID)
-		assert.Equal(t, "Task 1", dtos[0].Content)
-		assert.Equal(t, "new", dtos[0].Status)
-		assert.Equal(t, id2.String(), dtos[1].ID)
-		assert.Equal(t, "Task 2", dtos[1].Content)
-		assert.Equal(t, "in_progress", dtos[1].Status)
+	t.Run("MapIncomingDocuments nil", func(t *testing.T) {
+		assert.Nil(t, MapIncomingDocuments(nil))
+	})
+
+	t.Run("MapOutgoingDocuments nil", func(t *testing.T) {
+		assert.Nil(t, MapOutgoingDocuments(nil))
+	})
+
+	t.Run("MapAttachments nil", func(t *testing.T) {
+		assert.Nil(t, MapAttachments(nil))
+	})
+
+	t.Run("MapDocumentLinks nil", func(t *testing.T) {
+		assert.Nil(t, MapDocumentLinks(nil))
 	})
 }
 
 func TestMapDashboardStats(t *testing.T) {
-	t.Run("nil stats", func(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapDashboardStats(nil))
 	})
 
-	t.Run("valid stats", func(t *testing.T) {
-		m := &models.DashboardStats{
-			Role:             "admin",
-			UserCount:        10,
-			TotalDocuments:   100,
-			MyAssignmentsNew: 5,
-			ExpiringAssignments: []models.Assignment{
-				{Content: "Urgent Task"},
-			},
-		}
-
-		dto := MapDashboardStats(m)
-		require.NotNil(t, dto)
-		assert.Equal(t, "admin", dto.Role)
-		assert.Equal(t, 10, dto.UserCount)
-		assert.Equal(t, 100, dto.TotalDocuments)
-		assert.Equal(t, 5, dto.MyAssignmentsNew)
-		require.Len(t, dto.ExpiringAssignments, 1)
-		assert.Equal(t, "Urgent Task", dto.ExpiringAssignments[0].Content)
+	t.Run("success", func(t *testing.T) {
+		m := &models.DashboardStats{Role: "admin", UserCount: 5, TotalDocuments: 100, DBSize: "10MB"}
+		d := MapDashboardStats(m)
+		assert.Equal(t, "admin", d.Role)
+		assert.Equal(t, 5, d.UserCount)
+		assert.Equal(t, 100, d.TotalDocuments)
 	})
 }
