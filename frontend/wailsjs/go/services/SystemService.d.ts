@@ -4,6 +4,4 @@ import {context} from '../models';
 
 export function CheckDBConnection():Promise<boolean>;
 
-export function ReconnectDB():Promise<boolean>;
-
 export function Startup(arg1:context.Context):Promise<void>;

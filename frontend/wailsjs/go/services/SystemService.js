@@ -6,10 +6,6 @@ export function CheckDBConnection() {
   return window['go']['services']['SystemService']['CheckDBConnection']();
 }
 
-export function ReconnectDB() {
-  return window['go']['services']['SystemService']['ReconnectDB']();
-}
-
 export function Startup(arg1) {
   return window['go']['services']['SystemService']['Startup'](arg1);
 }

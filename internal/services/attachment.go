@@ -113,7 +113,7 @@ func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, err
 }
 
 // Download — получить содержимое файла в формате base64
-func (s *AttachmentService) Download(idStr string) (*models.DownloadResponse, error) {
+func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid attachment ID")
@@ -131,7 +131,7 @@ func (s *AttachmentService) Download(idStr string) (*models.DownloadResponse, er
 		return nil, fmt.Errorf("failed to get file content: %v", err)
 	}
 
-	return &models.DownloadResponse{
+	return &dto.DownloadResponse{
 		Filename: attachment.Filename,
 		Content:  base64.StdEncoding.EncodeToString(content),
 	}, nil

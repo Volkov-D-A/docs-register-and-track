@@ -9,14 +9,14 @@ import AssignmentsPage from './pages/AssignmentsPage';
 import ProfilePage from './pages/ProfilePage';
 import MainLayout from './components/MainLayout';
 import { Typography, Modal, Button } from 'antd';
-import { CheckDBConnection, ReconnectDB } from '../wailsjs/go/services/SystemService';
+import { CheckDBConnection } from '../wailsjs/go/services/SystemService';
 
 const { Title } = Typography;
 
 // Заглушки для страниц
 
 function App() {
-    const { isAuthenticated } = useAuthStore();
+    const { isAuthenticated, currentRole } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
 
     // Состояние подключения к базе данных
@@ -49,7 +49,7 @@ function App() {
     const handleReconnect = async () => {
         setCheckingDb(true);
         try {
-            const isConnected = await ReconnectDB();
+            const isConnected = await CheckDBConnection();
             setDbConnected(isConnected);
         } catch (err) {
             console.error("DB Reconnect failed:", err);
@@ -95,7 +95,6 @@ function App() {
     const renderPage = () => {
         // Проверка прав доступа для администратора
         // Администратор не должен иметь доступа к документам и поручениям
-        const { currentRole } = useAuthStore.getState();
         if (currentRole === 'admin' && ['incoming', 'outgoing', 'assignments'].includes(currentPage)) {
             // Если администратор пытается зайти на запрещенную страницу, показываем дашборд
             // Можно добавить уведомление, но пока просто редирект (рендеринг другой страницы)

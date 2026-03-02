@@ -181,36 +181,22 @@ func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) 
 		filter.PageSize = 20
 	}
 
-	user, err := s.auth.GetCurrentUser()
+	filteredIDs, empty, err := applyExecutorNomenclatureFilter(
+		s.auth, s.depRepo, filter.NomenclatureIDs, "",
+	)
 	if err != nil {
 		return nil, err
 	}
-
-	// Если пользователь — исполнитель, ограничиваем видимость по номенклатурам подразделения
-	if s.auth.HasRole("executor") && !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		var deptID *uuid.UUID
-		if user.Department != nil {
-			if parsed, err := uuid.Parse(user.Department.ID); err == nil {
-				deptID = &parsed
-			}
-		}
-		filteredIDs, empty, err := filterNomenclaturesByDepartment(
-			deptID, s.depRepo, filter.NomenclatureIDs, "",
-		)
-		if err != nil {
-			return nil, err
-		}
-		if empty {
-			return &dto.PagedResult[dto.OutgoingDocument]{
-				Items:      []dto.OutgoingDocument{},
-				TotalCount: 0,
-				Page:       filter.Page,
-				PageSize:   filter.PageSize,
-			}, nil
-		}
-		if filteredIDs != nil {
-			filter.NomenclatureIDs = filteredIDs
-		}
+	if empty {
+		return &dto.PagedResult[dto.OutgoingDocument]{
+			Items:      []dto.OutgoingDocument{},
+			TotalCount: 0,
+			Page:       filter.Page,
+			PageSize:   filter.PageSize,
+		}, nil
+	}
+	if filteredIDs != nil {
+		filter.NomenclatureIDs = filteredIDs
 	}
 
 	res, err := s.repo.GetList(filter)

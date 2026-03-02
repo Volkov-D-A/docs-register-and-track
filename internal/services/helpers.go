@@ -80,3 +80,31 @@ func filterNomenclaturesByDepartment(
 	// Фильтр пустой → подставляем все доступные номенклатуры
 	return allowedNomenclatures, false, nil
 }
+
+// applyExecutorNomenclatureFilter — применяет фильтрацию по номенклатурам подразделения для исполнителя.
+// Извлекает departmentID из текущего пользователя и вызывает filterNomenclaturesByDepartment.
+// Возвращает обновлённый список nomenclatureIDs и флаг isEmpty.
+func applyExecutorNomenclatureFilter(
+	auth *AuthService,
+	depRepo DepartmentStore,
+	nomenclatureIDs []string,
+	nomenclatureID string,
+) (filteredIDs []string, isEmpty bool, err error) {
+	if !auth.HasRole("executor") || auth.HasRole("admin") || auth.HasRole("clerk") {
+		return nomenclatureIDs, false, nil
+	}
+
+	user, err := auth.GetCurrentUser()
+	if err != nil {
+		return nil, false, err
+	}
+
+	var deptID *uuid.UUID
+	if user.Department != nil {
+		if parsed, err := uuid.Parse(user.Department.ID); err == nil {
+			deptID = &parsed
+		}
+	}
+
+	return filterNomenclaturesByDepartment(deptID, depRepo, nomenclatureIDs, nomenclatureID)
+}

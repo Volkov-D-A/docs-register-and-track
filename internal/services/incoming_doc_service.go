@@ -42,36 +42,22 @@ func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*dto.Pa
 		return nil, ErrNotAuthenticated
 	}
 
-	user, err := s.auth.GetCurrentUser()
+	filteredIDs, empty, err := applyExecutorNomenclatureFilter(
+		s.auth, s.depRepo, filter.NomenclatureIDs, filter.NomenclatureID,
+	)
 	if err != nil {
 		return nil, err
 	}
-
-	// Если пользователь — исполнитель, ограничиваем видимость по номенклатурам подразделения
-	if s.auth.HasRole("executor") && !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		var deptID *uuid.UUID
-		if user.Department != nil {
-			if parsed, err := uuid.Parse(user.Department.ID); err == nil {
-				deptID = &parsed
-			}
-		}
-		filteredIDs, empty, err := filterNomenclaturesByDepartment(
-			deptID, s.depRepo, filter.NomenclatureIDs, filter.NomenclatureID,
-		)
-		if err != nil {
-			return nil, err
-		}
-		if empty {
-			return &dto.PagedResult[dto.IncomingDocument]{
-				Items:      []dto.IncomingDocument{},
-				TotalCount: 0,
-				Page:       filter.Page,
-				PageSize:   filter.PageSize,
-			}, nil
-		}
-		if filteredIDs != nil {
-			filter.NomenclatureIDs = filteredIDs
-		}
+	if empty {
+		return &dto.PagedResult[dto.IncomingDocument]{
+			Items:      []dto.IncomingDocument{},
+			TotalCount: 0,
+			Page:       filter.Page,
+			PageSize:   filter.PageSize,
+		}, nil
+	}
+	if filteredIDs != nil {
+		filter.NomenclatureIDs = filteredIDs
 	}
 
 	res, err := s.repo.GetList(filter)

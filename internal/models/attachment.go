@@ -20,9 +20,3 @@ type Attachment struct {
 	UploadedByName string    `json:"uploadedByName,omitempty"` // заполняется при получении
 	UploadedAt     time.Time `json:"uploadedAt"`
 }
-
-// DownloadResponse описывает ответ сервера при скачивании файла.
-type DownloadResponse struct {
-	Filename string `json:"filename"`
-	Content  string `json:"content"` // в формате Base64
-}

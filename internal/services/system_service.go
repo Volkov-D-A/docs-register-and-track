@@ -33,15 +33,3 @@ func (s *SystemService) CheckDBConnection() bool {
 	err := s.db.Ping()
 	return err == nil
 }
-
-// ReconnectDB пытается переподключиться к базе данных.
-// Возвращает true в случае успеха, иначе false.
-func (s *SystemService) ReconnectDB() bool {
-	if s.db == nil || s.db.DB == nil {
-		return false
-	}
-	// Метод Ping() в database/sql автоматически пытается установить соединение,
-	// если оно было разорвано или не было установлено.
-	err := s.db.Ping()
-	return err == nil
-}
