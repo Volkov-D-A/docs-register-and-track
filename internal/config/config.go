@@ -23,10 +23,15 @@ type DatabaseConfig struct {
 }
 
 // ConnectionString формирует строку подключения к базе данных.
+// Если пароль зашифрован (префикс ENC:), автоматически дешифрует его.
 func (d DatabaseConfig) ConnectionString() string {
+	password := d.Password
+	if decrypted, err := DecryptPassword(d.Password); err == nil {
+		password = decrypted
+	}
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		d.Host, d.Port, d.User, d.Password, d.DBName, d.SSLMode,
+		d.Host, d.Port, d.User, password, d.DBName, d.SSLMode,
 	)
 }
 

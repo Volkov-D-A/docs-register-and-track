@@ -128,7 +128,8 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 	for id, docType := range docIDs {
 		var label, subject, dateStr, sender, recipient string
 
-		if docType == "incoming" {
+		switch docType {
+		case "incoming":
 			doc, err := s.incomingDocRepo.GetByID(id)
 			if err == nil && doc != nil {
 				label = doc.IncomingNumber
@@ -140,7 +141,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 				}
 				recipient = doc.RecipientOrgName // Обычно "Наша Организация"
 			}
-		} else if docType == "outgoing" {
+		case "outgoing":
 			doc, err := s.outgoingDocRepo.GetByID(id)
 			if err == nil && doc != nil {
 				label = doc.OutgoingNumber

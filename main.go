@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"embed"
+	"flag"
+	"fmt"
 	"log"
 
 	"github.com/wailsapp/wails/v2"
@@ -19,6 +21,20 @@ import (
 var assets embed.FS
 
 func main() {
+	// CLI-утилита: шифрование пароля для config.json
+	encryptFlag := flag.String("encrypt-password", "", "Зашифровать пароль для config.json и вывести результат")
+	flag.Parse()
+
+	if *encryptFlag != "" {
+		encrypted, err := config.EncryptPassword(*encryptFlag)
+		if err != nil {
+			log.Fatalf("Ошибка шифрования: %v", err)
+		}
+		fmt.Println("Зашифрованный пароль для config.json:")
+		fmt.Println(encrypted)
+		return
+	}
+
 	// Загрузка конфигурации
 	cfg, err := config.Load(config.GetDefaultConfigPath())
 	if err != nil {
