@@ -1,0 +1,272 @@
+package services
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	"docflow/internal/mocks"
+	"docflow/internal/models"
+	"docflow/internal/security"
+)
+
+func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks.ReferenceStore, *mocks.UserStore, *AuthService) {
+	t.Helper()
+	refRepo := mocks.NewReferenceStore(t)
+	userRepo := mocks.NewUserStore(t)
+	auth := NewAuthService(nil, userRepo)
+
+	if role != "" {
+		password := "Passw0rd!"
+		hash, _ := security.HashPassword(password)
+		user := &models.User{
+			ID:           uuid.New(),
+			Login:        role + "_ref",
+			PasswordHash: hash,
+			IsActive:     true,
+			Roles:        []string{role},
+		}
+		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
+		err := auth.Login(user.Login, password)
+		require.NoError(t, err)
+	}
+
+	svc := NewReferenceService(refRepo, auth)
+	return svc, refRepo, userRepo, auth
+}
+
+// === Типы документов ===
+
+func TestReferenceService_GetDocumentTypes(t *testing.T) {
+	t.Run("успех (авторизован)", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "clerk")
+		mockValues := []models.DocumentType{
+			{ID: uuid.New(), Name: "Приказ"},
+			{ID: uuid.New(), Name: "Письмо"},
+		}
+		repo.On("GetAllDocumentTypes").Return(mockValues, nil).Once()
+
+		result, err := svc.GetDocumentTypes()
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+		assert.Equal(t, "Приказ", result[0].Name)
+	})
+
+	t.Run("ошибка базы", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "clerk")
+		repo.On("GetAllDocumentTypes").Return(nil, errors.New("db error")).Once()
+
+		result, err := svc.GetDocumentTypes()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db error")
+		assert.Nil(t, result)
+	})
+
+	t.Run("не авторизован", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "") // без входа
+		result, err := svc.GetDocumentTypes()
+		require.Error(t, err)
+		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestReferenceService_CreateDocumentType(t *testing.T) {
+	t.Run("успех (админ)", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "admin")
+		name := "Заявление"
+		expected := &models.DocumentType{ID: uuid.New(), Name: name}
+		repo.On("CreateDocumentType", name).Return(expected, nil).Once()
+
+		result, err := svc.CreateDocumentType(name)
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, name, result.Name)
+	})
+
+	t.Run("запрещено (не админ)", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "clerk")
+		result, err := svc.CreateDocumentType("Test")
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestReferenceService_UpdateDocumentType(t *testing.T) {
+	idStr := uuid.New().String()
+
+	t.Run("успех (админ)", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "admin")
+		repo.On("UpdateDocumentType", mock.AnythingOfType("uuid.UUID"), "Новое имя").Return(nil).Once()
+
+		err := svc.UpdateDocumentType(idStr, "Новое имя")
+		require.NoError(t, err)
+	})
+
+	t.Run("невалидный ID", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "admin")
+		err := svc.UpdateDocumentType("invalid-uuid", "Новое имя")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ID")
+	})
+
+	t.Run("запрещено (не админ)", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "clerk")
+		err := svc.UpdateDocumentType(idStr, "Test")
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+	})
+}
+
+func TestReferenceService_DeleteDocumentType(t *testing.T) {
+	idStr := uuid.New().String()
+
+	t.Run("успех (админ)", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "admin")
+		repo.On("DeleteDocumentType", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
+
+		err := svc.DeleteDocumentType(idStr)
+		require.NoError(t, err)
+	})
+
+	t.Run("невалидный ID", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "admin")
+		err := svc.DeleteDocumentType("invalid-uuid")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ID")
+	})
+
+	t.Run("запрещено (не админ)", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "clerk")
+		err := svc.DeleteDocumentType(idStr)
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+	})
+}
+
+// === Организации ===
+
+func TestReferenceService_GetOrganizations(t *testing.T) {
+	t.Run("успех", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "clerk")
+		mockValues := []models.Organization{
+			{ID: uuid.New(), Name: "Орг 1"},
+			{ID: uuid.New(), Name: "Орг 2"},
+		}
+		repo.On("GetAllOrganizations").Return(mockValues, nil).Once()
+
+		result, err := svc.GetOrganizations()
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("не авторизован", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "")
+		result, err := svc.GetOrganizations()
+		require.Error(t, err)
+		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestReferenceService_SearchOrganizations(t *testing.T) {
+	t.Run("успех", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "clerk")
+		mockValues := []models.Organization{
+			{ID: uuid.New(), Name: "Поиск Орг"},
+		}
+		repo.On("SearchOrganizations", "Поиск").Return(mockValues, nil).Once()
+
+		result, err := svc.SearchOrganizations("Поиск")
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "Поиск Орг", result[0].Name)
+	})
+
+	t.Run("не авторизован", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "")
+		result, err := svc.SearchOrganizations("Test")
+		require.Error(t, err)
+		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestReferenceService_FindOrCreateOrganization(t *testing.T) {
+	t.Run("успех", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "clerk")
+		name := "Новая Орг"
+		expected := &models.Organization{ID: uuid.New(), Name: name}
+		repo.On("FindOrCreateOrganization", name).Return(expected, nil).Once()
+
+		result, err := svc.FindOrCreateOrganization(name)
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, name, result.Name)
+	})
+
+	t.Run("не авторизован", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "")
+		result, err := svc.FindOrCreateOrganization("Test")
+		require.Error(t, err)
+		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestReferenceService_UpdateOrganization(t *testing.T) {
+	idStr := uuid.New().String()
+
+	t.Run("успех (админ)", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "admin")
+		repo.On("UpdateOrganization", mock.AnythingOfType("uuid.UUID"), "Новое имя орг").Return(nil).Once()
+
+		err := svc.UpdateOrganization(idStr, "Новое имя орг")
+		require.NoError(t, err)
+	})
+
+	t.Run("невалидный ID", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "admin")
+		err := svc.UpdateOrganization("invalid-uuid", "Тест")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ID")
+	})
+
+	t.Run("запрещено (не админ)", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "clerk")
+		err := svc.UpdateOrganization(idStr, "Тест")
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+	})
+}
+
+func TestReferenceService_DeleteOrganization(t *testing.T) {
+	idStr := uuid.New().String()
+
+	t.Run("успех (админ)", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "admin")
+		repo.On("DeleteOrganization", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
+
+		err := svc.DeleteOrganization(idStr)
+		require.NoError(t, err)
+	})
+
+	t.Run("невалидный ID", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "admin")
+		err := svc.DeleteOrganization("invalid-uuid")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ID")
+	})
+
+	t.Run("запрещено (не админ)", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "clerk")
+		err := svc.DeleteOrganization(idStr)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "недостаточно прав") // ReferenceService возвращает fmt.Errorf("недостаточно прав")
+	})
+}
