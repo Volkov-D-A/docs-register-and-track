@@ -3,7 +3,7 @@ services:
   postgres:
     # Используем alpine-версию, так как она весит в разы меньше и быстрее скачивается
     image: postgres:16-alpine
-    container_name: doc_system_db
+    container_name: docflow_db
     environment:
       POSTGRES_USER: docflow
       POSTGRES_PASSWORD: docflow_password
@@ -16,7 +16,7 @@ services:
     restart: unless-stopped
   minio:
     image: minio/minio:latest
-    container_name: minio
+    container_name: docflow_minio
     ports:
       - "9000:9000" # API порт
       - "9001:9001" # Web UI порт
