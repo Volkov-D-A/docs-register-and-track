@@ -67,7 +67,7 @@ function App() {
             open={!dbConnected}
             closable={false}
             keyboard={false}
-            maskClosable={false}
+            mask={{ closable: false }}
             footer={[
                 <Button
                     key="reconnect"

@@ -32,7 +32,7 @@ func (r *JournalRepository) Create(ctx context.Context, req models.CreateJournal
 func (r *JournalRepository) GetByDocumentID(ctx context.Context, documentID uuid.UUID, documentType string) ([]models.JournalEntry, error) {
 	query := `
 		SELECT j.id, j.document_id, j.document_type, j.user_id, 
-		       u.last_name || ' ' || u.first_name || ' ' || COALESCE(u.middle_name, ''), 
+		       u.full_name, 
 		       j.action, j.details, j.created_at
 		FROM document_journal j
 		JOIN users u ON j.user_id = u.id

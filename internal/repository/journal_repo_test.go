@@ -57,7 +57,7 @@ func TestJournalRepository_GetByDocumentID(t *testing.T) {
 	now := time.Now()
 
 	query := `SELECT j.id, j.document_id, j.document_type, j.user_id, 
-		       u.last_name \|\| ' ' \|\| u.first_name \|\| ' ' \|\| COALESCE\(u.middle_name, ''\), 
+		       u.full_name, 
 		       j.action, j.details, j.created_at
 		FROM document_journal j
 		JOIN users u ON j.user_id = u.id
@@ -95,7 +95,7 @@ func TestJournalRepository_GetByDocumentID_Empty(t *testing.T) {
 	docType := "incoming"
 
 	query := `SELECT j.id, j.document_id, j.document_type, j.user_id, 
-		       u.last_name \|\| ' ' \|\| u.first_name \|\| ' ' \|\| COALESCE\(u.middle_name, ''\), 
+		       u.full_name, 
 		       j.action, j.details, j.created_at
 		FROM document_journal j
 		JOIN users u ON j.user_id = u.id

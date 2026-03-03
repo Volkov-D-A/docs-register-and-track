@@ -34,9 +34,11 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     const { currentRole } = useAuthStore();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState('info');
 
     useEffect(() => {
         if (open && documentId) {
+            setActiveTab('info');
             loadData();
         } else {
             setData(null);
@@ -240,7 +242,12 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
         >
             {loading && <Spin />}
             {!loading && data && (
-                <Tabs items={getTabs()} />
+                <Tabs
+                    items={getTabs()}
+                    activeKey={activeTab}
+                    onChange={setActiveTab}
+                    destroyInactiveTabPane
+                />
             )}
         </Modal>
     );

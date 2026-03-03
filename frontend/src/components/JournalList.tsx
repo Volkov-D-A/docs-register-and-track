@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Spin, App, Tag, Typography } from 'antd';
+import { Table, Spin, App, Tooltip, Typography } from 'antd';
+import {
+    PlusCircleOutlined, EditOutlined, DeleteOutlined,
+    SyncOutlined, CheckCircleOutlined, UploadOutlined,
+    LinkOutlined, EyeOutlined, ProfileOutlined,
+    QuestionCircleOutlined, FileAddOutlined
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 const { Text } = Typography;
@@ -44,23 +50,23 @@ const JournalList: React.FC<JournalListProps> = ({ documentId, documentType }) =
         }
     };
 
-    const actionColors: Record<string, string> = {
-        'CREATE': 'green',
-        'UPDATE': 'blue',
-        'DELETE': 'red',
-        'STATUS_CHANGE': 'orange',
-        'ASSIGNMENT_CREATE': 'cyan',
-        'ASSIGNMENT_UPDATE': 'blue',
-        'ASSIGNMENT_STATUS': 'orange',
-        'ASSIGNMENT_DELETE': 'red',
-        'FILE_UPLOAD': 'purple',
-        'FILE_DELETE': 'red',
-        'LINK_CREATE': 'geekblue',
-        'LINK_DELETE': 'red',
-        'ACK_CREATE': 'cyan',
-        'ACK_VIEW': 'blue',
-        'ACK_CONFIRM': 'green',
-        'ACK_DELETE': 'red',
+    const actionConfig: Record<string, { color: string; icon: React.ReactNode; tooltip: string }> = {
+        'CREATE': { color: 'green', icon: <PlusCircleOutlined />, tooltip: 'Документ создан' },
+        'UPDATE': { color: 'blue', icon: <EditOutlined />, tooltip: 'Документ обновлен' },
+        'DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Документ удален' },
+        'STATUS_CHANGE': { color: 'orange', icon: <SyncOutlined />, tooltip: 'Статус изменен' },
+        'ASSIGNMENT_CREATE': { color: 'cyan', icon: <ProfileOutlined />, tooltip: 'Поручение выдано' },
+        'ASSIGNMENT_UPDATE': { color: 'blue', icon: <EditOutlined />, tooltip: 'Поручение обновлено' },
+        'ASSIGNMENT_STATUS': { color: 'orange', icon: <SyncOutlined />, tooltip: 'Статус поручения' },
+        'ASSIGNMENT_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Поручение удалено' },
+        'FILE_UPLOAD': { color: 'purple', icon: <UploadOutlined />, tooltip: 'Файл загружен' },
+        'FILE_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Файл удален' },
+        'LINK_CREATE': { color: 'geekblue', icon: <LinkOutlined />, tooltip: 'Добавлена связь' },
+        'LINK_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Связь удалена' },
+        'ACK_CREATE': { color: 'cyan', icon: <FileAddOutlined />, tooltip: 'Ознакомление создано' },
+        'ACK_VIEW': { color: 'blue', icon: <EyeOutlined />, tooltip: 'Ознакомление просмотрено' },
+        'ACK_CONFIRM': { color: 'green', icon: <CheckCircleOutlined />, tooltip: 'Ознакомление подтверждено' },
+        'ACK_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Ознакомление удалено' },
     };
 
     const columns = [
@@ -78,20 +84,21 @@ const JournalList: React.FC<JournalListProps> = ({ documentId, documentType }) =
             width: 200,
         },
         {
-            title: 'Действие',
-            dataIndex: 'action',
-            key: 'action',
-            render: (text: string) => {
-                const color = actionColors[text] || 'default';
-                return <Tag color={color}>{text}</Tag>;
-            },
-            width: 180,
-        },
-        {
             title: 'Детали',
-            dataIndex: 'details',
             key: 'details',
-            render: (text: string) => <Text>{text}</Text>,
+            render: (record: JournalEntry) => {
+                const config = actionConfig[record.action] || { color: '#888', icon: <QuestionCircleOutlined />, tooltip: record.action };
+                return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Tooltip title={config.tooltip}>
+                            <div style={{ color: config.color, fontSize: 16, display: 'flex', alignItems: 'center' }}>
+                                {config.icon}
+                            </div>
+                        </Tooltip>
+                        <Text>{record.details}</Text>
+                    </div>
+                );
+            },
         },
     ];
 
@@ -104,7 +111,7 @@ const JournalList: React.FC<JournalListProps> = ({ documentId, documentType }) =
             dataSource={entries}
             columns={columns}
             rowKey="id"
-            pagination={{ pageSize: 15 }}
+            pagination={{ pageSize: 10 }}
             size="small"
         />
     );
