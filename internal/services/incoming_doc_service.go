@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -17,6 +18,7 @@ type IncomingDocumentService struct {
 	refRepo ReferenceStore
 	depRepo DepartmentStore
 	auth    *AuthService
+	journal *JournalService
 }
 
 // NewIncomingDocumentService создает новый экземпляр IncomingDocumentService.
@@ -26,6 +28,7 @@ func NewIncomingDocumentService(
 	refRepo ReferenceStore,
 	depRepo DepartmentStore,
 	auth *AuthService,
+	journal *JournalService,
 ) *IncomingDocumentService {
 	return &IncomingDocumentService{
 		repo:    repo,
@@ -33,6 +36,7 @@ func NewIncomingDocumentService(
 		refRepo: refRepo,
 		depRepo: depRepo,
 		auth:    auth,
+		journal: journal,
 	}
 }
 
@@ -176,6 +180,15 @@ func (s *IncomingDocumentService) Register(
 		Addressee:            addressee,
 		Resolution:           resPtr,
 	})
+	if err == nil {
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   res.ID,
+			DocumentType: "incoming",
+			UserID:       createdBy,
+			Action:       "CREATE",
+			Details:      fmt.Sprintf("Документ зарегистрирован. Рег. номер: %s", incomingNumberStr),
+		})
+	}
 	return dto.MapIncomingDocument(res), err
 }
 
@@ -251,6 +264,16 @@ func (s *IncomingDocumentService) Update(
 		Addressee:            addressee,
 		Resolution:           resPtr,
 	})
+	if err == nil {
+		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   uid,
+			DocumentType: "incoming",
+			UserID:       currentUserID,
+			Action:       "UPDATE",
+			Details:      "Документ отредактирован",
+		})
+	}
 	return dto.MapIncomingDocument(res), err
 }
 
@@ -272,5 +295,15 @@ func (s *IncomingDocumentService) Delete(id string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
+
+	currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		DocumentID:   uid,
+		DocumentType: "incoming",
+		UserID:       currentUserID,
+		Action:       "DELETE",
+		Details:      "Документ удален",
+	})
+
 	return s.repo.Delete(uid)
 }

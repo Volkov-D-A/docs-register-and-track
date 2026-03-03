@@ -4,6 +4,7 @@ import (
 	"docflow/internal/mocks"
 	"docflow/internal/models"
 	"docflow/internal/security"
+
 	"testing"
 	"time"
 
@@ -36,7 +37,11 @@ func setupAssignmentService(t *testing.T, role string) (
 	_, err := auth.Login(user.Login, password)
 	require.NoError(t, err)
 
-	svc := NewAssignmentService(assignmentRepo, userRepo, auth)
+	journalRepo := mocks.NewJournalStore(t)
+	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+	journalSvc := NewJournalService(journalRepo, auth)
+
+	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc)
 	return svc, assignmentRepo, userRepo, auth
 }
 
@@ -45,7 +50,11 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
-	svc := NewAssignmentService(assignmentRepo, userRepo, auth)
+	journalRepo := mocks.NewJournalStore(t)
+	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+	journalSvc := NewJournalService(journalRepo, auth)
+
+	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc)
 	return svc, assignmentRepo
 }
 
@@ -250,7 +259,11 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		authSvc := NewAuthService(nil, userRepo)
 		userRepo.On("GetByLogin", "exec").Return(executorUser, nil).Once()
 		authSvc.Login("exec", password)
-		svc2 := NewAssignmentService(repo, userRepo, authSvc)
+		journalRepo := mocks.NewJournalStore(t)
+		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+		journalSvc := NewJournalService(journalRepo, authSvc)
+
+		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Update", assignmentID, execID, "Контент",
@@ -281,7 +294,11 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		authSvc := NewAuthService(nil, userRepo)
 		userRepo.On("GetByLogin", "exec2").Return(executorUser, nil).Once()
 		authSvc.Login("exec2", password)
-		svc2 := NewAssignmentService(repo, userRepo, authSvc)
+		journalRepo := mocks.NewJournalStore(t)
+		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+		journalSvc := NewJournalService(journalRepo, authSvc)
+
+		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Update", assignmentID, execID, "Контент",

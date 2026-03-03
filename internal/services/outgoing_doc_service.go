@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -18,6 +19,7 @@ type OutgoingDocumentService struct {
 	depRepo         DepartmentStore
 	auth            *AuthService
 	settingsService *SettingsService
+	journal         *JournalService
 }
 
 // NewOutgoingDocumentService создает новый экземпляр OutgoingDocumentService.
@@ -28,6 +30,7 @@ func NewOutgoingDocumentService(
 	depRepo DepartmentStore,
 	auth *AuthService,
 	settingsService *SettingsService,
+	journal *JournalService,
 ) *OutgoingDocumentService {
 	return &OutgoingDocumentService{
 		repo:            repo,
@@ -36,6 +39,7 @@ func NewOutgoingDocumentService(
 		depRepo:         depRepo,
 		auth:            auth,
 		settingsService: settingsService,
+		journal:         journal,
 	}
 }
 
@@ -113,6 +117,15 @@ func (s *OutgoingDocumentService) Register(
 		SenderExecutor:  senderExecutor,
 		Addressee:       addressee,
 	})
+	if err == nil {
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   res.ID,
+			DocumentType: "outgoing",
+			UserID:       createdBy,
+			Action:       "CREATE",
+			Details:      fmt.Sprintf("Документ зарегистрирован. Рег. номер: %s", outgoingNumber),
+		})
+	}
 	return dto.MapOutgoingDocument(res), err
 }
 
@@ -165,6 +178,16 @@ func (s *OutgoingDocumentService) Update(
 		SenderExecutor:  senderExecutor,
 		Addressee:       addressee,
 	})
+	if err == nil {
+		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   uid,
+			DocumentType: "outgoing",
+			UserID:       currentUserID,
+			Action:       "UPDATE",
+			Details:      "Документ отредактирован",
+		})
+	}
 	return dto.MapOutgoingDocument(res), err
 }
 
@@ -233,6 +256,16 @@ func (s *OutgoingDocumentService) Delete(id string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
+
+	currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		DocumentID:   uid,
+		DocumentType: "outgoing",
+		UserID:       currentUserID,
+		Action:       "DELETE",
+		Details:      "Документ удален",
+	})
+
 	return s.repo.Delete(uid)
 }
 

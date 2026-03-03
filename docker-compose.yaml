@@ -1,0 +1,19 @@
+# docker-compose.yaml для базы данных разработки
+services:
+  postgres:
+    # Используем alpine-версию, так как она весит в разы меньше и быстрее скачивается
+    image: postgres:16-alpine
+    container_name: doc_system_db
+    environment:
+      POSTGRES_USER: docflow
+      POSTGRES_PASSWORD: docflow_password
+      POSTGRES_DB: docflow
+    ports:
+      - "5432:5432"
+    volumes:
+      # Сохраняем данные БД на виртуальном диске, чтобы они не исчезли при перезапуске
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:

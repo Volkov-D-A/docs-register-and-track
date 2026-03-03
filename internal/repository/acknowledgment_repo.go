@@ -52,6 +52,17 @@ func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
 	return tx.Commit()
 }
 
+// GetByID возвращает задачу по ID (базовая информация без внешних связей).
+func (r *AcknowledgmentRepository) GetByID(id uuid.UUID) (*models.Acknowledgment, error) {
+	query := `SELECT id, document_id, document_type, creator_id, content, created_at, completed_at FROM acknowledgments WHERE id = $1`
+	var a models.Acknowledgment
+	err := r.db.QueryRow(query, id).Scan(&a.ID, &a.DocumentID, &a.DocumentType, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
 // GetByDocumentID возвращает все задачи на ознакомление для заданного документа.
 func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error) {
 	query := `

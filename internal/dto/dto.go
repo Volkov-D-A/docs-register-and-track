@@ -255,3 +255,14 @@ type DashboardStats struct {
 	// Общий список (истекающие поручения)
 	ExpiringAssignments []Assignment `json:"expiringAssignments,omitempty"`
 }
+
+// JournalEntry описывает DTO записи в журнале (истории) документа.
+type JournalEntry struct {
+	ID           string    `json:"id"`
+	DocumentID   string    `json:"documentId"`
+	DocumentType string    `json:"documentType"`
+	UserName     string    `json:"userName,omitempty"`
+	Action       string    `json:"action"`
+	Details      string    `json:"details"`
+	CreatedAt    time.Time `json:"createdAt"`
+}

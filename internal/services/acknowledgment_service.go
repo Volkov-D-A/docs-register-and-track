@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -15,6 +16,7 @@ type AcknowledgmentService struct {
 	repo     AcknowledgmentStore
 	userRepo UserStore
 	auth     *AuthService
+	journal  *JournalService
 }
 
 // NewAcknowledgmentService создает новый экземпляр AcknowledgmentService.
@@ -22,11 +24,13 @@ func NewAcknowledgmentService(
 	repo AcknowledgmentStore,
 	userRepo UserStore,
 	auth *AuthService,
+	journal *JournalService,
 ) *AcknowledgmentService {
 	return &AcknowledgmentService{
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
+		journal:  journal,
 	}
 }
 
@@ -86,6 +90,14 @@ func (s *AcknowledgmentService) Create(
 	if err != nil {
 		return nil, err
 	}
+
+	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		DocumentID:   docUUID,
+		DocumentType: documentType,
+		UserID:       creatorUUID,
+		Action:       "ACK_CREATE",
+		Details:      "Отправлен на ознакомление",
+	})
 
 	// Заполнение строковых ID для результата
 
@@ -147,7 +159,20 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 		return ErrNotAuthenticated
 	}
 
-	return s.repo.MarkViewed(ackUUID, userUUID)
+	err = s.repo.MarkViewed(ackUUID, userUUID)
+	if err == nil {
+		ack, _ := s.repo.GetByID(ackUUID)
+		if ack != nil {
+			s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+				DocumentID:   ack.DocumentID,
+				DocumentType: ack.DocumentType,
+				UserID:       userUUID,
+				Action:       "ACK_VIEW",
+				Details:      "Документ просмотрен в рамках ознакомления",
+			})
+		}
+	}
+	return err
 }
 
 // MarkConfirmed отмечает задачу на ознакомление как выполненную (подтвержденную) текущим пользователем.
@@ -165,7 +190,20 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 		return ErrNotAuthenticated
 	}
 
-	return s.repo.MarkConfirmed(ackUUID, userUUID)
+	err = s.repo.MarkConfirmed(ackUUID, userUUID)
+	if err == nil {
+		ack, _ := s.repo.GetByID(ackUUID)
+		if ack != nil {
+			s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+				DocumentID:   ack.DocumentID,
+				DocumentType: ack.DocumentType,
+				UserID:       userUUID,
+				Action:       "ACK_CONFIRM",
+				Details:      "Ознакомление подтверждено",
+			})
+		}
+	}
+	return err
 }
 
 // Delete удаляет задачу на ознакомление по её ID.
@@ -182,5 +220,23 @@ func (s *AcknowledgmentService) Delete(id string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.Delete(ackUUID)
+
+	ack, err := s.repo.GetByID(ackUUID)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.Delete(ackUUID)
+	if err == nil {
+		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   ack.DocumentID,
+			DocumentType: ack.DocumentType,
+			UserID:       currentUserID,
+			Action:       "ACK_DELETE",
+			Details:      "Ознакомление удалено",
+		})
+	}
+
+	return err
 }

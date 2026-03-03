@@ -466,3 +466,34 @@ func MapDashboardStats(m *models.DashboardStats) *DashboardStats {
 		ExpiringAssignments:        MapAssignments(m.ExpiringAssignments),
 	}
 }
+
+// MapJournalEntry преобразует запись журнала в DTO.
+func MapJournalEntry(m *models.JournalEntry) *JournalEntry {
+	if m == nil {
+		return nil
+	}
+	return &JournalEntry{
+		ID:           m.ID.String(),
+		DocumentID:   m.DocumentID.String(),
+		DocumentType: m.DocumentType,
+		UserName:     m.UserName,
+		Action:       m.Action,
+		Details:      m.Details,
+		CreatedAt:    m.CreatedAt,
+	}
+}
+
+// MapJournalEntries преобразует список записей журнала в DTO.
+func MapJournalEntries(m []models.JournalEntry) []JournalEntry {
+	if m == nil {
+		return []JournalEntry{}
+	}
+	res := make([]JournalEntry, len(m))
+	for i, v := range m {
+		mapped := MapJournalEntry(&v)
+		if mapped != nil {
+			res[i] = *mapped
+		}
+	}
+	return res
+}

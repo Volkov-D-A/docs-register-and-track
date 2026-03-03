@@ -67,6 +67,7 @@ func main() {
 	linkRepo := repository.NewLinkRepository(db)
 	acknowledgmentRepo := repository.NewAcknowledgmentRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
+	journalRepo := repository.NewJournalRepository(db)
 
 	// Создание сервисов
 	authService := services.NewAuthService(db, userRepo)
@@ -74,14 +75,16 @@ func main() {
 	userService := services.NewUserService(userRepo, authService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
 	referenceService := services.NewReferenceService(referenceRepo, authService)
-	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, departmentRepo, authService)
-	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, authService, settingsService)
-	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService)
+	journalService := services.NewJournalService(journalRepo, authService)
+
+	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, departmentRepo, authService, journalService)
+	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, authService, settingsService, journalService)
+	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService)
 	dashboardService := services.NewDashboardService(dashboardRepo, authService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService)
-	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService)
-	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService)
-	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService)
+	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService)
+	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService, journalService)
+	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService)
 	systemService := services.NewSystemService(db)
 
 	// Запуск приложения Wails
@@ -113,6 +116,7 @@ func main() {
 			linkService,
 			acknowledgmentService,
 			systemService,
+			journalService,
 		},
 	})
 

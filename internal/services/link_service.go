@@ -17,6 +17,7 @@ type LinkService struct {
 	incomingDocRepo IncomingDocStore
 	outgoingDocRepo OutgoingDocStore
 	authService     *AuthService
+	journal         *JournalService
 }
 
 // NewLinkService создает новый экземпляр LinkService.
@@ -25,12 +26,14 @@ func NewLinkService(
 	incomingDocRepo IncomingDocStore,
 	outgoingDocRepo OutgoingDocStore,
 	authService *AuthService,
+	journal *JournalService,
 ) *LinkService {
 	return &LinkService{
 		repo:            repo,
 		incomingDocRepo: incomingDocRepo,
 		outgoingDocRepo: outgoingDocRepo,
 		authService:     authService,
+		journal:         journal,
 	}
 }
 
@@ -73,6 +76,25 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, target
 		return nil, fmt.Errorf("failed to create link: %w", err)
 	}
 
+	// Логирование создания связи (для обоих документов)
+	// Логирование создания связи (для обоих документов)
+	// Упрощенный лог (без номеров, просто факт)
+	// Упрощенный лог (без номеров, просто факт)
+	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		DocumentID:   sourceID,
+		DocumentType: sourceType,
+		UserID:       userID,
+		Action:       "LINK_CREATE",
+		Details:      "Создана связь с другим документом",
+	})
+	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		DocumentID:   targetID,
+		DocumentType: targetType,
+		UserID:       userID,
+		Action:       "LINK_CREATE",
+		Details:      "Создана связь с другим документом",
+	})
+
 	return dto.MapDocumentLink(link), nil
 }
 
@@ -82,7 +104,31 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.Delete(context.Background(), id)
+
+	link, err := s.repo.GetByID(context.Background(), id)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.Delete(context.Background(), id)
+	if err == nil {
+		currentUserID, _ := uuid.Parse(s.authService.GetCurrentUserID())
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   link.SourceID,
+			DocumentType: link.SourceType,
+			UserID:       currentUserID,
+			Action:       "LINK_DELETE",
+			Details:      "Удалена связь с документом",
+		})
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   link.TargetID,
+			DocumentType: link.TargetType,
+			UserID:       currentUserID,
+			Action:       "LINK_DELETE",
+			Details:      "Удалена связь с документом",
+		})
+	}
+	return err
 }
 
 // GetDocumentLinks возвращает список всех прямых связей для указанного документа.

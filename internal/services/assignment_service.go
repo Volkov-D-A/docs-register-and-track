@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -15,6 +16,7 @@ type AssignmentService struct {
 	repo     AssignmentStore
 	userRepo UserStore // Для валидации
 	auth     *AuthService
+	journal  *JournalService
 }
 
 // NewAssignmentService создает новый экземпляр AssignmentService.
@@ -22,11 +24,13 @@ func NewAssignmentService(
 	repo AssignmentStore,
 	userRepo UserStore,
 	auth *AuthService,
+	journal *JournalService,
 ) *AssignmentService {
 	return &AssignmentService{
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
+		journal:  journal,
 	}
 }
 
@@ -62,6 +66,16 @@ func (s *AssignmentService) Create(
 	}
 
 	res, err := s.repo.Create(docUUID, documentType, execUUID, content, deadlineTime, coExecutorIDs)
+	if err == nil {
+		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   docUUID,
+			DocumentType: documentType,
+			UserID:       currentUserID,
+			Action:       "ASSIGNMENT_CREATE",
+			Details:      "Создано поручение",
+		})
+	}
 	return dto.MapAssignment(res), err
 }
 
@@ -117,6 +131,16 @@ func (s *AssignmentService) Update(
 	}
 
 	res, err := s.repo.Update(uid, execUUID, content, deadlineTime, existing.Status, existing.Report, existing.CompletedAt, coExecutorIDs)
+	if err == nil {
+		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   existing.DocumentID,
+			DocumentType: existing.DocumentType,
+			UserID:       currentUserID,
+			Action:       "ASSIGNMENT_UPDATE",
+			Details:      "Поручение отредактировано",
+		})
+	}
 	return dto.MapAssignment(res), err
 }
 
@@ -181,6 +205,16 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	}
 
 	res, err := s.repo.Update(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, report, completedAt, existing.CoExecutorIDs)
+	if err == nil {
+		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   existing.DocumentID,
+			DocumentType: existing.DocumentType,
+			UserID:       currentUserID,
+			Action:       "ASSIGNMENT_STATUS",
+			Details:      fmt.Sprintf("Статус поручения изменен на %s", status),
+		})
+	}
 	return dto.MapAssignment(res), err
 }
 
@@ -249,5 +283,16 @@ func (s *AssignmentService) Delete(id string) error {
 		return fmt.Errorf("нельзя удалить завершённое поручение")
 	}
 
-	return s.repo.Delete(uid)
+	err = s.repo.Delete(uid)
+	if err == nil {
+		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   existing.DocumentID,
+			DocumentType: existing.DocumentType,
+			UserID:       currentUserID,
+			Action:       "ASSIGNMENT_DELETE",
+			Details:      "Поручение удалено",
+		})
+	}
+	return err
 }

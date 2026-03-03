@@ -37,7 +37,11 @@ func setupAttachmentService(t *testing.T, role string) (
 	require.NoError(t, err)
 
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth)
-	svc := NewAttachmentService(attachRepo, settingsSvc, auth)
+	journalRepo := mocks.NewJournalStore(t)
+	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+	journalSvc := NewJournalService(journalRepo, auth)
+
+	svc := NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc)
 	return svc, attachRepo, settingsRepo, auth
 }
 
@@ -48,7 +52,11 @@ func setupAttachmentServiceNotAuth(t *testing.T) *AttachmentService {
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth)
-	return NewAttachmentService(attachRepo, settingsSvc, auth)
+	journalRepo := mocks.NewJournalStore(t)
+	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+	journalSvc := NewJournalService(journalRepo, auth)
+
+	return NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc)
 }
 
 func TestAttachmentService_Upload(t *testing.T) {
@@ -178,6 +186,11 @@ func TestAttachmentService_Delete(t *testing.T) {
 
 	t.Run("success clerk", func(t *testing.T) {
 		svc, repo, _, _ := setupAttachmentService(t, "clerk")
+		repo.On("GetByID", attID).Return(&models.Attachment{
+			ID:           attID,
+			DocumentID:   uuid.New(),
+			DocumentType: "incoming",
+		}, nil).Once()
 		repo.On("Delete", attID).Return(nil).Once()
 		err := svc.Delete(attID.String())
 		require.NoError(t, err)

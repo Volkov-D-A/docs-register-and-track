@@ -5,6 +5,7 @@ import AssignmentList from './AssignmentList';
 import AcknowledgmentList from './AcknowledgmentList';
 import FileListComponent from './FileListComponent';
 import { LinksTab } from './DocumentLinks/LinksTab';
+import JournalList from './JournalList';
 
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -215,6 +216,10 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             {
                 key: 'acknowledgments', label: 'Ознакомление',
                 children: <AcknowledgmentList documentId={data.id} documentType={documentType} />
+            },
+            {
+                key: 'journal', label: 'Журнал',
+                children: <JournalList documentId={data.id} documentType={documentType} />
             }
         ];
 

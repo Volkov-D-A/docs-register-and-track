@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"docflow/internal/dto"
 	"docflow/internal/models"
 	"encoding/base64"
@@ -20,14 +21,16 @@ type AttachmentService struct {
 	repo            AttachmentStore
 	settingsService *SettingsService
 	authService     *AuthService
+	journal         *JournalService
 }
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
-func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService) *AttachmentService {
+func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService) *AttachmentService {
 	return &AttachmentService{
 		repo:            repo,
 		settingsService: settingsService,
 		authService:     authService,
+		journal:         journal,
 	}
 }
 
@@ -93,6 +96,14 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		return nil, err
 	}
 
+	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		DocumentID:   documentID,
+		DocumentType: documentType,
+		UserID:       uuid.MustParse(currentUser.ID),
+		Action:       "FILE_UPLOAD",
+		Details:      fmt.Sprintf("Добавлен файл: %s", filename),
+	})
+
 	attachment.UploadedByName = currentUser.FullName
 
 	return dto.MapAttachment(attachment), nil
@@ -149,10 +160,25 @@ func (s *AttachmentService) Delete(idStr string) error {
 		return fmt.Errorf("invalid attachment ID")
 	}
 
+	// Получение вложения для журналирования
+	attachment, err := s.repo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
 	// Удаление из БД
 	if err := s.repo.Delete(id); err != nil {
 		return err
 	}
+
+	currentUserID, _ := uuid.Parse(s.authService.GetCurrentUserID())
+	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		DocumentID:   attachment.DocumentID,
+		DocumentType: attachment.DocumentType,
+		UserID:       currentUserID,
+		Action:       "FILE_DELETE",
+		Details:      fmt.Sprintf("Удален файл: %s", attachment.Filename),
+	})
 
 	return nil
 }

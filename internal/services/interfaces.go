@@ -114,6 +114,7 @@ type AttachmentStore interface {
 type LinkStore interface {
 	Create(ctx context.Context, link *models.DocumentLink) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.DocumentLink, error)
 	GetByDocumentID(ctx context.Context, docID uuid.UUID) ([]models.DocumentLink, error)
 	GetGraph(ctx context.Context, rootID uuid.UUID) ([]models.DocumentLink, error)
 }
@@ -121,6 +122,7 @@ type LinkStore interface {
 // AcknowledgmentStore — интерфейс для работы с задачами на ознакомление в хранилище.
 type AcknowledgmentStore interface {
 	Create(a *models.Acknowledgment) error
+	GetByID(id uuid.UUID) (*models.Acknowledgment, error)
 	GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error)
 	GetPendingForUser(userID uuid.UUID) ([]models.Acknowledgment, error)
 	GetAllActive() ([]models.Acknowledgment, error)
@@ -141,4 +143,10 @@ type DashboardStore interface {
 	GetAdminUserCount() (int, error)
 	GetAdminDocCounts() (incoming, outgoing int, err error)
 	GetDBSize() string
+}
+
+// JournalStore — интерфейс для работы с журналом действий.
+type JournalStore interface {
+	Create(ctx context.Context, req models.CreateJournalEntryRequest) (uuid.UUID, error)
+	GetByDocumentID(ctx context.Context, documentID uuid.UUID, documentType string) ([]models.JournalEntry, error)
 }

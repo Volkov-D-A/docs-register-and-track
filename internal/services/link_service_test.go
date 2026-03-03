@@ -40,7 +40,11 @@ func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore
 		require.NoError(t, err)
 	}
 
-	svc := NewLinkService(linkRepo, incRepo, outRepo, auth)
+	journalRepo := mocks.NewJournalStore(t)
+	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+	journalSvc := NewJournalService(journalRepo, auth)
+
+	svc := NewLinkService(linkRepo, incRepo, outRepo, auth, journalSvc)
 	return svc, linkRepo, incRepo, outRepo, auth
 }
 
@@ -96,6 +100,16 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _, _, _ := setupLinkService(t, "clerk")
+		rootID := uuid.New()
+		targetID := uuid.New()
+		
+		repo.On("GetByID", context.Background(), linkID).Return(&models.DocumentLink{
+			ID:         linkID,
+			SourceID:   rootID,
+			SourceType: "incoming",
+			TargetID:   targetID,
+			TargetType: "outgoing",
+		}, nil).Once()
 		repo.On("Delete", context.Background(), linkID).Return(nil).Once()
 
 		err := svc.UnlinkDocument(linkID.String())

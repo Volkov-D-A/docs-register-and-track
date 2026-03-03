@@ -33,7 +33,11 @@ func setupAckService(t *testing.T, role string) (
 	_, err := auth.Login(user.Login, password)
 	require.NoError(t, err)
 
-	svc := NewAcknowledgmentService(ackRepo, userRepo, auth)
+	journalRepo := mocks.NewJournalStore(t)
+	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+	journalSvc := NewJournalService(journalRepo, auth)
+
+	svc := NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc)
 	return svc, ackRepo, userRepo, auth
 }
 
@@ -42,7 +46,11 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
-	return NewAcknowledgmentService(ackRepo, userRepo, auth)
+	journalRepo := mocks.NewJournalStore(t)
+	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+	journalSvc := NewJournalService(journalRepo, auth)
+
+	return NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc)
 }
 
 func TestAcknowledgmentService_Create(t *testing.T) {
@@ -171,6 +179,11 @@ func TestAcknowledgmentService_MarkViewed(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc, repo, _, auth := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+			ID:           ackID,
+			DocumentID:   uuid.New(),
+			DocumentType: "incoming",
+		}, nil).Once()
 		repo.On("MarkViewed", ackID, userUUID).Return(nil).Once()
 		err := svc.MarkViewed(ackID.String())
 		require.NoError(t, err)
@@ -198,6 +211,11 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc, repo, _, auth := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+			ID:           ackID,
+			DocumentID:   uuid.New(),
+			DocumentType: "incoming",
+		}, nil).Once()
 		repo.On("MarkConfirmed", ackID, userUUID).Return(nil).Once()
 		err := svc.MarkConfirmed(ackID.String())
 		require.NoError(t, err)
@@ -217,6 +235,11 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo, _, _ := setupAckService(t, "admin")
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+			ID:           ackID,
+			DocumentID:   uuid.New(),
+			DocumentType: "incoming",
+		}, nil).Once()
 		repo.On("Delete", ackID).Return(nil).Once()
 		err := svc.Delete(ackID.String())
 		require.NoError(t, err)

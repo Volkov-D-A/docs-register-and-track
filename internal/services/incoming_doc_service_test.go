@@ -23,7 +23,11 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 	authRepo := mocks.NewUserStore(t)
 	authService := NewAuthService(nil, authRepo)
 
-	docService := NewIncomingDocumentService(mockDocRepo, mockNomRepo, mockRefRepo, mockDepRepo, authService)
+	journalRepo := mocks.NewJournalStore(t)
+	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+	journalSvc := NewJournalService(journalRepo, authService)
+
+	docService := NewIncomingDocumentService(mockDocRepo, mockNomRepo, mockRefRepo, mockDepRepo, authService, journalSvc)
 
 	login := "testuser"
 	password := "CorrectPassw0rd!"
@@ -122,7 +126,11 @@ func setupIncomingDocService(t *testing.T, role string) (
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	auth.Login(user.Login, password)
 
-	svc := NewIncomingDocumentService(docRepo, nomRepo, refRepo, depRepo, auth)
+	journalRepo := mocks.NewJournalStore(t)
+	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+	journalSvc := NewJournalService(journalRepo, auth)
+
+	svc := NewIncomingDocumentService(docRepo, nomRepo, refRepo, depRepo, auth, journalSvc)
 	return svc, docRepo, nomRepo, refRepo, depRepo
 }
 

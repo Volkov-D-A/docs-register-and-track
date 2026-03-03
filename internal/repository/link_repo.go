@@ -45,6 +45,17 @@ func (r *LinkRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+// GetByID — получить связь по ID
+func (r *LinkRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.DocumentLink, error) {
+	query := `SELECT id, source_type, source_id, target_type, target_id, link_type, created_by, created_at FROM document_links WHERE id = $1`
+	var l models.DocumentLink
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&l.ID, &l.SourceType, &l.SourceID, &l.TargetType, &l.TargetID, &l.LinkType, &l.CreatedBy, &l.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &l, nil
+}
+
 // GetByDocumentID — получить все связи, где документ является источником или целью
 func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) ([]models.DocumentLink, error) {
 	query := `
