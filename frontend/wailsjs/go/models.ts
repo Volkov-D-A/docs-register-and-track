@@ -513,6 +513,20 @@ export namespace dto {
 		    return a;
 		}
 	}
+	export class DownloadResponse {
+	    filename: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filename = source["filename"];
+	        this.content = source["content"];
+	    }
+	}
 	export class IncomingDocument {
 	    id: string;
 	    nomenclatureId: string;
@@ -916,20 +930,6 @@ export namespace models {
 	        this.noResolution = source["noResolution"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
-	    }
-	}
-	export class DownloadResponse {
-	    filename: string;
-	    content: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new DownloadResponse(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.filename = source["filename"];
-	        this.content = source["content"];
 	    }
 	}
 	export class GraphEdge {

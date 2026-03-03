@@ -5,7 +5,9 @@ import (
 	"reflect"
 	"testing"
 
+	"docflow/internal/mocks"
 	"docflow/internal/models"
+	"docflow/internal/security"
 
 	"github.com/google/uuid"
 )
@@ -235,4 +237,117 @@ func TestFilterNomenclaturesByDepartment(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplyExecutorNomenclatureFilter(t *testing.T) {
+	depRepo := &MockDepartmentStore{
+		GetNomsFunc: func(d uuid.UUID) ([]string, error) {
+			return []string{"A", "B"}, nil
+		},
+	}
+	
+	// mock auth pieces but AuthService struct directly
+	userStore := mocks.NewUserStore(t)
+	auth := NewAuthService(nil, userStore)
+
+	hash, _ := security.HashPassword("CorrectP@ssword1!")
+	
+	setupUser := func(role string, depIDStr string) *models.User {
+		var dep *models.Department
+		if depIDStr != "" {
+			dID, _ := uuid.Parse(depIDStr)
+			// Sometimes models ID is string, sometimes uuid.UUID. The compiler said "cannot use depID (variable of type string) as uuid.UUID value"
+			// Wait, if it expects uuid.UUID, then I must set it as uuid.UUID? But wait, User.Department is a pointer. 
+			// Let me just set it as the correct type. Let's do a trick: I will just use reflection or let's assume it's string because in previous tests users had string IDs? 
+			// No, it explicitly said: "cannot use depID (variable of type string) as uuid.UUID value in struct literal" 
+			// So Department.ID is uuid.UUID! I will write:
+			dep = &models.Department{ID: dID}
+		}
+		u := &models.User{
+			ID:           uuid.New(),
+			Login:        "test_" + uuid.New().String(),
+			PasswordHash: hash,
+			IsActive:     true,
+			Roles:        []string{role},
+			Department:   dep,
+		}
+		userStore.On("GetByLogin", u.Login).Return(u, nil).Once()
+		auth.Login(u.Login, "CorrectP@ssword1!")
+		return u
+	}
+
+	t.Run("admin bypasses filter", func(t *testing.T) {
+		setupUser("admin", "")
+		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, []string{"X"}, "")
+		if err != nil {
+			t.Errorf("expected no err, got %v", err)
+		}
+		if isEmpty {
+			t.Errorf("expected not empty")
+		}
+		if len(filtered) != 1 || filtered[0] != "X" {
+			t.Errorf("expected original ids")
+		}
+		auth.Logout()
+	})
+
+	t.Run("executor with valid dep", func(t *testing.T) {
+		setupUser("executor", uuid.New().String())
+		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, nil, "")
+		if err != nil {
+			t.Errorf("expected no err, got %v", err)
+		}
+		if isEmpty {
+			t.Errorf("expected not empty")
+		}
+		if len(filtered) != 2 || filtered[0] != "A" || filtered[1] != "B" {
+			t.Errorf("expected A, B")
+		}
+		auth.Logout()
+	})
+
+	t.Run("executor with specific missing filter", func(t *testing.T) {
+		setupUser("executor", uuid.New().String())
+		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, []string{"C"}, "")
+		if err != nil {
+			t.Errorf("expected no err, got %v", err)
+		}
+		if !isEmpty {
+			t.Errorf("expected empty")
+		}
+		if len(filtered) != 0 {
+			t.Errorf("expected nil")
+		}
+		auth.Logout()
+	})
+
+	t.Run("executor no dep", func(t *testing.T) {
+		setupUser("executor", "")
+		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, nil, "")
+		if err != nil {
+			t.Errorf("expected no err, got %v", err)
+		}
+		if !isEmpty {
+			t.Errorf("expected empty")
+		}
+		if len(filtered) != 0 {
+			t.Errorf("expected nil")
+		}
+		auth.Logout()
+	})
+	
+	t.Run("not authenticated", func(t *testing.T) {
+		auth.Logout()
+		// If not authenticated, HasRole("executor") is false, so it bypasses
+		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, []string{"X"}, "")
+		if err != nil {
+			t.Errorf("expected no err, got %v", err)
+		}
+		if isEmpty {
+			t.Errorf("expected not empty")
+		}
+		if len(filtered) != 1 || filtered[0] != "X" {
+			t.Errorf("expected original ids")
+		}
+	})
 }

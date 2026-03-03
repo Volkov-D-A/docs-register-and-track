@@ -127,10 +127,10 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	now := time.Now()
 
 	req := models.CreateIncomingDocRequest{
-		NomenclatureID: uuid.New().String(),
+		NomenclatureID: uuid.New(),
 		IncomingNumber: "ВХ-001",
 		IncomingDate:   now,
-		DocumentTypeID: uuid.New().String(),
+		DocumentTypeID: uuid.New(),
 		Subject:        "Тема",
 		Content:        "Текст",
 	}
@@ -158,7 +158,7 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 		"created_by", "created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
-		docID, uuid.New(), "01-01", "ВХ-001", now, "", nil, "", nil,
+		docID, uuid.New(), "01-01", "ВХ-001", now, "", now, "", now,
 		uuid.New(), "Тип", "Тема", 0, "Текст", uuid.New(), "", "", "",
 		uuid.New(), "", "", "", uuid.New(), "", now, now,
 	)
@@ -170,5 +170,127 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.Equal(t, docID, doc.ID)
 	assert.Equal(t, "ВХ-001", doc.IncomingNumber)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIncomingDocumentRepository_GetList(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+	now := time.Now()
+
+	t.Run("success with filters", func(t *testing.T) {
+		filter := models.DocumentFilter{
+			NomenclatureID: uuid.New().String(),
+			Page:           1,
+			PageSize:       10,
+		}
+
+		// Count query
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM incoming_documents`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+		// Data query
+		rows := sqlmock.NewRows([]string{
+			"id", "nomenclature_id", "nomenclature_name",
+			"incoming_number", "incoming_date", "outgoing_number_sender", "outgoing_date_sender",
+			"intermediate_number", "intermediate_date",
+			"document_type_id", "document_type_name",
+			"subject", "pages_count", "content",
+			"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
+			"recipient_org_id", "recipient_org_name", "addressee",
+			"resolution",
+			"created_by", "created_by_name",
+			"created_at", "updated_at",
+		}).AddRow(
+			uuid.New(), uuid.New(), "01-01", "ВХ-001", now, "", now, "", now,
+			uuid.New(), "Тип", "Тема", 0, "Текст", uuid.New(), "", "", "",
+			uuid.New(), "", "", "", uuid.New(), "", now, now,
+		)
+		mock.ExpectQuery(regexp.QuoteMeta(incomingDocSelectBase)).WillReturnRows(rows)
+
+		res, err := repo.GetList(filter)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, 1, res.TotalCount)
+		assert.Len(t, res.Items, 1)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("count database error", func(t *testing.T) {
+		filter := models.DocumentFilter{Search: "test"}
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM incoming_documents`).WillReturnError(sql.ErrConnDone)
+
+		res, err := repo.GetList(filter)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to count documents")
+		assert.Nil(t, res)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+	
+	t.Run("data database error", func(t *testing.T) {
+		filter := models.DocumentFilter{}
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM incoming_documents`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(regexp.QuoteMeta(incomingDocSelectBase)).WillReturnError(sql.ErrConnDone)
+
+		res, err := repo.GetList(filter)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get incoming documents")
+		assert.Nil(t, res)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestIncomingDocumentRepository_Update(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+	docID := uuid.New()
+	now := time.Now()
+
+	req := models.UpdateIncomingDocRequest{
+		ID:                   docID,
+		OutgoingNumberSender: "ИСХ-001",
+		Subject:              "Обновленная Тема",
+	}
+
+	mock.ExpectExec(`UPDATE incoming_documents SET`).WithArgs(
+		req.OutgoingNumberSender, req.OutgoingDateSender,
+		req.IntermediateNumber, req.IntermediateDate,
+		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.RecipientOrgID, req.Addressee, req.Resolution,
+		req.ID,
+	).WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// После Update идет вызов GetByID
+	expectedQuery := incomingDocSelectBase + " WHERE d.id = $1"
+	rows := sqlmock.NewRows([]string{
+		"id", "nomenclature_id", "nomenclature_name",
+		"incoming_number", "incoming_date", "outgoing_number_sender", "outgoing_date_sender",
+		"intermediate_number", "intermediate_date",
+		"document_type_id", "document_type_name",
+		"subject", "pages_count", "content",
+		"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
+		"recipient_org_id", "recipient_org_name", "addressee",
+		"resolution",
+		"created_by", "created_by_name",
+		"created_at", "updated_at",
+	}).AddRow(
+		docID, uuid.New(), "01-01", "ВХ-001", now, "ИСХ-001", now, "", now,
+		uuid.New(), "Тип", "Обновленная Тема", 0, "Текст", uuid.New(), "", "", "",
+		uuid.New(), "", "", "", uuid.New(), "", now, now,
+	)
+
+	mock.ExpectQuery(regexp.QuoteMeta(expectedQuery)).WithArgs(docID).WillReturnRows(rows)
+
+	doc, err := repo.Update(req)
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Equal(t, docID, doc.ID)
+	assert.Equal(t, "Обновленная Тема", doc.Subject)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

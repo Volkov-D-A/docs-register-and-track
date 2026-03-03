@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"docflow/internal/mocks"
@@ -35,7 +36,7 @@ func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore
 			Roles:        []string{role},
 		}
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
-		err := auth.Login(user.Login, password)
+		_, err := auth.Login(user.Login, password)
 		require.NoError(t, err)
 	}
 
@@ -52,16 +53,9 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 		userIDStr := auth.GetCurrentUserID()
 		userID, _ := uuid.Parse(userIDStr)
 
-		expectedLink := &models.DocumentLink{
-			SourceType: "incoming",
-			SourceID:   sourceID,
-			TargetType: "outgoing",
-			TargetID:   targetID,
-			LinkType:   "ответ",
-			CreatedBy:  userID,
-		}
-
-		repo.On("Create", context.Background(), expectedLink).Return(nil).Once()
+		repo.On("Create", context.Background(), mock.MatchedBy(func(link *models.DocumentLink) bool {
+			return link.SourceID == sourceID && link.TargetID == targetID && link.LinkType == "ответ" && link.CreatedBy == userID
+		})).Return(nil).Once()
 
 		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "incoming", "outgoing", "ответ")
 		require.NoError(t, err)

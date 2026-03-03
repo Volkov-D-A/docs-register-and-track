@@ -131,3 +131,137 @@ func TestAcknowledgmentRepository_Delete(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestAcknowledgmentRepository_GetUsersByAcknowledgmentID(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	ackID := uuid.New()
+	userID := uuid.New()
+	now := time.Now()
+
+	query := `SELECT 
+			au.id, au.acknowledgment_id, au.user_id, au.viewed_at, au.confirmed_at, au.created_at,
+			u.full_name as user_name
+		FROM acknowledgment_users au
+		JOIN users u ON au.user_id = u.id
+		WHERE au.acknowledgment_id = \$1`
+
+	rows := sqlmock.NewRows([]string{
+		"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name",
+	}).AddRow(uuid.New(), ackID, userID, now, nil, now, "Читатель")
+
+	mock.ExpectQuery(query).WithArgs(ackID).WillReturnRows(rows)
+
+	users, err := repo.GetUsersByAcknowledgmentID(ackID)
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	assert.Equal(t, userID, users[0].UserID)
+	assert.Equal(t, "Читатель", users[0].UserName)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAcknowledgmentRepository_GetPendingForUser(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	userID := uuid.New()
+	now := time.Now()
+
+	query := `SELECT a.id, a.document_id, a.document_type, a.creator_id, a.content, a.created_at, a.completed_at, u.full_name as creator_name, COALESCE\(inc.incoming_number, out.outgoing_number\) as doc_number FROM acknowledgment_users au JOIN acknowledgments a ON au.acknowledgment_id = a.id JOIN users u ON a.creator_id = u.id LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming' LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing' WHERE au.user_id = \$1 AND au.confirmed_at IS NULL ORDER BY a.created_at DESC`
+
+	rows := sqlmock.NewRows([]string{
+		"id", "document_id", "document_type", "creator_id", "content", "created_at", "completed_at",
+		"creator_name", "doc_number",
+	}).AddRow(uuid.New(), uuid.New(), "incoming", uuid.New(), "Ознакомиться", now, nil, "Создатель", "ВХ-1")
+
+	mock.ExpectQuery(query).WithArgs(userID).WillReturnRows(rows)
+
+	usersQuery := `SELECT 
+			au.id, au.acknowledgment_id, au.user_id, au.viewed_at, au.confirmed_at, au.created_at,
+			u.full_name as user_name
+		FROM acknowledgment_users au
+		JOIN users u ON au.user_id = u.id
+		WHERE au.acknowledgment_id = \$1`
+
+	mock.ExpectQuery(usersQuery).WithArgs(sqlmock.AnyArg()).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name"}),
+	)
+
+	acks, err := repo.GetPendingForUser(userID)
+	require.NoError(t, err)
+	require.Len(t, acks, 1)
+	assert.Equal(t, "Ознакомиться", acks[0].Content)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAcknowledgmentRepository_MarkConfirmed(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	ackID := uuid.New()
+	userID := uuid.New()
+
+	mock.ExpectBegin()
+
+	mock.ExpectExec(`UPDATE acknowledgment_users SET confirmed_at = \$1, viewed_at = COALESCE\(viewed_at, \$1\) WHERE acknowledgment_id = \$2 AND user_id = \$3`).
+		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(1, 1))
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM acknowledgment_users WHERE acknowledgment_id = \$1 AND confirmed_at IS NULL`).
+		WithArgs(ackID).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	mock.ExpectExec(`UPDATE acknowledgments SET completed_at = \$1 WHERE id = \$2`).
+		WithArgs(sqlmock.AnyArg(), ackID).WillReturnResult(sqlmock.NewResult(1, 1))
+
+	mock.ExpectCommit()
+
+	err = repo.MarkConfirmed(ackID, userID)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAcknowledgmentRepository_GetAllActive(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	now := time.Now()
+
+	query := `SELECT 
+			a.id, a.document_id, a.document_type, a.creator_id, a.content, a.created_at, a.completed_at,
+			u.full_name as creator_name,
+			COALESCE\(inc.incoming_number, out.outgoing_number\) as doc_number
+		FROM acknowledgments a
+		JOIN users u ON a.creator_id = u.id
+		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
+		LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing'
+		WHERE a.completed_at IS NULL
+		ORDER BY a.created_at DESC`
+
+	rows := sqlmock.NewRows([]string{
+		"id", "document_id", "document_type", "creator_id", "content", "created_at", "completed_at",
+		"creator_name", "doc_number",
+	}).AddRow(uuid.New(), uuid.New(), "incoming", uuid.New(), "Ознакомиться", now, nil, "Создатель", "ВХ-1")
+
+	mock.ExpectQuery(query).WillReturnRows(rows)
+
+	usersQuery := `SELECT au.id, au.acknowledgment_id, au.user_id, au.viewed_at, au.confirmed_at, au.created_at, u.full_name as user_name FROM acknowledgment_users au JOIN users u ON au.user_id = u.id WHERE au.acknowledgment_id = \$1`
+
+	usersRows := sqlmock.NewRows([]string{
+		"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name",
+	}).AddRow(uuid.New(), uuid.New(), uuid.New(), nil, nil, now, "Читатель")
+
+	mock.ExpectQuery(usersQuery).WithArgs(sqlmock.AnyArg()).WillReturnRows(usersRows)
+
+	acks, err := repo.GetAllActive()
+	require.NoError(t, err)
+	require.Len(t, acks, 1)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -112,6 +113,83 @@ func TestDashboardService_GetStats(t *testing.T) {
 		assert.Equal(t, 50, stats.IncomingCount)
 		assert.Equal(t, 40, stats.OutgoingCount)
 		assert.Equal(t, 5, stats.AllAssignmentsOverdue)
+
+		authService.Logout()
+	})
+
+	t.Run("not authenticated", func(t *testing.T) {
+		stats, err := dashboardService.GetStats("", "", "")
+		require.ErrorIs(t, err, ErrNotAuthenticated)
+		require.Nil(t, stats)
+	})
+
+	t.Run("clerk invalid start date", func(t *testing.T) {
+		authRepo.On("GetByLogin", "clerkuser").Return(clerkUser, nil).Once()
+		authService.Login("clerkuser", password)
+
+		stats, err := dashboardService.GetStats("", "invalid-date", "2024-01-31")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid start date")
+		require.Nil(t, stats)
+
+		authService.Logout()
+	})
+
+	t.Run("clerk invalid end date", func(t *testing.T) {
+		authRepo.On("GetByLogin", "clerkuser").Return(clerkUser, nil).Once()
+		authService.Login("clerkuser", password)
+
+		stats, err := dashboardService.GetStats("", "2024-01-01", "invalid-date")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid end date")
+		require.Nil(t, stats)
+
+		authService.Logout()
+	})
+
+	t.Run("executor specific role fallback and error", func(t *testing.T) {
+		authRepo.On("GetByLogin", login).Return(executorUser, nil).Once()
+		authService.Login(login, password)
+
+		// Ask for admin role, but user doesn't have it, so it falls back to executor
+		mockRepo.On("GetExecutorStatusCounts", executorUser.ID).Return(0, 0, assert.AnError).Once()
+
+		stats, err := dashboardService.GetStats("admin", "", "")
+		require.ErrorIs(t, err, assert.AnError)
+		require.Nil(t, stats)
+
+		authService.Logout()
+	})
+
+	t.Run("admin missing user count error", func(t *testing.T) {
+		authRepo.On("GetByLogin", "adminuser").Return(adminUser, nil).Once()
+		authService.Login("adminuser", password)
+
+		mockRepo.On("GetAdminUserCount").Return(0, assert.AnError).Once()
+
+		stats, err := dashboardService.GetStats("", "", "")
+		require.ErrorIs(t, err, assert.AnError)
+		require.Nil(t, stats)
+
+		authService.Logout()
+	})
+
+	t.Run("clerk GetDocCountsByPeriod error", func(t *testing.T) {
+		authRepo.On("GetByLogin", "clerkuser").Return(clerkUser, nil).Once()
+		authService.Login("clerkuser", password)
+
+		// Test empty dates (defaulting to current month)
+		mockRepo.On("GetDocCountsByPeriod", time.Time{}, time.Time{}).Return(0, 0, assert.AnError).Maybe()
+		// Depending on time.Now(), we just catch the first call pattern
+		mockRepo.Calls = nil
+		mockRepo.ExpectedCalls = nil
+		
+		// Catch any GetDocCountsByPeriod call and return error
+		mockRepo.On("GetDocCountsByPeriod", mock.Anything, mock.Anything).Return(0, 0, assert.AnError).Once()
+
+		stats, err := dashboardService.GetStats("", "", "")
+		require.ErrorIs(t, err, assert.AnError)
+		require.Nil(t, stats)
 
 		authService.Logout()
 	})

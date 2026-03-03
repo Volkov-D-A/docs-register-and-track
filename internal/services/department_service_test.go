@@ -31,7 +31,7 @@ func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *moc
 			Roles:        []string{role},
 		}
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
-		err := auth.Login(user.Login, password)
+		_, err := auth.Login(user.Login, password)
 		require.NoError(t, err)
 	}
 

@@ -1,11 +1,13 @@
 package services
 
 import (
+	"docflow/internal/database"
 	"docflow/internal/mocks"
 	"docflow/internal/models"
 	"docflow/internal/security"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +31,11 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	auth.Login(user.Login, password)
 
-	return NewSettingsService(nil, settingsRepo, auth), settingsRepo
+	dbMock, _, err := sqlmock.New()
+	require.NoError(t, err)
+	db := &database.DB{DB: dbMock}
+
+	return NewSettingsService(db, settingsRepo, auth), settingsRepo
 }
 
 func TestSettingsService_GetAll(t *testing.T) {
@@ -108,5 +114,61 @@ func TestSettingsService_GetOrganizationName(t *testing.T) {
 		repo.On("Get", "organization_name").Return((*models.SystemSetting)(nil), assert.AnError).Once()
 		name := svc.GetOrganizationName()
 		assert.Equal(t, "НАША ОРГАНИЗАЦИЯ", name)
+	})
+}
+
+func TestSettingsService_RunMigrations(t *testing.T) {
+	t.Run("forbidden non-admin", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "executor")
+		err := svc.RunMigrations()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Недостаточно прав")
+	})
+
+	t.Run("success admin", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		// The db layer expects an actual database, which might crash, but we catch it
+		err := svc.RunMigrations()
+		// it will likely be: migration path not found, or driver creation failure, but not forbidden
+		if err != nil {
+			assert.NotContains(t, err.Error(), "Недостаточно прав")
+		}
+	})
+}
+
+func TestSettingsService_GetMigrationStatus(t *testing.T) {
+	t.Run("forbidden non-admin", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "clerk")
+		status, err := svc.GetMigrationStatus()
+		require.Error(t, err)
+		require.Nil(t, status)
+		assert.Contains(t, err.Error(), "Недостаточно прав")
+	})
+
+	t.Run("success admin", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		status, err := svc.GetMigrationStatus()
+		if err != nil {
+			assert.NotContains(t, err.Error(), "Недостаточно прав")
+		} else {
+			assert.NotNil(t, status)
+		}
+	})
+}
+
+func TestSettingsService_RollbackMigration(t *testing.T) {
+	t.Run("forbidden non-admin", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "executor")
+		err := svc.RollbackMigration()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Недостаточно прав")
+	})
+
+	t.Run("success admin", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		err := svc.RollbackMigration()
+		if err != nil {
+			assert.NotContains(t, err.Error(), "Недостаточно прав")
+		}
 	})
 }

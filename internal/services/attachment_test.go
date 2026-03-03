@@ -190,7 +190,7 @@ func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
 	t.Run("valid path", func(t *testing.T) {
 		svc, _, _, _ := setupAttachmentService(t, "executor")
 		downloadDir, _ := svc.getDownloadDir()
-		err := svc.validatePathInDownloads(downloadDir + "\\test.pdf")
+		err := svc.validatePathInDownloads(downloadDir + "/test.pdf")
 		require.NoError(t, err)
 	})
 

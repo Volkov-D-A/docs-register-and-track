@@ -123,10 +123,10 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 	now := time.Now()
 
 	req := models.CreateOutgoingDocRequest{
-		NomenclatureID: uuid.New().String(),
+		NomenclatureID: uuid.New(),
 		OutgoingNumber: "ИСХ-001",
 		OutgoingDate:   now,
-		DocumentTypeID: uuid.New().String(),
+		DocumentTypeID: uuid.New(),
 		Subject:        "Тема",
 		Content:        "Текст",
 	}
@@ -178,5 +178,151 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.Equal(t, docID, doc.ID)
 	assert.Equal(t, "ИСХ-001", doc.OutgoingNumber)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutgoingDocumentRepository_GetList(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	now := time.Now()
+
+	t.Run("success with filters", func(t *testing.T) {
+		filter := models.OutgoingDocumentFilter{
+			NomenclatureIDs: []string{uuid.New().String()},
+			Page:            1,
+			PageSize:        10,
+		}
+
+		// Count query
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM outgoing_documents`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+		// Data query
+		rows := sqlmock.NewRows([]string{
+			"id", "nomenclature_id", "nomenclature_name",
+			"outgoing_number", "outgoing_date",
+			"document_type_id", "document_type_name",
+			"subject", "pages_count", "content",
+			"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
+			"recipient_org_id", "recipient_org_name", "addressee",
+			"created_by", "created_by_name",
+			"created_at", "updated_at",
+		}).AddRow(
+			uuid.New(), uuid.New(), "01-01", "ИСХ-001", now,
+			uuid.New(), "Тип", "Тема", 0, "Текст", uuid.New(), "", "", "",
+			uuid.New(), "", "", uuid.New(), "", now, now,
+		)
+		
+		expectedSelectBase := `SELECT 
+			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
+			d.outgoing_number, d.outgoing_date,
+			d.document_type_id, dt.name as document_type_name,
+			d.subject, d.pages_count, d.content,
+			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
+			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
+			d.created_by, u.full_name as created_by_name,
+			d.created_at, d.updated_at
+		FROM outgoing_documents d
+		JOIN nomenclature n ON d.nomenclature_id = n.id
+		JOIN document_types dt ON d.document_type_id = dt.id
+		JOIN organizations so ON d.sender_org_id = so.id
+		JOIN organizations ro ON d.recipient_org_id = ro.id
+		JOIN users u ON d.created_by = u.id`
+		mock.ExpectQuery(regexp.QuoteMeta(expectedSelectBase)).WillReturnRows(rows)
+
+		res, err := repo.GetList(filter)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, 1, res.TotalCount)
+		assert.Len(t, res.Items, 1)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("count database error", func(t *testing.T) {
+		filter := models.OutgoingDocumentFilter{Search: "test"}
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM outgoing_documents`).WillReturnError(sql.ErrConnDone)
+
+		res, err := repo.GetList(filter)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to count documents")
+		assert.Nil(t, res)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+	
+	t.Run("data database error", func(t *testing.T) {
+		filter := models.OutgoingDocumentFilter{}
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM outgoing_documents`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(`SELECT`).WillReturnError(sql.ErrConnDone)
+
+		res, err := repo.GetList(filter)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get outgoing documents")
+		assert.Nil(t, res)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestOutgoingDocumentRepository_Update(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	docID := uuid.New()
+	now := time.Now()
+
+	req := models.UpdateOutgoingDocRequest{
+		ID:      docID,
+		Subject: "Обновленная Тема",
+	}
+
+	mock.ExpectExec(`UPDATE outgoing_documents SET`).WithArgs(
+		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.RecipientOrgID, req.Addressee, req.OutgoingDate,
+		req.ID,
+	).WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// После Update идет вызов GetByID
+	expectedQuery := `SELECT 
+			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
+			d.outgoing_number, d.outgoing_date,
+			d.document_type_id, dt.name as document_type_name,
+			d.subject, d.pages_count, d.content,
+			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
+			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
+			d.created_by, u.full_name as created_by_name,
+			d.created_at, d.updated_at
+		FROM outgoing_documents d
+		JOIN nomenclature n ON d.nomenclature_id = n.id
+		JOIN document_types dt ON d.document_type_id = dt.id
+		JOIN organizations so ON d.sender_org_id = so.id
+		JOIN organizations ro ON d.recipient_org_id = ro.id
+		JOIN users u ON d.created_by = u.id
+		WHERE d.id = $1`
+	rows := sqlmock.NewRows([]string{
+		"id", "nomenclature_id", "nomenclature_name",
+		"outgoing_number", "outgoing_date",
+		"document_type_id", "document_type_name",
+		"subject", "pages_count", "content",
+		"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
+		"recipient_org_id", "recipient_org_name", "addressee",
+		"created_by", "created_by_name",
+		"created_at", "updated_at",
+	}).AddRow(
+		docID, uuid.New(), "01-01", "ИСХ-001", now,
+		uuid.New(), "Тип", "Обновленная Тема", 0, "Текст", uuid.New(), "", "", "",
+		uuid.New(), "", "", uuid.New(), "", now, now,
+	)
+
+	mock.ExpectQuery(regexp.QuoteMeta(expectedQuery)).WithArgs(docID).WillReturnRows(rows)
+
+	doc, err := repo.Update(req)
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Equal(t, docID, doc.ID)
+	assert.Equal(t, "Обновленная Тема", doc.Subject)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

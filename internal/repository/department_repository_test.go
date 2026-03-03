@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"regexp"
 	"testing"
 	"time"
@@ -133,4 +134,51 @@ func TestDepartmentRepository_Delete(t *testing.T) {
 	err = repo.Delete(depID)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDepartmentRepository_Errors(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewDepartmentRepository(&database.DB{DB: db})
+	depID := uuid.New()
+
+	t.Run("GetAll error", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT`).WillReturnError(sql.ErrConnDone)
+		res, err := repo.GetAll()
+		require.Error(t, err)
+		assert.Nil(t, res)
+	})
+
+	t.Run("Create invalid nomenclature id", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectQuery(`INSERT INTO departments`).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at", "updated_at"}).AddRow(uuid.New(), "IT", time.Now(), time.Now()))
+		
+		mock.ExpectPrepare(`INSERT INTO department_nomenclature`)
+		
+		res, err := repo.Create("IT", []string{"invalid-uuid"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid nomenclature id")
+		assert.Nil(t, res)
+	})
+
+	t.Run("Update not found", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectQuery(`UPDATE departments`).WillReturnError(sql.ErrNoRows)
+		
+		res, err := repo.Update(depID, "IT", nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "department not found")
+		assert.Nil(t, res)
+	})
+
+	t.Run("Delete not found", func(t *testing.T) {
+		mock.ExpectExec(`DELETE FROM departments`).WillReturnResult(sqlmock.NewResult(0, 0))
+		
+		err = repo.Delete(depID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "department not found")
+	})
 }
