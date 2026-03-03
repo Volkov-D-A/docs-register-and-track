@@ -15,6 +15,7 @@ import (
 )
 
 func TestAcknowledgmentRepository_Create(t *testing.T) {
+	// Создание листа ознакомления и привязка пользователей
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -52,6 +53,7 @@ func TestAcknowledgmentRepository_Create(t *testing.T) {
 }
 
 func TestAcknowledgmentRepository_GetByDocumentID(t *testing.T) {
+	// Получение списка листов ознакомления по ID документа
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -101,6 +103,7 @@ func TestAcknowledgmentRepository_GetByDocumentID(t *testing.T) {
 }
 
 func TestAcknowledgmentRepository_MarkViewed(t *testing.T) {
+	// Отметка о прочтении листа ознакомления конкретным пользователем
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -118,6 +121,7 @@ func TestAcknowledgmentRepository_MarkViewed(t *testing.T) {
 }
 
 func TestAcknowledgmentRepository_Delete(t *testing.T) {
+	// Удаление листа ознакомления по его ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -133,6 +137,7 @@ func TestAcknowledgmentRepository_Delete(t *testing.T) {
 }
 
 func TestAcknowledgmentRepository_GetUsersByAcknowledgmentID(t *testing.T) {
+	// Получение списка пользователей, привязанных к листу ознакомления
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -164,6 +169,7 @@ func TestAcknowledgmentRepository_GetUsersByAcknowledgmentID(t *testing.T) {
 }
 
 func TestAcknowledgmentRepository_GetPendingForUser(t *testing.T) {
+	// Получение списка ожидающих подтверждения листов ознакомления для пользователя
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -200,6 +206,7 @@ func TestAcknowledgmentRepository_GetPendingForUser(t *testing.T) {
 }
 
 func TestAcknowledgmentRepository_MarkConfirmed(t *testing.T) {
+	// Подтверждение факта ознакомления пользователем
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -227,6 +234,7 @@ func TestAcknowledgmentRepository_MarkConfirmed(t *testing.T) {
 }
 
 func TestAcknowledgmentRepository_GetAllActive(t *testing.T) {
+	// Получение всех активных (не завершенных) листов ознакомления
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

@@ -14,6 +14,7 @@ import (
 )
 
 func TestConnect_Failure(t *testing.T) {
+	// Ожидается ошибка при подключении с заведомо некорректными учетными данными
 	cfg := config.DatabaseConfig{
 		Host:     "localhost",
 		Port:     33333,
@@ -32,6 +33,7 @@ func TestConnect_Failure(t *testing.T) {
 }
 
 func setupMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock, *DB) {
+	// Инициализация соединения с БД через мок (sqlmock) для перехвата запросов
 	dbMock, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	mock.MatchExpectationsInOrder(false) // Handle unstructured queries from golang-migrate
@@ -39,6 +41,7 @@ func setupMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock, *DB) {
 }
 
 func addMigrateInitExpectations(mock sqlmock.Sqlmock) {
+	// Ожидания системных запросов (golong-migrate) при запуске инициализации
 	mock.ExpectQuery(`(?i)SELECT CURRENT_DATABASE\(\)`).WillReturnRows(sqlmock.NewRows([]string{"current_database"}).AddRow("testdb"))
 	mock.ExpectQuery(`(?i)SELECT CURRENT_SCHEMA\(\)`).WillReturnRows(sqlmock.NewRows([]string{"current_schema"}).AddRow("public"))
 	mock.ExpectQuery(`(?i)SELECT COUNT\(1\) FROM information_schema\.tables`).WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
@@ -48,14 +51,17 @@ func addMigrateInitExpectations(mock sqlmock.Sqlmock) {
 }
 
 func TestDB_RunMigrations(t *testing.T) {
+	// Тестирование функции применения миграций
 	dbMock, mock, db := setupMockDB(t)
 	defer dbMock.Close()
 
+	// Сценарий: директория с миграциями не найдена (не ошибка, а пропуск)
 	t.Run("dir not found", func(t *testing.T) {
 		err := db.RunMigrations("non_existent_dir_123")
 		assert.NoError(t, err)
 	})
 
+	// Сценарий: передан файл вместо директории (должна быть ошибка)
 	t.Run("not a dir", func(t *testing.T) {
 		tmpFile := filepath.Join(t.TempDir(), "file.txt")
 		os.WriteFile(tmpFile, []byte("data"), 0644)
@@ -64,6 +70,7 @@ func TestDB_RunMigrations(t *testing.T) {
 		assert.Contains(t, err.Error(), "is not a directory")
 	})
 
+	// Сценарий: ошибка в самом процессе инстанцирования драйвера миграций
 	t.Run("driver creation or migrate instance fails", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		// Since we don't mock the complex golang-migrate queries here, it will fail 
@@ -72,6 +79,7 @@ func TestDB_RunMigrations(t *testing.T) {
 		assert.Error(t, err)
 	})
 	
+	// Сценарий: успешное применение миграций (на уровне моков)
 	t.Run("success (mocked driver)", func(t *testing.T) {
 	    tmpDir := t.TempDir()
 	    os.WriteFile(filepath.Join(tmpDir, "000001_init.up.sql"), []byte("CREATE TABLE test (id int);"), 0644)
@@ -84,6 +92,7 @@ func TestDB_RunMigrations(t *testing.T) {
 }
 
 func TestDB_GetMigrationStatus(t *testing.T) {
+	// Тестирование функции получения статуса применения миграций
 	t.Run("dir not found", func(t *testing.T) {
 		dbMock, _, db := setupMockDB(t)
 		defer dbMock.Close()
@@ -108,6 +117,7 @@ func TestDB_GetMigrationStatus(t *testing.T) {
 }
 
 func TestDB_RollbackMigration(t *testing.T) {
+	// Тестирование функции отката последней миграции
 	t.Run("driver creation fails", func(t *testing.T) {
 		dbMock, _, db := setupMockDB(t)
 		defer dbMock.Close()

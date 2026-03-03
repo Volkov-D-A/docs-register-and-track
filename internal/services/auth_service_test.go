@@ -41,6 +41,7 @@ func newTestUser() (*models.User, string) {
 // ---------- TestAuthService_Login ----------
 
 func TestAuthService_Login(t *testing.T) {
+	// Аутентификация пользователя (вход в систему) и валидация пароля
 	mockRepo := mocks.NewUserStore(t)
 	authService := NewAuthService(nil, mockRepo)
 
@@ -119,6 +120,7 @@ func TestAuthService_Login(t *testing.T) {
 // ---------- TestAuthService_Logout ----------
 
 func TestAuthService_Logout(t *testing.T) {
+	// Выход пользователя из системы (сброс текущего пользователя в сессии/контексте)
 	user, password := newTestUser()
 
 	t.Run("logout resets currentUser", func(t *testing.T) {
@@ -145,6 +147,7 @@ func TestAuthService_Logout(t *testing.T) {
 // ---------- TestAuthService_GetCurrentUser ----------
 
 func TestAuthService_GetCurrentUser(t *testing.T) {
+	// Получение данных текущего авторизованного пользователя
 	user, password := newTestUser()
 
 	t.Run("success", func(t *testing.T) {
@@ -172,6 +175,7 @@ func TestAuthService_GetCurrentUser(t *testing.T) {
 // ---------- TestAuthService_ChangePassword ----------
 
 func TestAuthService_ChangePassword(t *testing.T) {
+	// Смена пароля пользователя (с проверкой старого пароля и сложности нового)
 	user, password := newTestUser()
 	newPassword := "NewPassw0rd!"
 
@@ -220,6 +224,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 // ---------- TestAuthService_UpdateProfile ----------
 
 func TestAuthService_UpdateProfile(t *testing.T) {
+	// Обновление профиля пользователя (например, смена ФИО или логина)
 	user, password := newTestUser()
 	req := models.UpdateProfileRequest{Login: "newlogin", FullName: "New Name"}
 
@@ -274,6 +279,7 @@ func TestAuthService_UpdateProfile(t *testing.T) {
 // ---------- TestAuthService_IsAuthenticated ----------
 
 func TestAuthService_IsAuthenticated(t *testing.T) {
+	// Проверка статуса авторизации (авторизован ли кто-то в данный момент)
 	user, password := newTestUser()
 
 	t.Run("after login", func(t *testing.T) {
@@ -299,6 +305,7 @@ func TestAuthService_IsAuthenticated(t *testing.T) {
 // ---------- TestAuthService_HasRole ----------
 
 func TestAuthService_HasRole(t *testing.T) {
+	// Проверка наличия необходимой роли у текущего пользователя
 	t.Run("has role", func(t *testing.T) {
 		user := &models.User{
 			ID:           uuid.New(),
@@ -330,7 +337,7 @@ func TestAuthService_HasRole(t *testing.T) {
 // ---------- TestAuthService_NeedsInitialSetup ----------
 
 func TestAuthService_NeedsInitialSetup(t *testing.T) {
-
+	// Проверка необходимости первоначальной настройки системы (если пользователей еще нет)
 	t.Run("no users - needs setup", func(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := NewAuthService(nil, mockRepo)
@@ -364,6 +371,7 @@ func TestAuthService_NeedsInitialSetup(t *testing.T) {
 // ---------- TestAuthService_InitialSetup ----------
 
 func TestAuthService_InitialSetup(t *testing.T) {
+	// Первоначальная настройка системы (создание главного администратора)
 	goodPassword := "Admin1Pass!"
 
 	t.Run("success", func(t *testing.T) {

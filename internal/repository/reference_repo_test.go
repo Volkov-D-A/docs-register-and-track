@@ -16,6 +16,7 @@ import (
 // === Document Types ===
 
 func TestReferenceRepository_GetAllDocumentTypes(t *testing.T) {
+	// Получение всех типов документов из справочника
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -39,6 +40,7 @@ func TestReferenceRepository_GetAllDocumentTypes(t *testing.T) {
 }
 
 func TestReferenceRepository_CreateDocumentType(t *testing.T) {
+	// Создание нового типа документа
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -62,6 +64,7 @@ func TestReferenceRepository_CreateDocumentType(t *testing.T) {
 }
 
 func TestReferenceRepository_UpdateDocumentType(t *testing.T) {
+	// Обновление названия существующего типа документа
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -78,6 +81,7 @@ func TestReferenceRepository_UpdateDocumentType(t *testing.T) {
 }
 
 func TestReferenceRepository_DeleteDocumentType(t *testing.T) {
+	// Удаление типа документа из справочника
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -96,6 +100,7 @@ func TestReferenceRepository_DeleteDocumentType(t *testing.T) {
 // === Organizations ===
 
 func TestReferenceRepository_GetAllOrganizations(t *testing.T) {
+	// Получение полного списка организаций-корреспондентов
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -119,6 +124,7 @@ func TestReferenceRepository_GetAllOrganizations(t *testing.T) {
 }
 
 func TestReferenceRepository_FindOrCreateOrganization(t *testing.T) {
+	// Поиск организации-корреспондента по названию или создание новой
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -160,6 +166,7 @@ func TestReferenceRepository_FindOrCreateOrganization(t *testing.T) {
 }
 
 func TestReferenceRepository_SearchOrganizations(t *testing.T) {
+	// Поиск организаций-корреспондентов по частичному совпадению (для подсказок)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -181,6 +188,7 @@ func TestReferenceRepository_SearchOrganizations(t *testing.T) {
 }
 
 func TestReferenceRepository_UpdateOrganization(t *testing.T) {
+	// Обновление карточки организации-корреспондента
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -197,6 +205,7 @@ func TestReferenceRepository_UpdateOrganization(t *testing.T) {
 }
 
 func TestReferenceRepository_DeleteOrganization(t *testing.T) {
+	// Удаление организации-корреспондента из справочника
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

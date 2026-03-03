@@ -45,6 +45,7 @@ func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore
 }
 
 func TestLinkService_LinkDocuments(t *testing.T) {
+	// Регистрация связи между двумя документами (например, ответ на письмо)
 	sourceID := uuid.New()
 	targetID := uuid.New()
 
@@ -90,6 +91,7 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 }
 
 func TestLinkService_UnlinkDocument(t *testing.T) {
+	// Разрыв (удаление) связи между документами
 	linkID := uuid.New()
 
 	t.Run("успех", func(t *testing.T) {
@@ -109,6 +111,7 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 }
 
 func TestLinkService_GetDocumentLinks(t *testing.T) {
+	// Получение всех прямых связей для конкретного документа
 	docID := uuid.New()
 
 	t.Run("успех", func(t *testing.T) {
@@ -134,6 +137,7 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 }
 
 func TestLinkService_GetDocumentFlow(t *testing.T) {
+	// Получение полного графа (цепочки) связанных документов для визуализации истории
 	rootID := uuid.New()
 	targetID := uuid.New()
 

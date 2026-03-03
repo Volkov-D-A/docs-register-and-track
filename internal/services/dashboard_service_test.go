@@ -15,6 +15,7 @@ import (
 )
 
 func TestDashboardService_GetStats(t *testing.T) {
+	// Получение сводной статистики для рабочего стола (индивидуально для каждой роли: executor, admin, clerk)
 	mockRepo := mocks.NewDashboardStore(t)
 	authRepo := mocks.NewUserStore(t)
 	authService := NewAuthService(nil, authRepo)

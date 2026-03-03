@@ -27,6 +27,7 @@ func TestHashAndVerifyPassword(t *testing.T) {
 }
 
 func TestValidatePassword(t *testing.T) {
+	// Проверка валидации сложности пароля (длина, регистр, спецсимволы)
 	tests := []struct {
 		name          string
 		password      string

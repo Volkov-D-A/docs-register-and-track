@@ -15,6 +15,7 @@ import (
 )
 
 func TestDepartmentRepository_GetAll(t *testing.T) {
+	// Получение списка всех подразделений и связанных с ними номенклатур
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -46,6 +47,7 @@ func TestDepartmentRepository_GetAll(t *testing.T) {
 }
 
 func TestDepartmentRepository_GetNomenclatureIDs(t *testing.T) {
+	// Получение массива идентификаторов номенклатур для подразделения
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -65,6 +67,7 @@ func TestDepartmentRepository_GetNomenclatureIDs(t *testing.T) {
 }
 
 func TestDepartmentRepository_Create(t *testing.T) {
+	// Создание нового подразделения и привязка номенклатуры
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -92,6 +95,7 @@ func TestDepartmentRepository_Create(t *testing.T) {
 }
 
 func TestDepartmentRepository_Update(t *testing.T) {
+	// Обновление наименования подразделения и его номенклатуры
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -122,6 +126,7 @@ func TestDepartmentRepository_Update(t *testing.T) {
 }
 
 func TestDepartmentRepository_Delete(t *testing.T) {
+	// Удаление подразделения по его ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -137,6 +142,7 @@ func TestDepartmentRepository_Delete(t *testing.T) {
 }
 
 func TestDepartmentRepository_Errors(t *testing.T) {
+	// Проверка обработки ошибок при работе с подразделениями
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

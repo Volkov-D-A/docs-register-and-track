@@ -10,6 +10,7 @@ import (
 )
 
 func TestDatabaseConfigConnectionString(t *testing.T) {
+	// Проверка формирования строки подключения (ConnectionString)
 	dbCfg := DatabaseConfig{
 		Host:     "localhost",
 		Port:     5432,
@@ -24,12 +25,14 @@ func TestDatabaseConfigConnectionString(t *testing.T) {
 }
 
 func TestGetDefaultConfigPath(t *testing.T) {
+	// Проверка формирования пути к конфигурации по умолчанию
 	path := GetDefaultConfigPath()
 	expected := filepath.Join("config", "config.json")
 	assert.Equal(t, expected, path)
 }
 
 func TestLoadConfig(t *testing.T) {
+	// Успешная загрузка конфигурации из существующего файла
 	t.Run("successful load", func(t *testing.T) {
 		// Создаем временный файл конфигурации
 		tempDir := t.TempDir()
@@ -61,12 +64,14 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "require", cfg.Database.SSLMode)
 	})
 
+	// Ошибка при отсутствии файла конфигурации
 	t.Run("file not found", func(t *testing.T) {
 		cfg, err := Load("non_existent_config.json")
 		require.Error(t, err)
 		assert.Nil(t, cfg)
 	})
 
+	// Ошибка при невалидном формате JSON
 	t.Run("invalid json", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configPath := filepath.Join(tempDir, "invalid_config.json")

@@ -52,6 +52,7 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 // ---------- TestAssignmentService_Create ----------
 
 func TestAssignmentService_Create(t *testing.T) {
+	// Создание нового поручения по документу
 	docID := uuid.New()
 	execID := uuid.New()
 
@@ -125,6 +126,7 @@ func TestAssignmentService_Create(t *testing.T) {
 // ---------- TestAssignmentService_Update ----------
 
 func TestAssignmentService_Update(t *testing.T) {
+	// Обновление параметров существующего поручения (текст, исполнитель, дедлайн)
 	assignmentID := uuid.New()
 	execID := uuid.New()
 	docID := uuid.New()
@@ -220,6 +222,7 @@ func TestAssignmentService_Update(t *testing.T) {
 // ---------- TestAssignmentService_UpdateStatus ----------
 
 func TestAssignmentService_UpdateStatus(t *testing.T) {
+	// Изменение статуса поручения (в работу, на проверку, завершено и т.д.)
 	assignmentID := uuid.New()
 	execID := uuid.New()
 	docID := uuid.New()
@@ -352,6 +355,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 // ---------- TestAssignmentService_GetByID ----------
 
 func TestAssignmentService_GetByID(t *testing.T) {
+	// Получение полной информации о поручении по его ID
 	assignmentID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
@@ -392,6 +396,7 @@ func TestAssignmentService_GetByID(t *testing.T) {
 // ---------- TestAssignmentService_GetList ----------
 
 func TestAssignmentService_GetList(t *testing.T) {
+	// Получение списка поручений с фильтрацией (для дашборда или списков)
 	t.Run("success", func(t *testing.T) {
 		svc, repo, _, _ := setupAssignmentService(t, "executor")
 
@@ -443,6 +448,7 @@ func TestAssignmentService_GetList(t *testing.T) {
 // ---------- TestAssignmentService_Delete ----------
 
 func TestAssignmentService_Delete(t *testing.T) {
+	// Удаление поручения из системы
 	assignmentID := uuid.New()
 	execID := uuid.New()
 	docID := uuid.New()

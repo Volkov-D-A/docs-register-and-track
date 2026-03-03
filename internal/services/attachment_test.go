@@ -52,6 +52,7 @@ func setupAttachmentServiceNotAuth(t *testing.T) *AttachmentService {
 }
 
 func TestAttachmentService_Upload(t *testing.T) {
+	// Загрузка нового файла вложения к документу (проверка размера, типа и сохранение)
 	docID := uuid.New()
 	content := []byte("Hello, world!")
 	b64 := base64.StdEncoding.EncodeToString(content)
@@ -121,6 +122,7 @@ func TestAttachmentService_Upload(t *testing.T) {
 }
 
 func TestAttachmentService_GetList(t *testing.T) {
+	// Получение списка всех вложений для заданного документа
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
@@ -143,6 +145,7 @@ func TestAttachmentService_GetList(t *testing.T) {
 }
 
 func TestAttachmentService_Download(t *testing.T) {
+	// Скачивание (выгрузка) содержимого файла вложения
 	attID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
@@ -170,6 +173,7 @@ func TestAttachmentService_Download(t *testing.T) {
 }
 
 func TestAttachmentService_Delete(t *testing.T) {
+	// Удаление файла вложения
 	attID := uuid.New()
 
 	t.Run("success clerk", func(t *testing.T) {
@@ -187,6 +191,7 @@ func TestAttachmentService_Delete(t *testing.T) {
 }
 
 func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
+	// Проверка пути доступа к файлу для защиты от уязвимости Path Traversal
 	t.Run("valid path", func(t *testing.T) {
 		svc, _, _, _ := setupAttachmentService(t, "executor")
 		downloadDir, _ := svc.getDownloadDir()

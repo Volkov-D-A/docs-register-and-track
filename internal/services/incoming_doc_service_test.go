@@ -14,6 +14,7 @@ import (
 )
 
 func TestIncomingDocumentService_Register(t *testing.T) {
+	// Регистрация нового входящего документа (создание карточки и генерация номера)
 	mockDocRepo := mocks.NewIncomingDocStore(t)
 	mockNomRepo := mocks.NewNomenclatureStore(t)
 	mockRefRepo := mocks.NewReferenceStore(t)
@@ -126,6 +127,7 @@ func setupIncomingDocService(t *testing.T, role string) (
 }
 
 func TestIncomingDocumentService_GetByID(t *testing.T) {
+	// Получение всей информации о входящем документе по его ID
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
@@ -147,6 +149,7 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 }
 
 func TestIncomingDocumentService_Delete(t *testing.T) {
+	// Удаление карточки входящего документа
 	docID := uuid.New()
 
 	t.Run("success admin", func(t *testing.T) {
@@ -165,6 +168,7 @@ func TestIncomingDocumentService_Delete(t *testing.T) {
 }
 
 func TestIncomingDocumentService_GetCount(t *testing.T) {
+	// Получение общего количества зарегистрированных входящих документов
 	t.Run("success", func(t *testing.T) {
 		svc, repo, _, _, _ := setupIncomingDocService(t, "executor")
 		repo.On("GetCount").Return(15, nil).Once()

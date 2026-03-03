@@ -15,6 +15,7 @@ import (
 )
 
 func TestNomenclatureRepository_GetAll(t *testing.T) {
+	// Получение списка всех дел номенклатуры (с опциональной фильтрацией по году и направлению)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -56,6 +57,7 @@ func TestNomenclatureRepository_GetAll(t *testing.T) {
 }
 
 func TestNomenclatureRepository_GetByID(t *testing.T) {
+	// Получение дела номенклатуры по его ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -92,6 +94,7 @@ func TestNomenclatureRepository_GetByID(t *testing.T) {
 }
 
 func TestNomenclatureRepository_Create(t *testing.T) {
+	// Создание нового дела номенклатуры
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -120,6 +123,7 @@ func TestNomenclatureRepository_Create(t *testing.T) {
 }
 
 func TestNomenclatureRepository_Update(t *testing.T) {
+	// Обновление параметров существующего дела номенклатуры
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -149,6 +153,7 @@ func TestNomenclatureRepository_Update(t *testing.T) {
 }
 
 func TestNomenclatureRepository_Delete(t *testing.T) {
+	// Удаление дела номенклатуры
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -164,6 +169,7 @@ func TestNomenclatureRepository_Delete(t *testing.T) {
 }
 
 func TestNomenclatureRepository_GetNextNumber(t *testing.T) {
+	// Атомарное получение следующего порядкового номера для регистрации по делу
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -187,6 +193,7 @@ func TestNomenclatureRepository_GetNextNumber(t *testing.T) {
 }
 
 func TestNomenclatureRepository_GetActiveByDirection(t *testing.T) {
+	// Получение активных дел номенклатуры для указанного направления и года
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

@@ -41,6 +41,7 @@ func setupNomenclatureService(t *testing.T, role string) (*NomenclatureService, 
 }
 
 func TestNomenclatureService_GetAll(t *testing.T) {
+	// Получение полного списка дел номенклатуры с учетом прав доступа
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "clerk")
 		mockValues := []models.Nomenclature{
@@ -64,6 +65,7 @@ func TestNomenclatureService_GetAll(t *testing.T) {
 }
 
 func TestNomenclatureService_GetActiveForDirection(t *testing.T) {
+	// Получение списка только активных дел для определенного направления
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "clerk")
 		mockValues := []models.Nomenclature{
@@ -88,6 +90,7 @@ func TestNomenclatureService_GetActiveForDirection(t *testing.T) {
 }
 
 func TestNomenclatureService_Create(t *testing.T) {
+	// Создание нового дела в номенклатуре дел
 	t.Run("успех (админ)", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "admin")
 		name := "Новое дело"
@@ -131,6 +134,7 @@ func TestNomenclatureService_Create(t *testing.T) {
 }
 
 func TestNomenclatureService_Update(t *testing.T) {
+	// Обновление атрибутов дела в номенклатуре
 	idStr := uuid.New().String()
 
 	t.Run("успех (clerk)", func(t *testing.T) {
@@ -163,6 +167,7 @@ func TestNomenclatureService_Update(t *testing.T) {
 }
 
 func TestNomenclatureService_Delete(t *testing.T) {
+	// Удаление дела из номенклатуры (если оно больше не используется)
 	idStr := uuid.New().String()
 
 	t.Run("успех (админ)", func(t *testing.T) {

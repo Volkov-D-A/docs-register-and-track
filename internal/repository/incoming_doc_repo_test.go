@@ -16,6 +16,7 @@ import (
 )
 
 func TestIncomingDocumentRepository_GetByID(t *testing.T) {
+	// Получение входящего документа по его ID с подгрузкой всех связей
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -88,6 +89,7 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 }
 
 func TestIncomingDocumentRepository_GetCount(t *testing.T) {
+	// Подсчет общего количества зарегистрированных входящих документов
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -103,6 +105,7 @@ func TestIncomingDocumentRepository_GetCount(t *testing.T) {
 }
 
 func TestIncomingDocumentRepository_Delete(t *testing.T) {
+	// Удаление входящего документа по ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -118,6 +121,7 @@ func TestIncomingDocumentRepository_Delete(t *testing.T) {
 }
 
 func TestIncomingDocumentRepository_Create(t *testing.T) {
+	// Регистрация нового входящего документа в БД
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -174,6 +178,7 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 }
 
 func TestIncomingDocumentRepository_GetList(t *testing.T) {
+	// Получение списка входящих документов с фильтрацией (по номенклатуре) и пагинацией
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -243,6 +248,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 }
 
 func TestIncomingDocumentRepository_Update(t *testing.T) {
+	// Редактирование карточки входящего документа
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

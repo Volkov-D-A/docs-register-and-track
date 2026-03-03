@@ -16,6 +16,7 @@ import (
 )
 
 func TestAssignmentRepository_GetByID(t *testing.T) {
+	// Получение деталей поручения по его ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -82,6 +83,7 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 }
 
 func TestAssignmentRepository_Delete(t *testing.T) {
+	// Удаление поручения по его ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -97,6 +99,7 @@ func TestAssignmentRepository_Delete(t *testing.T) {
 }
 
 func TestAssignmentRepository_Create(t *testing.T) {
+	// Создание нового поручения с привязкой соисполнителей
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -155,6 +158,7 @@ func TestAssignmentRepository_Create(t *testing.T) {
 }
 
 func TestAssignmentRepository_Update(t *testing.T) {
+	// Обновление существующего поручения и списка соисполнителей
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -199,6 +203,7 @@ func TestAssignmentRepository_Update(t *testing.T) {
 }
 
 func TestAssignmentRepository_GetList(t *testing.T) {
+	// Получение списка поручений с фильтрацией и постраничной навигацией
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

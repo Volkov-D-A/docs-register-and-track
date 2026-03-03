@@ -5,6 +5,7 @@ import (
 )
 
 func TestEncryptDecryptPassword(t *testing.T) {
+	// Проверка полного цикла: шифрование пароля, проверка префикса и обратная расшифровка
 	original := "MySecretDbPassword123!"
 
 	encrypted, err := EncryptPassword(original)
@@ -27,6 +28,7 @@ func TestEncryptDecryptPassword(t *testing.T) {
 }
 
 func TestDecryptPassword_PlainText(t *testing.T) {
+	// Проверка обработки незашифрованного текста (возвращается без изменений)
 	plain := "plainPassword"
 
 	result, err := DecryptPassword(plain)
@@ -39,6 +41,7 @@ func TestDecryptPassword_PlainText(t *testing.T) {
 }
 
 func TestDecryptPassword_InvalidBase64(t *testing.T) {
+	// Ошибка: передан невалидный base64, но подходящий под префикс
 	_, err := DecryptPassword("ENC:not-valid-base64!!!")
 	if err == nil {
 		t.Fatal("expected error for invalid base64")
@@ -53,6 +56,7 @@ func TestDecryptPassword_TooShort(t *testing.T) {
 }
 
 func TestEncryptPassword_DifferentEachTime(t *testing.T) {
+	// Проверка уникальности шифротекста (соль обеспечивает разный результат для одного и того же пароля)
 	password := "SamePassword"
 
 	enc1, err := EncryptPassword(password)
@@ -78,6 +82,7 @@ func TestEncryptPassword_DifferentEachTime(t *testing.T) {
 }
 
 func TestIsEncrypted(t *testing.T) {
+	// Проверка функции-определителя наличия специального префикса ENC:
 	if IsEncrypted("plainPassword") {
 		t.Fatal("plain text should not be detected as encrypted")
 	}

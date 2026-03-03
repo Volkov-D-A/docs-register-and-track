@@ -42,6 +42,7 @@ func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks
 // === Типы документов ===
 
 func TestReferenceService_GetDocumentTypes(t *testing.T) {
+	// Получение списка всех типов документов из справочника
 	t.Run("успех (авторизован)", func(t *testing.T) {
 		svc, repo, _, _ := setupReferenceService(t, "clerk")
 		mockValues := []models.DocumentType{
@@ -76,6 +77,7 @@ func TestReferenceService_GetDocumentTypes(t *testing.T) {
 }
 
 func TestReferenceService_CreateDocumentType(t *testing.T) {
+	// Запись нового типа документа в справочник
 	t.Run("успех (админ)", func(t *testing.T) {
 		svc, repo, _, _ := setupReferenceService(t, "admin")
 		name := "Заявление"
@@ -98,6 +100,7 @@ func TestReferenceService_CreateDocumentType(t *testing.T) {
 }
 
 func TestReferenceService_UpdateDocumentType(t *testing.T) {
+	// Переименование существующего типа документа
 	idStr := uuid.New().String()
 
 	t.Run("успех (админ)", func(t *testing.T) {
@@ -124,6 +127,7 @@ func TestReferenceService_UpdateDocumentType(t *testing.T) {
 }
 
 func TestReferenceService_DeleteDocumentType(t *testing.T) {
+	// Физическое удаление типа документа из справочника
 	idStr := uuid.New().String()
 
 	t.Run("успех (админ)", func(t *testing.T) {
@@ -152,6 +156,7 @@ func TestReferenceService_DeleteDocumentType(t *testing.T) {
 // === Организации ===
 
 func TestReferenceService_GetOrganizations(t *testing.T) {
+	// Выгрузка полного списка организаций-корреспондентов
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _, _ := setupReferenceService(t, "clerk")
 		mockValues := []models.Organization{
@@ -175,6 +180,7 @@ func TestReferenceService_GetOrganizations(t *testing.T) {
 }
 
 func TestReferenceService_SearchOrganizations(t *testing.T) {
+	// Поиск внешних организаций по частичному совпадению названия (поиск для поля ввода)
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _, _ := setupReferenceService(t, "clerk")
 		mockValues := []models.Organization{
@@ -198,6 +204,7 @@ func TestReferenceService_SearchOrganizations(t *testing.T) {
 }
 
 func TestReferenceService_FindOrCreateOrganization(t *testing.T) {
+	// Поиск организации по точному названию или её автоматическое добавление в справочник
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _, _ := setupReferenceService(t, "clerk")
 		name := "Новая Орг"
@@ -220,6 +227,7 @@ func TestReferenceService_FindOrCreateOrganization(t *testing.T) {
 }
 
 func TestReferenceService_UpdateOrganization(t *testing.T) {
+	// Изменение официального названия организации-корреспондента
 	idStr := uuid.New().String()
 
 	t.Run("успех (админ)", func(t *testing.T) {
@@ -246,6 +254,7 @@ func TestReferenceService_UpdateOrganization(t *testing.T) {
 }
 
 func TestReferenceService_DeleteOrganization(t *testing.T) {
+	// Удаление организации из справочника контрагентов
 	idStr := uuid.New().String()
 
 	t.Run("успех (админ)", func(t *testing.T) {

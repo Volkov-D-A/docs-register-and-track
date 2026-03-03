@@ -46,6 +46,7 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 }
 
 func TestAcknowledgmentService_Create(t *testing.T) {
+	// Создание нового листа ознакомления для документа
 	docID := uuid.New()
 	user1 := uuid.New()
 	user2 := uuid.New()
@@ -85,6 +86,7 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 }
 
 func TestAcknowledgmentService_GetList(t *testing.T) {
+	// Получение списка статусов ознакомления для конкретного документа
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
@@ -114,6 +116,7 @@ func TestAcknowledgmentService_GetList(t *testing.T) {
 }
 
 func TestAcknowledgmentService_GetPendingForCurrentUser(t *testing.T) {
+	// Получение списка документов, ожидающих ознакомления текущим пользователем
 	t.Run("success", func(t *testing.T) {
 		svc, repo, _, auth := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
@@ -134,6 +137,7 @@ func TestAcknowledgmentService_GetPendingForCurrentUser(t *testing.T) {
 }
 
 func TestAcknowledgmentService_GetAllActive(t *testing.T) {
+	// Получение всех активных ознакомлений в системе (для администратора/делопроизводителя)
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo, _, _ := setupAckService(t, "admin")
 		acks := []models.Acknowledgment{{ID: uuid.New()}, {ID: uuid.New()}}
@@ -161,6 +165,7 @@ func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 }
 
 func TestAcknowledgmentService_MarkViewed(t *testing.T) {
+	// Отметка об ознакомлении с документом пользователем
 	ackID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
@@ -187,6 +192,7 @@ func TestAcknowledgmentService_MarkViewed(t *testing.T) {
 }
 
 func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
+	// Подтверждение прочтения / выполнения требуемых действий по ознакомлению
 	ackID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
@@ -206,6 +212,7 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 }
 
 func TestAcknowledgmentService_Delete(t *testing.T) {
+	// Удаление записи об ознакомлении
 	ackID := uuid.New()
 
 	t.Run("success admin", func(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 )
 
 func TestMapUser(t *testing.T) {
+	// Тестирование маппинга модели пользователя в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapUser(nil))
 	})
@@ -27,6 +28,7 @@ func TestMapUser(t *testing.T) {
 }
 
 func TestMapDepartment(t *testing.T) {
+	// Тестирование маппинга подразделения в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapDepartment(nil))
 	})
@@ -54,6 +56,7 @@ func TestMapDepartment(t *testing.T) {
 }
 
 func TestMapNomenclature(t *testing.T) {
+	// Тестирование маппинга номенклатуры дел в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapNomenclature(nil))
 	})
@@ -70,6 +73,7 @@ func TestMapNomenclature(t *testing.T) {
 }
 
 func TestMapOrganization(t *testing.T) {
+	// Тестирование маппинга организации (корреспондента) в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapOrganization(nil))
 	})
@@ -84,6 +88,7 @@ func TestMapOrganization(t *testing.T) {
 }
 
 func TestMapDocumentType(t *testing.T) {
+	// Тестирование маппинга типа документа в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapDocumentType(nil))
 	})
@@ -98,6 +103,7 @@ func TestMapDocumentType(t *testing.T) {
 }
 
 func TestMapDocumentLink(t *testing.T) {
+	// Тестирование маппинга связи между документами в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapDocumentLink(nil))
 	})
@@ -112,6 +118,7 @@ func TestMapDocumentLink(t *testing.T) {
 }
 
 func TestMapAttachment(t *testing.T) {
+	// Тестирование маппинга вложения файла в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapAttachment(nil))
 	})
@@ -126,6 +133,7 @@ func TestMapAttachment(t *testing.T) {
 }
 
 func TestMapAcknowledgmentUser(t *testing.T) {
+	// Тестирование маппинга записи ознакомления конкретного пользователя в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapAcknowledgmentUser(nil))
 	})
@@ -140,6 +148,7 @@ func TestMapAcknowledgmentUser(t *testing.T) {
 }
 
 func TestMapAssignment(t *testing.T) {
+	// Тестирование маппинга поручения (резолюции) в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapAssignment(nil))
 	})
@@ -163,6 +172,7 @@ func TestMapAssignment(t *testing.T) {
 }
 
 func TestMapAcknowledgment(t *testing.T) {
+	// Тестирование маппинга листа ознакомления в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapAcknowledgment(nil))
 	})
@@ -180,6 +190,7 @@ func TestMapAcknowledgment(t *testing.T) {
 }
 
 func TestMapIncomingDocument(t *testing.T) {
+	// Тестирование маппинга входящего документа в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapIncomingDocument(nil))
 	})
@@ -194,6 +205,7 @@ func TestMapIncomingDocument(t *testing.T) {
 }
 
 func TestMapOutgoingDocument(t *testing.T) {
+	// Тестирование маппинга исходящего документа в DTO
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapOutgoingDocument(nil))
 	})
@@ -208,6 +220,7 @@ func TestMapOutgoingDocument(t *testing.T) {
 }
 
 func TestMapSlices(t *testing.T) {
+	// Тестирование групповых функций маппинга массивов (слайсов)
 	t.Run("MapUsers nil", func(t *testing.T) {
 		assert.Nil(t, MapUsers(nil))
 	})
@@ -309,6 +322,7 @@ func TestMapSlices(t *testing.T) {
 }
 
 func TestMapDashboardStats(t *testing.T) {
+	// Тестирование маппинга агрегированной статистики для дашборда
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapDashboardStats(nil))
 	})

@@ -16,6 +16,7 @@ import (
 )
 
 func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
+	// Получение исходящего документа по его ID со всеми связанными справочниками
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -84,6 +85,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 }
 
 func TestOutgoingDocumentRepository_GetCount(t *testing.T) {
+	// Подсчет общего количества зарегистрированных исходящих документов
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -99,6 +101,7 @@ func TestOutgoingDocumentRepository_GetCount(t *testing.T) {
 }
 
 func TestOutgoingDocumentRepository_Delete(t *testing.T) {
+	// Удаление исходящего документа по его ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -114,6 +117,7 @@ func TestOutgoingDocumentRepository_Delete(t *testing.T) {
 }
 
 func TestOutgoingDocumentRepository_Create(t *testing.T) {
+	// Создание новой карточки исходящего документа
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -182,6 +186,7 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 }
 
 func TestOutgoingDocumentRepository_GetList(t *testing.T) {
+	// Получение списка исходящих документов с фильтрацией (по номенклатуре) и пагинацией
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -265,6 +270,7 @@ func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 }
 
 func TestOutgoingDocumentRepository_Update(t *testing.T) {
+	// Обновление данных существующего исходящего документа
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

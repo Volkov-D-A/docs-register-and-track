@@ -13,6 +13,7 @@ import (
 )
 
 func TestSettingsRepository_Get(t *testing.T) {
+	// Получение значения системной настройки по её ключу
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -47,6 +48,7 @@ func TestSettingsRepository_Get(t *testing.T) {
 }
 
 func TestSettingsRepository_GetAll(t *testing.T) {
+	// Получение списка всех системных настроек
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -71,6 +73,7 @@ func TestSettingsRepository_GetAll(t *testing.T) {
 }
 
 func TestSettingsRepository_Update(t *testing.T) {
+	// Обновление значения конкретной системной настройки
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

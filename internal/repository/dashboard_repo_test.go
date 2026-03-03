@@ -13,6 +13,7 @@ import (
 )
 
 func TestDashboardRepository_GetExecutorStatusCounts(t *testing.T) {
+	// Получение количества поручений исполнителя по статусам (new, in_progress)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -34,6 +35,7 @@ func TestDashboardRepository_GetExecutorStatusCounts(t *testing.T) {
 }
 
 func TestDashboardRepository_GetExecutorOverdueCount(t *testing.T) {
+	// Получение количества просроченных поручений исполнителя
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -54,6 +56,7 @@ func TestDashboardRepository_GetExecutorOverdueCount(t *testing.T) {
 }
 
 func TestDashboardRepository_GetExecutorFinishedCounts(t *testing.T) {
+	// Получение количества завершенных поручений (в срок и с опозданием)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -75,6 +78,7 @@ func TestDashboardRepository_GetExecutorFinishedCounts(t *testing.T) {
 }
 
 func TestDashboardRepository_GetExpiringAssignments(t *testing.T) {
+	// Получение списка поручений с истекающим сроком выполнения
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -98,6 +102,7 @@ func TestDashboardRepository_GetExpiringAssignments(t *testing.T) {
 }
 
 func TestDashboardRepository_GetDocCountsByPeriod(t *testing.T) {
+	// Получение статистики по количеству входящих и исходящих документов за период
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -120,6 +125,7 @@ func TestDashboardRepository_GetDocCountsByPeriod(t *testing.T) {
 }
 
 func TestDashboardRepository_GetOverdueCountByPeriod(t *testing.T) {
+	// Получение количества просроченных документов за период для дашборда
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -139,6 +145,7 @@ func TestDashboardRepository_GetOverdueCountByPeriod(t *testing.T) {
 }
 
 func TestDashboardRepository_GetFinishedCountsByPeriod(t *testing.T) {
+	// Получение статистики по вовремя завершенным и просроченным документам за период
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -161,6 +168,7 @@ func TestDashboardRepository_GetFinishedCountsByPeriod(t *testing.T) {
 }
 
 func TestDashboardRepository_GetAdminUserCount(t *testing.T) {
+	// Получение общего количества пользователей (статистика администратора)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -176,6 +184,7 @@ func TestDashboardRepository_GetAdminUserCount(t *testing.T) {
 }
 
 func TestDashboardRepository_GetAdminDocCounts(t *testing.T) {
+	// Получение общего количества документов по типам (статистика администратора)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -196,6 +205,7 @@ func TestDashboardRepository_GetAdminDocCounts(t *testing.T) {
 }
 
 func TestDashboardRepository_GetDBSize(t *testing.T) {
+	// Получение размера базы данных
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

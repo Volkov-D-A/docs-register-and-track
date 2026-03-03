@@ -12,6 +12,7 @@ import (
 )
 
 func TestUserService_GetAllUsers(t *testing.T) {
+	// Получение списка всех заведенных пользователей в системе
 	mockRepo := mocks.NewUserStore(t)
 	authRepo := mocks.NewUserStore(t)
 	authService := NewAuthService(nil, authRepo)
@@ -94,6 +95,7 @@ func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore
 }
 
 func TestUserService_CreateUser(t *testing.T) {
+	// Создание новой карточки пользователя системы
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo := setupUserService(t, "admin")
 		req := models.CreateUserRequest{Login: "newuser", Password: "Pass1234!", FullName: "New User", Roles: []string{"executor"}}
@@ -113,6 +115,7 @@ func TestUserService_CreateUser(t *testing.T) {
 }
 
 func TestUserService_UpdateUser(t *testing.T) {
+	// Обновление профиля пользователя
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo := setupUserService(t, "admin")
 		uid := uuid.New()
@@ -132,6 +135,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 }
 
 func TestUserService_ResetPassword(t *testing.T) {
+	// Принудительный сброс и установка нового пароля администратором для другого пользователя
 	uid := uuid.New()
 
 	t.Run("success admin", func(t *testing.T) {
@@ -155,6 +159,7 @@ func TestUserService_ResetPassword(t *testing.T) {
 }
 
 func TestUserService_GetExecutors(t *testing.T) {
+	// Получение списка всех активных исполнителей для выдачи поручений
 	t.Run("success", func(t *testing.T) {
 		svc, repo := setupUserService(t, "executor")
 		repo.On("GetExecutors").Return([]models.User{{ID: uuid.New()}}, nil).Once()

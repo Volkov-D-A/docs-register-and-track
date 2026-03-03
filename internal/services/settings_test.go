@@ -39,6 +39,7 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 }
 
 func TestSettingsService_GetAll(t *testing.T) {
+	// Получение полного списка системных настроек из базы
 	t.Run("success", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
 		settings := []models.SystemSetting{{Key: "k1", Value: "v1"}}
@@ -50,6 +51,7 @@ func TestSettingsService_GetAll(t *testing.T) {
 }
 
 func TestSettingsService_Update(t *testing.T) {
+	// Изменение отдельной системной настройки (ключ-значение)
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
 		repo.On("Update", "key", "value").Return(nil).Once()
@@ -66,6 +68,7 @@ func TestSettingsService_Update(t *testing.T) {
 }
 
 func TestSettingsService_GetMaxFileSize(t *testing.T) {
+	// Получение максимально допустимого размера загружаемых файлов в байтах
 	t.Run("from settings", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
 		repo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "25"}, nil).Once()
@@ -84,6 +87,7 @@ func TestSettingsService_GetMaxFileSize(t *testing.T) {
 }
 
 func TestSettingsService_GetAllowedFileTypes(t *testing.T) {
+	// Получение списка разрешенных расширений загружаемых файлов
 	t.Run("from settings", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
 		repo.On("Get", "allowed_file_types").Return(&models.SystemSetting{Key: "allowed_file_types", Value: ".pdf, .DOC, .txt"}, nil).Once()
@@ -102,6 +106,7 @@ func TestSettingsService_GetAllowedFileTypes(t *testing.T) {
 }
 
 func TestSettingsService_GetOrganizationName(t *testing.T) {
+	// Получение названия нашей организации (используется для подстановки по умолчанию)
 	t.Run("from settings", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
 		repo.On("Get", "organization_name").Return(&models.SystemSetting{Key: "organization_name", Value: "Custom Org"}, nil).Once()
@@ -118,6 +123,7 @@ func TestSettingsService_GetOrganizationName(t *testing.T) {
 }
 
 func TestSettingsService_RunMigrations(t *testing.T) {
+	// Выполнение накатывания миграций БД (доступно только администратору)
 	t.Run("forbidden non-admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "executor")
 		err := svc.RunMigrations()
@@ -137,6 +143,7 @@ func TestSettingsService_RunMigrations(t *testing.T) {
 }
 
 func TestSettingsService_GetMigrationStatus(t *testing.T) {
+	// Получение состояния всех миграций базы данных
 	t.Run("forbidden non-admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "clerk")
 		status, err := svc.GetMigrationStatus()
@@ -157,6 +164,7 @@ func TestSettingsService_GetMigrationStatus(t *testing.T) {
 }
 
 func TestSettingsService_RollbackMigration(t *testing.T) {
+	// Откат последней примененной миграции базы данных
 	t.Run("forbidden non-admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "executor")
 		err := svc.RollbackMigration()

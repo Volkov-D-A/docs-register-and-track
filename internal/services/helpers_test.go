@@ -13,6 +13,7 @@ import (
 )
 
 func TestFormatDocumentNumber(t *testing.T) {
+	// Тестирование функции формирования номера документа на основе индекса и порядкового номера
 	tests := []struct {
 		name     string
 		index    string
@@ -50,6 +51,7 @@ func TestFormatDocumentNumber(t *testing.T) {
 }
 
 func TestParseUUID(t *testing.T) {
+	// Тестирование функции безопасного парсинга UUID из строкового представления
 	tests := []struct {
 		name    string
 		input   string
@@ -111,6 +113,7 @@ func (m *MockDepartmentStore) Delete(id uuid.UUID) error {
 }
 
 func TestFilterNomenclaturesByDepartment(t *testing.T) {
+	// Тестирование функции фильтрации списка номенклатур (дел) в зависимости от прав подразделения
 	depID := uuid.New()
 	depIDPtr := &depID
 
@@ -240,6 +243,7 @@ func TestFilterNomenclaturesByDepartment(t *testing.T) {
 }
 
 func TestApplyExecutorNomenclatureFilter(t *testing.T) {
+	// Тестирование логики ограничения доступа к документам по подразделению для роли executor
 	depRepo := &MockDepartmentStore{
 		GetNomsFunc: func(d uuid.UUID) ([]string, error) {
 			return []string{"A", "B"}, nil

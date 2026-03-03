@@ -13,6 +13,7 @@ import (
 )
 
 func TestSystemService_CheckDBConnection_Success(t *testing.T) {
+	// Проверка успешной установки коннекта к базе данных и отправки ping
 	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 	assert.NoError(t, err)
 	defer db.Close()
@@ -30,6 +31,7 @@ func TestSystemService_CheckDBConnection_Success(t *testing.T) {
 }
 
 func TestSystemService_CheckDBConnection_Failure(t *testing.T) {
+	// Проверка случая, когда ping к базе возвращает ошибку подключения
 	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 	assert.NoError(t, err)
 	defer db.Close()
@@ -47,6 +49,7 @@ func TestSystemService_CheckDBConnection_Failure(t *testing.T) {
 }
 
 func TestSystemService_CheckDBConnection_NilDB(t *testing.T) {
+	// Защита от panic при попытке проверить соединение в случае отсутствия инстанса DB
 	service := services.NewSystemService(nil)
 	service.Startup(context.Background())
 

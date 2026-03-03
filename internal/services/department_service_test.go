@@ -40,6 +40,7 @@ func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *moc
 }
 
 func TestDepartmentService_GetAllDepartments(t *testing.T) {
+	// Получение списка всех подразделений организации
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _ := setupDepartmentService(t, "clerk")
 		mockValues := []models.Department{
@@ -74,6 +75,7 @@ func TestDepartmentService_GetAllDepartments(t *testing.T) {
 }
 
 func TestDepartmentService_CreateDepartment(t *testing.T) {
+	// Создание нового подразделения с сохранением привязанных индексов номенклатуры
 	t.Run("успех (админ)", func(t *testing.T) {
 		svc, repo, _ := setupDepartmentService(t, "admin")
 		name := "IT Отдел"
@@ -98,6 +100,7 @@ func TestDepartmentService_CreateDepartment(t *testing.T) {
 }
 
 func TestDepartmentService_UpdateDepartment(t *testing.T) {
+	// Обновление данных существующего подразделения
 	idStr := uuid.New().String()
 
 	t.Run("успех (админ)", func(t *testing.T) {
@@ -132,6 +135,7 @@ func TestDepartmentService_UpdateDepartment(t *testing.T) {
 }
 
 func TestDepartmentService_DeleteDepartment(t *testing.T) {
+	// Удаление подразделения из базы
 	idStr := uuid.New().String()
 
 	t.Run("успех (админ)", func(t *testing.T) {

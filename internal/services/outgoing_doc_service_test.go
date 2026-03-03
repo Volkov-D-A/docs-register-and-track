@@ -44,6 +44,7 @@ func setupOutgoingDocService(t *testing.T, role string) (
 }
 
 func TestOutgoingDocService_Register(t *testing.T) {
+	// Регистрация нового исходящего документа
 	nomID := uuid.New()
 	docTypeID := uuid.New()
 	recipientOrg := &models.Organization{ID: uuid.New(), Name: "Получатель"}
@@ -82,6 +83,7 @@ func TestOutgoingDocService_Register(t *testing.T) {
 }
 
 func TestOutgoingDocService_Update(t *testing.T) {
+	// Обновление карточки исходящего документа
 	docID := uuid.New()
 	docTypeID := uuid.New()
 	recipientOrg := &models.Organization{ID: uuid.New(), Name: "Получатель"}
@@ -118,6 +120,7 @@ func TestOutgoingDocService_Update(t *testing.T) {
 }
 
 func TestOutgoingDocService_GetByID(t *testing.T) {
+	// Получение детальной информации об исходящем документе по ID
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
@@ -139,6 +142,7 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 }
 
 func TestOutgoingDocService_Delete(t *testing.T) {
+	// Удаление исходящего документа из системы
 	docID := uuid.New()
 
 	t.Run("success admin", func(t *testing.T) {
@@ -157,6 +161,7 @@ func TestOutgoingDocService_Delete(t *testing.T) {
 }
 
 func TestOutgoingDocService_GetCount(t *testing.T) {
+	// Подсчет общего количества зарегистрированных исходящих документов
 	t.Run("success", func(t *testing.T) {
 		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
 		outRepo.On("GetCount").Return(42, nil).Once()

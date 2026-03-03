@@ -15,6 +15,7 @@ import (
 )
 
 func TestLinkRepository_Create(t *testing.T) {
+	// Создание новой связи между документами
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -46,6 +47,7 @@ func TestLinkRepository_Create(t *testing.T) {
 }
 
 func TestLinkRepository_Delete(t *testing.T) {
+	// Удаление связи между документами по её ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -63,6 +65,7 @@ func TestLinkRepository_Delete(t *testing.T) {
 }
 
 func TestLinkRepository_GetByDocumentID(t *testing.T) {
+	// Получение списка всех связей для конкретного документа (как для входящих, так и для исходящих)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -115,6 +118,7 @@ func TestLinkRepository_GetByDocumentID(t *testing.T) {
 }
 
 func TestLinkRepository_GetGraph(t *testing.T) {
+	// Получение полного графа связанных документов через рекурсивный SQL-запрос
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

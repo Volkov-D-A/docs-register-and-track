@@ -16,6 +16,7 @@ import (
 )
 
 func TestUserRepository_GetByLogin(t *testing.T) {
+	// Получение пользователя по логину вместе с его ролями (при авторизации)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -75,6 +76,7 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 }
 
 func TestUserRepository_GetAll(t *testing.T) {
+	// Получение списка всех пользователей системы с подгрузкой их подразделений и ролей
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -113,6 +115,7 @@ func TestUserRepository_GetAll(t *testing.T) {
 }
 
 func TestUserRepository_Create(t *testing.T) {
+	// Создание новой учетной записи пользователя и назначение ему ролей
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -158,6 +161,7 @@ func TestUserRepository_Create(t *testing.T) {
 }
 
 func TestUserRepository_Update(t *testing.T) {
+	// Обновление данных пользователя и переназначение его ролей
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -206,6 +210,7 @@ func TestUserRepository_Update(t *testing.T) {
 }
 
 func TestUserRepository_OtherMethods(t *testing.T) {
+	// Проверка дополнительных профильных методов работы с пользователями
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -214,6 +219,7 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 	uid := uuid.New()
 
 	t.Run("UpdatePassword", func(t *testing.T) {
+		// Изменение пароля (передача нового хеша)
 		mock.ExpectExec(`UPDATE users SET password_hash`).
 			WithArgs("newhash", uid).
 			WillReturnResult(sqlmock.NewResult(1, 1))
@@ -223,6 +229,7 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 	})
 
 	t.Run("UpdateProfile", func(t *testing.T) {
+		// Редактирование собственного профиля пользователем
 		mock.ExpectExec(`UPDATE users SET login(.*)full_name(.*)`).
 			WithArgs("newlog", "newname", uid).
 			WillReturnResult(sqlmock.NewResult(1, 1))
@@ -232,6 +239,7 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 	})
 
 	t.Run("CountUsers", func(t *testing.T) {
+		// Подсчет общего количества пользователей
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
 		
