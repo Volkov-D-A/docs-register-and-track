@@ -30,7 +30,7 @@ func TestAttachmentRepository_Create(t *testing.T) {
 		DocumentID:   uuid.New(),
 		DocumentType: "incoming",
 		Filename:     "test.txt",
-		Content:      []byte("hello world"),
+		StoragePath:  "minio/path",
 		FileSize:     11,
 		ContentType:  "text/plain",
 		UploadedBy:   uuid.New(),
@@ -40,8 +40,8 @@ func TestAttachmentRepository_Create(t *testing.T) {
 	expectedUploadedAt := time.Now()
 
 	t.Run("success", func(t *testing.T) {
-		mock.ExpectQuery(`INSERT INTO attachments \(document_id, document_type, filename, content, file_size, content_type, uploaded_by\)`).
-			WithArgs(attachment.DocumentID, attachment.DocumentType, attachment.Filename, attachment.Content, attachment.FileSize, attachment.ContentType, attachment.UploadedBy).
+		mock.ExpectQuery(`INSERT INTO attachments \(document_id, document_type, filename, storage_path, file_size, content_type, uploaded_by\)`).
+			WithArgs(attachment.DocumentID, attachment.DocumentType, attachment.Filename, attachment.StoragePath, attachment.FileSize, attachment.ContentType, attachment.UploadedBy).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "uploaded_at"}).AddRow(expectedID, expectedUploadedAt))
 
 		err := repo.Create(attachment)
@@ -76,10 +76,10 @@ func TestAttachmentRepository_GetByID(t *testing.T) {
 	attachmentID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT id, document_id, document_type, filename, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT id, document_id, document_type, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE id = \$1`).
 			WithArgs(attachmentID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "document_type", "filename", "file_size", "content_type", "uploaded_by", "uploaded_at"}).
-				AddRow(attachmentID, uuid.New(), "incoming", "test.txt", 11, "text/plain", uuid.New(), time.Now()))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "document_type", "filename", "storage_path", "file_size", "content_type", "uploaded_by", "uploaded_at"}).
+				AddRow(attachmentID, uuid.New(), "incoming", "test.txt", "minio-path", 11, "text/plain", uuid.New(), time.Now()))
 
 		attachment, err := repo.GetByID(attachmentID)
 
@@ -90,7 +90,7 @@ func TestAttachmentRepository_GetByID(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT id, document_id, document_type, filename, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT id, document_id, document_type, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE id = \$1`).
 			WithArgs(attachmentID).
 			WillReturnError(sql.ErrNoRows)
 
@@ -109,11 +109,11 @@ func TestAttachmentRepository_GetByDocumentID(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT a.id, a.document_id, a.document_type, a.filename, a.file_size, a.content_type, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 ORDER BY a.uploaded_at DESC`).
+		mock.ExpectQuery(`SELECT a.id, a.document_id, a.document_type, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 ORDER BY a.uploaded_at DESC`).
 			WithArgs(docID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "document_type", "filename", "file_size", "content_type", "uploaded_by", "uploaded_at", "full_name"}).
-				AddRow(uuid.New(), docID, "incoming", "test1.txt", 11, "text/plain", uuid.New(), time.Now(), "User One").
-				AddRow(uuid.New(), docID, "incoming", "test2.pdf", 42, "application/pdf", uuid.New(), time.Now(), "User Two"))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "document_type", "filename", "file_size", "content_type", "storage_path", "uploaded_by", "uploaded_at", "full_name"}).
+				AddRow(uuid.New(), docID, "incoming", "test1.txt", 11, "text/plain", "path1", uuid.New(), time.Now(), "User One").
+				AddRow(uuid.New(), docID, "incoming", "test2.pdf", 42, "application/pdf", "path2", uuid.New(), time.Now(), "User Two"))
 
 		attachments, err := repo.GetByDocumentID(docID)
 
@@ -125,46 +125,14 @@ func TestAttachmentRepository_GetByDocumentID(t *testing.T) {
 	})
 
 	t.Run("no attachments", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT a.id, a.document_id, a.document_type, a.filename, a.file_size, a.content_type, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 ORDER BY a.uploaded_at DESC`).
+		mock.ExpectQuery(`SELECT a.id, a.document_id, a.document_type, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 ORDER BY a.uploaded_at DESC`).
 			WithArgs(docID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "document_type", "filename", "file_size", "content_type", "uploaded_by", "uploaded_at", "full_name"}))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "document_type", "filename", "file_size", "content_type", "storage_path", "uploaded_by", "uploaded_at", "full_name"}))
 
 		attachments, err := repo.GetByDocumentID(docID)
 
 		require.NoError(t, err)
 		require.Empty(t, attachments)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-}
-
-func TestAttachmentRepository_GetContent(t *testing.T) {
-	// Получение бинарного содержимого файла вложения
-	repo, mock := setupAttachmentRepo(t)
-	attachmentID := uuid.New()
-
-	t.Run("success", func(t *testing.T) {
-		expectedContent := []byte("binary data")
-		mock.ExpectQuery(`SELECT content FROM attachments WHERE id = \$1`).
-			WithArgs(attachmentID).
-			WillReturnRows(sqlmock.NewRows([]string{"content"}).AddRow(expectedContent))
-
-		content, err := repo.GetContent(attachmentID)
-
-		require.NoError(t, err)
-		assert.Equal(t, expectedContent, content)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("not found", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT content FROM attachments WHERE id = \$1`).
-			WithArgs(attachmentID).
-			WillReturnError(sql.ErrNoRows)
-
-		content, err := repo.GetContent(attachmentID)
-
-		require.Error(t, err)
-		assert.Equal(t, sql.ErrNoRows, err)
-		assert.Nil(t, content)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

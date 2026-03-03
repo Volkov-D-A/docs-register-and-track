@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     filename VARCHAR(255) NOT NULL,
     file_size BIGINT NOT NULL,
     content_type VARCHAR(100),
-    content BYTEA,
+    storage_path VARCHAR(512) NOT NULL,
     uploaded_by UUID NOT NULL REFERENCES users (id),
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

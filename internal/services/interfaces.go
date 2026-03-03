@@ -107,7 +107,16 @@ type AttachmentStore interface {
 	Delete(id uuid.UUID) error
 	GetByID(id uuid.UUID) (*models.Attachment, error)
 	GetByDocumentID(docID uuid.UUID) ([]models.Attachment, error)
-	GetContent(id uuid.UUID) ([]byte, error)
+}
+
+// FileStorage — интерфейс для работы с внешним файловым хранилищем (например, MinIO).
+type FileStorage interface {
+	// UploadFile загружает файл в хранилище.
+	UploadFile(ctx context.Context, objectName string, data []byte, contentType string) error
+	// DownloadFile скачивает файл из хранилища.
+	DownloadFile(ctx context.Context, objectName string) ([]byte, error)
+	// DeleteFile удаляет файл из хранилища.
+	DeleteFile(ctx context.Context, objectName string) error
 }
 
 // LinkStore — интерфейс для работы со связями между документами в хранилище.

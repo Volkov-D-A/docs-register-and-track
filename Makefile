@@ -24,14 +24,14 @@ clean:
 # ==========================================
 
 # Обычный запуск базы данных в фоновом режиме
-db-up:
+storage-up:
 	docker compose up -d
 
 # Остановка контейнера (данные СОХРАНЯЮТСЯ)
-db-down:
+storage-down:
 	docker compose down
 
 # ПОЛНЫЙ СБРОС: удаляет контейнер, УНИЧТОЖАЕТ ВСЕ ДАННЫЕ (том) и поднимает чистую БД
-db-reset:
+storage-reset:
 	docker compose down -v
 	docker compose up -d

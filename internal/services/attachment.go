@@ -22,15 +22,17 @@ type AttachmentService struct {
 	settingsService *SettingsService
 	authService     *AuthService
 	journal         *JournalService
+	fileStorage     FileStorage
 }
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
-func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService) *AttachmentService {
+func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService, fs FileStorage) *AttachmentService {
 	return &AttachmentService{
 		repo:            repo,
 		settingsService: settingsService,
 		authService:     authService,
 		journal:         journal,
+		fileStorage:     fs,
 	}
 }
 
@@ -81,6 +83,11 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		return nil, fmt.Errorf("file type '%s' is not allowed", ext)
 	}
 
+	objectName := uuid.New().String() + ext
+	if err := s.fileStorage.UploadFile(context.Background(), objectName, data, ext); err != nil {
+		return nil, fmt.Errorf("failed to upload file to storage: %v", err)
+	}
+
 	// 4. Сохранение в БД
 	attachment := &models.Attachment{
 		DocumentID:   documentID,
@@ -88,11 +95,13 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		Filename:     filename,
 		FileSize:     int64(len(data)),
 		ContentType:  ext, // упрощённый тип содержимого
-		Content:      data,
+		StoragePath:  objectName,
 		UploadedBy:   uuid.MustParse(currentUser.ID),
 	}
 
 	if err := s.repo.Create(attachment); err != nil {
+		// Попытка откатить (удалить) файл из хранилища, если сохранение в БД не удалось
+		_ = s.fileStorage.DeleteFile(context.Background(), objectName)
 		return nil, err
 	}
 
@@ -136,8 +145,8 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 		return nil, err
 	}
 
-	// Получение содержимого из БД
-	content, err := s.repo.GetContent(id)
+	// Получение содержимого из файлового хранилища
+	content, err := s.fileStorage.DownloadFile(context.Background(), attachment.StoragePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file content: %v", err)
 	}
@@ -164,6 +173,11 @@ func (s *AttachmentService) Delete(idStr string) error {
 	attachment, err := s.repo.GetByID(id)
 	if err != nil {
 		return err
+	}
+
+	// Удаление из файлового хранилища
+	if err := s.fileStorage.DeleteFile(context.Background(), attachment.StoragePath); err != nil {
+		return fmt.Errorf("failed to delete file from storage: %v", err)
 	}
 
 	// Удаление из БД
@@ -197,7 +211,7 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	}
 
 	// Получение содержимого
-	content, err := s.repo.GetContent(id)
+	content, err := s.fileStorage.DownloadFile(context.Background(), attachment.StoragePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to get file content: %v", err)
 	}

@@ -16,6 +16,7 @@ import (
 	"docflow/internal/database"
 	"docflow/internal/repository"
 	"docflow/internal/services"
+	"docflow/internal/storage"
 )
 
 //go:embed all:frontend/dist
@@ -82,7 +83,13 @@ func main() {
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService)
 	dashboardService := services.NewDashboardService(dashboardRepo, authService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService)
-	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService)
+
+	minioService, err := storage.NewMinioService(cfg.Minio)
+	if err != nil {
+		log.Printf("Warning: Failed to establish MinIO connection: %v", err)
+	}
+
+	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, minioService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService)
 	systemService := services.NewSystemService(db)

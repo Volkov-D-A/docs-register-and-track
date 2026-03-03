@@ -111,36 +111,6 @@ func (_m *AttachmentStore) GetByID(id uuid.UUID) (*models.Attachment, error) {
 	return r0, r1
 }
 
-// GetContent provides a mock function with given fields: id
-func (_m *AttachmentStore) GetContent(id uuid.UUID) ([]byte, error) {
-	ret := _m.Called(id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetContent")
-	}
-
-	var r0 []byte
-	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID) ([]byte, error)); ok {
-		return rf(id)
-	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID) []byte); ok {
-		r0 = rf(id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(uuid.UUID) error); ok {
-		r1 = rf(id)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // NewAttachmentStore creates a new instance of AttachmentStore. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewAttachmentStore(t interface {

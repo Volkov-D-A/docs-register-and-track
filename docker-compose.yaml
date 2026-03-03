@@ -14,6 +14,19 @@ services:
       # Сохраняем данные БД на виртуальном диске, чтобы они не исчезли при перезапуске
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
-
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000" # API порт
+      - "9001:9001" # Web UI порт
+    environment:
+      MINIO_ROOT_USER: "docflow"
+      MINIO_ROOT_PASSWORD: "docflow_password"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
 volumes:
   pgdata:
+  minio_data:

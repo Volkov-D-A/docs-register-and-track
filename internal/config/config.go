@@ -10,6 +10,7 @@ import (
 // Config хранит основную конфигурацию приложения.
 type Config struct {
 	Database DatabaseConfig `json:"database"`
+	Minio    MinioConfig    `json:"minio"`
 }
 
 // DatabaseConfig хранит настройки подключения к базе данных PostgreSQL.
@@ -20,6 +21,25 @@ type DatabaseConfig struct {
 	Password string `json:"password"`
 	DBName   string `json:"dbname"`
 	SSLMode  string `json:"sslmode"`
+}
+
+// MinioConfig хранит настройки подключения к MinIO.
+type MinioConfig struct {
+	Endpoint        string `json:"endpoint"`
+	AccessKeyID     string `json:"accessKeyId"`
+	SecretAccessKey string `json:"secretAccessKey"`
+	UseSSL          bool   `json:"useSSL"`
+	BucketName      string `json:"bucketName"`
+}
+
+// GetSecretAccessKey возвращает ключ доступа.
+// Если он зашифрован (префикс ENC:), автоматически дешифрует его.
+func (m MinioConfig) GetSecretAccessKey() string {
+	secret := m.SecretAccessKey
+	if decrypted, err := DecryptPassword(m.SecretAccessKey); err == nil {
+		secret = decrypted
+	}
+	return secret
 }
 
 // ConnectionString формирует строку подключения к базе данных.
