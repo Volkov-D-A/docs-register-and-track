@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Tabs, Row, Col, Typography, Tag, Button, Spin, App } from 'antd';
+import { Modal, Tabs, Row, Col, Typography, Tag, Button, Spin, App, Space } from 'antd';
 import dayjs from 'dayjs';
 import AssignmentList from './AssignmentList';
 import AcknowledgmentList from './AcknowledgmentList';
@@ -8,6 +8,7 @@ import { LinksTab } from './DocumentLinks/LinksTab';
 import JournalList from './JournalList';
 
 import { useAuthStore } from '../store/useAuthStore';
+import { useDraftLinkStore } from '../store/useDraftLinkStore';
 
 const { Text } = Typography;
 
@@ -238,7 +239,25 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             open={open}
             onCancel={onCancel}
             width={800}
-            footer={<Button onClick={onCancel}>Закрыть</Button>}
+            footer={
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <div>
+                        {(currentRole === 'admin' || currentRole === 'clerk') && data && (
+                            <Space>
+                                <Button onClick={() => {
+                                    useDraftLinkStore.getState().setDraftLink(data.id, documentType, getNumber(), 'incoming');
+                                    onCancel();
+                                }}>Создать связанный входящий</Button>
+                                <Button onClick={() => {
+                                    useDraftLinkStore.getState().setDraftLink(data.id, documentType, getNumber(), 'outgoing');
+                                    onCancel();
+                                }}>Создать связанный исходящий</Button>
+                            </Space>
+                        )}
+                    </div>
+                    <Button onClick={onCancel}>Закрыть</Button>
+                </div>
+            }
         >
             {loading && <Spin />}
             {!loading && data && (

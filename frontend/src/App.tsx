@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from './store/useAuthStore';
+import { useDraftLinkStore } from './store/useDraftLinkStore';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
@@ -25,11 +26,29 @@ function App() {
     const [checkingDb, setCheckingDb] = useState<boolean>(false);
 
     // При входе в приложение всегда перенаправляем на дашборд
+    // Или на страницу создания документа, если есть draftLink
     useEffect(() => {
+        const targetType = useDraftLinkStore.getState().targetType;
+        const sourceId = useDraftLinkStore.getState().sourceId;
+
         if (isAuthenticated) {
-            setCurrentPage('dashboard');
+            if (sourceId && ['incoming', 'outgoing'].includes(targetType)) {
+                setCurrentPage(targetType);
+            } else {
+                setCurrentPage('dashboard');
+            }
         }
     }, [isAuthenticated]);
+
+    // Подписка на изменения draftLink для мгновенного перехода из модалки
+    useEffect(() => {
+        const unsubscribe = useDraftLinkStore.subscribe((state) => {
+            if (state.sourceId && ['incoming', 'outgoing'].includes(state.targetType)) {
+                setCurrentPage(state.targetType);
+            }
+        });
+        return unsubscribe;
+    }, []);
 
     // Проверка базы данных при запуске
     useEffect(() => {

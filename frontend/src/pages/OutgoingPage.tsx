@@ -17,6 +17,7 @@ import dayjs from 'dayjs';
 import locale from 'antd/es/date-picker/locale/ru_RU';
 
 import { useAuthStore } from '../store/useAuthStore';
+import { useDraftLinkStore } from '../store/useDraftLinkStore';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -32,6 +33,8 @@ const OutgoingPage: React.FC = () => {
     const isExecutorOnly = currentRole === 'executor';
     // Скрываем фильтр, если пользователь — исполнитель без админских прав
     const filterDisabled = isExecutorOnly;
+
+    const { sourceId, sourceType, sourceNumber, targetType, clearDraftLink } = useDraftLinkStore();
 
     // Данные
     const [data, setData] = useState<any[]>([]);
@@ -122,6 +125,14 @@ const OutgoingPage: React.FC = () => {
     useEffect(() => { loadRefs(); }, []);
     useEffect(() => { load(); }, [page, search, filterNomenclatureIds, filterOutgoingNumber, filterRecipientName, filterDateFrom, filterDateTo]);
 
+    useEffect(() => {
+        if (sourceId && targetType === 'outgoing') {
+            registerForm.resetFields();
+            registerForm.setFieldsValue({ outgoingDate: dayjs(), pagesCount: 1 });
+            setRegisterModalOpen(true);
+        }
+    }, [sourceId, targetType, registerForm]);
+
     const clearFilters = () => {
         setSearch(''); setFilterNomenclatureIds([]);
         setFilterOutgoingNumber(''); setFilterRecipientName('');
@@ -135,13 +146,23 @@ const OutgoingPage: React.FC = () => {
     const onRegister = async (values: any) => {
         try {
             const { Register } = await import('../../wailsjs/go/services/OutgoingDocumentService');
-            await Register(
+            const newDoc = await Register(
                 values.nomenclatureId, values.documentTypeId,
                 values.recipientOrgName, values.addressee,
                 values.outgoingDate?.format('YYYY-MM-DD') || '',
                 values.subject, values.content, values.pagesCount,
                 values.senderSignatory, values.senderExecutor
             );
+
+            if (sourceId && targetType === 'outgoing') {
+                const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
+                // Если создаем исходящий из входящего -> Ответ (reply)
+                // Если создаем исходящий из исходящего -> Связан (related)
+                const linkType = sourceType === 'incoming' ? 'reply' : 'related';
+                await LinkDocuments(sourceId, newDoc.id, sourceType, 'outgoing', linkType);
+                clearDraftLink();
+            }
+
             message.success('Документ зарегистрирован');
             setRegisterModalOpen(false);
             registerForm.resetFields();
@@ -342,11 +363,16 @@ const OutgoingPage: React.FC = () => {
             <Modal
                 title="Регистрация исходящего документа"
                 open={registerModalOpen}
-                onCancel={() => setRegisterModalOpen(false)}
+                onCancel={() => { setRegisterModalOpen(false); clearDraftLink(); }}
                 onOk={() => registerForm.submit()}
                 width={800}
                 confirmLoading={loading}
             >
+                {sourceId && targetType === 'outgoing' && (
+                    <div style={{ marginBottom: 16 }}>
+                        <Tag color="blue">Создание документа, связанного с: {sourceType === 'incoming' ? 'Входящий' : 'Исходящий'} №{sourceNumber}</Tag>
+                    </div>
+                )}
                 <Form form={registerForm} layout="vertical" onFinish={onRegister}>
                     <Row gutter={16}>
                         <Col span={12}>

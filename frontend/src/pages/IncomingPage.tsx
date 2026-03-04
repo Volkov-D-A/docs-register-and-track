@@ -16,6 +16,7 @@ import {
 import dayjs from 'dayjs';
 
 import { useAuthStore } from '../store/useAuthStore';
+import { useDraftLinkStore } from '../store/useDraftLinkStore';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -31,6 +32,8 @@ const IncomingPage: React.FC = () => {
     const isExecutorOnly = currentRole === 'executor';
     // Скрываем фильтр, если пользователь — исполнитель без админских прав
     const filterDisabled = isExecutorOnly;
+
+    const { sourceId, sourceType, sourceNumber, targetType, clearDraftLink } = useDraftLinkStore();
 
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -133,6 +136,14 @@ const IncomingPage: React.FC = () => {
     useEffect(() => { loadRefs(); }, []);
     useEffect(() => { load(); }, [page, search, filterIncomingNumber, filterOutgoingNumber, filterSenderName, filterDateFrom, filterDateTo, filterOutDateFrom, filterOutDateTo, filterResolution, filterNoResolution, filterNomenclatureIds]);
 
+    useEffect(() => {
+        if (sourceId && targetType === 'incoming') {
+            registerForm.resetFields();
+            registerForm.setFieldsValue({ incomingDate: dayjs(), pagesCount: 1 });
+            setRegisterModalOpen(true);
+        }
+    }, [sourceId, targetType, registerForm]);
+
     const clearFilters = () => {
         setSearch(''); setFilterIncomingNumber(''); setFilterOutgoingNumber('');
         setFilterSenderName(''); setFilterDateFrom(''); setFilterDateTo('');
@@ -146,7 +157,7 @@ const IncomingPage: React.FC = () => {
     const onRegister = async (values: any) => {
         try {
             const { Register } = await import('../../wailsjs/go/services/IncomingDocumentService');
-            await Register(
+            const newDoc = await Register(
                 values.nomenclatureId, values.documentTypeId,
                 values.senderOrgName, values.recipientOrgName,
                 values.incomingDate?.format('YYYY-MM-DD') || '',
@@ -159,6 +170,16 @@ const IncomingPage: React.FC = () => {
                 values.senderSignatory || '', values.senderExecutor || '',
                 values.addressee || '', values.resolution || '',
             );
+
+            if (sourceId && targetType === 'incoming') {
+                const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
+                // Если создаем входящий из исходящего -> Во исполнение (follow_up)
+                // Если создаем входящий из входящего -> Связан (related)
+                const linkType = sourceType === 'outgoing' ? 'follow_up' : 'related';
+                await LinkDocuments(sourceId, newDoc.id, sourceType, 'incoming', linkType);
+                clearDraftLink();
+            }
+
             message.success('Документ зарегистрирован');
             setRegisterModalOpen(false); registerForm.resetFields(); load();
         } catch (err: any) { message.error(err?.message || String(err)); }
@@ -502,7 +523,12 @@ const IncomingPage: React.FC = () => {
 
             {/* Регистрация */}
             <Modal title="Регистрация входящего документа" open={registerModalOpen}
-                onCancel={() => setRegisterModalOpen(false)} onOk={() => registerForm.submit()} width={700} okText="Зарегистрировать">
+                onCancel={() => { setRegisterModalOpen(false); clearDraftLink(); }} onOk={() => registerForm.submit()} width={700} okText="Зарегистрировать">
+                {sourceId && targetType === 'incoming' && (
+                    <div style={{ marginBottom: 16 }}>
+                        <Tag color="blue">Создание документа, связанного с: {sourceType === 'incoming' ? 'Входящий' : 'Исходящий'} №{sourceNumber}</Tag>
+                    </div>
+                )}
                 {renderDocForm(registerForm, false)}
             </Modal>
 
