@@ -81,7 +81,6 @@ func main() {
 	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, departmentRepo, authService, journalService)
 	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, authService, settingsService, journalService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService)
-	dashboardService := services.NewDashboardService(dashboardRepo, authService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService)
 
 	minioService, err := storage.NewMinioService(cfg.Minio)
@@ -89,6 +88,7 @@ func main() {
 		log.Printf("Warning: Failed to establish MinIO connection: %v", err)
 	}
 
+	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService)
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, minioService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService)

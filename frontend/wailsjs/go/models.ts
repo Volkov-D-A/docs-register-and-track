@@ -383,6 +383,8 @@ export namespace dto {
 	    userCount?: number;
 	    totalDocuments?: number;
 	    dbSize?: string;
+	    storageObjects?: number;
+	    storageSize?: string;
 	    expiringAssignments?: Assignment[];
 	
 	    static createFrom(source: any = {}) {
@@ -405,6 +407,8 @@ export namespace dto {
 	        this.userCount = source["userCount"];
 	        this.totalDocuments = source["totalDocuments"];
 	        this.dbSize = source["dbSize"];
+	        this.storageObjects = source["storageObjects"];
+	        this.storageSize = source["storageSize"];
 	        this.expiringAssignments = this.convertValues(source["expiringAssignments"], Assignment);
 	    }
 	

@@ -5,7 +5,8 @@ import {
 } from 'antd';
 import {
     ClockCircleOutlined, FileTextOutlined, CheckCircleOutlined,
-    UserOutlined, DatabaseOutlined, ReloadOutlined, EyeOutlined
+    UserOutlined, DatabaseOutlined, ReloadOutlined, EyeOutlined,
+    CloudOutlined, HddOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
@@ -302,7 +303,7 @@ const DashboardPage: React.FC = () => {
     const renderAdminView = () => (
         <>
             <Title level={4}>Система</Title>
-            <Row gutter={[16, 16]}>
+            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
                 <Col xs={24} sm={8}>
                     <StatCard title="Пользователи" value={stats?.userCount || 0} icon={<UserOutlined />} color="#1890ff" />
                 </Col>
@@ -311,6 +312,14 @@ const DashboardPage: React.FC = () => {
                 </Col>
                 <Col xs={24} sm={8}>
                     <StatCard title="БД" value={stats?.dbSize || "N/A"} icon={<DatabaseOutlined />} color="#52c41a" />
+                </Col>
+            </Row>
+            <Row gutter={[16, 16]}>
+                <Col xs={24} sm={8}>
+                    <StatCard title="Файлов в хранилище" value={stats?.storageObjects || 0} icon={<CloudOutlined />} color="#722ed1" />
+                </Col>
+                <Col xs={24} sm={8}>
+                    <StatCard title="Размер хранилища" value={stats?.storageSize || "N/A"} icon={<HddOutlined />} color="#fa8c16" />
                 </Col>
             </Row>
         </>

@@ -154,6 +154,11 @@ type DashboardStore interface {
 	GetDBSize() string
 }
 
+// StorageInfoProvider — интерфейс для получения информации о файловом хранилище.
+type StorageInfoProvider interface {
+	GetStorageInfo(ctx context.Context) (objectCount int, totalSize string, err error)
+}
+
 // JournalStore — интерфейс для работы с журналом действий.
 type JournalStore interface {
 	Create(ctx context.Context, req models.CreateJournalEntryRequest) (uuid.UUID, error)

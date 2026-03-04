@@ -87,3 +87,43 @@ func (m *MinioService) DeleteFile(ctx context.Context, objectName string) error 
 	}
 	return nil
 }
+
+// GetStorageInfo возвращает количество объектов и суммарный размер хранилища в человекочитаемом формате.
+func (m *MinioService) GetStorageInfo(ctx context.Context) (objectCount int, totalSize string, err error) {
+	var count int
+	var size int64
+
+	objectCh := m.client.ListObjects(ctx, m.bucketName, minio.ListObjectsOptions{
+		Recursive: true,
+	})
+
+	for obj := range objectCh {
+		if obj.Err != nil {
+			return 0, "", fmt.Errorf("failed to list objects in minio: %w", obj.Err)
+		}
+		count++
+		size += obj.Size
+	}
+
+	return count, formatSize(size), nil
+}
+
+// formatSize форматирует размер в байтах в человекочитаемый формат.
+func formatSize(bytes int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	switch {
+	case bytes >= GB:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
+	case bytes >= MB:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(MB))
+	case bytes >= KB:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
+}

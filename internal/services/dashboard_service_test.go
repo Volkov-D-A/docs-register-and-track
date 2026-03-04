@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -14,12 +15,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mockStorageInfo — мок для StorageInfoProvider.
+type mockStorageInfo struct {
+	objectCount int
+	totalSize   string
+	err         error
+}
+
+func (m *mockStorageInfo) GetStorageInfo(ctx context.Context) (int, string, error) {
+	return m.objectCount, m.totalSize, m.err
+}
+
 func TestDashboardService_GetStats(t *testing.T) {
 	// Получение сводной статистики для рабочего стола (индивидуально для каждой роли: executor, admin, clerk)
 	mockRepo := mocks.NewDashboardStore(t)
 	authRepo := mocks.NewUserStore(t)
 	authService := NewAuthService(nil, authRepo)
-	dashboardService := NewDashboardService(mockRepo, authService)
+	mockStorage := &mockStorageInfo{objectCount: 42, totalSize: "128.5 MB"}
+	dashboardService := NewDashboardService(mockRepo, authService, mockStorage)
 
 	login := "testuser"
 	password := "CorrectPassw0rd!"
@@ -84,6 +97,8 @@ func TestDashboardService_GetStats(t *testing.T) {
 		assert.Equal(t, 50, stats.UserCount)
 		assert.Equal(t, 300, stats.TotalDocuments)
 		assert.Equal(t, "10MB", stats.DBSize)
+		assert.Equal(t, 42, stats.StorageObjects)
+		assert.Equal(t, "128.5 MB", stats.StorageSize)
 
 		authService.Logout()
 	})
@@ -184,7 +199,7 @@ func TestDashboardService_GetStats(t *testing.T) {
 		// Depending on time.Now(), we just catch the first call pattern
 		mockRepo.Calls = nil
 		mockRepo.ExpectedCalls = nil
-		
+
 		// Catch any GetDocCountsByPeriod call and return error
 		mockRepo.On("GetDocCountsByPeriod", mock.Anything, mock.Anything).Return(0, 0, assert.AnError).Once()
 

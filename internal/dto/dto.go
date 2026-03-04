@@ -251,6 +251,8 @@ type DashboardStats struct {
 	UserCount      int    `json:"userCount,omitempty"`
 	TotalDocuments int    `json:"totalDocuments,omitempty"`
 	DBSize         string `json:"dbSize,omitempty"`
+	StorageObjects int    `json:"storageObjects,omitempty"`
+	StorageSize    string `json:"storageSize,omitempty"`
 
 	// Общий список (истекающие поручения)
 	ExpiringAssignments []Assignment `json:"expiringAssignments,omitempty"`

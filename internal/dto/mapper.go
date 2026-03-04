@@ -463,6 +463,8 @@ func MapDashboardStats(m *models.DashboardStats) *DashboardStats {
 		UserCount:                  m.UserCount,
 		TotalDocuments:             m.TotalDocuments,
 		DBSize:                     m.DBSize,
+		StorageObjects:             m.StorageObjects,
+		StorageSize:                m.StorageSize,
 		ExpiringAssignments:        MapAssignments(m.ExpiringAssignments),
 	}
 }

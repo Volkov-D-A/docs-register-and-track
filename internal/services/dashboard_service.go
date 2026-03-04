@@ -1,7 +1,9 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,13 +14,14 @@ import (
 
 // DashboardService предоставляет бизнес-логику для формирования данных дашборда.
 type DashboardService struct {
-	repo DashboardStore
-	auth *AuthService
+	repo    DashboardStore
+	auth    *AuthService
+	storage StorageInfoProvider
 }
 
 // NewDashboardService создает новый экземпляр DashboardService.
-func NewDashboardService(repo DashboardStore, auth *AuthService) *DashboardService {
-	return &DashboardService{repo: repo, auth: auth}
+func NewDashboardService(repo DashboardStore, auth *AuthService, storage StorageInfoProvider) *DashboardService {
+	return &DashboardService{repo: repo, auth: auth, storage: storage}
 }
 
 // GetStats возвращает статистику для дашборда в зависимости от роли пользователя.
@@ -187,6 +190,20 @@ func (s *DashboardService) getAdminStats(stats *models.DashboardStats) (*models.
 
 	// 3. Размер БД (PostgreSQL)
 	stats.DBSize = s.repo.GetDBSize()
+
+	// 4. Информация о файловом хранилище MinIO
+	if s.storage != nil {
+		objCount, totalSize, err := s.storage.GetStorageInfo(context.Background())
+		if err != nil {
+			log.Printf("Warning: failed to get MinIO storage info: %v", err)
+			stats.StorageSize = "N/A"
+		} else {
+			stats.StorageObjects = objCount
+			stats.StorageSize = totalSize
+		}
+	} else {
+		stats.StorageSize = "N/A"
+	}
 
 	return stats, nil
 }
