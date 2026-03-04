@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Space,
-  Typography, Popconfirm, Switch, Tag, App
+  Typography, Popconfirm, Switch, Tag, App, DatePicker
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
 
@@ -855,6 +855,80 @@ const MigrationsTab: React.FC = () => {
   );
 };
 
+// === Управление хранилищем ===
+/**
+ * Вкладка для массового управления файлами: удаление файлов старше указанной даты.
+ */
+const StorageTab: React.FC = () => {
+  const { message, modal } = App.useApp();
+  const [loading, setLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<any>(null);
+
+  const onBulkDelete = () => {
+    if (!selectedDate) {
+      message.warning('Пожалуйста, выберите дату');
+      return;
+    }
+
+    modal.confirm({
+      title: 'Массовое удаление файлов',
+      content: `Внимание! Это действие безвозвратно удалит все файлы, загруженные до ${selectedDate.format('DD.MM.YYYY')}. Продолжить?`,
+      okText: 'Да, удалить',
+      cancelText: 'Отмена',
+      okType: 'danger',
+      onOk: async () => {
+        setLoading(true);
+        try {
+          const { BulkDeleteOlderThan } = await import('../../wailsjs/go/services/AttachmentService');
+          const count = await BulkDeleteOlderThan(selectedDate.toISOString());
+          message.success(`Успешно удалено файлов: ${count}`);
+        } catch (err: any) {
+          message.error(err?.message || String(err));
+        }
+        setLoading(false);
+      },
+    });
+  };
+
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <div style={{
+        padding: 24,
+        background: '#fffbe6',
+        borderRadius: 8,
+        border: '1px solid #ffe58f',
+        marginBottom: 16,
+      }}>
+        <Typography.Paragraph type="warning" strong style={{ marginBottom: 0 }}>
+          <WarningOutlined style={{ marginRight: 8 }} />
+          Осторожно: удаленные файлы невозможно восстановить средствами системы.
+        </Typography.Paragraph>
+      </div>
+      <Form layout="vertical">
+        <Form.Item label="Удалить файлы, загруженные до даты:">
+          <DatePicker
+            style={{ width: '100%' }}
+            onChange={(date) => setSelectedDate(date)}
+            disabledDate={(current) => current && current.valueOf() > Date.now()}
+          />
+        </Form.Item>
+        <Form.Item>
+          <Button
+            type="primary"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={onBulkDelete}
+            loading={loading}
+            disabled={!selectedDate}
+          >
+            Удалить файлы
+          </Button>
+        </Form.Item>
+      </Form>
+    </div>
+  );
+};
+
 // === Основная страница ===
 /**
  * Страница настроек системы. 
@@ -874,6 +948,7 @@ const SettingsPage: React.FC = () => {
           { key: 'departments', label: 'Подразделения', children: <DepartmentsTab /> },
           { key: 'users', label: 'Пользователи', children: <UsersTab /> },
           { key: 'system', label: 'Системные настройки', children: <SystemSettingsTab /> },
+          { key: 'storage', label: 'Управление хранилищем', children: <StorageTab /> },
           { key: 'migrations', label: 'Миграции БД', children: <MigrationsTab /> },
         ]}
       />

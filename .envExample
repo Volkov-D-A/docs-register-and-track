@@ -1,0 +1,31 @@
+# ==========================================
+# Версии сервисов
+# ==========================================
+MINIO_VERSION=RELEASE.2025-09-07T16-13-09Z
+POSTGRES_VERSION=18.3
+
+# ==========================================
+# Настройки MinIO
+# ==========================================
+MINIO_ROOT_USER=docflow
+MINIO_ROOT_PASSWORD=docflow_password
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_BUCKET=docflow-attachments
+
+# ==========================================
+# Настройки PostgreSQL
+# ==========================================
+POSTGRES_USER=docflow
+POSTGRES_PASSWORD=docflow_password
+POSTGRES_DB=docflow
+POSTGRES_CONTAINER=docflow_db
+
+# ==========================================
+# Настройки SMB для бэкапов
+# ==========================================
+SMB_SERVER=192.168.1.42
+SMB_SHARE=backup
+SMB_USER=ivan
+SMB_PASSWORD=1234
+SMB_DOMAIN=WORKGROUP
+MOUNT_POINT=/mnt/smb_backup

@@ -107,6 +107,8 @@ type AttachmentStore interface {
 	Delete(id uuid.UUID) error
 	GetByID(id uuid.UUID) (*models.Attachment, error)
 	GetByDocumentID(docID uuid.UUID) ([]models.Attachment, error)
+	GetOlderThan(date time.Time) ([]models.Attachment, error)
+	DeleteMultiple(ids []uuid.UUID) error
 }
 
 // FileStorage — интерфейс для работы с внешним файловым хранилищем (например, MinIO).

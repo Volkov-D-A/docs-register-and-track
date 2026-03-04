@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"docflow/internal/database"
 	"docflow/internal/models"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // AttachmentRepository предоставляет методы для работы с вложениями (файлами) в БД.
@@ -79,4 +81,47 @@ func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attach
 		return nil, err
 	}
 	return attachments, nil
+}
+
+// GetOlderThan возвращает вложения, загруженные до указанной даты.
+func (r *AttachmentRepository) GetOlderThan(date time.Time) ([]models.Attachment, error) {
+	rows, err := r.db.Query(
+		`SELECT id, document_id, document_type, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at
+		FROM attachments WHERE uploaded_at < $1`,
+		date,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	attachments := make([]models.Attachment, 0)
+	for rows.Next() {
+		var a models.Attachment
+		if err := rows.Scan(
+			&a.ID, &a.DocumentID, &a.DocumentType, &a.Filename, &a.StoragePath, &a.FileSize, &a.ContentType, &a.UploadedBy, &a.UploadedAt,
+		); err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return attachments, nil
+}
+
+// DeleteMultiple удаляет несколько вложений по их ID.
+func (r *AttachmentRepository) DeleteMultiple(ids []uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	
+	strIDs := make([]string, len(ids))
+	for i, id := range ids {
+		strIDs[i] = id.String()
+	}
+
+	_, err := r.db.Exec("DELETE FROM attachments WHERE id = ANY($1)", pq.Array(strIDs))
+	return err
 }

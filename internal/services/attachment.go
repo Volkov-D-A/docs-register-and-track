@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -332,4 +333,56 @@ func (s *AttachmentService) OpenFolder(path string) error {
 		return fmt.Errorf("failed to open folder: %v", err)
 	}
 	return nil
+}
+
+// BulkDeleteOlderThan — массовое удаление файлов, загруженных до указанной даты
+func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
+	// Проверка прав доступа
+	if !s.authService.HasRole("admin") {
+		return 0, models.NewForbidden("Недостаточно прав: массовое удаление файлов доступно только администраторам")
+	}
+
+	date, err := time.Parse(time.RFC3339, dateStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid date format, expected RFC3339: %v", err)
+	}
+
+	attachments, err := s.repo.GetOlderThan(date)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch old attachments: %v", err)
+	}
+
+	if len(attachments) == 0 {
+		return 0, nil
+	}
+
+	var successfulIDs []uuid.UUID
+	deletedCount := 0
+
+	for _, att := range attachments {
+		if err := s.fileStorage.DeleteFile(context.Background(), att.StoragePath); err != nil {
+			// Логируем ошибку, но продолжаем удаление других файлов
+			fmt.Printf("Failed to delete file %s from MinIO: %v\n", att.StoragePath, err)
+			continue
+		}
+		successfulIDs = append(successfulIDs, att.ID)
+		deletedCount++
+	}
+
+	if len(successfulIDs) > 0 {
+		if err := s.repo.DeleteMultiple(successfulIDs); err != nil {
+			return 0, fmt.Errorf("failed to delete records from db: %v", err)
+		}
+	}
+
+	currentUserID, _ := uuid.Parse(s.authService.GetCurrentUserID())
+	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		DocumentID:   uuid.Nil, // Массовая операция
+		DocumentType: "system",
+		UserID:       currentUserID,
+		Action:       "FILE_BULK_DELETE",
+		Details:      fmt.Sprintf("Инструментом массовой очистки удалено %d файлов, загруженных до %s", deletedCount, date.Format("02.01.2006")),
+	})
+
+	return deletedCount, nil
 }

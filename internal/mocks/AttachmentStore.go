@@ -7,6 +7,8 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	time "time"
+
 	uuid "github.com/google/uuid"
 )
 
@@ -44,6 +46,24 @@ func (_m *AttachmentStore) Delete(id uuid.UUID) error {
 	var r0 error
 	if rf, ok := ret.Get(0).(func(uuid.UUID) error); ok {
 		r0 = rf(id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DeleteMultiple provides a mock function with given fields: ids
+func (_m *AttachmentStore) DeleteMultiple(ids []uuid.UUID) error {
+	ret := _m.Called(ids)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteMultiple")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func([]uuid.UUID) error); ok {
+		r0 = rf(ids)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -104,6 +124,36 @@ func (_m *AttachmentStore) GetByID(id uuid.UUID) (*models.Attachment, error) {
 
 	if rf, ok := ret.Get(1).(func(uuid.UUID) error); ok {
 		r1 = rf(id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetOlderThan provides a mock function with given fields: date
+func (_m *AttachmentStore) GetOlderThan(date time.Time) ([]models.Attachment, error) {
+	ret := _m.Called(date)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetOlderThan")
+	}
+
+	var r0 []models.Attachment
+	var r1 error
+	if rf, ok := ret.Get(0).(func(time.Time) ([]models.Attachment, error)); ok {
+		return rf(date)
+	}
+	if rf, ok := ret.Get(0).(func(time.Time) []models.Attachment); ok {
+		r0 = rf(date)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Attachment)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(time.Time) error); ok {
+		r1 = rf(date)
 	} else {
 		r1 = ret.Error(1)
 	}
