@@ -2,12 +2,12 @@
 services:
   postgres:
     # Используем alpine-версию, так как она весит в разы меньше и быстрее скачивается
-    image: postgres:16-alpine
+    image: postgres:${POSTGRES_VERSION}-alpine
     container_name: docflow_db
     environment:
-      POSTGRES_USER: docflow
-      POSTGRES_PASSWORD: docflow_password
-      POSTGRES_DB: docflow
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
@@ -15,14 +15,14 @@ services:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
   minio:
-    image: minio/minio:latest
+    image: minio/minio:${MINIO_VERSION}
     container_name: docflow_minio
     ports:
       - "9000:9000" # API порт
       - "9001:9001" # Web UI порт
     environment:
-      MINIO_ROOT_USER: "docflow"
-      MINIO_ROOT_PASSWORD: "docflow_password"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
