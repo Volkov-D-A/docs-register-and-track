@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const migrationsPath = "github://Volkov-D-A/docs-register-and-track/internal/database/migrations"
+const migrationsPath = "internal/database/migrations"
 
 // SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {

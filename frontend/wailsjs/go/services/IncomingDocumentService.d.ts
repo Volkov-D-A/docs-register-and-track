@@ -9,7 +9,7 @@ export function GetByID(arg1:string):Promise<dto.IncomingDocument>;
 
 export function GetCount():Promise<number>;
 
-export function GetList(arg1:models.DocumentFilter):Promise<dto.PagedResult_docflow_internal_dto_IncomingDocument_>;
+export function GetList(arg1:models.DocumentFilter):Promise<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_IncomingDocument_>;
 
 export function Register(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:string,arg9:string,arg10:string,arg11:string,arg12:number,arg13:string,arg14:string,arg15:string,arg16:string):Promise<dto.IncomingDocument>;
 

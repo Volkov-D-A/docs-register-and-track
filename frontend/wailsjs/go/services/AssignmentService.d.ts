@@ -9,7 +9,7 @@ export function Delete(arg1:string):Promise<void>;
 
 export function GetByID(arg1:string):Promise<dto.Assignment>;
 
-export function GetList(arg1:models.AssignmentFilter):Promise<dto.PagedResult_docflow_internal_dto_Assignment_>;
+export function GetList(arg1:models.AssignmentFilter):Promise<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_Assignment_>;
 
 export function Update(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<string>):Promise<dto.Assignment>;
 

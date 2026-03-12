@@ -847,14 +847,14 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class PagedResult_docflow_internal_dto_Assignment_ {
+	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_Assignment_ {
 	    items: Assignment[];
 	    totalCount: number;
 	    page: number;
 	    pageSize: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new PagedResult_docflow_internal_dto_Assignment_(source);
+	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_Assignment_(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -883,14 +883,14 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class PagedResult_docflow_internal_dto_IncomingDocument_ {
+	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_IncomingDocument_ {
 	    items: IncomingDocument[];
 	    totalCount: number;
 	    page: number;
 	    pageSize: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new PagedResult_docflow_internal_dto_IncomingDocument_(source);
+	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_IncomingDocument_(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -919,14 +919,14 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class PagedResult_docflow_internal_dto_OutgoingDocument_ {
+	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_OutgoingDocument_ {
 	    items: OutgoingDocument[];
 	    totalCount: number;
 	    page: number;
 	    pageSize: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new PagedResult_docflow_internal_dto_OutgoingDocument_(source);
+	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_OutgoingDocument_(source);
 	    }
 	
 	    constructor(source: any = {}) {
