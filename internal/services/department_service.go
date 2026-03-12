@@ -1,8 +1,8 @@
 package services
 
 import (
-	"docflow/internal/dto"
-	"docflow/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"fmt"
 
 	"github.com/google/uuid"

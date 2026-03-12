@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"docflow/internal/database"
-	"docflow/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 
 	"github.com/google/uuid"
 )

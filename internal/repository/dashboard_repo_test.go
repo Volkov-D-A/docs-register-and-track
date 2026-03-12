@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"docflow/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"

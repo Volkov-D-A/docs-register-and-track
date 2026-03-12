@@ -7,9 +7,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"docflow/internal/database"
-	"docflow/internal/models"
-	"docflow/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
 // UserRepository предоставляет методы для работы с пользователями в БД.

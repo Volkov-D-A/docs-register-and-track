@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"docflow/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 )
 
 // SystemService предоставляет системные методы для фронтенда (проверка БД и др.).

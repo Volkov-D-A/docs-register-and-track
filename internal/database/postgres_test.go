@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"docflow/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"

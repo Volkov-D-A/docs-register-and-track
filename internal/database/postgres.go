@@ -12,7 +12,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 
-	"docflow/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 )
 
 // DB представляет собой обертку над подключением к базе данных SQL.

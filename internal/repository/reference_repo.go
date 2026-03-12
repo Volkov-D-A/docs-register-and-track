@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"docflow/internal/database"
-	"docflow/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 // ReferenceRepository предоставляет методы для работы со справочниками (типы документов, организации) в БД.

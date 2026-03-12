@@ -12,11 +12,11 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
-	"docflow/internal/config"
-	"docflow/internal/database"
-	"docflow/internal/repository"
-	"docflow/internal/services"
-	"docflow/internal/storage"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
 )
 
 //go:embed all:frontend/dist

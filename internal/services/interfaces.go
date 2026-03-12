@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"docflow/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 // UserStore — интерфейс для работы с пользователями в хранилище (БД).

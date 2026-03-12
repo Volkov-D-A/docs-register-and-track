@@ -8,8 +8,8 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 
-	"docflow/internal/database"
-	"docflow/internal/services"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 )
 
 func TestSystemService_CheckDBConnection_Success(t *testing.T) {

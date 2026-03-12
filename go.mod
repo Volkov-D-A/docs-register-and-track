@@ -1,4 +1,4 @@
-module docflow
+module github.com/Volkov-D-A/docs-register-and-track
 
 go 1.25.0
 

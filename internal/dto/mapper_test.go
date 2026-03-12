@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"docflow/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"testing"
 	"time"
 

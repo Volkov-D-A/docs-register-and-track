@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"docflow/internal/database"
-	"docflow/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 // AssignmentRepository предоставляет методы для работы с поручениями в БД.

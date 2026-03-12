@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"docflow/internal/dto"
-	"docflow/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 // ReferenceService предоставляет бизнес-логику для работы со справочниками (типы документов, организации).

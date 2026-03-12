@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"docflow/internal/mocks"
-	"docflow/internal/models"
-	"docflow/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
 func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks.ReferenceStore, *mocks.UserStore, *AuthService) {

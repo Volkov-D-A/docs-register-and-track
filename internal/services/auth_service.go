@@ -8,10 +8,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"docflow/internal/database"
-	"docflow/internal/dto"
-	"docflow/internal/models"
-	"docflow/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
 const migrationsPathAuth = "internal/database/migrations"

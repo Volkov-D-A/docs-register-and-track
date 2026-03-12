@@ -2,8 +2,8 @@ package repository
 
 import (
 	"database/sql"
-	"docflow/internal/database"
-	"docflow/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"fmt"
 
 	"github.com/google/uuid"

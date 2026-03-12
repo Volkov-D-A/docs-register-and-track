@@ -3,7 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
-	"docflow/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"fmt"
 	"io"
 	"log"

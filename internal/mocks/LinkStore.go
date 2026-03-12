@@ -4,7 +4,7 @@ package mocks
 
 import (
 	context "context"
-	models "docflow/internal/models"
+	models "github.com/Volkov-D-A/docs-register-and-track/internal/models"
 
 	mock "github.com/stretchr/testify/mock"
 

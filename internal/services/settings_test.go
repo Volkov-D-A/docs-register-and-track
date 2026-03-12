@@ -1,10 +1,10 @@
 package services
 
 import (
-	"docflow/internal/database"
-	"docflow/internal/mocks"
-	"docflow/internal/models"
-	"docflow/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
