@@ -1035,15 +1035,15 @@ const SettingsPage: React.FC = () => {
         defaultActiveKey="nomenclature"
         destroyOnHidden
         items={[
-          { key: 'nomenclature', label: 'Номенклатура дел', icon: <BookOutlined />, children: <NomenclatureTab /> },
-          { key: 'documentTypes', label: 'Типы документов', icon: <FileTextOutlined />, children: <DocumentTypesTab /> },
+          { key: 'nomenclature', label: 'Номенклатура', icon: <BookOutlined />, children: <NomenclatureTab /> },
+          { key: 'documentTypes', label: 'Типы док.', icon: <FileTextOutlined />, children: <DocumentTypesTab /> },
           { key: 'organizations', label: 'Организации', icon: <BankOutlined />, children: <OrganizationsTab /> },
-          { key: 'departments', label: 'Подразделения', icon: <ApartmentOutlined />, children: <DepartmentsTab /> },
+          { key: 'departments', label: 'Отделы', icon: <ApartmentOutlined />, children: <DepartmentsTab /> },
           { key: 'users', label: 'Пользователи', icon: <TeamOutlined />, children: <UsersTab /> },
-          { key: 'system', label: 'Системные настройки', icon: <SettingOutlined />, children: <SystemSettingsTab /> },
-          { key: 'storage', label: 'Управление хранилищем', icon: <CloudServerOutlined />, children: <StorageTab /> },
-          { key: 'migrations', label: 'Миграции БД', icon: <DatabaseOutlined />, children: <MigrationsTab /> },
-          { key: 'auditLog', label: 'Журнал действий', icon: <FileSearchOutlined />, children: <AuditLogTab /> },
+          { key: 'system', label: 'Настройки', icon: <SettingOutlined />, children: <SystemSettingsTab /> },
+          { key: 'storage', label: 'Хранилище', icon: <CloudServerOutlined />, children: <StorageTab /> },
+          { key: 'migrations', label: 'Миграции', icon: <DatabaseOutlined />, children: <MigrationsTab /> },
+          { key: 'auditLog', label: 'Журнал', icon: <FileSearchOutlined />, children: <AuditLogTab /> },
         ]}
       />
     </div>
