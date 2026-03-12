@@ -16,7 +16,7 @@ func TestUserService_GetAllUsers(t *testing.T) {
 	mockRepo := mocks.NewUserStore(t)
 	authRepo := mocks.NewUserStore(t)
 	authService := NewAuthService(nil, authRepo)
-	userService := NewUserService(mockRepo, authService)
+	userService := NewUserService(mockRepo, authService, nil)
 
 	login := "testuser"
 	password := "CorrectPassw0rd!"
@@ -91,7 +91,7 @@ func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore
 	authRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	auth.Login(user.Login, password)
 
-	return NewUserService(mockRepo, auth), mockRepo
+	return NewUserService(mockRepo, auth, nil), mockRepo
 }
 
 func TestUserService_CreateUser(t *testing.T) {

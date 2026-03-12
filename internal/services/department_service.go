@@ -10,15 +10,17 @@ import (
 
 // DepartmentService предоставляет бизнес-логику для работы с подразделениями.
 type DepartmentService struct {
-	repo DepartmentStore
-	auth *AuthService
+	repo         DepartmentStore
+	auth         *AuthService
+	auditService *AdminAuditLogService
 }
 
 // NewDepartmentService создает новый экземпляр DepartmentService.
-func NewDepartmentService(repo DepartmentStore, auth *AuthService) *DepartmentService {
+func NewDepartmentService(repo DepartmentStore, auth *AuthService, auditService *AdminAuditLogService) *DepartmentService {
 	return &DepartmentService{
-		repo: repo,
-		auth: auth,
+		repo:         repo,
+		auth:         auth,
+		auditService: auditService,
 	}
 }
 
@@ -37,7 +39,14 @@ func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []stri
 		return nil, models.ErrForbidden
 	}
 	res, err := s.repo.Create(name, nomenclatureIDs)
-	return dto.MapDepartment(res), err
+	if err != nil {
+		return nil, err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "DEPT_CREATE", fmt.Sprintf("Создано подразделение «%s»", name))
+
+	return dto.MapDepartment(res), nil
 }
 
 // UpdateDepartment обновляет данные существующего подразделения.
@@ -50,7 +59,14 @@ func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []
 		return nil, fmt.Errorf("invalid department ID: %w", err)
 	}
 	res, err := s.repo.Update(uid, name, nomenclatureIDs)
-	return dto.MapDepartment(res), err
+	if err != nil {
+		return nil, err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "DEPT_UPDATE", fmt.Sprintf("Обновлено подразделение «%s»", name))
+
+	return dto.MapDepartment(res), nil
 }
 
 // DeleteDepartment удаляет подразделение по его ID.
@@ -62,5 +78,20 @@ func (s *DepartmentService) DeleteDepartment(id string) error {
 	if err != nil {
 		return fmt.Errorf("invalid department ID: %w", err)
 	}
-	return s.repo.Delete(uid)
+	if err := s.repo.Delete(uid); err != nil {
+		return err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "DEPT_DELETE", fmt.Sprintf("Удалено подразделение (ID: %s)", id))
+	return nil
+}
+
+// getCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
+func (s *DepartmentService) getCurrentAuditInfo() (uuid.UUID, string) {
+	user, err := s.auth.GetCurrentUser()
+	if err != nil {
+		return uuid.Nil, "system"
+	}
+	return uuid.MustParse(user.ID), user.FullName
 }

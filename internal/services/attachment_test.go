@@ -37,12 +37,12 @@ func setupAttachmentService(t *testing.T, role string) (
 	_, err := auth.Login(user.Login, password)
 	require.NoError(t, err)
 
-	settingsSvc := NewSettingsService(nil, settingsRepo, auth)
+	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	journalSvc := NewJournalService(journalRepo, auth)
 
-	svc := NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, fileStorage)
+	svc := NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, nil, fileStorage)
 	return svc, attachRepo, settingsRepo, fileStorage, auth
 }
 
@@ -53,12 +53,12 @@ func setupAttachmentServiceNotAuth(t *testing.T) *AttachmentService {
 	fileStorage := mocks.NewFileStorage(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
-	settingsSvc := NewSettingsService(nil, settingsRepo, auth)
+	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	journalSvc := NewJournalService(journalRepo, auth)
 
-	return NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, fileStorage)
+	return NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, nil, fileStorage)
 }
 
 func TestAttachmentService_Upload(t *testing.T) {

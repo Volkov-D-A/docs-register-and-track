@@ -35,7 +35,7 @@ func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *moc
 		require.NoError(t, err)
 	}
 
-	svc := NewDepartmentService(depRepo, auth)
+	svc := NewDepartmentService(depRepo, auth, nil)
 	return svc, depRepo, auth
 }
 

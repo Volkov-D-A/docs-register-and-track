@@ -12,13 +12,14 @@ import (
 
 // NomenclatureService предоставляет бизнес-логику для работы с номенклатурой дел.
 type NomenclatureService struct {
-	repo NomenclatureStore
-	auth *AuthService
+	repo         NomenclatureStore
+	auth         *AuthService
+	auditService *AdminAuditLogService
 }
 
 // NewNomenclatureService создает новый экземпляр NomenclatureService.
-func NewNomenclatureService(repo NomenclatureStore, auth *AuthService) *NomenclatureService {
-	return &NomenclatureService{repo: repo, auth: auth}
+func NewNomenclatureService(repo NomenclatureStore, auth *AuthService, auditService *AdminAuditLogService) *NomenclatureService {
+	return &NomenclatureService{repo: repo, auth: auth, auditService: auditService}
 }
 
 // GetAll возвращает все дела номенклатуры за указанный год и по указанному направлению.
@@ -46,7 +47,14 @@ func (s *NomenclatureService) Create(name, index string, year int, direction str
 		return nil, models.ErrForbidden
 	}
 	res, err := s.repo.Create(name, index, year, direction)
-	return dto.MapNomenclature(res), err
+	if err != nil {
+		return nil, err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "NOMENCLATURE_CREATE", fmt.Sprintf("Создано дело «%s» (%s), год: %d", name, index, year))
+
+	return dto.MapNomenclature(res), nil
 }
 
 // Update обновляет существующее дело номенклатуры.
@@ -59,7 +67,14 @@ func (s *NomenclatureService) Update(id string, name, index string, year int, di
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
 	res, err := s.repo.Update(uid, name, index, year, direction, isActive)
-	return dto.MapNomenclature(res), err
+	if err != nil {
+		return nil, err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "NOMENCLATURE_UPDATE", fmt.Sprintf("Обновлено дело «%s» (%s)", name, index))
+
+	return dto.MapNomenclature(res), nil
 }
 
 // Delete удаляет дело номенклатуры по его ID (доступно только администраторам).
@@ -71,5 +86,20 @@ func (s *NomenclatureService) Delete(id string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.Delete(uid)
+	if err := s.repo.Delete(uid); err != nil {
+		return err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "NOMENCLATURE_DELETE", fmt.Sprintf("Удалено дело (ID: %s)", id))
+	return nil
+}
+
+// getCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
+func (s *NomenclatureService) getCurrentAuditInfo() (uuid.UUID, string) {
+	user, err := s.auth.GetCurrentUser()
+	if err != nil {
+		return uuid.Nil, "system"
+	}
+	return uuid.MustParse(user.ID), user.FullName
 }

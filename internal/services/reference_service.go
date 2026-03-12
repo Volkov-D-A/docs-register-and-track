@@ -11,13 +11,14 @@ import (
 
 // ReferenceService предоставляет бизнес-логику для работы со справочниками (типы документов, организации).
 type ReferenceService struct {
-	repo ReferenceStore
-	auth *AuthService
+	repo         ReferenceStore
+	auth         *AuthService
+	auditService *AdminAuditLogService
 }
 
 // NewReferenceService создает новый экземпляр ReferenceService.
-func NewReferenceService(repo ReferenceStore, auth *AuthService) *ReferenceService {
-	return &ReferenceService{repo: repo, auth: auth}
+func NewReferenceService(repo ReferenceStore, auth *AuthService, auditService *AdminAuditLogService) *ReferenceService {
+	return &ReferenceService{repo: repo, auth: auth, auditService: auditService}
 }
 
 // === Типы документов ===
@@ -37,7 +38,14 @@ func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, e
 		return nil, models.ErrForbidden
 	}
 	res, err := s.repo.CreateDocumentType(name)
-	return dto.MapDocumentType(res), err
+	if err != nil {
+		return nil, err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "DOCTYPE_CREATE", fmt.Sprintf("Создан тип документа «%s»", name))
+
+	return dto.MapDocumentType(res), nil
 }
 
 // UpdateDocumentType обновляет название типа документа (только для администраторов).
@@ -49,7 +57,13 @@ func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.UpdateDocumentType(uid, name)
+	if err := s.repo.UpdateDocumentType(uid, name); err != nil {
+		return err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "DOCTYPE_UPDATE", fmt.Sprintf("Обновлен тип документа «%s»", name))
+	return nil
 }
 
 // DeleteDocumentType удаляет тип документа по его ID (только для администраторов).
@@ -61,7 +75,13 @@ func (s *ReferenceService) DeleteDocumentType(id string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.DeleteDocumentType(uid)
+	if err := s.repo.DeleteDocumentType(uid); err != nil {
+		return err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "DOCTYPE_DELETE", fmt.Sprintf("Удален тип документа (ID: %s)", id))
+	return nil
 }
 
 // === Организации ===
@@ -102,7 +122,13 @@ func (s *ReferenceService) UpdateOrganization(id string, name string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.UpdateOrganization(uid, name)
+	if err := s.repo.UpdateOrganization(uid, name); err != nil {
+		return err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "ORG_UPDATE", fmt.Sprintf("Обновлена организация «%s»", name))
+	return nil
 }
 
 // DeleteOrganization удаляет организацию по её ID (только для администраторов).
@@ -114,5 +140,20 @@ func (s *ReferenceService) DeleteOrganization(id string) error {
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
-	return s.repo.DeleteOrganization(uid)
+	if err := s.repo.DeleteOrganization(uid); err != nil {
+		return err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "ORG_DELETE", fmt.Sprintf("Удалена организация (ID: %s)", id))
+	return nil
+}
+
+// getCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
+func (s *ReferenceService) getCurrentAuditInfo() (uuid.UUID, string) {
+	user, err := s.auth.GetCurrentUser()
+	if err != nil {
+		return uuid.Nil, "system"
+	}
+	return uuid.MustParse(user.ID), user.FullName
 }

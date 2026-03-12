@@ -35,7 +35,7 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	require.NoError(t, err)
 	db := &database.DB{DB: dbMock}
 
-	return NewSettingsService(db, settingsRepo, auth), settingsRepo
+	return NewSettingsService(db, settingsRepo, auth, nil), settingsRepo
 }
 
 func TestSettingsService_GetAll(t *testing.T) {

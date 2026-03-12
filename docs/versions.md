@@ -21,3 +21,5 @@ npm ci
 Полностью удалит старую папку node_modules.
 Прочитает свежий package-lock.json.
 Установит абсолютно идентичное дерево зависимостей, точь-в-точь как на первом рабочем месте.
+
+sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.26.1.linux-amd64.tar.gz

@@ -3,7 +3,7 @@ import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Space,
   Typography, Popconfirm, Switch, Tag, App, DatePicker
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, FileTextOutlined, BankOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
@@ -929,6 +929,99 @@ const StorageTab: React.FC = () => {
   );
 };
 
+// === Журнал действий администраторов ===
+/**
+ * Вкладка отображения журнала действий администраторов в панели настроек.
+ */
+const actionLabels: Record<string, string> = {
+  SETTINGS_UPDATE: 'Изменение настроек',
+  USER_CREATE: 'Создание пользователя',
+  USER_UPDATE: 'Обновление пользователя',
+  USER_PASSWORD_RESET: 'Сброс пароля',
+  NOMENCLATURE_CREATE: 'Создание номенклатуры',
+  NOMENCLATURE_UPDATE: 'Обновление номенклатуры',
+  NOMENCLATURE_DELETE: 'Удаление номенклатуры',
+  DOCTYPE_CREATE: 'Создание типа документа',
+  DOCTYPE_UPDATE: 'Обновление типа документа',
+  DOCTYPE_DELETE: 'Удаление типа документа',
+  ORG_UPDATE: 'Обновление организации',
+  ORG_DELETE: 'Удаление организации',
+  DEPT_CREATE: 'Создание подразделения',
+  DEPT_UPDATE: 'Обновление подразделения',
+  DEPT_DELETE: 'Удаление подразделения',
+  MIGRATION_RUN: 'Применение миграций',
+  MIGRATION_ROLLBACK: 'Откат миграции',
+  FILES_BULK_DELETE: 'Массовое удаление файлов',
+};
+
+const AuditLogTab: React.FC = () => {
+  const { message } = App.useApp();
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+
+  const load = async (p: number) => {
+    setLoading(true);
+    try {
+      const { GetAll } = await import('../../wailsjs/go/services/AdminAuditLogService');
+      const result = await GetAll(p, pageSize);
+      setData(result?.items || []);
+      setTotal(result?.total || 0);
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(page); }, [page]);
+
+  const columns = [
+    {
+      title: 'Дата и время', dataIndex: 'createdAt', key: 'createdAt', width: 170,
+      render: (v: string) => v ? new Date(v).toLocaleString('ru-RU') : '-',
+    },
+    { title: 'Пользователь', dataIndex: 'userName', key: 'userName', width: 200 },
+    {
+      title: 'Действие', dataIndex: 'action', key: 'action', width: 220,
+      render: (v: string) => {
+        const label = actionLabels[v] || v;
+        let color = 'default';
+        if (v.includes('CREATE')) color = 'green';
+        else if (v.includes('DELETE') || v.includes('ROLLBACK')) color = 'red';
+        else if (v.includes('UPDATE') || v.includes('RESET')) color = 'blue';
+        else if (v.includes('MIGRATION_RUN')) color = 'orange';
+        return <Tag color={color}>{label}</Tag>;
+      },
+    },
+    { title: 'Подробности', dataIndex: 'details', key: 'details' },
+  ];
+
+  return (
+    <div>
+      <Space style={{ marginBottom: 16 }}>
+        <Button icon={<ReloadOutlined />} onClick={() => load(page)}>Обновить</Button>
+      </Space>
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="id"
+        loading={loading}
+        size="small"
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showSizeChanger: false,
+          onChange: (p) => setPage(p),
+          showTotal: (t) => `Всего: ${t}`,
+        }}
+      />
+    </div>
+  );
+};
+
 // === Основная страница ===
 /**
  * Страница настроек системы. 
@@ -942,14 +1035,15 @@ const SettingsPage: React.FC = () => {
         defaultActiveKey="nomenclature"
         destroyOnHidden
         items={[
-          { key: 'nomenclature', label: 'Номенклатура дел', children: <NomenclatureTab /> },
-          { key: 'documentTypes', label: 'Типы документов', children: <DocumentTypesTab /> },
-          { key: 'organizations', label: 'Организации', children: <OrganizationsTab /> },
-          { key: 'departments', label: 'Подразделения', children: <DepartmentsTab /> },
-          { key: 'users', label: 'Пользователи', children: <UsersTab /> },
-          { key: 'system', label: 'Системные настройки', children: <SystemSettingsTab /> },
-          { key: 'storage', label: 'Управление хранилищем', children: <StorageTab /> },
-          { key: 'migrations', label: 'Миграции БД', children: <MigrationsTab /> },
+          { key: 'nomenclature', label: 'Номенклатура дел', icon: <BookOutlined />, children: <NomenclatureTab /> },
+          { key: 'documentTypes', label: 'Типы документов', icon: <FileTextOutlined />, children: <DocumentTypesTab /> },
+          { key: 'organizations', label: 'Организации', icon: <BankOutlined />, children: <OrganizationsTab /> },
+          { key: 'departments', label: 'Подразделения', icon: <ApartmentOutlined />, children: <DepartmentsTab /> },
+          { key: 'users', label: 'Пользователи', icon: <TeamOutlined />, children: <UsersTab /> },
+          { key: 'system', label: 'Системные настройки', icon: <SettingOutlined />, children: <SystemSettingsTab /> },
+          { key: 'storage', label: 'Управление хранилищем', icon: <CloudServerOutlined />, children: <StorageTab /> },
+          { key: 'migrations', label: 'Миграции БД', icon: <DatabaseOutlined />, children: <MigrationsTab /> },
+          { key: 'auditLog', label: 'Журнал действий', icon: <FileSearchOutlined />, children: <AuditLogTab /> },
         ]}
       />
     </div>

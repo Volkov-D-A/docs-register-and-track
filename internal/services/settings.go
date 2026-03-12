@@ -3,25 +3,30 @@ package services
 import (
 	"docflow/internal/database"
 	"docflow/internal/models"
+	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 const migrationsPath = "internal/database/migrations"
 
 // SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {
-	db          *database.DB
-	repo        SettingsStore
-	authService *AuthService
+	db           *database.DB
+	repo         SettingsStore
+	authService  *AuthService
+	auditService *AdminAuditLogService
 }
 
 // NewSettingsService создает новый экземпляр SettingsService.
-func NewSettingsService(db *database.DB, repo SettingsStore, authService *AuthService) *SettingsService {
+func NewSettingsService(db *database.DB, repo SettingsStore, authService *AuthService, auditService *AdminAuditLogService) *SettingsService {
 	return &SettingsService{
-		db:          db,
-		repo:        repo,
-		authService: authService,
+		db:           db,
+		repo:         repo,
+		authService:  authService,
+		auditService: auditService,
 	}
 }
 
@@ -36,7 +41,13 @@ func (s *SettingsService) Update(key, value string) error {
 	if !s.authService.HasRole("admin") {
 		return models.ErrForbidden
 	}
-	return s.repo.Update(key, value)
+	if err := s.repo.Update(key, value); err != nil {
+		return err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "SETTINGS_UPDATE", fmt.Sprintf("Изменена настройка «%s»: %s", key, value))
+	return nil
 }
 
 // RunMigrations запускает миграции БД (только admin).
@@ -44,7 +55,13 @@ func (s *SettingsService) RunMigrations() error {
 	if !s.authService.HasRole("admin") {
 		return models.NewForbidden("Недостаточно прав для управления миграциями")
 	}
-	return s.db.RunMigrations(migrationsPath)
+	if err := s.db.RunMigrations(migrationsPath); err != nil {
+		return err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "MIGRATION_RUN", "Применены миграции БД")
+	return nil
 }
 
 // GetMigrationStatus возвращает текущий статус миграций БД (только admin).
@@ -60,7 +77,13 @@ func (s *SettingsService) RollbackMigration() error {
 	if !s.authService.HasRole("admin") {
 		return models.NewForbidden("Недостаточно прав для отката миграций")
 	}
-	return s.db.RollbackMigration(migrationsPath)
+	if err := s.db.RollbackMigration(migrationsPath); err != nil {
+		return err
+	}
+
+	userID, userName := s.getCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "MIGRATION_ROLLBACK", "Откачена последняя миграция БД")
+	return nil
 }
 
 // Вспомогательные методы для других сервисов
@@ -98,4 +121,13 @@ func (s *SettingsService) GetOrganizationName() string {
 		return "НАША ОРГАНИЗАЦИЯ"
 	}
 	return setting.Value
+}
+
+// getCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
+func (s *SettingsService) getCurrentAuditInfo() (uuid.UUID, string) {
+	user, err := s.authService.GetCurrentUser()
+	if err != nil {
+		return uuid.Nil, "system"
+	}
+	return uuid.MustParse(user.ID), user.FullName
 }

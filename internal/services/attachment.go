@@ -23,16 +23,18 @@ type AttachmentService struct {
 	settingsService *SettingsService
 	authService     *AuthService
 	journal         *JournalService
+	auditService    *AdminAuditLogService
 	fileStorage     FileStorage
 }
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
-func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService, fs FileStorage) *AttachmentService {
+func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService, auditService *AdminAuditLogService, fs FileStorage) *AttachmentService {
 	return &AttachmentService{
 		repo:            repo,
 		settingsService: settingsService,
 		authService:     authService,
 		journal:         journal,
+		auditService:    auditService,
 		fileStorage:     fs,
 	}
 }
@@ -376,6 +378,10 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	}
 
 	currentUserID, _ := uuid.Parse(s.authService.GetCurrentUserID())
+	var currentUserName string
+	if u, err := s.authService.GetCurrentUser(); err == nil {
+		currentUserName = u.FullName
+	}
 	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 		DocumentID:   uuid.Nil, // Массовая операция
 		DocumentType: "system",
@@ -383,6 +389,9 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 		Action:       "FILE_BULK_DELETE",
 		Details:      fmt.Sprintf("Инструментом массовой очистки удалено %d файлов, загруженных до %s", deletedCount, date.Format("02.01.2006")),
 	})
+
+	details := fmt.Sprintf("Массовое удаление файлов: удалено %d, загруженных до %s", deletedCount, date.Format("02.01.2006"))
+	s.auditService.LogAction(currentUserID, currentUserName, "FILES_BULK_DELETE", details)
 
 	return deletedCount, nil
 }

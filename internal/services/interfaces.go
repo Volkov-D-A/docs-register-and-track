@@ -166,3 +166,9 @@ type JournalStore interface {
 	Create(ctx context.Context, req models.CreateJournalEntryRequest) (uuid.UUID, error)
 	GetByDocumentID(ctx context.Context, documentID uuid.UUID, documentType string) ([]models.JournalEntry, error)
 }
+
+// AdminAuditLogStore — интерфейс для работы с журналом действий администраторов.
+type AdminAuditLogStore interface {
+	Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error)
+	GetAll(limit, offset int) ([]models.AdminAuditLog, int, error)
+}

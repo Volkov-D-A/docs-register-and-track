@@ -69,19 +69,21 @@ func main() {
 	acknowledgmentRepo := repository.NewAcknowledgmentRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
 	journalRepo := repository.NewJournalRepository(db)
+	adminAuditLogRepo := repository.NewAdminAuditLogRepository(db)
 
 	// Создание сервисов
 	authService := services.NewAuthService(db, userRepo)
-	settingsService := services.NewSettingsService(db, settingsRepo, authService)
-	userService := services.NewUserService(userRepo, authService)
-	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
-	referenceService := services.NewReferenceService(referenceRepo, authService)
+	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
+	settingsService := services.NewSettingsService(db, settingsRepo, authService, adminAuditLogService)
+	userService := services.NewUserService(userRepo, authService, adminAuditLogService)
+	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService, adminAuditLogService)
+	referenceService := services.NewReferenceService(referenceRepo, authService, adminAuditLogService)
 	journalService := services.NewJournalService(journalRepo, authService)
 
 	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, departmentRepo, authService, journalService)
 	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, authService, settingsService, journalService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService)
-	departmentService := services.NewDepartmentService(departmentRepo, authService)
+	departmentService := services.NewDepartmentService(departmentRepo, authService, adminAuditLogService)
 
 	minioService, err := storage.NewMinioService(cfg.Minio)
 	if err != nil {
@@ -89,7 +91,7 @@ func main() {
 	}
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService)
-	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, minioService)
+	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService)
 	systemService := services.NewSystemService(db)
@@ -124,6 +126,7 @@ func main() {
 			acknowledgmentService,
 			systemService,
 			journalService,
+			adminAuditLogService,
 		},
 	})
 

@@ -499,3 +499,32 @@ func MapJournalEntries(m []models.JournalEntry) []JournalEntry {
 	}
 	return res
 }
+
+// MapAdminAuditLog преобразует запись журнала действий администраторов в DTO.
+func MapAdminAuditLog(m *models.AdminAuditLog) *AdminAuditLog {
+	if m == nil {
+		return nil
+	}
+	return &AdminAuditLog{
+		ID:        m.ID.String(),
+		UserName:  m.UserName,
+		Action:    m.Action,
+		Details:   m.Details,
+		CreatedAt: m.CreatedAt,
+	}
+}
+
+// MapAdminAuditLogs преобразует список записей журнала действий администраторов в DTO.
+func MapAdminAuditLogs(m []models.AdminAuditLog) []AdminAuditLog {
+	if m == nil {
+		return []AdminAuditLog{}
+	}
+	res := make([]AdminAuditLog, len(m))
+	for i, v := range m {
+		mapped := MapAdminAuditLog(&v)
+		if mapped != nil {
+			res[i] = *mapped
+		}
+	}
+	return res
+}

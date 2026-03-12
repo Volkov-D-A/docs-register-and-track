@@ -268,3 +268,19 @@ type JournalEntry struct {
 	Details      string    `json:"details"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
+
+// AdminAuditLog описывает DTO записи журнала действий администраторов.
+type AdminAuditLog struct {
+	ID        string    `json:"id"`
+	UserName  string    `json:"userName"`
+	Action    string    `json:"action"`
+	Details   string    `json:"details"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// AdminAuditLogPage описывает DTO страницы журнала действий администраторов.
+type AdminAuditLogPage struct {
+	Items []AdminAuditLog `json:"items"`
+	Total int             `json:"total"`
+	Page  int             `json:"page"`
+}

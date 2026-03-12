@@ -35,7 +35,7 @@ func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks
 		require.NoError(t, err)
 	}
 
-	svc := NewReferenceService(refRepo, auth)
+	svc := NewReferenceService(refRepo, auth, nil)
 	return svc, refRepo, userRepo, auth
 }
 

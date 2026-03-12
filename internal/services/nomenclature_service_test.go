@@ -36,7 +36,7 @@ func setupNomenclatureService(t *testing.T, role string) (*NomenclatureService, 
 		require.NoError(t, err)
 	}
 
-	svc := NewNomenclatureService(nomRepo, auth)
+	svc := NewNomenclatureService(nomRepo, auth, nil)
 	return svc, nomRepo, auth
 }
 
