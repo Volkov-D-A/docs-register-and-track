@@ -9,7 +9,9 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/golang-migrate/migrate/v4/source/github"
 	_ "github.com/lib/pq"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
@@ -44,19 +46,32 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 	return &DB{db}, nil
 }
 
+// getSourceURL normalizes the migration path to a source URL format.
+func getSourceURL(migrationsPath string) string {
+	if strings.HasPrefix(migrationsPath, "github://") || strings.HasPrefix(migrationsPath, "file://") {
+		return migrationsPath
+	}
+	return "file://" + filepath.ToSlash(migrationsPath)
+}
+
 // RunMigrations применяет все доступные миграции из указанной директории к базе данных.
 func (db *DB) RunMigrations(migrationsPath string) error {
-	// Проверка наличия директории миграций
-	info, err := os.Stat(migrationsPath)
-	if os.IsNotExist(err) {
-		fmt.Printf("Migration directory %s not found. Skipping migrations.\n", migrationsPath)
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("failed to check migration directory: %w", err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("migration path %s is not a directory", migrationsPath)
+	sourceURL := getSourceURL(migrationsPath)
+
+	if !strings.HasPrefix(sourceURL, "github://") {
+		// Проверка наличия директории миграций для файловой системы
+		localPath := strings.TrimPrefix(sourceURL, "file://")
+		info, err := os.Stat(localPath)
+		if os.IsNotExist(err) {
+			fmt.Printf("Migration directory %s not found. Skipping migrations.\n", localPath)
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("failed to check migration directory: %w", err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("migration path %s is not a directory", localPath)
+		}
 	}
 
 	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
@@ -65,7 +80,7 @@ func (db *DB) RunMigrations(migrationsPath string) error {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://"+migrationsPath,
+		sourceURL,
 		"postgres",
 		driver,
 	)
@@ -83,18 +98,45 @@ func (db *DB) RunMigrations(migrationsPath string) error {
 // GetMigrationStatus возвращает текущую версию миграций и количество доступных миграций.
 func (db *DB) GetMigrationStatus(migrationsPath string) (*MigrationStatus, error) {
 	status := &MigrationStatus{}
+	sourceURL := getSourceURL(migrationsPath)
 
-	// Подсчёт доступных миграций (*.up.sql файлы)
-	entries, err := os.ReadDir(migrationsPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return status, nil
+	if strings.HasPrefix(sourceURL, "github://") {
+		src, err := source.Open(sourceURL)
+		if err != nil {
+			if os.IsNotExist(err) || strings.Contains(err.Error(), "404") {
+				return status, nil
+			}
+			return nil, fmt.Errorf("failed to open github migration source: %w", err)
 		}
-		return nil, fmt.Errorf("failed to read migration directory: %w", err)
-	}
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".up.sql") {
+		defer src.Close()
+
+		version, err := src.First()
+		if err == nil {
 			status.TotalAvailable++
+			for {
+				version, err = src.Next(version)
+				if err != nil {
+					break
+				}
+				status.TotalAvailable++
+			}
+		} else if err != os.ErrNotExist {
+			// Ignore if no migrations are found
+		}
+	} else {
+		// Подсчёт доступных миграций (*.up.sql файлы)
+		localPath := strings.TrimPrefix(sourceURL, "file://")
+		entries, err := os.ReadDir(localPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return status, nil
+			}
+			return nil, fmt.Errorf("failed to read migration directory: %w", err)
+		}
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".up.sql") {
+				status.TotalAvailable++
+			}
 		}
 	}
 
@@ -105,7 +147,7 @@ func (db *DB) GetMigrationStatus(migrationsPath string) (*MigrationStatus, error
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://"+filepath.ToSlash(migrationsPath),
+		sourceURL,
 		"postgres",
 		driver,
 	)
@@ -133,7 +175,7 @@ func (db *DB) RollbackMigration(migrationsPath string) error {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://"+filepath.ToSlash(migrationsPath),
+		getSourceURL(migrationsPath),
 		"postgres",
 		driver,
 	)
