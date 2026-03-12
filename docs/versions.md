@@ -1,0 +1,5 @@
+go version go1.26.1 linux/amd64
+node 24.14.0
+npm 11.9.0
+MINIO RELEASE.2025-09-07T16-13-09Z
+POSTGRES 18.3
