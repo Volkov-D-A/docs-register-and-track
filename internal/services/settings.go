@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/google/uuid"
 )
 
 const migrationsPath = "internal/database/migrations"
@@ -45,7 +43,7 @@ func (s *SettingsService) Update(key, value string) error {
 		return err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.authService.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "SETTINGS_UPDATE", fmt.Sprintf("Изменена настройка «%s»: %s", key, value))
 	return nil
 }
@@ -59,7 +57,7 @@ func (s *SettingsService) RunMigrations() error {
 		return err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.authService.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "MIGRATION_RUN", "Применены миграции БД")
 	return nil
 }
@@ -81,7 +79,7 @@ func (s *SettingsService) RollbackMigration() error {
 		return err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.authService.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "MIGRATION_ROLLBACK", "Откачена последняя миграция БД")
 	return nil
 }
@@ -123,11 +121,3 @@ func (s *SettingsService) GetOrganizationName() string {
 	return setting.Value
 }
 
-// getCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
-func (s *SettingsService) getCurrentAuditInfo() (uuid.UUID, string) {
-	user, err := s.authService.GetCurrentUser()
-	if err != nil {
-		return uuid.Nil, "system"
-	}
-	return uuid.MustParse(user.ID), user.FullName
-}

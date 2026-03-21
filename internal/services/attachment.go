@@ -92,6 +92,11 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 	}
 
 	// 4. Сохранение в БД
+	userID, err := uuid.Parse(currentUser.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid current user ID: %w", err)
+	}
+
 	attachment := &models.Attachment{
 		DocumentID:   documentID,
 		DocumentType: documentType,
@@ -99,7 +104,7 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		FileSize:     int64(len(data)),
 		ContentType:  ext, // упрощённый тип содержимого
 		StoragePath:  objectName,
-		UploadedBy:   uuid.MustParse(currentUser.ID),
+		UploadedBy:   userID,
 	}
 
 	if err := s.repo.Create(attachment); err != nil {
@@ -111,7 +116,7 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 		DocumentID:   documentID,
 		DocumentType: documentType,
-		UserID:       uuid.MustParse(currentUser.ID),
+		UserID:       userID,
 		Action:       "FILE_UPLOAD",
 		Details:      fmt.Sprintf("Добавлен файл: %s", filename),
 	})

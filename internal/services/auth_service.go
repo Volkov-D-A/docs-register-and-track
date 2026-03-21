@@ -173,6 +173,17 @@ func (s *AuthService) GetCurrentUserID() string {
 	return s.currentUser.ID.String()
 }
 
+// GetCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
+// Безопасен: использует uuid.Parse вместо MustParse, при ошибке возвращает uuid.Nil/"system".
+func (s *AuthService) GetCurrentAuditInfo() (uuid.UUID, string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.currentUser == nil {
+		return uuid.Nil, "system"
+	}
+	return s.currentUser.ID, s.currentUser.FullName
+}
+
 // HasRole — проверка роли
 func (s *AuthService) HasRole(role string) bool {
 	s.mu.RLock()

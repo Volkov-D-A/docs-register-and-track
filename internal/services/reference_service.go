@@ -42,7 +42,7 @@ func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, e
 		return nil, err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "DOCTYPE_CREATE", fmt.Sprintf("Создан тип документа «%s»", name))
 
 	return dto.MapDocumentType(res), nil
@@ -61,7 +61,7 @@ func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
 		return err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "DOCTYPE_UPDATE", fmt.Sprintf("Обновлен тип документа «%s»", name))
 	return nil
 }
@@ -79,7 +79,7 @@ func (s *ReferenceService) DeleteDocumentType(id string) error {
 		return err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "DOCTYPE_DELETE", fmt.Sprintf("Удален тип документа (ID: %s)", id))
 	return nil
 }
@@ -126,7 +126,7 @@ func (s *ReferenceService) UpdateOrganization(id string, name string) error {
 		return err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "ORG_UPDATE", fmt.Sprintf("Обновлена организация «%s»", name))
 	return nil
 }
@@ -144,16 +144,8 @@ func (s *ReferenceService) DeleteOrganization(id string) error {
 		return err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "ORG_DELETE", fmt.Sprintf("Удалена организация (ID: %s)", id))
 	return nil
 }
 
-// getCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
-func (s *ReferenceService) getCurrentAuditInfo() (uuid.UUID, string) {
-	user, err := s.auth.GetCurrentUser()
-	if err != nil {
-		return uuid.Nil, "system"
-	}
-	return uuid.MustParse(user.ID), user.FullName
-}

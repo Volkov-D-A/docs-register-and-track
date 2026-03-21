@@ -43,7 +43,7 @@ func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []stri
 		return nil, err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "DEPT_CREATE", fmt.Sprintf("Создано подразделение «%s»", name))
 
 	return dto.MapDepartment(res), nil
@@ -63,7 +63,7 @@ func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []
 		return nil, err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "DEPT_UPDATE", fmt.Sprintf("Обновлено подразделение «%s»", name))
 
 	return dto.MapDepartment(res), nil
@@ -82,16 +82,8 @@ func (s *DepartmentService) DeleteDepartment(id string) error {
 		return err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "DEPT_DELETE", fmt.Sprintf("Удалено подразделение (ID: %s)", id))
 	return nil
 }
 
-// getCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
-func (s *DepartmentService) getCurrentAuditInfo() (uuid.UUID, string) {
-	user, err := s.auth.GetCurrentUser()
-	if err != nil {
-		return uuid.Nil, "system"
-	}
-	return uuid.MustParse(user.ID), user.FullName
-}

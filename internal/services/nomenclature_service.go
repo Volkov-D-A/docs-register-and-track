@@ -51,7 +51,7 @@ func (s *NomenclatureService) Create(name, index string, year int, direction str
 		return nil, err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "NOMENCLATURE_CREATE", fmt.Sprintf("Создано дело «%s» (%s), год: %d", name, index, year))
 
 	return dto.MapNomenclature(res), nil
@@ -71,7 +71,7 @@ func (s *NomenclatureService) Update(id string, name, index string, year int, di
 		return nil, err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "NOMENCLATURE_UPDATE", fmt.Sprintf("Обновлено дело «%s» (%s)", name, index))
 
 	return dto.MapNomenclature(res), nil
@@ -90,16 +90,8 @@ func (s *NomenclatureService) Delete(id string) error {
 		return err
 	}
 
-	userID, userName := s.getCurrentAuditInfo()
+	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "NOMENCLATURE_DELETE", fmt.Sprintf("Удалено дело (ID: %s)", id))
 	return nil
 }
 
-// getCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
-func (s *NomenclatureService) getCurrentAuditInfo() (uuid.UUID, string) {
-	user, err := s.auth.GetCurrentUser()
-	if err != nil {
-		return uuid.Nil, "system"
-	}
-	return uuid.MustParse(user.ID), user.FullName
-}
