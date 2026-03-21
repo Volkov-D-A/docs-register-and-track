@@ -46,7 +46,7 @@ func main() {
 	// Загрузка конфигурации
 	cfg, err := config.Load(config.GetDefaultConfigPath())
 	if err != nil {
-		log.Printf("Warning: Could not load config: %v.", err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	// Подключение к БД

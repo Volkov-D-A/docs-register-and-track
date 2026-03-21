@@ -6,6 +6,10 @@ export function ChangePassword(arg1, arg2) {
   return window['go']['services']['AuthService']['ChangePassword'](arg1, arg2);
 }
 
+export function GetCurrentAuditInfo() {
+  return window['go']['services']['AuthService']['GetCurrentAuditInfo']();
+}
+
 export function GetCurrentUser() {
   return window['go']['services']['AuthService']['GetCurrentUser']();
 }
