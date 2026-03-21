@@ -13,9 +13,28 @@ import (
 // encPrefix — префикс, указывающий на зашифрованное значение в конфигурации.
 const encPrefix = "ENC:"
 
-// encryptionKey — 32-байтовый ключ AES-256 для шифрования/дешифрования пароля.
-// Ключ вшит в бинарник: при просмотре config.json пароль не читается в открытом виде.
-var encryptionKey = []byte("dOcFl0wApp-S3cR3t-K3y!AES256ok!!")
+// rawEncryptionKey — строка, подставляемая при сборке через ldflags:
+//
+//	go build -ldflags "-X github.com/Volkov-D-A/docs-register-and-track/internal/config.rawEncryptionKey=<32-байтовый-ключ>"
+//
+// Не задавайте значение по умолчанию здесь — оно определяется в init().
+var rawEncryptionKey string
+
+// encryptionKey — 32-байтовый ключ AES-256 для шифрования/дешифрования конфигурации.
+// Инициализируется в init() из rawEncryptionKey (ldflags) или из значения по умолчанию.
+var encryptionKey []byte
+
+// defaultDevKey — ключ для режима разработки, когда ldflags не передан.
+// В продакшн-сборках всегда используется ключ из ENCRYPTION_KEY (.env → Makefile → ldflags).
+const defaultDevKey = "dOcFl0wApp-S3cR3t-K3y!AES256ok!!"
+
+func init() {
+	if rawEncryptionKey != "" {
+		encryptionKey = []byte(rawEncryptionKey)
+	} else {
+		encryptionKey = []byte(defaultDevKey)
+	}
+}
 
 // IsEncrypted проверяет, является ли значение зашифрованным (содержит префикс ENC:).
 func IsEncrypted(value string) bool {
