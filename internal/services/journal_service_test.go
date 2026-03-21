@@ -36,6 +36,7 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
 		_, err := auth.Login(user.Login, password)
 		require.NoError(t, err)
+		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
 	svc := NewJournalService(journalRepo, auth)

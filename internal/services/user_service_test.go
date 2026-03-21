@@ -42,6 +42,7 @@ func TestUserService_GetAllUsers(t *testing.T) {
 	t.Run("success with admin role", func(t *testing.T) {
 		authRepo.On("GetByLogin", login).Return(adminUser, nil).Once()
 		authService.Login(login, password)
+		authRepo.On("GetByID", adminUser.ID).Return(adminUser, nil).Maybe()
 
 		usersList := []models.User{*regularUser}
 		mockRepo.On("GetAll").Return(usersList, nil).Once()
@@ -56,6 +57,7 @@ func TestUserService_GetAllUsers(t *testing.T) {
 	t.Run("failure with regular role", func(t *testing.T) {
 		authRepo.On("GetByLogin", "regular").Return(regularUser, nil).Once()
 		authService.Login("regular", password)
+		authRepo.On("GetByID", regularUser.ID).Return(regularUser, nil).Maybe()
 
 		users, err := userService.GetAllUsers()
 		require.Error(t, err)
@@ -90,6 +92,7 @@ func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore
 	}
 	authRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	auth.Login(user.Login, password)
+	authRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	return NewUserService(mockRepo, auth, nil), mockRepo
 }

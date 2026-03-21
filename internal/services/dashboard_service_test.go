@@ -65,6 +65,7 @@ func TestDashboardService_GetStats(t *testing.T) {
 	t.Run("executor stats", func(t *testing.T) {
 		authRepo.On("GetByLogin", login).Return(executorUser, nil).Once()
 		authService.Login(login, password)
+		authRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 
 		mockRepo.On("GetExecutorStatusCounts", executorUser.ID).Return(5, 2, nil).Once()
 		mockRepo.On("GetExecutorOverdueCount", executorUser.ID).Return(1, nil).Once()
@@ -86,6 +87,7 @@ func TestDashboardService_GetStats(t *testing.T) {
 	t.Run("admin stats", func(t *testing.T) {
 		authRepo.On("GetByLogin", "adminuser").Return(adminUser, nil).Once()
 		authService.Login("adminuser", password)
+		authRepo.On("GetByID", adminUser.ID).Return(adminUser, nil).Maybe()
 
 		mockRepo.On("GetAdminUserCount").Return(50, nil).Once()
 		mockRepo.On("GetAdminDocCounts").Return(100, 200, nil).Once()
@@ -106,6 +108,7 @@ func TestDashboardService_GetStats(t *testing.T) {
 	t.Run("clerk stats", func(t *testing.T) {
 		authRepo.On("GetByLogin", "clerkuser").Return(clerkUser, nil).Once()
 		authService.Login("clerkuser", password)
+		authRepo.On("GetByID", clerkUser.ID).Return(clerkUser, nil).Maybe()
 
 		// Тестирование с конкретными датами
 		startDateStr := "2024-01-01"
@@ -142,6 +145,7 @@ func TestDashboardService_GetStats(t *testing.T) {
 	t.Run("clerk invalid start date", func(t *testing.T) {
 		authRepo.On("GetByLogin", "clerkuser").Return(clerkUser, nil).Once()
 		authService.Login("clerkuser", password)
+		authRepo.On("GetByID", clerkUser.ID).Return(clerkUser, nil).Maybe()
 
 		stats, err := dashboardService.GetStats("", "invalid-date", "2024-01-31")
 		require.Error(t, err)
@@ -154,6 +158,7 @@ func TestDashboardService_GetStats(t *testing.T) {
 	t.Run("clerk invalid end date", func(t *testing.T) {
 		authRepo.On("GetByLogin", "clerkuser").Return(clerkUser, nil).Once()
 		authService.Login("clerkuser", password)
+		authRepo.On("GetByID", clerkUser.ID).Return(clerkUser, nil).Maybe()
 
 		stats, err := dashboardService.GetStats("", "2024-01-01", "invalid-date")
 		require.Error(t, err)
@@ -166,6 +171,7 @@ func TestDashboardService_GetStats(t *testing.T) {
 	t.Run("executor specific role fallback and error", func(t *testing.T) {
 		authRepo.On("GetByLogin", login).Return(executorUser, nil).Once()
 		authService.Login(login, password)
+		authRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 
 		// Ask for admin role, but user doesn't have it, so it falls back to executor
 		mockRepo.On("GetExecutorStatusCounts", executorUser.ID).Return(0, 0, assert.AnError).Once()
@@ -180,6 +186,7 @@ func TestDashboardService_GetStats(t *testing.T) {
 	t.Run("admin missing user count error", func(t *testing.T) {
 		authRepo.On("GetByLogin", "adminuser").Return(adminUser, nil).Once()
 		authService.Login("adminuser", password)
+		authRepo.On("GetByID", adminUser.ID).Return(adminUser, nil).Maybe()
 
 		mockRepo.On("GetAdminUserCount").Return(0, assert.AnError).Once()
 
@@ -193,6 +200,7 @@ func TestDashboardService_GetStats(t *testing.T) {
 	t.Run("clerk GetDocCountsByPeriod error", func(t *testing.T) {
 		authRepo.On("GetByLogin", "clerkuser").Return(clerkUser, nil).Once()
 		authService.Login("clerkuser", password)
+		authRepo.On("GetByID", clerkUser.ID).Return(clerkUser, nil).Maybe()
 
 		// Test empty dates (defaulting to current month)
 		mockRepo.On("GetDocCountsByPeriod", time.Time{}, time.Time{}).Return(0, 0, assert.AnError).Maybe()

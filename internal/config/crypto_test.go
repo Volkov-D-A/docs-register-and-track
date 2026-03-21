@@ -4,6 +4,10 @@ import (
 	"testing"
 )
 
+func init() {
+	rawEncryptionKey = "test-key-for-unit-tests-12345678"
+}
+
 func TestEncryptDecryptPassword(t *testing.T) {
 	// Проверка полного цикла: шифрование пароля, проверка префикса и обратная расшифровка
 	original := "MySecretDbPassword123!"

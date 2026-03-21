@@ -53,6 +53,7 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 	t.Run("успех делопроизводитель", func(t *testing.T) {
 		authRepo.On("GetByLogin", login).Return(clerkUser, nil).Once()
 		authService.Login(login, password)
+		authRepo.On("GetByID", clerkUser.ID).Return(clerkUser, nil).Maybe()
 
 		nomIDStr := uuid.New().String()
 		docTypeIDStr := uuid.New().String()
@@ -89,6 +90,7 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 	t.Run("запрещено исполнитель", func(t *testing.T) {
 		authRepo.On("GetByLogin", "executor").Return(executorUser, nil).Once()
 		authService.Login("executor", password)
+		authRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 
 		doc, err := docService.Register(
 			uuid.New().String(), uuid.New().String(), "Sender", "Recipient",
@@ -125,6 +127,7 @@ func setupIncomingDocService(t *testing.T, role string) (
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	auth.Login(user.Login, password)
+	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()

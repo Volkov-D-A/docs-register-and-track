@@ -25,10 +25,10 @@ var (
 
 // AuthService предоставляет бизнес-логику для аутентификации и авторизации пользователей.
 type AuthService struct {
-	db          *database.DB
-	userRepo    UserStore
-	currentUser *models.User
-	mu          sync.RWMutex
+	db            *database.DB
+	userRepo      UserStore
+	currentUserID uuid.UUID
+	mu            sync.RWMutex
 }
 
 // NewAuthService создает новый экземпляр AuthService.
@@ -68,7 +68,7 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 	}
 
 	s.mu.Lock()
-	s.currentUser = user
+	s.currentUserID = user.ID
 	s.mu.Unlock()
 
 	return dto.MapUser(user), nil
@@ -77,7 +77,7 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 // Logout — выход
 func (s *AuthService) Logout() error {
 	s.mu.Lock()
-	s.currentUser = nil
+	s.currentUserID = uuid.Nil
 	s.mu.Unlock()
 	return nil
 }
@@ -85,13 +85,19 @@ func (s *AuthService) Logout() error {
 // GetCurrentUser — получить текущего пользователя
 func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
+	userID := s.currentUserID
+	s.mu.RUnlock()
 
-	if s.currentUser == nil {
+	if userID == uuid.Nil {
 		return nil, ErrNotAuthenticated
 	}
 
-	return dto.MapUser(s.currentUser), nil
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return dto.MapUser(user), nil
 }
 
 // getCurrentUserID возвращает ID текущего пользователя, безопасно копируя его под блокировкой.
@@ -99,10 +105,10 @@ func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 func (s *AuthService) getCurrentUserIDSafe() (uuid.UUID, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.currentUser == nil {
+	if s.currentUserID == uuid.Nil {
 		return uuid.Nil, ErrNotAuthenticated
 	}
-	return s.currentUser.ID, nil
+	return s.currentUserID, nil
 }
 
 // ChangePassword — смена пароля
@@ -140,60 +146,61 @@ func (s *AuthService) UpdateProfile(req models.UpdateProfileRequest) error {
 		return err
 	}
 
-	if err := s.userRepo.UpdateProfile(userID, req); err != nil {
-		return err
-	}
-
-	updatedUser, err := s.userRepo.GetByID(userID)
-	if err != nil {
-		return err
-	}
-
-	s.mu.Lock()
-	s.currentUser = updatedUser
-	s.mu.Unlock()
-
-	return nil
+	return s.userRepo.UpdateProfile(userID, req)
 }
 
 // IsAuthenticated — проверка авторизации
 func (s *AuthService) IsAuthenticated() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.currentUser != nil
+	return s.currentUserID != uuid.Nil
 }
 
 // GetCurrentUserID — получить ID текущего пользователя
 func (s *AuthService) GetCurrentUserID() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.currentUser == nil {
+	if s.currentUserID == uuid.Nil {
 		return ""
 	}
-	return s.currentUser.ID.String()
+	return s.currentUserID.String()
 }
 
 // GetCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
-// Безопасен: использует uuid.Parse вместо MustParse, при ошибке возвращает uuid.Nil/"system".
+// Безопасен: при ошибке возвращает uuid.Nil/"system".
 func (s *AuthService) GetCurrentAuditInfo() (uuid.UUID, string) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.currentUser == nil {
+	userID := s.currentUserID
+	s.mu.RUnlock()
+
+	if userID == uuid.Nil {
 		return uuid.Nil, "system"
 	}
-	return s.currentUser.ID, s.currentUser.FullName
+
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return userID, "system"
+	}
+
+	return user.ID, user.FullName
 }
 
 // HasRole — проверка роли
 func (s *AuthService) HasRole(role string) bool {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
+	userID := s.currentUserID
+	s.mu.RUnlock()
 
-	if s.currentUser == nil {
+	if userID == uuid.Nil {
 		return false
 	}
 
-	for _, r := range s.currentUser.Roles {
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return false
+	}
+
+	for _, r := range user.Roles {
 		if r == role {
 			return true
 		}

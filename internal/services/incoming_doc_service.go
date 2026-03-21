@@ -296,14 +296,16 @@ func (s *IncomingDocumentService) Delete(id string) error {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
 
-	currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
-	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-		DocumentID:   uid,
-		DocumentType: "incoming",
-		UserID:       currentUserID,
-		Action:       "DELETE",
-		Details:      "Документ удален",
-	})
-
-	return s.repo.Delete(uid)
+	err = s.repo.Delete(uid)
+	if err == nil {
+		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			DocumentID:   uid,
+			DocumentType: "incoming",
+			UserID:       currentUserID,
+			Action:       "DELETE",
+			Details:      "Документ удален",
+		})
+	}
+	return err
 }

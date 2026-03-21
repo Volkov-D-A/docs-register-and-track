@@ -22,6 +22,7 @@ func loginUser(t *testing.T, mockRepo *mocks.UserStore, user *models.User, passw
 	mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := authService.Login(user.Login, password)
 	require.NoError(t, err)
+	mockRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	return authService
 }
 
@@ -183,7 +184,6 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := loginUser(t, mockRepo, user, password)
 
-		mockRepo.On("GetByID", user.ID).Return(user, nil).Once()
 		mockRepo.On("UpdatePassword", user.ID, mock.AnythingOfType("string")).Return(nil).Once()
 
 		err := authService.ChangePassword(password, newPassword)
@@ -194,8 +194,6 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := loginUser(t, mockRepo, user, password)
 
-		mockRepo.On("GetByID", user.ID).Return(user, nil).Once()
-
 		err := authService.ChangePassword("WrongOldPass1!", newPassword)
 		require.Error(t, err)
 		assert.Equal(t, ErrWrongPassword, err)
@@ -204,8 +202,6 @@ func TestAuthService_ChangePassword(t *testing.T) {
 	t.Run("weak new password", func(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := loginUser(t, mockRepo, user, password)
-
-		mockRepo.On("GetByID", user.ID).Return(user, nil).Once()
 
 		err := authService.ChangePassword(password, "weak")
 		require.Error(t, err)
@@ -230,7 +226,11 @@ func TestAuthService_UpdateProfile(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
-		authService := loginUser(t, mockRepo, user, password)
+		authService := NewAuthService(nil, mockRepo)
+
+		// Inline login to avoid .Maybe() from loginUser
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		authService.Login(user.Login, password)
 
 		updatedUser := &models.User{
 			ID:           user.ID,

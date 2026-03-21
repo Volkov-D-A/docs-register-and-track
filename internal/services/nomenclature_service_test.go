@@ -34,6 +34,7 @@ func setupNomenclatureService(t *testing.T, role string) (*NomenclatureService, 
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
 		_, err := auth.Login(user.Login, password)
 		require.NoError(t, err)
+		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
 	svc := NewNomenclatureService(nomRepo, auth, nil)

@@ -24,12 +24,3 @@ func (s *SystemService) Startup(ctx context.Context) {
 	s.ctx = ctx
 }
 
-// CheckDBConnection проверяет доступность базы данных.
-// Возвращает true, если база данных доступна, иначе false.
-func (s *SystemService) CheckDBConnection() bool {
-	if s.db == nil || s.db.DB == nil {
-		return false
-	}
-	err := s.db.Ping()
-	return err == nil
-}

@@ -36,6 +36,7 @@ func setupAttachmentService(t *testing.T, role string) (
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
 	require.NoError(t, err)
+	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
 	journalRepo := mocks.NewJournalStore(t)

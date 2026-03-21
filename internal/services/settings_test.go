@@ -30,6 +30,7 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	auth.Login(user.Login, password)
+	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	dbMock, _, err := sqlmock.New()
 	require.NoError(t, err)

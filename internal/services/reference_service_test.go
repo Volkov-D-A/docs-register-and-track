@@ -33,6 +33,7 @@ func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
 		_, err := auth.Login(user.Login, password)
 		require.NoError(t, err)
+		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
 	svc := NewReferenceService(refRepo, auth, nil)

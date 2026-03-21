@@ -52,7 +52,7 @@ func main() {
 	// Подключение к БД
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
-		log.Printf("Warning: Failed to establish database connection pool: %v", err)
+		log.Fatalf("Critical: Failed to establish database connection pool: %v", err)
 	}
 
 	// Создание репозиториев
@@ -87,7 +87,7 @@ func main() {
 
 	minioService, err := storage.NewMinioService(cfg.Minio)
 	if err != nil {
-		log.Printf("Warning: Failed to establish MinIO connection: %v", err)
+		log.Fatalf("Critical: Failed to establish MinIO connection: %v", err)
 	}
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService)

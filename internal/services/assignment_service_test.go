@@ -36,6 +36,7 @@ func setupAssignmentService(t *testing.T, role string) (
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
 	require.NoError(t, err)
+	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
@@ -259,6 +260,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		authSvc := NewAuthService(nil, userRepo)
 		userRepo.On("GetByLogin", "exec").Return(executorUser, nil).Once()
 		authSvc.Login("exec", password)
+		userRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 		journalRepo := mocks.NewJournalStore(t)
 		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 		journalSvc := NewJournalService(journalRepo, authSvc)
@@ -294,6 +296,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		authSvc := NewAuthService(nil, userRepo)
 		userRepo.On("GetByLogin", "exec2").Return(executorUser, nil).Once()
 		authSvc.Login("exec2", password)
+		userRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 		journalRepo := mocks.NewJournalStore(t)
 		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 		journalSvc := NewJournalService(journalRepo, authSvc)

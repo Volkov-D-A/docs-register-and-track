@@ -277,6 +277,7 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 		}
 		userStore.On("GetByLogin", u.Login).Return(u, nil).Once()
 		auth.Login(u.Login, "CorrectP@ssword1!")
+		userStore.On("GetByID", u.ID).Return(u, nil).Maybe()
 		return u
 	}
 

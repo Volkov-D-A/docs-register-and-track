@@ -32,6 +32,7 @@ func setupAckService(t *testing.T, role string) (
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
 	require.NoError(t, err)
+	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
