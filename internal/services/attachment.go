@@ -6,6 +6,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"encoding/base64"
 	"fmt"
+	"mime"
 	"os"
 	"os/exec"
 	"os/user"
@@ -86,8 +87,13 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		return nil, fmt.Errorf("file type '%s' is not allowed", ext)
 	}
 
+	contentType := mime.TypeByExtension(ext)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
 	objectName := uuid.New().String() + ext
-	if err := s.fileStorage.UploadFile(context.Background(), objectName, data, ext); err != nil {
+	if err := s.fileStorage.UploadFile(context.Background(), objectName, data, contentType); err != nil {
 		return nil, fmt.Errorf("failed to upload file to storage: %v", err)
 	}
 
@@ -102,7 +108,7 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		DocumentType: documentType,
 		Filename:     filename,
 		FileSize:     int64(len(data)),
-		ContentType:  ext, // упрощённый тип содержимого
+		ContentType:  contentType,
 		StoragePath:  objectName,
 		UploadedBy:   userID,
 	}

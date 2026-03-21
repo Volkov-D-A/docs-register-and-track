@@ -77,7 +77,7 @@ func TestAttachmentService_Upload(t *testing.T) {
 		settingsRepo.On("Get", "allowed_file_types").Return(
 			&models.SystemSetting{Key: "allowed_file_types", Value: ".pdf,.doc,.txt"}, nil,
 		).Once()
-		fileStorage.On("UploadFile", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("[]uint8"), ".txt").Return(nil).Once()
+		fileStorage.On("UploadFile", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("[]uint8"), "text/plain; charset=utf-8").Return(nil).Once()
 		repo.On("Create", mock.AnythingOfType("*models.Attachment")).Return(nil).Once()
 
 		result, err := svc.Upload(docID.String(), "incoming", "test.txt", b64)
