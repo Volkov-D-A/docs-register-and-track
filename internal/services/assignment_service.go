@@ -67,7 +67,7 @@ func (s *AssignmentService) Create(
 
 	res, err := s.repo.Create(docUUID, documentType, execUUID, content, deadlineTime, coExecutorIDs)
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   docUUID,
 			DocumentType: documentType,
@@ -107,8 +107,8 @@ func (s *AssignmentService) Update(
 
 	// Проверка прав
 	// Редактировать могут админ и делопроизводитель
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, models.ErrForbidden
+	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+		return nil, err
 	}
 
 	// Завершенные поручения редактировать нельзя (кроме админа)
@@ -132,7 +132,7 @@ func (s *AssignmentService) Update(
 
 	res, err := s.repo.Update(uid, execUUID, content, deadlineTime, existing.Status, existing.Report, existing.CompletedAt, coExecutorIDs)
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   existing.DocumentID,
 			DocumentType: existing.DocumentType,
@@ -206,7 +206,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 
 	res, err := s.repo.Update(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, report, completedAt, existing.CoExecutorIDs)
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   existing.DocumentID,
 			DocumentType: existing.DocumentType,
@@ -274,8 +274,8 @@ func (s *AssignmentService) Delete(id string) error {
 	}
 
 	// Удалять могут админ и делопроизводитель
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return models.ErrForbidden
+	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+		return err
 	}
 
 	// Завершенные поручения удалять нельзя (кроме админа)
@@ -285,7 +285,7 @@ func (s *AssignmentService) Delete(id string) error {
 
 	err = s.repo.Delete(uid)
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   existing.DocumentID,
 			DocumentType: existing.DocumentType,

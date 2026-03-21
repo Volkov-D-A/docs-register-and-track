@@ -45,8 +45,8 @@ func (s *AcknowledgmentService) Create(
 	}
 
 	// Проверка прав: делопроизводитель или админ
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, models.ErrForbidden
+	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+		return nil, err
 	}
 
 	docUUID, err := uuid.Parse(documentID)
@@ -137,8 +137,8 @@ func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, models.ErrForbidden
+	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.GetAllActive()
 	return dto.MapAcknowledgments(res), err
@@ -212,8 +212,8 @@ func (s *AcknowledgmentService) Delete(id string) error {
 		return ErrNotAuthenticated
 	}
 	// Удалять могут админ и делопроизводитель
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return models.ErrForbidden
+	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+		return err
 	}
 
 	ackUUID, err := uuid.Parse(id)
@@ -228,7 +228,7 @@ func (s *AcknowledgmentService) Delete(id string) error {
 
 	err = s.repo.Delete(ackUUID)
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   ack.DocumentID,
 			DocumentType: ack.DocumentType,

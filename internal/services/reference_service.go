@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 // ReferenceService предоставляет бизнес-логику для работы со справочниками (типы документов, организации).
@@ -34,8 +33,8 @@ func (s *ReferenceService) GetDocumentTypes() ([]dto.DocumentType, error) {
 
 // CreateDocumentType создает новый тип документа (только для администраторов).
 func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, error) {
-	if !s.auth.HasRole("admin") {
-		return nil, models.ErrForbidden
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.CreateDocumentType(name)
 	if err != nil {
@@ -50,8 +49,8 @@ func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, e
 
 // UpdateDocumentType обновляет название типа документа (только для администраторов).
 func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
-	if !s.auth.HasRole("admin") {
-		return models.ErrForbidden
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -68,8 +67,8 @@ func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
 
 // DeleteDocumentType удаляет тип документа по его ID (только для администраторов).
 func (s *ReferenceService) DeleteDocumentType(id string) error {
-	if !s.auth.HasRole("admin") {
-		return models.ErrForbidden
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -115,8 +114,8 @@ func (s *ReferenceService) FindOrCreateOrganization(name string) (*dto.Organizat
 
 // UpdateOrganization обновляет название организации (только для администраторов).
 func (s *ReferenceService) UpdateOrganization(id string, name string) error {
-	if !s.auth.HasRole("admin") {
-		return models.ErrForbidden
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -133,8 +132,8 @@ func (s *ReferenceService) UpdateOrganization(id string, name string) error {
 
 // DeleteOrganization удаляет организацию по её ID (только для администраторов).
 func (s *ReferenceService) DeleteOrganization(id string) error {
-	if !s.auth.HasRole("admin") {
-		return fmt.Errorf("недостаточно прав")
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {

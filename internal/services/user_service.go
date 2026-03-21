@@ -25,8 +25,8 @@ func NewUserService(userRepo UserStore, auth *AuthService, auditService *AdminAu
 
 // GetAllUsers возвращает список всех пользователей (доступно администраторам и делопроизводителям).
 func (s *UserService) GetAllUsers() ([]dto.User, error) {
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+		return nil, err
 	}
 	res, err := s.userRepo.GetAll()
 	return dto.MapUsers(res), err
@@ -34,8 +34,8 @@ func (s *UserService) GetAllUsers() ([]dto.User, error) {
 
 // CreateUser создает нового пользователя (доступно только администраторам).
 func (s *UserService) CreateUser(req models.CreateUserRequest) (*dto.User, error) {
-	if !s.auth.HasRole("admin") {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return nil, err
 	}
 	res, err := s.userRepo.Create(req)
 	if err != nil {
@@ -50,8 +50,8 @@ func (s *UserService) CreateUser(req models.CreateUserRequest) (*dto.User, error
 
 // UpdateUser обновляет данные пользователя (доступно только администраторам).
 func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*dto.User, error) {
-	if !s.auth.HasRole("admin") {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return nil, err
 	}
 	res, err := s.userRepo.Update(req)
 	if err != nil {
@@ -66,8 +66,8 @@ func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*dto.User, error
 
 // ResetPassword сбрасывает пароль пользователя (доступно только администраторам).
 func (s *UserService) ResetPassword(userID string, newPassword string) error {
-	if !s.auth.HasRole("admin") {
-		return ErrNotAuthenticated
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
 	}
 
 	uid, err := parseUUID(userID)

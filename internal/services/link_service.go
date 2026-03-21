@@ -112,7 +112,7 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 
 	err = s.repo.Delete(context.Background(), id)
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.authService.GetCurrentUserID())
+		currentUserID, _ := s.authService.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   link.SourceID,
 			DocumentType: link.SourceType,

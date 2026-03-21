@@ -265,7 +265,7 @@ func (s *IncomingDocumentService) Update(
 		Resolution:           resPtr,
 	})
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   uid,
 			DocumentType: "incoming",
@@ -288,8 +288,8 @@ func (s *IncomingDocumentService) GetCount() (int, error) {
 // Delete удаляет входящий документ по его ID.
 // Доступно только администраторам.
 func (s *IncomingDocumentService) Delete(id string) error {
-	if !s.auth.HasRole("admin") {
-		return models.ErrForbidden
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -298,7 +298,7 @@ func (s *IncomingDocumentService) Delete(id string) error {
 
 	err = s.repo.Delete(uid)
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   uid,
 			DocumentType: "incoming",

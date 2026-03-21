@@ -100,9 +100,9 @@ func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 	return dto.MapUser(user), nil
 }
 
-// getCurrentUserID возвращает ID текущего пользователя, безопасно копируя его под блокировкой.
+// GetCurrentUserUUID возвращает ID текущего пользователя, безопасно копируя его под блокировкой.
 // Возвращает uuid.Nil и ошибку, если пользователь не авторизован.
-func (s *AuthService) getCurrentUserIDSafe() (uuid.UUID, error) {
+func (s *AuthService) GetCurrentUserUUID() (uuid.UUID, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.currentUserID == uuid.Nil {
@@ -113,7 +113,7 @@ func (s *AuthService) getCurrentUserIDSafe() (uuid.UUID, error) {
 
 // ChangePassword — смена пароля
 func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
-	userID, err := s.getCurrentUserIDSafe()
+	userID, err := s.GetCurrentUserUUID()
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 
 // UpdateProfile — обновление профиля текущего пользователя
 func (s *AuthService) UpdateProfile(req models.UpdateProfileRequest) error {
-	userID, err := s.getCurrentUserIDSafe()
+	userID, err := s.GetCurrentUserUUID()
 	if err != nil {
 		return err
 	}
@@ -206,6 +206,31 @@ func (s *AuthService) HasRole(role string) bool {
 		}
 	}
 	return false
+}
+
+// RequireRole возвращает nil если у текущего пользователя есть указанная роль,
+// иначе возвращает ErrUnauthorized (не залогинен) или ErrForbidden (нет прав).
+func (s *AuthService) RequireRole(role string) error {
+	if !s.IsAuthenticated() {
+		return models.ErrUnauthorized
+	}
+	if !s.HasRole(role) {
+		return models.ErrForbidden
+	}
+	return nil
+}
+
+// RequireAnyRole возвращает nil если у текущего пользователя есть хотя бы одна из указанных ролей.
+func (s *AuthService) RequireAnyRole(roles ...string) error {
+	if !s.IsAuthenticated() {
+		return models.ErrUnauthorized
+	}
+	for _, r := range roles {
+		if s.HasRole(r) {
+			return nil
+		}
+	}
+	return models.ErrForbidden
 }
 
 // NeedsInitialSetup — проверяет, нужна ли первоначальная настройка.

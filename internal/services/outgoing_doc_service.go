@@ -179,7 +179,7 @@ func (s *OutgoingDocumentService) Update(
 		Addressee:       addressee,
 	})
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   uid,
 			DocumentType: "outgoing",
@@ -249,8 +249,8 @@ func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, err
 
 // Delete удаляет исходящий документ по его ID (доступно только администраторам).
 func (s *OutgoingDocumentService) Delete(id string) error {
-	if !s.auth.HasRole("admin") {
-		return models.ErrForbidden
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -259,7 +259,7 @@ func (s *OutgoingDocumentService) Delete(id string) error {
 
 	err = s.repo.Delete(uid)
 	if err == nil {
-		currentUserID, _ := uuid.Parse(s.auth.GetCurrentUserID())
+		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 			DocumentID:   uid,
 			DocumentType: "outgoing",

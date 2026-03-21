@@ -46,8 +46,8 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		return nil, models.ErrUnauthorized
 	}
 
-	if !s.authService.HasRole("clerk") && !s.authService.HasRole("admin") {
-		return nil, models.NewForbidden("Недостаточно прав: загружать файлы могут только делопроизводители")
+	if err := s.authService.RequireAnyRole("clerk", "admin"); err != nil {
+		return nil, err
 	}
 
 	documentID, err := uuid.Parse(documentIDStr)
@@ -168,8 +168,8 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 // Delete — удалить вложение
 func (s *AttachmentService) Delete(idStr string) error {
 	// Проверка прав доступа
-	if !s.authService.HasRole("clerk") && !s.authService.HasRole("admin") {
-		return models.NewForbidden("Недостаточно прав: удалять файлы могут только делопроизводители")
+	if err := s.authService.RequireAnyRole("clerk", "admin"); err != nil {
+		return err
 	}
 
 	id, err := uuid.Parse(idStr)
@@ -193,7 +193,7 @@ func (s *AttachmentService) Delete(idStr string) error {
 		return err
 	}
 
-	currentUserID, _ := uuid.Parse(s.authService.GetCurrentUserID())
+	currentUserID, _ := s.authService.GetCurrentUserUUID()
 	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
 		DocumentID:   attachment.DocumentID,
 		DocumentType: attachment.DocumentType,
@@ -345,8 +345,8 @@ func (s *AttachmentService) OpenFolder(path string) error {
 // BulkDeleteOlderThan — массовое удаление файлов, загруженных до указанной даты
 func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	// Проверка прав доступа
-	if !s.authService.HasRole("admin") {
-		return 0, models.NewForbidden("Недостаточно прав: массовое удаление файлов доступно только администраторам")
+	if err := s.authService.RequireRole("admin"); err != nil {
+		return 0, err
 	}
 
 	date, err := time.Parse(time.RFC3339, dateStr)
@@ -382,7 +382,7 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 		}
 	}
 
-	currentUserID, _ := uuid.Parse(s.authService.GetCurrentUserID())
+	currentUserID, _ := s.authService.GetCurrentUserUUID()
 	var currentUserName string
 	if u, err := s.authService.GetCurrentUser(); err == nil {
 		currentUserName = u.FullName

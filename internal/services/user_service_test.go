@@ -61,7 +61,7 @@ func TestUserService_GetAllUsers(t *testing.T) {
 
 		users, err := userService.GetAllUsers()
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, users)
 
 		authService.Logout()
@@ -112,7 +112,7 @@ func TestUserService_CreateUser(t *testing.T) {
 		svc, _ := setupUserService(t, "clerk")
 		result, err := svc.CreateUser(models.CreateUserRequest{})
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
 }

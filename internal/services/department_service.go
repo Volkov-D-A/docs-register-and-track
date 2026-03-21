@@ -2,7 +2,6 @@ package services
 
 import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -35,8 +34,8 @@ func (s *DepartmentService) GetAllDepartments() ([]dto.Department, error) {
 
 // CreateDepartment создает новое подразделение.
 func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []string) (*dto.Department, error) {
-	if !s.auth.HasRole("admin") {
-		return nil, models.ErrForbidden
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.Create(name, nomenclatureIDs)
 	if err != nil {
@@ -51,8 +50,8 @@ func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []stri
 
 // UpdateDepartment обновляет данные существующего подразделения.
 func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []string) (*dto.Department, error) {
-	if !s.auth.HasRole("admin") {
-		return nil, models.ErrForbidden
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return nil, err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -71,8 +70,8 @@ func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []
 
 // DeleteDepartment удаляет подразделение по его ID.
 func (s *DepartmentService) DeleteDepartment(id string) error {
-	if !s.auth.HasRole("admin") {
-		return models.ErrForbidden
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {

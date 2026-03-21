@@ -36,8 +36,8 @@ func (s *SettingsService) GetAll() ([]models.SystemSetting, error) {
 
 // Update обновляет значение настройки по ключу (только для администраторов).
 func (s *SettingsService) Update(key, value string) error {
-	if !s.authService.HasRole("admin") {
-		return models.ErrForbidden
+	if err := s.authService.RequireRole("admin"); err != nil {
+		return err
 	}
 	if err := s.repo.Update(key, value); err != nil {
 		return err
