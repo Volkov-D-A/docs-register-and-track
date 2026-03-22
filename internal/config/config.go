@@ -11,6 +11,13 @@ import (
 type Config struct {
 	Database DatabaseConfig `json:"database"`
 	Minio    MinioConfig    `json:"minio"`
+	Seq      SeqConfig      `json:"seq"`
+}
+
+// SeqConfig хранит настройки подключения к Seq
+type SeqConfig struct {
+	URL     string `json:"url"`
+	Enabled bool   `json:"enabled"`
 }
 
 // DatabaseConfig хранит настройки подключения к базе данных PostgreSQL.

@@ -18,6 +18,10 @@ export function GetCurrentUserID() {
   return window['go']['services']['AuthService']['GetCurrentUserID']();
 }
 
+export function GetCurrentUserUUID() {
+  return window['go']['services']['AuthService']['GetCurrentUserUUID']();
+}
+
 export function HasRole(arg1) {
   return window['go']['services']['AuthService']['HasRole'](arg1);
 }
@@ -40,6 +44,14 @@ export function Logout() {
 
 export function NeedsInitialSetup() {
   return window['go']['services']['AuthService']['NeedsInitialSetup']();
+}
+
+export function RequireAnyRole(arg1) {
+  return window['go']['services']['AuthService']['RequireAnyRole'](arg1);
+}
+
+export function RequireRole(arg1) {
+  return window['go']['services']['AuthService']['RequireRole'](arg1);
 }
 
 export function UpdateProfile(arg1) {

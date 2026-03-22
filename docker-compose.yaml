@@ -29,6 +29,23 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     restart: unless-stopped
+  seq:
+    image: datalust/seq:${SEQ_VERSION}
+    container_name: docflow_seq
+    environment:
+      # Подтверждение лицензионного соглашения (обязательно для запуска)
+      - ACCEPT_EULA=Y
+      # Опционально: можно сразу задать пароль администратора
+      - SEQ_FIRSTRUN_ADMINPASSWORD=${SEQ_ADMIN_PASSWORD}
+    ports:
+      # Внешний порт 5341 мапится на внутренний 80
+      # По этому порту будет доступен и веб-интерфейс, и API для приема логов
+      - "5341:80"
+    volumes:
+      # Сохраняем логи в volume, чтобы они не пропали при перезапуске контейнера
+      - seq_data:/data
+    restart: unless-stopped
 volumes:
   pgdata:
   minio_data:
+  seq_data:

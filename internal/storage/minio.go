@@ -3,10 +3,11 @@ package storage
 import (
 	"bytes"
 	"context"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -35,11 +36,12 @@ func NewMinioService(cfg config.MinioConfig) (*MinioService, error) {
 	}
 
 	if !exists {
-		log.Printf("Bucket %s does not exist, creating...\n", cfg.BucketName)
+		slog.Info("Bucket does not exist, creating...", "bucket", cfg.BucketName)
 		err = client.MakeBucket(ctx, cfg.BucketName, minio.MakeBucketOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to create bucket: %w", err)
+			return nil, err
 		}
+		slog.Info("Bucket created", "bucket", cfg.BucketName)
 	}
 
 	return &MinioService{

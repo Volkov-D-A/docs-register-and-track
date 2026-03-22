@@ -12,6 +12,8 @@ export function GetCurrentUser():Promise<dto.User>;
 
 export function GetCurrentUserID():Promise<string>;
 
+export function GetCurrentUserUUID():Promise<uuid.UUID>;
+
 export function HasRole(arg1:string):Promise<boolean>;
 
 export function InitialSetup(arg1:string):Promise<void>;
@@ -23,5 +25,9 @@ export function Login(arg1:string,arg2:string):Promise<dto.User>;
 export function Logout():Promise<void>;
 
 export function NeedsInitialSetup():Promise<boolean>;
+
+export function RequireAnyRole(arg1:Array<string>):Promise<void>;
+
+export function RequireRole(arg1:string):Promise<void>;
 
 export function UpdateProfile(arg1:models.UpdateProfileRequest):Promise<void>;

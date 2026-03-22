@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -195,7 +195,7 @@ func (s *DashboardService) getAdminStats(stats *models.DashboardStats) (*models.
 	if s.storage != nil {
 		objCount, totalSize, err := s.storage.GetStorageInfo(context.Background())
 		if err != nil {
-			log.Printf("Warning: failed to get MinIO storage info: %v", err)
+			slog.Warn("failed to get MinIO storage info", "error", err)
 			stats.StorageSize = "N/A"
 		} else {
 			stats.StorageObjects = objCount

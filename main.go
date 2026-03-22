@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/wailsapp/wails/v2"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
@@ -49,10 +51,15 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	// Инициализация логгера
+	_, closeLogger := logger.Init(cfg.Seq)
+	defer closeLogger()
+
 	// Подключение к БД
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
-		log.Fatalf("Critical: Failed to establish database connection pool: %v", err)
+		slog.Error("Critical: Failed to establish database connection pool", "error", err)
+		os.Exit(1)
 	}
 
 	// Создание репозиториев
@@ -73,6 +80,16 @@ func main() {
 
 	// Создание сервисов
 	authService := services.NewAuthService(db, userRepo)
+	
+	// Подключаем информацию о пользователе к логгеру
+	logger.GetAppUser = func() string {
+		_, name := authService.GetCurrentAuditInfo()
+		if name == "system" {
+			return ""
+		}
+		return name
+	}
+	
 	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
 	settingsService := services.NewSettingsService(db, settingsRepo, authService, adminAuditLogService)
 	userService := services.NewUserService(userRepo, authService, adminAuditLogService)
@@ -87,7 +104,8 @@ func main() {
 
 	minioService, err := storage.NewMinioService(cfg.Minio)
 	if err != nil {
-		log.Fatalf("Critical: Failed to establish MinIO connection: %v", err)
+		slog.Error("Critical: Failed to establish MinIO connection", "error", err)
+		os.Exit(1)
 	}
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService)
@@ -106,8 +124,9 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {
-			log.Println("Gracefully shutting down database connection...")
+			slog.Info("Gracefully shutting down database connection...")
 			db.Close()
+			closeLogger()
 		},
 
 		Bind: []interface{}{
@@ -131,6 +150,7 @@ func main() {
 	})
 
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		slog.Error("Error starting Wails app", "error", err)
+		os.Exit(1)
 	}
 }
