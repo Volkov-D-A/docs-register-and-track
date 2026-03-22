@@ -27,6 +27,14 @@ func (h *appUserHandler) Handle(ctx context.Context, r slog.Record) error {
 	return h.Handler.Handle(ctx, r)
 }
 
+func (h *appUserHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &appUserHandler{Handler: h.Handler.WithAttrs(attrs)}
+}
+
+func (h *appUserHandler) WithGroup(name string) slog.Handler {
+	return &appUserHandler{Handler: h.Handler.WithGroup(name)}
+}
+
 // Init инициализирует стандартный логгер slog.
 // Возвращает логгер и функцию для корректного закрытия (flush) ресурсов при выходе.
 func Init(cfg config.SeqConfig) (*slog.Logger, func()) {

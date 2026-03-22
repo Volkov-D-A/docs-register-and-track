@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2"
 	wailslogger "github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -81,16 +82,19 @@ func main() {
 
 	// Создание сервисов
 	authService := services.NewAuthService(db, userRepo)
-	
+
 	// Подключаем информацию о пользователе к логгеру
 	logger.GetAppUser = func() string {
-		_, name := authService.GetCurrentAuditInfo()
-		if name == "system" {
-			return ""
+		uid, name := authService.GetCurrentAuditInfo()
+		if uid == uuid.Nil || name == "system" {
+			return "unauthenticated" // Для случаев, когда пользователь еще не вошел (например, неверный пароль)
+		}
+		if name == "" {
+			return uid.String() // Если имя пустое в таблице, возвращаем ID
 		}
 		return name
 	}
-	
+
 	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
 	settingsService := services.NewSettingsService(db, settingsRepo, authService, adminAuditLogService)
 	userService := services.NewUserService(userRepo, authService, adminAuditLogService)
@@ -124,10 +128,14 @@ func main() {
 			Assets: assets,
 		},
 		Logger:   logger.NewWailsAdapter(),
-		LogLevel: wailslogger.ERROR, // Пишем только ошибки, чтобы не спамить стандартными логами Wails
+		LogLevel: wailslogger.ERROR, // Пишем системные ошибки Wails
+		ErrorFormatter: func(err error) any {
+			// Перехватываем все ошибки, которые методы сервисов (Bindings) возвращают во фронтенд
+			slog.Error(err.Error(), "type", "backend_binding")
+			return err.Error()
+		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {
-			slog.Info("Gracefully shutting down database connection...")
 			db.Close()
 			closeLogger()
 		},
