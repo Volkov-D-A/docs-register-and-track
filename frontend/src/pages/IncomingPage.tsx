@@ -522,7 +522,7 @@ const IncomingPage: React.FC = () => {
             />
 
             {/* Регистрация */}
-            <Modal title="Регистрация входящего документа" open={registerModalOpen}
+            <Modal title="Регистрация входящего документа" open={registerModalOpen} forceRender
                 onCancel={() => { setRegisterModalOpen(false); clearDraftLink(); }} onOk={() => registerForm.submit()} width={700} okText="Зарегистрировать">
                 {sourceId && targetType === 'incoming' && (
                     <div style={{ marginBottom: 16 }}>
@@ -533,7 +533,7 @@ const IncomingPage: React.FC = () => {
             </Modal>
 
             {/* Редактирование */}
-            <Modal title={`Редактирование: ${editDoc?.incomingNumber || ''}`} open={editModalOpen}
+            <Modal title={`Редактирование: ${editDoc?.incomingNumber || ''}`} open={editModalOpen} forceRender
                 onCancel={() => { setEditModalOpen(false); setEditDoc(null); }} onOk={() => editForm.submit()} width={700} okText="Сохранить">
                 {renderDocForm(editForm, true)}
             </Modal>

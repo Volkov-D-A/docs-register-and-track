@@ -265,7 +265,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                     items={getTabs()}
                     activeKey={activeTab}
                     onChange={setActiveTab}
-                    destroyInactiveTabPane
+                    destroyOnHidden
                 />
             )}
         </Modal>

@@ -363,6 +363,7 @@ const OutgoingPage: React.FC = () => {
             <Modal
                 title="Регистрация исходящего документа"
                 open={registerModalOpen}
+                forceRender
                 onCancel={() => { setRegisterModalOpen(false); clearDraftLink(); }}
                 onOk={() => registerForm.submit()}
                 width={800}
@@ -439,6 +440,7 @@ const OutgoingPage: React.FC = () => {
             <Modal
                 title="Редактирование документа"
                 open={editModalOpen}
+                forceRender
                 onCancel={() => { setEditModalOpen(false); setEditDoc(null); }}
                 onOk={() => editForm.submit()}
                 width={800}
