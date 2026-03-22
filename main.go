@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/wailsapp/wails/v2"
+	wailslogger "github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
@@ -122,6 +123,8 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
+		Logger:   logger.NewWailsAdapter(),
+		LogLevel: wailslogger.ERROR, // Пишем только ошибки, чтобы не спамить стандартными логами Wails
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {
 			slog.Info("Gracefully shutting down database connection...")
