@@ -14,25 +14,11 @@ func NewWailsAdapter() *WailsAdapter {
 	return &WailsAdapter{}
 }
 
-func (a *WailsAdapter) Print(message string) {
-	slog.Info(message)
-}
-
-func (a *WailsAdapter) Trace(message string) {
-	slog.Debug(message)
-}
-
-func (a *WailsAdapter) Debug(message string) {
-	slog.Debug(message)
-}
-
-func (a *WailsAdapter) Info(message string) {
-	slog.Info(message)
-}
-
-func (a *WailsAdapter) Warning(message string) {
-	slog.Warn(message)
-}
+func (a *WailsAdapter) Print(_ string)   {}
+func (a *WailsAdapter) Trace(_ string)   {}
+func (a *WailsAdapter) Debug(_ string)   {}
+func (a *WailsAdapter) Info(_ string)    {}
+func (a *WailsAdapter) Warning(_ string) {}
 
 func (a *WailsAdapter) Error(message string) {
 	slog.Error(message)
