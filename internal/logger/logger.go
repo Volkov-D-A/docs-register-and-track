@@ -1,7 +1,9 @@
 package logger
 
 import (
+	"bytes"
 	"context"
+	"log"
 	"log/slog"
 	"os"
 
@@ -76,5 +78,31 @@ func Init(cfg config.SeqConfig) (*slog.Logger, func()) {
 	}
 	slog.SetDefault(logger)
 
+	// Перехватываем стандартный пакет log (используется go-webview2).
+	// Фильтруем известные info-сообщения; остальное пишем в slog.Error.
+	log.SetOutput(&stdLogFilter{})
+	log.SetFlags(0) // убираем timestamp, чтобы не мешал сравнению
+
 	return logger, closer
+}
+
+// stdLogFilter реализует io.Writer для перехвата вывода стандартного log.
+// Отбрасывает известные info-сообщения go-webview2, остальное передаёт в slog.Error.
+type stdLogFilter struct{}
+
+// Список подстрок, которые нужно молча игнорировать.
+var ignoredLogMessages = [][]byte{
+	[]byte("[WebView2] Environment created successfully"),
+}
+
+func (f *stdLogFilter) Write(p []byte) (int, error) {
+	for _, ignore := range ignoredLogMessages {
+		if bytes.Contains(p, ignore) {
+			return len(p), nil // тихо отбрасываем
+		}
+	}
+	// Всё остальное — пишем как ошибку в slog.
+	msg := string(bytes.TrimRight(p, "\n\r"))
+	slog.Error(msg, "source", "std_log")
+	return len(p), nil
 }
