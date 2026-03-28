@@ -42,7 +42,7 @@ func (s *NomenclatureService) GetActiveForDirection(direction string) ([]dto.Nom
 
 // Create создает новое дело номенклатуры (доступно только администраторам и делопроизводителям).
 func (s *NomenclatureService) Create(name, index string, year int, direction string) (*dto.Nomenclature, error) {
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+	if err := s.auth.RequireAnyActiveRole("admin", "clerk"); err != nil {
 		return nil, err
 	}
 	res, err := s.repo.Create(name, index, year, direction)
@@ -58,7 +58,7 @@ func (s *NomenclatureService) Create(name, index string, year int, direction str
 
 // Update обновляет существующее дело номенклатуры.
 func (s *NomenclatureService) Update(id string, name, index string, year int, direction string, isActive bool) (*dto.Nomenclature, error) {
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+	if err := s.auth.RequireAnyActiveRole("admin", "clerk"); err != nil {
 		return nil, err
 	}
 	uid, err := uuid.Parse(id)
@@ -78,7 +78,7 @@ func (s *NomenclatureService) Update(id string, name, index string, year int, di
 
 // Delete удаляет дело номенклатуры по его ID (доступно только администраторам).
 func (s *NomenclatureService) Delete(id string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireActiveRole("admin"); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)
@@ -93,4 +93,3 @@ func (s *NomenclatureService) Delete(id string) error {
 	s.auditService.LogAction(userID, userName, "NOMENCLATURE_DELETE", fmt.Sprintf("Удалено дело (ID: %s)", id))
 	return nil
 }
-

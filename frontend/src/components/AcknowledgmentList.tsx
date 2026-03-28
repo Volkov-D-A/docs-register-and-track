@@ -97,9 +97,8 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
         {
             title: '', key: 'actions', width: 50,
             render: (_: any, r: any) => {
-                const isAdmin = hasRole('admin');
                 const isClerk = hasRole('clerk');
-                const canDelete = isAdmin || (isClerk && user?.id === r.creatorId);
+                const canDelete = isClerk && user?.id === r.creatorId;
 
                 return (
                     <Space size={2}>
@@ -114,7 +113,7 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
         },
     ];
 
-    const canCreate = hasRole('admin') || hasRole('clerk');
+    const canCreate = hasRole('clerk');
 
     return (
         <div>

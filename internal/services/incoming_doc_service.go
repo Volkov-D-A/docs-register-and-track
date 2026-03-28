@@ -43,8 +43,8 @@ func NewIncomingDocumentService(
 
 // GetList возвращает список входящих документов с учетом фильтров и прав доступа (для исполнителя видимость ограничена).
 func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*dto.PagedResult[dto.IncomingDocument], error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+		return nil, err
 	}
 
 	filteredIDs, empty, err := applyExecutorNomenclatureFilter(
@@ -79,19 +79,25 @@ func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*dto.Pa
 
 // GetByID возвращает входящий документ по его ID.
 func (s *IncomingDocumentService) GetByID(id string) (*dto.IncomingDocument, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+		return nil, err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
 	res, err := s.repo.GetByID(uid)
-	return dto.MapIncomingDocument(res), err
+	if err != nil || res == nil {
+		return dto.MapIncomingDocument(res), err
+	}
+	if err := requireExecutorNomenclatureAccess(s.auth, s.depRepo, res.NomenclatureID); err != nil {
+		return nil, err
+	}
+	return dto.MapIncomingDocument(res), nil
 }
 
 // Register регистрирует новый входящий документ в системе.
-// Доступно только администраторам и делопроизводителям.
+// Доступно только делопроизводителям.
 func (s *IncomingDocumentService) Register(
 	nomenclatureID, documentTypeID string,
 	senderOrgName string,
@@ -102,8 +108,8 @@ func (s *IncomingDocumentService) Register(
 	senderSignatory string,
 	resolution, resolutionAuthor, resolutionExecutors string,
 ) (*dto.IncomingDocument, error) {
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, models.NewForbidden("недостаточно прав для регистрации документов")
+	if err := requireClerkDocumentRole(s.auth); err != nil {
+		return nil, err
 	}
 
 	nomID, err := uuid.Parse(nomenclatureID)
@@ -206,7 +212,7 @@ func (s *IncomingDocumentService) Register(
 }
 
 // Update обновляет данные существующего входящего документа.
-// Доступно только администраторам и делопроизводителям.
+// Доступно только делопроизводителям.
 func (s *IncomingDocumentService) Update(
 	id, documentTypeID string,
 	senderOrgName string,
@@ -217,8 +223,8 @@ func (s *IncomingDocumentService) Update(
 	senderSignatory string,
 	resolution, resolutionAuthor, resolutionExecutors string,
 ) (*dto.IncomingDocument, error) {
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, models.NewForbidden("недостаточно прав для редактирования документов")
+	if err := requireClerkDocumentRole(s.auth); err != nil {
+		return nil, err
 	}
 
 	uid, err := uuid.Parse(id)
@@ -304,16 +310,16 @@ func (s *IncomingDocumentService) Update(
 
 // GetCount возвращает общее количество входящих документов (например, для дашборда).
 func (s *IncomingDocumentService) GetCount() (int, error) {
-	if !s.auth.IsAuthenticated() {
-		return 0, ErrNotAuthenticated
+	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+		return 0, err
 	}
 	return s.repo.GetCount()
 }
 
 // Delete удаляет входящий документ по его ID.
-// Доступно только администраторам.
+// Доступно только делопроизводителям.
 func (s *IncomingDocumentService) Delete(id string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := requireClerkDocumentRole(s.auth); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)

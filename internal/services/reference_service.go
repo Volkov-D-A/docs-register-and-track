@@ -33,7 +33,7 @@ func (s *ReferenceService) GetDocumentTypes() ([]dto.DocumentType, error) {
 
 // CreateDocumentType создает новый тип документа (только для администраторов).
 func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, error) {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireActiveRole("admin"); err != nil {
 		return nil, err
 	}
 	res, err := s.repo.CreateDocumentType(name)
@@ -49,7 +49,7 @@ func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, e
 
 // UpdateDocumentType обновляет название типа документа (только для администраторов).
 func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireActiveRole("admin"); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)
@@ -67,7 +67,7 @@ func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
 
 // DeleteDocumentType удаляет тип документа по его ID (только для администраторов).
 func (s *ReferenceService) DeleteDocumentType(id string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireActiveRole("admin"); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)
@@ -114,7 +114,7 @@ func (s *ReferenceService) FindOrCreateOrganization(name string) (*dto.Organizat
 
 // UpdateOrganization обновляет название организации (только для администраторов).
 func (s *ReferenceService) UpdateOrganization(id string, name string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireActiveRole("admin"); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)
@@ -132,7 +132,7 @@ func (s *ReferenceService) UpdateOrganization(id string, name string) error {
 
 // DeleteOrganization удаляет организацию по её ID (только для администраторов).
 func (s *ReferenceService) DeleteOrganization(id string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireActiveRole("admin"); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)
@@ -179,7 +179,7 @@ func (s *ReferenceService) FindOrCreateResolutionExecutor(name string) (*dto.Res
 
 // UpdateResolutionExecutor обновляет имя исполнителя резолюции (только для администраторов).
 func (s *ReferenceService) UpdateResolutionExecutor(id string, name string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireActiveRole("admin"); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)
@@ -197,7 +197,7 @@ func (s *ReferenceService) UpdateResolutionExecutor(id string, name string) erro
 
 // DeleteResolutionExecutor удаляет исполнителя резолюции по его ID (только для администраторов).
 func (s *ReferenceService) DeleteResolutionExecutor(id string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireActiveRole("admin"); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)
@@ -212,4 +212,3 @@ func (s *ReferenceService) DeleteResolutionExecutor(id string) error {
 	s.auditService.LogAction(userID, userName, "RESEXEC_DELETE", fmt.Sprintf("Удален исполнитель резолюции (ID: %s)", id))
 	return nil
 }
-

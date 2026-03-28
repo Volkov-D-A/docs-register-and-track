@@ -149,8 +149,8 @@ func TestAssignmentService_Update(t *testing.T) {
 		Status:     "new",
 	}
 
-	t.Run("success admin", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "admin")
+	t.Run("success clerk", func(t *testing.T) {
+		svc, repo, _, _ := setupAssignmentService(t, "clerk")
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Update", assignmentID, execID, "Новое",
@@ -189,9 +189,7 @@ func TestAssignmentService_Update(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "executor")
-
-		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
+		svc, _, _, _ := setupAssignmentService(t, "executor")
 
 		result, err := svc.Update(assignmentID.String(), execID.String(), "Новое", "", nil)
 		require.Error(t, err)
@@ -200,7 +198,7 @@ func TestAssignmentService_Update(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "admin")
+		svc, repo, _, _ := setupAssignmentService(t, "clerk")
 
 		repo.On("GetByID", assignmentID).Return(nil, nil).Once()
 
@@ -344,21 +342,13 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		assert.Equal(t, "finished", result.Status)
 	})
 
-	t.Run("admin any status", func(t *testing.T) {
+	t.Run("admin forbidden", func(t *testing.T) {
 		svc, repo, _, _ := setupAssignmentService(t, "admin")
-
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
-		repo.On("Update", assignmentID, execID, "Контент",
-			(*time.Time)(nil), "finished", "",
-			(*time.Time)(nil), []string(nil),
-		).Return(&models.Assignment{
-			ID:     assignmentID,
-			Status: "finished",
-		}, nil).Once()
-
 		result, err := svc.UpdateStatus(assignmentID.String(), "finished", "")
-		require.NoError(t, err)
-		require.NotNil(t, result)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "недостаточно прав")
+		assert.Nil(t, result)
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
@@ -379,7 +369,7 @@ func TestAssignmentService_GetByID(t *testing.T) {
 	assignmentID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "executor")
+		svc, repo, _, _ := setupAssignmentService(t, "clerk")
 
 		expected := &models.Assignment{
 			ID:      assignmentID,
@@ -411,6 +401,14 @@ func TestAssignmentService_GetByID(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid ID")
 		assert.Nil(t, result)
 	})
+
+	t.Run("admin forbidden", func(t *testing.T) {
+		svc, _, _, _ := setupAssignmentService(t, "admin")
+		result, err := svc.GetByID(assignmentID.String())
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
+	})
 }
 
 // ---------- TestAssignmentService_GetList ----------
@@ -418,9 +416,10 @@ func TestAssignmentService_GetByID(t *testing.T) {
 func TestAssignmentService_GetList(t *testing.T) {
 	// Получение списка поручений с фильтрацией (для дашборда или списков)
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "executor")
+		svc, repo, _, auth := setupAssignmentService(t, "executor")
 
 		filter := models.AssignmentFilter{Page: 1, PageSize: 20}
+		filter.ExecutorID = auth.GetCurrentUserID()
 		repoResult := &models.PagedResult[models.Assignment]{
 			Items:      []models.Assignment{{ID: uuid.New(), Status: "new"}},
 			TotalCount: 1,
@@ -437,11 +436,11 @@ func TestAssignmentService_GetList(t *testing.T) {
 	})
 
 	t.Run("default pagination", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "executor")
+		svc, repo, _, auth := setupAssignmentService(t, "executor")
 
 		// Filter with 0 page/pagesize — should default to 1/20
 		filter := models.AssignmentFilter{Page: 0, PageSize: 0}
-		expectedFilter := models.AssignmentFilter{Page: 1, PageSize: 20}
+		expectedFilter := models.AssignmentFilter{Page: 1, PageSize: 20, ExecutorID: auth.GetCurrentUserID()}
 		repoResult := &models.PagedResult[models.Assignment]{
 			Items:      []models.Assignment{},
 			TotalCount: 0,
@@ -461,6 +460,14 @@ func TestAssignmentService_GetList(t *testing.T) {
 		result, err := svc.GetList(models.AssignmentFilter{})
 		require.Error(t, err)
 		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("admin forbidden", func(t *testing.T) {
+		svc, _, _, _ := setupAssignmentService(t, "admin")
+		result, err := svc.GetList(models.AssignmentFilter{})
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
 }
@@ -492,9 +499,7 @@ func TestAssignmentService_Delete(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "executor")
-
-		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
+		svc, _, _, _ := setupAssignmentService(t, "executor")
 
 		err := svc.Delete(assignmentID.String())
 		require.Error(t, err)

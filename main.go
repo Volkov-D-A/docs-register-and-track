@@ -114,7 +114,7 @@ func main() {
 	}
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService)
-	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService)
+	attachmentService := services.NewAttachmentService(attachmentRepo, incomingDocRepo, outgoingDocRepo, departmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService)
 	systemService := services.NewSystemService(db)

@@ -51,8 +51,8 @@ func (s *OutgoingDocumentService) Register(
 	subject, content string, pagesCount int,
 	senderSignatory, senderExecutor string,
 ) (*dto.OutgoingDocument, error) {
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, models.NewForbidden("недостаточно прав для регистрации документов")
+	if err := requireClerkDocumentRole(s.auth); err != nil {
+		return nil, err
 	}
 
 	// Парсинг UUID
@@ -137,8 +137,8 @@ func (s *OutgoingDocumentService) Update(
 	subject, content string, pagesCount int,
 	senderSignatory, senderExecutor string,
 ) (*dto.OutgoingDocument, error) {
-	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
-		return nil, models.NewForbidden("недостаточно прав для редактирования документов")
+	if err := requireClerkDocumentRole(s.auth); err != nil {
+		return nil, err
 	}
 
 	uid, err := uuid.Parse(id)
@@ -193,8 +193,8 @@ func (s *OutgoingDocumentService) Update(
 
 // GetList возвращает список исходящих документов с фильтрацией и ограничением видимости для исполнителей.
 func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) (*dto.PagedResult[dto.OutgoingDocument], error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+		return nil, err
 	}
 	// Defaults
 	if filter.Page < 1 {
@@ -236,20 +236,26 @@ func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) 
 
 // GetByID возвращает исходящий документ по его ID.
 func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+		return nil, err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
 	res, err := s.repo.GetByID(uid)
-	return dto.MapOutgoingDocument(res), err
+	if err != nil || res == nil {
+		return dto.MapOutgoingDocument(res), err
+	}
+	if err := requireExecutorNomenclatureAccess(s.auth, s.depRepo, res.NomenclatureID); err != nil {
+		return nil, err
+	}
+	return dto.MapOutgoingDocument(res), nil
 }
 
-// Delete удаляет исходящий документ по его ID (доступно только администраторам).
+// Delete удаляет исходящий документ по его ID (доступно только делопроизводителям).
 func (s *OutgoingDocumentService) Delete(id string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := requireClerkDocumentRole(s.auth); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)
@@ -273,8 +279,8 @@ func (s *OutgoingDocumentService) Delete(id string) error {
 
 // GetCount возвращает общее количество исходящих документов (для дашборда).
 func (s *OutgoingDocumentService) GetCount() (int, error) {
-	if !s.auth.IsAuthenticated() {
-		return 0, ErrNotAuthenticated
+	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+		return 0, err
 	}
 	return s.repo.GetCount()
 }

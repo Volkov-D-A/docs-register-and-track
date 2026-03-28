@@ -6,6 +6,10 @@ export function ChangePassword(arg1, arg2) {
   return window['go']['services']['AuthService']['ChangePassword'](arg1, arg2);
 }
 
+export function GetActiveRole() {
+  return window['go']['services']['AuthService']['GetActiveRole']();
+}
+
 export function GetCurrentAuditInfo() {
   return window['go']['services']['AuthService']['GetCurrentAuditInfo']();
 }
@@ -20,6 +24,10 @@ export function GetCurrentUserID() {
 
 export function GetCurrentUserUUID() {
   return window['go']['services']['AuthService']['GetCurrentUserUUID']();
+}
+
+export function HasActiveRole(arg1) {
+  return window['go']['services']['AuthService']['HasActiveRole'](arg1);
 }
 
 export function HasRole(arg1) {
@@ -46,12 +54,24 @@ export function NeedsInitialSetup() {
   return window['go']['services']['AuthService']['NeedsInitialSetup']();
 }
 
+export function RequireActiveRole(arg1) {
+  return window['go']['services']['AuthService']['RequireActiveRole'](arg1);
+}
+
+export function RequireAnyActiveRole(arg1) {
+  return window['go']['services']['AuthService']['RequireAnyActiveRole'](arg1);
+}
+
 export function RequireAnyRole(arg1) {
   return window['go']['services']['AuthService']['RequireAnyRole'](arg1);
 }
 
 export function RequireRole(arg1) {
   return window['go']['services']['AuthService']['RequireRole'](arg1);
+}
+
+export function SetActiveRole(arg1) {
+  return window['go']['services']['AuthService']['SetActiveRole'](arg1);
 }
 
 export function UpdateProfile(arg1) {

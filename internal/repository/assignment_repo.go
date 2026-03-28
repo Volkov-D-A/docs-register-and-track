@@ -162,7 +162,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
-			COALESCE(inc.subject, out.subject) as doc_subject
+			COALESCE(inc.content, out.subject) as doc_subject
 		FROM assignments a
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
 		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
@@ -251,7 +251,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
-			COALESCE(inc.subject, out.subject) as doc_subject
+			COALESCE(inc.content, out.subject) as doc_subject
 		FROM assignments a
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
 		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
@@ -311,7 +311,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 
 	if filter.Search != "" {
 		search := "%" + strings.ToLower(filter.Search) + "%"
-		where = append(where, fmt.Sprintf("(LOWER(a.content) LIKE $%d OR LOWER(inc.incoming_number) LIKE $%d OR LOWER(inc.subject) LIKE $%d OR LOWER(out.outgoing_number) LIKE $%d OR LOWER(out.subject) LIKE $%d)", argIdx, argIdx, argIdx, argIdx, argIdx))
+		where = append(where, fmt.Sprintf("(LOWER(a.content) LIKE $%d OR LOWER(inc.incoming_number) LIKE $%d OR LOWER(inc.content) LIKE $%d OR LOWER(out.outgoing_number) LIKE $%d OR LOWER(out.subject) LIKE $%d)", argIdx, argIdx, argIdx, argIdx, argIdx))
 		args = append(args, search, search, search, search, search)
 		argIdx++
 	}

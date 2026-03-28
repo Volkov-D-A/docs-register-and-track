@@ -40,6 +40,29 @@ func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *moc
 	return svc, depRepo, auth
 }
 
+func setupDepartmentServiceWithRoles(t *testing.T, roles []string) (*DepartmentService, *mocks.DepartmentStore, *AuthService) {
+	t.Helper()
+	depRepo := mocks.NewDepartmentStore(t)
+	userRepo := mocks.NewUserStore(t)
+	auth := NewAuthService(nil, userRepo)
+
+	password := "Passw0rd!"
+	hash, _ := security.HashPassword(password)
+	user := &models.User{
+		ID:           uuid.New(),
+		Login:        "multi_dep_" + uuid.New().String(),
+		PasswordHash: hash,
+		IsActive:     true,
+		Roles:        roles,
+	}
+	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+	_, err := auth.Login(user.Login, password)
+	require.NoError(t, err)
+	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+
+	return NewDepartmentService(depRepo, auth, nil), depRepo, auth
+}
+
 func TestDepartmentService_GetAllDepartments(t *testing.T) {
 	// Получение списка всех подразделений организации
 	t.Run("успех", func(t *testing.T) {
@@ -98,6 +121,16 @@ func TestDepartmentService_CreateDepartment(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
+
+	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
+		svc, _, auth := setupDepartmentServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
+		result, err := svc.CreateDepartment("Test", []string{})
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
+	})
 }
 
 func TestDepartmentService_UpdateDepartment(t *testing.T) {
@@ -133,6 +166,16 @@ func TestDepartmentService_UpdateDepartment(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
+
+	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
+		svc, _, auth := setupDepartmentServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
+		result, err := svc.UpdateDepartment(idStr, "Тест", nil)
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
+	})
 }
 
 func TestDepartmentService_DeleteDepartment(t *testing.T) {
@@ -156,6 +199,15 @@ func TestDepartmentService_DeleteDepartment(t *testing.T) {
 
 	t.Run("запрещено (не админ)", func(t *testing.T) {
 		svc, _, _ := setupDepartmentService(t, "clerk")
+		err := svc.DeleteDepartment(idStr)
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+	})
+
+	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
+		svc, _, auth := setupDepartmentServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
 		err := svc.DeleteDepartment(idStr)
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)

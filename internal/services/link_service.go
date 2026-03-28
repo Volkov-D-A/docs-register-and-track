@@ -39,10 +39,10 @@ func NewLinkService(
 
 // LinkDocuments создает связь указанного типа между двумя документами.
 func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, targetType, linkType string) (*dto.DocumentLink, error) {
-	userIDStr := s.authService.GetCurrentUserID()
-	if userIDStr == "" {
-		return nil, fmt.Errorf("unauthorized")
+	if err := requireClerkDocumentRole(s.authService); err != nil {
+		return nil, err
 	}
+	userIDStr := s.authService.GetCurrentUserID()
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID: %w", err)
@@ -100,6 +100,10 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, target
 
 // UnlinkDocument удаляет связь между документами по её ID.
 func (s *LinkService) UnlinkDocument(idStr string) error {
+	if err := requireClerkDocumentRole(s.authService); err != nil {
+		return err
+	}
+
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
@@ -133,6 +137,10 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 
 // GetDocumentLinks возвращает список всех прямых связей для указанного документа.
 func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, error) {
+	if err := requireClerkDocumentRole(s.authService); err != nil {
+		return nil, err
+	}
+
 	docID, err := uuid.Parse(docIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
@@ -143,6 +151,10 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 
 // GetDocumentFlow возвращает граф связей для документа, включая связанные узлы (документы) и ребра (связи) для визуализации.
 func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, error) {
+	if err := requireClerkDocumentRole(s.authService); err != nil {
+		return nil, err
+	}
+
 	rootID, err := uuid.Parse(rootIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)

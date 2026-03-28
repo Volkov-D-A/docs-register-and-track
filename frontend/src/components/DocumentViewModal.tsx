@@ -244,7 +244,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             footer={
                 <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                     <div>
-                        {(currentRole === 'admin' || currentRole === 'clerk') && data && (
+                        {(currentRole === 'clerk') && data && (
                             <Space>
                                 <Button onClick={() => {
                                     useDraftLinkStore.getState().setDraftLink(data.id, documentType, getNumber(), 'incoming');

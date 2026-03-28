@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"encoding/base64"
 	"fmt"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"mime"
 	"os"
 	"os/exec"
@@ -21,6 +21,9 @@ import (
 // AttachmentService предоставляет бизнес-логику для работы с вложениями (файлами) документов.
 type AttachmentService struct {
 	repo            AttachmentStore
+	incomingDocRepo IncomingDocStore
+	outgoingDocRepo OutgoingDocStore
+	depRepo         DepartmentStore
 	settingsService *SettingsService
 	authService     *AuthService
 	journal         *JournalService
@@ -29,9 +32,12 @@ type AttachmentService struct {
 }
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
-func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService, auditService *AdminAuditLogService, fs FileStorage) *AttachmentService {
+func NewAttachmentService(repo AttachmentStore, incomingDocRepo IncomingDocStore, outgoingDocRepo OutgoingDocStore, depRepo DepartmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService, auditService *AdminAuditLogService, fs FileStorage) *AttachmentService {
 	return &AttachmentService{
 		repo:            repo,
+		incomingDocRepo: incomingDocRepo,
+		outgoingDocRepo: outgoingDocRepo,
+		depRepo:         depRepo,
 		settingsService: settingsService,
 		authService:     authService,
 		journal:         journal,
@@ -47,13 +53,16 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 		return nil, models.ErrUnauthorized
 	}
 
-	if err := s.authService.RequireAnyRole("clerk", "admin"); err != nil {
+	if err := requireClerkDocumentRole(s.authService); err != nil {
 		return nil, err
 	}
 
 	documentID, err := uuid.Parse(documentIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID")
+	}
+	if err := requireDocumentReadAccess(s.authService, s.depRepo, s.incomingDocRepo, s.outgoingDocRepo, documentType, documentID); err != nil {
+		return nil, err
 	}
 
 	// 1. Декодирование содержимого
@@ -134,13 +143,12 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 
 // GetList — получить вложения документа
 func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, error) {
-	if !s.authService.IsAuthenticated() {
-		return nil, models.ErrUnauthorized
-	}
-
 	documentID, err := uuid.Parse(documentIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID")
+	}
+	if err := requireAnyDocumentReadAccess(s.authService, s.depRepo, s.incomingDocRepo, s.outgoingDocRepo, documentID); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.GetByDocumentID(documentID)
 	return dto.MapAttachments(res), err
@@ -148,6 +156,10 @@ func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, err
 
 // Download — получить содержимое файла в формате base64
 func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error) {
+	if err := requireDocumentDomainReadRole(s.authService); err != nil {
+		return nil, err
+	}
+
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid attachment ID")
@@ -156,6 +168,12 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 	// Получение метаданных файла
 	attachment, err := s.repo.GetByID(id)
 	if err != nil {
+		return nil, err
+	}
+	if attachment == nil {
+		return nil, nil
+	}
+	if err := requireDocumentReadAccess(s.authService, s.depRepo, s.incomingDocRepo, s.outgoingDocRepo, attachment.DocumentType, attachment.DocumentID); err != nil {
 		return nil, err
 	}
 
@@ -174,7 +192,7 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 // Delete — удалить вложение
 func (s *AttachmentService) Delete(idStr string) error {
 	// Проверка прав доступа
-	if err := s.authService.RequireAnyRole("clerk", "admin"); err != nil {
+	if err := requireClerkDocumentRole(s.authService); err != nil {
 		return err
 	}
 
@@ -187,6 +205,9 @@ func (s *AttachmentService) Delete(idStr string) error {
 	attachment, err := s.repo.GetByID(id)
 	if err != nil {
 		return err
+	}
+	if attachment == nil {
+		return nil
 	}
 
 	// Удаление из файлового хранилища
@@ -213,6 +234,10 @@ func (s *AttachmentService) Delete(idStr string) error {
 
 // DownloadToDisk — сохранить файл в папку «Загрузки» пользователя и вернуть полный путь
 func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
+	if err := requireDocumentDomainReadRole(s.authService); err != nil {
+		return "", err
+	}
+
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return "", fmt.Errorf("invalid attachment ID")
@@ -221,6 +246,12 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	// Получение метаданных
 	attachment, err := s.repo.GetByID(id)
 	if err != nil {
+		return "", err
+	}
+	if attachment == nil {
+		return "", nil
+	}
+	if err := requireDocumentReadAccess(s.authService, s.depRepo, s.incomingDocRepo, s.outgoingDocRepo, attachment.DocumentType, attachment.DocumentID); err != nil {
 		return "", err
 	}
 
@@ -351,7 +382,7 @@ func (s *AttachmentService) OpenFolder(path string) error {
 // BulkDeleteOlderThan — массовое удаление файлов, загруженных до указанной даты
 func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	// Проверка прав доступа
-	if err := s.authService.RequireRole("admin"); err != nil {
+	if err := s.authService.RequireActiveRole("admin"); err != nil {
 		return 0, err
 	}
 

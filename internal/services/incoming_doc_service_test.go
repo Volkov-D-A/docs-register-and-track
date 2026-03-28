@@ -102,6 +102,31 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 
 		authService.Logout()
 	})
+
+	t.Run("запрещено администратор", func(t *testing.T) {
+		adminUser := &models.User{
+			ID:           uuid.New(),
+			Login:        "admin",
+			PasswordHash: hash,
+			IsActive:     true,
+			Roles:        []string{"admin"},
+		}
+
+		authRepo.On("GetByLogin", "admin").Return(adminUser, nil).Once()
+		authService.Login("admin", password)
+		authRepo.On("GetByID", adminUser.ID).Return(adminUser, nil).Maybe()
+
+		doc, err := docService.Register(
+			uuid.New().String(), uuid.New().String(), "Sender",
+			"2024-01-01", "2024-01-01", "", "", "", "", 1, "", "", "", "",
+		)
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrForbidden)
+		assert.Nil(t, doc)
+
+		authService.Logout()
+	})
 }
 
 func setupIncomingDocService(t *testing.T, role string) (
@@ -141,7 +166,7 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _, _ := setupIncomingDocService(t, "executor")
+		svc, repo, _, _, _ := setupIncomingDocService(t, "clerk")
 		repo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, Content: "Тема"}, nil).Once()
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
@@ -156,21 +181,29 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid ID")
 		assert.Nil(t, result)
 	})
+
+	t.Run("admin forbidden", func(t *testing.T) {
+		svc, _, _, _, _ := setupIncomingDocService(t, "admin")
+		result, err := svc.GetByID(docID.String())
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrForbidden)
+		assert.Nil(t, result)
+	})
 }
 
 func TestIncomingDocumentService_Delete(t *testing.T) {
 	// Удаление карточки входящего документа
 	docID := uuid.New()
 
-	t.Run("success admin", func(t *testing.T) {
-		svc, repo, _, _, _ := setupIncomingDocService(t, "admin")
+	t.Run("success clerk", func(t *testing.T) {
+		svc, repo, _, _, _ := setupIncomingDocService(t, "clerk")
 		repo.On("Delete", docID).Return(nil).Once()
 		err := svc.Delete(docID.String())
 		require.NoError(t, err)
 	})
 
-	t.Run("forbidden clerk", func(t *testing.T) {
-		svc, _, _, _, _ := setupIncomingDocService(t, "clerk")
+	t.Run("forbidden admin", func(t *testing.T) {
+		svc, _, _, _, _ := setupIncomingDocService(t, "admin")
 		err := svc.Delete(docID.String())
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)

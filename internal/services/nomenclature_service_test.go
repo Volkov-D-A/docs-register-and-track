@@ -41,6 +41,29 @@ func setupNomenclatureService(t *testing.T, role string) (*NomenclatureService, 
 	return svc, nomRepo, auth
 }
 
+func setupNomenclatureServiceWithRoles(t *testing.T, roles []string) (*NomenclatureService, *mocks.NomenclatureStore, *AuthService) {
+	t.Helper()
+	nomRepo := mocks.NewNomenclatureStore(t)
+	userRepo := mocks.NewUserStore(t)
+	auth := NewAuthService(nil, userRepo)
+
+	password := "Passw0rd!"
+	hash, _ := security.HashPassword(password)
+	user := &models.User{
+		ID:           uuid.New(),
+		Login:        "multi_nom_" + uuid.New().String(),
+		PasswordHash: hash,
+		IsActive:     true,
+		Roles:        roles,
+	}
+	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+	_, err := auth.Login(user.Login, password)
+	require.NoError(t, err)
+	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+
+	return NewNomenclatureService(nomRepo, auth, nil), nomRepo, auth
+}
+
 func TestNomenclatureService_GetAll(t *testing.T) {
 	// Получение полного списка дел номенклатуры с учетом прав доступа
 	t.Run("успех", func(t *testing.T) {
@@ -123,6 +146,16 @@ func TestNomenclatureService_Create(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
+	t.Run("запрещено при активной executor роли у мульти-ролевого пользователя", func(t *testing.T) {
+		svc, _, auth := setupNomenclatureServiceWithRoles(t, []string{"admin", "executor"})
+		require.NoError(t, auth.SetActiveRole("executor"))
+
+		result, err := svc.Create("Test", "idx", 2024, "dir")
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
+	})
+
 	t.Run("ошибка базы", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "admin")
 		repo.On("Create", "Test", "idx", 2024, "dir").Return(nil, errors.New("db create error")).Once()
@@ -165,6 +198,16 @@ func TestNomenclatureService_Update(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
+
+	t.Run("запрещено при активной executor роли у мульти-ролевого пользователя", func(t *testing.T) {
+		svc, _, auth := setupNomenclatureServiceWithRoles(t, []string{"admin", "executor"})
+		require.NoError(t, auth.SetActiveRole("executor"))
+
+		result, err := svc.Update(idStr, "Тест", "idx", 2024, "dir", true)
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
+	})
 }
 
 func TestNomenclatureService_Delete(t *testing.T) {
@@ -188,6 +231,15 @@ func TestNomenclatureService_Delete(t *testing.T) {
 
 	t.Run("запрещено (делопроизводитель)", func(t *testing.T) { // доступно только админам
 		svc, _, _ := setupNomenclatureService(t, "clerk")
+		err := svc.Delete(idStr)
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+	})
+
+	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
+		svc, _, auth := setupNomenclatureServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
 		err := svc.Delete(idStr)
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)

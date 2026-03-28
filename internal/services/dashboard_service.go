@@ -35,28 +35,12 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 		return nil, err
 	}
 
-	// Определение эффективной роли
-	role := "executor"
-
-	// Если запрошена конкретная роль, проверяем наличие у пользователя
-	if requestedRole != "" {
-		if s.auth.HasRole(requestedRole) {
-			role = requestedRole
-		} else {
-			// Фолбэк на иерархию ролей по умолчанию
-			if s.auth.HasRole("admin") {
-				role = "admin"
-			} else if s.auth.HasRole("clerk") {
-				role = "clerk"
-			}
-		}
-	} else {
-		// Иерархия ролей по умолчанию, если роль не запрошена
-		if s.auth.HasRole("admin") {
-			role = "admin"
-		} else if s.auth.HasRole("clerk") {
-			role = "clerk"
-		}
+	role := s.auth.GetActiveRole()
+	if role == "" {
+		role = "executor"
+	}
+	if requestedRole != "" && requestedRole != role {
+		return nil, models.ErrForbidden
 	}
 
 	// Инициализация пустым списком для избежания null в JSON
@@ -70,7 +54,6 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 	case "admin":
 		result, err = s.getAdminStats(stats)
 	case "clerk":
-
 		// Parse dates
 		var startDate, endDate time.Time
 

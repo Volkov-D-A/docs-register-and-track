@@ -39,6 +39,32 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	return NewSettingsService(db, settingsRepo, auth, nil), settingsRepo
 }
 
+func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsService, *mocks.SettingsStore, *AuthService, *models.User) {
+	t.Helper()
+	settingsRepo := mocks.NewSettingsStore(t)
+	userRepo := mocks.NewUserStore(t)
+	auth := NewAuthService(nil, userRepo)
+
+	password := "Passw0rd!"
+	hash, _ := security.HashPassword(password)
+	user := &models.User{
+		ID:           uuid.New(),
+		Login:        "multi_role_set_" + uuid.New().String(),
+		PasswordHash: hash,
+		IsActive:     true,
+		Roles:        roles,
+	}
+	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+	auth.Login(user.Login, password)
+	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+
+	dbMock, _, err := sqlmock.New()
+	require.NoError(t, err)
+	db := &database.DB{DB: dbMock}
+
+	return NewSettingsService(db, settingsRepo, auth, nil), settingsRepo, auth, user
+}
+
 func TestSettingsService_GetAll(t *testing.T) {
 	// Получение полного списка системных настроек из базы
 	t.Run("success", func(t *testing.T) {
@@ -48,6 +74,16 @@ func TestSettingsService_GetAll(t *testing.T) {
 		result, err := svc.GetAll()
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
+	})
+
+	t.Run("forbidden when admin is not active role", func(t *testing.T) {
+		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
+		result, err := svc.GetAll()
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Equal(t, models.ErrForbidden, err)
 	})
 }
 
@@ -62,6 +98,15 @@ func TestSettingsService_Update(t *testing.T) {
 
 	t.Run("forbidden executor", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "executor")
+		err := svc.Update("key", "value")
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+	})
+
+	t.Run("forbidden when admin is not active role", func(t *testing.T) {
+		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
 		err := svc.Update("key", "value")
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
@@ -132,6 +177,15 @@ func TestSettingsService_RunMigrations(t *testing.T) {
 		assert.Contains(t, err.Error(), "Недостаточно прав")
 	})
 
+	t.Run("forbidden when admin is not active role", func(t *testing.T) {
+		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
+		err := svc.RunMigrations()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Недостаточно прав")
+	})
+
 	t.Run("success admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
 		// The db layer expects an actual database, which might crash, but we catch it
@@ -153,6 +207,16 @@ func TestSettingsService_GetMigrationStatus(t *testing.T) {
 		assert.Contains(t, err.Error(), "Недостаточно прав")
 	})
 
+	t.Run("forbidden when admin is not active role", func(t *testing.T) {
+		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
+		status, err := svc.GetMigrationStatus()
+		require.Error(t, err)
+		require.Nil(t, status)
+		assert.Contains(t, err.Error(), "Недостаточно прав")
+	})
+
 	t.Run("success admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
 		status, err := svc.GetMigrationStatus()
@@ -168,6 +232,15 @@ func TestSettingsService_RollbackMigration(t *testing.T) {
 	// Откат последней примененной миграции базы данных
 	t.Run("forbidden non-admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "executor")
+		err := svc.RollbackMigration()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Недостаточно прав")
+	})
+
+	t.Run("forbidden when admin is not active role", func(t *testing.T) {
+		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
 		err := svc.RollbackMigration()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Недостаточно прав")

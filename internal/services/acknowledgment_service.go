@@ -40,12 +40,7 @@ func (s *AcknowledgmentService) Create(
 	content string,
 	userIds []string,
 ) (*dto.Acknowledgment, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
-	}
-
-	// Проверка прав: делопроизводитель или админ
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+	if err := requireClerkDocumentRole(s.auth); err != nil {
 		return nil, err
 	}
 
@@ -106,8 +101,8 @@ func (s *AcknowledgmentService) Create(
 
 // GetList возвращает список задач на ознакомление для конкретного документа.
 func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := requireClerkDocumentRole(s.auth); err != nil {
+		return nil, err
 	}
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
@@ -119,8 +114,8 @@ func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment
 
 // GetPendingForCurrentUser возвращает список невыполненных задач на ознакомление для текущего авторизованного пользователя.
 func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAnyActiveRole("executor", "clerk"); err != nil {
+		return nil, err
 	}
 	userID := s.auth.GetCurrentUserID()
 	userUUID, err := uuid.Parse(userID)
@@ -132,12 +127,9 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 }
 
 // GetAllActive возвращает список всех активных (не завершенных) задач на ознакомление в системе.
-// Доступно только администраторам и делопроизводителям.
+// Доступно только делопроизводителям.
 func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
-	}
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+	if err := requireClerkDocumentRole(s.auth); err != nil {
 		return nil, err
 	}
 	res, err := s.repo.GetAllActive()
@@ -208,11 +200,7 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 
 // Delete удаляет задачу на ознакомление по её ID.
 func (s *AcknowledgmentService) Delete(id string) error {
-	if !s.auth.IsAuthenticated() {
-		return ErrNotAuthenticated
-	}
-	// Удалять могут админ и делопроизводитель
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+	if err := requireClerkDocumentRole(s.auth); err != nil {
 		return err
 	}
 

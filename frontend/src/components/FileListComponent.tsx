@@ -25,7 +25,7 @@ interface FileListComponentProps {
 const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, documentType, readOnly }) => {
     const { message } = App.useApp();
     const { currentRole } = useAuthStore();
-    const canEdit = !readOnly && (currentRole === 'clerk' || currentRole === 'admin');
+    const canEdit = !readOnly && currentRole === 'clerk';
 
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);

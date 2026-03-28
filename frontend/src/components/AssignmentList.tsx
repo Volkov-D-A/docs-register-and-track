@@ -139,15 +139,12 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
             title: '', key: 'actions', width: 150,
             render: (_: any, r: any) => {
                 const isExecutor = user?.id === r.executorId && currentRole === 'executor';
-                const isAdmin = hasRole('admin');
                 const isClerk = hasRole('clerk');
 
-                // Admin can edit all. Clerk can edit if not finished.
-                const canEdit = isAdmin || (isClerk && r.status !== 'finished');
+                const canEdit = isClerk && r.status !== 'finished';
 
                 return (
                     <Space size={2}>
-                        {/* Edit/Delete for Admin or Clerk */}
                         {canEdit && (
                             <>
                                 <Button size="small" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />
@@ -173,16 +170,9 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
                             </Tooltip>
                         )}
 
-                        {/* Return/Cancel: Admin, status=completed/in_progress */}
-                        {isAdmin && r.status === 'completed' && (
+                        {isClerk && r.status === 'completed' && (
                             <Tooltip title="Вернуть на доработку">
                                 <Button size="small" icon={<UndoOutlined />} onClick={() => updateStatus(r.id, 'returned')} />
-                            </Tooltip>
-                        )}
-
-                        {isAdmin && r.status !== 'cancelled' && r.status !== 'completed' && (
-                            <Tooltip title="Отменить">
-                                <Button size="small" icon={<CloseCircleOutlined />} danger onClick={() => updateStatus(r.id, 'cancelled')} />
                             </Tooltip>
                         )}
                     </Space>

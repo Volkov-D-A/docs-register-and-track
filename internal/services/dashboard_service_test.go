@@ -173,11 +173,8 @@ func TestDashboardService_GetStats(t *testing.T) {
 		authService.Login(login, password)
 		authRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 
-		// Ask for admin role, but user doesn't have it, so it falls back to executor
-		mockRepo.On("GetExecutorStatusCounts", executorUser.ID).Return(0, 0, assert.AnError).Once()
-
 		stats, err := dashboardService.GetStats("admin", "", "")
-		require.ErrorIs(t, err, assert.AnError)
+		require.ErrorIs(t, err, models.ErrForbidden)
 		require.Nil(t, stats)
 
 		authService.Logout()

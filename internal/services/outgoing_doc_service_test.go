@@ -78,6 +78,14 @@ func TestOutgoingDocService_Register(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
+	t.Run("forbidden admin", func(t *testing.T) {
+		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
+		result, err := svc.Register(nomID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Тема", "Контент", 3, "Подписант", "Исполнитель")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrForbidden)
+		assert.Nil(t, result)
+	})
+
 	t.Run("invalid nomenclature", func(t *testing.T) {
 		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 		result, err := svc.Register("not-uuid", docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Тема", "Контент", 3, "Подписант", "Исполнитель")
@@ -129,7 +137,7 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
+		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 		outRepo.On("GetByID", docID).Return(&models.OutgoingDocument{ID: docID, Subject: "Тема"}, nil).Once()
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
@@ -138,10 +146,18 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
+		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 		outRepo.On("GetByID", docID).Return((*models.OutgoingDocument)(nil), nil).Once()
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("admin forbidden", func(t *testing.T) {
+		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
+		result, err := svc.GetByID(docID.String())
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
 }
@@ -150,15 +166,15 @@ func TestOutgoingDocService_Delete(t *testing.T) {
 	// Удаление исходящего документа из системы
 	docID := uuid.New()
 
-	t.Run("success admin", func(t *testing.T) {
-		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
+	t.Run("success clerk", func(t *testing.T) {
+		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 		outRepo.On("Delete", docID).Return(nil).Once()
 		err := svc.Delete(docID.String())
 		require.NoError(t, err)
 	})
 
-	t.Run("forbidden clerk", func(t *testing.T) {
-		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
+	t.Run("forbidden admin", func(t *testing.T) {
+		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
 		err := svc.Delete(docID.String())
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)

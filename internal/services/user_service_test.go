@@ -73,6 +73,18 @@ func TestUserService_GetAllUsers(t *testing.T) {
 		assert.Equal(t, ErrNotAuthenticated, err)
 		assert.Nil(t, users)
 	})
+
+	t.Run("success with active clerk for multi-role user", func(t *testing.T) {
+		svc, repo, auth := setupUserServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
+		usersList := []models.User{*regularUser}
+		repo.On("GetAll").Return(usersList, nil).Once()
+
+		users, err := svc.GetAllUsers()
+		require.NoError(t, err)
+		assert.Len(t, users, 1)
+	})
 }
 
 func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore) {
@@ -97,6 +109,29 @@ func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore
 	return NewUserService(mockRepo, auth, nil), mockRepo
 }
 
+func setupUserServiceWithRoles(t *testing.T, roles []string) (*UserService, *mocks.UserStore, *AuthService) {
+	t.Helper()
+	mockRepo := mocks.NewUserStore(t)
+	authRepo := mocks.NewUserStore(t)
+	auth := NewAuthService(nil, authRepo)
+
+	password := "Passw0rd!"
+	hash, _ := security.HashPassword(password)
+	user := &models.User{
+		ID:           uuid.New(),
+		Login:        "multi_usr_" + uuid.New().String(),
+		PasswordHash: hash,
+		IsActive:     true,
+		Roles:        roles,
+	}
+	authRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+	_, err := auth.Login(user.Login, password)
+	require.NoError(t, err)
+	authRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+
+	return NewUserService(mockRepo, auth, nil), mockRepo, auth
+}
+
 func TestUserService_CreateUser(t *testing.T) {
 	// Создание новой карточки пользователя системы
 	t.Run("success admin", func(t *testing.T) {
@@ -110,6 +145,16 @@ func TestUserService_CreateUser(t *testing.T) {
 
 	t.Run("forbidden clerk", func(t *testing.T) {
 		svc, _ := setupUserService(t, "clerk")
+		result, err := svc.CreateUser(models.CreateUserRequest{})
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("forbidden when admin is not active role", func(t *testing.T) {
+		svc, _, auth := setupUserServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
 		result, err := svc.CreateUser(models.CreateUserRequest{})
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
@@ -133,6 +178,17 @@ func TestUserService_UpdateUser(t *testing.T) {
 		svc, _ := setupUserService(t, "executor")
 		result, err := svc.UpdateUser(models.UpdateUserRequest{})
 		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("forbidden when admin is not active role", func(t *testing.T) {
+		svc, _, auth := setupUserServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
+		result, err := svc.UpdateUser(models.UpdateUserRequest{})
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
 }
@@ -158,6 +214,15 @@ func TestUserService_ResetPassword(t *testing.T) {
 		svc, _ := setupUserService(t, "admin")
 		err := svc.ResetPassword("not-uuid", "NewPass123!")
 		require.Error(t, err)
+	})
+
+	t.Run("forbidden when admin is not active role", func(t *testing.T) {
+		svc, _, auth := setupUserServiceWithRoles(t, []string{"admin", "clerk"})
+		require.NoError(t, auth.SetActiveRole("clerk"))
+
+		err := svc.ResetPassword(uid.String(), "NewPass123!")
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
 	})
 }
 

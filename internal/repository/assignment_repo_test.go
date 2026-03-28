@@ -31,7 +31,7 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
-			COALESCE(inc.subject, out.subject) as doc_subject
+			COALESCE(inc.content, out.subject) as doc_subject
 		FROM assignments a
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
 		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
@@ -136,7 +136,7 @@ func TestAssignmentRepository_Create(t *testing.T) {
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
-			COALESCE(inc.subject, out.subject) as doc_subject
+			COALESCE(inc.content, out.subject) as doc_subject
 		FROM assignments a`
 
 	rows := sqlmock.NewRows([]string{
@@ -225,7 +225,7 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
 			COALESCE\(inc.incoming_number, out.outgoing_number\) as doc_number,
-			COALESCE\(inc.subject, out.subject\) as doc_subject
+			COALESCE\(inc.content, out.subject\) as doc_subject
 		FROM assignments a(.*)`
 
 	mock.ExpectQuery(query).WillReturnRows(sqlmock.NewRows([]string{
@@ -245,4 +245,3 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 	assert.Len(t, res.Items, 1)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
-

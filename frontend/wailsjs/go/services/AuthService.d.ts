@@ -6,6 +6,8 @@ import {models} from '../models';
 
 export function ChangePassword(arg1:string,arg2:string):Promise<void>;
 
+export function GetActiveRole():Promise<string>;
+
 export function GetCurrentAuditInfo():Promise<uuid.UUID|string>;
 
 export function GetCurrentUser():Promise<dto.User>;
@@ -13,6 +15,8 @@ export function GetCurrentUser():Promise<dto.User>;
 export function GetCurrentUserID():Promise<string>;
 
 export function GetCurrentUserUUID():Promise<uuid.UUID>;
+
+export function HasActiveRole(arg1:string):Promise<boolean>;
 
 export function HasRole(arg1:string):Promise<boolean>;
 
@@ -26,8 +30,14 @@ export function Logout():Promise<void>;
 
 export function NeedsInitialSetup():Promise<boolean>;
 
+export function RequireActiveRole(arg1:string):Promise<void>;
+
+export function RequireAnyActiveRole(arg1:Array<string>):Promise<void>;
+
 export function RequireAnyRole(arg1:Array<string>):Promise<void>;
 
 export function RequireRole(arg1:string):Promise<void>;
+
+export function SetActiveRole(arg1:string):Promise<void>;
 
 export function UpdateProfile(arg1:models.UpdateProfileRequest):Promise<void>;

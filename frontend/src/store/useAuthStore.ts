@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Login, Logout, ChangePassword, UpdateProfile } from '../../wailsjs/go/services/AuthService';
+import { Login, Logout, ChangePassword, UpdateProfile, SetActiveRole } from '../../wailsjs/go/services/AuthService';
 import { models } from '../../wailsjs/go/models';
 
 /**
@@ -81,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isLoading: false,
                 currentRole: defaultRole,
             });
+            await SetActiveRole(defaultRole);
         } catch (err: any) {
             set({ error: err?.message || String(err) || 'Ошибка входа', isLoading: false });
         }
@@ -142,6 +143,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const { user } = get();
         if (user?.roles?.includes(role)) {
             set({ currentRole: role });
+            void SetActiveRole(role).catch((err) => {
+                console.error('SetActiveRole error:', err);
+            });
         }
     }
 }));

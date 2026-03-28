@@ -90,7 +90,15 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "")
 		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "incoming", "outgoing", "ответ")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unauthorized")
+		assert.ErrorIs(t, err, models.ErrUnauthorized)
+		assert.Nil(t, result)
+	})
+
+	t.Run("executor не может создавать связи", func(t *testing.T) {
+		svc, _, _, _, _ := setupLinkService(t, "executor")
+		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "incoming", "outgoing", "ответ")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
 }
@@ -103,7 +111,7 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 		svc, repo, _, _, _ := setupLinkService(t, "clerk")
 		rootID := uuid.New()
 		targetID := uuid.New()
-		
+
 		repo.On("GetByID", context.Background(), linkID).Return(&models.DocumentLink{
 			ID:         linkID,
 			SourceID:   rootID,
@@ -122,6 +130,13 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 		err := svc.UnlinkDocument("invalid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid ID")
+	})
+
+	t.Run("executor не может удалять связи", func(t *testing.T) {
+		svc, _, _, _, _ := setupLinkService(t, "executor")
+		err := svc.UnlinkDocument(linkID.String())
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrForbidden)
 	})
 }
 
@@ -147,6 +162,14 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 		result, err := svc.GetDocumentLinks("invalid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid document ID")
+		assert.Nil(t, result)
+	})
+
+	t.Run("executor не может читать связи", func(t *testing.T) {
+		svc, _, _, _, _ := setupLinkService(t, "executor")
+		result, err := svc.GetDocumentLinks(docID.String())
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
 }
@@ -203,6 +226,16 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		result, err := svc.GetDocumentFlow("invalid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid document ID")
+		assert.Nil(t, result)
+	})
+
+	t.Run("admin не может читать граф связей", func(t *testing.T) {
+		svc, _, _, _, auth := setupLinkService(t, "admin")
+		require.Equal(t, "admin", auth.GetActiveRole())
+
+		result, err := svc.GetDocumentFlow(rootID.String())
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
 }

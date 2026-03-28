@@ -46,10 +46,10 @@ const DashboardPage: React.FC = () => {
             // @ts-ignore
             const { GetPendingForCurrentUser, GetAllActive } = await import('../../wailsjs/go/services/AcknowledgmentService');
 
-            let acks = [];
-            if (currentRole === 'admin' || currentRole === 'clerk') {
+            let acks: any[] = [];
+            if (currentRole === 'clerk') {
                 acks = await GetAllActive();
-            } else {
+            } else if (currentRole === 'executor') {
                 acks = await GetPendingForCurrentUser();
             }
             setPendingAcks(acks || []);
@@ -120,7 +120,7 @@ const DashboardPage: React.FC = () => {
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                                         <Text style={{ whiteSpace: 'pre-wrap', marginRight: 8, wordBreak: 'break-word' }}>{item.content}</Text>
-                                        {item.documentNumber && (
+                                        {item.documentNumber && activeRole !== 'admin' && (
                                             <Tag
                                                 style={{ cursor: 'pointer', margin: 0, flexShrink: 0 }}
                                                 onClick={(e) => {
@@ -152,7 +152,7 @@ const DashboardPage: React.FC = () => {
 
     const PendingAcksList = () => {
         const hasItems = pendingAcks && pendingAcks.length > 0;
-        const title = (activeRole === 'admin' || activeRole === 'clerk') ? "Все текущие ознакомления" : "Мои ознакомления";
+        const title = activeRole === 'clerk' ? "Все текущие ознакомления" : "Мои ознакомления";
         return (
             <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                 {!hasItems ? (
@@ -164,8 +164,11 @@ const DashboardPage: React.FC = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                                     <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginRight: 8 }}>{item.content || 'Без описания'}</Text>
                                     <Tag
-                                        style={{ cursor: 'pointer', margin: 0, flexShrink: 0 }}
+                                        style={{ cursor: activeRole === 'admin' ? 'default' : 'pointer', margin: 0, flexShrink: 0 }}
                                         onClick={(e) => {
+                                            if (activeRole === 'admin') {
+                                                return;
+                                            }
                                             e.stopPropagation();
                                             setViewDocId(item.documentId);
                                             setViewDocType(item.documentType as 'incoming' | 'outgoing');
@@ -176,7 +179,7 @@ const DashboardPage: React.FC = () => {
                                     </Tag>
                                 </div>
 
-                                {(activeRole === 'admin' || activeRole === 'clerk') ? (
+                                {activeRole === 'clerk' ? (
                                     <div style={{ marginTop: 8 }}>
                                         {item.users && item.users.length > 0 ? (
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -308,9 +311,6 @@ const DashboardPage: React.FC = () => {
                     <StatCard title="Пользователи" value={stats?.userCount || 0} icon={<UserOutlined />} color="#1890ff" />
                 </Col>
                 <Col xs={24} sm={8}>
-                    <StatCard title="Документы" value={stats?.totalDocuments || 0} icon={<FileTextOutlined />} />
-                </Col>
-                <Col xs={24} sm={8}>
                     <StatCard title="БД" value={stats?.dbSize || "N/A"} icon={<DatabaseOutlined />} color="#52c41a" />
                 </Col>
             </Row>
@@ -336,12 +336,14 @@ const DashboardPage: React.FC = () => {
             {activeRole === 'clerk' && renderClerkView()}
             {activeRole !== 'admin' && activeRole !== 'clerk' && renderExecutorView()}
 
-            <DocumentViewModal
-                open={viewModalOpen}
-                onCancel={() => setViewModalOpen(false)}
-                documentId={viewDocId}
-                documentType={viewDocType}
-            />
+            {activeRole !== 'admin' && (
+                <DocumentViewModal
+                    open={viewModalOpen}
+                    onCancel={() => setViewModalOpen(false)}
+                    documentId={viewDocId}
+                    documentType={viewDocType}
+                />
+            )}
         </div>
     );
 };

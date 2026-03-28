@@ -1,90 +1,225 @@
-# Документация проекта: Система регистрации документов (Docflow)
+# Документация проекта: Docflow
 
-## 1. Описание проекта
-**Docflow** — это электронная система регистрации и отслеживания документов, построенная с использованием гибридной архитектуры на базе фреймворка **Wails**. Приложение предоставляет полнофункциональный настольный клиент для управления документооборотом: входящими и исходящими документами, поручениями, справочниками и номенклатурой дел.
+## 1. Назначение проекта
 
-## 2. Стек технологий
+**Docflow** — настольная система регистрации и отслеживания документов на базе **Wails**. Приложение предназначено для ведения входящих и исходящих документов, работы с поручениями, ознакомлениями, вложениями, номенклатурой дел и административными справочниками.
 
-### Backend (Ядро приложения)
-- **Язык разработки:** Go 1.24.0
-- **Десктопный фреймворк:** Wails v2 (v2.11.0)
-- **База данных:** PostgreSQL
-- **Драйвер БД:** `github.com/lib/pq`
-- **Миграции БД:** `github.com/golang-migrate/migrate/v4`
-- **Прочее:**
-  - Шифрование и безопасность паролей: `golang.org/x/crypto`
-  - Уникальные идентификаторы: `github.com/google/uuid`
-  - Тестирование: `github.com/stretchr/testify`, `github.com/DATA-DOG/go-sqlmock`
+Ключевая особенность текущей версии: backend является источником истины для авторизации. Ограничения доступа не должны обеспечиваться только скрытием экранов во frontend.
 
-### Frontend (Пользовательский интерфейс)
-- **Библиотека:** React 18
-- **UI Фреймворк:** Ant Design (v6.3.0) + `@ant-design/icons`
-- **Управление состоянием:** Zustand
-- **Сборщик:** Vite + TypeScript
-- **Работа с датами:** Day.js
-- **Визуализация (Графы/Схемы):** `@xyflow/react`
+## 2. Технологический стек
 
-## 3. Архитектура проекта
+### Backend
 
-Проект разработан с учетом чистой архитектуры и паттерна внедрения зависимостей.
+- Go 1.24
+- Wails v2
+- PostgreSQL
+- `github.com/lib/pq`
+- миграции БД через `github.com/golang-migrate/migrate/v4`
+- `github.com/google/uuid`
+- `golang.org/x/crypto`
+- `stretchr/testify`, `go-sqlmock`
+
+### Frontend
+
+- React 18
+- TypeScript
+- Vite
+- Ant Design
+- Zustand
+- Day.js
+- `@xyflow/react`
+
+## 3. Архитектура
+
+Проект построен как desktop-приложение с Go backend и React frontend.
+
 Основные директории:
-- `cmd/` - Точки входа (если применимо помимо main.go).
-- `config/` - Настройки приложения.
-- `internal/` - Скрытая логика приложения:
-  - `database/` - Подключение к PostgreSQL и скрипты миграций.
-  - `repository/` - Слой взаимодействия с базой данных (CRUD операции).
-  - `services/` - Бизнес-логика приложения (обработка документов, аутентификация и т.д.).
-- `frontend/` - Веб-интерфейс приложения на React.
-- `docs/` - Документация проекта.
-- `main.go` - Точка входа в приложение Wails, инициализация компонентов и байндинг сервисов к фронтенду.
 
-### Основные модули (Сервисы)
-1. **AuthService / UserService** — Авторизация и управление пользователями.
-2. **NomenclatureService** — Управление номенклатурой дел.
-3. **ReferenceService** — Ведение справочников.
-4. **IncomingDocumentService** — Регистрация и обработка входящих документов.
-5. **OutgoingDocumentService** — Регистрация и отслеживание исходящих документов.
-6. **AssignmentService** — Управление поручениями по документам.
-7. **DepartmentService** — Управление организационной структурой (отделами).
-8. **AttachmentService** — Управление прикрепленными файлами.
-9. **LinkService** — Связи между документами (входящие-исходящие-поручения).
-10. **AcknowledgmentService** — Подтверждение ознакомления с документами.
-11. **DashboardService** — Формирование сводной информации для рабочей панели.
-12. **SettingsService** — Системные настройки.
+- `internal/database` — подключение к БД и миграции
+- `internal/repository` — слой доступа к данным
+- `internal/services` — бизнес-логика и авторизация
+- `internal/models` — доменные модели
+- `internal/dto` — DTO и маппинг
+- `frontend/src` — UI и client-side state
+- `docs` — проектная документация
+- `main.go` — сборка зависимостей и binding сервисов в Wails
 
-## 4. Развертывание и Запуск
+### Основные сервисы
 
-### Требования:
-- Установленный Go (версии 1.24+)
-- Node.js (версии 25.x+) и npm
+- `AuthService` — логин, logout, текущий пользователь, активная роль
+- `UserService` — пользователи и пароли
+- `DepartmentService` — подразделения
+- `NomenclatureService` — дела номенклатуры
+- `ReferenceService` — справочники типов документов, организаций и исполнителей резолюции
+- `IncomingDocumentService` — входящие документы
+- `OutgoingDocumentService` — исходящие документы
+- `AttachmentService` — вложения и файловые операции
+- `LinkService` — связи документов
+- `AssignmentService` — поручения
+- `AcknowledgmentService` — ознакомления
+- `DashboardService` — дашборд по роли
+- `SettingsService` — системные настройки и миграции
+- `AdminAuditLogService` — административный аудит
+
+## 4. Модель авторизации
+
+### Активная роль
+
+Пользователь может иметь несколько ролей, но backend применяет не весь набор ролей сразу, а **активную роль**.
+
+Текущая реализация:
+
+- активная роль хранится в `AuthService`
+- после логина выставляется роль по умолчанию
+- frontend синхронизирует переключение роли с backend через binding
+- backend-проверки используют `RequireActiveRole(...)` и `RequireAnyActiveRole(...)`
+
+Это нужно для того, чтобы пользователь с ролями, например, `admin + clerk` не сохранял административный доступ в document-domain, если сейчас работает в режиме `clerk`, и наоборот.
+
+### Общие правила
+
+- UI-ограничения не считаются механизмом безопасности
+- document-domain и admin-domain проверяются на backend
+- `admin` не является суперпользователем document-domain
+- доступ `executor` к документам ограничен номенклатурами его подразделения
+
+## 5. Матрица доступа
+
+### Роли
+
+#### `admin`
+
+Сервисный администратор. Работает только с системными и административными сущностями.
+
+Доступ:
+
+- пользователи и роли
+- подразделения
+- системные настройки
+- миграции БД
+- административный аудит
+- системный дашборд
+- административные справочники и оргструктура
+- batch/system операции административного характера
+
+Нет доступа:
+
+- входящие документы
+- исходящие документы
+- связи документов
+- вложения документов в рамках document-domain
+- поручения
+- ознакомления
+
+#### `clerk`
+
+Делопроизводитель. Имеет полный доступ к документному контуру.
+
+Доступ:
+
+- входящие документы: `list`, `get`, `create`, `update`, `delete`
+- исходящие документы: `list`, `get`, `create`, `update`, `delete`
+- связи документов: `list`, `get-graph`, `create`, `delete`
+- вложения: `list`, `upload`, `download`, `delete`
+- поручения: `list`, `get`, `create`, `update`, `delete`
+- review-переходы статусов поручений: `completed -> finished/returned`
+- ознакомления: `create`, `list`, `delete`
+- рабочие справочники и номенклатура: чтение и изменение там, где это разрешено бизнес-процессом
+- операционный дашборд
+
+#### `executor`
+
+Исполнитель. Работает только со своими задачами и доступными ему документами.
+
+Доступ:
+
+- входящие документы: `list`, `get` только в пределах разрешенных номенклатур
+- исходящие документы: `list`, `get` только в пределах разрешенных номенклатур
+- вложения: `list`, `download` только если доступен связанный документ
+- поручения: `list`, `get` только свои
+- смена статуса поручений: только своих
+- ознакомления: просмотр только своих, отметки `viewed` и `confirmed`
+- минимально необходимые справочники: только чтение
+- персональный дашборд
+
+Нет доступа:
+
+- создание, редактирование и удаление документов
+- связи документов
+- загрузка и удаление вложений
+- создание, редактирование и удаление поручений
+- создание и удаление ознакомлений
+
+### Матрица по сущностям
+
+| Сущность | admin | clerk | executor |
+| --- | --- | --- | --- |
+| Incoming documents | no | list/get/create/update/delete | list/get in allowed nomenclatures |
+| Outgoing documents | no | list/get/create/update/delete | list/get in allowed nomenclatures |
+| Document links | no | list/get-graph/create/delete | no |
+| Attachments | no | list/upload/download/delete | list/download if document is accessible |
+| Assignments | no | list/get/create/update/delete/status review | list/get own only, own status changes only |
+| Acknowledgments | no | create/list/delete | own only, viewed/confirmed |
+| Users and roles | full | limited if explicitly allowed | no |
+| Departments | full | limited if explicitly allowed | read only if needed |
+| Settings | full | no unless explicitly granted | no |
+| Migrations | full | no | no |
+| Admin audit log | full | no | no |
+| Reference data | full | read and modify where business process requires | read only minimal |
+| Dashboard | system | operational | personal |
+
+## 6. Реализованные изменения по безопасности доступа
+
+На текущем этапе уже внедрено:
+
+- backend-поддержка `activeRole`
+- синхронизация активной роли между frontend и backend
+- вынос `admin` из document-domain
+- backend-проверки доступа для документов, вложений, поручений, ознакомлений и связей
+- перевод admin-domain сервисов на `activeRole`
+- тесты для мульти-ролевых сценариев
+
+Кодовые опорные точки:
+
+- [auth_service.go](/home/dimas/projects/docs-register-and-track/internal/services/auth_service.go)
+- [access_policy.go](/home/dimas/projects/docs-register-and-track/internal/services/access_policy.go)
+- [useAuthStore.ts](/home/dimas/projects/docs-register-and-track/frontend/src/store/useAuthStore.ts)
+
+## 7. Запуск и разработка
+
+### Требования
+
+- Go 1.24+
+- Node.js и npm
 - Wails CLI
-- PostgreSQL (запущенный сервер)
-- ОС: Windows (целевая ОС, на которой ведется разработка)
+- PostgreSQL
+- целевая среда: Windows desktop
 
-### Локальный запуск (Режим разработки)
-> **ВАЖНО для Windows**: Все команды в терминале должны выполняться с префиксом `cmd /c`.
+### Локальный запуск
 
-1. **Запуск базы данных** (если используется Docker):
-   ```bash
-   cmd /c docker compose up -d
-   ```
-2. **Запуск приложения Wails (Live Reload режим):**
-   Эта команда соберет фронтенд и запустит бэкенд в режиме разработки.
-   ```bash
-   cmd /c wails dev
-   ```
+Если проект запускается в Windows-окружении разработки:
 
-### Сборка приложения (Production)
-Для сборки готового бинарного (.exe) файла приложения со встроенным фронтендом используйте команду:
+```bash
+cmd /c docker compose up -d
+cmd /c wails dev
+```
+
+### Production-сборка
+
 ```bash
 cmd /c wails build
 ```
-Готовый к запуску файл будет помещен в папку `build/bin/`.
 
-## 5. Дополнительная информация по фронтенду
-Для отдельной разработки фронтенда вы можете переходить в папку `frontend` и запускать Vite dev-сервер:
+Готовый бинарный файл попадает в `build/bin/`.
+
+### Отдельная разработка frontend
+
 ```bash
 cd frontend
 cmd /c npm run dev
 ```
-*(При этом запросы к API/Go-слою могут быть недоступны без запущенного бэкенда)*
+
+## 8. Связанные документы
+
+- [implementation_plan.md](/home/dimas/projects/docs-register-and-track/docs/implementation_plan.md)
+- [code_review.md](/home/dimas/projects/docs-register-and-track/docs/code_review.md)

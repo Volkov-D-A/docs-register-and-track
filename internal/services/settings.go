@@ -1,11 +1,12 @@
 package services
 
 import (
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 const migrationsPath = "internal/database/migrations"
@@ -30,13 +31,15 @@ func NewSettingsService(db *database.DB, repo SettingsStore, authService *AuthSe
 
 // GetAll возвращает все системные настройки.
 func (s *SettingsService) GetAll() ([]models.SystemSetting, error) {
-	// Пока разрешаем чтение всем авторизованным пользователям
+	if err := s.authService.RequireActiveRole("admin"); err != nil {
+		return nil, err
+	}
 	return s.repo.GetAll()
 }
 
 // Update обновляет значение настройки по ключу (только для администраторов).
 func (s *SettingsService) Update(key, value string) error {
-	if err := s.authService.RequireRole("admin"); err != nil {
+	if err := s.authService.RequireActiveRole("admin"); err != nil {
 		return err
 	}
 	if err := s.repo.Update(key, value); err != nil {
@@ -50,7 +53,7 @@ func (s *SettingsService) Update(key, value string) error {
 
 // RunMigrations запускает миграции БД (только admin).
 func (s *SettingsService) RunMigrations() error {
-	if !s.authService.HasRole("admin") {
+	if err := s.authService.RequireActiveRole("admin"); err != nil {
 		return models.NewForbidden("Недостаточно прав для управления миграциями")
 	}
 	if err := s.db.RunMigrations(migrationsPath); err != nil {
@@ -64,7 +67,7 @@ func (s *SettingsService) RunMigrations() error {
 
 // GetMigrationStatus возвращает текущий статус миграций БД (только admin).
 func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error) {
-	if !s.authService.HasRole("admin") {
+	if err := s.authService.RequireActiveRole("admin"); err != nil {
 		return nil, models.NewForbidden("Недостаточно прав для просмотра статуса миграций")
 	}
 	return s.db.GetMigrationStatus(migrationsPath)
@@ -72,7 +75,7 @@ func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error
 
 // RollbackMigration откатывает последнюю миграцию БД (только admin).
 func (s *SettingsService) RollbackMigration() error {
-	if !s.authService.HasRole("admin") {
+	if err := s.authService.RequireActiveRole("admin"); err != nil {
 		return models.NewForbidden("Недостаточно прав для отката миграций")
 	}
 	if err := s.db.RollbackMigration(migrationsPath); err != nil {
@@ -120,4 +123,3 @@ func (s *SettingsService) GetOrganizationName() string {
 	}
 	return setting.Value
 }
-

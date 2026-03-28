@@ -90,7 +90,7 @@ func applyExecutorNomenclatureFilter(
 	nomenclatureIDs []string,
 	nomenclatureID string,
 ) (filteredIDs []string, isEmpty bool, err error) {
-	if !auth.HasRole("executor") || auth.HasRole("admin") || auth.HasRole("clerk") {
+	if !auth.HasActiveRole("executor") {
 		return nomenclatureIDs, false, nil
 	}
 

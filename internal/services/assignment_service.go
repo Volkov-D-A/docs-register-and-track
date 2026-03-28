@@ -42,8 +42,8 @@ func (s *AssignmentService) Create(
 	deadline string,
 	coExecutorIDs []string,
 ) (*dto.Assignment, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := requireClerkDocumentRole(s.auth); err != nil {
+		return nil, err
 	}
 
 	docUUID, err := uuid.Parse(documentID)
@@ -87,8 +87,8 @@ func (s *AssignmentService) Update(
 	deadline string,
 	coExecutorIDs []string,
 ) (*dto.Assignment, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := requireClerkDocumentRole(s.auth); err != nil {
+		return nil, err
 	}
 
 	uid, err := uuid.Parse(id)
@@ -107,12 +107,8 @@ func (s *AssignmentService) Update(
 
 	// Проверка прав
 	// Редактировать могут админ и делопроизводитель
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
-		return nil, err
-	}
-
-	// Завершенные поручения редактировать нельзя (кроме админа)
-	if existing.Status == "finished" && !s.auth.HasRole("admin") {
+	// Завершенные поручения редактировать нельзя
+	if existing.Status == "finished" {
 		return nil, fmt.Errorf("нельзя редактировать завершённое поручение")
 	}
 
@@ -166,20 +162,17 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	currentUserID := s.auth.GetCurrentUserID()
 	isExecutor := existing.ExecutorID.String() == currentUserID
 
-	isAdmin := s.auth.HasRole("admin")
-	isClerk := s.auth.HasRole("clerk")
+	isClerk := s.auth.HasActiveRole("clerk")
+	isExecutorRole := s.auth.HasActiveRole("executor")
 
 	allowed := false
-	if isAdmin {
-		allowed = true
-	}
 	if isClerk {
 		// Делопроизводитель может завершить или вернуть поручение только из статуса "completed"
 		if existing.Status == "completed" && (status == "finished" || status == "returned") {
 			allowed = true
 		}
 	}
-	if isExecutor {
+	if isExecutorRole && isExecutor {
 		if status == "in_progress" || status == "completed" {
 			allowed = true
 		}
@@ -220,21 +213,27 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 
 // GetByID возвращает поручение по его ID.
 func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAnyActiveRole("clerk", "executor"); err != nil {
+		return nil, err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
 	res, err := s.repo.GetByID(uid)
-	return dto.MapAssignment(res), err
+	if err != nil || res == nil {
+		return dto.MapAssignment(res), err
+	}
+	if s.auth.HasActiveRole("executor") && !isAssignmentAccessibleToExecutor(s.auth.GetCurrentUserID(), res) {
+		return nil, models.ErrForbidden
+	}
+	return dto.MapAssignment(res), nil
 }
 
 // GetList возвращает список поручений с учетом фильтрации.
 func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAnyActiveRole("clerk", "executor"); err != nil {
+		return nil, err
 	}
 	// Значения по умолчанию
 	if filter.Page < 1 {
@@ -242,6 +241,9 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 	}
 	if filter.PageSize < 1 {
 		filter.PageSize = 20
+	}
+	if s.auth.HasActiveRole("executor") {
+		filter.ExecutorID = s.auth.GetCurrentUserID()
 	}
 	res, err := s.repo.GetList(filter)
 	if err != nil {
@@ -257,8 +259,8 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 
 // Delete удаляет поручение по его ID (только для незавершенных, если не админ).
 func (s *AssignmentService) Delete(id string) error {
-	if !s.auth.IsAuthenticated() {
-		return ErrNotAuthenticated
+	if err := requireClerkDocumentRole(s.auth); err != nil {
+		return err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -273,13 +275,8 @@ func (s *AssignmentService) Delete(id string) error {
 		return nil
 	}
 
-	// Удалять могут админ и делопроизводитель
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
-		return err
-	}
-
-	// Завершенные поручения удалять нельзя (кроме админа)
-	if existing.Status == "finished" && !s.auth.HasRole("admin") {
+	// Завершенные поручения удалять нельзя
+	if existing.Status == "finished" {
 		return fmt.Errorf("нельзя удалить завершённое поручение")
 	}
 

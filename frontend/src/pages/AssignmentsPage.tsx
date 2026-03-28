@@ -70,10 +70,7 @@ const AssignmentsPage: React.FC = () => {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
 
             let executorId = '';
-            // If currentRole is executor, force filter by user ID (own assignments only)
-            // Ideally, the backend should enforce this, but frontend filtering is also good for UI state.
-            // Requirement: clerk sees all, executor sees assigned.
-            const canViewAll = currentRole === 'admin' || currentRole === 'clerk';
+            const canViewAll = currentRole === 'clerk';
 
             if (canViewAll) {
                 executorId = filterExecutorId;
@@ -237,11 +234,9 @@ const AssignmentsPage: React.FC = () => {
             title: 'Действия', key: 'actions', width: 140,
             render: (_: any, r: any) => {
                 const isExecutor = user?.id === r.executorId && currentRole === 'executor';
-                const isAdmin = hasRole('admin');
                 const isClerk = hasRole('clerk');
 
-                // Admin can edit all. Clerk can edit if not finished.
-                const canEdit = isAdmin || (isClerk && r.status !== 'finished');
+                const canEdit = isClerk && r.status !== 'finished';
 
                 return (
                     <Space size={2}>
@@ -267,7 +262,7 @@ const AssignmentsPage: React.FC = () => {
                                     onClick={() => { setCurrentAssignmentId(r.id); setReportText(r.report || ''); setReportModalOpen(true); }} />
                             </Tooltip>
                         )}
-                        {(isAdmin || hasRole('clerk')) && r.status === 'completed' && (
+                        {isClerk && r.status === 'completed' && (
                             <>
                                 <Tooltip title="Завершить">
                                     <Button size="small" icon={<FileDoneOutlined />} onClick={() => updateStatus(r.id, 'finished')} />
@@ -276,11 +271,6 @@ const AssignmentsPage: React.FC = () => {
                                     <Button size="small" icon={<UndoOutlined />} onClick={() => updateStatus(r.id, 'returned')} />
                                 </Tooltip>
                             </>
-                        )}
-                        {isAdmin && r.status !== 'cancelled' && r.status !== 'finished' && r.status !== 'completed' && (
-                            <Tooltip title="Отменить">
-                                <Button size="small" icon={<CloseCircleOutlined />} danger onClick={() => updateStatus(r.id, 'cancelled')} />
-                            </Tooltip>
                         )}
                     </Space>
                 );
@@ -330,7 +320,7 @@ const AssignmentsPage: React.FC = () => {
                             />
                         </div>
                     </Col>
-                    {(currentRole === 'admin' || currentRole === 'clerk') && (
+                    {currentRole === 'clerk' && (
                         <>
                             <Col span={4}>
                                 <Select style={{ width: '100%' }} placeholder="Исполнитель" allowClear showSearch
