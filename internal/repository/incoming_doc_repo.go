@@ -28,17 +28,15 @@ const incomingDocSelectBase = `
 		d.incoming_number, d.incoming_date, d.outgoing_number_sender, d.outgoing_date_sender,
 		d.intermediate_number, d.intermediate_date,
 		d.document_type_id, dt.name,
-		d.subject, d.pages_count, d.content,
-		d.sender_org_id, so.name, d.sender_signatory, d.sender_executor,
-		d.recipient_org_id, ro.name, d.addressee,
-		d.resolution,
+		d.content, d.pages_count,
+		d.sender_org_id, so.name, d.sender_signatory,
+		d.resolution, d.resolution_author, d.resolution_executors,
 		d.created_by, u.full_name,
 		d.created_at, d.updated_at
 	FROM incoming_documents d
 	LEFT JOIN nomenclature n ON d.nomenclature_id = n.id
 	LEFT JOIN document_types dt ON d.document_type_id = dt.id
 	LEFT JOIN organizations so ON d.sender_org_id = so.id
-	LEFT JOIN organizations ro ON d.recipient_org_id = ro.id
 	LEFT JOIN users u ON d.created_by = u.id`
 
 // scanIncomingDoc сканирует строку результата в структуру IncomingDocument.
@@ -49,10 +47,9 @@ func scanIncomingDoc(scanner interface{ Scan(...interface{}) error }) (*models.I
 		&doc.IncomingNumber, &doc.IncomingDate, &doc.OutgoingNumberSender, &doc.OutgoingDateSender,
 		&doc.IntermediateNumber, &doc.IntermediateDate,
 		&doc.DocumentTypeID, &doc.DocumentTypeName,
-		&doc.Subject, &doc.PagesCount, &doc.Content,
-		&doc.SenderOrgID, &doc.SenderOrgName, &doc.SenderSignatory, &doc.SenderExecutor,
-		&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
-		&doc.Resolution,
+		&doc.Content, &doc.PagesCount,
+		&doc.SenderOrgID, &doc.SenderOrgName, &doc.SenderSignatory,
+		&doc.Resolution, &doc.ResolutionAuthor, &doc.ResolutionExecutors,
 		&doc.CreatedBy, &doc.CreatedByName,
 		&doc.CreatedAt, &doc.UpdatedAt,
 	)
@@ -80,7 +77,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		argIdx++
 	}
 	if filter.OrgID != "" {
-		where = append(where, fmt.Sprintf("(d.sender_org_id = $%d OR d.recipient_org_id = $%d)", argIdx, argIdx))
+		where = append(where, fmt.Sprintf("d.sender_org_id = $%d", argIdx))
 		args = append(args, filter.OrgID)
 		argIdx++
 	}
@@ -95,7 +92,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		argIdx++
 	}
 	if filter.Search != "" {
-		where = append(where, fmt.Sprintf("(d.subject ILIKE $%d OR d.content ILIKE $%d OR d.incoming_number ILIKE $%d)", argIdx, argIdx, argIdx))
+		where = append(where, fmt.Sprintf("(d.content ILIKE $%d OR d.incoming_number ILIKE $%d)", argIdx, argIdx))
 		args = append(args, "%"+filter.Search+"%")
 		argIdx++
 	}
@@ -211,18 +208,18 @@ func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest)
 			nomenclature_id, incoming_number, incoming_date,
 			outgoing_number_sender, outgoing_date_sender,
 			intermediate_number, intermediate_date,
-			document_type_id, subject, pages_count, content,
-			sender_org_id, sender_signatory, sender_executor,
-			recipient_org_id, addressee, resolution, created_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+			document_type_id, content, pages_count,
+			sender_org_id, sender_signatory,
+			resolution, resolution_author, resolution_executors, created_by
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		RETURNING id
 	`,
 		req.NomenclatureID, req.IncomingNumber, req.IncomingDate,
 		req.OutgoingNumberSender, req.OutgoingDateSender,
 		req.IntermediateNumber, req.IntermediateDate,
-		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
-		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
-		req.RecipientOrgID, req.Addressee, req.Resolution, req.CreatedBy,
+		req.DocumentTypeID, req.Content, req.PagesCount,
+		req.SenderOrgID, req.SenderSignatory,
+		req.Resolution, req.ResolutionAuthor, req.ResolutionExecutors, req.CreatedBy,
 	).Scan(&id)
 
 	if err != nil {
@@ -238,17 +235,17 @@ func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest)
 		UPDATE incoming_documents SET
 			outgoing_number_sender = $1, outgoing_date_sender = $2,
 			intermediate_number = $3, intermediate_date = $4,
-			document_type_id = $5, subject = $6, pages_count = $7, content = $8,
-			sender_org_id = $9, sender_signatory = $10, sender_executor = $11,
-			recipient_org_id = $12, addressee = $13, resolution = $14,
+			document_type_id = $5, content = $6, pages_count = $7,
+			sender_org_id = $8, sender_signatory = $9,
+			resolution = $10, resolution_author = $11, resolution_executors = $12,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $15
+		WHERE id = $13
 	`,
 		req.OutgoingNumberSender, req.OutgoingDateSender,
 		req.IntermediateNumber, req.IntermediateDate,
-		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
-		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
-		req.RecipientOrgID, req.Addressee, req.Resolution,
+		req.DocumentTypeID, req.Content, req.PagesCount,
+		req.SenderOrgID, req.SenderSignatory,
+		req.Resolution, req.ResolutionAuthor, req.ResolutionExecutors,
 		req.ID,
 	)
 

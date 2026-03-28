@@ -197,7 +197,7 @@ func TestMapIncomingDocument(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := uuid.New()
-		m := &models.IncomingDocument{ID: id, IncomingNumber: "01-01/1", Subject: "Test"}
+		m := &models.IncomingDocument{ID: id, IncomingNumber: "01-01/1", Content: "Test"}
 		d := MapIncomingDocument(m)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Equal(t, "01-01/1", d.IncomingNumber)

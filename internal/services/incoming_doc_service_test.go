@@ -62,7 +62,6 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 		orgMap := &models.Organization{ID: uuid.New(), Name: "Org"}
 
 		mockRefRepo.On("FindOrCreateOrganization", "Sender").Return(orgMap, nil).Once()
-		mockRefRepo.On("FindOrCreateOrganization", "Recipient").Return(orgMap, nil).Once()
 		mockNomRepo.On("GetNextNumber", nomID).Return(1, "01-01", nil).Once()
 
 		expectedModel := &models.IncomingDocument{
@@ -75,9 +74,9 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 		).Return(expectedModel, nil).Once()
 
 		doc, err := docService.Register(
-			nomIDStr, docTypeIDStr, "Sender", "Recipient",
+			nomIDStr, docTypeIDStr, "Sender",
 			"2024-01-01", "2024-01-01", "Out-123",
-			"", "", "Subject", "Content", 1, "Signatory", "Executor", "Addressee", "Resolution",
+			"", "", "Content", 1, "Signatory", "Resolution", "", "",
 		)
 
 		require.NoError(t, err)
@@ -93,8 +92,8 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 		authRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 
 		doc, err := docService.Register(
-			uuid.New().String(), uuid.New().String(), "Sender", "Recipient",
-			"2024-01-01", "2024-01-01", "", "", "", "", "", 1, "", "", "", "",
+			uuid.New().String(), uuid.New().String(), "Sender",
+			"2024-01-01", "2024-01-01", "", "", "", "", 1, "", "", "", "",
 		)
 
 		require.Error(t, err)
@@ -143,7 +142,7 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		svc, repo, _, _, _ := setupIncomingDocService(t, "executor")
-		repo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, Subject: "Тема"}, nil).Once()
+		repo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, Content: "Тема"}, nil).Once()
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
 		require.NotNil(t, result)

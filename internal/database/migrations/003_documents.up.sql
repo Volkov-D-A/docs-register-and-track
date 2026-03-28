@@ -13,21 +13,17 @@ intermediate_date DATE,
 
 -- About document
 document_type_id UUID NOT NULL REFERENCES document_types (id),
-subject VARCHAR(1000) NOT NULL,
-pages_count INT NOT NULL DEFAULT 1,
 content TEXT NOT NULL,
+pages_count INT NOT NULL DEFAULT 1,
 
 -- Sender
 sender_org_id UUID NOT NULL REFERENCES organizations (id),
 sender_signatory VARCHAR(255) NOT NULL,
-sender_executor VARCHAR(255) NOT NULL,
-
--- Recipient
-recipient_org_id UUID NOT NULL REFERENCES organizations (id),
-addressee VARCHAR(255) NOT NULL,
 
 -- Resolution
 resolution TEXT,
+resolution_author VARCHAR(255),
+resolution_executors TEXT,
 
 -- Metadata
 created_by UUID NOT NULL REFERENCES users(id),

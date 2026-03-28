@@ -23,23 +23,18 @@ type IncomingDocument struct {
 	// О документе
 	DocumentTypeID   uuid.UUID `json:"-"`
 	DocumentTypeName string    `json:"documentTypeName,omitempty"`
-	Subject          string    `json:"subject"`
-	PagesCount       int       `json:"pagesCount"`
 	Content          string    `json:"content"`
+	PagesCount       int       `json:"pagesCount"`
 
 	// Отправитель
 	SenderOrgID     uuid.UUID `json:"-"`
 	SenderOrgName   string    `json:"senderOrgName,omitempty"`
 	SenderSignatory string    `json:"senderSignatory"`
-	SenderExecutor  string    `json:"senderExecutor"`
-
-	// Получатель
-	RecipientOrgID   uuid.UUID `json:"-"`
-	RecipientOrgName string    `json:"recipientOrgName,omitempty"`
-	Addressee        string    `json:"addressee"`
 
 	// Резолюция
-	Resolution *string `json:"resolution,omitempty"`
+	Resolution          *string `json:"resolution,omitempty"`
+	ResolutionAuthor    *string `json:"resolutionAuthor,omitempty"`
+	ResolutionExecutors *string `json:"resolutionExecutors,omitempty"`
 
 	// Метаданные
 	CreatedBy     uuid.UUID `json:"-"`
@@ -178,7 +173,6 @@ type CreateIncomingDocRequest struct {
 	NomenclatureID       uuid.UUID
 	DocumentTypeID       uuid.UUID
 	SenderOrgID          uuid.UUID
-	RecipientOrgID       uuid.UUID
 	CreatedBy            uuid.UUID
 	IncomingNumber       string
 	IncomingDate         time.Time
@@ -186,13 +180,12 @@ type CreateIncomingDocRequest struct {
 	OutgoingDateSender   time.Time
 	IntermediateNumber   *string
 	IntermediateDate     *time.Time
-	Subject              string
 	Content              string
 	PagesCount           int
 	SenderSignatory      string
-	SenderExecutor       string
-	Addressee            string
 	Resolution           *string
+	ResolutionAuthor     *string
+	ResolutionExecutors  *string
 }
 
 // UpdateIncomingDocRequest — запрос на обновление входящего документа (уровень репозитория).
@@ -200,18 +193,16 @@ type UpdateIncomingDocRequest struct {
 	ID                   uuid.UUID
 	DocumentTypeID       uuid.UUID
 	SenderOrgID          uuid.UUID
-	RecipientOrgID       uuid.UUID
 	OutgoingNumberSender string
 	OutgoingDateSender   time.Time
 	IntermediateNumber   *string
 	IntermediateDate     *time.Time
-	Subject              string
 	Content              string
 	PagesCount           int
 	SenderSignatory      string
-	SenderExecutor       string
-	Addressee            string
 	Resolution           *string
+	ResolutionAuthor     *string
+	ResolutionExecutors  *string
 }
 
 // CreateOutgoingDocRequest — запрос на создание исходящего документа (уровень репозитория).

@@ -148,3 +148,68 @@ func (s *ReferenceService) DeleteOrganization(id string) error {
 	return nil
 }
 
+// === Исполнители резолюции ===
+
+// GetResolutionExecutors возвращает список всех исполнителей резолюции.
+func (s *ReferenceService) GetResolutionExecutors() ([]dto.ResolutionExecutor, error) {
+	if !s.auth.IsAuthenticated() {
+		return nil, ErrNotAuthenticated
+	}
+	res, err := s.repo.GetAllResolutionExecutors()
+	return dto.MapResolutionExecutors(res), err
+}
+
+// SearchResolutionExecutors выполняет поиск исполнителей резолюции по имени.
+func (s *ReferenceService) SearchResolutionExecutors(query string) ([]dto.ResolutionExecutor, error) {
+	if !s.auth.IsAuthenticated() {
+		return nil, ErrNotAuthenticated
+	}
+	res, err := s.repo.SearchResolutionExecutors(query)
+	return dto.MapResolutionExecutors(res), err
+}
+
+// FindOrCreateResolutionExecutor ищет исполнителя по имени, и создает нового, если он не найден.
+func (s *ReferenceService) FindOrCreateResolutionExecutor(name string) (*dto.ResolutionExecutor, error) {
+	if !s.auth.IsAuthenticated() {
+		return nil, ErrNotAuthenticated
+	}
+	res, err := s.repo.FindOrCreateResolutionExecutor(name)
+	return dto.MapResolutionExecutor(res), err
+}
+
+// UpdateResolutionExecutor обновляет имя исполнителя резолюции (только для администраторов).
+func (s *ReferenceService) UpdateResolutionExecutor(id string, name string) error {
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
+	}
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return fmt.Errorf("invalid ID: %w", err)
+	}
+	if err := s.repo.UpdateResolutionExecutor(uid, name); err != nil {
+		return err
+	}
+
+	userID, userName := s.auth.GetCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "RESEXEC_UPDATE", fmt.Sprintf("Обновлен исполнитель резолюции «%s»", name))
+	return nil
+}
+
+// DeleteResolutionExecutor удаляет исполнителя резолюции по его ID (только для администраторов).
+func (s *ReferenceService) DeleteResolutionExecutor(id string) error {
+	if err := s.auth.RequireRole("admin"); err != nil {
+		return err
+	}
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return fmt.Errorf("invalid ID: %w", err)
+	}
+	if err := s.repo.DeleteResolutionExecutor(uid); err != nil {
+		return err
+	}
+
+	userID, userName := s.auth.GetCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "RESEXEC_DELETE", fmt.Sprintf("Удален исполнитель резолюции (ID: %s)", id))
+	return nil
+}
+

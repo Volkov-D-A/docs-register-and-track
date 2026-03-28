@@ -3,7 +3,7 @@ import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Space,
   Typography, Popconfirm, Switch, Tag, App, DatePicker
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, FileTextOutlined, BankOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, FileTextOutlined, BankOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined, SolutionOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
@@ -334,6 +334,101 @@ const OrganizationsTab: React.FC = () => {
       >
         <Form form={form} layout="vertical" onFinish={onSave}>
           <Form.Item name="name" label="Наименование" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
+};
+
+// === Исполнители резолюции ===
+/**
+ * Вкладка управления справочником исполнителей резолюции.
+ */
+const ResolutionExecutorsTab: React.FC = () => {
+  const { message } = App.useApp();
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [form] = Form.useForm();
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { GetResolutionExecutors } = await import('../../wailsjs/go/services/ReferenceService');
+      const items = await GetResolutionExecutors();
+      setData(items || []);
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onSave = async (values: any) => {
+    try {
+      if (editItem) {
+        const { UpdateResolutionExecutor } = await import('../../wailsjs/go/services/ReferenceService');
+        await UpdateResolutionExecutor(editItem.id, values.name);
+      }
+      message.success('Обновлено');
+      setModalOpen(false);
+      form.resetFields();
+      setEditItem(null);
+      load();
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+  };
+
+  const onDelete = async (id: string) => {
+    try {
+      const { DeleteResolutionExecutor } = await import('../../wailsjs/go/services/ReferenceService');
+      await DeleteResolutionExecutor(id);
+      message.success('Удалено');
+      load();
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+  };
+
+  const columns = [
+    { title: 'ФИО', dataIndex: 'name', key: 'name' },
+    {
+      title: 'Действия', key: 'actions', width: 100,
+      render: (_: any, record: any) => (
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => {
+            setEditItem(record);
+            form.setFieldsValue(record);
+            setModalOpen(true);
+          }} />
+          <Popconfirm title="Удалить?" onConfirm={() => onDelete(record.id)}>
+            <Button size="small" icon={<DeleteOutlined />} danger />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} size="small" pagination={false} />
+      <Typography.Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
+        Исполнители добавляются автоматически при регистрации документов
+      </Typography.Text>
+
+      <Modal
+        title="Редактировать исполнителя"
+        open={modalOpen}
+        onCancel={() => { setModalOpen(false); setEditItem(null); }}
+        onOk={() => form.submit()}
+      >
+        <Form form={form} layout="vertical" onFinish={onSave}>
+          <Form.Item name="name" label="ФИО" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
         </Form>
@@ -1038,6 +1133,7 @@ const SettingsPage: React.FC = () => {
           { key: 'nomenclature', label: 'Номенклатура', icon: <BookOutlined />, children: <NomenclatureTab /> },
           { key: 'documentTypes', label: 'Типы док.', icon: <FileTextOutlined />, children: <DocumentTypesTab /> },
           { key: 'organizations', label: 'Организации', icon: <BankOutlined />, children: <OrganizationsTab /> },
+          { key: 'resolutionExecutors', label: 'Исполнители', icon: <SolutionOutlined />, children: <ResolutionExecutorsTab /> },
           { key: 'departments', label: 'Отделы', icon: <ApartmentOutlined />, children: <DepartmentsTab /> },
           { key: 'users', label: 'Пользователи', icon: <TeamOutlined />, children: <UsersTab /> },
           { key: 'system', label: 'Настройки', icon: <SettingOutlined />, children: <SystemSettingsTab /> },

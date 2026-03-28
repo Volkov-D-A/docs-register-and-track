@@ -8,14 +8,24 @@ export function DeleteDocumentType(arg1:string):Promise<void>;
 
 export function DeleteOrganization(arg1:string):Promise<void>;
 
+export function DeleteResolutionExecutor(arg1:string):Promise<void>;
+
 export function FindOrCreateOrganization(arg1:string):Promise<dto.Organization>;
+
+export function FindOrCreateResolutionExecutor(arg1:string):Promise<dto.ResolutionExecutor>;
 
 export function GetDocumentTypes():Promise<Array<dto.DocumentType>>;
 
 export function GetOrganizations():Promise<Array<dto.Organization>>;
 
+export function GetResolutionExecutors():Promise<Array<dto.ResolutionExecutor>>;
+
 export function SearchOrganizations(arg1:string):Promise<Array<dto.Organization>>;
+
+export function SearchResolutionExecutors(arg1:string):Promise<Array<dto.ResolutionExecutor>>;
 
 export function UpdateDocumentType(arg1:string,arg2:string):Promise<void>;
 
 export function UpdateOrganization(arg1:string,arg2:string):Promise<void>;
+
+export function UpdateResolutionExecutor(arg1:string,arg2:string):Promise<void>;

@@ -237,6 +237,132 @@ func (_m *ReferenceStore) UpdateOrganization(id uuid.UUID, name string) error {
 	return r0
 }
 
+// DeleteResolutionExecutor provides a mock function with given fields: id
+func (_m *ReferenceStore) DeleteResolutionExecutor(id uuid.UUID) error {
+	ret := _m.Called(id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteResolutionExecutor")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID) error); ok {
+		r0 = rf(id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// FindOrCreateResolutionExecutor provides a mock function with given fields: name
+func (_m *ReferenceStore) FindOrCreateResolutionExecutor(name string) (*models.ResolutionExecutor, error) {
+	ret := _m.Called(name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindOrCreateResolutionExecutor")
+	}
+
+	var r0 *models.ResolutionExecutor
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) (*models.ResolutionExecutor, error)); ok {
+		return rf(name)
+	}
+	if rf, ok := ret.Get(0).(func(string) *models.ResolutionExecutor); ok {
+		r0 = rf(name)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.ResolutionExecutor)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetAllResolutionExecutors provides a mock function with no fields
+func (_m *ReferenceStore) GetAllResolutionExecutors() ([]models.ResolutionExecutor, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAllResolutionExecutors")
+	}
+
+	var r0 []models.ResolutionExecutor
+	var r1 error
+	if rf, ok := ret.Get(0).(func() ([]models.ResolutionExecutor, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() []models.ResolutionExecutor); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.ResolutionExecutor)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SearchResolutionExecutors provides a mock function with given fields: query
+func (_m *ReferenceStore) SearchResolutionExecutors(query string) ([]models.ResolutionExecutor, error) {
+	ret := _m.Called(query)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchResolutionExecutors")
+	}
+
+	var r0 []models.ResolutionExecutor
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) ([]models.ResolutionExecutor, error)); ok {
+		return rf(query)
+	}
+	if rf, ok := ret.Get(0).(func(string) []models.ResolutionExecutor); ok {
+		r0 = rf(query)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.ResolutionExecutor)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(query)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// UpdateResolutionExecutor provides a mock function with given fields: id, name
+func (_m *ReferenceStore) UpdateResolutionExecutor(id uuid.UUID, name string) error {
+	ret := _m.Called(id, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateResolutionExecutor")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID, string) error); ok {
+		r0 = rf(id, name)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // NewReferenceStore creates a new instance of ReferenceStore. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewReferenceStore(t interface {
@@ -250,3 +376,4 @@ func NewReferenceStore(t interface {
 
 	return mock
 }
+

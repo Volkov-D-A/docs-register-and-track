@@ -59,6 +59,13 @@ type DocumentType struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// ResolutionExecutor описывает DTO исполнителя резолюции.
+type ResolutionExecutor struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 // Новые структуры для ответов (DTO)
 
 // IncomingDocument описывает DTO входящего документа.
@@ -76,20 +83,16 @@ type IncomingDocument struct {
 
 	DocumentTypeID   string `json:"documentTypeId"`
 	DocumentTypeName string `json:"documentTypeName,omitempty"`
-	Subject          string `json:"subject"`
-	PagesCount       int    `json:"pagesCount"`
 	Content          string `json:"content"`
+	PagesCount       int    `json:"pagesCount"`
 
 	SenderOrgID     string `json:"senderOrgId"`
 	SenderOrgName   string `json:"senderOrgName,omitempty"`
 	SenderSignatory string `json:"senderSignatory"`
-	SenderExecutor  string `json:"senderExecutor"`
 
-	RecipientOrgID   string `json:"recipientOrgId"`
-	RecipientOrgName string `json:"recipientOrgName,omitempty"`
-	Addressee        string `json:"addressee"`
-
-	Resolution *string `json:"resolution,omitempty"`
+	Resolution          *string `json:"resolution,omitempty"`
+	ResolutionAuthor    *string `json:"resolutionAuthor,omitempty"`
+	ResolutionExecutors *string `json:"resolutionExecutors,omitempty"`
 
 	CreatedBy     string    `json:"createdBy"`
 	CreatedByName string    `json:"createdByName,omitempty"`

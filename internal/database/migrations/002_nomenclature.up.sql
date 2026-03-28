@@ -51,3 +51,10 @@ VALUES ('Письмо'),
     ('Запрос'),
     ('Ответ'),
     ('Уведомление');
+
+-- 8. Resolution Executors (справочник исполнителей резолюции)
+CREATE TABLE resolution_executors (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(500) NOT NULL UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

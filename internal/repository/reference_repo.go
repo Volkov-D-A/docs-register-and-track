@@ -193,3 +193,107 @@ func (r *ReferenceRepository) DeleteOrganization(id uuid.UUID) error {
 	}
 	return nil
 }
+
+// === Исполнители резолюции ===
+
+// GetAllResolutionExecutors возвращает всех исполнителей резолюции.
+func (r *ReferenceRepository) GetAllResolutionExecutors() ([]models.ResolutionExecutor, error) {
+	rows, err := r.db.Query(`
+		SELECT id, name, created_at FROM resolution_executors ORDER BY name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resolution executors: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]models.ResolutionExecutor, 0)
+	for rows.Next() {
+		var item models.ResolutionExecutor
+		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// FindOrCreateResolutionExecutor ищет исполнителя по имени и возвращает его, если не найден — создает нового.
+func (r *ReferenceRepository) FindOrCreateResolutionExecutor(name string) (*models.ResolutionExecutor, error) {
+	var item models.ResolutionExecutor
+	err := r.db.QueryRow(`
+		SELECT id, name, created_at FROM resolution_executors WHERE name = $1
+	`, name).Scan(&item.ID, &item.Name, &item.CreatedAt)
+
+	if err == nil {
+		return &item, nil
+	}
+
+	if err != sql.ErrNoRows {
+		return nil, fmt.Errorf("failed to find resolution executor: %w", err)
+	}
+
+	// Создаём нового
+	var id uuid.UUID
+	err = r.db.QueryRow(`
+		INSERT INTO resolution_executors (name) VALUES ($1) RETURNING id
+	`, name).Scan(&id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resolution executor: %w", err)
+	}
+
+	err = r.db.QueryRow(`
+		SELECT id, name, created_at FROM resolution_executors WHERE id = $1
+	`, id).Scan(&item.ID, &item.Name, &item.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &item, nil
+}
+
+// SearchResolutionExecutors выполняет поиск исполнителей резолюции по имени.
+func (r *ReferenceRepository) SearchResolutionExecutors(query string) ([]models.ResolutionExecutor, error) {
+	rows, err := r.db.Query(`
+		SELECT id, name, created_at FROM resolution_executors
+		WHERE name ILIKE $1
+		ORDER BY name LIMIT 20
+	`, "%"+query+"%")
+	if err != nil {
+		return nil, fmt.Errorf("failed to search resolution executors: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]models.ResolutionExecutor, 0)
+	for rows.Next() {
+		var item models.ResolutionExecutor
+		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// UpdateResolutionExecutor обновляет имя исполнителя резолюции.
+func (r *ReferenceRepository) UpdateResolutionExecutor(id uuid.UUID, name string) error {
+	_, err := r.db.Exec(`UPDATE resolution_executors SET name = $1 WHERE id = $2`, name, id)
+	if err != nil {
+		return fmt.Errorf("failed to update resolution executor: %w", err)
+	}
+	return nil
+}
+
+// DeleteResolutionExecutor удаляет исполнителя резолюции.
+func (r *ReferenceRepository) DeleteResolutionExecutor(id uuid.UUID) error {
+	_, err := r.db.Exec(`DELETE FROM resolution_executors WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete resolution executor: %w", err)
+	}
+	return nil
+}

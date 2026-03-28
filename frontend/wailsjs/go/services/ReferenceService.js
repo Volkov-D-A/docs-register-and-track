@@ -14,8 +14,16 @@ export function DeleteOrganization(arg1) {
   return window['go']['services']['ReferenceService']['DeleteOrganization'](arg1);
 }
 
+export function DeleteResolutionExecutor(arg1) {
+  return window['go']['services']['ReferenceService']['DeleteResolutionExecutor'](arg1);
+}
+
 export function FindOrCreateOrganization(arg1) {
   return window['go']['services']['ReferenceService']['FindOrCreateOrganization'](arg1);
+}
+
+export function FindOrCreateResolutionExecutor(arg1) {
+  return window['go']['services']['ReferenceService']['FindOrCreateResolutionExecutor'](arg1);
 }
 
 export function GetDocumentTypes() {
@@ -26,8 +34,16 @@ export function GetOrganizations() {
   return window['go']['services']['ReferenceService']['GetOrganizations']();
 }
 
+export function GetResolutionExecutors() {
+  return window['go']['services']['ReferenceService']['GetResolutionExecutors']();
+}
+
 export function SearchOrganizations(arg1) {
   return window['go']['services']['ReferenceService']['SearchOrganizations'](arg1);
+}
+
+export function SearchResolutionExecutors(arg1) {
+  return window['go']['services']['ReferenceService']['SearchResolutionExecutors'](arg1);
 }
 
 export function UpdateDocumentType(arg1, arg2) {
@@ -36,4 +52,8 @@ export function UpdateDocumentType(arg1, arg2) {
 
 export function UpdateOrganization(arg1, arg2) {
   return window['go']['services']['ReferenceService']['UpdateOrganization'](arg1, arg2);
+}
+
+export function UpdateResolutionExecutor(arg1, arg2) {
+  return window['go']['services']['ReferenceService']['UpdateResolutionExecutor'](arg1, arg2);
 }

@@ -32,3 +32,10 @@ type DocumentType struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"createdAt"`
 }
+
+// ResolutionExecutor — исполнитель резолюции (автозаполняемый справочник)
+type ResolutionExecutor struct {
+	ID        uuid.UUID `json:"-"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+}

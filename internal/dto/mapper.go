@@ -106,17 +106,14 @@ func MapIncomingDocument(m *models.IncomingDocument) *IncomingDocument {
 		IntermediateDate:     m.IntermediateDate,
 		DocumentTypeID:       m.DocumentTypeID.String(),
 		DocumentTypeName:     m.DocumentTypeName,
-		Subject:              m.Subject,
-		PagesCount:           m.PagesCount,
 		Content:              m.Content,
+		PagesCount:           m.PagesCount,
 		SenderOrgID:          m.SenderOrgID.String(),
 		SenderOrgName:        m.SenderOrgName,
 		SenderSignatory:      m.SenderSignatory,
-		SenderExecutor:       m.SenderExecutor,
-		RecipientOrgID:       m.RecipientOrgID.String(),
-		RecipientOrgName:     m.RecipientOrgName,
-		Addressee:            m.Addressee,
 		Resolution:           m.Resolution,
+		ResolutionAuthor:     m.ResolutionAuthor,
+		ResolutionExecutors:  m.ResolutionExecutors,
 		CreatedBy:            m.CreatedBy.String(),
 		CreatedByName:        m.CreatedByName,
 		CreatedAt:            m.CreatedAt,
@@ -331,6 +328,33 @@ func MapOrganizations(m []models.Organization) []Organization {
 	res := make([]Organization, len(m))
 	for i, v := range m {
 		mapped := MapOrganization(&v)
+		if mapped != nil {
+			res[i] = *mapped
+		}
+	}
+	return res
+}
+
+// MapResolutionExecutor преобразует модель ResolutionExecutor в DTO.
+func MapResolutionExecutor(m *models.ResolutionExecutor) *ResolutionExecutor {
+	if m == nil {
+		return nil
+	}
+	return &ResolutionExecutor{
+		ID:        m.ID.String(),
+		Name:      m.Name,
+		CreatedAt: m.CreatedAt,
+	}
+}
+
+// MapResolutionExecutors преобразует список исполнителей резолюции в DTO.
+func MapResolutionExecutors(m []models.ResolutionExecutor) []ResolutionExecutor {
+	if m == nil {
+		return nil
+	}
+	res := make([]ResolutionExecutor, len(m))
+	for i, v := range m {
+		mapped := MapResolutionExecutor(&v)
 		if mapped != nil {
 			res[i] = *mapped
 		}

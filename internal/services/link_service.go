@@ -179,13 +179,12 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 			doc, err := s.incomingDocRepo.GetByID(id)
 			if err == nil && doc != nil {
 				label = doc.IncomingNumber
-				subject = doc.Subject
+				subject = doc.Content
 				dateStr = doc.IncomingDate.Format("02.01.2006")
 				sender = doc.SenderOrgName
 				if sender == "" {
 					sender = "Неизвестно"
 				}
-				recipient = doc.RecipientOrgName // Обычно "Наша Организация"
 			}
 		case "outgoing":
 			doc, err := s.outgoingDocRepo.GetByID(id)

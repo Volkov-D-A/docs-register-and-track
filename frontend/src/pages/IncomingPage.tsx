@@ -68,7 +68,7 @@ const IncomingPage: React.FC = () => {
     const [nomenclatures, setNomenclatures] = useState<any[]>([]);
     const [docTypes, setDocTypes] = useState<any[]>([]);
     const [orgOptionsSender, setOrgOptionsSender] = useState<{ value: string; label: string }[]>([]);
-    const [orgOptionsRecipient, setOrgOptionsRecipient] = useState<{ value: string; label: string }[]>([]);
+    const [executorOptions, setExecutorOptions] = useState<{ value: string; label: string }[]>([]);
 
     const loadRefs = async () => {
         try {
@@ -95,16 +95,16 @@ const IncomingPage: React.FC = () => {
         } catch { setOrgOptionsSender([{ value: query, label: query }]); }
     };
 
-    const onRecipientOrgSearch = async (query: string) => {
-        if (query.length < 2) { setOrgOptionsRecipient(query ? [{ value: query, label: query }] : []); return; }
+    const onExecutorSearch = async (query: string) => {
+        if (query.length < 2) { setExecutorOptions([]); return; }
         try {
-            const { SearchOrganizations } = await import('../../wailsjs/go/services/ReferenceService');
-            const orgs = await SearchOrganizations(query);
-            const items = (orgs || []).map((o: any) => ({ value: o.name, label: o.name }));
-            if (!items.find((i: any) => i.value === query)) items.unshift({ value: query, label: query });
-            setOrgOptionsRecipient(items);
-        } catch { setOrgOptionsRecipient([{ value: query, label: query }]); }
+            const { SearchResolutionExecutors } = await import('../../wailsjs/go/services/ReferenceService');
+            const execs = await SearchResolutionExecutors(query);
+            const items = (execs || []).map((e: any) => ({ value: e.name, label: e.name }));
+            setExecutorOptions(items);
+        } catch { setExecutorOptions([]); }
     };
+
 
     const load = async () => {
         setLoading(true);
@@ -159,16 +159,16 @@ const IncomingPage: React.FC = () => {
             const { Register } = await import('../../wailsjs/go/services/IncomingDocumentService');
             const newDoc = await Register(
                 values.nomenclatureId, values.documentTypeId,
-                values.senderOrgName, values.recipientOrgName,
+                values.senderOrgName,
                 values.incomingDate?.format('YYYY-MM-DD') || '',
                 values.outgoingDateSender?.format('YYYY-MM-DD') || '',
                 values.outgoingNumberSender || '',
                 values.intermediateNumber || '',
                 values.intermediateDate?.format('YYYY-MM-DD') || '',
-                values.subject,
                 values.content || '', values.pagesCount || 1,
-                values.senderSignatory || '', values.senderExecutor || '',
-                values.addressee || '', values.resolution || '',
+                values.senderSignatory || '',
+                values.resolution || '', values.resolutionAuthor || '',
+                (values.resolutionExecutors || []).join('; '),
             );
 
             if (sourceId && targetType === 'incoming') {
@@ -191,15 +191,15 @@ const IncomingPage: React.FC = () => {
             const { Update } = await import('../../wailsjs/go/services/IncomingDocumentService');
             await Update(
                 editDoc.id, values.documentTypeId,
-                values.senderOrgName, values.recipientOrgName,
+                values.senderOrgName,
                 values.outgoingDateSender?.format('YYYY-MM-DD') || '',
                 values.outgoingNumberSender || '',
                 values.intermediateNumber || '',
                 values.intermediateDate?.format('YYYY-MM-DD') || '',
-                values.subject,
                 values.content || '', values.pagesCount || 1,
-                values.senderSignatory || '', values.senderExecutor || '',
-                values.addressee || '', values.resolution || '',
+                values.senderSignatory || '',
+                values.resolution || '', values.resolutionAuthor || '',
+                (values.resolutionExecutors || []).join('; '),
             );
             message.success('Документ обновлён');
             setEditModalOpen(false); editForm.resetFields(); setEditDoc(null); load();
@@ -211,15 +211,15 @@ const IncomingPage: React.FC = () => {
         editForm.setFieldsValue({
             documentTypeId: record.documentTypeId,
             senderOrgName: record.senderOrgName,
-            recipientOrgName: record.recipientOrgName,
             outgoingNumberSender: record.outgoingNumberSender,
             outgoingDateSender: record.outgoingDateSender ? dayjs(record.outgoingDateSender) : null,
-            subject: record.subject, content: record.content,
+            content: record.content,
             pagesCount: record.pagesCount, senderSignatory: record.senderSignatory,
-            senderExecutor: record.senderExecutor, addressee: record.addressee,
             intermediateNumber: record.intermediateNumber || '',
             intermediateDate: record.intermediateDate ? dayjs(record.intermediateDate) : null,
             resolution: record.resolution || '',
+            resolutionAuthor: record.resolutionAuthor || '',
+            resolutionExecutors: record.resolutionExecutors ? record.resolutionExecutors.split('; ').filter((s: string) => s) : [],
         });
         setEditModalOpen(true);
     };
@@ -261,22 +261,22 @@ const IncomingPage: React.FC = () => {
             )
         },
         {
-            title: 'Краткое содержание',
+            title: 'Содержание',
             key: 'content',
             render: (_: any, r: any) => (
                 <div>
-                    <div style={{ fontWeight: 500 }}>{r.subject}</div>
+                    <div style={{ fontWeight: 500 }}>{r.content}</div>
                 </div>
             )
         },
         {
-            title: 'Адресат / Резолюция',
-            key: 'addressee',
+            title: 'Резолюция',
+            key: 'resolution',
             width: 220,
             render: (_: any, r: any) => (
                 <div style={{ fontSize: 12 }}>
-                    <div>Кому: {r.addressee}</div>
-                    {r.resolution && <div style={{ marginTop: 4, fontStyle: 'italic', color: '#555' }}>Рез: {r.resolution}</div>}
+                    {r.resolution && <div style={{ fontStyle: 'italic', color: '#555' }}>{r.resolution}</div>}
+                    {!r.resolution && <span style={{ color: '#bbb' }}>—</span>}
                 </div>
             )
         },
@@ -305,7 +305,7 @@ const IncomingPage: React.FC = () => {
         <Form form={form} layout="vertical" onFinish={isEdit ? onEdit : onRegister}>
             {!isEdit && (
                 <Row gutter={16}>
-                    <Col span={12}>
+                    <Col span={8}>
                         <Form.Item name="nomenclatureId" label="Дело (номенклатура)" rules={[{ required: true }]}>
                             <Select placeholder="Выберите дело">
                                 {nomenclatures.map((n: any) => (
@@ -314,24 +314,31 @@ const IncomingPage: React.FC = () => {
                             </Select>
                         </Form.Item>
                     </Col>
-                    <Col span={12}>
+                    <Col span={8}>
+                        <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
+                            <Select placeholder="Выберите тип">
+                                {docTypes.map((t: any) => (
+                                    <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
+                                ))}
+                            </Select>
+                        </Form.Item>
+                    </Col>
+                    <Col span={8}>
                         <Form.Item name="incomingDate" label="Дата регистрации" rules={[{ required: true }]}>
                             <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
                         </Form.Item>
                     </Col>
                 </Row>
             )}
-            <Row gutter={16}>
-                <Col span={isEdit ? 24 : 12}>
-                    <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
-                        <Select placeholder="Выберите тип">
-                            {docTypes.map((t: any) => (
-                                <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
-                </Col>
-            </Row>
+            {isEdit && (
+                <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
+                    <Select placeholder="Выберите тип">
+                        {docTypes.map((t: any) => (
+                            <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
+                        ))}
+                    </Select>
+                </Form.Item>
+            )}
             <Row gutter={16}>
                 <Col span={8}>
                     <Form.Item name="outgoingNumberSender" label="Исх. № отправителя" rules={[{ required: true, message: 'Укажите исх. номер' }]}>
@@ -349,9 +356,6 @@ const IncomingPage: React.FC = () => {
                     </Form.Item>
                 </Col>
             </Row>
-            <Form.Item name="subject" label="Краткое содержание" rules={[{ required: true }]}>
-                <Input />
-            </Form.Item>
             <Row gutter={16}>
                 <Col span={12}>
                     <Form.Item name="intermediateNumber" label="Промежуточный номер">
@@ -372,35 +376,31 @@ const IncomingPage: React.FC = () => {
                     </Form.Item>
                 </Col>
                 <Col span={12}>
-                    <Form.Item name="recipientOrgName" label="Организация-получатель" rules={[{ required: true }]}>
-                        <Select showSearch filterOption={false} onSearch={onRecipientOrgSearch} options={orgOptionsRecipient} notFoundContent={null}
-                            onInputKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }} />
-                    </Form.Item>
-                </Col>
-            </Row>
-            <Row gutter={16}>
-                <Col span={8}>
                     <Form.Item name="senderSignatory" label="Подписант" rules={[{ required: true, message: 'Укажите подписанта' }]}>
                         <Input />
                     </Form.Item>
                 </Col>
-                <Col span={8}>
-                    <Form.Item name="senderExecutor" label="Исполнитель">
-                        <Input />
-                    </Form.Item>
-                </Col>
-                <Col span={8}>
-                    <Form.Item name="addressee" label="Кому адресован" rules={[{ required: true, message: 'Укажите адресата' }]}>
-                        <Input />
-                    </Form.Item>
-                </Col>
             </Row>
+            <Form.Item name="content" label="Содержание" rules={[{ required: true }]}>
+                <TextArea rows={3} />
+            </Form.Item>
             <Form.Item name="resolution" label="Резолюция">
                 <TextArea rows={2} placeholder="Текст резолюции" />
             </Form.Item>
-            <Form.Item name="content" label="Содержание (подробно)">
-                <TextArea rows={2} />
-            </Form.Item>
+            <Row gutter={16}>
+                <Col span={12}>
+                    <Form.Item name="resolutionAuthor" label="Автор резолюции">
+                        <Input placeholder="Необязательно" />
+                    </Form.Item>
+                </Col>
+                <Col span={12}>
+                    <Form.Item name="resolutionExecutors" label="Исполнители резолюции">
+                        <Select mode="tags" placeholder="Начните вводить ФИО" filterOption={false}
+                            onSearch={onExecutorSearch} options={executorOptions} notFoundContent={null}
+                            onInputKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }} />
+                    </Form.Item>
+                </Col>
+            </Row>
         </Form>
     );
 

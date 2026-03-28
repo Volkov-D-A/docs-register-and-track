@@ -54,7 +54,7 @@ type NomenclatureStore interface {
 	GetActiveByDirection(direction string, year int) ([]models.Nomenclature, error)
 }
 
-// ReferenceStore — интерфейс для работы со справочниками (типы документов, организации) в хранилище.
+// ReferenceStore — интерфейс для работы со справочниками (типы документов, организации, исполнители резолюции) в хранилище.
 type ReferenceStore interface {
 	GetAllDocumentTypes() ([]models.DocumentType, error)
 	CreateDocumentType(name string) (*models.DocumentType, error)
@@ -65,6 +65,11 @@ type ReferenceStore interface {
 	SearchOrganizations(query string) ([]models.Organization, error)
 	UpdateOrganization(id uuid.UUID, name string) error
 	DeleteOrganization(id uuid.UUID) error
+	GetAllResolutionExecutors() ([]models.ResolutionExecutor, error)
+	FindOrCreateResolutionExecutor(name string) (*models.ResolutionExecutor, error)
+	SearchResolutionExecutors(query string) ([]models.ResolutionExecutor, error)
+	UpdateResolutionExecutor(id uuid.UUID, name string) error
+	DeleteResolutionExecutor(id uuid.UUID) error
 }
 
 // AssignmentStore — интерфейс для работы с поручениями в хранилище.

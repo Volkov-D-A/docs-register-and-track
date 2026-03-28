@@ -91,12 +91,9 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                     <Text type="secondary" style={{ fontSize: 12 }}>Дата исх.:</Text> {doc.outgoingDateSender ? dayjs(doc.outgoingDateSender).format('DD.MM.YYYY') : '—'}
                 </Col>
             </Row>
-            <Row gutter={16}>
-                <Col span={12}>
+            <Row>
+                <Col span={24}>
                     <Text type="secondary" style={{ fontSize: 12 }}>Подписант:</Text> {doc.senderSignatory || '—'}
-                </Col>
-                <Col span={12}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Исполнитель:</Text> {doc.senderExecutor || '—'}
                 </Col>
             </Row>
             {(doc.intermediateNumber || doc.intermediateDate) && (
@@ -112,30 +109,35 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
 
             <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
 
-            <Row gutter={16}>
-                <Col span={12}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Получатель:</Text> {doc.recipientOrgName}
-                </Col>
-                <Col span={12}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Адресат:</Text> {doc.addressee || '—'}
-                </Col>
-            </Row>
-
             <div>
-                <Text type="secondary" style={{ fontSize: 12 }}>Краткое содержание:</Text>
-                <div style={{ fontWeight: 500, lineHeight: 1.2 }}>{doc.subject}</div>
+                <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
+                <div style={{ fontWeight: 500, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{doc.content}</div>
             </div>
+
+            <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
 
             <div>
                 <Text type="secondary" style={{ fontSize: 12 }}>Резолюция:</Text>
                 <div style={{ fontStyle: 'italic', background: '#fafafa', padding: '4px 8px', borderRadius: 4 }}>{doc.resolution || '—'}</div>
             </div>
-
-            {doc.content && (
-                <div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
-                    <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, maxHeight: 100, overflowY: 'auto', background: '#fafafa', padding: 8, borderRadius: 4 }}>{doc.content}</div>
-                </div>
+            {(doc.resolutionAuthor || doc.resolutionExecutors) && (
+                <Row gutter={16}>
+                    {doc.resolutionAuthor && (
+                        <Col span={12}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Автор резолюции:</Text> {doc.resolutionAuthor}
+                        </Col>
+                    )}
+                    {doc.resolutionExecutors && (
+                        <Col span={12}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Исполнители резолюции:</Text>
+                            <div style={{ marginTop: 2 }}>
+                                {doc.resolutionExecutors.split('; ').filter((s: string) => s).map((name: string, i: number) => (
+                                    <Tag key={i} style={{ marginBottom: 2 }}>{name}</Tag>
+                                ))}
+                            </div>
+                        </Col>
+                    )}
+                </Row>
             )}
 
             <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />

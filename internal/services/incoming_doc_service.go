@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -93,13 +94,13 @@ func (s *IncomingDocumentService) GetByID(id string) (*dto.IncomingDocument, err
 // Доступно только администраторам и делопроизводителям.
 func (s *IncomingDocumentService) Register(
 	nomenclatureID, documentTypeID string,
-	senderOrgName, recipientOrgName string,
+	senderOrgName string,
 	incomingDate, outgoingDateSender string,
 	outgoingNumberSender string,
 	intermediateNumber, intermediateDateStr string,
-	subject, content string, pagesCount int,
-	senderSignatory, senderExecutor, addressee string,
-	resolution string,
+	content string, pagesCount int,
+	senderSignatory string,
+	resolution, resolutionAuthor, resolutionExecutors string,
 ) (*dto.IncomingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, models.NewForbidden("недостаточно прав для регистрации документов")
@@ -118,9 +119,15 @@ func (s *IncomingDocumentService) Register(
 	if err != nil {
 		return nil, fmt.Errorf("ошибка организации отправителя: %w", err)
 	}
-	recipientOrg, err := s.refRepo.FindOrCreateOrganization(recipientOrgName)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка организации получателя: %w", err)
+
+	// Авто-добавление исполнителей резолюции в справочник
+	if resolutionExecutors != "" {
+		for _, name := range strings.Split(resolutionExecutors, "; ") {
+			name = strings.TrimSpace(name)
+			if name != "" {
+				s.refRepo.FindOrCreateResolutionExecutor(name)
+			}
+		}
 	}
 
 	nextNum, index, err := s.nomRepo.GetNextNumber(nomID)
@@ -153,6 +160,14 @@ func (s *IncomingDocumentService) Register(
 	if resolution != "" {
 		resPtr = &resolution
 	}
+	var resAuthorPtr *string
+	if resolutionAuthor != "" {
+		resAuthorPtr = &resolutionAuthor
+	}
+	var resExecutorsPtr *string
+	if resolutionExecutors != "" {
+		resExecutorsPtr = &resolutionExecutors
+	}
 
 	createdByStr := s.auth.GetCurrentUserID()
 	createdBy, err := uuid.Parse(createdByStr)
@@ -164,7 +179,6 @@ func (s *IncomingDocumentService) Register(
 		NomenclatureID:       nomID,
 		DocumentTypeID:       docTypeID,
 		SenderOrgID:          senderOrg.ID,
-		RecipientOrgID:       recipientOrg.ID,
 		CreatedBy:            createdBy,
 		IncomingNumber:       incomingNumberStr,
 		IncomingDate:         incDate,
@@ -172,13 +186,12 @@ func (s *IncomingDocumentService) Register(
 		OutgoingDateSender:   outDate,
 		IntermediateNumber:   intNumPtr,
 		IntermediateDate:     intDatePtr,
-		Subject:              subject,
 		Content:              content,
 		PagesCount:           pagesCount,
 		SenderSignatory:      senderSignatory,
-		SenderExecutor:       senderExecutor,
-		Addressee:            addressee,
 		Resolution:           resPtr,
+		ResolutionAuthor:     resAuthorPtr,
+		ResolutionExecutors:  resExecutorsPtr,
 	})
 	if err == nil {
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
@@ -196,13 +209,13 @@ func (s *IncomingDocumentService) Register(
 // Доступно только администраторам и делопроизводителям.
 func (s *IncomingDocumentService) Update(
 	id, documentTypeID string,
-	senderOrgName, recipientOrgName string,
+	senderOrgName string,
 	outgoingDateSender string,
 	outgoingNumberSender string,
 	intermediateNumber, intermediateDateStr string,
-	subject, content string, pagesCount int,
-	senderSignatory, senderExecutor, addressee string,
-	resolution string,
+	content string, pagesCount int,
+	senderSignatory string,
+	resolution, resolutionAuthor, resolutionExecutors string,
 ) (*dto.IncomingDocument, error) {
 	if !s.auth.HasRole("admin") && !s.auth.HasRole("clerk") {
 		return nil, models.NewForbidden("недостаточно прав для редактирования документов")
@@ -221,9 +234,15 @@ func (s *IncomingDocumentService) Update(
 	if err != nil {
 		return nil, fmt.Errorf("ошибка организации отправителя: %w", err)
 	}
-	recipientOrg, err := s.refRepo.FindOrCreateOrganization(recipientOrgName)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка организации получателя: %w", err)
+
+	// Авто-добавление исполнителей резолюции в справочник
+	if resolutionExecutors != "" {
+		for _, name := range strings.Split(resolutionExecutors, "; ") {
+			name = strings.TrimSpace(name)
+			if name != "" {
+				s.refRepo.FindOrCreateResolutionExecutor(name)
+			}
+		}
 	}
 
 	outDate, err := time.Parse("2006-01-02", outgoingDateSender)
@@ -246,23 +265,29 @@ func (s *IncomingDocumentService) Update(
 	if resolution != "" {
 		resPtr = &resolution
 	}
+	var resAuthorPtr *string
+	if resolutionAuthor != "" {
+		resAuthorPtr = &resolutionAuthor
+	}
+	var resExecutorsPtr *string
+	if resolutionExecutors != "" {
+		resExecutorsPtr = &resolutionExecutors
+	}
 
 	res, err := s.repo.Update(models.UpdateIncomingDocRequest{
 		ID:                   uid,
 		DocumentTypeID:       docTypeID,
 		SenderOrgID:          senderOrg.ID,
-		RecipientOrgID:       recipientOrg.ID,
 		OutgoingNumberSender: outgoingNumberSender,
 		OutgoingDateSender:   outDate,
 		IntermediateNumber:   intNumPtr,
 		IntermediateDate:     intDatePtr,
-		Subject:              subject,
 		Content:              content,
 		PagesCount:           pagesCount,
 		SenderSignatory:      senderSignatory,
-		SenderExecutor:       senderExecutor,
-		Addressee:            addressee,
 		Resolution:           resPtr,
+		ResolutionAuthor:     resAuthorPtr,
+		ResolutionExecutors:  resExecutorsPtr,
 	})
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
