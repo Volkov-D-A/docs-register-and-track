@@ -56,6 +56,7 @@ func TestAuthService_Login(t *testing.T) {
 		Login:        login,
 		PasswordHash: hash,
 		IsActive:     true,
+		Roles:        []string{"executor"},
 	}
 
 	inactiveUser := &models.User{
@@ -63,6 +64,7 @@ func TestAuthService_Login(t *testing.T) {
 		Login:        login,
 		PasswordHash: hash,
 		IsActive:     false,
+		Roles:        []string{"executor"},
 	}
 
 	t.Run("success", func(t *testing.T) {
@@ -95,11 +97,75 @@ func TestAuthService_Login(t *testing.T) {
 
 	t.Run("wrong password", func(t *testing.T) {
 		mockRepo.On("GetByLogin", login).Return(activeUser, nil).Once()
+		mockRepo.On("IncrementFailedLoginAttempts", userID).Return(1, true, nil).Once()
 
 		userDTO, err := authService.Login(login, "WrongPass1!")
 
 		require.Error(t, err)
 		assert.Equal(t, ErrInvalidCredentials, err)
+		assert.Nil(t, userDTO)
+		assert.False(t, authService.IsAuthenticated())
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("wrong password deactivates user on fifth attempt", func(t *testing.T) {
+		userAtLimit := &models.User{
+			ID:                  userID,
+			Login:               login,
+			PasswordHash:        hash,
+			IsActive:            true,
+			FailedLoginAttempts: 4,
+			Roles:               []string{"executor"},
+		}
+		mockRepo.On("GetByLogin", login).Return(userAtLimit, nil).Once()
+		mockRepo.On("IncrementFailedLoginAttempts", userID).Return(5, false, nil).Once()
+
+		userDTO, err := authService.Login(login, "WrongPass1!")
+
+		require.Error(t, err)
+		assert.Equal(t, ErrUserLocked, err)
+		assert.Nil(t, userDTO)
+		assert.False(t, authService.IsAuthenticated())
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("success resets previous failed attempts", func(t *testing.T) {
+		userWithFailures := &models.User{
+			ID:                  userID,
+			Login:               login,
+			PasswordHash:        hash,
+			IsActive:            true,
+			FailedLoginAttempts: 3,
+			Roles:               []string{"executor"},
+		}
+		mockRepo.On("GetByLogin", login).Return(userWithFailures, nil).Once()
+		mockRepo.On("ResetFailedLoginAttempts", userID).Return(nil).Once()
+
+		userDTO, err := authService.Login(login, password)
+
+		require.NoError(t, err)
+		require.NotNil(t, userDTO)
+		assert.True(t, authService.IsAuthenticated())
+
+		authService.Logout()
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("inactive after bruteforce shows locked message", func(t *testing.T) {
+		lockedUser := &models.User{
+			ID:                  userID,
+			Login:               login,
+			PasswordHash:        hash,
+			IsActive:            false,
+			FailedLoginAttempts: 5,
+			Roles:               []string{"executor"},
+		}
+		mockRepo.On("GetByLogin", login).Return(lockedUser, nil).Once()
+
+		userDTO, err := authService.Login(login, password)
+
+		require.Error(t, err)
+		assert.Equal(t, ErrUserLocked, err)
 		assert.Nil(t, userDTO)
 		assert.False(t, authService.IsAuthenticated())
 		mockRepo.AssertExpectations(t)

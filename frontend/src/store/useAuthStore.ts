@@ -19,9 +19,20 @@ interface User {
     login: string;
     fullName: string;
     isActive: boolean;
+    failedLoginAttempts: number;
     roles: string[];
     department?: Department;
 }
+
+const BRUTEFORCE_LOCK_MESSAGE = 'Учетная запись заблокирована после 5 неверных попыток входа. Обратитесь к администратору для повторной активации.';
+
+const formatAuthError = (err: any): string => {
+    const raw = err?.message || String(err) || 'Ошибка входа';
+    if (raw.includes('учетная запись заблокирована после 5 неверных попыток входа')) {
+        return BRUTEFORCE_LOCK_MESSAGE;
+    }
+    return raw;
+};
 
 /**
  * Интерфейс хранилища состояния аутентификации.
@@ -70,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     login: user.login,
                     fullName: user.fullName,
                     isActive: user.isActive,
+                    failedLoginAttempts: user.failedLoginAttempts ?? 0,
                     roles: user.roles || [],
                     department: user.department ? {
                         id: (user.department as any).id || '',
@@ -83,7 +95,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
             await SetActiveRole(defaultRole);
         } catch (err: any) {
-            set({ error: err?.message || String(err) || 'Ошибка входа', isLoading: false });
+            set({ error: formatAuthError(err), isLoading: false });
         }
     },
 

@@ -18,6 +18,7 @@ var (
 	ErrUnauthorized       = &AppError{Code: 401, Message: "требуется авторизация"}
 	ErrInvalidCredentials = &AppError{Code: 401, Message: "неверный логин или пароль"}
 	ErrUserNotActive      = &AppError{Code: 403, Message: "пользователь деактивирован"}
+	ErrUserLocked         = &AppError{Code: 403, Message: "учетная запись заблокирована после 5 неверных попыток входа; обратитесь к администратору"}
 	ErrForbidden          = &AppError{Code: 403, Message: "недостаточно прав"}
 	ErrWrongPassword      = &AppError{Code: 400, Message: "неверный текущий пароль"}
 )

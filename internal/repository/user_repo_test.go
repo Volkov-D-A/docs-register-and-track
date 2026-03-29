@@ -29,14 +29,14 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 
 	t.Run("success without department", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
-			"id", "login", "password_hash", "full_name", "is_active", "created_at", "updated_at",
+			"id", "login", "password_hash", "full_name", "is_active", "failed_login_attempts", "created_at", "updated_at",
 			"d.id", "d.name",
 		}).AddRow(
-			id, login, "hash", "Test User", true, now, now,
+			id, login, "hash", "Test User", true, 0, now, now,
 			nil, nil, // нет подразделения
 		)
 
-		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id WHERE u.login = \$1`
@@ -60,7 +60,7 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id WHERE u.login = \$1`
@@ -121,7 +121,7 @@ func TestUserRepository_Create(t *testing.T) {
 	defer db.Close()
 
 	repo := NewUserRepository(&database.DB{DB: db})
-	
+
 	req := models.CreateUserRequest{
 		Login:    "newuser",
 		Password: "Password123!",
@@ -146,9 +146,9 @@ func TestUserRepository_Create(t *testing.T) {
 	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "password_hash", "full_name", "is_active", "created_at", "updated_at",
+			"id", "login", "password_hash", "full_name", "is_active", "failed_login_attempts", "created_at", "updated_at",
 			"d.id", "d.name",
-		}).AddRow(uid, req.Login, "hash", req.FullName, true, time.Now(), time.Now(), nil, nil))
+		}).AddRow(uid, req.Login, "hash", req.FullName, true, 0, time.Now(), time.Now(), nil, nil))
 	mock.ExpectQuery(`SELECT role FROM user_roles`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{"role"}).AddRow("user"))
@@ -195,9 +195,9 @@ func TestUserRepository_Update(t *testing.T) {
 	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "password_hash", "full_name", "is_active", "created_at", "updated_at",
+			"id", "login", "password_hash", "full_name", "is_active", "failed_login_attempts", "created_at", "updated_at",
 			"d.id", "d.name",
-		}).AddRow(uid, req.Login, "hash", req.FullName, true, time.Now(), time.Now(), nil, nil))
+		}).AddRow(uid, req.Login, "hash", req.FullName, true, 0, time.Now(), time.Now(), nil, nil))
 	mock.ExpectQuery(`SELECT role FROM user_roles`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{"role"}).AddRow("admin"))
@@ -223,7 +223,7 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 		mock.ExpectExec(`UPDATE users SET password_hash`).
 			WithArgs("newhash", uid).
 			WillReturnResult(sqlmock.NewResult(1, 1))
-		
+
 		err = repo.UpdatePassword(uid, "newhash")
 		require.NoError(t, err)
 	})
@@ -233,8 +233,28 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 		mock.ExpectExec(`UPDATE users SET login(.*)full_name(.*)`).
 			WithArgs("newlog", "newname", uid).
 			WillReturnResult(sqlmock.NewResult(1, 1))
-		
+
 		err = repo.UpdateProfile(uid, models.UpdateProfileRequest{Login: "newlog", FullName: "newname"})
+		require.NoError(t, err)
+	})
+
+	t.Run("IncrementFailedLoginAttempts", func(t *testing.T) {
+		mock.ExpectQuery(`UPDATE users`).
+			WithArgs(uid).
+			WillReturnRows(sqlmock.NewRows([]string{"failed_login_attempts", "is_active"}).AddRow(5, false))
+
+		attempts, isActive, err := repo.IncrementFailedLoginAttempts(uid)
+		require.NoError(t, err)
+		assert.Equal(t, 5, attempts)
+		assert.False(t, isActive)
+	})
+
+	t.Run("ResetFailedLoginAttempts", func(t *testing.T) {
+		mock.ExpectExec(`UPDATE users`).
+			WithArgs(uid).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+
+		err = repo.ResetFailedLoginAttempts(uid)
 		require.NoError(t, err)
 	})
 
@@ -242,11 +262,11 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 		// Подсчет общего количества пользователей
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
-		
+
 		count, err := repo.CountUsers()
 		require.NoError(t, err)
 		assert.Equal(t, 5, count)
 	})
-	
+
 	require.NoError(t, mock.ExpectationsWereMet())
 }

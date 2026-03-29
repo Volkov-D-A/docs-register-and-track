@@ -287,6 +287,7 @@ export namespace dto {
 	    login: string;
 	    fullName: string;
 	    isActive: boolean;
+	    failedLoginAttempts: number;
 	    roles: string[];
 	    // Go type: time
 	    createdAt: any;
@@ -304,6 +305,7 @@ export namespace dto {
 	        this.login = source["login"];
 	        this.fullName = source["fullName"];
 	        this.isActive = source["isActive"];
+	        this.failedLoginAttempts = source["failedLoginAttempts"];
 	        this.roles = source["roles"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
@@ -1347,4 +1349,3 @@ export namespace models {
 	}
 
 }
-

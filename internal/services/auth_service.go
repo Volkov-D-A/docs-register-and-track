@@ -19,6 +19,7 @@ const migrationsPathAuth = "internal/database/migrations"
 var (
 	ErrInvalidCredentials = models.ErrInvalidCredentials
 	ErrUserNotActive      = models.ErrUserNotActive
+	ErrUserLocked         = models.ErrUserLocked
 	ErrNotAuthenticated   = models.ErrUnauthorized
 	ErrWrongPassword      = models.ErrWrongPassword
 )
@@ -61,11 +62,28 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 	}
 
 	if !security.VerifyPassword(user.PasswordHash, password) {
+		_, isActive, err := s.userRepo.IncrementFailedLoginAttempts(user.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !isActive {
+			return nil, ErrUserLocked
+		}
 		return nil, ErrInvalidCredentials
 	}
 
 	if !user.IsActive {
+		if user.FailedLoginAttempts >= 5 {
+			return nil, ErrUserLocked
+		}
 		return nil, ErrUserNotActive
+	}
+
+	if user.FailedLoginAttempts > 0 {
+		if err := s.userRepo.ResetFailedLoginAttempts(user.ID); err != nil {
+			return nil, err
+		}
+		user.FailedLoginAttempts = 0
 	}
 
 	s.mu.Lock()

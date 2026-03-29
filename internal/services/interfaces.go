@@ -20,6 +20,8 @@ type UserStore interface {
 	UpdatePassword(userID uuid.UUID, newPasswordHash string) error
 	ResetPassword(userID uuid.UUID, newPassword string) error
 	UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error
+	IncrementFailedLoginAttempts(userID uuid.UUID) (int, bool, error)
+	ResetFailedLoginAttempts(userID uuid.UUID) error
 	CountUsers() (int, error)
 }
 

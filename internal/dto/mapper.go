@@ -14,14 +14,15 @@ func MapUser(m *models.User) *User {
 		dept = MapDepartment(m.Department)
 	}
 	return &User{
-		ID:         m.ID.String(),
-		Login:      m.Login,
-		FullName:   m.FullName,
-		IsActive:   m.IsActive,
-		Roles:      m.Roles,
-		CreatedAt:  m.CreatedAt,
-		UpdatedAt:  m.UpdatedAt,
-		Department: dept,
+		ID:                  m.ID.String(),
+		Login:               m.Login,
+		FullName:            m.FullName,
+		IsActive:            m.IsActive,
+		FailedLoginAttempts: m.FailedLoginAttempts,
+		Roles:               m.Roles,
+		CreatedAt:           m.CreatedAt,
+		UpdatedAt:           m.UpdatedAt,
+		Department:          dept,
 	}
 }
 

@@ -24,7 +24,7 @@ func NewUserRepository(db *database.DB) *UserRepository {
 
 // userSelectBase — базовый SELECT для получения пользователя с department.
 const userSelectBase = `
-	SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.created_at, u.updated_at,
+	SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id`
@@ -39,7 +39,7 @@ func (r *UserRepository) getUserByCondition(whereClause string, arg interface{})
 	query := userSelectBase + " " + whereClause
 	err := r.db.QueryRow(query, arg).Scan(
 		&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
-		&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+		&user.IsActive, &user.FailedLoginAttempts, &user.CreatedAt, &user.UpdatedAt,
 		&departmentID, &departmentName,
 	)
 
@@ -222,7 +222,16 @@ func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, err
 	defer tx.Rollback()
 
 	_, err = tx.Exec(`
-		UPDATE users SET login = $1, full_name = $2, is_active = $3, department_id = $4, updated_at = CURRENT_TIMESTAMP
+		UPDATE users
+		SET login = $1,
+		    full_name = $2,
+		    is_active = $3,
+		    department_id = $4,
+		    failed_login_attempts = CASE
+		        WHEN is_active = false AND $3 = true THEN 0
+		        ELSE failed_login_attempts
+		    END,
+		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = $5
 	`, req.Login, req.FullName, req.IsActive, depID, uid)
 
@@ -351,7 +360,10 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 // UpdatePassword обновляет хэш пароля пользователя.
 func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string) error {
 	_, err := r.db.Exec(`
-		UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
+		UPDATE users
+		SET password_hash = $1,
+		    failed_login_attempts = 0,
+		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = $2
 	`, newPasswordHash, userID)
 
@@ -383,6 +395,44 @@ func (r *UserRepository) UpdateProfile(userID uuid.UUID, req models.UpdateProfil
 
 	if err != nil {
 		return fmt.Errorf("failed to update profile: %w", err)
+	}
+
+	return nil
+}
+
+// IncrementFailedLoginAttempts увеличивает счетчик неудачных входов и деактивирует пользователя после 5-й ошибки.
+func (r *UserRepository) IncrementFailedLoginAttempts(userID uuid.UUID) (int, bool, error) {
+	var attempts int
+	var isActive bool
+
+	err := r.db.QueryRow(`
+		UPDATE users
+		SET failed_login_attempts = failed_login_attempts + 1,
+		    is_active = CASE
+		        WHEN failed_login_attempts + 1 >= 5 THEN false
+		        ELSE is_active
+		    END,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+		RETURNING failed_login_attempts, is_active
+	`, userID).Scan(&attempts, &isActive)
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to increment failed login attempts: %w", err)
+	}
+
+	return attempts, isActive, nil
+}
+
+// ResetFailedLoginAttempts сбрасывает счетчик неудачных входов пользователя.
+func (r *UserRepository) ResetFailedLoginAttempts(userID uuid.UUID) error {
+	_, err := r.db.Exec(`
+		UPDATE users
+		SET failed_login_attempts = 0,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("failed to reset failed login attempts: %w", err)
 	}
 
 	return nil

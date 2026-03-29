@@ -626,6 +626,8 @@ const UsersTab: React.FC = () => {
     executor: 'Исполнитель',
   };
 
+  const isBruteforceLocked = (user: any) => !user?.isActive && (user?.failedLoginAttempts || 0) >= 5;
+
   const columns = [
     { title: 'Логин', dataIndex: 'login', key: 'login', width: 150 },
     { title: 'ФИО', dataIndex: 'fullName', key: 'fullName' },
@@ -642,8 +644,23 @@ const UsersTab: React.FC = () => {
       )),
     },
     {
-      title: 'Активен', dataIndex: 'isActive', key: 'isActive', width: 80,
-      render: (v: boolean) => v ? <Tag color="green">Да</Tag> : <Tag color="red">Нет</Tag>,
+      title: 'Статус', key: 'status', width: 220,
+      render: (_: any, record: any) => {
+        if (isBruteforceLocked(record)) {
+          return (
+            <Space direction="vertical" size={4}>
+              <Tag color="volcano">Заблокирован</Tag>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                5 ошибок входа подряд
+              </Typography.Text>
+            </Space>
+          );
+        }
+
+        return record.isActive
+          ? <Tag color="green">Активен</Tag>
+          : <Tag color="red">Отключен вручную</Tag>;
+      },
     },
     {
       title: 'Действия', key: 'actions', width: 120,
@@ -672,6 +689,11 @@ const UsersTab: React.FC = () => {
       }} style={{ marginBottom: 16 }}>Новый пользователь</Button>
 
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading} size="small" pagination={false} />
+
+      <Typography.Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
+        Пользователь со статусом «Заблокирован» был деактивирован автоматически после 5 неверных попыток входа.
+        Для восстановления откройте его карточку и снова включите флаг «Активен».
+      </Typography.Text>
 
       <Modal
         title={editItem ? 'Редактировать пользователя' : 'Новый пользователь'}
@@ -707,9 +729,16 @@ const UsersTab: React.FC = () => {
             </Select>
           </Form.Item>
           {editItem && (
-            <Form.Item name="isActive" label="Активен" valuePropName="checked">
-              <Switch />
-            </Form.Item>
+            <>
+              {isBruteforceLocked(editItem) && (
+                <Typography.Text type="warning" style={{ display: 'block', marginBottom: 12 }}>
+                  Пользователь автоматически заблокирован после 5 неверных попыток входа. Включение флага «Активен» разблокирует его и сбросит счетчик ошибок.
+                </Typography.Text>
+              )}
+              <Form.Item name="isActive" label="Активен" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            </>
           )}
         </Form>
       </Modal>

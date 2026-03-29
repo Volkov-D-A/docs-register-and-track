@@ -8,16 +8,17 @@ import (
 
 // User представляет собой сущность пользователя системы.
 type User struct {
-	ID           uuid.UUID   `json:"-"`
-	Login        string      `json:"login"`
-	PasswordHash string      `json:"-"`
-	FullName     string      `json:"fullName"`
-	IsActive     bool        `json:"isActive"`
-	Roles        []string    `json:"roles"`
-	CreatedAt    time.Time   `json:"createdAt"`
-	UpdatedAt    time.Time   `json:"updatedAt"`
-	DepartmentID *uuid.UUID  `json:"-"`
-	Department   *Department `json:"department,omitempty"`
+	ID                  uuid.UUID   `json:"-"`
+	Login               string      `json:"login"`
+	PasswordHash        string      `json:"-"`
+	FullName            string      `json:"fullName"`
+	IsActive            bool        `json:"isActive"`
+	FailedLoginAttempts int         `json:"failedLoginAttempts"`
+	Roles               []string    `json:"roles"`
+	CreatedAt           time.Time   `json:"createdAt"`
+	UpdatedAt           time.Time   `json:"updatedAt"`
+	DepartmentID        *uuid.UUID  `json:"-"`
+	Department          *Department `json:"department,omitempty"`
 }
 
 // UserRole представляет собой связь пользователя с его ролью в системе.

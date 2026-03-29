@@ -193,6 +193,41 @@ func (_m *UserStore) GetExecutors() ([]models.User, error) {
 	return r0, r1
 }
 
+// IncrementFailedLoginAttempts provides a mock function with given fields: userID
+func (_m *UserStore) IncrementFailedLoginAttempts(userID uuid.UUID) (int, bool, error) {
+	ret := _m.Called(userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IncrementFailedLoginAttempts")
+	}
+
+	var r0 int
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID) (int, bool, error)); ok {
+		return rf(userID)
+	}
+	if rf, ok := ret.Get(0).(func(uuid.UUID) int); ok {
+		r0 = rf(userID)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(uuid.UUID) bool); ok {
+		r1 = rf(userID)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(uuid.UUID) error); ok {
+		r2 = rf(userID)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // ResetPassword provides a mock function with given fields: userID, newPassword
 func (_m *UserStore) ResetPassword(userID uuid.UUID, newPassword string) error {
 	ret := _m.Called(userID, newPassword)
@@ -204,6 +239,24 @@ func (_m *UserStore) ResetPassword(userID uuid.UUID, newPassword string) error {
 	var r0 error
 	if rf, ok := ret.Get(0).(func(uuid.UUID, string) error); ok {
 		r0 = rf(userID, newPassword)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// ResetFailedLoginAttempts provides a mock function with given fields: userID
+func (_m *UserStore) ResetFailedLoginAttempts(userID uuid.UUID) error {
+	ret := _m.Called(userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ResetFailedLoginAttempts")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID) error); ok {
+		r0 = rf(userID)
 	} else {
 		r0 = ret.Error(0)
 	}
