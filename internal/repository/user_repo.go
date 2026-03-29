@@ -84,7 +84,7 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 // GetAll возвращает список всех пользователей.
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.full_name, u.is_active, u.created_at, u.updated_at,
+		SELECT u.id, u.login, u.full_name, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -107,7 +107,7 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 
 		if err := rows.Scan(
 			&user.ID, &user.Login, &user.FullName,
-			&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+			&user.IsActive, &user.FailedLoginAttempts, &user.CreatedAt, &user.UpdatedAt,
 			&departmentID, &departmentName,
 		); err != nil {
 			return nil, err

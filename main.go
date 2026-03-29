@@ -99,6 +99,7 @@ func main() {
 	}
 
 	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
+	authService.SetAdminAuditLogService(adminAuditLogService)
 	settingsService := services.NewSettingsService(db, settingsRepo, authService, adminAuditLogService)
 	userService := services.NewUserService(userRepo, authService, adminAuditLogService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService, adminAuditLogService)

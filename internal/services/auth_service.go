@@ -28,6 +28,7 @@ var (
 type AuthService struct {
 	db            *database.DB
 	userRepo      UserStore
+	auditService  *AdminAuditLogService
 	currentUserID uuid.UUID
 	activeRole    string
 	mu            sync.RWMutex
@@ -39,6 +40,11 @@ func NewAuthService(db *database.DB, userRepo UserStore) *AuthService {
 		db:       db,
 		userRepo: userRepo,
 	}
+}
+
+// SetAdminAuditLogService подключает журнал аудита администратора к сервису аутентификации.
+func (s *AuthService) SetAdminAuditLogService(auditService *AdminAuditLogService) {
+	s.auditService = auditService
 }
 
 // isTableNotExistsError проверяет, является ли ошибка «таблица не существует» (PostgreSQL 42P01).
@@ -62,11 +68,14 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 	}
 
 	if !security.VerifyPassword(user.PasswordHash, password) {
-		_, isActive, err := s.userRepo.IncrementFailedLoginAttempts(user.ID)
+		attempts, isActive, err := s.userRepo.IncrementFailedLoginAttempts(user.ID)
 		if err != nil {
 			return nil, err
 		}
 		if !isActive {
+			if attempts == 5 {
+				s.logUserLock(user)
+			}
 			return nil, ErrUserLocked
 		}
 		return nil, ErrInvalidCredentials
@@ -92,6 +101,24 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 	s.mu.Unlock()
 
 	return dto.MapUser(user), nil
+}
+
+func (s *AuthService) logUserLock(user *models.User) {
+	if s.auditService == nil || user == nil {
+		return
+	}
+
+	userName := user.FullName
+	if userName == "" {
+		userName = user.Login
+	}
+
+	s.auditService.LogAction(
+		user.ID,
+		userName,
+		"USER_LOCKED",
+		fmt.Sprintf("Пользователь «%s» (%s) автоматически заблокирован после 5 неверных попыток входа", userName, user.Login),
+	)
 }
 
 // Logout — выход

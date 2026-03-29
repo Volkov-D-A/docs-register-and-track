@@ -88,9 +88,9 @@ func TestUserRepository_GetAll(t *testing.T) {
 
 	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "full_name", "is_active", "created_at", "updated_at",
+			"id", "login", "full_name", "is_active", "failed_login_attempts", "created_at", "updated_at",
 			"d.id", "d.name",
-		}).AddRow(uid, "user1", "User One", true, now, now, depID, "IT Dept"))
+		}).AddRow(uid, "user1", "User One", false, 5, now, now, depID, "IT Dept"))
 
 	// Expect roles
 	mock.ExpectQuery(`SELECT(.*)FROM user_roles(.*)`).
@@ -106,6 +106,7 @@ func TestUserRepository_GetAll(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 	assert.Equal(t, "user1", users[0].Login)
+	assert.Equal(t, 5, users[0].FailedLoginAttempts)
 	assert.Equal(t, []string{"admin"}, users[0].Roles)
 	require.NotNil(t, users[0].Department)
 	assert.Equal(t, "IT Dept", users[0].Department.Name)

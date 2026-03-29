@@ -74,6 +74,10 @@ export function SetActiveRole(arg1) {
   return window['go']['services']['AuthService']['SetActiveRole'](arg1);
 }
 
+export function SetAdminAuditLogService(arg1) {
+  return window['go']['services']['AuthService']['SetAdminAuditLogService'](arg1);
+}
+
 export function UpdateProfile(arg1) {
   return window['go']['services']['AuthService']['UpdateProfile'](arg1);
 }

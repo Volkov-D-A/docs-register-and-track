@@ -169,11 +169,6 @@ const LoginPage: React.FC = () => {
                                     showIcon
                                     closable
                                     onClose={clearError}
-                                    description={
-                                        error.includes('заблокирована после 5 неверных попыток')
-                                            ? 'Для разблокировки администратор должен снова включить учетную запись в настройках пользователей.'
-                                            : undefined
-                                    }
                                 />
                             )}
 

@@ -13,6 +13,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type captureAdminAuditLogStore struct {
+	requests []models.CreateAdminAuditLogRequest
+}
+
+func (s *captureAdminAuditLogStore) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
+	s.requests = append(s.requests, req)
+	return uuid.New(), nil
+}
+
+func (s *captureAdminAuditLogStore) GetAll(limit, offset int) ([]models.AdminAuditLog, int, error) {
+	return nil, 0, nil
+}
+
 // ---------- helpers ----------
 
 // loginUser — вспомогательная функция: логинит пользователя через мок и возвращает AuthService.
@@ -109,11 +122,15 @@ func TestAuthService_Login(t *testing.T) {
 	})
 
 	t.Run("wrong password deactivates user on fifth attempt", func(t *testing.T) {
+		auditStore := &captureAdminAuditLogStore{}
+		authService.SetAdminAuditLogService(NewAdminAuditLogService(auditStore, authService))
+
 		userAtLimit := &models.User{
 			ID:                  userID,
 			Login:               login,
 			PasswordHash:        hash,
 			IsActive:            true,
+			FullName:            "Test User",
 			FailedLoginAttempts: 4,
 			Roles:               []string{"executor"},
 		}
@@ -126,6 +143,11 @@ func TestAuthService_Login(t *testing.T) {
 		assert.Equal(t, ErrUserLocked, err)
 		assert.Nil(t, userDTO)
 		assert.False(t, authService.IsAuthenticated())
+		require.Len(t, auditStore.requests, 1)
+		assert.Equal(t, userID, auditStore.requests[0].UserID)
+		assert.Equal(t, "Test User", auditStore.requests[0].UserName)
+		assert.Equal(t, "USER_LOCKED", auditStore.requests[0].Action)
+		assert.Contains(t, auditStore.requests[0].Details, login)
 		mockRepo.AssertExpectations(t)
 	})
 

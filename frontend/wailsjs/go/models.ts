@@ -1349,3 +1349,21 @@ export namespace models {
 	}
 
 }
+
+export namespace services {
+	
+	export class AdminAuditLogService {
+	
+	
+	    static createFrom(source: any = {}) {
+	        return new AdminAuditLogService(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	
+	    }
+	}
+
+}
+
