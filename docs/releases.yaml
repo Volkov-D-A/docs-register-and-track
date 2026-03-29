@@ -1,5 +1,5 @@
 releases:
-  - version: 1.0.0
+  - version: 1.0.1
     releasedAt: 2026-03-29
     changes:
       - title: Изменение полей в карточке регистрации входящего документа
