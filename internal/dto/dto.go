@@ -118,8 +118,6 @@ type OutgoingDocument struct {
 	Content          string `json:"content"`
 	PagesCount       int    `json:"pagesCount"`
 
-	SenderOrgID     string `json:"senderOrgId"`
-	SenderOrgName   string `json:"senderOrgName,omitempty"`
 	SenderSignatory string `json:"senderSignatory"`
 	SenderExecutor  string `json:"senderExecutor"`
 

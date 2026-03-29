@@ -18,7 +18,6 @@ type OutgoingDocumentService struct {
 	nomRepo         NomenclatureStore
 	depRepo         DepartmentStore
 	auth            *AuthService
-	settingsService *SettingsService
 	journal         *JournalService
 }
 
@@ -29,7 +28,6 @@ func NewOutgoingDocumentService(
 	nomRepo NomenclatureStore,
 	depRepo DepartmentStore,
 	auth *AuthService,
-	settingsService *SettingsService,
 	journal *JournalService,
 ) *OutgoingDocumentService {
 	return &OutgoingDocumentService{
@@ -38,7 +36,6 @@ func NewOutgoingDocumentService(
 		nomRepo:         nomRepo,
 		depRepo:         depRepo,
 		auth:            auth,
-		settingsService: settingsService,
 		journal:         journal,
 	}
 }
@@ -71,17 +68,6 @@ func (s *OutgoingDocumentService) Register(
 		return nil, fmt.Errorf("ошибка организации получателя: %w", err)
 	}
 
-	// Организация-отправитель (наша организация) — пока хардкодим или берем из настроек
-	// В данном случае, sender_org_id в таблице outgoing_documents — это организация ОТ КОТОРОЙ уходит документ.
-	// Обычно это "Наша Организация".
-	// Для упрощения, пока создадим/найдем организацию "Наша Организация" или возьмем первую попавшуюся.
-	// TODO: Вынести ID "Нашей Организации" в конфиг или настройки.
-	orgName := s.settingsService.GetOrganizationName()
-	senderOrg, err := s.refRepo.FindOrCreateOrganization(orgName)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка вашей организации: %w", err)
-	}
-
 	// Получение рег. номера из номенклатуры
 	nextNum, index, err := s.nomRepo.GetNextNumber(nomID)
 	if err != nil {
@@ -105,7 +91,6 @@ func (s *OutgoingDocumentService) Register(
 	res, err := s.repo.Create(models.CreateOutgoingDocRequest{
 		NomenclatureID:  nomID,
 		DocumentTypeID:  docTypeID,
-		SenderOrgID:     senderOrg.ID,
 		RecipientOrgID:  recipientOrg.ID,
 		CreatedBy:       createdBy,
 		OutgoingNumber:  outgoingNumber,
@@ -154,11 +139,6 @@ func (s *OutgoingDocumentService) Update(
 		return nil, fmt.Errorf("ошибка организации получателя: %w", err)
 	}
 
-	senderOrg, err := s.refRepo.FindOrCreateOrganization(s.settingsService.GetOrganizationName())
-	if err != nil {
-		return nil, fmt.Errorf("ошибка вашей организации: %w", err)
-	}
-
 	outDate, err := time.Parse("2006-01-02", outgoingDate)
 	if err != nil {
 		return nil, models.NewBadRequest("неверный формат даты исходящего документа")
@@ -167,7 +147,6 @@ func (s *OutgoingDocumentService) Update(
 	res, err := s.repo.Update(models.UpdateOutgoingDocRequest{
 		ID:              uid,
 		DocumentTypeID:  docTypeID,
-		SenderOrgID:     senderOrg.ID,
 		RecipientOrgID:  recipientOrg.ID,
 		OutgoingDate:    outDate,
 		Content:         content,

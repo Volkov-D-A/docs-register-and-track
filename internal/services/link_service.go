@@ -204,7 +204,6 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 				label = doc.OutgoingNumber
 				subject = doc.Content
 				dateStr = doc.OutgoingDate.Format("02.01.2006")
-				sender = doc.SenderOrgName // Обычно "Наша Организация"
 				recipient = doc.RecipientOrgName
 				if recipient == "" {
 					recipient = "Неизвестно"

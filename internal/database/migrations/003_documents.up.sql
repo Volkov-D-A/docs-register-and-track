@@ -51,7 +51,6 @@ content TEXT NOT NULL,
 pages_count INT NOT NULL DEFAULT 1,
 
 -- Sender
-sender_org_id UUID NOT NULL REFERENCES organizations (id),
 sender_signatory VARCHAR(255) NOT NULL,
 sender_executor VARCHAR(255) NOT NULL,
 

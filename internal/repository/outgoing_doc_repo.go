@@ -97,14 +97,13 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
 			d.content, d.pages_count,
-			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
+			d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM outgoing_documents d
 		JOIN nomenclature n ON d.nomenclature_id = n.id
 		JOIN document_types dt ON d.document_type_id = dt.id
-		JOIN organizations so ON d.sender_org_id = so.id
 		JOIN organizations ro ON d.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
 		WHERE %s
@@ -128,7 +127,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 			&doc.OutgoingNumber, &doc.OutgoingDate,
 			&doc.DocumentTypeID, &doc.DocumentTypeName,
 			&doc.Content, &doc.PagesCount,
-			&doc.SenderOrgID, &doc.SenderOrgName, &doc.SenderSignatory, &doc.SenderExecutor,
+			&doc.SenderSignatory, &doc.SenderExecutor,
 			&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
 			&doc.CreatedBy, &doc.CreatedByName,
 			&doc.CreatedAt, &doc.UpdatedAt,
@@ -160,14 +159,13 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
 			d.content, d.pages_count,
-			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
+			d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM outgoing_documents d
 		JOIN nomenclature n ON d.nomenclature_id = n.id
 		JOIN document_types dt ON d.document_type_id = dt.id
-		JOIN organizations so ON d.sender_org_id = so.id
 		JOIN organizations ro ON d.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
 		WHERE d.id = $1
@@ -176,7 +174,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 		&doc.OutgoingNumber, &doc.OutgoingDate,
 		&doc.DocumentTypeID, &doc.DocumentTypeName,
 		&doc.Content, &doc.PagesCount,
-		&doc.SenderOrgID, &doc.SenderOrgName, &doc.SenderSignatory, &doc.SenderExecutor,
+		&doc.SenderSignatory, &doc.SenderExecutor,
 		&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
 		&doc.CreatedBy, &doc.CreatedByName,
 		&doc.CreatedAt, &doc.UpdatedAt,
@@ -199,14 +197,14 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 		INSERT INTO outgoing_documents (
 			nomenclature_id, outgoing_number, outgoing_date,
 			document_type_id, content, pages_count,
-			sender_org_id, sender_signatory, sender_executor,
+			sender_signatory, sender_executor,
 			recipient_org_id, addressee, created_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 		RETURNING id
 	`,
 		req.NomenclatureID, req.OutgoingNumber, req.OutgoingDate,
 		req.DocumentTypeID, req.Content, req.PagesCount,
-		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee, req.CreatedBy,
 	).Scan(&id)
 
@@ -222,13 +220,13 @@ func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest)
 	_, err := r.db.Exec(`
 		UPDATE outgoing_documents SET
 			document_type_id = $1, content = $2, pages_count = $3,
-			sender_org_id = $4, sender_signatory = $5, sender_executor = $6,
-			recipient_org_id = $7, addressee = $8, outgoing_date = $9,
+			sender_signatory = $4, sender_executor = $5,
+			recipient_org_id = $6, addressee = $7, outgoing_date = $8,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $10
+		WHERE id = $9
 	`,
 		req.DocumentTypeID, req.Content, req.PagesCount,
-		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee, req.OutgoingDate,
 		req.ID,
 	)

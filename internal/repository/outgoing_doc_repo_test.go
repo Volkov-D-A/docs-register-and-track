@@ -30,14 +30,13 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
 			d.content, d.pages_count,
-			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
+			d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM outgoing_documents d
 		JOIN nomenclature n ON d.nomenclature_id = n.id
 		JOIN document_types dt ON d.document_type_id = dt.id
-		JOIN organizations so ON d.sender_org_id = so.id
 		JOIN organizations ro ON d.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
 		WHERE d.id = $1`
@@ -48,7 +47,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 			"outgoing_number", "outgoing_date",
 			"document_type_id", "document_type_name",
 			"content", "pages_count",
-			"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
+			"sender_signatory", "sender_executor",
 			"recipient_org_id", "recipient_org_name", "addressee",
 			"created_by", "created_by_name",
 			"created_at", "updated_at",
@@ -57,7 +56,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 			"ИСХ-123", now,
 			uuid.New(), "Тип 1",
 			"Содержание", 5,
-			uuid.New(), "Орг 1", "Иванов И.И.", "Петров П.П.",
+			"Иванов И.И.", "Петров П.П.",
 			uuid.New(), "Орг 2", "Сидоров С.С.",
 			uuid.New(), "Создатель",
 			now, now,
@@ -137,7 +136,7 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 	mock.ExpectQuery(`INSERT INTO outgoing_documents`).WithArgs(
 		req.NomenclatureID, req.OutgoingNumber, req.OutgoingDate,
 		req.DocumentTypeID, req.Content, req.PagesCount,
-		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee, req.CreatedBy,
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 
@@ -147,14 +146,13 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
 			d.content, d.pages_count,
-			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
+			d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM outgoing_documents d
 		JOIN nomenclature n ON d.nomenclature_id = n.id
 		JOIN document_types dt ON d.document_type_id = dt.id
-		JOIN organizations so ON d.sender_org_id = so.id
 		JOIN organizations ro ON d.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
 		WHERE d.id = $1`
@@ -164,13 +162,13 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 		"outgoing_number", "outgoing_date",
 		"document_type_id", "document_type_name",
 		"content", "pages_count",
-		"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
+		"sender_signatory", "sender_executor",
 		"recipient_org_id", "recipient_org_name", "addressee",
 		"created_by", "created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01", "ИСХ-001", now,
-		uuid.New(), "Тип", "Текст", 0, uuid.New(), "", "", "",
+		uuid.New(), "Тип", "Текст", 0, "", "",
 		uuid.New(), "", "", uuid.New(), "", now, now,
 	)
 
@@ -209,13 +207,13 @@ func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 			"outgoing_number", "outgoing_date",
 			"document_type_id", "document_type_name",
 			"content", "pages_count",
-			"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
+			"sender_signatory", "sender_executor",
 			"recipient_org_id", "recipient_org_name", "addressee",
 			"created_by", "created_by_name",
 			"created_at", "updated_at",
 		}).AddRow(
 			uuid.New(), uuid.New(), "01-01", "ИСХ-001", now,
-			uuid.New(), "Тип", "Текст", 0, uuid.New(), "", "", "",
+			uuid.New(), "Тип", "Текст", 0, "", "",
 			uuid.New(), "", "", uuid.New(), "", now, now,
 		)
 
@@ -224,14 +222,13 @@ func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
 			d.content, d.pages_count,
-			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
+			d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM outgoing_documents d
 		JOIN nomenclature n ON d.nomenclature_id = n.id
 		JOIN document_types dt ON d.document_type_id = dt.id
-		JOIN organizations so ON d.sender_org_id = so.id
 		JOIN organizations ro ON d.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id`
 		mock.ExpectQuery(regexp.QuoteMeta(expectedSelectBase)).WillReturnRows(rows)
@@ -285,7 +282,7 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 
 	mock.ExpectExec(`UPDATE outgoing_documents SET`).WithArgs(
 		req.DocumentTypeID, req.Content, req.PagesCount,
-		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
+		req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee, req.OutgoingDate,
 		req.ID,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -296,14 +293,13 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
 			d.content, d.pages_count,
-			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
+			d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM outgoing_documents d
 		JOIN nomenclature n ON d.nomenclature_id = n.id
 		JOIN document_types dt ON d.document_type_id = dt.id
-		JOIN organizations so ON d.sender_org_id = so.id
 		JOIN organizations ro ON d.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
 		WHERE d.id = $1`
@@ -312,13 +308,13 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 		"outgoing_number", "outgoing_date",
 		"document_type_id", "document_type_name",
 		"content", "pages_count",
-		"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
+		"sender_signatory", "sender_executor",
 		"recipient_org_id", "recipient_org_name", "addressee",
 		"created_by", "created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01", "ИСХ-001", now,
-		uuid.New(), "Тип", "Обновленный текст", 0, uuid.New(), "", "", "",
+		uuid.New(), "Тип", "Обновленный текст", 0, "", "",
 		uuid.New(), "", "", uuid.New(), "", now, now,
 	)
 

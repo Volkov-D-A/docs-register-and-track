@@ -139,8 +139,6 @@ func MapOutgoingDocument(m *models.OutgoingDocument) *OutgoingDocument {
 		DocumentTypeName: m.DocumentTypeName,
 		Content:          m.Content,
 		PagesCount:       m.PagesCount,
-		SenderOrgID:      m.SenderOrgID.String(),
-		SenderOrgName:    m.SenderOrgName,
 		SenderSignatory:  m.SenderSignatory,
 		SenderExecutor:   m.SenderExecutor,
 		RecipientOrgID:   m.RecipientOrgID.String(),

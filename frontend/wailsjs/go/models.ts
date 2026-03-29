@@ -779,8 +779,6 @@ export namespace dto {
 	    documentTypeName?: string;
 	    content: string;
 	    pagesCount: number;
-	    senderOrgId: string;
-	    senderOrgName?: string;
 	    senderSignatory: string;
 	    senderExecutor: string;
 	    recipientOrgId: string;
@@ -809,8 +807,6 @@ export namespace dto {
 	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
 	        this.pagesCount = source["pagesCount"];
-	        this.senderOrgId = source["senderOrgId"];
-	        this.senderOrgName = source["senderOrgName"];
 	        this.senderSignatory = source["senderSignatory"];
 	        this.senderExecutor = source["senderExecutor"];
 	        this.recipientOrgId = source["recipientOrgId"];
