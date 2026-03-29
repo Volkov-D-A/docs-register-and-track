@@ -9,15 +9,16 @@ import OutgoingPage from './pages/OutgoingPage';
 import AssignmentsPage from './pages/AssignmentsPage';
 import ProfilePage from './pages/ProfilePage';
 import MainLayout from './components/MainLayout';
-import { Typography, Modal, Button } from 'antd';
-
-const { Title } = Typography;
+import { GetCurrent, MarkCurrentViewed } from '../wailsjs/go/services/ReleaseNoteService';
+import { models } from '../wailsjs/go/models';
 
 // Заглушки для страниц
 
 function App() {
-    const { isAuthenticated, currentRole } = useAuthStore();
+    const { isAuthenticated, currentRole, user } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
+    const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+    const [release, setRelease] = useState<models.ReleaseNote | null>(null);
 
     // При входе в приложение всегда перенаправляем на дашборд
     // Или на страницу создания документа, если есть draftLink
@@ -43,6 +44,63 @@ function App() {
         });
         return unsubscribe;
     }, []);
+
+    useEffect(() => {
+        if (!isAuthenticated || !user || !currentRole) {
+            setRelease(null);
+            setIsAboutModalOpen(false);
+            return;
+        }
+
+        let isMounted = true;
+
+        void GetCurrent()
+            .then((currentRelease) => {
+                if (!isMounted) {
+                    return;
+                }
+
+                setRelease(currentRelease);
+
+                if (
+                    currentRelease &&
+                    !currentRelease.isViewed &&
+                    ['clerk', 'executor'].includes(currentRole)
+                ) {
+                    setIsAboutModalOpen(true);
+                }
+            })
+            .catch((error) => {
+                console.error('GetCurrent release note error:', error);
+                if (isMounted) {
+                    setRelease(null);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [isAuthenticated, user, currentRole]);
+
+    const handleAboutModalClose = () => {
+        setIsAboutModalOpen(false);
+
+        if (!release || release.isViewed) {
+            return;
+        }
+
+        void MarkCurrentViewed()
+            .then(() => {
+                setRelease((prev) => (
+                    prev
+                        ? models.ReleaseNote.createFrom({ ...prev, isViewed: true })
+                        : prev
+                ));
+            })
+            .catch((error) => {
+                console.error('MarkCurrentViewed error:', error);
+            });
+    };
 
     if (!isAuthenticated) {
         return <LoginPage />;
@@ -76,7 +134,14 @@ function App() {
     };
 
     return (
-        <MainLayout currentPage={currentPage} onPageChange={setCurrentPage}>
+        <MainLayout
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            isAboutModalOpen={isAboutModalOpen}
+            onAboutModalOpen={() => setIsAboutModalOpen(true)}
+            onAboutModalClose={handleAboutModalClose}
+            release={release}
+        >
             {renderPage()}
         </MainLayout>
     );

@@ -79,6 +79,7 @@ func main() {
 	dashboardRepo := repository.NewDashboardRepository(db)
 	journalRepo := repository.NewJournalRepository(db)
 	adminAuditLogRepo := repository.NewAdminAuditLogRepository(db)
+	releaseNoteRepo := repository.NewReleaseNoteRepository(db)
 
 	// Создание сервисов
 	authService := services.NewAuthService(db, userRepo)
@@ -118,6 +119,7 @@ func main() {
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService)
 	systemService := services.NewSystemService(db)
+	releaseNoteService := services.NewReleaseNoteService(releaseNoteRepo, authService, adminAuditLogService)
 
 	// Запуск приложения Wails
 	err = wails.Run(&options.App{
@@ -155,6 +157,7 @@ func main() {
 			linkService,
 			acknowledgmentService,
 			systemService,
+			releaseNoteService,
 			journalService,
 			adminAuditLogService,
 		},

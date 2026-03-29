@@ -4,6 +4,7 @@ import {
   Typography, Popconfirm, Switch, Tag, App, DatePicker
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, FileTextOutlined, BankOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined, SolutionOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 
 const { Title } = Typography;
 
@@ -1030,6 +1031,8 @@ const StorageTab: React.FC = () => {
  */
 const actionLabels: Record<string, string> = {
   SETTINGS_UPDATE: 'Изменение настроек',
+  RELEASE_NOTE_CREATE: 'Создание релиза',
+  RELEASE_NOTE_SET_CURRENT: 'Назначение текущей версии',
   USER_CREATE: 'Создание пользователя',
   USER_UPDATE: 'Обновление пользователя',
   USER_PASSWORD_RESET: 'Сброс пароля',
@@ -1047,6 +1050,225 @@ const actionLabels: Record<string, string> = {
   MIGRATION_RUN: 'Применение миграций',
   MIGRATION_ROLLBACK: 'Откат миграции',
   FILES_BULK_DELETE: 'Массовое удаление файлов',
+};
+
+const ReleaseNotesTab: React.FC = () => {
+  const { message, modal } = App.useApp();
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form] = Form.useForm();
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { GetAll } = await import('../../wailsjs/go/services/ReleaseNoteService');
+      const items = await GetAll();
+      setData(items || []);
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onSave = async (values: any) => {
+    try {
+      const { Create } = await import('../../wailsjs/go/services/ReleaseNoteService');
+      const { models } = await import('../../wailsjs/go/models');
+
+      const req = models.CreateReleaseNoteRequest.createFrom({
+        version: values.version.trim(),
+        releasedAt: values.releasedAt.toISOString(),
+        isCurrent: values.isCurrent ?? true,
+        changes: (values.changes || []).map((change: any) => ({
+          title: change.title?.trim(),
+          description: change.description?.trim(),
+        })),
+      });
+
+      await Create(req);
+      message.success('Релиз добавлен');
+      setModalOpen(false);
+      form.resetFields();
+      load();
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+  };
+
+  const onSetCurrent = (record: any) => {
+    modal.confirm({
+      title: 'Сделать релиз текущим',
+      content: `Назначить версию ${record.version} текущей для показа пользователям?`,
+      okText: 'Назначить',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          const { SetCurrent } = await import('../../wailsjs/go/services/ReleaseNoteService');
+          await SetCurrent(record.id);
+          message.success(`Версия ${record.version} назначена текущей`);
+          load();
+        } catch (err: any) {
+          message.error(err?.message || String(err));
+        }
+      },
+    });
+  };
+
+  const columns = [
+    {
+      title: 'Версия',
+      dataIndex: 'version',
+      key: 'version',
+      width: 140,
+      render: (value: string, record: any) => (
+        <Space>
+          <Typography.Text strong>{value}</Typography.Text>
+          {record.isCurrent && <Tag color="green">Текущая</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: 'Дата релиза',
+      dataIndex: 'releasedAt',
+      key: 'releasedAt',
+      width: 140,
+      render: (value: string) => value ? new Date(value).toLocaleDateString('ru-RU') : '-',
+    },
+    {
+      title: 'Изменения',
+      dataIndex: 'changes',
+      key: 'changes',
+      render: (changes: any[]) => (
+        <Space direction="vertical" size={4}>
+          {(changes || []).map((change, index) => (
+            <Typography.Text key={change.id || index}>
+              {index + 1}. {change.title}
+            </Typography.Text>
+          ))}
+        </Space>
+      ),
+    },
+    {
+      title: 'Действия',
+      key: 'actions',
+      width: 160,
+      render: (_: any, record: any) => (
+        <Button
+          size="small"
+          type="primary"
+          ghost
+          disabled={record.isCurrent}
+          onClick={() => onSetCurrent(record)}
+        >
+          Сделать текущей
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <Space style={{ marginBottom: 16 }}>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => {
+            form.resetFields();
+            form.setFieldsValue({
+              releasedAt: dayjs(),
+              isCurrent: true,
+              changes: [{ title: '', description: '' }],
+            });
+            setModalOpen(true);
+          }}
+        >
+          Новый релиз
+        </Button>
+        <Button icon={<ReloadOutlined />} onClick={load}>
+          Обновить
+        </Button>
+      </Space>
+
+      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} size="small" pagination={false} />
+
+      <Modal
+        title="Новый релиз"
+        open={modalOpen}
+        onCancel={() => {
+          setModalOpen(false);
+          form.resetFields();
+        }}
+        onOk={() => form.submit()}
+        width={760}
+      >
+        <Form form={form} layout="vertical" onFinish={onSave}>
+          <Form.Item
+            name="version"
+            label="Версия"
+            rules={[{ required: true, message: 'Укажите версию релиза' }]}
+          >
+            <Input placeholder="1.1.0" />
+          </Form.Item>
+
+          <Form.Item
+            name="releasedAt"
+            label="Дата релиза"
+            rules={[{ required: true, message: 'Укажите дату релиза' }]}
+          >
+            <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+          </Form.Item>
+
+          <Form.Item name="isCurrent" label="Сделать текущей версией" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+
+          <Form.List name="changes">
+            {(fields, { add, remove }) => (
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                {fields.map((field, index) => (
+                  <div key={field.key} style={{ padding: 16, border: '1px solid #f0f0f0', borderRadius: 8 }}>
+                    <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <Typography.Text strong>Изменение {index + 1}</Typography.Text>
+                      {fields.length > 1 && (
+                        <Button danger size="small" onClick={() => remove(field.name)}>
+                          Удалить
+                        </Button>
+                      )}
+                    </Space>
+
+                    <Form.Item
+                      {...field}
+                      name={[field.name, 'title']}
+                      label="Заголовок"
+                      rules={[{ required: true, message: 'Укажите заголовок изменения' }]}
+                    >
+                      <Input placeholder="Новая кнопка О программе" />
+                    </Form.Item>
+
+                    <Form.Item
+                      {...field}
+                      name={[field.name, 'description']}
+                      label="Описание"
+                      rules={[{ required: true, message: 'Укажите описание изменения' }]}
+                    >
+                      <Input.TextArea rows={3} placeholder="Кратко опишите, что изменилось в этой версии" />
+                    </Form.Item>
+                  </div>
+                ))}
+
+                <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ title: '', description: '' })}>
+                  Добавить изменение
+                </Button>
+              </Space>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
+    </div>
+  );
 };
 
 const AuditLogTab: React.FC = () => {
@@ -1137,6 +1359,7 @@ const SettingsPage: React.FC = () => {
           { key: 'departments', label: 'Отделы', icon: <ApartmentOutlined />, children: <DepartmentsTab /> },
           { key: 'users', label: 'Пользователи', icon: <TeamOutlined />, children: <UsersTab /> },
           { key: 'system', label: 'Настройки', icon: <SettingOutlined />, children: <SystemSettingsTab /> },
+          { key: 'releaseNotes', label: 'Релизы', icon: <FileSearchOutlined />, children: <ReleaseNotesTab /> },
           { key: 'storage', label: 'Хранилище', icon: <CloudServerOutlined />, children: <StorageTab /> },
           { key: 'migrations', label: 'Миграции', icon: <DatabaseOutlined />, children: <MigrationsTab /> },
           { key: 'auditLog', label: 'Журнал', icon: <FileSearchOutlined />, children: <AuditLogTab /> },

@@ -8,8 +8,11 @@ import {
     SettingOutlined,
     UserOutlined,
     LogoutOutlined,
+    InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store/useAuthStore';
+import AboutProgramModal from './AboutProgramModal';
+import { models } from '../../wailsjs/go/models';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -21,6 +24,10 @@ interface MainLayoutProps {
     children: React.ReactNode;
     currentPage: string;
     onPageChange: (page: string) => void;
+    isAboutModalOpen: boolean;
+    onAboutModalOpen: () => void;
+    onAboutModalClose: () => void;
+    release: models.ReleaseNote | null;
 }
 
 /**
@@ -30,7 +37,15 @@ interface MainLayoutProps {
  * @param currentPage Текущая активная страница (для выделения в меню)
  * @param onPageChange Обработчик смены страницы
  */
-const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageChange }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({
+    children,
+    currentPage,
+    onPageChange,
+    isAboutModalOpen,
+    onAboutModalOpen,
+    onAboutModalClose,
+    release,
+}) => {
     const { user, logout, hasRole, currentRole } = useAuthStore();
 
     const menuItems = [
@@ -145,12 +160,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageCh
                         </div>
                     )}
 
-                    <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenu }} placement="bottomRight">
-                        <Space style={{ cursor: 'pointer' }}>
-                            <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1677ff' }} />
-                            <Text>{user?.fullName}</Text>
-                        </Space>
-                    </Dropdown>
+                    <Space size="middle">
+                        <Button icon={<InfoCircleOutlined />} onClick={onAboutModalOpen}>
+                            О программе
+                        </Button>
+
+                        <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenu }} placement="bottomRight">
+                            <Space style={{ cursor: 'pointer' }}>
+                                <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1677ff' }} />
+                                <Text>{user?.fullName}</Text>
+                            </Space>
+                        </Dropdown>
+                    </Space>
                 </Header>
 
                 <Content style={{ overflowY: 'auto', padding: 24, height: 'calc(100vh - 64px)' }}>
@@ -159,6 +180,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onPageCh
                     </div>
                 </Content>
             </Layout>
+            <AboutProgramModal open={isAboutModalOpen} onClose={onAboutModalClose} release={release} />
         </Layout>
     );
 };
