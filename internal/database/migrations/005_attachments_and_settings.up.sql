@@ -60,38 +60,3 @@ CREATE TABLE acknowledgment_users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (acknowledgment_id, user_id)
 );
-
--- 16. Release Notes
-CREATE TABLE IF NOT EXISTS release_notes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    version VARCHAR(50) NOT NULL UNIQUE,
-    released_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    is_current BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_release_notes_current_true
-    ON release_notes (is_current)
-    WHERE is_current = TRUE;
-
-CREATE TABLE IF NOT EXISTS release_note_changes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    release_note_id UUID NOT NULL REFERENCES release_notes(id) ON DELETE CASCADE,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_release_note_changes_release_note_id
-    ON release_note_changes (release_note_id, sort_order);
-
-CREATE TABLE IF NOT EXISTS user_release_views (
-    release_note_id UUID NOT NULL REFERENCES release_notes(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    viewed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (release_note_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_release_views_user_id
-    ON user_release_views (user_id, viewed_at DESC);

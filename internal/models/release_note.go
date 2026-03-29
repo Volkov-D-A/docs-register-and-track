@@ -31,11 +31,3 @@ type ReleaseNoteChangeInput struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
-
-// CreateReleaseNoteRequest описывает запрос на создание нового релиза.
-type CreateReleaseNoteRequest struct {
-	Version    string                   `json:"version"`
-	ReleasedAt string                   `json:"releasedAt"`
-	IsCurrent  bool                     `json:"isCurrent"`
-	Changes    []ReleaseNoteChangeInput `json:"changes"`
-}

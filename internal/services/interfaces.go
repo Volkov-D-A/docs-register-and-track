@@ -106,15 +106,6 @@ type SettingsStore interface {
 	Update(key, value string) error
 }
 
-// ReleaseNoteStore — интерфейс для работы с релизными заметками приложения.
-type ReleaseNoteStore interface {
-	GetCurrentForUser(userID uuid.UUID) (*models.ReleaseNote, error)
-	GetAll() ([]models.ReleaseNote, error)
-	Create(req models.CreateReleaseNoteRequest, releasedAt time.Time) (*models.ReleaseNote, error)
-	MarkViewed(releaseNoteID, userID uuid.UUID) error
-	SetCurrent(releaseNoteID uuid.UUID) error
-}
-
 // AttachmentStore — интерфейс для работы с вложениями (файлами) в хранилище.
 type AttachmentStore interface {
 	Create(a *models.Attachment) error

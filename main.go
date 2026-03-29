@@ -26,6 +26,9 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+//go:embed internal/releaseassets/current_release.yaml
+var releaseNotesSource []byte
+
 func main() {
 	// CLI-утилита: шифрование пароля для config.json
 	encryptFlag := flag.String("encrypt-password", "", "Зашифровать пароль для config.json и вывести результат")
@@ -79,7 +82,6 @@ func main() {
 	dashboardRepo := repository.NewDashboardRepository(db)
 	journalRepo := repository.NewJournalRepository(db)
 	adminAuditLogRepo := repository.NewAdminAuditLogRepository(db)
-	releaseNoteRepo := repository.NewReleaseNoteRepository(db)
 
 	// Создание сервисов
 	authService := services.NewAuthService(db, userRepo)
@@ -119,7 +121,11 @@ func main() {
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService)
 	systemService := services.NewSystemService(db)
-	releaseNoteService := services.NewReleaseNoteService(releaseNoteRepo, authService, adminAuditLogService)
+	releaseNoteService, err := services.NewReleaseNoteService(releaseNotesSource)
+	if err != nil {
+		slog.Error("Critical: Failed to load embedded release notes", "error", err)
+		os.Exit(1)
+	}
 
 	// Запуск приложения Wails
 	err = wails.Run(&options.App{

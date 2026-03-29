@@ -1039,56 +1039,6 @@ export namespace models {
 	        this.Details = source["Details"];
 	    }
 	}
-	export class ReleaseNoteChangeInput {
-	    title: string;
-	    description: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new ReleaseNoteChangeInput(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.title = source["title"];
-	        this.description = source["description"];
-	    }
-	}
-	export class CreateReleaseNoteRequest {
-	    version: string;
-	    releasedAt: string;
-	    isCurrent: boolean;
-	    changes: ReleaseNoteChangeInput[];
-	
-	    static createFrom(source: any = {}) {
-	        return new CreateReleaseNoteRequest(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.version = source["version"];
-	        this.releasedAt = source["releasedAt"];
-	        this.isCurrent = source["isCurrent"];
-	        this.changes = this.convertValues(source["changes"], ReleaseNoteChangeInput);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class CreateUserRequest {
 	    login: string;
 	    password: string;
@@ -1321,7 +1271,6 @@ export namespace models {
 		    return a;
 		}
 	}
-	
 	
 	export class SystemSetting {
 	    key: string;
