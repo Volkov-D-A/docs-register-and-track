@@ -248,12 +248,12 @@ const IncomingPage: React.FC = () => {
         {
             title: 'Отправитель',
             key: 'sender',
-            width: 250,
+            width: '26%',
             render: (_: any, r: any) => (
                 <div>
                     <div style={{ fontWeight: 600 }}>{r.senderOrgName}</div>
                     {(r.outgoingNumberSender || r.outgoingDateSender) && (
-                        <div style={{ fontSize: 12, color: '#666' }}>
+                        <div style={{ fontSize: 13, color: '#666' }}>
                             Исх: {r.outgoingNumberSender} {r.outgoingDateSender ? `от ${dayjs(r.outgoingDateSender).format('DD.MM.YYYY')}` : ''}
                         </div>
                     )}
@@ -263,6 +263,7 @@ const IncomingPage: React.FC = () => {
         {
             title: 'Содержание',
             key: 'content',
+            width: '26%',
             render: (_: any, r: any) => (
                 <div>
                     <div style={{ fontWeight: 500 }}>{r.content}</div>
@@ -272,9 +273,9 @@ const IncomingPage: React.FC = () => {
         {
             title: 'Резолюция',
             key: 'resolution',
-            width: 220,
+            width: '26%',
             render: (_: any, r: any) => (
-                <div style={{ fontSize: 12 }}>
+                <div style={{ fontSize: 13 }}>
                     {r.resolution && <div style={{ fontStyle: 'italic', color: '#555' }}>{r.resolution}</div>}
                     {!r.resolution && <span style={{ color: '#bbb' }}>—</span>}
                 </div>
@@ -513,7 +514,7 @@ const IncomingPage: React.FC = () => {
                 }]}
             />
 
-            <Table columns={columns} dataSource={data} rowKey="id" loading={loading} size="small"
+            <Table className="incoming-documents-table" columns={columns} dataSource={data} rowKey="id" loading={loading} size="small" tableLayout="fixed"
                 pagination={{
                     current: page, pageSize, total: totalCount,
                     onChange: (p, ps) => { setPage(p); setPageSize(ps); },

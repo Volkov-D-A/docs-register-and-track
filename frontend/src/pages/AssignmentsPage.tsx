@@ -175,15 +175,15 @@ const AssignmentsPage: React.FC = () => {
             render: (v: string) => dayjs(v).format('DD.MM.YYYY'),
         },
         {
-            title: 'Документ', key: 'doc', width: 220,
+            title: 'Документ', key: 'doc', width: 300,
             render: (_: any, r: any) => (
                 <div>
                     <div style={{ fontWeight: 600 }}>{r.documentNumber || 'Без номера'}</div>
-                    <div style={{ fontSize: 12, color: '#666', lineHeight: '1.2' }}>{r.documentSubject}</div>
+                    <div style={{ fontSize: 13, color: '#666', lineHeight: '1.2' }}>{r.documentSubject}</div>
                 </div>
             )
         },
-        { title: 'Поручение', dataIndex: 'content', key: 'content' },
+        { title: 'Поручение', dataIndex: 'content', key: 'content', width: '22%' },
         {
             title: 'Исполнитель', key: 'executorName', width: 200,
             render: (_: any, r: any) => (
@@ -350,8 +350,9 @@ const AssignmentsPage: React.FC = () => {
             </div>
 
             <Table
+                className="assignments-table"
                 columns={columns} dataSource={data} rowKey="id"
-                loading={loading} size="small"
+                loading={loading} size="small" tableLayout="fixed"
                 rowClassName={(record) => {
                     const isOverdue = record.deadline && dayjs(record.deadline).isBefore(dayjs(), 'day') && !['completed', 'finished', 'cancelled'].includes(record.status);
                     return isOverdue ? 'assignment-overdue' : '';

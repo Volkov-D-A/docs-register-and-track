@@ -38,3 +38,15 @@ body {
 .assignment-overdue .ant-table-cell {
   background-color: #fff2f0 !important;
 }
+
+.incoming-documents-table .ant-table-tbody > tr > td {
+  font-size: 15px;
+}
+
+.outgoing-documents-table .ant-table-tbody > tr > td {
+  font-size: 15px;
+}
+
+.assignments-table .ant-table-tbody > tr > td {
+  font-size: 15px;
+}

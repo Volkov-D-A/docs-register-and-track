@@ -223,30 +223,31 @@ const OutgoingPage: React.FC = () => {
         {
             title: 'Получатель',
             key: 'recipient',
-            width: 250,
+            width: '26%',
             render: (_: any, r: any) => (
                 <div>
                     <div style={{ fontWeight: 600 }}>{r.recipientOrgName}</div>
-                    <div style={{ fontSize: 12 }}>Адресат: {r.addressee}</div>
+                    <div style={{ fontSize: 13 }}>Адресат: {r.addressee}</div>
                 </div>
             )
         },
         {
             title: 'Содержание',
             key: 'content',
+            width: '26%',
             render: (_: any, r: any) => (
                 <div>
                     <div style={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>{r.content}</div>
-                    <div style={{ fontSize: 12, color: '#666' }}>{r.documentTypeName}</div>
+                    <div style={{ fontSize: 13, color: '#666' }}>{r.documentTypeName}</div>
                 </div>
             )
         },
         {
             title: 'Исполнитель / Подписант',
             key: 'executor',
-            width: 200,
+            width: '26%',
             render: (_: any, r: any) => (
-                <div style={{ fontSize: 12 }}>
+                <div style={{ fontSize: 13 }}>
                     <div>Исп: {r.senderExecutor}</div>
                     <div>Подп: {r.senderSignatory}</div>
                 </div>
@@ -351,7 +352,7 @@ const OutgoingPage: React.FC = () => {
                 }]}
             />
 
-            <Table columns={columns} dataSource={data} rowKey="id" loading={loading} size="small"
+            <Table className="outgoing-documents-table" columns={columns} dataSource={data} rowKey="id" loading={loading} size="small" tableLayout="fixed"
                 pagination={{
                     current: page, pageSize, total: totalCount,
                     onChange: (p, ps) => { setPage(p); setPageSize(ps); },
