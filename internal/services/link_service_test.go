@@ -188,7 +188,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		repo.On("GetGraph", context.Background(), rootID).Return(mockLinks, nil).Once()
 
 		incDoc := &models.IncomingDocument{ID: rootID, IncomingNumber: "ВХ-1", Content: "Тест вх", IncomingDate: time.Now()}
-		outDoc := &models.OutgoingDocument{ID: targetID, OutgoingNumber: "ИСХ-2", Subject: "Тест исх", OutgoingDate: time.Now()}
+		outDoc := &models.OutgoingDocument{ID: targetID, OutgoingNumber: "ИСХ-2", Content: "Тест исх", OutgoingDate: time.Now()}
 
 		incRepo.On("GetByID", rootID).Return(incDoc, nil).Once()
 		outRepo.On("GetByID", targetID).Return(outDoc, nil).Once()

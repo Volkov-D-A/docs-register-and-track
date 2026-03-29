@@ -150,7 +150,7 @@ const OutgoingPage: React.FC = () => {
                 values.nomenclatureId, values.documentTypeId,
                 values.recipientOrgName, values.addressee,
                 values.outgoingDate?.format('YYYY-MM-DD') || '',
-                values.subject, values.content, values.pagesCount,
+                values.content, values.pagesCount,
                 values.senderSignatory, values.senderExecutor
             );
 
@@ -180,7 +180,7 @@ const OutgoingPage: React.FC = () => {
                 editDoc.id, values.documentTypeId,
                 values.recipientOrgName, values.addressee,
                 values.outgoingDate?.format('YYYY-MM-DD') || '',
-                values.subject, values.content, values.pagesCount,
+                values.content, values.pagesCount,
                 values.senderSignatory, values.senderExecutor
             );
             message.success('Документ обновлен');
@@ -232,11 +232,11 @@ const OutgoingPage: React.FC = () => {
             )
         },
         {
-            title: 'Краткое содержание',
+            title: 'Содержание',
             key: 'content',
             render: (_: any, r: any) => (
                 <div>
-                    <div style={{ fontWeight: 500 }}>{r.subject}</div>
+                    <div style={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>{r.content}</div>
                     <div style={{ fontSize: 12, color: '#666' }}>{r.documentTypeName}</div>
                 </div>
             )
@@ -427,10 +427,7 @@ const OutgoingPage: React.FC = () => {
                         </Col>
                     </Row>
 
-                    <Form.Item name="subject" label="Краткое содержание" rules={[{ required: true }]}>
-                        <TextArea rows={2} />
-                    </Form.Item>
-                    <Form.Item name="content" label="Содержание / Текст">
+                    <Form.Item name="content" label="Содержание" rules={[{ required: true }]}>
                         <TextArea rows={4} />
                     </Form.Item>
                 </Form>
@@ -491,10 +488,7 @@ const OutgoingPage: React.FC = () => {
                             </Form.Item>
                         </Col>
                     </Row>
-                    <Form.Item name="subject" label="Краткое содержание" rules={[{ required: true }]}>
-                        <TextArea rows={2} />
-                    </Form.Item>
-                    <Form.Item name="content" label="Содержание / Текст">
+                    <Form.Item name="content" label="Содержание" rules={[{ required: true }]}>
                         <TextArea rows={4} />
                     </Form.Item>
                 </Form>

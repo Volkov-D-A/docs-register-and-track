@@ -777,9 +777,8 @@ export namespace dto {
 	    outgoingDate: any;
 	    documentTypeId: string;
 	    documentTypeName?: string;
-	    subject: string;
-	    pagesCount: number;
 	    content: string;
+	    pagesCount: number;
 	    senderOrgId: string;
 	    senderOrgName?: string;
 	    senderSignatory: string;
@@ -808,9 +807,8 @@ export namespace dto {
 	        this.outgoingDate = this.convertValues(source["outgoingDate"], null);
 	        this.documentTypeId = source["documentTypeId"];
 	        this.documentTypeName = source["documentTypeName"];
-	        this.subject = source["subject"];
-	        this.pagesCount = source["pagesCount"];
 	        this.content = source["content"];
+	        this.pagesCount = source["pagesCount"];
 	        this.senderOrgId = source["senderOrgId"];
 	        this.senderOrgName = source["senderOrgName"];
 	        this.senderSignatory = source["senderSignatory"];
@@ -1366,4 +1364,3 @@ export namespace services {
 	}
 
 }
-

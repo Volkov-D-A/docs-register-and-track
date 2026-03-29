@@ -182,16 +182,11 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
 
             <div>
-                <Text type="secondary" style={{ fontSize: 12 }}>Краткое содержание:</Text>
-                <div style={{ fontWeight: 500, lineHeight: 1.2 }}>{doc.subject}</div>
-            </div>
-
-            {doc.content && (
+                <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
                 <div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
                     <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, maxHeight: 100, overflowY: 'auto', background: '#fafafa', padding: 8, borderRadius: 4 }}>{doc.content}</div>
                 </div>
-            )}
+            </div>
         </div>
     );
 

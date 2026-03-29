@@ -115,9 +115,8 @@ type OutgoingDocument struct {
 
 	DocumentTypeID   string `json:"documentTypeId"`
 	DocumentTypeName string `json:"documentTypeName,omitempty"`
-	Subject          string `json:"subject"`
-	PagesCount       int    `json:"pagesCount"`
 	Content          string `json:"content"`
+	PagesCount       int    `json:"pagesCount"`
 
 	SenderOrgID     string `json:"senderOrgId"`
 	SenderOrgName   string `json:"senderOrgName,omitempty"`

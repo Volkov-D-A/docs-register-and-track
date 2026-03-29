@@ -60,9 +60,8 @@ type OutgoingDocument struct {
 	// О документе
 	DocumentTypeID   uuid.UUID `json:"-"`
 	DocumentTypeName string    `json:"documentTypeName,omitempty"`
-	Subject          string    `json:"subject"`
-	PagesCount       int       `json:"pagesCount"`
 	Content          string    `json:"content"`
+	PagesCount       int       `json:"pagesCount"`
 
 	// Отправитель
 	SenderOrgID     uuid.UUID `json:"-"`
@@ -214,7 +213,6 @@ type CreateOutgoingDocRequest struct {
 	CreatedBy       uuid.UUID
 	OutgoingNumber  string
 	OutgoingDate    time.Time
-	Subject         string
 	Content         string
 	PagesCount      int
 	SenderSignatory string
@@ -229,7 +227,6 @@ type UpdateOutgoingDocRequest struct {
 	SenderOrgID     uuid.UUID
 	RecipientOrgID  uuid.UUID
 	OutgoingDate    time.Time
-	Subject         string
 	Content         string
 	PagesCount      int
 	SenderSignatory string

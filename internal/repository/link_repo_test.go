@@ -90,7 +90,7 @@ func TestLinkRepository_GetByDocumentID(t *testing.T) {
 			END as target_number,
              CASE 
 				WHEN l.target_type = 'incoming' THEN \(SELECT content FROM incoming_documents WHERE id = l.target_id\)
-				WHEN l.target_type = 'outgoing' THEN \(SELECT subject FROM outgoing_documents WHERE id = l.target_id\)
+				WHEN l.target_type = 'outgoing' THEN \(SELECT content FROM outgoing_documents WHERE id = l.target_id\)
 			END as target_subject
 		FROM document_links l
 		WHERE l.source_id = \$1 OR l.target_id = \$1

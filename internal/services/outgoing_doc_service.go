@@ -48,7 +48,7 @@ func (s *OutgoingDocumentService) Register(
 	nomenclatureID, documentTypeID string,
 	recipientOrgName, addressee string,
 	outgoingDate string,
-	subject, content string, pagesCount int,
+	content string, pagesCount int,
 	senderSignatory, senderExecutor string,
 ) (*dto.OutgoingDocument, error) {
 	if err := requireClerkDocumentRole(s.auth); err != nil {
@@ -110,7 +110,6 @@ func (s *OutgoingDocumentService) Register(
 		CreatedBy:       createdBy,
 		OutgoingNumber:  outgoingNumber,
 		OutgoingDate:    outDate,
-		Subject:         subject,
 		Content:         content,
 		PagesCount:      pagesCount,
 		SenderSignatory: senderSignatory,
@@ -134,7 +133,7 @@ func (s *OutgoingDocumentService) Update(
 	id, documentTypeID string,
 	recipientOrgName, addressee string,
 	outgoingDate string,
-	subject, content string, pagesCount int,
+	content string, pagesCount int,
 	senderSignatory, senderExecutor string,
 ) (*dto.OutgoingDocument, error) {
 	if err := requireClerkDocumentRole(s.auth); err != nil {
@@ -171,7 +170,6 @@ func (s *OutgoingDocumentService) Update(
 		SenderOrgID:     senderOrg.ID,
 		RecipientOrgID:  recipientOrg.ID,
 		OutgoingDate:    outDate,
-		Subject:         subject,
 		Content:         content,
 		PagesCount:      pagesCount,
 		SenderSignatory: senderSignatory,

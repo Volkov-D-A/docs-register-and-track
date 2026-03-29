@@ -54,7 +54,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		argIdx++
 	}
 	if filter.Search != "" {
-		where = append(where, fmt.Sprintf("(d.subject ILIKE $%d OR d.content ILIKE $%d OR d.outgoing_number ILIKE $%d)", argIdx, argIdx, argIdx))
+		where = append(where, fmt.Sprintf("(d.content ILIKE $%d OR d.outgoing_number ILIKE $%d)", argIdx, argIdx))
 		args = append(args, "%"+filter.Search+"%")
 		argIdx++
 	}
@@ -96,7 +96,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
-			d.subject, d.pages_count, d.content,
+			d.content, d.pages_count,
 			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
@@ -127,7 +127,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 			&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 			&doc.OutgoingNumber, &doc.OutgoingDate,
 			&doc.DocumentTypeID, &doc.DocumentTypeName,
-			&doc.Subject, &doc.PagesCount, &doc.Content,
+			&doc.Content, &doc.PagesCount,
 			&doc.SenderOrgID, &doc.SenderOrgName, &doc.SenderSignatory, &doc.SenderExecutor,
 			&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
 			&doc.CreatedBy, &doc.CreatedByName,
@@ -159,7 +159,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
-			d.subject, d.pages_count, d.content,
+			d.content, d.pages_count,
 			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
@@ -175,7 +175,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 		&doc.OutgoingNumber, &doc.OutgoingDate,
 		&doc.DocumentTypeID, &doc.DocumentTypeName,
-		&doc.Subject, &doc.PagesCount, &doc.Content,
+		&doc.Content, &doc.PagesCount,
 		&doc.SenderOrgID, &doc.SenderOrgName, &doc.SenderSignatory, &doc.SenderExecutor,
 		&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
 		&doc.CreatedBy, &doc.CreatedByName,
@@ -198,14 +198,14 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 	err := r.db.QueryRow(`
 		INSERT INTO outgoing_documents (
 			nomenclature_id, outgoing_number, outgoing_date,
-			document_type_id, subject, pages_count, content,
+			document_type_id, content, pages_count,
 			sender_org_id, sender_signatory, sender_executor,
 			recipient_org_id, addressee, created_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 		RETURNING id
 	`,
 		req.NomenclatureID, req.OutgoingNumber, req.OutgoingDate,
-		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.DocumentTypeID, req.Content, req.PagesCount,
 		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee, req.CreatedBy,
 	).Scan(&id)
@@ -221,13 +221,13 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error) {
 	_, err := r.db.Exec(`
 		UPDATE outgoing_documents SET
-			document_type_id = $1, subject = $2, pages_count = $3, content = $4,
-			sender_org_id = $5, sender_signatory = $6, sender_executor = $7,
-			recipient_org_id = $8, addressee = $9, outgoing_date = $10,
+			document_type_id = $1, content = $2, pages_count = $3,
+			sender_org_id = $4, sender_signatory = $5, sender_executor = $6,
+			recipient_org_id = $7, addressee = $8, outgoing_date = $9,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $11
+		WHERE id = $10
 	`,
-		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.DocumentTypeID, req.Content, req.PagesCount,
 		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee, req.OutgoingDate,
 		req.ID,

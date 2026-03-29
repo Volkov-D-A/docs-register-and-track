@@ -202,7 +202,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 			doc, err := s.outgoingDocRepo.GetByID(id)
 			if err == nil && doc != nil {
 				label = doc.OutgoingNumber
-				subject = doc.Subject
+				subject = doc.Content
 				dateStr = doc.OutgoingDate.Format("02.01.2006")
 				sender = doc.SenderOrgName // Обычно "Наша Организация"
 				recipient = doc.RecipientOrgName

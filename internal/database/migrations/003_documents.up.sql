@@ -47,9 +47,8 @@ outgoing_number VARCHAR(50) NOT NULL, outgoing_date DATE NOT NULL,
 
 -- About document
 document_type_id UUID NOT NULL REFERENCES document_types (id),
-subject VARCHAR(1000) NOT NULL,
-pages_count INT NOT NULL DEFAULT 1,
 content TEXT NOT NULL,
+pages_count INT NOT NULL DEFAULT 1,
 
 -- Sender
 sender_org_id UUID NOT NULL REFERENCES organizations (id),

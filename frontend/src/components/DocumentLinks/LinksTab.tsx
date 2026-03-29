@@ -74,9 +74,10 @@ export const LinksTab = ({ documentId, documentType, documentNumber }: LinksTabP
             const options = items.map((item: any) => {
                 const date = targetType === 'incoming' ? item.incomingDate : item.outgoingDate;
                 const number = targetType === 'incoming' ? item.incomingNumber : item.outgoingNumber;
+                const content = item.content || item.subject || '';
                 return {
                     value: item.id,
-                    label: `${number} от ${dayjs(date).format('DD.MM.YYYY')} - ${item.subject}`
+                    label: `${number} от ${dayjs(date).format('DD.MM.YYYY')} - ${content}`
                 };
             });
             setTargetOptions(options);

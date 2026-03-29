@@ -66,21 +66,21 @@ func TestOutgoingDocService_Register(t *testing.T) {
 			ID: uuid.New(),
 		}, nil).Once()
 
-		result, err := svc.Register(nomID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Тема", "Контент", 3, "Подписант", "Исполнитель")
+		result, err := svc.Register(nomID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.NoError(t, err)
 		require.NotNil(t, result)
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
 		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
-		result, err := svc.Register(nomID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Тема", "Контент", 3, "Подписант", "Исполнитель")
+		result, err := svc.Register(nomID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("forbidden admin", func(t *testing.T) {
 		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
-		result, err := svc.Register(nomID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Тема", "Контент", 3, "Подписант", "Исполнитель")
+		result, err := svc.Register(nomID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
@@ -88,7 +88,7 @@ func TestOutgoingDocService_Register(t *testing.T) {
 
 	t.Run("invalid nomenclature", func(t *testing.T) {
 		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
-		result, err := svc.Register("not-uuid", docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Тема", "Контент", 3, "Подписант", "Исполнитель")
+		result, err := svc.Register("not-uuid", docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "номенклатуры")
 		assert.Nil(t, result)
@@ -112,21 +112,21 @@ func TestOutgoingDocService_Update(t *testing.T) {
 			ID: docID,
 		}, nil).Once()
 
-		result, err := svc.Update(docID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Тема", "Контент", 3, "Подписант", "Исполнитель")
+		result, err := svc.Update(docID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.NoError(t, err)
 		require.NotNil(t, result)
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
 		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
-		result, err := svc.Update(docID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Тема", "Контент", 3, "Подписант", "Исполнитель")
+		result, err := svc.Update(docID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("invalid ID", func(t *testing.T) {
 		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
-		result, err := svc.Update("not-uuid", docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Тема", "Контент", 3, "Подписант", "Исполнитель")
+		result, err := svc.Update("not-uuid", docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
@@ -138,7 +138,7 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
-		outRepo.On("GetByID", docID).Return(&models.OutgoingDocument{ID: docID, Subject: "Тема"}, nil).Once()
+		outRepo.On("GetByID", docID).Return(&models.OutgoingDocument{ID: docID, Content: "Тема"}, nil).Once()
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
 		require.NotNil(t, result)

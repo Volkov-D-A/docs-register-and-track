@@ -29,7 +29,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
-			d.subject, d.pages_count, d.content,
+			d.content, d.pages_count,
 			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
@@ -47,7 +47,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 			"id", "nomenclature_id", "nomenclature_name",
 			"outgoing_number", "outgoing_date",
 			"document_type_id", "document_type_name",
-			"subject", "pages_count", "content",
+			"content", "pages_count",
 			"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
 			"recipient_org_id", "recipient_org_name", "addressee",
 			"created_by", "created_by_name",
@@ -56,7 +56,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 			docID, uuid.New(), "01-01 — Дело 1",
 			"ИСХ-123", now,
 			uuid.New(), "Тип 1",
-			"Тестовая тема", 5, "Содержание",
+			"Содержание", 5,
 			uuid.New(), "Орг 1", "Иванов И.И.", "Петров П.П.",
 			uuid.New(), "Орг 2", "Сидоров С.С.",
 			uuid.New(), "Создатель",
@@ -70,7 +70,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 		require.NotNil(t, doc)
 		assert.Equal(t, docID, doc.ID)
 		assert.Equal(t, "ИСХ-123", doc.OutgoingNumber)
-		assert.Equal(t, "Тестовая тема", doc.Subject)
+		assert.Equal(t, "Содержание", doc.Content)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -131,13 +131,12 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 		OutgoingNumber: "ИСХ-001",
 		OutgoingDate:   now,
 		DocumentTypeID: uuid.New(),
-		Subject:        "Тема",
 		Content:        "Текст",
 	}
 
 	mock.ExpectQuery(`INSERT INTO outgoing_documents`).WithArgs(
 		req.NomenclatureID, req.OutgoingNumber, req.OutgoingDate,
-		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.DocumentTypeID, req.Content, req.PagesCount,
 		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee, req.CreatedBy,
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
@@ -147,7 +146,7 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
-			d.subject, d.pages_count, d.content,
+			d.content, d.pages_count,
 			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
@@ -164,14 +163,14 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 		"id", "nomenclature_id", "nomenclature_name",
 		"outgoing_number", "outgoing_date",
 		"document_type_id", "document_type_name",
-		"subject", "pages_count", "content",
+		"content", "pages_count",
 		"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
 		"recipient_org_id", "recipient_org_name", "addressee",
 		"created_by", "created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01", "ИСХ-001", now,
-		uuid.New(), "Тип", "Тема", 0, "Текст", uuid.New(), "", "", "",
+		uuid.New(), "Тип", "Текст", 0, uuid.New(), "", "", "",
 		uuid.New(), "", "", uuid.New(), "", now, now,
 	)
 
@@ -209,22 +208,22 @@ func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 			"id", "nomenclature_id", "nomenclature_name",
 			"outgoing_number", "outgoing_date",
 			"document_type_id", "document_type_name",
-			"subject", "pages_count", "content",
+			"content", "pages_count",
 			"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
 			"recipient_org_id", "recipient_org_name", "addressee",
 			"created_by", "created_by_name",
 			"created_at", "updated_at",
 		}).AddRow(
 			uuid.New(), uuid.New(), "01-01", "ИСХ-001", now,
-			uuid.New(), "Тип", "Тема", 0, "Текст", uuid.New(), "", "", "",
+			uuid.New(), "Тип", "Текст", 0, uuid.New(), "", "", "",
 			uuid.New(), "", "", uuid.New(), "", now, now,
 		)
-		
+
 		expectedSelectBase := `SELECT 
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
-			d.subject, d.pages_count, d.content,
+			d.content, d.pages_count,
 			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
@@ -255,7 +254,7 @@ func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 		assert.Nil(t, res)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
-	
+
 	t.Run("data database error", func(t *testing.T) {
 		filter := models.OutgoingDocumentFilter{}
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM outgoing_documents`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
@@ -281,11 +280,11 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 
 	req := models.UpdateOutgoingDocRequest{
 		ID:      docID,
-		Subject: "Обновленная Тема",
+		Content: "Обновленный текст",
 	}
 
 	mock.ExpectExec(`UPDATE outgoing_documents SET`).WithArgs(
-		req.DocumentTypeID, req.Subject, req.PagesCount, req.Content,
+		req.DocumentTypeID, req.Content, req.PagesCount,
 		req.SenderOrgID, req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee, req.OutgoingDate,
 		req.ID,
@@ -296,7 +295,7 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			d.outgoing_number, d.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
-			d.subject, d.pages_count, d.content,
+			d.content, d.pages_count,
 			d.sender_org_id, so.name as sender_org_name, d.sender_signatory, d.sender_executor,
 			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
 			d.created_by, u.full_name as created_by_name,
@@ -312,14 +311,14 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 		"id", "nomenclature_id", "nomenclature_name",
 		"outgoing_number", "outgoing_date",
 		"document_type_id", "document_type_name",
-		"subject", "pages_count", "content",
+		"content", "pages_count",
 		"sender_org_id", "sender_org_name", "sender_signatory", "sender_executor",
 		"recipient_org_id", "recipient_org_name", "addressee",
 		"created_by", "created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01", "ИСХ-001", now,
-		uuid.New(), "Тип", "Обновленная Тема", 0, "Текст", uuid.New(), "", "", "",
+		uuid.New(), "Тип", "Обновленный текст", 0, uuid.New(), "", "", "",
 		uuid.New(), "", "", uuid.New(), "", now, now,
 	)
 
@@ -329,6 +328,6 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Equal(t, docID, doc.ID)
-	assert.Equal(t, "Обновленная Тема", doc.Subject)
+	assert.Equal(t, "Обновленный текст", doc.Content)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
