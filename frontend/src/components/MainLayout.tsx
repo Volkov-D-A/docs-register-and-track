@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Select } from 'antd';
 import {
     DashboardOutlined,
@@ -47,6 +47,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     release,
 }) => {
     const { user, logout, hasRole, currentRole } = useAuthStore();
+    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
     const menuItems = [
         {
@@ -106,27 +107,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     return (
         <Layout style={{ height: '100vh' }}>
             <Sider
+                className={`app-sider ${isSidebarExpanded ? 'app-sider-expanded' : 'app-sider-collapsed'}`}
                 theme="light"
                 width={220}
+                collapsedWidth={72}
+                collapsed={!isSidebarExpanded}
+                trigger={null}
+                onMouseEnter={() => setIsSidebarExpanded(true)}
+                onMouseLeave={() => setIsSidebarExpanded(false)}
                 style={{
                     borderRight: '1px solid #f0f0f0',
                 }}
             >
-                <div style={{
-                    height: 64,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderBottom: '1px solid #f0f0f0',
-                }}>
-                    <Text strong style={{ fontSize: 16, color: '#1677ff' }}>
-                        📄 УСЗН Озерск
+                <div className="app-sider-brand">
+                    <span className="app-sider-brand-icon">📄</span>
+                    <Text strong className="app-sider-brand-text">
+                        УСЗН Озерск
                     </Text>
                 </div>
                 <Menu
                     mode="inline"
                     selectedKeys={[currentPage]}
                     items={menuItems}
+                    inlineCollapsed={!isSidebarExpanded}
                     onClick={({ key }) => onPageChange(key)}
                     style={{ borderRight: 0 }}
                 />

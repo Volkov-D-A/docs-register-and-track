@@ -50,3 +50,79 @@ body {
 .assignments-table .ant-table-tbody > tr > td {
   font-size: 15px;
 }
+
+.assignments-table .ant-table-thead > tr > th {
+  white-space: nowrap;
+}
+
+.assignments-table .ant-table-thead > tr > th.assignments-date-column,
+.assignments-table .ant-table-tbody > tr > td.assignments-date-column {
+  padding-left: 0 !important;
+}
+
+.assignments-table .assignments-content-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignments-table .assignments-document-cell {
+  overflow: hidden;
+}
+
+.assignments-table .assignments-document-subject {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-sider {
+  transition: all 0.2s ease;
+}
+
+.app-sider .ant-layout-sider-children {
+  overflow: hidden;
+}
+
+.app-sider-brand {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 16px;
+  overflow: hidden;
+}
+
+.app-sider-brand-icon {
+  flex: 0 0 auto;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.app-sider-brand-text {
+  font-size: 16px;
+  color: #1677ff !important;
+  white-space: nowrap;
+  transition: opacity 0.15s ease, max-width 0.2s ease;
+  overflow: hidden;
+}
+
+.app-sider-collapsed .app-sider-brand {
+  padding: 0;
+  gap: 0;
+}
+
+.app-sider-collapsed .app-sider-brand-text {
+  max-width: 0;
+  opacity: 0;
+}
+
+.app-sider-expanded .app-sider-brand-text {
+  max-width: 160px;
+  opacity: 1;
+}

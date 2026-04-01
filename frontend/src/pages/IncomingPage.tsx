@@ -121,9 +121,7 @@ const IncomingPage: React.FC = () => {
                 outgoingDateTo: filterOutDateTo,
                 resolution: filterNoResolution ? '' : filterResolution,
                 noResolution: filterNoResolution,
-                nomenclatureIds: currentRole === 'executor'
-                    ? ((user?.department?.nomenclatureIds?.length) ? user.department.nomenclatureIds : ['00000000-0000-0000-0000-000000000000'])
-                    : filterNomenclatureIds,
+                nomenclatureIds: filterNomenclatureIds,
             });
             setData(result?.items || []);
             setTotalCount(result?.totalCount || 0);

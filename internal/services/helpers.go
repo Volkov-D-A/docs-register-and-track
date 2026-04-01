@@ -108,3 +108,30 @@ func applyExecutorNomenclatureFilter(
 
 	return filterNomenclaturesByDepartment(deptID, depRepo, nomenclatureIDs, nomenclatureID)
 }
+
+// getExecutorAllowedNomenclatureIDs возвращает список номенклатур подразделения текущего исполнителя.
+func getExecutorAllowedNomenclatureIDs(auth *AuthService, depRepo DepartmentStore) ([]string, error) {
+	if !auth.HasActiveRole("executor") {
+		return nil, nil
+	}
+
+	user, err := auth.GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+	if user == nil || user.Department == nil || user.Department.ID == "" {
+		return nil, nil
+	}
+
+	departmentID, err := uuid.Parse(user.Department.ID)
+	if err != nil {
+		return nil, nil
+	}
+
+	allowedNomenclatures, err := depRepo.GetNomenclatureIDs(departmentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get allowed nomenclatures: %w", err)
+	}
+
+	return allowedNomenclatures, nil
+}

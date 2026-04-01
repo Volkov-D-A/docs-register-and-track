@@ -90,6 +90,7 @@ type AssignmentStore interface {
 	Delete(id uuid.UUID) error
 	GetByID(id uuid.UUID) (*models.Assignment, error)
 	GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error)
+	HasDocumentAccess(userID, documentID uuid.UUID, documentType string) (bool, error)
 }
 
 // DepartmentStore — интерфейс для работы с подразделениями в хранилище.

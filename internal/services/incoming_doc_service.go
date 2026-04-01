@@ -14,12 +14,13 @@ import (
 
 // IncomingDocumentService предоставляет бизнес-логику для работы с входящими документами.
 type IncomingDocumentService struct {
-	repo    IncomingDocStore
-	nomRepo NomenclatureStore
-	refRepo ReferenceStore
-	depRepo DepartmentStore
-	auth    *AuthService
-	journal *JournalService
+	repo           IncomingDocStore
+	nomRepo        NomenclatureStore
+	refRepo        ReferenceStore
+	depRepo        DepartmentStore
+	assignmentRepo AssignmentStore
+	auth           *AuthService
+	journal        *JournalService
 }
 
 // NewIncomingDocumentService создает новый экземпляр IncomingDocumentService.
@@ -28,16 +29,18 @@ func NewIncomingDocumentService(
 	nomRepo NomenclatureStore,
 	refRepo ReferenceStore,
 	depRepo DepartmentStore,
+	assignmentRepo AssignmentStore,
 	auth *AuthService,
 	journal *JournalService,
 ) *IncomingDocumentService {
 	return &IncomingDocumentService{
-		repo:    repo,
-		nomRepo: nomRepo,
-		refRepo: refRepo,
-		depRepo: depRepo,
-		auth:    auth,
-		journal: journal,
+		repo:           repo,
+		nomRepo:        nomRepo,
+		refRepo:        refRepo,
+		depRepo:        depRepo,
+		assignmentRepo: assignmentRepo,
+		auth:           auth,
+		journal:        journal,
 	}
 }
 
@@ -47,22 +50,13 @@ func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*dto.Pa
 		return nil, err
 	}
 
-	filteredIDs, empty, err := applyExecutorNomenclatureFilter(
-		s.auth, s.depRepo, filter.NomenclatureIDs, filter.NomenclatureID,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if empty {
-		return &dto.PagedResult[dto.IncomingDocument]{
-			Items:      []dto.IncomingDocument{},
-			TotalCount: 0,
-			Page:       filter.Page,
-			PageSize:   filter.PageSize,
-		}, nil
-	}
-	if filteredIDs != nil {
-		filter.NomenclatureIDs = filteredIDs
+	if s.auth.HasActiveRole("executor") {
+		allowedIDs, err := getExecutorAllowedNomenclatureIDs(s.auth, s.depRepo)
+		if err != nil {
+			return nil, err
+		}
+		filter.AllowedNomenclatureIDs = allowedIDs
+		filter.AccessibleByUserID = s.auth.GetCurrentUserID()
 	}
 
 	res, err := s.repo.GetList(filter)
@@ -90,7 +84,7 @@ func (s *IncomingDocumentService) GetByID(id string) (*dto.IncomingDocument, err
 	if err != nil || res == nil {
 		return dto.MapIncomingDocument(res), err
 	}
-	if err := requireExecutorNomenclatureAccess(s.auth, s.depRepo, res.NomenclatureID); err != nil {
+	if err := requireExecutorDocumentAccess(s.auth, s.depRepo, s.assignmentRepo, res.ID, "incoming", res.NomenclatureID); err != nil {
 		return nil, err
 	}
 	return dto.MapIncomingDocument(res), nil

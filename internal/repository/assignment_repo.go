@@ -429,6 +429,33 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	}, nil
 }
 
+// HasDocumentAccess проверяет, есть ли у пользователя доступ к документу как у исполнителя или соисполнителя поручения.
+func (r *AssignmentRepository) HasDocumentAccess(userID, documentID uuid.UUID, documentType string) (bool, error) {
+	var hasAccess bool
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM assignments a
+			WHERE a.document_id = $1
+			  AND a.document_type = $2
+			  AND (
+				a.executor_id = $3
+				OR EXISTS (
+					SELECT 1
+					FROM assignment_co_executors ce
+					WHERE ce.assignment_id = a.id AND ce.user_id = $3
+				)
+			  )
+		)
+	`
+
+	if err := r.db.QueryRow(query, documentID, documentType, userID).Scan(&hasAccess); err != nil {
+		return false, fmt.Errorf("failed to check document access by assignment: %w", err)
+	}
+
+	return hasAccess, nil
+}
+
 // GetCountByStatus — вспомогательный метод для дашборда
 func (r *AssignmentRepository) GetCountByStatus(status string, executorID uuid.UUID) (int, error) {
 	var count int

@@ -171,21 +171,32 @@ const AssignmentsPage: React.FC = () => {
 
     const columns = [
         {
-            title: 'Дата', dataIndex: 'createdAt', key: 'createdAt', width: 90,
+            title: 'Дата', dataIndex: 'createdAt', key: 'createdAt', width: 96, className: 'assignments-date-column',
             render: (v: string) => dayjs(v).format('DD.MM.YYYY'),
         },
         {
-            title: 'Документ', key: 'doc', width: 300,
+            title: 'Документ', key: 'doc', width: '25%',
             render: (_: any, r: any) => (
-                <div>
+                <div className="assignments-document-cell" title={r.documentSubject || r.documentNumber || 'Без номера'}>
                     <div style={{ fontWeight: 600 }}>{r.documentNumber || 'Без номера'}</div>
-                    <div style={{ fontSize: 13, color: '#666', lineHeight: '1.2' }}>{r.documentSubject}</div>
+                    <div className="assignments-document-subject">{r.documentSubject}</div>
                 </div>
             )
         },
-        { title: 'Поручение', dataIndex: 'content', key: 'content', width: '22%' },
         {
-            title: 'Исполнитель', key: 'executorName', width: 200,
+            title: 'Поручение',
+            dataIndex: 'content',
+            key: 'content',
+            width: '25%',
+            ellipsis: true,
+            render: (value: string) => (
+                <div className="assignments-content-cell" title={value}>
+                    {value}
+                </div>
+            )
+        },
+        {
+            title: 'Исполнитель', key: 'executorName', width: 148,
             render: (_: any, r: any) => (
                 <div>
                     <div>{r.executorName}</div>
@@ -198,7 +209,7 @@ const AssignmentsPage: React.FC = () => {
             )
         },
         {
-            title: 'Срок', dataIndex: 'deadline', key: 'deadline', width: 90,
+            title: 'Срок', dataIndex: 'deadline', key: 'deadline', width: 104,
             render: (v: string) => v ? dayjs(v).format('DD.MM.YYYY') : '',
         },
         {
@@ -363,6 +374,7 @@ const AssignmentsPage: React.FC = () => {
                     showSizeChanger: true, pageSizeOptions: ['10', '20', '50']
                 }}
                 expandable={{
+                    columnWidth: 28,
                     expandedRowRender: (record) => (
                         <div style={{ margin: 0 }}>
                             {record.report && <p><b>Отчет:</b> {record.report}</p>}

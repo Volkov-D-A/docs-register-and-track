@@ -125,6 +125,34 @@ func (_m *AssignmentStore) GetList(filter models.AssignmentFilter) (*models.Page
 	return r0, r1
 }
 
+// HasDocumentAccess provides a mock function with given fields: userID, documentID, documentType
+func (_m *AssignmentStore) HasDocumentAccess(userID uuid.UUID, documentID uuid.UUID, documentType string) (bool, error) {
+	ret := _m.Called(userID, documentID, documentType)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HasDocumentAccess")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string) (bool, error)); ok {
+		return rf(userID, documentID, documentType)
+	}
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string) bool); ok {
+		r0 = rf(userID, documentID, documentType)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID, string) error); ok {
+		r1 = rf(userID, documentID, documentType)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Update provides a mock function with given fields: id, executorID, content, deadline, status, report, completedAt, coExecutorIDs
 func (_m *AssignmentStore) Update(id uuid.UUID, executorID uuid.UUID, content string, deadline *time.Time, status string, report string, completedAt *time.Time, coExecutorIDs []string) (*models.Assignment, error) {
 	ret := _m.Called(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)

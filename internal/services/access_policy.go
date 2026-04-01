@@ -26,6 +26,64 @@ func requireDocumentDomainReadRole(auth *AuthService) error {
 
 // requireExecutorNomenclatureAccess проверяет доступ исполнителя к документу по номенклатуре.
 func requireExecutorNomenclatureAccess(auth *AuthService, depRepo DepartmentStore, nomenclatureID uuid.UUID) error {
+	allowed, err := hasExecutorNomenclatureAccess(auth, depRepo, nomenclatureID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return models.ErrForbidden
+	}
+	return nil
+}
+
+func hasExecutorNomenclatureAccess(auth *AuthService, depRepo DepartmentStore, nomenclatureID uuid.UUID) (bool, error) {
+	if auth == nil {
+		return false, models.ErrUnauthorized
+	}
+
+	if auth.HasActiveRole("clerk") {
+		return true, nil
+	}
+	if !auth.HasActiveRole("executor") {
+		return false, models.ErrForbidden
+	}
+
+	user, err := auth.GetCurrentUser()
+	if err != nil {
+		return false, err
+	}
+	if user == nil || user.Department == nil || user.Department.ID == "" {
+		return false, nil
+	}
+
+	departmentID, err := uuid.Parse(user.Department.ID)
+	if err != nil {
+		return false, nil
+	}
+
+	allowedNomenclatures, err := depRepo.GetNomenclatureIDs(departmentID)
+	if err != nil {
+		return false, err
+	}
+	nomenclatureIDStr := nomenclatureID.String()
+	for _, allowedID := range allowedNomenclatures {
+		if allowedID == nomenclatureIDStr {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// requireExecutorDocumentAccess проверяет доступ исполнителя к документу по номенклатуре либо по связанному поручению.
+func requireExecutorDocumentAccess(
+	auth *AuthService,
+	depRepo DepartmentStore,
+	assignmentRepo AssignmentStore,
+	documentID uuid.UUID,
+	documentType string,
+	nomenclatureID uuid.UUID,
+) error {
 	if auth == nil {
 		return models.ErrUnauthorized
 	}
@@ -37,28 +95,25 @@ func requireExecutorNomenclatureAccess(auth *AuthService, depRepo DepartmentStor
 		return models.ErrForbidden
 	}
 
-	user, err := auth.GetCurrentUser()
+	allowedByDepartment, err := hasExecutorNomenclatureAccess(auth, depRepo, nomenclatureID)
 	if err != nil {
 		return err
 	}
-	if user == nil || user.Department == nil || user.Department.ID == "" {
-		return models.ErrForbidden
+	if allowedByDepartment {
+		return nil
 	}
 
-	departmentID, err := uuid.Parse(user.Department.ID)
-	if err != nil {
-		return models.ErrForbidden
-	}
-
-	allowedNomenclatures, err := depRepo.GetNomenclatureIDs(departmentID)
+	currentUserID, err := auth.GetCurrentUserUUID()
 	if err != nil {
 		return err
 	}
-	nomenclatureIDStr := nomenclatureID.String()
-	for _, allowedID := range allowedNomenclatures {
-		if allowedID == nomenclatureIDStr {
-			return nil
-		}
+
+	hasAssignmentAccess, err := assignmentRepo.HasDocumentAccess(currentUserID, documentID, documentType)
+	if err != nil {
+		return err
+	}
+	if hasAssignmentAccess {
+		return nil
 	}
 
 	return models.ErrForbidden
@@ -68,6 +123,7 @@ func requireExecutorNomenclatureAccess(auth *AuthService, depRepo DepartmentStor
 func requireDocumentReadAccess(
 	auth *AuthService,
 	depRepo DepartmentStore,
+	assignmentRepo AssignmentStore,
 	incomingRepo IncomingDocStore,
 	outgoingRepo OutgoingDocStore,
 	documentType string,
@@ -90,7 +146,7 @@ func requireDocumentReadAccess(
 		if doc == nil {
 			return nil
 		}
-		return requireExecutorNomenclatureAccess(auth, depRepo, doc.NomenclatureID)
+		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, doc.ID, "incoming", doc.NomenclatureID)
 	case "outgoing":
 		doc, err := outgoingRepo.GetByID(documentID)
 		if err != nil {
@@ -99,7 +155,7 @@ func requireDocumentReadAccess(
 		if doc == nil {
 			return nil
 		}
-		return requireExecutorNomenclatureAccess(auth, depRepo, doc.NomenclatureID)
+		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, doc.ID, "outgoing", doc.NomenclatureID)
 	default:
 		return models.ErrForbidden
 	}
@@ -109,6 +165,7 @@ func requireDocumentReadAccess(
 func requireAnyDocumentReadAccess(
 	auth *AuthService,
 	depRepo DepartmentStore,
+	assignmentRepo AssignmentStore,
 	incomingRepo IncomingDocStore,
 	outgoingRepo OutgoingDocStore,
 	documentID uuid.UUID,
@@ -122,13 +179,13 @@ func requireAnyDocumentReadAccess(
 	}
 
 	if doc, err := incomingRepo.GetByID(documentID); err == nil && doc != nil {
-		return requireExecutorNomenclatureAccess(auth, depRepo, doc.NomenclatureID)
+		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, doc.ID, "incoming", doc.NomenclatureID)
 	} else if err != nil {
 		return err
 	}
 
 	if doc, err := outgoingRepo.GetByID(documentID); err == nil && doc != nil {
-		return requireExecutorNomenclatureAccess(auth, depRepo, doc.NomenclatureID)
+		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, doc.ID, "outgoing", doc.NomenclatureID)
 	} else if err != nil {
 		return err
 	}

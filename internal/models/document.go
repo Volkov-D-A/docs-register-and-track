@@ -64,8 +64,8 @@ type OutgoingDocument struct {
 	PagesCount       int       `json:"pagesCount"`
 
 	// Отправитель
-	SenderSignatory string    `json:"senderSignatory"`
-	SenderExecutor  string    `json:"senderExecutor"`
+	SenderSignatory string `json:"senderSignatory"`
+	SenderExecutor  string `json:"senderExecutor"`
 
 	// Получатель
 	RecipientOrgID   uuid.UUID `json:"-"`
@@ -100,36 +100,40 @@ type DocumentLink struct {
 
 // DocumentFilter — фильтры для журналов
 type DocumentFilter struct {
-	NomenclatureID   string   `json:"nomenclatureId,omitempty"`
-	NomenclatureIDs  []string `json:"nomenclatureIds,omitempty"`
-	DocumentTypeID   string   `json:"documentTypeId,omitempty"`
-	OrgID            string   `json:"orgId,omitempty"`
-	DateFrom         string   `json:"dateFrom,omitempty"`
-	DateTo           string   `json:"dateTo,omitempty"`
-	Search           string   `json:"search,omitempty"`
-	IncomingNumber   string   `json:"incomingNumber,omitempty"`
-	OutgoingNumber   string   `json:"outgoingNumber,omitempty"`
-	SenderName       string   `json:"senderName,omitempty"`
-	OutgoingDateFrom string   `json:"outgoingDateFrom,omitempty"`
-	OutgoingDateTo   string   `json:"outgoingDateTo,omitempty"`
-	Resolution       string   `json:"resolution,omitempty"`
-	NoResolution     bool     `json:"noResolution,omitempty"`
-	Page             int      `json:"page"`
-	PageSize         int      `json:"pageSize"`
+	NomenclatureID         string   `json:"nomenclatureId,omitempty"`
+	NomenclatureIDs        []string `json:"nomenclatureIds,omitempty"`
+	AllowedNomenclatureIDs []string `json:"-"`
+	AccessibleByUserID     string   `json:"-"`
+	DocumentTypeID         string   `json:"documentTypeId,omitempty"`
+	OrgID                  string   `json:"orgId,omitempty"`
+	DateFrom               string   `json:"dateFrom,omitempty"`
+	DateTo                 string   `json:"dateTo,omitempty"`
+	Search                 string   `json:"search,omitempty"`
+	IncomingNumber         string   `json:"incomingNumber,omitempty"`
+	OutgoingNumber         string   `json:"outgoingNumber,omitempty"`
+	SenderName             string   `json:"senderName,omitempty"`
+	OutgoingDateFrom       string   `json:"outgoingDateFrom,omitempty"`
+	OutgoingDateTo         string   `json:"outgoingDateTo,omitempty"`
+	Resolution             string   `json:"resolution,omitempty"`
+	NoResolution           bool     `json:"noResolution,omitempty"`
+	Page                   int      `json:"page"`
+	PageSize               int      `json:"pageSize"`
 }
 
 // OutgoingDocumentFilter описывает параметры фильтрации исходящих документов.
 type OutgoingDocumentFilter struct {
-	NomenclatureIDs []string `json:"nomenclatureIds,omitempty"`
-	DocumentTypeID  string   `json:"documentTypeId,omitempty"`
-	OrgID           string   `json:"orgId,omitempty"` // Организация-получатель
-	DateFrom        string   `json:"dateFrom,omitempty"`
-	DateTo          string   `json:"dateTo,omitempty"`
-	Search          string   `json:"search,omitempty"`
-	OutgoingNumber  string   `json:"outgoingNumber,omitempty"`
-	RecipientName   string   `json:"recipientName,omitempty"`
-	Page            int      `json:"page"`
-	PageSize        int      `json:"pageSize"`
+	NomenclatureIDs        []string `json:"nomenclatureIds,omitempty"`
+	AllowedNomenclatureIDs []string `json:"-"`
+	AccessibleByUserID     string   `json:"-"`
+	DocumentTypeID         string   `json:"documentTypeId,omitempty"`
+	OrgID                  string   `json:"orgId,omitempty"` // Организация-получатель
+	DateFrom               string   `json:"dateFrom,omitempty"`
+	DateTo                 string   `json:"dateTo,omitempty"`
+	Search                 string   `json:"search,omitempty"`
+	OutgoingNumber         string   `json:"outgoingNumber,omitempty"`
+	RecipientName          string   `json:"recipientName,omitempty"`
+	Page                   int      `json:"page"`
+	PageSize               int      `json:"pageSize"`
 }
 
 // PagedResult — постраничный результат

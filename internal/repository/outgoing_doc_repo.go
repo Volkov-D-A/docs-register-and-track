@@ -28,6 +28,34 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 	args := []interface{}{}
 	argIdx := 1
 
+	if filter.AccessibleByUserID != "" {
+		accessClauses := make([]string, 0, 2)
+		if len(filter.AllowedNomenclatureIDs) > 0 {
+			accessClauses = append(accessClauses, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
+			args = append(args, pq.Array(filter.AllowedNomenclatureIDs))
+			argIdx++
+		}
+
+		accessClauses = append(accessClauses, fmt.Sprintf(`EXISTS (
+			SELECT 1
+			FROM assignments a
+			WHERE a.document_id = d.id
+			  AND a.document_type = 'outgoing'
+			  AND (
+				a.executor_id = $%d
+				OR EXISTS (
+					SELECT 1
+					FROM assignment_co_executors ce
+					WHERE ce.assignment_id = a.id AND ce.user_id = $%d
+				)
+			  )
+		)`, argIdx, argIdx))
+		args = append(args, filter.AccessibleByUserID)
+		argIdx++
+
+		where = append(where, "("+strings.Join(accessClauses, " OR ")+")")
+	}
+
 	if len(filter.NomenclatureIDs) > 0 {
 		where = append(where, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
 		args = append(args, pq.Array(filter.NomenclatureIDs))

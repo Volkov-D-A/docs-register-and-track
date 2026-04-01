@@ -106,9 +106,7 @@ const OutgoingPage: React.FC = () => {
             const { GetList } = await import('../../wailsjs/go/services/OutgoingDocumentService');
             const result = await GetList({
                 search, page, pageSize,
-                nomenclatureIds: currentRole === 'executor'
-                    ? ((user?.department?.nomenclatureIds?.length) ? user.department.nomenclatureIds : ['00000000-0000-0000-0000-000000000000'])
-                    : filterNomenclatureIds,
+                nomenclatureIds: filterNomenclatureIds,
                 documentTypeId: '', orgId: '',
                 dateFrom: filterDateFrom, dateTo: filterDateTo,
                 outgoingNumber: filterOutgoingNumber,

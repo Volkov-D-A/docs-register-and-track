@@ -19,6 +19,7 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 	mockNomRepo := mocks.NewNomenclatureStore(t)
 	mockRefRepo := mocks.NewReferenceStore(t)
 	mockDepRepo := mocks.NewDepartmentStore(t)
+	mockAssignmentRepo := mocks.NewAssignmentStore(t)
 
 	authRepo := mocks.NewUserStore(t)
 	authService := NewAuthService(nil, authRepo)
@@ -27,7 +28,7 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	journalSvc := NewJournalService(journalRepo, authService)
 
-	docService := NewIncomingDocumentService(mockDocRepo, mockNomRepo, mockRefRepo, mockDepRepo, authService, journalSvc)
+	docService := NewIncomingDocumentService(mockDocRepo, mockNomRepo, mockRefRepo, mockDepRepo, mockAssignmentRepo, authService, journalSvc)
 
 	login := "testuser"
 	password := "CorrectPassw0rd!"
@@ -130,13 +131,14 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 }
 
 func setupIncomingDocService(t *testing.T, role string) (
-	*IncomingDocumentService, *mocks.IncomingDocStore, *mocks.NomenclatureStore, *mocks.ReferenceStore, *mocks.DepartmentStore,
+	*IncomingDocumentService, *mocks.IncomingDocStore, *mocks.NomenclatureStore, *mocks.ReferenceStore, *mocks.DepartmentStore, *mocks.AssignmentStore,
 ) {
 	t.Helper()
 	docRepo := mocks.NewIncomingDocStore(t)
 	nomRepo := mocks.NewNomenclatureStore(t)
 	refRepo := mocks.NewReferenceStore(t)
 	depRepo := mocks.NewDepartmentStore(t)
+	assignmentRepo := mocks.NewAssignmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
 
@@ -157,8 +159,8 @@ func setupIncomingDocService(t *testing.T, role string) (
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	journalSvc := NewJournalService(journalRepo, auth)
 
-	svc := NewIncomingDocumentService(docRepo, nomRepo, refRepo, depRepo, auth, journalSvc)
-	return svc, docRepo, nomRepo, refRepo, depRepo
+	svc := NewIncomingDocumentService(docRepo, nomRepo, refRepo, depRepo, assignmentRepo, auth, journalSvc)
+	return svc, docRepo, nomRepo, refRepo, depRepo, assignmentRepo
 }
 
 func TestIncomingDocumentService_GetByID(t *testing.T) {
@@ -166,7 +168,7 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _, _ := setupIncomingDocService(t, "clerk")
+		svc, repo, _, _, _, _ := setupIncomingDocService(t, "clerk")
 		repo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, Content: "Тема"}, nil).Once()
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
@@ -175,7 +177,7 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 	})
 
 	t.Run("invalid ID", func(t *testing.T) {
-		svc, _, _, _, _ := setupIncomingDocService(t, "executor")
+		svc, _, _, _, _, _ := setupIncomingDocService(t, "executor")
 		result, err := svc.GetByID("not-uuid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid ID")
@@ -183,11 +185,23 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 	})
 
 	t.Run("admin forbidden", func(t *testing.T) {
-		svc, _, _, _, _ := setupIncomingDocService(t, "admin")
+		svc, _, _, _, _, _ := setupIncomingDocService(t, "admin")
 		result, err := svc.GetByID(docID.String())
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
+	})
+
+	t.Run("executor has access by assignment", func(t *testing.T) {
+		svc, repo, _, _, _, assignmentRepo := setupIncomingDocService(t, "executor")
+		doc := &models.IncomingDocument{ID: docID, NomenclatureID: uuid.New(), Content: "Тема"}
+		repo.On("GetByID", docID).Return(doc, nil).Once()
+		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "incoming").Return(true, nil).Once()
+
+		result, err := svc.GetByID(docID.String())
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, docID.String(), result.ID)
 	})
 }
 
@@ -196,14 +210,14 @@ func TestIncomingDocumentService_Delete(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success clerk", func(t *testing.T) {
-		svc, repo, _, _, _ := setupIncomingDocService(t, "clerk")
+		svc, repo, _, _, _, _ := setupIncomingDocService(t, "clerk")
 		repo.On("Delete", docID).Return(nil).Once()
 		err := svc.Delete(docID.String())
 		require.NoError(t, err)
 	})
 
 	t.Run("forbidden admin", func(t *testing.T) {
-		svc, _, _, _, _ := setupIncomingDocService(t, "admin")
+		svc, _, _, _, _, _ := setupIncomingDocService(t, "admin")
 		err := svc.Delete(docID.String())
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
@@ -213,7 +227,7 @@ func TestIncomingDocumentService_Delete(t *testing.T) {
 func TestIncomingDocumentService_GetCount(t *testing.T) {
 	// Получение общего количества зарегистрированных входящих документов
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _, _ := setupIncomingDocService(t, "executor")
+		svc, repo, _, _, _, _ := setupIncomingDocService(t, "executor")
 		repo.On("GetCount").Return(15, nil).Once()
 		count, err := svc.GetCount()
 		require.NoError(t, err)
