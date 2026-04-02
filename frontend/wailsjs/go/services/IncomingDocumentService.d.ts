@@ -3,8 +3,6 @@
 import {dto} from '../models';
 import {models} from '../models';
 
-export function Delete(arg1:string):Promise<void>;
-
 export function GetByID(arg1:string):Promise<dto.IncomingDocument>;
 
 export function GetCount():Promise<number>;

@@ -227,30 +227,6 @@ func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, err
 	return dto.MapOutgoingDocument(res), nil
 }
 
-// Delete удаляет исходящий документ по его ID (доступно только делопроизводителям).
-func (s *OutgoingDocumentService) Delete(id string) error {
-	if err := requireClerkDocumentRole(s.auth); err != nil {
-		return err
-	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
-	}
-
-	err = s.repo.Delete(uid)
-	if err == nil {
-		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   uid,
-			DocumentType: "outgoing",
-			UserID:       currentUserID,
-			Action:       "DELETE",
-			Details:      "Документ удален",
-		})
-	}
-	return err
-}
-
 // GetCount возвращает общее количество исходящих документов (для дашборда).
 func (s *OutgoingDocumentService) GetCount() (int, error) {
 	if err := requireDocumentDomainReadRole(s.auth); err != nil {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Typography, Table, Button, Modal, Form, Input, Select, DatePicker,
-    InputNumber, Space, Row, Col, Tag, Popconfirm, AutoComplete, Collapse, Tabs, App,
+    InputNumber, Space, Row, Col, Tag, AutoComplete, Collapse, Tabs, App,
 } from 'antd';
 import AssignmentList from '../components/AssignmentList';
 import AcknowledgmentList from '../components/AcknowledgmentList';
@@ -10,7 +10,7 @@ import { LinksTab } from '../components/DocumentLinks/LinksTab';
 import DocumentViewModal from '../components/DocumentViewModal';
 
 import {
-    PlusOutlined, SearchOutlined, EyeOutlined, DeleteOutlined, EditOutlined,
+    PlusOutlined, SearchOutlined, EyeOutlined, EditOutlined,
     FilterOutlined, ClearOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -222,13 +222,6 @@ const IncomingPage: React.FC = () => {
         setEditModalOpen(true);
     };
 
-    const onDelete = async (id: string) => {
-        try {
-            const { Delete } = await import('../../wailsjs/go/services/IncomingDocumentService');
-            await Delete(id); message.success('Удалено'); load();
-        } catch (err: any) { message.error(err?.message || String(err)); }
-    };
-
     const columns = [
         {
             title: 'Номер / Дата',
@@ -287,12 +280,7 @@ const IncomingPage: React.FC = () => {
                 <Space>
                     <Button size="small" icon={<EyeOutlined />} onClick={() => { setViewDocId(record.id); setViewModalOpen(true); }} />
                     {!isExecutorOnly && (
-                        <>
-                            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
-                            <Popconfirm title="Удалить документ?" onConfirm={() => onDelete(record.id)}>
-                                <Button size="small" icon={<DeleteOutlined />} danger />
-                            </Popconfirm>
-                        </>
+                        <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
                     )}
                 </Space>
             ),

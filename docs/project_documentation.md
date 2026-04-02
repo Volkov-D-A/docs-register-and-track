@@ -117,8 +117,8 @@
 
 Доступ:
 
-- входящие документы: `list`, `get`, `create`, `update`, `delete`
-- исходящие документы: `list`, `get`, `create`, `update`, `delete`
+- входящие документы: `list`, `get`, `create`, `update`
+- исходящие документы: `list`, `get`, `create`, `update`
 - связи документов: `list`, `get-graph`, `create`, `delete`
 - вложения: `list`, `upload`, `download`, `delete`
 - поручения: `list`, `get`, `create`, `update`, `delete`
@@ -154,8 +154,8 @@
 
 | Сущность | admin | clerk | executor |
 | --- | --- | --- | --- |
-| Incoming documents | no | list/get/create/update/delete | list/get in allowed nomenclatures |
-| Outgoing documents | no | list/get/create/update/delete | list/get in allowed nomenclatures |
+| Incoming documents | no | list/get/create/update | list/get in allowed nomenclatures |
+| Outgoing documents | no | list/get/create/update | list/get in allowed nomenclatures |
 | Document links | no | list/get-graph/create/delete | no |
 | Attachments | no | list/upload/download/delete | list/download if document is accessible |
 | Assignments | no | list/get/create/update/delete/status review | list/get own only, own status changes only |

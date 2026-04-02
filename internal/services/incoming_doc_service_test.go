@@ -220,25 +220,6 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 	})
 }
 
-func TestIncomingDocumentService_Delete(t *testing.T) {
-	// Удаление карточки входящего документа
-	docID := uuid.New()
-
-	t.Run("success clerk", func(t *testing.T) {
-		svc, repo, _, _, _, _, _ := setupIncomingDocService(t, "clerk")
-		repo.On("Delete", docID).Return(nil).Once()
-		err := svc.Delete(docID.String())
-		require.NoError(t, err)
-	})
-
-	t.Run("forbidden admin", func(t *testing.T) {
-		svc, _, _, _, _, _, _ := setupIncomingDocService(t, "admin")
-		err := svc.Delete(docID.String())
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
-}
-
 func TestIncomingDocumentService_GetCount(t *testing.T) {
 	// Получение общего количества зарегистрированных входящих документов
 	t.Run("success", func(t *testing.T) {

@@ -113,8 +113,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 collapsedWidth={72}
                 collapsed={!isSidebarExpanded}
                 trigger={null}
-                onMouseEnter={() => setIsSidebarExpanded(true)}
-                onMouseLeave={() => setIsSidebarExpanded(false)}
                 style={{
                     borderRight: '1px solid #f0f0f0',
                 }}
@@ -133,6 +131,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                     onClick={({ key }) => onPageChange(key)}
                     style={{ borderRight: 0 }}
                 />
+                <Button
+                    type="text"
+                    size="small"
+                    className="app-sider-toggle"
+                    onClick={() => setIsSidebarExpanded((prev) => !prev)}
+                    aria-label={isSidebarExpanded ? 'Свернуть боковую панель' : 'Развернуть боковую панель'}
+                >
+                    <span className="app-sider-toggle-icon" aria-hidden="true">
+                        {isSidebarExpanded ? '❮' : '❯'}
+                    </span>
+                </Button>
             </Sider>
 
             <Layout style={{ height: '100vh', overflow: 'hidden' }}>

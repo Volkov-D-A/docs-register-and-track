@@ -181,25 +181,6 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 	})
 }
 
-func TestOutgoingDocService_Delete(t *testing.T) {
-	// Удаление исходящего документа из системы
-	docID := uuid.New()
-
-	t.Run("success clerk", func(t *testing.T) {
-		svc, outRepo, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
-		outRepo.On("Delete", docID).Return(nil).Once()
-		err := svc.Delete(docID.String())
-		require.NoError(t, err)
-	})
-
-	t.Run("forbidden admin", func(t *testing.T) {
-		svc, _, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
-		err := svc.Delete(docID.String())
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
-}
-
 func TestOutgoingDocService_GetCount(t *testing.T) {
 	// Подсчет общего количества зарегистрированных исходящих документов
 	t.Run("success", func(t *testing.T) {

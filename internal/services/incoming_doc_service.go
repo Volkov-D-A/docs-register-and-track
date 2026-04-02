@@ -312,28 +312,3 @@ func (s *IncomingDocumentService) GetCount() (int, error) {
 	}
 	return s.repo.GetCount()
 }
-
-// Delete удаляет входящий документ по его ID.
-// Доступно только делопроизводителям.
-func (s *IncomingDocumentService) Delete(id string) error {
-	if err := requireClerkDocumentRole(s.auth); err != nil {
-		return err
-	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
-	}
-
-	err = s.repo.Delete(uid)
-	if err == nil {
-		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   uid,
-			DocumentType: "incoming",
-			UserID:       currentUserID,
-			Action:       "DELETE",
-			Details:      "Документ удален",
-		})
-	}
-	return err
-}
