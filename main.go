@@ -106,8 +106,8 @@ func main() {
 	referenceService := services.NewReferenceService(referenceRepo, authService, adminAuditLogService)
 	journalService := services.NewJournalService(journalRepo, authService)
 
-	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, departmentRepo, assignmentRepo, authService, journalService)
-	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, assignmentRepo, authService, journalService)
+	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, departmentRepo, assignmentRepo, acknowledgmentRepo, authService, journalService)
+	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, assignmentRepo, acknowledgmentRepo, authService, journalService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService, adminAuditLogService)
 
@@ -118,7 +118,7 @@ func main() {
 	}
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService)
-	attachmentService := services.NewAttachmentService(attachmentRepo, incomingDocRepo, outgoingDocRepo, departmentRepo, assignmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService)
+	attachmentService := services.NewAttachmentService(attachmentRepo, incomingDocRepo, outgoingDocRepo, departmentRepo, assignmentRepo, acknowledgmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService)
 	systemService := services.NewSystemService(db)

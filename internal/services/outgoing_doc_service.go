@@ -18,6 +18,7 @@ type OutgoingDocumentService struct {
 	nomRepo        NomenclatureStore
 	depRepo        DepartmentStore
 	assignmentRepo AssignmentStore
+	ackRepo        AcknowledgmentStore
 	auth           *AuthService
 	journal        *JournalService
 }
@@ -29,6 +30,7 @@ func NewOutgoingDocumentService(
 	nomRepo NomenclatureStore,
 	depRepo DepartmentStore,
 	assignmentRepo AssignmentStore,
+	ackRepo AcknowledgmentStore,
 	auth *AuthService,
 	journal *JournalService,
 ) *OutgoingDocumentService {
@@ -38,6 +40,7 @@ func NewOutgoingDocumentService(
 		nomRepo:        nomRepo,
 		depRepo:        depRepo,
 		assignmentRepo: assignmentRepo,
+		ackRepo:        ackRepo,
 		auth:           auth,
 		journal:        journal,
 	}
@@ -218,7 +221,7 @@ func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, err
 	if err != nil || res == nil {
 		return dto.MapOutgoingDocument(res), err
 	}
-	if err := requireExecutorDocumentAccess(s.auth, s.depRepo, s.assignmentRepo, res.ID, "outgoing", res.NomenclatureID); err != nil {
+	if err := requireExecutorDocumentAccess(s.auth, s.depRepo, s.assignmentRepo, s.ackRepo, res.ID, "outgoing", res.NomenclatureID); err != nil {
 		return nil, err
 	}
 	return dto.MapOutgoingDocument(res), nil

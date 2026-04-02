@@ -1,9 +1,9 @@
 package repository
 
 import (
+	"fmt"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -194,6 +194,27 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 		return nil, err
 	}
 	return result, nil
+}
+
+// HasDocumentAccess проверяет, есть ли у пользователя доступ к документу через задачу на ознакомление.
+func (r *AcknowledgmentRepository) HasDocumentAccess(userID, documentID uuid.UUID, documentType string) (bool, error) {
+	var hasAccess bool
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM acknowledgment_users au
+			JOIN acknowledgments a ON au.acknowledgment_id = a.id
+			WHERE au.user_id = $1
+			  AND a.document_id = $2
+			  AND a.document_type = $3
+		)
+	`
+
+	if err := r.db.QueryRow(query, userID, documentID, documentType).Scan(&hasAccess); err != nil {
+		return false, fmt.Errorf("failed to check document access by acknowledgment: %w", err)
+	}
+
+	return hasAccess, nil
 }
 
 // MarkViewed отмечает задачу как просмотренную пользователем.

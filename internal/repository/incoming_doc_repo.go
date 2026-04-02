@@ -87,6 +87,17 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		args = append(args, filter.AccessibleByUserID)
 		argIdx++
 
+		accessClauses = append(accessClauses, fmt.Sprintf(`EXISTS (
+			SELECT 1
+			FROM acknowledgment_users au
+			JOIN acknowledgments a ON au.acknowledgment_id = a.id
+			WHERE au.user_id = $%d
+			  AND a.document_id = d.id
+			  AND a.document_type = 'incoming'
+		)`, argIdx))
+		args = append(args, filter.AccessibleByUserID)
+		argIdx++
+
 		where = append(where, "("+strings.Join(accessClauses, " OR ")+")")
 	}
 

@@ -13,7 +13,7 @@ import (
 )
 
 func setupOutgoingDocService(t *testing.T, role string) (
-	*OutgoingDocumentService, *mocks.OutgoingDocStore, *mocks.ReferenceStore, *mocks.NomenclatureStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *AuthService,
+	*OutgoingDocumentService, *mocks.OutgoingDocStore, *mocks.ReferenceStore, *mocks.NomenclatureStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *mocks.AcknowledgmentStore, *AuthService,
 ) {
 	t.Helper()
 	outRepo := mocks.NewOutgoingDocStore(t)
@@ -21,6 +21,7 @@ func setupOutgoingDocService(t *testing.T, role string) (
 	nomRepo := mocks.NewNomenclatureStore(t)
 	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
+	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
 
@@ -43,8 +44,8 @@ func setupOutgoingDocService(t *testing.T, role string) (
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	journalSvc := NewJournalService(journalRepo, auth)
 
-	svc := NewOutgoingDocumentService(outRepo, refRepo, nomRepo, depRepo, assignmentRepo, auth, journalSvc)
-	return svc, outRepo, refRepo, nomRepo, depRepo, assignmentRepo, auth
+	svc := NewOutgoingDocumentService(outRepo, refRepo, nomRepo, depRepo, assignmentRepo, ackRepo, auth, journalSvc)
+	return svc, outRepo, refRepo, nomRepo, depRepo, assignmentRepo, ackRepo, auth
 }
 
 func TestOutgoingDocService_Register(t *testing.T) {
@@ -54,7 +55,7 @@ func TestOutgoingDocService_Register(t *testing.T) {
 	recipientOrg := &models.Organization{ID: uuid.New(), Name: "Получатель"}
 
 	t.Run("success clerk", func(t *testing.T) {
-		svc, outRepo, refRepo, nomRepo, _, _, _ := setupOutgoingDocService(t, "clerk")
+		svc, outRepo, refRepo, nomRepo, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 
 		refRepo.On("FindOrCreateOrganization", "Получатель").Return(recipientOrg, nil).Once()
 		nomRepo.On("GetNextNumber", nomID).Return(1, "01-01", nil).Once()
@@ -68,14 +69,14 @@ func TestOutgoingDocService_Register(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
+		svc, _, _, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
 		result, err := svc.Register(nomID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("forbidden admin", func(t *testing.T) {
-		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
+		svc, _, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
 		result, err := svc.Register(nomID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
@@ -83,7 +84,7 @@ func TestOutgoingDocService_Register(t *testing.T) {
 	})
 
 	t.Run("invalid nomenclature", func(t *testing.T) {
-		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
+		svc, _, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 		result, err := svc.Register("not-uuid", docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "номенклатуры")
@@ -98,7 +99,7 @@ func TestOutgoingDocService_Update(t *testing.T) {
 	recipientOrg := &models.Organization{ID: uuid.New(), Name: "Получатель"}
 
 	t.Run("success", func(t *testing.T) {
-		svc, outRepo, refRepo, _, _, _, _ := setupOutgoingDocService(t, "clerk")
+		svc, outRepo, refRepo, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 
 		refRepo.On("FindOrCreateOrganization", "Получатель").Return(recipientOrg, nil).Once()
 		outRepo.On("Update", mock.AnythingOfType("models.UpdateOutgoingDocRequest")).Return(&models.OutgoingDocument{
@@ -111,14 +112,14 @@ func TestOutgoingDocService_Update(t *testing.T) {
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
-		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
+		svc, _, _, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
 		result, err := svc.Update(docID.String(), docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("invalid ID", func(t *testing.T) {
-		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
+		svc, _, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 		result, err := svc.Update("not-uuid", docTypeID.String(), "Получатель", "Директору", "2025-06-15", "Контент", 3, "Подписант", "Исполнитель")
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -130,7 +131,7 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
+		svc, outRepo, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 		outRepo.On("GetByID", docID).Return(&models.OutgoingDocument{ID: docID, Content: "Тема"}, nil).Once()
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
@@ -139,7 +140,7 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
+		svc, outRepo, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 		outRepo.On("GetByID", docID).Return((*models.OutgoingDocument)(nil), nil).Once()
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
@@ -147,7 +148,7 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 	})
 
 	t.Run("admin forbidden", func(t *testing.T) {
-		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
+		svc, _, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
 		result, err := svc.GetByID(docID.String())
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
@@ -155,10 +156,23 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 	})
 
 	t.Run("executor has access by assignment", func(t *testing.T) {
-		svc, outRepo, _, _, _, assignmentRepo, _ := setupOutgoingDocService(t, "executor")
+		svc, outRepo, _, _, _, assignmentRepo, _, _ := setupOutgoingDocService(t, "executor")
 		doc := &models.OutgoingDocument{ID: docID, NomenclatureID: uuid.New(), Content: "Тема"}
 		outRepo.On("GetByID", docID).Return(doc, nil).Once()
 		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "outgoing").Return(true, nil).Once()
+
+		result, err := svc.GetByID(docID.String())
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, docID.String(), result.ID)
+	})
+
+	t.Run("executor has access by acknowledgment", func(t *testing.T) {
+		svc, outRepo, _, _, _, assignmentRepo, ackRepo, _ := setupOutgoingDocService(t, "executor")
+		doc := &models.OutgoingDocument{ID: docID, NomenclatureID: uuid.New(), Content: "Тема"}
+		outRepo.On("GetByID", docID).Return(doc, nil).Once()
+		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "outgoing").Return(false, nil).Once()
+		ackRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "outgoing").Return(true, nil).Once()
 
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
@@ -172,14 +186,14 @@ func TestOutgoingDocService_Delete(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success clerk", func(t *testing.T) {
-		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
+		svc, outRepo, _, _, _, _, _, _ := setupOutgoingDocService(t, "clerk")
 		outRepo.On("Delete", docID).Return(nil).Once()
 		err := svc.Delete(docID.String())
 		require.NoError(t, err)
 	})
 
 	t.Run("forbidden admin", func(t *testing.T) {
-		svc, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
+		svc, _, _, _, _, _, _, _ := setupOutgoingDocService(t, "admin")
 		err := svc.Delete(docID.String())
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
@@ -189,7 +203,7 @@ func TestOutgoingDocService_Delete(t *testing.T) {
 func TestOutgoingDocService_GetCount(t *testing.T) {
 	// Подсчет общего количества зарегистрированных исходящих документов
 	t.Run("success", func(t *testing.T) {
-		svc, outRepo, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
+		svc, outRepo, _, _, _, _, _, _ := setupOutgoingDocService(t, "executor")
 		outRepo.On("GetCount").Return(42, nil).Once()
 		count, err := svc.GetCount()
 		require.NoError(t, err)

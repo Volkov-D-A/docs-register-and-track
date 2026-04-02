@@ -80,6 +80,7 @@ func requireExecutorDocumentAccess(
 	auth *AuthService,
 	depRepo DepartmentStore,
 	assignmentRepo AssignmentStore,
+	acknowledgmentRepo AcknowledgmentStore,
 	documentID uuid.UUID,
 	documentType string,
 	nomenclatureID uuid.UUID,
@@ -116,6 +117,14 @@ func requireExecutorDocumentAccess(
 		return nil
 	}
 
+	hasAcknowledgmentAccess, err := acknowledgmentRepo.HasDocumentAccess(currentUserID, documentID, documentType)
+	if err != nil {
+		return err
+	}
+	if hasAcknowledgmentAccess {
+		return nil
+	}
+
 	return models.ErrForbidden
 }
 
@@ -124,6 +133,7 @@ func requireDocumentReadAccess(
 	auth *AuthService,
 	depRepo DepartmentStore,
 	assignmentRepo AssignmentStore,
+	acknowledgmentRepo AcknowledgmentStore,
 	incomingRepo IncomingDocStore,
 	outgoingRepo OutgoingDocStore,
 	documentType string,
@@ -146,7 +156,7 @@ func requireDocumentReadAccess(
 		if doc == nil {
 			return nil
 		}
-		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, doc.ID, "incoming", doc.NomenclatureID)
+		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, acknowledgmentRepo, doc.ID, "incoming", doc.NomenclatureID)
 	case "outgoing":
 		doc, err := outgoingRepo.GetByID(documentID)
 		if err != nil {
@@ -155,7 +165,7 @@ func requireDocumentReadAccess(
 		if doc == nil {
 			return nil
 		}
-		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, doc.ID, "outgoing", doc.NomenclatureID)
+		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, acknowledgmentRepo, doc.ID, "outgoing", doc.NomenclatureID)
 	default:
 		return models.ErrForbidden
 	}
@@ -166,6 +176,7 @@ func requireAnyDocumentReadAccess(
 	auth *AuthService,
 	depRepo DepartmentStore,
 	assignmentRepo AssignmentStore,
+	acknowledgmentRepo AcknowledgmentStore,
 	incomingRepo IncomingDocStore,
 	outgoingRepo OutgoingDocStore,
 	documentID uuid.UUID,
@@ -179,13 +190,13 @@ func requireAnyDocumentReadAccess(
 	}
 
 	if doc, err := incomingRepo.GetByID(documentID); err == nil && doc != nil {
-		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, doc.ID, "incoming", doc.NomenclatureID)
+		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, acknowledgmentRepo, doc.ID, "incoming", doc.NomenclatureID)
 	} else if err != nil {
 		return err
 	}
 
 	if doc, err := outgoingRepo.GetByID(documentID); err == nil && doc != nil {
-		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, doc.ID, "outgoing", doc.NomenclatureID)
+		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, acknowledgmentRepo, doc.ID, "outgoing", doc.NomenclatureID)
 	} else if err != nil {
 		return err
 	}

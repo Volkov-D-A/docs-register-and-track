@@ -19,6 +19,7 @@ type IncomingDocumentService struct {
 	refRepo        ReferenceStore
 	depRepo        DepartmentStore
 	assignmentRepo AssignmentStore
+	ackRepo        AcknowledgmentStore
 	auth           *AuthService
 	journal        *JournalService
 }
@@ -30,6 +31,7 @@ func NewIncomingDocumentService(
 	refRepo ReferenceStore,
 	depRepo DepartmentStore,
 	assignmentRepo AssignmentStore,
+	ackRepo AcknowledgmentStore,
 	auth *AuthService,
 	journal *JournalService,
 ) *IncomingDocumentService {
@@ -39,6 +41,7 @@ func NewIncomingDocumentService(
 		refRepo:        refRepo,
 		depRepo:        depRepo,
 		assignmentRepo: assignmentRepo,
+		ackRepo:        ackRepo,
 		auth:           auth,
 		journal:        journal,
 	}
@@ -84,7 +87,7 @@ func (s *IncomingDocumentService) GetByID(id string) (*dto.IncomingDocument, err
 	if err != nil || res == nil {
 		return dto.MapIncomingDocument(res), err
 	}
-	if err := requireExecutorDocumentAccess(s.auth, s.depRepo, s.assignmentRepo, res.ID, "incoming", res.NomenclatureID); err != nil {
+	if err := requireExecutorDocumentAccess(s.auth, s.depRepo, s.assignmentRepo, s.ackRepo, res.ID, "incoming", res.NomenclatureID); err != nil {
 		return nil, err
 	}
 	return dto.MapIncomingDocument(res), nil

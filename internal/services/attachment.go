@@ -25,6 +25,7 @@ type AttachmentService struct {
 	outgoingDocRepo OutgoingDocStore
 	depRepo         DepartmentStore
 	assignmentRepo  AssignmentStore
+	ackRepo         AcknowledgmentStore
 	settingsService *SettingsService
 	authService     *AuthService
 	journal         *JournalService
@@ -33,13 +34,14 @@ type AttachmentService struct {
 }
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
-func NewAttachmentService(repo AttachmentStore, incomingDocRepo IncomingDocStore, outgoingDocRepo OutgoingDocStore, depRepo DepartmentStore, assignmentRepo AssignmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService, auditService *AdminAuditLogService, fs FileStorage) *AttachmentService {
+func NewAttachmentService(repo AttachmentStore, incomingDocRepo IncomingDocStore, outgoingDocRepo OutgoingDocStore, depRepo DepartmentStore, assignmentRepo AssignmentStore, ackRepo AcknowledgmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService, auditService *AdminAuditLogService, fs FileStorage) *AttachmentService {
 	return &AttachmentService{
 		repo:            repo,
 		incomingDocRepo: incomingDocRepo,
 		outgoingDocRepo: outgoingDocRepo,
 		depRepo:         depRepo,
 		assignmentRepo:  assignmentRepo,
+		ackRepo:         ackRepo,
 		settingsService: settingsService,
 		authService:     authService,
 		journal:         journal,
@@ -63,7 +65,7 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID")
 	}
-	if err := requireDocumentReadAccess(s.authService, s.depRepo, s.assignmentRepo, s.incomingDocRepo, s.outgoingDocRepo, documentType, documentID); err != nil {
+	if err := requireDocumentReadAccess(s.authService, s.depRepo, s.assignmentRepo, s.ackRepo, s.incomingDocRepo, s.outgoingDocRepo, documentType, documentID); err != nil {
 		return nil, err
 	}
 
@@ -149,7 +151,7 @@ func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, err
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID")
 	}
-	if err := requireAnyDocumentReadAccess(s.authService, s.depRepo, s.assignmentRepo, s.incomingDocRepo, s.outgoingDocRepo, documentID); err != nil {
+	if err := requireAnyDocumentReadAccess(s.authService, s.depRepo, s.assignmentRepo, s.ackRepo, s.incomingDocRepo, s.outgoingDocRepo, documentID); err != nil {
 		return nil, err
 	}
 	res, err := s.repo.GetByDocumentID(documentID)
@@ -175,7 +177,7 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 	if attachment == nil {
 		return nil, nil
 	}
-	if err := requireDocumentReadAccess(s.authService, s.depRepo, s.assignmentRepo, s.incomingDocRepo, s.outgoingDocRepo, attachment.DocumentType, attachment.DocumentID); err != nil {
+	if err := requireDocumentReadAccess(s.authService, s.depRepo, s.assignmentRepo, s.ackRepo, s.incomingDocRepo, s.outgoingDocRepo, attachment.DocumentType, attachment.DocumentID); err != nil {
 		return nil, err
 	}
 
@@ -253,7 +255,7 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	if attachment == nil {
 		return "", nil
 	}
-	if err := requireDocumentReadAccess(s.authService, s.depRepo, s.assignmentRepo, s.incomingDocRepo, s.outgoingDocRepo, attachment.DocumentType, attachment.DocumentID); err != nil {
+	if err := requireDocumentReadAccess(s.authService, s.depRepo, s.assignmentRepo, s.ackRepo, s.incomingDocRepo, s.outgoingDocRepo, attachment.DocumentType, attachment.DocumentID); err != nil {
 		return "", err
 	}
 
