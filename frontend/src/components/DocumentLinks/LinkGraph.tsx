@@ -3,6 +3,7 @@ import {
     ReactFlow,
     Controls,
     Background,
+    Panel,
     useNodesState,
     useEdgesState,
     addEdge,
@@ -24,6 +25,27 @@ interface LinkGraphProps {
     rootId: string;
     isLocked?: boolean;
 }
+
+const NODE_COLORS = {
+    incoming: {
+        background: '#e6f4ff',
+        border: '#91caff',
+        accent: '#1677ff',
+        badgeBackground: '#1677ff',
+        meta: '#0958d9',
+    },
+    outgoing: {
+        background: '#f6ffed',
+        border: '#b7eb8f',
+        accent: '#52c41a',
+        badgeBackground: '#52c41a',
+        meta: '#389e0d',
+    },
+} as const;
+
+const getNodePalette = (type: string) => {
+    return type === 'incoming' ? NODE_COLORS.incoming : NODE_COLORS.outgoing;
+};
 
 const getLayoutedElements = (nodes: Node[], edges: Edge[], rootId: string) => {
     // Simple layered layout
@@ -111,27 +133,88 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                 return;
             }
 
-            const initialNodes: Node[] = data.nodes.map((n: services.GraphNode) => ({
-                id: n.id,
-                data: {
-                    label: (
-                        <div style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '5px', background: '#fff', fontSize: '12px', minWidth: '240px' }}>
-                            <div style={{ fontWeight: 'bold', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${n.type === 'incoming' ? 'Входящий' : 'Исходящий'} № ${n.label}`}>
-                                {n.type === 'incoming' ? 'Входящий' : 'Исходящий'} № {n.label}
+            const initialNodes: Node[] = data.nodes.map((n: services.GraphNode) => {
+                const palette = getNodePalette(n.type);
+                const isRootNode = n.id === rootId;
+
+                return {
+                    id: n.id,
+                    data: {
+                        label: (
+                            <div
+                                style={{
+                                padding: '12px',
+                                    border: isRootNode ? `3px solid ${palette.accent}` : `1px solid ${palette.border}`,
+                                    borderRadius: '10px',
+                                    background: palette.background,
+                                    boxShadow: isRootNode ? `0 0 0 3px ${palette.accent}22` : '0 6px 18px rgba(0, 0, 0, 0.06)',
+                                    fontSize: '12px',
+                                    minWidth: '240px',
+                                }}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
+                                    <span
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: palette.accent,
+                                            fontSize: '10px',
+                                            fontWeight: 700,
+                                            lineHeight: 1.4,
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.04em',
+                                        }}
+                                    >
+                                        {n.type === 'incoming' ? 'Входящий' : 'Исходящий'}
+                                    </span>
+                                </div>
+                                <div
+                                    style={{
+                                        fontWeight: 'bold',
+                                        fontSize: '11px',
+                                        color: '#1f1f1f',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                    }}
+                                    title={`${n.type === 'incoming' ? 'Входящий' : 'Исходящий'} № ${n.label}`}
+                                >
+                                    № {n.label}
+                                </div>
+                                <div style={{ fontSize: '10px', color: palette.meta }}>{n.date}</div>
+                                <div
+                                    style={{
+                                        fontSize: '10px',
+                                        color: palette.meta,
+                                        fontStyle: 'italic',
+                                        whiteSpace: 'normal',
+                                        overflowWrap: 'anywhere',
+                                        wordBreak: 'break-word',
+                                    }}
+                                >
+                                    {n.type === 'incoming' ? `От: ${n.sender}` : `Кому: ${n.recipient}`}
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: '10px',
+                                        marginTop: '5px',
+                                        whiteSpace: 'normal',
+                                        overflowWrap: 'anywhere',
+                                        wordBreak: 'break-word',
+                                        maxWidth: '220px',
+                                    }}
+                                    title={n.subject}
+                                >
+                                    {n.subject}
+                                </div>
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666' }}>{n.date}</div>
-                            <div style={{ fontSize: '10px', color: '#444', fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {n.type === 'incoming' ? `От: ${n.sender}` : `Кому: ${n.recipient}`}
-                            </div>
-                            <div style={{ fontSize: '10px', marginTop: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '220px' }} title={n.subject}>
-                                {n.subject}
-                            </div>
-                        </div>
-                    )
-                },
-                style: { width: 265, border: 'none', background: 'transparent' },
-                position: { x: 0, y: 0 }, // will be calculated
-            }));
+                        )
+                    },
+                    style: { width: 265, border: 'none', background: 'transparent' },
+                    position: { x: 0, y: 0 }, // will be calculated
+                };
+            });
 
             const initialEdges: Edge[] = data.edges.map((e: services.GraphEdge) => ({
                 id: e.id,
@@ -176,6 +259,28 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
             elementsSelectable={true}
         >
             <Controls />
+            <Panel position="top-left">
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 8,
+                        padding: '8px 10px',
+                        borderRadius: 10,
+                        background: 'rgba(255, 255, 255, 0.92)',
+                        border: '1px solid #f0f0f0',
+                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.06)',
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#595959' }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: NODE_COLORS.incoming.badgeBackground }} />
+                        Входящие
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#595959' }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: NODE_COLORS.outgoing.badgeBackground }} />
+                        Исходящие
+                    </div>
+                </div>
+            </Panel>
             <Background gap={12} size={1} />
         </ReactFlow>
     );
