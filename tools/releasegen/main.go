@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -47,8 +48,8 @@ func main() {
 		exitWithError("releases list must contain at least one item")
 	}
 
-	current := history.Releases[0]
-	if err := validateRelease(current); err != nil {
+	current, err := selectCurrentRelease(history.Releases)
+	if err != nil {
 		exitWithError(err.Error())
 	}
 
@@ -60,6 +61,36 @@ func main() {
 	if err := os.WriteFile(*outputPath, payload, 0o644); err != nil {
 		exitWithError(fmt.Sprintf("failed to write generated file: %v", err))
 	}
+}
+
+func selectCurrentRelease(releases []releaseEntry) (releaseEntry, error) {
+	current := releases[0]
+	if err := validateRelease(current); err != nil {
+		return releaseEntry{}, err
+	}
+
+	currentReleasedAt, err := time.Parse("2006-01-02", current.ReleasedAt)
+	if err != nil {
+		return releaseEntry{}, fmt.Errorf("invalid release date %q: %w", current.ReleasedAt, err)
+	}
+
+	for _, release := range releases[1:] {
+		if err := validateRelease(release); err != nil {
+			return releaseEntry{}, err
+		}
+
+		releasedAt, err := time.Parse("2006-01-02", release.ReleasedAt)
+		if err != nil {
+			return releaseEntry{}, fmt.Errorf("invalid release date %q: %w", release.ReleasedAt, err)
+		}
+
+		if releasedAt.After(currentReleasedAt) {
+			current = release
+			currentReleasedAt = releasedAt
+		}
+	}
+
+	return current, nil
 }
 
 func validateRelease(release releaseEntry) error {
