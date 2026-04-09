@@ -1,11 +1,12 @@
 package services
 
 import (
+	"testing"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
-	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -24,6 +25,7 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	user := &models.User{
 		ID:           uuid.New(),
 		Login:        role + "_set",
+		FullName:     role + " settings",
 		PasswordHash: hash,
 		IsActive:     true,
 		Roles:        []string{role},
@@ -50,6 +52,7 @@ func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsServi
 	user := &models.User{
 		ID:           uuid.New(),
 		Login:        "multi_role_set_" + uuid.New().String(),
+		FullName:     "Multi Role Settings",
 		PasswordHash: hash,
 		IsActive:     true,
 		Roles:        roles,
@@ -63,6 +66,19 @@ func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsServi
 	db := &database.DB{DB: dbMock}
 
 	return NewSettingsService(db, settingsRepo, auth, nil), settingsRepo, auth, user
+}
+
+type captureSettingsAuditLogStore struct {
+	requests []models.CreateAdminAuditLogRequest
+}
+
+func (s *captureSettingsAuditLogStore) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
+	s.requests = append(s.requests, req)
+	return uuid.New(), nil
+}
+
+func (s *captureSettingsAuditLogStore) GetAll(limit, offset int) ([]models.AdminAuditLog, int, error) {
+	return nil, 0, nil
 }
 
 func TestSettingsService_GetAll(t *testing.T) {
@@ -91,9 +107,57 @@ func TestSettingsService_Update(t *testing.T) {
 	// Изменение отдельной системной настройки (ключ-значение)
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "old"}, nil).Once()
 		repo.On("Update", "key", "value").Return(nil).Once()
 		err := svc.Update("key", "value")
 		require.NoError(t, err)
+	})
+
+	t.Run("skips update and audit when value did not change", func(t *testing.T) {
+		svc, repo, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
+		auditRepo := &captureSettingsAuditLogStore{}
+		svc.auditService = NewAdminAuditLogService(auditRepo, auth)
+
+		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "value"}, nil).Once()
+
+		err := svc.Update("key", "value")
+		require.NoError(t, err)
+		assert.Empty(t, auditRepo.requests)
+	})
+
+	t.Run("writes audit only when value changed", func(t *testing.T) {
+		svc, repo, auth, user := setupSettingsServiceWithRoles(t, []string{"admin"})
+		auditRepo := &captureSettingsAuditLogStore{}
+		svc.auditService = NewAdminAuditLogService(auditRepo, auth)
+
+		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "old"}, nil).Once()
+		repo.On("Update", "key", "new").Return(nil).Once()
+
+		err := svc.Update("key", "new")
+		require.NoError(t, err)
+		require.Len(t, auditRepo.requests, 1)
+		assert.Equal(t, user.ID, auditRepo.requests[0].UserID)
+		assert.Equal(t, user.FullName, auditRepo.requests[0].UserName)
+		assert.Equal(t, "SETTINGS_UPDATE", auditRepo.requests[0].Action)
+		assert.Equal(t, "Изменена настройка «key»: new", auditRepo.requests[0].Details)
+	})
+
+	t.Run("uses human readable label for known setting", func(t *testing.T) {
+		svc, repo, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
+		auditRepo := &captureSettingsAuditLogStore{}
+		svc.auditService = NewAdminAuditLogService(auditRepo, auth)
+
+		repo.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{
+			Key:         "assignment_completion_attachments_enabled",
+			Value:       "true",
+			Description: "Разрешить исполнителю прикладывать файлы при завершении поручения",
+		}, nil).Once()
+		repo.On("Update", "assignment_completion_attachments_enabled", "false").Return(nil).Once()
+
+		err := svc.Update("assignment_completion_attachments_enabled", "false")
+		require.NoError(t, err)
+		require.Len(t, auditRepo.requests, 1)
+		assert.Equal(t, "Изменена настройка Файлы при завершении поручения: false", auditRepo.requests[0].Details)
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {

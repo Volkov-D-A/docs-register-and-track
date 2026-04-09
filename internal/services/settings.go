@@ -42,12 +42,18 @@ func (s *SettingsService) Update(key, value string) error {
 	if err := s.authService.RequireActiveRole("admin"); err != nil {
 		return err
 	}
+
+	current, err := s.repo.Get(key)
+	if err == nil && current != nil && current.Value == value {
+		return nil
+	}
+
 	if err := s.repo.Update(key, value); err != nil {
 		return err
 	}
 
 	userID, userName := s.authService.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "SETTINGS_UPDATE", fmt.Sprintf("Изменена настройка «%s»: %s", key, value))
+	s.auditService.LogAction(userID, userName, "SETTINGS_UPDATE", fmt.Sprintf("Изменена настройка %s: %s", s.getSettingAuditLabel(key, current), value))
 	return nil
 }
 
@@ -137,4 +143,23 @@ func (s *SettingsService) IsAssignmentCompletionAttachmentsEnabled() bool {
 	default:
 		return true
 	}
+}
+
+func (s *SettingsService) getSettingAuditLabel(key string, current *models.SystemSetting) string {
+	switch key {
+	case "organization_name":
+		return "Название организации"
+	case "max_file_size_mb":
+		return "Максимальный размер файла"
+	case "allowed_file_types":
+		return "Разрешенные типы файлов"
+	case "assignment_completion_attachments_enabled":
+		return "Файлы при завершении поручения"
+	}
+
+	if current != nil && strings.TrimSpace(current.Description) != "" {
+		return current.Description
+	}
+
+	return fmt.Sprintf("«%s»", key)
 }
