@@ -13,7 +13,7 @@ import (
 )
 
 func setupAckService(t *testing.T, role string) (
-	*AcknowledgmentService, *mocks.AcknowledgmentStore, *mocks.UserStore, *AuthService,
+	*AcknowledgmentService, *mocks.AcknowledgmentStore, *mocks.UserStore, *AuthService, *mocks.IncomingDocStore,
 ) {
 	t.Helper()
 	ackRepo := mocks.NewAcknowledgmentStore(t)
@@ -37,9 +37,12 @@ func setupAckService(t *testing.T, role string) (
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	journalSvc := NewJournalService(journalRepo, auth, nil)
+	incomingRepo := mocks.NewIncomingDocStore(t)
+	outgoingRepo := mocks.NewOutgoingDocStore(t)
+	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, nil, incomingRepo, outgoingRepo)
 
-	svc := NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc)
-	return svc, ackRepo, userRepo, auth
+	svc := NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc, accessSvc)
+	return svc, ackRepo, userRepo, auth, incomingRepo
 }
 
 func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
@@ -50,8 +53,11 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	journalSvc := NewJournalService(journalRepo, auth, nil)
+	incomingRepo := mocks.NewIncomingDocStore(t)
+	outgoingRepo := mocks.NewOutgoingDocStore(t)
+	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, nil, incomingRepo, outgoingRepo)
 
-	return NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc)
+	return NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc, accessSvc)
 }
 
 func TestAcknowledgmentService_Create(t *testing.T) {
@@ -61,41 +67,43 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 	user2 := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _ := setupAckService(t, "clerk")
+		svc, repo, _, _, incomingRepo := setupAckService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
 		repo.On("Create", mock.AnythingOfType("*models.Acknowledgment")).Return(nil).Once()
-		result, err := svc.Create(docID.String(), "incoming", "text", []string{user1.String(), user2.String()})
+		result, err := svc.Create(docID.String(), "text", []string{user1.String(), user2.String()})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, docID.String(), result.DocumentID)
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "executor")
-		result, err := svc.Create(docID.String(), "incoming", "text", []string{user1.String()})
+		svc, _, _, _, _ := setupAckService(t, "executor")
+		result, err := svc.Create(docID.String(), "text", []string{user1.String()})
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("forbidden admin", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "admin")
-		result, err := svc.Create(docID.String(), "incoming", "text", []string{user1.String()})
+		svc, _, _, _, _ := setupAckService(t, "admin")
+		result, err := svc.Create(docID.String(), "text", []string{user1.String()})
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("no users selected", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "clerk")
-		result, err := svc.Create(docID.String(), "incoming", "text", []string{"not-a-uuid"})
+		svc, _, _, _, incomingRepo := setupAckService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		result, err := svc.Create(docID.String(), "text", []string{"not-a-uuid"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "не выбраны пользователи")
 		assert.Nil(t, result)
 	})
 
 	t.Run("invalid document ID", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "clerk")
-		result, err := svc.Create("not-a-uuid", "incoming", "text", []string{user1.String()})
+		svc, _, _, _, _ := setupAckService(t, "clerk")
+		result, err := svc.Create("not-a-uuid", "text", []string{user1.String()})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid document ID")
 		assert.Nil(t, result)
@@ -107,7 +115,7 @@ func TestAcknowledgmentService_GetList(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _ := setupAckService(t, "clerk")
+		svc, repo, _, _, _ := setupAckService(t, "clerk")
 		acks := []models.Acknowledgment{{ID: uuid.New(), DocumentID: docID}}
 		repo.On("GetByDocumentID", docID).Return(acks, nil).Once()
 		result, err := svc.GetList(docID.String())
@@ -124,7 +132,7 @@ func TestAcknowledgmentService_GetList(t *testing.T) {
 	})
 
 	t.Run("invalid ID", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "clerk")
+		svc, _, _, _, _ := setupAckService(t, "clerk")
 		result, err := svc.GetList("not-a-uuid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid document ID")
@@ -135,7 +143,7 @@ func TestAcknowledgmentService_GetList(t *testing.T) {
 func TestAcknowledgmentService_GetPendingForCurrentUser(t *testing.T) {
 	// Получение списка документов, ожидающих ознакомления текущим пользователем
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, auth := setupAckService(t, "executor")
+		svc, repo, _, auth, _ := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
 		acks := []models.Acknowledgment{{ID: uuid.New()}}
 		repo.On("GetPendingForUser", userUUID).Return(acks, nil).Once()
@@ -156,7 +164,7 @@ func TestAcknowledgmentService_GetPendingForCurrentUser(t *testing.T) {
 func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 	// Получение всех активных ознакомлений в системе (для администратора/делопроизводителя)
 	t.Run("success clerk", func(t *testing.T) {
-		svc, repo, _, _ := setupAckService(t, "clerk")
+		svc, repo, _, _, _ := setupAckService(t, "clerk")
 		repo.On("GetAllActive").Return([]models.Acknowledgment{}, nil).Once()
 		result, err := svc.GetAllActive()
 		require.NoError(t, err)
@@ -164,7 +172,7 @@ func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "executor")
+		svc, _, _, _, _ := setupAckService(t, "executor")
 		result, err := svc.GetAllActive()
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
@@ -172,7 +180,7 @@ func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 	})
 
 	t.Run("forbidden admin", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "admin")
+		svc, _, _, _, _ := setupAckService(t, "admin")
 		result, err := svc.GetAllActive()
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
@@ -185,7 +193,7 @@ func TestAcknowledgmentService_MarkViewed(t *testing.T) {
 	ackID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, auth := setupAckService(t, "executor")
+		svc, repo, _, auth, _ := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
@@ -205,7 +213,7 @@ func TestAcknowledgmentService_MarkViewed(t *testing.T) {
 	})
 
 	t.Run("invalid ID", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "executor")
+		svc, _, _, _, _ := setupAckService(t, "executor")
 		err := svc.MarkViewed("not-a-uuid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid acknowledgment ID")
@@ -217,7 +225,7 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 	ackID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, auth := setupAckService(t, "executor")
+		svc, repo, _, auth, _ := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
@@ -242,7 +250,7 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 	ackID := uuid.New()
 
 	t.Run("success clerk", func(t *testing.T) {
-		svc, repo, _, _ := setupAckService(t, "clerk")
+		svc, repo, _, _, _ := setupAckService(t, "clerk")
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
 			DocumentID:   uuid.New(),
@@ -254,14 +262,14 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "executor")
+		svc, _, _, _, _ := setupAckService(t, "executor")
 		err := svc.Delete(ackID.String())
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
 	t.Run("forbidden admin", func(t *testing.T) {
-		svc, _, _, _ := setupAckService(t, "admin")
+		svc, _, _, _, _ := setupAckService(t, "admin")
 		err := svc.Delete(ackID.String())
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)

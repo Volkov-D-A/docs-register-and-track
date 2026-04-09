@@ -42,7 +42,7 @@ func setupOutgoingDocService(t *testing.T, role string) (
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, outRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, outRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
 	svc := NewOutgoingDocumentService(outRepo, refRepo, nomRepo, depRepo, auth, journalSvc, accessSvc)
@@ -160,7 +160,7 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 		svc, outRepo, _, _, _, assignmentRepo, _, _ := setupOutgoingDocService(t, "executor")
 		doc := &models.OutgoingDocument{ID: docID, NomenclatureID: uuid.New(), Content: "Тема"}
 		outRepo.On("GetByID", docID).Return(doc, nil).Once()
-		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "outgoing").Return(true, nil).Once()
+		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID).Return(true, nil).Once()
 
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
@@ -172,8 +172,8 @@ func TestOutgoingDocService_GetByID(t *testing.T) {
 		svc, outRepo, _, _, _, assignmentRepo, ackRepo, _ := setupOutgoingDocService(t, "executor")
 		doc := &models.OutgoingDocument{ID: docID, NomenclatureID: uuid.New(), Content: "Тема"}
 		outRepo.On("GetByID", docID).Return(doc, nil).Once()
-		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "outgoing").Return(false, nil).Once()
-		ackRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "outgoing").Return(true, nil).Once()
+		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID).Return(false, nil).Once()
+		ackRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID).Return(true, nil).Once()
 
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)

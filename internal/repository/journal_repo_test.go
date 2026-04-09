@@ -24,18 +24,17 @@ func TestJournalRepository_Create(t *testing.T) {
 	ctx := context.Background()
 
 	req := models.CreateJournalEntryRequest{
-		DocumentID:   uuid.New(),
-		DocumentType: "incoming",
-		UserID:       uuid.New(),
-		Action:       "TEST_ACTION",
-		Details:      "Тестовое описание действия",
+		DocumentID: uuid.New(),
+		UserID:     uuid.New(),
+		Action:     "TEST_ACTION",
+		Details:    "Тестовое описание действия",
 	}
 
-	query := `INSERT INTO document_journal \(document_id, document_type, user_id, action, details\) VALUES \(\$1, \$2, \$3, \$4, \$5\) RETURNING id`
+	query := `INSERT INTO document_journal \(document_id, user_id, action, details\) VALUES \(\$1, \$2, \$3, \$4\) RETURNING id`
 
 	newID := uuid.New()
 	mock.ExpectQuery(query).
-		WithArgs(req.DocumentID, req.DocumentType, req.UserID, req.Action, req.Details).
+		WithArgs(req.DocumentID, req.UserID, req.Action, req.Details).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(newID))
 
 	id, err := repo.Create(ctx, req)
@@ -53,28 +52,27 @@ func TestJournalRepository_GetByDocumentID(t *testing.T) {
 	repo := NewJournalRepository(&database.DB{DB: db})
 	ctx := context.Background()
 	docID := uuid.New()
-	docType := "incoming"
 	now := time.Now()
 
-	query := `SELECT j.id, j.document_id, j.document_type, j.user_id, 
+	query := `SELECT j.id, j.document_id, j.user_id, 
 		       u.full_name, 
 		       j.action, j.details, j.created_at
 		FROM document_journal j
 		JOIN users u ON j.user_id = u.id
-		WHERE j.document_id = \$1 AND j.document_type = \$2
+		WHERE j.document_id = \$1
 		ORDER BY j.created_at DESC`
 
 	rows := sqlmock.NewRows([]string{
-		"id", "document_id", "document_type", "user_id", "user_name",
+		"id", "document_id", "user_id", "user_name",
 		"action", "details", "created_at",
 	}).AddRow(
-		uuid.New(), docID, docType, uuid.New(), "Иванов Иван Иванович",
+		uuid.New(), docID, uuid.New(), "Иванов Иван Иванович",
 		"TEST_ACTION", "Тестовое действие", now,
 	)
 
-	mock.ExpectQuery(query).WithArgs(docID, docType).WillReturnRows(rows)
+	mock.ExpectQuery(query).WithArgs(docID).WillReturnRows(rows)
 
-	entries, err := repo.GetByDocumentID(ctx, docID, docType)
+	entries, err := repo.GetByDocumentID(ctx, docID)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "Иванов Иван Иванович", entries[0].UserName)
@@ -92,25 +90,23 @@ func TestJournalRepository_GetByDocumentID_Empty(t *testing.T) {
 	repo := NewJournalRepository(&database.DB{DB: db})
 	ctx := context.Background()
 	docID := uuid.New()
-	docType := "incoming"
-
-	query := `SELECT j.id, j.document_id, j.document_type, j.user_id, 
+	query := `SELECT j.id, j.document_id, j.user_id, 
 		       u.full_name, 
 		       j.action, j.details, j.created_at
 		FROM document_journal j
 		JOIN users u ON j.user_id = u.id
-		WHERE j.document_id = \$1 AND j.document_type = \$2
+		WHERE j.document_id = \$1
 		ORDER BY j.created_at DESC`
 
 	// Возвращаем пустой результат
 	rows := sqlmock.NewRows([]string{
-		"id", "document_id", "document_type", "user_id", "user_name",
+		"id", "document_id", "user_id", "user_name",
 		"action", "details", "created_at",
 	})
 
-	mock.ExpectQuery(query).WithArgs(docID, docType).WillReturnRows(rows)
+	mock.ExpectQuery(query).WithArgs(docID).WillReturnRows(rows)
 
-	entries, err := repo.GetByDocumentID(ctx, docID, docType)
+	entries, err := repo.GetByDocumentID(ctx, docID)
 	require.NoError(t, err)
 	require.NotNil(t, entries) // Должен быть пустой массив, а не nil
 	require.Len(t, entries, 0)

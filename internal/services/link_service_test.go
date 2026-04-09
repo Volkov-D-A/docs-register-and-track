@@ -21,6 +21,9 @@ func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore
 	linkRepo := mocks.NewLinkStore(t)
 	incRepo := mocks.NewIncomingDocStore(t)
 	outRepo := mocks.NewOutgoingDocStore(t)
+	depRepo := mocks.NewDepartmentStore(t)
+	assignmentRepo := mocks.NewAssignmentStore(t)
+	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 
 	auth := NewAuthService(nil, userRepo)
@@ -43,9 +46,10 @@ func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth, nil)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, incRepo, outRepo)
+	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
-	svc := NewLinkService(linkRepo, incRepo, outRepo, auth, journalSvc)
+	svc := NewLinkService(linkRepo, incRepo, outRepo, accessSvc, auth, journalSvc)
 	return svc, linkRepo, incRepo, outRepo, auth
 }
 
@@ -55,15 +59,18 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 	targetID := uuid.New()
 
 	t.Run("успех", func(t *testing.T) {
-		svc, repo, _, _, auth := setupLinkService(t, "clerk")
+		svc, repo, incRepo, outRepo, auth := setupLinkService(t, "clerk")
 		userIDStr := auth.GetCurrentUserID()
 		userID, _ := uuid.Parse(userIDStr)
+		incRepo.On("GetByID", sourceID).Return(&models.IncomingDocument{ID: sourceID}, nil).Once()
+		incRepo.On("GetByID", targetID).Return((*models.IncomingDocument)(nil), nil).Once()
+		outRepo.On("GetByID", targetID).Return(&models.OutgoingDocument{ID: targetID}, nil).Once()
 
 		repo.On("Create", context.Background(), mock.MatchedBy(func(link *models.DocumentLink) bool {
 			return link.SourceID == sourceID && link.TargetID == targetID && link.LinkType == "ответ" && link.CreatedBy == userID
 		})).Return(nil).Once()
 
-		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "incoming", "outgoing", "ответ")
+		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "ответ")
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "ответ", result.LinkType)
@@ -72,7 +79,7 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 
 	t.Run("запрещено связывать с собой", func(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "clerk")
-		result, err := svc.LinkDocuments(sourceID.String(), sourceID.String(), "incoming", "incoming", "копия")
+		result, err := svc.LinkDocuments(sourceID.String(), sourceID.String(), "копия")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot link document to itself")
 		assert.Nil(t, result)
@@ -80,7 +87,7 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 
 	t.Run("невалидный source ID", func(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "clerk")
-		result, err := svc.LinkDocuments("invalid", targetID.String(), "incoming", "outgoing", "ответ")
+		result, err := svc.LinkDocuments("invalid", targetID.String(), "ответ")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid source ID")
 		assert.Nil(t, result)
@@ -88,7 +95,7 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 
 	t.Run("не авторизован", func(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "")
-		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "incoming", "outgoing", "ответ")
+		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "ответ")
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrUnauthorized)
 		assert.Nil(t, result)
@@ -96,7 +103,7 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 
 	t.Run("executor не может создавать связи", func(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "executor")
-		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "incoming", "outgoing", "ответ")
+		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "ответ")
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)

@@ -25,20 +25,7 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 	docID := uuid.New()
 	now := time.Now()
 
-	expectedQuery := `SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
-		d.incoming_number, d.incoming_date, d.outgoing_number_sender, d.outgoing_date_sender,
-		d.intermediate_number, d.intermediate_date,
-		d.document_type_id, dt.name,
-		d.content, d.pages_count,
-		d.sender_org_id, so.name, d.sender_signatory,
-		d.resolution, d.resolution_author, d.resolution_executors,
-		d.created_by, u.full_name,
-		d.created_at, d.updated_at
-	FROM incoming_documents d
-	LEFT JOIN nomenclature n ON d.nomenclature_id = n.id
-	LEFT JOIN document_types dt ON d.document_type_id = dt.id
-	LEFT JOIN organizations so ON d.sender_org_id = so.id
-	LEFT JOIN users u ON d.created_by = u.id WHERE d.id = $1`
+	expectedQuery := incomingDocSelectBase + " WHERE d.id = $1"
 
 	t.Run("success", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
@@ -92,7 +79,7 @@ func TestIncomingDocumentRepository_GetCount(t *testing.T) {
 
 	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM incoming_documents`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(42))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).WithArgs(models.DocumentKindIncoming).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(42))
 
 	count, err := repo.GetCount()
 	require.NoError(t, err)
@@ -109,7 +96,7 @@ func TestIncomingDocumentRepository_Delete(t *testing.T) {
 	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
 	docID := uuid.New()
 
-	mock.ExpectExec(`DELETE FROM incoming_documents WHERE id = \$1`).WithArgs(docID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`DELETE FROM documents WHERE id = \$1 AND kind = \$2`).WithArgs(docID, models.DocumentKindIncoming).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = repo.Delete(docID)
 	require.NoError(t, err)
@@ -134,14 +121,18 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 		Content:        "Текст",
 	}
 
-	mock.ExpectQuery(`INSERT INTO incoming_documents`).WithArgs(
-		req.NomenclatureID, req.IncomingNumber, req.IncomingDate,
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
+		models.DocumentKindIncoming, req.NomenclatureID, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
+	mock.ExpectExec(`INSERT INTO incoming_document_details`).WithArgs(
+		docID, req.IncomingNumber, req.IncomingDate,
 		req.OutgoingNumberSender, req.OutgoingDateSender,
 		req.IntermediateNumber, req.IntermediateDate,
-		req.DocumentTypeID, req.Content, req.PagesCount,
 		req.SenderOrgID, req.SenderSignatory,
-		req.Resolution, req.ResolutionAuthor, req.ResolutionExecutors, req.CreatedBy,
-	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
+		req.Resolution, req.ResolutionAuthor, req.ResolutionExecutors,
+	).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
 	// После Create идет вызов GetByID
 	expectedQuery := incomingDocSelectBase + " WHERE d.id = $1"
@@ -188,7 +179,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 		}
 
 		// Count query
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM incoming_documents`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 		// Data query
 		rows := sqlmock.NewRows([]string{
@@ -218,7 +209,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 
 	t.Run("count database error", func(t *testing.T) {
 		filter := models.DocumentFilter{Search: "test"}
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM incoming_documents`).WillReturnError(sql.ErrConnDone)
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).WillReturnError(sql.ErrConnDone)
 
 		res, err := repo.GetList(filter)
 		require.Error(t, err)
@@ -229,7 +220,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 
 	t.Run("data database error", func(t *testing.T) {
 		filter := models.DocumentFilter{}
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM incoming_documents`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 		mock.ExpectQuery(regexp.QuoteMeta(incomingDocSelectBase)).WillReturnError(sql.ErrConnDone)
 
 		res, err := repo.GetList(filter)
@@ -256,14 +247,18 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 		Content:              "Обновленное содержание",
 	}
 
-	mock.ExpectExec(`UPDATE incoming_documents SET`).WithArgs(
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE documents SET`).WithArgs(
+		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindIncoming,
+	).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`UPDATE incoming_document_details SET`).WithArgs(
 		req.OutgoingNumberSender, req.OutgoingDateSender,
 		req.IntermediateNumber, req.IntermediateDate,
-		req.DocumentTypeID, req.Content, req.PagesCount,
 		req.SenderOrgID, req.SenderSignatory,
 		req.Resolution, req.ResolutionAuthor, req.ResolutionExecutors,
 		req.ID,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
 	// После Update идет вызов GetByID
 	expectedQuery := incomingDocSelectBase + " WHERE d.id = $1"

@@ -44,7 +44,7 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, incomingRepo, outgoingRepo)
 	svc := NewJournalService(journalRepo, auth, accessSvc)
 	return svc, journalRepo, incomingRepo, outgoingRepo, auth
 }
@@ -52,28 +52,25 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 func TestJournalService_GetByDocumentID(t *testing.T) {
 	// Получение записей журнала для конкретного документа (вызывается фронтендом)
 	docID := uuid.New()
-	docType := "incoming"
-
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _, _, _ := setupJournalService(t, "clerk")
 
 		now := time.Now()
 		mockEntries := []models.JournalEntry{
 			{
-				ID:           uuid.New(),
-				DocumentID:   docID,
-				DocumentType: docType,
-				UserID:       uuid.New(),
-				UserName:     "Иванов Иван Иванович",
-				Action:       "TEST_ACTION",
-				Details:      "Тестовое действие",
-				CreatedAt:    now,
+				ID:         uuid.New(),
+				DocumentID: docID,
+				UserID:     uuid.New(),
+				UserName:   "Иванов Иван Иванович",
+				Action:     "TEST_ACTION",
+				Details:    "Тестовое действие",
+				CreatedAt:  now,
 			},
 		}
 
-		repo.On("GetByDocumentID", mock.Anything, docID, docType).Return(mockEntries, nil).Once()
+		repo.On("GetByDocumentID", mock.Anything, docID).Return(mockEntries, nil).Once()
 
-		result, err := svc.GetByDocumentID(docID.String(), docType)
+		result, err := svc.GetByDocumentID(docID.String())
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 
@@ -87,7 +84,7 @@ func TestJournalService_GetByDocumentID(t *testing.T) {
 	t.Run("не авторизован", func(t *testing.T) {
 		svc, _, _, _, _ := setupJournalService(t, "") // без авторизации
 
-		result, err := svc.GetByDocumentID(docID.String(), docType)
+		result, err := svc.GetByDocumentID(docID.String())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "требуется авторизация")
 		assert.Nil(t, result)
@@ -96,7 +93,7 @@ func TestJournalService_GetByDocumentID(t *testing.T) {
 	t.Run("неверный ID", func(t *testing.T) {
 		svc, _, _, _, _ := setupJournalService(t, "clerk")
 
-		result, err := svc.GetByDocumentID("invalid-uuid", docType)
+		result, err := svc.GetByDocumentID("invalid-uuid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid UUID")
 		assert.Nil(t, result)
@@ -105,7 +102,7 @@ func TestJournalService_GetByDocumentID(t *testing.T) {
 	t.Run("admin не имеет доступа к журналу документа", func(t *testing.T) {
 		svc, _, _, _, _ := setupJournalService(t, "admin")
 
-		result, err := svc.GetByDocumentID(docID.String(), docType)
+		result, err := svc.GetByDocumentID(docID.String())
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
@@ -115,7 +112,6 @@ func TestJournalService_GetByDocumentID(t *testing.T) {
 func TestJournalService_LogAction(t *testing.T) {
 	// Внутреннее логирование действия (вызывается другими сервисами)
 	docID := uuid.New()
-	docType := "incoming"
 	userID := uuid.New()
 	action := "TEST_ACTION"
 	details := "Тестовые детали"
@@ -124,11 +120,10 @@ func TestJournalService_LogAction(t *testing.T) {
 		svc, repo, _, _, _ := setupJournalService(t, "admin")
 
 		expectedReq := models.CreateJournalEntryRequest{
-			DocumentID:   docID,
-			DocumentType: docType,
-			UserID:       userID,
-			Action:       action,
-			Details:      details,
+			DocumentID: docID,
+			UserID:     userID,
+			Action:     action,
+			Details:    details,
 		}
 
 		repo.On("Create", mock.Anything, expectedReq).Return(uuid.New(), nil).Once()

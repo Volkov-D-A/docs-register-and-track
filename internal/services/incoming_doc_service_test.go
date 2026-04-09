@@ -27,7 +27,7 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(authService, mockDepRepo, mockAssignmentRepo, mockAckRepo, mockDocRepo, nil)
+	accessSvc := NewDocumentAccessService(authService, mockDepRepo, mockAssignmentRepo, mockAckRepo, nil, mockDocRepo, nil)
 	journalSvc := NewJournalService(journalRepo, authService, accessSvc)
 
 	docService := NewIncomingDocumentService(mockDocRepo, mockNomRepo, mockRefRepo, mockDepRepo, authService, journalSvc, accessSvc)
@@ -160,7 +160,7 @@ func setupIncomingDocService(t *testing.T, role string) (
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, docRepo, nil)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, docRepo, nil)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
 	svc := NewIncomingDocumentService(docRepo, nomRepo, refRepo, depRepo, auth, journalSvc, accessSvc)
@@ -200,7 +200,7 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 		svc, repo, _, _, _, assignmentRepo, _ := setupIncomingDocService(t, "executor")
 		doc := &models.IncomingDocument{ID: docID, NomenclatureID: uuid.New(), Content: "Тема"}
 		repo.On("GetByID", docID).Return(doc, nil).Once()
-		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "incoming").Return(true, nil).Once()
+		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID).Return(true, nil).Once()
 
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)
@@ -212,8 +212,8 @@ func TestIncomingDocumentService_GetByID(t *testing.T) {
 		svc, repo, _, _, _, assignmentRepo, ackRepo := setupIncomingDocService(t, "executor")
 		doc := &models.IncomingDocument{ID: docID, NomenclatureID: uuid.New(), Content: "Тема"}
 		repo.On("GetByID", docID).Return(doc, nil).Once()
-		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "incoming").Return(false, nil).Once()
-		ackRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID, "incoming").Return(true, nil).Once()
+		assignmentRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID).Return(false, nil).Once()
+		ackRepo.On("HasDocumentAccess", mock.AnythingOfType("uuid.UUID"), docID).Return(true, nil).Once()
 
 		result, err := svc.GetByID(docID.String())
 		require.NoError(t, err)

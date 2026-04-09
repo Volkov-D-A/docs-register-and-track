@@ -25,22 +25,11 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 	assignID := uuid.New()
 	now := time.Now()
 
-	expectedQuery := `SELECT
-			a.id, a.document_id, a.document_type,
-			a.executor_id, u_executor.full_name,
-			a.content, a.deadline, a.status, a.report, a.completed_at,
-			a.created_at, a.updated_at,
-			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
-			COALESCE(inc.content, out.content) as doc_subject
-		FROM assignments a
-		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
-		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
-		LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing'
-		WHERE a.id = $1`
+	expectedQuery := `SELECT(.*)FROM assignments a(.*)JOIN documents d ON d.id = a.document_id(.*)WHERE a.id = \$1`
 
 	t.Run("success without co-executors", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
-			"id", "document_id", "document_type",
+			"id", "document_id", "kind",
 			"executor_id", "full_name",
 			"content", "deadline", "status", "report", "completed_at",
 			"created_at", "updated_at",
@@ -53,7 +42,7 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 			"ВХ-1", "Тема",
 		)
 
-		mock.ExpectQuery(regexp.QuoteMeta(expectedQuery)).WithArgs(assignID).WillReturnRows(rows)
+		mock.ExpectQuery(expectedQuery).WithArgs(assignID).WillReturnRows(rows)
 
 		// Запрос соисполнителей (пустой)
 		coExecQuery := `SELECT u.id, u.login, u.full_name
@@ -73,7 +62,7 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(expectedQuery)).WithArgs(assignID).WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(expectedQuery).WithArgs(assignID).WillReturnError(sql.ErrNoRows)
 
 		assign, err := repo.GetByID(assignID)
 		require.NoError(t, err)
@@ -114,14 +103,14 @@ func TestAssignmentRepository_Create(t *testing.T) {
 	mock.ExpectBegin()
 
 	insertQuery := `INSERT INTO assignments (
-			document_id, document_type, executor_id,
+			document_id, executor_id,
 			content, deadline, status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at`
 
 	mock.ExpectQuery(regexp.QuoteMeta(insertQuery)).WithArgs(
-		docID, "incoming", execID, "Текст", &now, "new",
+		docID, execID, "Текст", &now, "new",
 	).WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(assignID, now, now))
 
 	mock.ExpectPrepare(`INSERT INTO assignment_co_executors \(assignment_id, user_id\) VALUES \(\$1, \$2\)`).
@@ -130,27 +119,20 @@ func TestAssignmentRepository_Create(t *testing.T) {
 	mock.ExpectCommit()
 
 	// После Commit идет GetByID
-	expectedGetQuery := `SELECT
-			a.id, a.document_id, a.document_type,
-			a.executor_id, u_executor.full_name,
-			a.content, a.deadline, a.status, a.report, a.completed_at,
-			a.created_at, a.updated_at,
-			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
-			COALESCE(inc.content, out.content) as doc_subject
-		FROM assignments a`
+	expectedGetQuery := `SELECT(.*)FROM assignments a(.*)JOIN documents d ON d.id = a.document_id(.*)WHERE a.id = \$1`
 
 	rows := sqlmock.NewRows([]string{
-		"id", "document_id", "document_type",
+		"id", "document_id", "kind",
 		"executor_id", "full_name",
 		"content", "deadline", "status", "report", "completed_at",
 		"created_at", "updated_at",
 		"doc_number", "doc_subject",
 	}).AddRow(assignID, docID, "incoming", execID, "Иванов", "Текст", now, "new", nil, nil, now, now, "", "")
 
-	mock.ExpectQuery(regexp.QuoteMeta(expectedGetQuery)).WithArgs(assignID).WillReturnRows(rows)
+	mock.ExpectQuery(expectedGetQuery).WithArgs(assignID).WillReturnRows(rows)
 	mock.ExpectQuery(`SELECT u.id, u.login, u.full_name FROM assignment_co_executors`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "full_name"}))
 
-	assign, err := repo.Create(docID, "incoming", execID, "Текст", &now, []string{coExecID.String()})
+	assign, err := repo.Create(docID, execID, "Текст", &now, []string{coExecID.String()})
 	require.NoError(t, err)
 	require.NotNil(t, assign)
 	assert.Equal(t, assignID, assign.ID)
@@ -184,7 +166,7 @@ func TestAssignmentRepository_Update(t *testing.T) {
 	// getByID call mock for the return
 	expectedGetQuery := `SELECT(.*)FROM assignments a(.*)`
 	rows := sqlmock.NewRows([]string{
-		"id", "document_id", "document_type",
+		"id", "document_id", "kind",
 		"executor_id", "full_name",
 		"content", "deadline", "status", "report", "completed_at",
 		"created_at", "updated_at",
@@ -216,20 +198,13 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 		PageSize: 10,
 	}
 
-	countQuery := `SELECT COUNT\(\*\) FROM assignments a LEFT JOIN incoming_documents inc ON a.document_id = inc.id(.*)`
+	countQuery := `SELECT COUNT\(\*\) FROM assignments a JOIN documents d ON d.id = a.document_id(.*)`
 	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	query := `SELECT
-			a.id, a.document_id, a.document_type,
-			a.executor_id, u_executor.full_name,
-			a.content, a.deadline, a.status, a.report, a.completed_at,
-			a.created_at, a.updated_at,
-			COALESCE\(inc.incoming_number, out.outgoing_number\) as doc_number,
-			COALESCE\(inc.content, out.content\) as doc_subject
-		FROM assignments a(.*)`
+	query := `SELECT(.*)FROM assignments a(.*)JOIN documents d ON d.id = a.document_id(.*)`
 
 	mock.ExpectQuery(query).WillReturnRows(sqlmock.NewRows([]string{
-		"id", "document_id", "document_type", "executor_id", "full_name",
+		"id", "document_id", "kind", "executor_id", "full_name",
 		"content", "deadline", "status", "report", "completed_at",
 		"created_at", "updated_at", "doc_number", "doc_subject",
 	}).AddRow(uuid.New(), uuid.New(), "incoming", uuid.New(), "Executor", "Content", now, "new", nil, nil, now, now, "doc-1", "subj-1"))

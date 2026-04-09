@@ -24,20 +24,18 @@ func TestLinkRepository_Create(t *testing.T) {
 	ctx := context.Background()
 
 	link := &models.DocumentLink{
-		SourceType: "incoming",
 		SourceID:   uuid.New(),
-		TargetType: "outgoing",
 		TargetID:   uuid.New(),
 		LinkType:   "reply",
 		CreatedBy:  uuid.New(),
 	}
 
-	query := `INSERT INTO document_links \( source_type, source_id, target_type, target_id, link_type, created_by \) VALUES \(\$1, \$2, \$3, \$4, \$5, \$6\) RETURNING id, created_at`
+	query := `INSERT INTO document_links \( source_document_id, target_document_id, link_type, created_by \) VALUES \(\$1, \$2, \$3, \$4\) RETURNING id, created_at`
 
 	now := time.Now()
 	newID := uuid.New()
 	mock.ExpectQuery(query).
-		WithArgs(link.SourceType, link.SourceID, link.TargetType, link.TargetID, link.LinkType, link.CreatedBy).
+		WithArgs(link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(newID, now))
 
 	err = repo.Create(ctx, link)
@@ -75,29 +73,10 @@ func TestLinkRepository_GetByDocumentID(t *testing.T) {
 	docID := uuid.New()
 	now := time.Now()
 
-	query := `SELECT 
-			l.id, l.source_type, l.source_id,
-			l.target_type, l.target_id,
-			l.link_type, l.created_by, l.created_at,
-			-- Fetch source document number/subject \(simplified, assumes specific tables exist\)
-			CASE 
-				WHEN l.source_type = 'incoming' THEN \(SELECT incoming_number FROM incoming_documents WHERE id = l.source_id\)
-				WHEN l.source_type = 'outgoing' THEN \(SELECT outgoing_number FROM outgoing_documents WHERE id = l.source_id\)
-			END as source_number,
-			CASE 
-				WHEN l.target_type = 'incoming' THEN \(SELECT incoming_number FROM incoming_documents WHERE id = l.target_id\)
-				WHEN l.target_type = 'outgoing' THEN \(SELECT outgoing_number FROM outgoing_documents WHERE id = l.target_id\)
-			END as target_number,
-             CASE 
-				WHEN l.target_type = 'incoming' THEN \(SELECT content FROM incoming_documents WHERE id = l.target_id\)
-				WHEN l.target_type = 'outgoing' THEN \(SELECT content FROM outgoing_documents WHERE id = l.target_id\)
-			END as target_subject
-		FROM document_links l
-		WHERE l.source_id = \$1 OR l.target_id = \$1
-		ORDER BY l.created_at DESC`
+	query := `SELECT(.*)FROM document_links l(.*)JOIN documents ds ON ds.id = l.source_document_id(.*)WHERE l.source_document_id = \$1 OR l.target_document_id = \$1(.*)`
 
 	rows := sqlmock.NewRows([]string{
-		"id", "source_type", "source_id", "target_type", "target_id",
+		"id", "kind", "source_document_id", "kind", "target_document_id",
 		"link_type", "created_by", "created_at",
 		"source_number", "target_number", "target_subject",
 	}).AddRow(
@@ -128,27 +107,7 @@ func TestLinkRepository_GetGraph(t *testing.T) {
 	rootID := uuid.New()
 	now := time.Now()
 
-	query := `WITH RECURSIVE doc_graph AS \(
-			-- Base case: direct links to/from the root document
-			SELECT 
-				id, source_type, source_id, target_type, target_id, link_type, created_by, created_at,
-				1 as depth
-			FROM document_links
-			WHERE source_id = \$1 OR target_id = \$1
-			
-			UNION
-			
-			-- Recursive step: find links connected to documents in the graph
-			SELECT 
-				l.id, l.source_type, l.source_id, l.target_type, l.target_id, l.link_type, l.created_by, l.created_at,
-				g.depth \+ 1
-			FROM document_links l
-			JOIN doc_graph g ON \(l.source_id = g.target_id OR l.target_id = g.source_id OR l.source_id = g.source_id OR l.target_id = g.target_id\)
-			WHERE g.depth < 5 AND l.id != g.id -- Limit depth to prevent infinite loops \(though usually DAG\)
-		\)
-		SELECT DISTINCT 
-			id, source_type, source_id, target_type, target_id, link_type, created_by, created_at 
-		FROM doc_graph`
+	query := `WITH RECURSIVE doc_graph AS \(.*source_document_id = \$1 OR target_document_id = \$1.*SELECT DISTINCT(.*)FROM doc_graph`
 
 	rows := sqlmock.NewRows([]string{
 		"id", "source_type", "source_id", "target_type", "target_id",

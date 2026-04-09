@@ -17,7 +17,7 @@ import (
 // ---------- helpers ----------
 
 func setupAssignmentService(t *testing.T, role string) (
-	*AssignmentService, *mocks.AssignmentStore, *mocks.UserStore, *AuthService,
+	*AssignmentService, *mocks.AssignmentStore, *mocks.UserStore, *AuthService, *mocks.IncomingDocStore,
 ) {
 	t.Helper()
 	assignmentRepo := mocks.NewAssignmentStore(t)
@@ -41,9 +41,12 @@ func setupAssignmentService(t *testing.T, role string) (
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	journalSvc := NewJournalService(journalRepo, auth, nil)
+	incomingRepo := mocks.NewIncomingDocStore(t)
+	outgoingRepo := mocks.NewOutgoingDocStore(t)
+	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, nil, incomingRepo, outgoingRepo)
 
-	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc)
-	return svc, assignmentRepo, userRepo, auth
+	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc, accessSvc)
+	return svc, assignmentRepo, userRepo, auth, incomingRepo
 }
 
 func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.AssignmentStore) {
@@ -54,8 +57,11 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	journalSvc := NewJournalService(journalRepo, auth, nil)
+	incomingRepo := mocks.NewIncomingDocStore(t)
+	outgoingRepo := mocks.NewOutgoingDocStore(t)
+	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, nil, incomingRepo, outgoingRepo)
 
-	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc)
+	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc, accessSvc)
 	return svc, assignmentRepo
 }
 
@@ -67,7 +73,8 @@ func TestAssignmentService_Create(t *testing.T) {
 	execID := uuid.New()
 
 	t.Run("success with deadline", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, incomingRepo := setupAssignmentService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
 
 		expected := &models.Assignment{
 			ID:         uuid.New(),
@@ -76,18 +83,19 @@ func TestAssignmentService_Create(t *testing.T) {
 			Content:    "Выполнить",
 			Status:     "new",
 		}
-		repo.On("Create", docID, "incoming", execID, "Выполнить",
+		repo.On("Create", docID, execID, "Выполнить",
 			mock.AnythingOfType("*time.Time"), []string(nil),
 		).Return(expected, nil).Once()
 
-		result, err := svc.Create(docID.String(), "incoming", execID.String(), "Выполнить", "2025-12-31", nil)
+		result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "2025-12-31", nil)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, expected.ID.String(), result.ID)
 	})
 
 	t.Run("success without deadline", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, incomingRepo := setupAssignmentService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
 
 		expected := &models.Assignment{
 			ID:         uuid.New(),
@@ -96,11 +104,11 @@ func TestAssignmentService_Create(t *testing.T) {
 			Content:    "Выполнить",
 			Status:     "new",
 		}
-		repo.On("Create", docID, "incoming", execID, "Выполнить",
+		repo.On("Create", docID, execID, "Выполнить",
 			(*time.Time)(nil), []string(nil),
 		).Return(expected, nil).Once()
 
-		result, err := svc.Create(docID.String(), "incoming", execID.String(), "Выполнить", "", nil)
+		result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "", nil)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 	})
@@ -108,25 +116,26 @@ func TestAssignmentService_Create(t *testing.T) {
 	t.Run("not authenticated", func(t *testing.T) {
 		svc, _ := setupAssignmentServiceNotAuth(t)
 
-		result, err := svc.Create(docID.String(), "incoming", execID.String(), "Выполнить", "", nil)
+		result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "", nil)
 		require.Error(t, err)
 		assert.Equal(t, ErrNotAuthenticated, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("invalid document ID", func(t *testing.T) {
-		svc, _, _, _ := setupAssignmentService(t, "clerk")
+		svc, _, _, _, _ := setupAssignmentService(t, "clerk")
 
-		result, err := svc.Create("not-a-uuid", "incoming", execID.String(), "Выполнить", "", nil)
+		result, err := svc.Create("not-a-uuid", execID.String(), "Выполнить", "", nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid document ID")
 		assert.Nil(t, result)
 	})
 
 	t.Run("invalid executor ID", func(t *testing.T) {
-		svc, _, _, _ := setupAssignmentService(t, "clerk")
+		svc, _, _, _, incomingRepo := setupAssignmentService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
 
-		result, err := svc.Create(docID.String(), "incoming", "not-a-uuid", "Выполнить", "", nil)
+		result, err := svc.Create(docID.String(), "not-a-uuid", "Выполнить", "", nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid executor ID")
 		assert.Nil(t, result)
@@ -150,7 +159,7 @@ func TestAssignmentService_Update(t *testing.T) {
 	}
 
 	t.Run("success clerk", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Update", assignmentID, execID, "Новое",
@@ -170,7 +179,7 @@ func TestAssignmentService_Update(t *testing.T) {
 	})
 
 	t.Run("success clerk", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Update", assignmentID, execID, "Обновлено",
@@ -189,7 +198,7 @@ func TestAssignmentService_Update(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _ := setupAssignmentService(t, "executor")
+		svc, _, _, _, _ := setupAssignmentService(t, "executor")
 
 		result, err := svc.Update(assignmentID.String(), execID.String(), "Новое", "", nil)
 		require.Error(t, err)
@@ -198,7 +207,7 @@ func TestAssignmentService_Update(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 
 		repo.On("GetByID", assignmentID).Return(nil, nil).Once()
 
@@ -209,7 +218,7 @@ func TestAssignmentService_Update(t *testing.T) {
 	})
 
 	t.Run("finished not admin", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 		finished := &models.Assignment{
 			ID:         assignmentID,
 			DocumentID: docID,
@@ -244,7 +253,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 	}
 
 	t.Run("executor to in_progress", func(t *testing.T) {
-		_, repo, userRepo, _ := setupAssignmentService(t, "executor")
+		_, repo, userRepo, _, _ := setupAssignmentService(t, "executor")
 		// Override auth currentUser ID to match executor
 		password := "Passw0rd!"
 		hash, _ := security.HashPassword(password)
@@ -263,7 +272,10 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 		journalSvc := NewJournalService(journalRepo, authSvc, nil)
 
-		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc)
+		incomingRepo := mocks.NewIncomingDocStore(t)
+		outgoingRepo := mocks.NewOutgoingDocStore(t)
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, nil, incomingRepo, outgoingRepo)
+		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Update", assignmentID, execID, "Контент",
@@ -281,7 +293,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 	})
 
 	t.Run("executor to completed", func(t *testing.T) {
-		_, repo, userRepo, _ := setupAssignmentService(t, "executor")
+		_, repo, userRepo, _, _ := setupAssignmentService(t, "executor")
 		password := "Passw0rd!"
 		hash, _ := security.HashPassword(password)
 		executorUser := &models.User{
@@ -299,7 +311,10 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 		journalSvc := NewJournalService(journalRepo, authSvc, nil)
 
-		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc)
+		incomingRepo := mocks.NewIncomingDocStore(t)
+		outgoingRepo := mocks.NewOutgoingDocStore(t)
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, nil, incomingRepo, outgoingRepo)
+		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Update", assignmentID, execID, "Контент",
@@ -318,7 +333,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 	})
 
 	t.Run("clerk to finished from completed", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 		completedAssignment := &models.Assignment{
 			ID:         assignmentID,
 			DocumentID: docID,
@@ -343,7 +358,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 	})
 
 	t.Run("admin forbidden", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "admin")
+		svc, repo, _, _, _ := setupAssignmentService(t, "admin")
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		result, err := svc.UpdateStatus(assignmentID.String(), "finished", "")
 		require.Error(t, err)
@@ -352,7 +367,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "executor")
+		svc, repo, _, _, _ := setupAssignmentService(t, "executor")
 		// Executor with different ID than assignment executor — can't set "finished"
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 
@@ -369,7 +384,7 @@ func TestAssignmentService_GetByID(t *testing.T) {
 	assignmentID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 
 		expected := &models.Assignment{
 			ID:      assignmentID,
@@ -394,7 +409,7 @@ func TestAssignmentService_GetByID(t *testing.T) {
 	})
 
 	t.Run("invalid ID", func(t *testing.T) {
-		svc, _, _, _ := setupAssignmentService(t, "executor")
+		svc, _, _, _, _ := setupAssignmentService(t, "executor")
 
 		result, err := svc.GetByID("not-a-uuid")
 		require.Error(t, err)
@@ -403,7 +418,7 @@ func TestAssignmentService_GetByID(t *testing.T) {
 	})
 
 	t.Run("admin forbidden", func(t *testing.T) {
-		svc, _, _, _ := setupAssignmentService(t, "admin")
+		svc, _, _, _, _ := setupAssignmentService(t, "admin")
 		result, err := svc.GetByID(assignmentID.String())
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
@@ -416,7 +431,7 @@ func TestAssignmentService_GetByID(t *testing.T) {
 func TestAssignmentService_GetList(t *testing.T) {
 	// Получение списка поручений с фильтрацией (для дашборда или списков)
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, auth := setupAssignmentService(t, "executor")
+		svc, repo, _, auth, _ := setupAssignmentService(t, "executor")
 
 		filter := models.AssignmentFilter{Page: 1, PageSize: 20}
 		filter.ExecutorID = auth.GetCurrentUserID()
@@ -436,7 +451,7 @@ func TestAssignmentService_GetList(t *testing.T) {
 	})
 
 	t.Run("default pagination", func(t *testing.T) {
-		svc, repo, _, auth := setupAssignmentService(t, "executor")
+		svc, repo, _, auth, _ := setupAssignmentService(t, "executor")
 
 		// Filter with 0 page/pagesize — should default to 1/20
 		filter := models.AssignmentFilter{Page: 0, PageSize: 0}
@@ -464,7 +479,7 @@ func TestAssignmentService_GetList(t *testing.T) {
 	})
 
 	t.Run("admin forbidden", func(t *testing.T) {
-		svc, _, _, _ := setupAssignmentService(t, "admin")
+		svc, _, _, _, _ := setupAssignmentService(t, "admin")
 		result, err := svc.GetList(models.AssignmentFilter{})
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
@@ -489,7 +504,7 @@ func TestAssignmentService_Delete(t *testing.T) {
 	}
 
 	t.Run("success clerk", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Delete", assignmentID).Return(nil).Once()
@@ -499,7 +514,7 @@ func TestAssignmentService_Delete(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _ := setupAssignmentService(t, "executor")
+		svc, _, _, _, _ := setupAssignmentService(t, "executor")
 
 		err := svc.Delete(assignmentID.String())
 		require.Error(t, err)
@@ -507,7 +522,7 @@ func TestAssignmentService_Delete(t *testing.T) {
 	})
 
 	t.Run("finished not admin", func(t *testing.T) {
-		svc, repo, _, _ := setupAssignmentService(t, "clerk")
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 		finished := &models.Assignment{
 			ID:         assignmentID,
 			DocumentID: docID,
