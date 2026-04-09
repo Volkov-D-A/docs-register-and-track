@@ -16,9 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.JournalStore, *AuthService) {
+func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.JournalStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *AuthService) {
 	t.Helper()
 	journalRepo := mocks.NewJournalStore(t)
+	incomingRepo := mocks.NewIncomingDocStore(t)
+	outgoingRepo := mocks.NewOutgoingDocStore(t)
+	depRepo := mocks.NewDepartmentStore(t)
+	assignmentRepo := mocks.NewAssignmentStore(t)
+	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 
 	auth := NewAuthService(nil, userRepo)
@@ -39,8 +44,9 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
-	svc := NewJournalService(journalRepo, auth)
-	return svc, journalRepo, auth
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, incomingRepo, outgoingRepo)
+	svc := NewJournalService(journalRepo, auth, accessSvc)
+	return svc, journalRepo, incomingRepo, outgoingRepo, auth
 }
 
 func TestJournalService_GetByDocumentID(t *testing.T) {
@@ -49,7 +55,7 @@ func TestJournalService_GetByDocumentID(t *testing.T) {
 	docType := "incoming"
 
 	t.Run("успех", func(t *testing.T) {
-		svc, repo, _ := setupJournalService(t, "admin")
+		svc, repo, _, _, _ := setupJournalService(t, "clerk")
 
 		now := time.Now()
 		mockEntries := []models.JournalEntry{
@@ -79,7 +85,7 @@ func TestJournalService_GetByDocumentID(t *testing.T) {
 	})
 
 	t.Run("не авторизован", func(t *testing.T) {
-		svc, _, _ := setupJournalService(t, "") // без авторизации
+		svc, _, _, _, _ := setupJournalService(t, "") // без авторизации
 
 		result, err := svc.GetByDocumentID(docID.String(), docType)
 		require.Error(t, err)
@@ -88,11 +94,20 @@ func TestJournalService_GetByDocumentID(t *testing.T) {
 	})
 
 	t.Run("неверный ID", func(t *testing.T) {
-		svc, _, _ := setupJournalService(t, "admin")
+		svc, _, _, _, _ := setupJournalService(t, "clerk")
 
 		result, err := svc.GetByDocumentID("invalid-uuid", docType)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid UUID")
+		assert.Nil(t, result)
+	})
+
+	t.Run("admin не имеет доступа к журналу документа", func(t *testing.T) {
+		svc, _, _, _, _ := setupJournalService(t, "admin")
+
+		result, err := svc.GetByDocumentID(docID.String(), docType)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
 }
@@ -106,7 +121,7 @@ func TestJournalService_LogAction(t *testing.T) {
 	details := "Тестовые детали"
 
 	t.Run("успех", func(t *testing.T) {
-		svc, repo, _ := setupJournalService(t, "admin")
+		svc, repo, _, _, _ := setupJournalService(t, "admin")
 
 		expectedReq := models.CreateJournalEntryRequest{
 			DocumentID:   docID,

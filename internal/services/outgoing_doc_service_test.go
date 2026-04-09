@@ -42,9 +42,10 @@ func setupOutgoingDocService(t *testing.T, role string) (
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, outRepo)
+	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
-	svc := NewOutgoingDocumentService(outRepo, refRepo, nomRepo, depRepo, assignmentRepo, ackRepo, auth, journalSvc)
+	svc := NewOutgoingDocumentService(outRepo, refRepo, nomRepo, depRepo, auth, journalSvc, accessSvc)
 	return svc, outRepo, refRepo, nomRepo, depRepo, assignmentRepo, ackRepo, auth
 }
 

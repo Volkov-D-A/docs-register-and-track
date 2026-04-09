@@ -36,7 +36,7 @@ func setupAckService(t *testing.T, role string) (
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth)
+	journalSvc := NewJournalService(journalRepo, auth, nil)
 
 	svc := NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc)
 	return svc, ackRepo, userRepo, auth
@@ -49,7 +49,7 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	auth := NewAuthService(nil, userRepo)
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth)
+	journalSvc := NewJournalService(journalRepo, auth, nil)
 
 	return NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc)
 }

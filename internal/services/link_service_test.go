@@ -43,7 +43,7 @@ func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth)
+	journalSvc := NewJournalService(journalRepo, auth, nil)
 
 	svc := NewLinkService(linkRepo, incRepo, outRepo, auth, journalSvc)
 	return svc, linkRepo, incRepo, outRepo, auth

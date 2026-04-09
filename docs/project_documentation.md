@@ -47,6 +47,7 @@
 ### Основные сервисы
 
 - `AuthService` — логин, logout, текущий пользователь, активная роль
+- `DocumentAccessService` — централизованная проверка доступа к document-domain по роли, типу документа и связанным сущностям доступа
 - `UserService` — пользователи и пароли
 - `DepartmentService` — подразделения
 - `NomenclatureService` — дела номенклатуры
@@ -82,6 +83,8 @@
 - document-domain и admin-domain проверяются на backend
 - `admin` не является суперпользователем document-domain
 - доступ `executor` к документам ограничен номенклатурами его подразделения
+- централизованные проверки доступа к document-domain вынесены в `DocumentAccessService`
+- сервисы документов, вложений и журнала не должны реализовывать собственные разрозненные policy-проверки, если можно переиспользовать `DocumentAccessService`
 
 ## 5. Матрица доступа
 
@@ -176,13 +179,17 @@
 - синхронизация активной роли между frontend и backend
 - вынос `admin` из document-domain
 - backend-проверки доступа для документов, вложений, поручений, ознакомлений и связей
+- централизация document-domain access policy через `DocumentAccessService`
+- защита `JournalService` проверкой доступа к документу перед выдачей журнала
 - перевод admin-domain сервисов на `activeRole`
 - тесты для мульти-ролевых сценариев
 
 Кодовые опорные точки:
 
 - [auth_service.go](/home/dimas/projects/docs-register-and-track/internal/services/auth_service.go)
+- [document_access_service.go](/home/dimas/projects/docs-register-and-track/internal/services/document_access_service.go)
 - [access_policy.go](/home/dimas/projects/docs-register-and-track/internal/services/access_policy.go)
+- [journal_service.go](/home/dimas/projects/docs-register-and-track/internal/services/journal_service.go)
 - [useAuthStore.ts](/home/dimas/projects/docs-register-and-track/frontend/src/store/useAuthStore.ts)
 
 ## 7. Запуск и разработка

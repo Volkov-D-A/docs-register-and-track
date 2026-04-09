@@ -18,10 +18,9 @@ type IncomingDocumentService struct {
 	nomRepo        NomenclatureStore
 	refRepo        ReferenceStore
 	depRepo        DepartmentStore
-	assignmentRepo AssignmentStore
-	ackRepo        AcknowledgmentStore
 	auth           *AuthService
 	journal        *JournalService
+	access         *DocumentAccessService
 }
 
 // NewIncomingDocumentService создает новый экземпляр IncomingDocumentService.
@@ -30,26 +29,24 @@ func NewIncomingDocumentService(
 	nomRepo NomenclatureStore,
 	refRepo ReferenceStore,
 	depRepo DepartmentStore,
-	assignmentRepo AssignmentStore,
-	ackRepo AcknowledgmentStore,
 	auth *AuthService,
 	journal *JournalService,
+	access *DocumentAccessService,
 ) *IncomingDocumentService {
 	return &IncomingDocumentService{
-		repo:           repo,
-		nomRepo:        nomRepo,
-		refRepo:        refRepo,
-		depRepo:        depRepo,
-		assignmentRepo: assignmentRepo,
-		ackRepo:        ackRepo,
-		auth:           auth,
-		journal:        journal,
+		repo:    repo,
+		nomRepo: nomRepo,
+		refRepo: refRepo,
+		depRepo: depRepo,
+		auth:    auth,
+		journal: journal,
+		access:  access,
 	}
 }
 
 // GetList возвращает список входящих документов с учетом фильтров и прав доступа (для исполнителя видимость ограничена).
 func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*dto.PagedResult[dto.IncomingDocument], error) {
-	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
 
@@ -76,7 +73,7 @@ func (s *IncomingDocumentService) GetList(filter models.DocumentFilter) (*dto.Pa
 
 // GetByID возвращает входящий документ по его ID.
 func (s *IncomingDocumentService) GetByID(id string) (*dto.IncomingDocument, error) {
-	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
 	uid, err := uuid.Parse(id)
@@ -87,7 +84,7 @@ func (s *IncomingDocumentService) GetByID(id string) (*dto.IncomingDocument, err
 	if err != nil || res == nil {
 		return dto.MapIncomingDocument(res), err
 	}
-	if err := requireExecutorDocumentAccess(s.auth, s.depRepo, s.assignmentRepo, s.ackRepo, res.ID, "incoming", res.NomenclatureID); err != nil {
+	if err := s.access.RequireResolvedRead("incoming", res.ID, res.NomenclatureID); err != nil {
 		return nil, err
 	}
 	return dto.MapIncomingDocument(res), nil
@@ -307,7 +304,7 @@ func (s *IncomingDocumentService) Update(
 
 // GetCount возвращает общее количество входящих документов (например, для дашборда).
 func (s *IncomingDocumentService) GetCount() (int, error) {
-	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+	if err := s.access.RequireDomainRead(); err != nil {
 		return 0, err
 	}
 	return s.repo.GetCount()

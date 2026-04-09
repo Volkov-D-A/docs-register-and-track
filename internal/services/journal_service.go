@@ -10,28 +10,36 @@ import (
 )
 
 type JournalService struct {
-	repo JournalStore
-	auth *AuthService
+	repo   JournalStore
+	auth   *AuthService
+	access *DocumentAccessService
 }
 
-func NewJournalService(repo JournalStore, auth *AuthService) *JournalService {
+func NewJournalService(repo JournalStore, auth *AuthService, access *DocumentAccessService) *JournalService {
 	return &JournalService{
-		repo: repo,
-		auth: auth,
+		repo:   repo,
+		auth:   auth,
+		access: access,
 	}
 }
 
 // GetByDocumentID возвращает список записей журнала для заданного документа.
 // Этот метод предназначен для вызова из фронтенда Wails.
 func (s *JournalService) GetByDocumentID(documentIDStr string, documentType string) ([]dto.JournalEntry, error) {
-	_, err := s.auth.GetCurrentUser()
+	docID, err := uuid.Parse(documentIDStr)
 	if err != nil {
 		return nil, err
 	}
 
-	docID, err := uuid.Parse(documentIDStr)
-	if err != nil {
-		return nil, err
+	if s.access != nil {
+		if err := s.access.RequireRead(documentType, docID); err != nil {
+			return nil, err
+		}
+	} else {
+		_, err := s.auth.GetCurrentUser()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	entries, err := s.repo.GetByDocumentID(context.Background(), docID, documentType)

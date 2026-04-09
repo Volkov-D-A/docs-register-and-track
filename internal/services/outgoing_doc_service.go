@@ -17,10 +17,9 @@ type OutgoingDocumentService struct {
 	refRepo        ReferenceStore
 	nomRepo        NomenclatureStore
 	depRepo        DepartmentStore
-	assignmentRepo AssignmentStore
-	ackRepo        AcknowledgmentStore
 	auth           *AuthService
 	journal        *JournalService
+	access         *DocumentAccessService
 }
 
 // NewOutgoingDocumentService создает новый экземпляр OutgoingDocumentService.
@@ -29,20 +28,18 @@ func NewOutgoingDocumentService(
 	refRepo ReferenceStore,
 	nomRepo NomenclatureStore,
 	depRepo DepartmentStore,
-	assignmentRepo AssignmentStore,
-	ackRepo AcknowledgmentStore,
 	auth *AuthService,
 	journal *JournalService,
+	access *DocumentAccessService,
 ) *OutgoingDocumentService {
 	return &OutgoingDocumentService{
-		repo:           repo,
-		refRepo:        refRepo,
-		nomRepo:        nomRepo,
-		depRepo:        depRepo,
-		assignmentRepo: assignmentRepo,
-		ackRepo:        ackRepo,
-		auth:           auth,
-		journal:        journal,
+		repo:    repo,
+		refRepo: refRepo,
+		nomRepo: nomRepo,
+		depRepo: depRepo,
+		auth:    auth,
+		journal: journal,
+		access:  access,
 	}
 }
 
@@ -176,7 +173,7 @@ func (s *OutgoingDocumentService) Update(
 
 // GetList возвращает список исходящих документов с фильтрацией и ограничением видимости для исполнителей.
 func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) (*dto.PagedResult[dto.OutgoingDocument], error) {
-	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
 	// Defaults
@@ -210,7 +207,7 @@ func (s *OutgoingDocumentService) GetList(filter models.OutgoingDocumentFilter) 
 
 // GetByID возвращает исходящий документ по его ID.
 func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, error) {
-	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
 	uid, err := uuid.Parse(id)
@@ -221,7 +218,7 @@ func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, err
 	if err != nil || res == nil {
 		return dto.MapOutgoingDocument(res), err
 	}
-	if err := requireExecutorDocumentAccess(s.auth, s.depRepo, s.assignmentRepo, s.ackRepo, res.ID, "outgoing", res.NomenclatureID); err != nil {
+	if err := s.access.RequireResolvedRead("outgoing", res.ID, res.NomenclatureID); err != nil {
 		return nil, err
 	}
 	return dto.MapOutgoingDocument(res), nil
@@ -229,7 +226,7 @@ func (s *OutgoingDocumentService) GetByID(id string) (*dto.OutgoingDocument, err
 
 // GetCount возвращает общее количество исходящих документов (для дашборда).
 func (s *OutgoingDocumentService) GetCount() (int, error) {
-	if err := requireDocumentDomainReadRole(s.auth); err != nil {
+	if err := s.access.RequireDomainRead(); err != nil {
 		return 0, err
 	}
 	return s.repo.GetCount()

@@ -27,9 +27,10 @@ func TestIncomingDocumentService_Register(t *testing.T) {
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, authService)
+	accessSvc := NewDocumentAccessService(authService, mockDepRepo, mockAssignmentRepo, mockAckRepo, mockDocRepo, nil)
+	journalSvc := NewJournalService(journalRepo, authService, accessSvc)
 
-	docService := NewIncomingDocumentService(mockDocRepo, mockNomRepo, mockRefRepo, mockDepRepo, mockAssignmentRepo, mockAckRepo, authService, journalSvc)
+	docService := NewIncomingDocumentService(mockDocRepo, mockNomRepo, mockRefRepo, mockDepRepo, authService, journalSvc, accessSvc)
 
 	login := "testuser"
 	password := "CorrectPassw0rd!"
@@ -159,9 +160,10 @@ func setupIncomingDocService(t *testing.T, role string) (
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, docRepo, nil)
+	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
-	svc := NewIncomingDocumentService(docRepo, nomRepo, refRepo, depRepo, assignmentRepo, ackRepo, auth, journalSvc)
+	svc := NewIncomingDocumentService(docRepo, nomRepo, refRepo, depRepo, auth, journalSvc, accessSvc)
 	return svc, docRepo, nomRepo, refRepo, depRepo, assignmentRepo, ackRepo
 }
 
