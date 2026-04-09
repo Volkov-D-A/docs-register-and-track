@@ -24,18 +24,6 @@ func requireDocumentDomainReadRole(auth *AuthService) error {
 	return auth.RequireAnyActiveRole("clerk", "executor")
 }
 
-// requireExecutorNomenclatureAccess проверяет доступ исполнителя к документу по номенклатуре.
-func requireExecutorNomenclatureAccess(auth *AuthService, depRepo DepartmentStore, nomenclatureID uuid.UUID) error {
-	allowed, err := hasExecutorNomenclatureAccess(auth, depRepo, nomenclatureID)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return models.ErrForbidden
-	}
-	return nil
-}
-
 func hasExecutorNomenclatureAccess(auth *AuthService, depRepo DepartmentStore, nomenclatureID uuid.UUID) (bool, error) {
 	if auth == nil {
 		return false, models.ErrUnauthorized

@@ -225,33 +225,3 @@ cmd /c wails build
 cd frontend
 cmd /c npm run dev
 ```
-
-## 8. Связанные документы
-
-- [implementation_plan.md](/home/dimas/projects/docs-register-and-track/docs/implementation_plan.md)
-- [code_review.md](/home/dimas/projects/docs-register-and-track/docs/code_review.md)
-
-Обновление:
-1. Подтягиваем зависимости Go (Бэкенд)
-В корне проекта выполните:
-
-Bash
-go mod download
-Go прочитает обновленный файл go.mod и скачает все нужные версии пакетов в свой локальный кэш.
-
-2. Устанавливаем зависимости фронтенда (Чистая установка)
-Перейдите в папку фронтенда:
-
-Bash
-cd frontend
-А теперь выполните команду чистой установки, которая опирается строго на package-lock.json:
-
-Bash
-npm ci
-Эта команда сделает следующее:
-
-Полностью удалит старую папку node_modules.
-
-Прочитает свежий package-lock.json.
-
-Установит абсолютно идентичное дерево зависимостей, точь-в-точь как на первом рабочем месте.
