@@ -168,6 +168,32 @@ func TestSettingsService_GetOrganizationName(t *testing.T) {
 	})
 }
 
+func TestSettingsService_IsAssignmentCompletionAttachmentsEnabled(t *testing.T) {
+	t.Run("from settings enabled", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{
+			Key:   "assignment_completion_attachments_enabled",
+			Value: "true",
+		}, nil).Once()
+		assert.True(t, svc.IsAssignmentCompletionAttachmentsEnabled())
+	})
+
+	t.Run("from settings disabled", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{
+			Key:   "assignment_completion_attachments_enabled",
+			Value: "false",
+		}, nil).Once()
+		assert.False(t, svc.IsAssignmentCompletionAttachmentsEnabled())
+	})
+
+	t.Run("default on error", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "assignment_completion_attachments_enabled").Return((*models.SystemSetting)(nil), assert.AnError).Once()
+		assert.True(t, svc.IsAssignmentCompletionAttachmentsEnabled())
+	})
+}
+
 func TestSettingsService_RunMigrations(t *testing.T) {
 	// Выполнение накатывания миграций БД (доступно только администратору)
 	t.Run("forbidden non-admin", func(t *testing.T) {

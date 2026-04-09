@@ -780,7 +780,16 @@ const SystemSettingsTab: React.FC = () => {
       const settings = await GetAll();
       if (settings) {
         const values: any = {};
-        settings.forEach((s: any) => values[s.key] = s.value);
+        settings.forEach((s: any) => {
+          if (s.key === 'assignment_completion_attachments_enabled') {
+            values[s.key] = String(s.value).toLowerCase() === 'true';
+            return;
+          }
+          values[s.key] = s.value;
+        });
+        if (values.assignment_completion_attachments_enabled === undefined) {
+          values.assignment_completion_attachments_enabled = true;
+        }
         form.setFieldsValue(values);
       }
     } catch (err: any) {
@@ -797,7 +806,8 @@ const SystemSettingsTab: React.FC = () => {
       const { Update } = await import('../../wailsjs/go/services/SettingsService');
       // Сохранение каждой настройки
       for (const key in values) {
-        await Update(key, String(values[key]));
+        const value = typeof values[key] === 'boolean' ? String(values[key]) : String(values[key]);
+        await Update(key, value);
 
         // Автоматически добавляем в справочник организаций
         if (key === 'organization_name' && values[key] && String(values[key]).trim() !== '') {
@@ -827,6 +837,13 @@ const SystemSettingsTab: React.FC = () => {
         </Form.Item>
         <Form.Item name="allowed_file_types" label="Разрешенные типы файлов (через запятую)" rules={[{ required: true }]}>
           <Input placeholder=".pdf, .doc, .docx" />
+        </Form.Item>
+        <Form.Item
+          name="assignment_completion_attachments_enabled"
+          label="Файлы при завершении поручения"
+          valuePropName="checked"
+        >
+          <Switch checkedChildren="Включено" unCheckedChildren="Выключено" />
         </Form.Item>
         <Form.Item>
           <Button type="primary" htmlType="submit" loading={loading} icon={<EditOutlined />}>

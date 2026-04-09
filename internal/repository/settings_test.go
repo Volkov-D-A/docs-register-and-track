@@ -80,8 +80,8 @@ func TestSettingsRepository_Update(t *testing.T) {
 
 	repo := NewSettingsRepository(&database.DB{DB: db})
 
-	query := `UPDATE system_settings SET value = \$1, updated_at = NOW\(\) WHERE key = \$2`
-	mock.ExpectExec(query).WithArgs("new_val", "test_key").WillReturnResult(sqlmock.NewResult(1, 1))
+	query := `INSERT INTO system_settings \(key, value, updated_at\)\s+VALUES \(\$1, \$2, NOW\(\)\)\s+ON CONFLICT \(key\) DO UPDATE\s+SET value = EXCLUDED.value, updated_at = NOW\(\)`
+	mock.ExpectExec(query).WithArgs("test_key", "new_val").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = repo.Update("test_key", "new_val")
 	require.NoError(t, err)

@@ -22,6 +22,10 @@ export function GetOrganizationName() {
   return window['go']['services']['SettingsService']['GetOrganizationName']();
 }
 
+export function IsAssignmentCompletionAttachmentsEnabled() {
+  return window['go']['services']['SettingsService']['IsAssignmentCompletionAttachmentsEnabled']();
+}
+
 export function RollbackMigration() {
   return window['go']['services']['SettingsService']['RollbackMigration']();
 }

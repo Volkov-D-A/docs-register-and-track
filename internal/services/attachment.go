@@ -49,6 +49,10 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 		return nil, models.ErrUnauthorized
 	}
 
+	if s.authService.HasActiveRole("executor") && !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
+		return nil, models.NewForbidden("загрузка файлов при завершении поручения отключена в настройках")
+	}
+
 	if err := requireDocumentDomainReadRole(s.authService); err != nil {
 		return nil, err
 	}

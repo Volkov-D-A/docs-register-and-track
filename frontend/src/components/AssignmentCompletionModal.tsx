@@ -34,16 +34,38 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
     const [reportText, setReportText] = useState('');
     const [fileList, setFileList] = useState<UploadFile[]>([]);
     const [submitting, setSubmitting] = useState(false);
+    const [attachmentsEnabled, setAttachmentsEnabled] = useState(true);
 
     useEffect(() => {
-        if (open) {
-            setReportText(initialReport);
+        if (!open) {
+            setReportText('');
             setFileList([]);
+            setAttachmentsEnabled(true);
             return;
         }
 
-        setReportText('');
+        setReportText(initialReport);
         setFileList([]);
+
+        let isMounted = true;
+        const loadSetting = async () => {
+            try {
+                const { IsAssignmentCompletionAttachmentsEnabled } = await import('../../wailsjs/go/services/SettingsService');
+                const enabled = await IsAssignmentCompletionAttachmentsEnabled();
+                if (isMounted) {
+                    setAttachmentsEnabled(enabled);
+                }
+            } catch {
+                if (isMounted) {
+                    setAttachmentsEnabled(true);
+                }
+            }
+        };
+
+        loadSetting();
+        return () => {
+            isMounted = false;
+        };
     }, [open, initialReport]);
 
     const handleSubmit = async () => {
@@ -57,14 +79,16 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
             const { Upload: UploadAttachment } = await import('../../wailsjs/go/services/AttachmentService');
             const { UpdateStatus } = await import('../../wailsjs/go/services/AssignmentService');
 
-            for (const file of fileList) {
-                const originalFile = file.originFileObj;
-                if (!originalFile) {
-                    continue;
-                }
+            if (attachmentsEnabled) {
+                for (const file of fileList) {
+                    const originalFile = file.originFileObj;
+                    if (!originalFile) {
+                        continue;
+                    }
 
-                const base64Content = await fileToBase64(originalFile as File);
-                await UploadAttachment(documentId, originalFile.name, base64Content);
+                    const base64Content = await fileToBase64(originalFile as File);
+                    await UploadAttachment(documentId, originalFile.name, base64Content);
+                }
             }
 
             await UpdateStatus(assignmentId, 'completed', reportText.trim());
@@ -106,14 +130,16 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
                     placeholder="Введите результат выполнения поручения..."
                 />
 
-                <div>
-                    <Upload {...uploadProps}>
-                        <Button icon={<UploadOutlined />}>Добавить файлы</Button>
-                    </Upload>
-                    <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                        Файлы будут прикреплены к документу при завершении поручения.
-                    </Text>
-                </div>
+                {attachmentsEnabled && (
+                    <div>
+                        <Upload {...uploadProps}>
+                            <Button icon={<UploadOutlined />}>Добавить файлы</Button>
+                        </Upload>
+                        <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+                            Файлы будут прикреплены к документу при завершении поручения.
+                        </Text>
+                    </div>
+                )}
             </div>
         </Modal>
     );

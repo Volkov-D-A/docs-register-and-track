@@ -144,6 +144,9 @@ func TestAttachmentService_Upload(t *testing.T) {
 		require.NoError(t, err)
 
 		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Twice()
+		settingsRepo.On("Get", "assignment_completion_attachments_enabled").Return(
+			&models.SystemSetting{Key: "assignment_completion_attachments_enabled", Value: "true"}, nil,
+		).Once()
 		assignmentRepo.On("HasDocumentAccess", currentUserID, docID).Return(true, nil).Once()
 
 		settingsRepo.On("Get", "max_file_size_mb").Return(
@@ -159,6 +162,18 @@ func TestAttachmentService_Upload(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "test.txt", result.Filename)
+	})
+
+	t.Run("executor upload disabled by settings", func(t *testing.T) {
+		svc, _, settingsRepo, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
+		settingsRepo.On("Get", "assignment_completion_attachments_enabled").Return(
+			&models.SystemSetting{Key: "assignment_completion_attachments_enabled", Value: "false"}, nil,
+		).Once()
+
+		result, err := svc.Upload(docID.String(), "test.txt", b64)
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "отключена")
 	})
 
 	t.Run("not authenticated", func(t *testing.T) {

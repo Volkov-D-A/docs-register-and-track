@@ -123,3 +123,18 @@ func (s *SettingsService) GetOrganizationName() string {
 	}
 	return setting.Value
 }
+
+// IsAssignmentCompletionAttachmentsEnabled возвращает признак доступности загрузки файлов при завершении поручения.
+func (s *SettingsService) IsAssignmentCompletionAttachmentsEnabled() bool {
+	setting, err := s.repo.Get("assignment_completion_attachments_enabled")
+	if err != nil || setting == nil || setting.Value == "" {
+		return true
+	}
+
+	switch strings.ToLower(strings.TrimSpace(setting.Value)) {
+	case "false", "0", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
