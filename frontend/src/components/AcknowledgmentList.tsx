@@ -10,7 +10,6 @@ import AcknowledgmentModal from './AcknowledgmentModal';
  */
 interface AcknowledgmentListProps {
     documentId: string;
-    documentType: 'incoming' | 'outgoing';
 }
 
 /**
@@ -18,7 +17,7 @@ interface AcknowledgmentListProps {
  * @param documentId Идентификатор документа
  * @param documentType Тип документа
  */
-const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, documentType }) => {
+const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId }) => {
     const { message } = App.useApp();
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -139,7 +138,6 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
                 onCancel={() => setModalOpen(false)}
                 onSuccess={load}
                 documentId={documentId}
-                documentType={documentType}
             />
         </div>
     );

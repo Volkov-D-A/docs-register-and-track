@@ -24,17 +24,14 @@ func NewLinkRepository(db *database.DB) *LinkRepository {
 func (r *LinkRepository) Create(ctx context.Context, link *models.DocumentLink) error {
 	query := `
 		INSERT INTO document_links (
-			source_type, source_id,
-			target_type, target_id,
+			source_document_id, target_document_id,
 			link_type, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6)
+		) VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at
 	`
 
 	return r.db.QueryRowContext(ctx, query,
-		link.SourceType, link.SourceID,
-		link.TargetType, link.TargetID,
-		link.LinkType, link.CreatedBy,
+		link.SourceID, link.TargetID, link.LinkType, link.CreatedBy,
 	).Scan(&link.ID, &link.CreatedAt)
 }
 
@@ -47,7 +44,13 @@ func (r *LinkRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 // GetByID — получить связь по ID
 func (r *LinkRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.DocumentLink, error) {
-	query := `SELECT id, source_type, source_id, target_type, target_id, link_type, created_by, created_at FROM document_links WHERE id = $1`
+	query := `
+		SELECT l.id, ds.kind, l.source_document_id, dt.kind, l.target_document_id, l.link_type, l.created_by, l.created_at
+		FROM document_links l
+		JOIN documents ds ON ds.id = l.source_document_id
+		JOIN documents dt ON dt.id = l.target_document_id
+		WHERE l.id = $1
+	`
 	var l models.DocumentLink
 	err := r.db.QueryRowContext(ctx, query, id).Scan(&l.ID, &l.SourceType, &l.SourceID, &l.TargetType, &l.TargetID, &l.LinkType, &l.CreatedBy, &l.CreatedAt)
 	if err != nil {
@@ -60,24 +63,21 @@ func (r *LinkRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Doc
 func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) ([]models.DocumentLink, error) {
 	query := `
 		SELECT 
-			l.id, l.source_type, l.source_id,
-			l.target_type, l.target_id,
+			l.id, ds.kind, l.source_document_id,
+			dt.kind, l.target_document_id,
 			l.link_type, l.created_by, l.created_at,
-			-- Fetch source document number/subject (simplified, assumes specific tables exist)
-			CASE 
-				WHEN l.source_type = 'incoming' THEN (SELECT incoming_number FROM incoming_documents WHERE id = l.source_id)
-				WHEN l.source_type = 'outgoing' THEN (SELECT outgoing_number FROM outgoing_documents WHERE id = l.source_id)
-			END as source_number,
-			CASE 
-				WHEN l.target_type = 'incoming' THEN (SELECT incoming_number FROM incoming_documents WHERE id = l.target_id)
-				WHEN l.target_type = 'outgoing' THEN (SELECT outgoing_number FROM outgoing_documents WHERE id = l.target_id)
-			END as target_number,
-             CASE 
-				WHEN l.target_type = 'incoming' THEN (SELECT content FROM incoming_documents WHERE id = l.target_id)
-				WHEN l.target_type = 'outgoing' THEN (SELECT content FROM outgoing_documents WHERE id = l.target_id)
-			END as target_subject
+			COALESCE(si.incoming_number, so.outgoing_number) as source_number,
+			COALESCE(ti.incoming_number, to2.outgoing_number) as target_number,
+			dtarget.content as target_subject
 		FROM document_links l
-		WHERE l.source_id = $1 OR l.target_id = $1
+		JOIN documents ds ON ds.id = l.source_document_id
+		JOIN documents dt ON dt.id = l.target_document_id
+		JOIN documents dtarget ON dtarget.id = l.target_document_id
+		LEFT JOIN incoming_document_details si ON si.document_id = l.source_document_id AND ds.kind = 'incoming'
+		LEFT JOIN outgoing_document_details so ON so.document_id = l.source_document_id AND ds.kind = 'outgoing'
+		LEFT JOIN incoming_document_details ti ON ti.document_id = l.target_document_id AND dt.kind = 'incoming'
+		LEFT JOIN outgoing_document_details to2 ON to2.document_id = l.target_document_id AND dt.kind = 'outgoing'
+		WHERE l.source_document_id = $1 OR l.target_document_id = $1
 		ORDER BY l.created_at DESC
 	`
 
@@ -126,19 +126,28 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 		WITH RECURSIVE doc_graph AS (
 			-- Base case: direct links to/from the root document
 			SELECT 
-				id, source_type, source_id, target_type, target_id, link_type, created_by, created_at,
+				l.id, ds.kind, l.source_document_id, dt.kind, l.target_document_id, l.link_type, l.created_by, l.created_at,
 				1 as depth
-			FROM document_links
-			WHERE source_id = $1 OR target_id = $1
+			FROM document_links l
+			JOIN documents ds ON ds.id = l.source_document_id
+			JOIN documents dt ON dt.id = l.target_document_id
+			WHERE source_document_id = $1 OR target_document_id = $1
 			
 			UNION
 			
 			-- Recursive step: find links connected to documents in the graph
 			SELECT 
-				l.id, l.source_type, l.source_id, l.target_type, l.target_id, l.link_type, l.created_by, l.created_at,
+				l.id, ds.kind, l.source_document_id, dt.kind, l.target_document_id, l.link_type, l.created_by, l.created_at,
 				g.depth + 1
 			FROM document_links l
-			JOIN doc_graph g ON (l.source_id = g.target_id OR l.target_id = g.source_id OR l.source_id = g.source_id OR l.target_id = g.target_id)
+			JOIN documents ds ON ds.id = l.source_document_id
+			JOIN documents dt ON dt.id = l.target_document_id
+			JOIN doc_graph g ON (
+				l.source_document_id = g.target_id OR
+				l.target_document_id = g.source_id OR
+				l.source_document_id = g.source_id OR
+				l.target_document_id = g.target_id
+			)
 			WHERE g.depth < 5 AND l.id != g.id -- Limit depth to prevent infinite loops (though usually DAG)
 		)
 		SELECT DISTINCT 

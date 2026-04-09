@@ -29,10 +29,10 @@ func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
 
 	// 1. Создание ознакомления
 	query := `
-		INSERT INTO acknowledgments (id, document_id, document_type, creator_id, content, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO acknowledgments (id, document_id, creator_id, content, created_at)
+		VALUES ($1, $2, $3, $4, $5)
 	`
-	_, err = tx.Exec(query, a.ID, a.DocumentID, a.DocumentType, a.CreatorID, a.Content, a.CreatedAt)
+	_, err = tx.Exec(query, a.ID, a.DocumentID, a.CreatorID, a.Content, a.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create acknowledgment: %w", err)
 	}
@@ -54,7 +54,12 @@ func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
 
 // GetByID возвращает задачу по ID (базовая информация без внешних связей).
 func (r *AcknowledgmentRepository) GetByID(id uuid.UUID) (*models.Acknowledgment, error) {
-	query := `SELECT id, document_id, document_type, creator_id, content, created_at, completed_at FROM acknowledgments WHERE id = $1`
+	query := `
+		SELECT a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at
+		FROM acknowledgments a
+		JOIN documents d ON d.id = a.document_id
+		WHERE a.id = $1
+	`
 	var a models.Acknowledgment
 	err := r.db.QueryRow(query, id).Scan(&a.ID, &a.DocumentID, &a.DocumentType, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt)
 	if err != nil {
@@ -67,13 +72,14 @@ func (r *AcknowledgmentRepository) GetByID(id uuid.UUID) (*models.Acknowledgment
 func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error) {
 	query := `
 		SELECT 
-			a.id, a.document_id, a.document_type, a.creator_id, a.content, a.created_at, a.completed_at,
+			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
 			u.full_name as creator_name,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
 		FROM acknowledgments a
+		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
-		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
-		LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
 		WHERE a.document_id = $1
 		ORDER BY a.created_at DESC
 	`
@@ -151,14 +157,15 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 	// Выборка ознакомлений, которые пользователь ещё не подтвердил
 	query := `
 		SELECT 
-			a.id, a.document_id, a.document_type, a.creator_id, a.content, a.created_at, a.completed_at,
+			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
 			u.full_name as creator_name,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
 		FROM acknowledgment_users au
 		JOIN acknowledgments a ON au.acknowledgment_id = a.id
+		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
-		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
-		LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
 		WHERE au.user_id = $1 AND au.confirmed_at IS NULL
 		ORDER BY a.created_at DESC
 	`
@@ -197,7 +204,7 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 }
 
 // HasDocumentAccess проверяет, есть ли у пользователя доступ к документу через задачу на ознакомление.
-func (r *AcknowledgmentRepository) HasDocumentAccess(userID, documentID uuid.UUID, documentType string) (bool, error) {
+func (r *AcknowledgmentRepository) HasDocumentAccess(userID, documentID uuid.UUID) (bool, error) {
 	var hasAccess bool
 	query := `
 		SELECT EXISTS (
@@ -206,11 +213,10 @@ func (r *AcknowledgmentRepository) HasDocumentAccess(userID, documentID uuid.UUI
 			JOIN acknowledgments a ON au.acknowledgment_id = a.id
 			WHERE au.user_id = $1
 			  AND a.document_id = $2
-			  AND a.document_type = $3
 		)
 	`
 
-	if err := r.db.QueryRow(query, userID, documentID, documentType).Scan(&hasAccess); err != nil {
+	if err := r.db.QueryRow(query, userID, documentID).Scan(&hasAccess); err != nil {
 		return false, fmt.Errorf("failed to check document access by acknowledgment: %w", err)
 	}
 
@@ -281,13 +287,14 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, error) {
 	query := `
 		SELECT 
-			a.id, a.document_id, a.document_type, a.creator_id, a.content, a.created_at, a.completed_at,
+			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
 			u.full_name as creator_name,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
 		FROM acknowledgments a
+		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
-		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
-		LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
 		WHERE a.completed_at IS NULL
 		ORDER BY a.created_at DESC
 	`

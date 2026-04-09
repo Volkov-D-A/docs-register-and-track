@@ -16,6 +16,7 @@ type LinkService struct {
 	repo            LinkStore
 	incomingDocRepo IncomingDocStore
 	outgoingDocRepo OutgoingDocStore
+	access          *DocumentAccessService
 	authService     *AuthService
 	journal         *JournalService
 }
@@ -25,6 +26,7 @@ func NewLinkService(
 	repo LinkStore,
 	incomingDocRepo IncomingDocStore,
 	outgoingDocRepo OutgoingDocStore,
+	access *DocumentAccessService,
 	authService *AuthService,
 	journal *JournalService,
 ) *LinkService {
@@ -32,13 +34,14 @@ func NewLinkService(
 		repo:            repo,
 		incomingDocRepo: incomingDocRepo,
 		outgoingDocRepo: outgoingDocRepo,
+		access:          access,
 		authService:     authService,
 		journal:         journal,
 	}
 }
 
 // LinkDocuments создает связь указанного типа между двумя документами.
-func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, targetType, linkType string) (*dto.DocumentLink, error) {
+func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (*dto.DocumentLink, error) {
 	if err := requireClerkDocumentRole(s.authService); err != nil {
 		return nil, err
 	}
@@ -61,11 +64,19 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, target
 	if sourceID == targetID {
 		return nil, fmt.Errorf("cannot link document to itself")
 	}
+	sourceDoc, err := s.access.RequireExists(sourceID)
+	if err != nil {
+		return nil, err
+	}
+	targetDoc, err := s.access.RequireExists(targetID)
+	if err != nil {
+		return nil, err
+	}
 
 	link := &models.DocumentLink{
-		SourceType: sourceType,
+		SourceType: string(sourceDoc.Kind),
 		SourceID:   sourceID,
-		TargetType: targetType,
+		TargetType: string(targetDoc.Kind),
 		TargetID:   targetID,
 		LinkType:   linkType,
 		CreatedBy:  userID,
@@ -81,18 +92,16 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, sourceType, target
 	// Упрощенный лог (без номеров, просто факт)
 	// Упрощенный лог (без номеров, просто факт)
 	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-		DocumentID:   sourceID,
-		DocumentType: sourceType,
-		UserID:       userID,
-		Action:       "LINK_CREATE",
-		Details:      "Создана связь с другим документом",
+		DocumentID: sourceID,
+		UserID:     userID,
+		Action:     "LINK_CREATE",
+		Details:    "Создана связь с другим документом",
 	})
 	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-		DocumentID:   targetID,
-		DocumentType: targetType,
-		UserID:       userID,
-		Action:       "LINK_CREATE",
-		Details:      "Создана связь с другим документом",
+		DocumentID: targetID,
+		UserID:     userID,
+		Action:     "LINK_CREATE",
+		Details:    "Создана связь с другим документом",
 	})
 
 	return dto.MapDocumentLink(link), nil
@@ -118,18 +127,16 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 	if err == nil {
 		currentUserID, _ := s.authService.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   link.SourceID,
-			DocumentType: link.SourceType,
-			UserID:       currentUserID,
-			Action:       "LINK_DELETE",
-			Details:      "Удалена связь с документом",
+			DocumentID: link.SourceID,
+			UserID:     currentUserID,
+			Action:     "LINK_DELETE",
+			Details:    "Удалена связь с документом",
 		})
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   link.TargetID,
-			DocumentType: link.TargetType,
-			UserID:       currentUserID,
-			Action:       "LINK_DELETE",
-			Details:      "Удалена связь с документом",
+			DocumentID: link.TargetID,
+			UserID:     currentUserID,
+			Action:     "LINK_DELETE",
+			Details:    "Удалена связь с документом",
 		})
 	}
 	return err

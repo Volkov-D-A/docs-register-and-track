@@ -17,6 +17,7 @@ type AcknowledgmentService struct {
 	userRepo UserStore
 	auth     *AuthService
 	journal  *JournalService
+	access   *DocumentAccessService
 }
 
 // NewAcknowledgmentService создает новый экземпляр AcknowledgmentService.
@@ -25,18 +26,20 @@ func NewAcknowledgmentService(
 	userRepo UserStore,
 	auth *AuthService,
 	journal *JournalService,
+	access *DocumentAccessService,
 ) *AcknowledgmentService {
 	return &AcknowledgmentService{
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
 		journal:  journal,
+		access:   access,
 	}
 }
 
 // Create создает новую задачу на ознакомление для указанных пользователей.
 func (s *AcknowledgmentService) Create(
-	documentID, documentType string,
+	documentID string,
 	content string,
 	userIds []string,
 ) (*dto.Acknowledgment, error) {
@@ -48,6 +51,10 @@ func (s *AcknowledgmentService) Create(
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
 	}
+	doc, err := s.access.RequireExists(docUUID)
+	if err != nil {
+		return nil, err
+	}
 
 	creatorID := s.auth.GetCurrentUserID()
 	creatorUUID, err := uuid.Parse(creatorID)
@@ -58,7 +65,7 @@ func (s *AcknowledgmentService) Create(
 	ack := &models.Acknowledgment{
 		ID:           uuid.New(),
 		DocumentID:   docUUID,
-		DocumentType: documentType,
+		DocumentType: string(doc.Kind),
 		CreatorID:    creatorUUID,
 		Content:      content,
 		CreatedAt:    time.Now(),
@@ -87,11 +94,10 @@ func (s *AcknowledgmentService) Create(
 	}
 
 	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-		DocumentID:   docUUID,
-		DocumentType: documentType,
-		UserID:       creatorUUID,
-		Action:       "ACK_CREATE",
-		Details:      "Отправлен на ознакомление",
+		DocumentID: docUUID,
+		UserID:     creatorUUID,
+		Action:     "ACK_CREATE",
+		Details:    "Отправлен на ознакомление",
 	})
 
 	// Заполнение строковых ID для результата
@@ -156,11 +162,10 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 		ack, _ := s.repo.GetByID(ackUUID)
 		if ack != nil {
 			s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-				DocumentID:   ack.DocumentID,
-				DocumentType: ack.DocumentType,
-				UserID:       userUUID,
-				Action:       "ACK_VIEW",
-				Details:      "Документ просмотрен в рамках ознакомления",
+				DocumentID: ack.DocumentID,
+				UserID:     userUUID,
+				Action:     "ACK_VIEW",
+				Details:    "Документ просмотрен в рамках ознакомления",
 			})
 		}
 	}
@@ -187,11 +192,10 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 		ack, _ := s.repo.GetByID(ackUUID)
 		if ack != nil {
 			s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-				DocumentID:   ack.DocumentID,
-				DocumentType: ack.DocumentType,
-				UserID:       userUUID,
-				Action:       "ACK_CONFIRM",
-				Details:      "Ознакомление подтверждено",
+				DocumentID: ack.DocumentID,
+				UserID:     userUUID,
+				Action:     "ACK_CONFIRM",
+				Details:    "Ознакомление подтверждено",
 			})
 		}
 	}
@@ -218,11 +222,10 @@ func (s *AcknowledgmentService) Delete(id string) error {
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   ack.DocumentID,
-			DocumentType: ack.DocumentType,
-			UserID:       currentUserID,
-			Action:       "ACK_DELETE",
-			Details:      "Ознакомление удалено",
+			DocumentID: ack.DocumentID,
+			UserID:     currentUserID,
+			Action:     "ACK_DELETE",
+			Details:    "Ознакомление удалено",
 		})
 	}
 

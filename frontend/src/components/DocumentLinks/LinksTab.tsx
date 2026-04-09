@@ -10,7 +10,6 @@ import dayjs from 'dayjs';
  */
 interface LinksTabProps {
     documentId: string;
-    documentType: 'incoming' | 'outgoing';
     documentNumber: string; // Passed for context
 }
 
@@ -18,7 +17,7 @@ interface LinksTabProps {
  * Вкладка для отображения и управления связями документа.
  * Позволяет добавлять новые связи между документами и просматривать граф связей.
  */
-export const LinksTab = ({ documentId, documentType, documentNumber }: LinksTabProps) => {
+export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
     const { message } = App.useApp();
     const [links, setLinks] = useState<models.DocumentLink[]>([]);
     const [loading, setLoading] = useState(false);
@@ -118,7 +117,7 @@ export const LinksTab = ({ documentId, documentType, documentNumber }: LinksTabP
             return;
         }
         try {
-            await LinkDocuments(documentId, targetId, documentType, targetType, linkType);
+            await LinkDocuments(documentId, targetId, linkType);
             message.success("Связь создана");
             setIsModalVisible(false);
             fetchLinks();

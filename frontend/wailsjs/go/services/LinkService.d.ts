@@ -7,6 +7,6 @@ export function GetDocumentFlow(arg1:string):Promise<models.GraphData>;
 
 export function GetDocumentLinks(arg1:string):Promise<Array<dto.DocumentLink>>;
 
-export function LinkDocuments(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<dto.DocumentLink>;
+export function LinkDocuments(arg1:string,arg2:string,arg3:string):Promise<dto.DocumentLink>;
 
 export function UnlinkDocument(arg1:string):Promise<void>;

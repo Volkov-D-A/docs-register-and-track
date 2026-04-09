@@ -195,11 +195,10 @@ func (s *IncomingDocumentService) Register(
 	})
 	if err == nil {
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   res.ID,
-			DocumentType: "incoming",
-			UserID:       createdBy,
-			Action:       "CREATE",
-			Details:      fmt.Sprintf("Документ зарегистрирован. Рег. номер: %s", incomingNumberStr),
+			DocumentID: res.ID,
+			UserID:     createdBy,
+			Action:     "CREATE",
+			Details:    fmt.Sprintf("Документ зарегистрирован. Рег. номер: %s", incomingNumberStr),
 		})
 	}
 	return dto.MapIncomingDocument(res), err
@@ -292,11 +291,10 @@ func (s *IncomingDocumentService) Update(
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   uid,
-			DocumentType: "incoming",
-			UserID:       currentUserID,
-			Action:       "UPDATE",
-			Details:      "Документ отредактирован",
+			DocumentID: uid,
+			UserID:     currentUserID,
+			Action:     "UPDATE",
+			Details:    "Документ отредактирован",
 		})
 	}
 	return dto.MapIncomingDocument(res), err

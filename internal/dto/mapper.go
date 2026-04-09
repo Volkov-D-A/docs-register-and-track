@@ -180,7 +180,6 @@ func MapAttachment(m *models.Attachment) *Attachment {
 	return &Attachment{
 		ID:             m.ID.String(),
 		DocumentID:     m.DocumentID.String(),
-		DocumentType:   m.DocumentType,
 		Filename:       m.Filename,
 		Filepath:       m.Filepath,
 		FileSize:       m.FileSize,
@@ -497,13 +496,12 @@ func MapJournalEntry(m *models.JournalEntry) *JournalEntry {
 		return nil
 	}
 	return &JournalEntry{
-		ID:           m.ID.String(),
-		DocumentID:   m.DocumentID.String(),
-		DocumentType: m.DocumentType,
-		UserName:     m.UserName,
-		Action:       m.Action,
-		Details:      m.Details,
-		CreatedAt:    m.CreatedAt,
+		ID:         m.ID.String(),
+		DocumentID: m.DocumentID.String(),
+		UserName:   m.UserName,
+		Action:     m.Action,
+		Details:    m.Details,
+		CreatedAt:  m.CreatedAt,
 	}
 }
 

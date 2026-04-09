@@ -397,7 +397,6 @@ export namespace dto {
 	export class Attachment {
 	    id: string;
 	    documentId: string;
-	    documentType: string;
 	    filename: string;
 	    filepath: string;
 	    fileSize: number;
@@ -415,7 +414,6 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.documentId = source["documentId"];
-	        this.documentType = source["documentType"];
 	        this.filename = source["filename"];
 	        this.filepath = source["filepath"];
 	        this.fileSize = source["fileSize"];
@@ -692,7 +690,6 @@ export namespace dto {
 	export class JournalEntry {
 	    id: string;
 	    documentId: string;
-	    documentType: string;
 	    userName?: string;
 	    action: string;
 	    details: string;
@@ -707,7 +704,6 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.documentId = source["documentId"];
-	        this.documentType = source["documentType"];
 	        this.userName = source["userName"];
 	        this.action = source["action"];
 	        this.details = source["details"];
@@ -1360,4 +1356,3 @@ export namespace services {
 	}
 
 }
-

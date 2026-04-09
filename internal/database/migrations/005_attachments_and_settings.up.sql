@@ -1,8 +1,7 @@
 -- 12. Attachments
 CREATE TABLE IF NOT EXISTS attachments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
-    document_id UUID NOT NULL, -- Generic link to incoming or outgoing document
-    document_type VARCHAR(50) NOT NULL, -- 'incoming' or 'outgoing'
+    document_id UUID NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
     filename VARCHAR(255) NOT NULL,
     file_size BIGINT NOT NULL,
     content_type VARCHAR(100),
@@ -43,8 +42,7 @@ VALUES (
 -- 15. Acknowledgments
 CREATE TABLE acknowledgments (
     id UUID PRIMARY KEY,
-    document_id UUID NOT NULL,
-    document_type VARCHAR(50) NOT NULL, -- 'incoming' or 'outgoing'
+    document_id UUID NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
     creator_id UUID NOT NULL REFERENCES users (id),
     content TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

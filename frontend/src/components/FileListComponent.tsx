@@ -11,7 +11,6 @@ const { Text } = Typography;
  */
 interface FileListComponentProps {
     documentId: string;
-    documentType: string;
     readOnly?: boolean;
 }
 
@@ -22,7 +21,7 @@ interface FileListComponentProps {
  * @param documentType Тип документа
  * @param readOnly Флаг режима только для чтения
  */
-const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, documentType, readOnly }) => {
+const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, readOnly }) => {
     const { message } = App.useApp();
     const { currentRole } = useAuthStore();
     const canEdit = !readOnly && currentRole === 'clerk';
@@ -60,7 +59,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                 const base64Content = reader.result as string;
                 try {
                     const { Upload } = await import('../../wailsjs/go/services/AttachmentService');
-                    await Upload(documentId, documentType, file.name, base64Content);
+                    await Upload(documentId, file.name, base64Content);
                     message.success('Файл загружен');
                     loadFiles();
                 } catch (err: any) {

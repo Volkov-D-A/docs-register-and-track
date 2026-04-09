@@ -10,7 +10,6 @@ interface AssignmentModalProps {
     onCancel: () => void;
     onSuccess: () => void;
     documentId: string;
-    documentType: 'incoming' | 'outgoing';
     initialValues?: any; // If editing
     isEdit: boolean;
 }
@@ -28,7 +27,7 @@ const { TextArea } = Input;
  * @param isEdit Флаг режима редактирования
  */
 const AssignmentModal: React.FC<AssignmentModalProps> = ({
-    open, onCancel, onSuccess, documentId, documentType, initialValues, isEdit
+    open, onCancel, onSuccess, documentId, initialValues, isEdit
 }) => {
     const { message } = App.useApp();
     const [form] = Form.useForm();
@@ -78,7 +77,6 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                 const { Create } = await import('../../wailsjs/go/services/AssignmentService');
                 await Create(
                     documentId,
-                    documentType,
                     values.executorId,
                     values.content,
                     values.deadline?.format('YYYY-MM-DD') || '',

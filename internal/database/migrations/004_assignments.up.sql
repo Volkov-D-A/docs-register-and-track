@@ -1,8 +1,7 @@
 -- 11. Assignments
 CREATE TABLE assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
-    document_id UUID NOT NULL,
-    document_type VARCHAR(50) NOT NULL, -- 'incoming' or 'outgoing'
+    document_id UUID NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
     executor_id UUID NOT NULL REFERENCES users (id),
     content TEXT NOT NULL,
     deadline DATE,

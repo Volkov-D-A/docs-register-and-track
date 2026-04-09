@@ -17,6 +17,7 @@ type AssignmentService struct {
 	userRepo UserStore // Для валидации
 	auth     *AuthService
 	journal  *JournalService
+	access   *DocumentAccessService
 }
 
 // NewAssignmentService создает новый экземпляр AssignmentService.
@@ -25,18 +26,20 @@ func NewAssignmentService(
 	userRepo UserStore,
 	auth *AuthService,
 	journal *JournalService,
+	access *DocumentAccessService,
 ) *AssignmentService {
 	return &AssignmentService{
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
 		journal:  journal,
+		access:   access,
 	}
 }
 
 // Create — создание поручения
 func (s *AssignmentService) Create(
-	documentID, documentType string,
+	documentID string,
 	executorID string,
 	content string,
 	deadline string,
@@ -49,6 +52,10 @@ func (s *AssignmentService) Create(
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
+	}
+	doc, err := s.access.RequireExists(docUUID)
+	if err != nil {
+		return nil, err
 	}
 
 	execUUID, err := uuid.Parse(executorID)
@@ -65,15 +72,14 @@ func (s *AssignmentService) Create(
 		deadlineTime = &t
 	}
 
-	res, err := s.repo.Create(docUUID, documentType, execUUID, content, deadlineTime, coExecutorIDs)
+	res, err := s.repo.Create(docUUID, execUUID, content, deadlineTime, coExecutorIDs)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   docUUID,
-			DocumentType: documentType,
-			UserID:       currentUserID,
-			Action:       "ASSIGNMENT_CREATE",
-			Details:      "Создано поручение",
+			DocumentID: docUUID,
+			UserID:     currentUserID,
+			Action:     "ASSIGNMENT_CREATE",
+			Details:    fmt.Sprintf("Создано поручение для %s", doc.Kind),
 		})
 	}
 	return dto.MapAssignment(res), err
@@ -130,11 +136,10 @@ func (s *AssignmentService) Update(
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   existing.DocumentID,
-			DocumentType: existing.DocumentType,
-			UserID:       currentUserID,
-			Action:       "ASSIGNMENT_UPDATE",
-			Details:      "Поручение отредактировано",
+			DocumentID: existing.DocumentID,
+			UserID:     currentUserID,
+			Action:     "ASSIGNMENT_UPDATE",
+			Details:    "Поручение отредактировано",
 		})
 	}
 	return dto.MapAssignment(res), err
@@ -201,11 +206,10 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   existing.DocumentID,
-			DocumentType: existing.DocumentType,
-			UserID:       currentUserID,
-			Action:       "ASSIGNMENT_STATUS",
-			Details:      fmt.Sprintf("Статус поручения изменен на %s", status),
+			DocumentID: existing.DocumentID,
+			UserID:     currentUserID,
+			Action:     "ASSIGNMENT_STATUS",
+			Details:    fmt.Sprintf("Статус поручения изменен на %s", status),
 		})
 	}
 	return dto.MapAssignment(res), err
@@ -284,11 +288,10 @@ func (s *AssignmentService) Delete(id string) error {
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-			DocumentID:   existing.DocumentID,
-			DocumentType: existing.DocumentType,
-			UserID:       currentUserID,
-			Action:       "ASSIGNMENT_DELETE",
-			Details:      "Поручение удалено",
+			DocumentID: existing.DocumentID,
+			UserID:     currentUserID,
+			Action:     "ASSIGNMENT_DELETE",
+			Details:    "Поручение удалено",
 		})
 	}
 	return err

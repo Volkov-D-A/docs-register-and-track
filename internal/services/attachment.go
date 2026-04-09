@@ -43,7 +43,7 @@ func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService
 }
 
 // Upload — загрузка файла
-func (s *AttachmentService) Upload(documentIDStr string, documentType string, filename string, contentBase64 string) (*dto.Attachment, error) {
+func (s *AttachmentService) Upload(documentIDStr string, filename string, contentBase64 string) (*dto.Attachment, error) {
 	currentUser, err := s.authService.GetCurrentUser()
 	if err != nil {
 		return nil, models.ErrUnauthorized
@@ -57,7 +57,7 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID")
 	}
-	if err := s.access.RequireRead(documentType, documentID); err != nil {
+	if _, err := s.access.RequireExists(documentID); err != nil {
 		return nil, err
 	}
 
@@ -110,7 +110,6 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 
 	attachment := &models.Attachment{
 		DocumentID:   documentID,
-		DocumentType: documentType,
 		Filename:     filename,
 		FileSize:     int64(len(data)),
 		ContentType:  contentType,
@@ -125,11 +124,10 @@ func (s *AttachmentService) Upload(documentIDStr string, documentType string, fi
 	}
 
 	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-		DocumentID:   documentID,
-		DocumentType: documentType,
-		UserID:       userID,
-		Action:       "FILE_UPLOAD",
-		Details:      fmt.Sprintf("Добавлен файл: %s", filename),
+		DocumentID: documentID,
+		UserID:     userID,
+		Action:     "FILE_UPLOAD",
+		Details:    fmt.Sprintf("Добавлен файл: %s", filename),
 	})
 
 	attachment.UploadedByName = currentUser.FullName
@@ -169,7 +167,7 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 	if attachment == nil {
 		return nil, nil
 	}
-	if err := s.access.RequireRead(attachment.DocumentType, attachment.DocumentID); err != nil {
+	if err := s.access.RequireReadAnyType(attachment.DocumentID); err != nil {
 		return nil, err
 	}
 
@@ -218,11 +216,10 @@ func (s *AttachmentService) Delete(idStr string) error {
 
 	currentUserID, _ := s.authService.GetCurrentUserUUID()
 	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-		DocumentID:   attachment.DocumentID,
-		DocumentType: attachment.DocumentType,
-		UserID:       currentUserID,
-		Action:       "FILE_DELETE",
-		Details:      fmt.Sprintf("Удален файл: %s", attachment.Filename),
+		DocumentID: attachment.DocumentID,
+		UserID:     currentUserID,
+		Action:     "FILE_DELETE",
+		Details:    fmt.Sprintf("Удален файл: %s", attachment.Filename),
 	})
 
 	return nil
@@ -247,7 +244,7 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	if attachment == nil {
 		return "", nil
 	}
-	if err := s.access.RequireRead(attachment.DocumentType, attachment.DocumentID); err != nil {
+	if err := s.access.RequireReadAnyType(attachment.DocumentID); err != nil {
 		return "", err
 	}
 
@@ -420,14 +417,6 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	if u, err := s.authService.GetCurrentUser(); err == nil {
 		currentUserName = u.FullName
 	}
-	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
-		DocumentID:   uuid.Nil, // Массовая операция
-		DocumentType: "system",
-		UserID:       currentUserID,
-		Action:       "FILE_BULK_DELETE",
-		Details:      fmt.Sprintf("Инструментом массовой очистки удалено %d файлов, загруженных до %s", deletedCount, date.Format("02.01.2006")),
-	})
-
 	details := fmt.Sprintf("Массовое удаление файлов: удалено %d, загруженных до %s", deletedCount, date.Format("02.01.2006"))
 	s.auditService.LogAction(currentUserID, currentUserName, "FILES_BULK_DELETE", details)
 

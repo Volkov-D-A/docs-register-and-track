@@ -153,7 +153,6 @@ type DocumentLink struct {
 type Attachment struct {
 	ID             string    `json:"id"`
 	DocumentID     string    `json:"documentId"`
-	DocumentType   string    `json:"documentType"`
 	Filename       string    `json:"filename"`
 	Filepath       string    `json:"filepath"`
 	FileSize       int64     `json:"fileSize"`
@@ -261,13 +260,12 @@ type DashboardStats struct {
 
 // JournalEntry описывает DTO записи в журнале (истории) документа.
 type JournalEntry struct {
-	ID           string    `json:"id"`
-	DocumentID   string    `json:"documentId"`
-	DocumentType string    `json:"documentType"`
-	UserName     string    `json:"userName,omitempty"`
-	Action       string    `json:"action"`
-	Details      string    `json:"details"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID         string    `json:"id"`
+	DocumentID string    `json:"documentId"`
+	UserName   string    `json:"userName,omitempty"`
+	Action     string    `json:"action"`
+	Details    string    `json:"details"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 // AdminAuditLog описывает DTO записи журнала действий администраторов.

@@ -28,6 +28,8 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 	args := []interface{}{}
 	argIdx := 1
 
+	where = append(where, "d.kind = 'outgoing'")
+
 	if filter.AccessibleByUserID != "" {
 		accessClauses := make([]string, 0, 2)
 		if len(filter.AllowedNomenclatureIDs) > 0 {
@@ -40,7 +42,6 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 			SELECT 1
 			FROM assignments a
 			WHERE a.document_id = d.id
-			  AND a.document_type = 'outgoing'
 			  AND (
 				a.executor_id = $%d
 				OR EXISTS (
@@ -59,7 +60,6 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 			JOIN acknowledgments a ON au.acknowledgment_id = a.id
 			WHERE au.user_id = $%d
 			  AND a.document_id = d.id
-			  AND a.document_type = 'outgoing'
 		)`, argIdx))
 		args = append(args, filter.AccessibleByUserID)
 		argIdx++
@@ -78,32 +78,32 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		argIdx++
 	}
 	if filter.OrgID != "" {
-		where = append(where, fmt.Sprintf("d.recipient_org_id = $%d", argIdx))
+		where = append(where, fmt.Sprintf("out.recipient_org_id = $%d", argIdx))
 		args = append(args, filter.OrgID)
 		argIdx++
 	}
 	if filter.DateFrom != "" {
-		where = append(where, fmt.Sprintf("d.outgoing_date >= $%d", argIdx))
+		where = append(where, fmt.Sprintf("out.outgoing_date >= $%d", argIdx))
 		args = append(args, filter.DateFrom)
 		argIdx++
 	}
 	if filter.DateTo != "" {
-		where = append(where, fmt.Sprintf("d.outgoing_date <= $%d", argIdx))
+		where = append(where, fmt.Sprintf("out.outgoing_date <= $%d", argIdx))
 		args = append(args, filter.DateTo)
 		argIdx++
 	}
 	if filter.Search != "" {
-		where = append(where, fmt.Sprintf("(d.content ILIKE $%d OR d.outgoing_number ILIKE $%d)", argIdx, argIdx))
+		where = append(where, fmt.Sprintf("(d.content ILIKE $%d OR out.outgoing_number ILIKE $%d)", argIdx, argIdx))
 		args = append(args, "%"+filter.Search+"%")
 		argIdx++
 	}
 	if filter.OutgoingNumber != "" {
-		where = append(where, fmt.Sprintf("d.outgoing_number ILIKE $%d", argIdx))
+		where = append(where, fmt.Sprintf("out.outgoing_number ILIKE $%d", argIdx))
 		args = append(args, "%"+filter.OutgoingNumber+"%")
 		argIdx++
 	}
 	if filter.RecipientName != "" {
-		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM organizations o WHERE o.id = d.recipient_org_id AND o.name ILIKE $%d)", argIdx))
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM organizations o WHERE o.id = out.recipient_org_id AND o.name ILIKE $%d)", argIdx))
 		args = append(args, "%"+filter.RecipientName+"%")
 		argIdx++
 	}
@@ -112,7 +112,12 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 
 	// Подсчёт
 	var totalCount int
-	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM outgoing_documents d WHERE %s`, whereClause)
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM documents d
+		JOIN outgoing_document_details out ON out.document_id = d.id
+		WHERE %s
+	`, whereClause)
 	if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count documents: %w", err)
 	}
@@ -133,17 +138,18 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 	query := fmt.Sprintf(`
 		SELECT 
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
-			d.outgoing_number, d.outgoing_date,
+			out.outgoing_number, out.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
 			d.content, d.pages_count,
-			d.sender_signatory, d.sender_executor,
-			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
+			out.sender_signatory, out.sender_executor,
+			out.recipient_org_id, ro.name as recipient_org_name, out.addressee,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
-		FROM outgoing_documents d
+		FROM documents d
+		JOIN outgoing_document_details out ON out.document_id = d.id
 		JOIN nomenclature n ON d.nomenclature_id = n.id
 		JOIN document_types dt ON d.document_type_id = dt.id
-		JOIN organizations ro ON d.recipient_org_id = ro.id
+		JOIN organizations ro ON out.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
 		WHERE %s
 		ORDER BY d.created_at DESC
@@ -195,20 +201,21 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 	err := r.db.QueryRow(`
 		SELECT 
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
-			d.outgoing_number, d.outgoing_date,
+			out.outgoing_number, out.outgoing_date,
 			d.document_type_id, dt.name as document_type_name,
 			d.content, d.pages_count,
-			d.sender_signatory, d.sender_executor,
-			d.recipient_org_id, ro.name as recipient_org_name, d.addressee,
+			out.sender_signatory, out.sender_executor,
+			out.recipient_org_id, ro.name as recipient_org_name, out.addressee,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
-		FROM outgoing_documents d
+		FROM documents d
+		JOIN outgoing_document_details out ON out.document_id = d.id
 		JOIN nomenclature n ON d.nomenclature_id = n.id
 		JOIN document_types dt ON d.document_type_id = dt.id
-		JOIN organizations ro ON d.recipient_org_id = ro.id
+		JOIN organizations ro ON out.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
-		WHERE d.id = $1
-	`, id).Scan(
+		WHERE d.id = $1 AND d.kind = $2
+	`, id, models.DocumentKindOutgoing).Scan(
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 		&doc.OutgoingNumber, &doc.OutgoingDate,
 		&doc.DocumentTypeID, &doc.DocumentTypeName,
@@ -231,24 +238,41 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 
 // Create создает новый исходящий документ в базе данных.
 func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	var id uuid.UUID
-	err := r.db.QueryRow(`
-		INSERT INTO outgoing_documents (
-			nomenclature_id, outgoing_number, outgoing_date,
-			document_type_id, content, pages_count,
-			sender_signatory, sender_executor,
-			recipient_org_id, addressee, created_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+	err = tx.QueryRow(`
+		INSERT INTO documents (
+			kind, nomenclature_id, document_type_id, content, pages_count, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
 	`,
-		req.NomenclatureID, req.OutgoingNumber, req.OutgoingDate,
-		req.DocumentTypeID, req.Content, req.PagesCount,
-		req.SenderSignatory, req.SenderExecutor,
-		req.RecipientOrgID, req.Addressee, req.CreatedBy,
+		models.DocumentKindOutgoing, req.NomenclatureID, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
 	).Scan(&id)
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to create outgoing document: %w", err)
+		return nil, fmt.Errorf("failed to create document root: %w", err)
+	}
+
+	if _, err = tx.Exec(`
+		INSERT INTO outgoing_document_details (
+			document_id, outgoing_number, outgoing_date,
+			sender_signatory, sender_executor,
+			recipient_org_id, addressee
+		) VALUES ($1,$2,$3,$4,$5,$6,$7)
+	`,
+		id, req.OutgoingNumber, req.OutgoingDate,
+		req.SenderSignatory, req.SenderExecutor,
+		req.RecipientOrgID, req.Addressee,
+	); err != nil {
+		return nil, fmt.Errorf("failed to create outgoing document details: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return r.GetByID(id)
@@ -256,22 +280,42 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 
 // Update обновляет данные существующего исходящего документа.
 func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error) {
-	_, err := r.db.Exec(`
-		UPDATE outgoing_documents SET
-			document_type_id = $1, content = $2, pages_count = $3,
-			sender_signatory = $4, sender_executor = $5,
-			recipient_org_id = $6, addressee = $7, outgoing_date = $8,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $9
-	`,
-		req.DocumentTypeID, req.Content, req.PagesCount,
-		req.SenderSignatory, req.SenderExecutor,
-		req.RecipientOrgID, req.Addressee, req.OutgoingDate,
-		req.ID,
-	)
-
+	tx, err := r.db.Begin()
 	if err != nil {
-		return nil, fmt.Errorf("failed to update outgoing document: %w", err)
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err = tx.Exec(`
+		UPDATE documents SET
+			document_type_id = $1,
+			content = $2,
+			pages_count = $3,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = $4 AND kind = $5
+	`,
+		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindOutgoing,
+	); err != nil {
+		return nil, fmt.Errorf("failed to update document root: %w", err)
+	}
+
+	if _, err = tx.Exec(`
+		UPDATE outgoing_document_details SET
+			outgoing_date = $1,
+			sender_signatory = $2,
+			sender_executor = $3,
+			recipient_org_id = $4,
+			addressee = $5
+		WHERE document_id = $6
+	`,
+		req.OutgoingDate, req.SenderSignatory, req.SenderExecutor,
+		req.RecipientOrgID, req.Addressee, req.ID,
+	); err != nil {
+		return nil, fmt.Errorf("failed to update outgoing document details: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return r.GetByID(req.ID)
@@ -279,14 +323,14 @@ func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest)
 
 // Delete удаляет исходящий документ по его ID.
 func (r *OutgoingDocumentRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM outgoing_documents WHERE id = $1`, id)
+	_, err := r.db.Exec(`DELETE FROM documents WHERE id = $1 AND kind = $2`, id, models.DocumentKindOutgoing)
 	return err
 }
 
 // GetCount возвращает общее количество исходящих документов (для дашборда).
 func (r *OutgoingDocumentRepository) GetCount() (int, error) {
 	var count int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM outgoing_documents`).Scan(&count); err != nil {
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM documents WHERE kind = $1`, models.DocumentKindOutgoing).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil

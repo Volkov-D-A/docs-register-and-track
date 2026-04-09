@@ -10,7 +10,6 @@ import (
 type Attachment struct {
 	ID             uuid.UUID `json:"-"`
 	DocumentID     uuid.UUID `json:"-"`
-	DocumentType   string    `json:"documentType"` // 'incoming' или 'outgoing'
 	Filename       string    `json:"filename"`
 	Filepath       string    `json:"filepath"` // внутренний путь
 	FileSize       int64     `json:"fileSize"`

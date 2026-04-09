@@ -25,14 +25,14 @@ func NewJournalService(repo JournalStore, auth *AuthService, access *DocumentAcc
 
 // GetByDocumentID возвращает список записей журнала для заданного документа.
 // Этот метод предназначен для вызова из фронтенда Wails.
-func (s *JournalService) GetByDocumentID(documentIDStr string, documentType string) ([]dto.JournalEntry, error) {
+func (s *JournalService) GetByDocumentID(documentIDStr string) ([]dto.JournalEntry, error) {
 	docID, err := uuid.Parse(documentIDStr)
 	if err != nil {
 		return nil, err
 	}
 
 	if s.access != nil {
-		if err := s.access.RequireRead(documentType, docID); err != nil {
+		if err := s.access.RequireReadAnyType(docID); err != nil {
 			return nil, err
 		}
 	} else {
@@ -42,7 +42,7 @@ func (s *JournalService) GetByDocumentID(documentIDStr string, documentType stri
 		}
 	}
 
-	entries, err := s.repo.GetByDocumentID(context.Background(), docID, documentType)
+	entries, err := s.repo.GetByDocumentID(context.Background(), docID)
 	if err != nil {
 		return nil, err
 	}

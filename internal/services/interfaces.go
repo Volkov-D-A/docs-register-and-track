@@ -35,6 +35,11 @@ type IncomingDocStore interface {
 	GetCount() (int, error)
 }
 
+// DocumentStore — интерфейс для общей корневой сущности документа.
+type DocumentStore interface {
+	GetByID(id uuid.UUID) (*models.Document, error)
+}
+
 // OutgoingDocStore — интерфейс для работы с исходящими документами в хранилище.
 type OutgoingDocStore interface {
 	GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error)
@@ -77,8 +82,7 @@ type ReferenceStore interface {
 // AssignmentStore — интерфейс для работы с поручениями в хранилище.
 type AssignmentStore interface {
 	Create(
-		documentID uuid.UUID, documentType string,
-		executorID uuid.UUID, content string,
+		documentID uuid.UUID, executorID uuid.UUID, content string,
 		deadline *time.Time, coExecutorIDs []string,
 	) (*models.Assignment, error)
 	Update(
@@ -90,7 +94,7 @@ type AssignmentStore interface {
 	Delete(id uuid.UUID) error
 	GetByID(id uuid.UUID) (*models.Assignment, error)
 	GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error)
-	HasDocumentAccess(userID, documentID uuid.UUID, documentType string) (bool, error)
+	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
 }
 
 // DepartmentStore — интерфейс для работы с подразделениями в хранилище.
@@ -145,7 +149,7 @@ type AcknowledgmentStore interface {
 	GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error)
 	GetPendingForUser(userID uuid.UUID) ([]models.Acknowledgment, error)
 	GetAllActive() ([]models.Acknowledgment, error)
-	HasDocumentAccess(userID, documentID uuid.UUID, documentType string) (bool, error)
+	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
 	MarkViewed(ackID, userID uuid.UUID) error
 	MarkConfirmed(ackID, userID uuid.UUID) error
 	Delete(id uuid.UUID) error
@@ -173,7 +177,7 @@ type StorageInfoProvider interface {
 // JournalStore — интерфейс для работы с журналом действий.
 type JournalStore interface {
 	Create(ctx context.Context, req models.CreateJournalEntryRequest) (uuid.UUID, error)
-	GetByDocumentID(ctx context.Context, documentID uuid.UUID, documentType string) ([]models.JournalEntry, error)
+	GetByDocumentID(ctx context.Context, documentID uuid.UUID) ([]models.JournalEntry, error)
 }
 
 // AdminAuditLogStore — интерфейс для работы с журналом действий администраторов.

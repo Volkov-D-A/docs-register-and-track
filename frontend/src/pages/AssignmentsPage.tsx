@@ -390,7 +390,6 @@ const AssignmentsPage: React.FC = () => {
                 onCancel={() => { setModalOpen(false); setEditAssignment(null); }}
                 onSuccess={load}
                 documentId={editAssignment?.documentId || ''}
-                documentType={editAssignment?.documentType || 'incoming'}
                 isEdit={true}
                 initialValues={editAssignment}
             />

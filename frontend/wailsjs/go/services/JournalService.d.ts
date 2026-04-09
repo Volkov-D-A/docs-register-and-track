@@ -4,6 +4,6 @@ import {dto} from '../models';
 import {context} from '../models';
 import {models} from '../models';
 
-export function GetByDocumentID(arg1:string,arg2:string):Promise<Array<dto.JournalEntry>>;
+export function GetByDocumentID(arg1:string):Promise<Array<dto.JournalEntry>>;
 
 export function LogAction(arg1:context.Context,arg2:models.CreateJournalEntryRequest):Promise<void>;

@@ -203,23 +203,23 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             },
             {
                 key: 'assignments', label: 'Поручения',
-                children: <AssignmentList documentId={data.id} documentType={documentType} />
+                children: <AssignmentList documentId={data.id} />
             },
             {
                 key: 'files', label: 'Файлы',
-                children: <FileListComponent documentId={data.id} documentType={documentType} readOnly={false} />
+                children: <FileListComponent documentId={data.id} readOnly={false} />
             },
             {
                 key: 'links', label: 'Связи',
-                children: <LinksTab documentId={data.id} documentType={documentType} documentNumber={getNumber()} />
+                children: <LinksTab documentId={data.id} documentNumber={getNumber()} />
             },
             {
                 key: 'acknowledgments', label: 'Ознакомление',
-                children: <AcknowledgmentList documentId={data.id} documentType={documentType} />
+                children: <AcknowledgmentList documentId={data.id} />
             },
             {
                 key: 'journal', label: 'Журнал',
-                children: <JournalList documentId={data.id} documentType={documentType} />
+                children: <JournalList documentId={data.id} />
             }
         ];
 

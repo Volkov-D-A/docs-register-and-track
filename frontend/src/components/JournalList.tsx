@@ -13,7 +13,6 @@ const { Text } = Typography;
 interface JournalEntry {
     id: string;
     documentId: string;
-    documentType: string;
     userName?: string;
     action: string;
     details: string;
@@ -22,10 +21,9 @@ interface JournalEntry {
 
 interface JournalListProps {
     documentId: string;
-    documentType: 'incoming' | 'outgoing';
 }
 
-const JournalList: React.FC<JournalListProps> = ({ documentId, documentType }) => {
+const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
     const { message } = App.useApp();
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
@@ -34,14 +32,14 @@ const JournalList: React.FC<JournalListProps> = ({ documentId, documentType }) =
         if (documentId) {
             loadJournal();
         }
-    }, [documentId, documentType]);
+    }, [documentId]);
 
     const loadJournal = async () => {
         setLoading(true);
         try {
             // @ts-ignore
             const { GetByDocumentID } = await import('../../wailsjs/go/services/JournalService');
-            const res = await GetByDocumentID(documentId, documentType);
+            const res = await GetByDocumentID(documentId);
             setEntries(res || []);
         } catch (err: any) {
             message.error('Ошибка загрузки журнала: ' + (err.message || String(err)));

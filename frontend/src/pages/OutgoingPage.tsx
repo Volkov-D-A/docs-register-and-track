@@ -157,7 +157,7 @@ const OutgoingPage: React.FC = () => {
                 // Если создаем исходящий из входящего -> Ответ (reply)
                 // Если создаем исходящий из исходящего -> Связан (related)
                 const linkType = sourceType === 'incoming' ? 'reply' : 'related';
-                await LinkDocuments(sourceId, newDoc.id, sourceType, 'outgoing', linkType);
+                await LinkDocuments(sourceId, newDoc.id, linkType);
                 clearDraftLink();
             }
 

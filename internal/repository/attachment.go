@@ -23,10 +23,10 @@ func NewAttachmentRepository(db *database.DB) *AttachmentRepository {
 // Create сохраняет новое вложение в БД.
 func (r *AttachmentRepository) Create(a *models.Attachment) error {
 	return r.db.QueryRow(
-		`INSERT INTO attachments (document_id, document_type, filename, storage_path, file_size, content_type, uploaded_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`INSERT INTO attachments (document_id, filename, storage_path, file_size, content_type, uploaded_by)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, uploaded_at`,
-		a.DocumentID, a.DocumentType, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy,
+		a.DocumentID, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy,
 	).Scan(&a.ID, &a.UploadedAt)
 }
 
@@ -40,10 +40,10 @@ func (r *AttachmentRepository) Delete(id uuid.UUID) error {
 func (r *AttachmentRepository) GetByID(id uuid.UUID) (*models.Attachment, error) {
 	var a models.Attachment
 	if err := r.db.QueryRow(
-		`SELECT id, document_id, document_type, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at
+		`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at
 		FROM attachments WHERE id = $1`,
 		id,
-	).Scan(&a.ID, &a.DocumentID, &a.DocumentType, &a.Filename, &a.StoragePath, &a.FileSize, &a.ContentType, &a.UploadedBy, &a.UploadedAt); err != nil {
+	).Scan(&a.ID, &a.DocumentID, &a.Filename, &a.StoragePath, &a.FileSize, &a.ContentType, &a.UploadedBy, &a.UploadedAt); err != nil {
 		return nil, err
 	}
 	return &a, nil
@@ -52,7 +52,7 @@ func (r *AttachmentRepository) GetByID(id uuid.UUID) (*models.Attachment, error)
 // GetByDocumentID возвращает все вложения, прикрепленные к определенному документу.
 func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attachment, error) {
 	rows, err := r.db.Query(
-		`SELECT a.id, a.document_id, a.document_type, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name
+		`SELECT a.id, a.document_id, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name
 		FROM attachments a
 		LEFT JOIN users u ON a.uploaded_by = u.id
 		WHERE a.document_id = $1
@@ -69,7 +69,7 @@ func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attach
 		var a models.Attachment
 		var uploadedByName sql.NullString
 		if err := rows.Scan(
-			&a.ID, &a.DocumentID, &a.DocumentType, &a.Filename, &a.FileSize, &a.ContentType, &a.StoragePath, &a.UploadedBy, &a.UploadedAt, &uploadedByName,
+			&a.ID, &a.DocumentID, &a.Filename, &a.FileSize, &a.ContentType, &a.StoragePath, &a.UploadedBy, &a.UploadedAt, &uploadedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attach
 // GetOlderThan возвращает вложения, загруженные до указанной даты.
 func (r *AttachmentRepository) GetOlderThan(date time.Time) ([]models.Attachment, error) {
 	rows, err := r.db.Query(
-		`SELECT id, document_id, document_type, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at
+		`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at
 		FROM attachments WHERE uploaded_at < $1`,
 		date,
 	)
@@ -99,7 +99,7 @@ func (r *AttachmentRepository) GetOlderThan(date time.Time) ([]models.Attachment
 	for rows.Next() {
 		var a models.Attachment
 		if err := rows.Scan(
-			&a.ID, &a.DocumentID, &a.DocumentType, &a.Filename, &a.StoragePath, &a.FileSize, &a.ContentType, &a.UploadedBy, &a.UploadedAt,
+			&a.ID, &a.DocumentID, &a.Filename, &a.StoragePath, &a.FileSize, &a.ContentType, &a.UploadedBy, &a.UploadedAt,
 		); err != nil {
 			return nil, err
 		}

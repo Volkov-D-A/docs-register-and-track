@@ -17,9 +17,9 @@ type AssignmentStore struct {
 	mock.Mock
 }
 
-// Create provides a mock function with given fields: documentID, documentType, executorID, content, deadline, coExecutorIDs
-func (_m *AssignmentStore) Create(documentID uuid.UUID, documentType string, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string) (*models.Assignment, error) {
-	ret := _m.Called(documentID, documentType, executorID, content, deadline, coExecutorIDs)
+// Create provides a mock function with given fields: documentID, executorID, content, deadline, coExecutorIDs
+func (_m *AssignmentStore) Create(documentID uuid.UUID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string) (*models.Assignment, error) {
+	ret := _m.Called(documentID, executorID, content, deadline, coExecutorIDs)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -27,19 +27,19 @@ func (_m *AssignmentStore) Create(documentID uuid.UUID, documentType string, exe
 
 	var r0 *models.Assignment
 	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, string, uuid.UUID, string, *time.Time, []string) (*models.Assignment, error)); ok {
-		return rf(documentID, documentType, executorID, content, deadline, coExecutorIDs)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string, *time.Time, []string) (*models.Assignment, error)); ok {
+		return rf(documentID, executorID, content, deadline, coExecutorIDs)
 	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID, string, uuid.UUID, string, *time.Time, []string) *models.Assignment); ok {
-		r0 = rf(documentID, documentType, executorID, content, deadline, coExecutorIDs)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string, *time.Time, []string) *models.Assignment); ok {
+		r0 = rf(documentID, executorID, content, deadline, coExecutorIDs)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Assignment)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(uuid.UUID, string, uuid.UUID, string, *time.Time, []string) error); ok {
-		r1 = rf(documentID, documentType, executorID, content, deadline, coExecutorIDs)
+	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID, string, *time.Time, []string) error); ok {
+		r1 = rf(documentID, executorID, content, deadline, coExecutorIDs)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -125,9 +125,9 @@ func (_m *AssignmentStore) GetList(filter models.AssignmentFilter) (*models.Page
 	return r0, r1
 }
 
-// HasDocumentAccess provides a mock function with given fields: userID, documentID, documentType
-func (_m *AssignmentStore) HasDocumentAccess(userID uuid.UUID, documentID uuid.UUID, documentType string) (bool, error) {
-	ret := _m.Called(userID, documentID, documentType)
+// HasDocumentAccess provides a mock function with given fields: userID, documentID
+func (_m *AssignmentStore) HasDocumentAccess(userID uuid.UUID, documentID uuid.UUID) (bool, error) {
+	ret := _m.Called(userID, documentID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for HasDocumentAccess")
@@ -135,17 +135,17 @@ func (_m *AssignmentStore) HasDocumentAccess(userID uuid.UUID, documentID uuid.U
 
 	var r0 bool
 	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string) (bool, error)); ok {
-		return rf(userID, documentID, documentType)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID) (bool, error)); ok {
+		return rf(userID, documentID)
 	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string) bool); ok {
-		r0 = rf(userID, documentID, documentType)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID) bool); ok {
+		r0 = rf(userID, documentID)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
 
-	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID, string) error); ok {
-		r1 = rf(userID, documentID, documentType)
+	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(userID, documentID)
 	} else {
 		r1 = ret.Error(1)
 	}

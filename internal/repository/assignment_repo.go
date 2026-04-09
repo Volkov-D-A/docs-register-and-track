@@ -26,7 +26,6 @@ func NewAssignmentRepository(db *database.DB) *AssignmentRepository {
 // Create создает новое поручение в базе данных.
 func (r *AssignmentRepository) Create(
 	documentID uuid.UUID,
-	documentType string,
 	executorID uuid.UUID,
 	content string,
 	deadline *time.Time,
@@ -44,17 +43,16 @@ func (r *AssignmentRepository) Create(
 
 	query := `
 		INSERT INTO assignments (
-			document_id, document_type, executor_id,
+			document_id, executor_id,
 			content, deadline, status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at
 	`
 
 	err = tx.QueryRow(
 		query,
-		documentID, documentType, executorID,
-		content, deadline, status,
+		documentID, executorID, content, deadline, status,
 	).Scan(&id, &createdAt, &updatedAt)
 
 	if err != nil {
@@ -157,16 +155,17 @@ func (r *AssignmentRepository) Delete(id uuid.UUID) error {
 func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error) {
 	query := `
 		SELECT
-			a.id, a.document_id, a.document_type,
+			a.id, a.document_id, d.kind,
 			a.executor_id, u_executor.full_name,
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
-			COALESCE(inc.content, out.content) as doc_subject
+			d.content as doc_subject
 		FROM assignments a
+		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
-		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
-		LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
 		WHERE a.id = $1
 	`
 
@@ -246,16 +245,17 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error) {
 	query := `
 		SELECT
-			a.id, a.document_id, a.document_type,
+			a.id, a.document_id, d.kind,
 			a.executor_id, u_executor.full_name,
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
 			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
-			COALESCE(inc.content, out.content) as doc_subject
+			d.content as doc_subject
 		FROM assignments a
+		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
-		LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming'
-		LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
 	`
 
 	where := []string{"1=1"}
@@ -311,15 +311,15 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 
 	if filter.Search != "" {
 		search := "%" + strings.ToLower(filter.Search) + "%"
-		where = append(where, fmt.Sprintf("(LOWER(a.content) LIKE $%d OR LOWER(inc.incoming_number) LIKE $%d OR LOWER(inc.content) LIKE $%d OR LOWER(out.outgoing_number) LIKE $%d OR LOWER(out.content) LIKE $%d)", argIdx, argIdx, argIdx, argIdx, argIdx))
-		args = append(args, search, search, search, search, search)
+		where = append(where, fmt.Sprintf("(LOWER(a.content) LIKE $%d OR LOWER(COALESCE(inc.incoming_number, out.outgoing_number, '')) LIKE $%d OR LOWER(d.content) LIKE $%d)", argIdx, argIdx, argIdx))
+		args = append(args, search, search, search)
 		argIdx++
 	}
 
 	query += " WHERE " + strings.Join(where, " AND ")
 
 	// Запрос количества
-	countQuery := "SELECT COUNT(*) FROM assignments a LEFT JOIN incoming_documents inc ON a.document_id = inc.id AND a.document_type = 'incoming' LEFT JOIN outgoing_documents out ON a.document_id = out.id AND a.document_type = 'outgoing' WHERE " + strings.Join(where, " AND ")
+	countQuery := "SELECT COUNT(*) FROM assignments a JOIN documents d ON d.id = a.document_id LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming' LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing' WHERE " + strings.Join(where, " AND ")
 	var totalCount int
 	if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count assignments: %w", err)
@@ -430,26 +430,25 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 }
 
 // HasDocumentAccess проверяет, есть ли у пользователя доступ к документу как у исполнителя или соисполнителя поручения.
-func (r *AssignmentRepository) HasDocumentAccess(userID, documentID uuid.UUID, documentType string) (bool, error) {
+func (r *AssignmentRepository) HasDocumentAccess(userID, documentID uuid.UUID) (bool, error) {
 	var hasAccess bool
 	query := `
 		SELECT EXISTS (
 			SELECT 1
 			FROM assignments a
 			WHERE a.document_id = $1
-			  AND a.document_type = $2
 			  AND (
-				a.executor_id = $3
+				a.executor_id = $2
 				OR EXISTS (
 					SELECT 1
 					FROM assignment_co_executors ce
-					WHERE ce.assignment_id = a.id AND ce.user_id = $3
+					WHERE ce.assignment_id = a.id AND ce.user_id = $2
 				)
 			  )
 		)
 	`
 
-	if err := r.db.QueryRow(query, documentID, documentType, userID).Scan(&hasAccess); err != nil {
+	if err := r.db.QueryRow(query, documentID, userID).Scan(&hasAccess); err != nil {
 		return false, fmt.Errorf("failed to check document access by assignment: %w", err)
 	}
 

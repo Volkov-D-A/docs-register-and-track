@@ -6,6 +6,26 @@ import (
 	"github.com/google/uuid"
 )
 
+type DocumentKind string
+
+const (
+	DocumentKindIncoming DocumentKind = "incoming"
+	DocumentKindOutgoing DocumentKind = "outgoing"
+)
+
+// Document — общая корневая сущность документа.
+type Document struct {
+	ID             uuid.UUID    `json:"-"`
+	Kind           DocumentKind `json:"kind"`
+	NomenclatureID uuid.UUID    `json:"-"`
+	DocumentTypeID uuid.UUID    `json:"-"`
+	Content        string       `json:"content"`
+	PagesCount     int          `json:"pagesCount"`
+	CreatedBy      uuid.UUID    `json:"-"`
+	CreatedAt      time.Time    `json:"createdAt"`
+	UpdatedAt      time.Time    `json:"updatedAt"`
+}
+
 // IncomingDocument — входящий документ
 type IncomingDocument struct {
 	ID               uuid.UUID `json:"-"`

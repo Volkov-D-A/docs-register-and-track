@@ -10,7 +10,6 @@ interface AcknowledgmentModalProps {
     onCancel: () => void;
     onSuccess: () => void;
     documentId: string;
-    documentType: string;
 }
 
 /**
@@ -21,7 +20,7 @@ interface AcknowledgmentModalProps {
  * @param documentId Идентификатор документа
  * @param documentType Тип документа
  */
-const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCancel, onSuccess, documentId, documentType }) => {
+const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCancel, onSuccess, documentId }) => {
     const { message } = App.useApp();
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
@@ -56,8 +55,7 @@ const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCance
 
             // @ts-ignore
             const { Create } = await import('../../wailsjs/go/services/AcknowledgmentService');
-            // Create expects (documentID, documentType, content, userIds)
-            await Create(documentId, documentType, values.content || '', values.userIds);
+            await Create(documentId, values.content || '', values.userIds);
 
             message.success('Задача создана');
             onSuccess();

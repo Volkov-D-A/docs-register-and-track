@@ -10,7 +10,6 @@ import AssignmentModal from './AssignmentModal';
  */
 interface AssignmentListProps {
     documentId: string;
-    documentType: 'incoming' | 'outgoing';
 }
 
 const { TextArea } = Input;
@@ -20,7 +19,7 @@ const { TextArea } = Input;
  * @param documentId Идентификатор документа
  * @param documentType Тип документа
  */
-const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentType }) => {
+const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
     const { message } = App.useApp();
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -215,7 +214,6 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentTyp
                 onCancel={() => { setModalOpen(false); setEditAssignment(null); }}
                 onSuccess={load}
                 documentId={documentId}
-                documentType={documentType}
                 isEdit={!!editAssignment}
                 initialValues={editAssignment}
             />

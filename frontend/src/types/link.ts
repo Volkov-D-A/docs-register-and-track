@@ -84,8 +84,8 @@ export namespace services {
     }
 }
 
-export const LinkDocuments = (sourceID: string, targetID: string, sourceType: string, targetType: string, linkType: string): Promise<models.DocumentLink> => {
-    return (window as any)['go']['services']['LinkService']['LinkDocuments'](sourceID, targetID, sourceType, targetType, linkType);
+export const LinkDocuments = (sourceID: string, targetID: string, linkType: string): Promise<models.DocumentLink> => {
+    return (window as any)['go']['services']['LinkService']['LinkDocuments'](sourceID, targetID, linkType);
 };
 
 export const UnlinkDocument = (id: string): Promise<void> => {

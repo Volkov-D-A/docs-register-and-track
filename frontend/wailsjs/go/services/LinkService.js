@@ -10,8 +10,8 @@ export function GetDocumentLinks(arg1) {
   return window['go']['services']['LinkService']['GetDocumentLinks'](arg1);
 }
 
-export function LinkDocuments(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['services']['LinkService']['LinkDocuments'](arg1, arg2, arg3, arg4, arg5);
+export function LinkDocuments(arg1, arg2, arg3) {
+  return window['go']['services']['LinkService']['LinkDocuments'](arg1, arg2, arg3);
 }
 
 export function UnlinkDocument(arg1) {

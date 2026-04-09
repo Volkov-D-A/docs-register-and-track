@@ -10,7 +10,6 @@ import (
 type JournalEntry struct {
 	ID           uuid.UUID `json:"id"`
 	DocumentID   uuid.UUID `json:"documentId"`
-	DocumentType string    `json:"documentType"`
 	UserID       uuid.UUID `json:"-"`
 	UserName     string    `json:"userName,omitempty"`
 	Action       string    `json:"action"`
@@ -20,9 +19,8 @@ type JournalEntry struct {
 
 // CreateJournalEntryRequest описывает внутренний запрос на создание записи в журнале.
 type CreateJournalEntryRequest struct {
-	DocumentID   uuid.UUID
-	DocumentType string
-	UserID       uuid.UUID
-	Action       string
-	Details      string
+	DocumentID uuid.UUID
+	UserID     uuid.UUID
+	Action     string
+	Details    string
 }

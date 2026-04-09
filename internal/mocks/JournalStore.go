@@ -46,9 +46,9 @@ func (_m *JournalStore) Create(ctx context.Context, req models.CreateJournalEntr
 	return r0, r1
 }
 
-// GetByDocumentID provides a mock function with given fields: ctx, documentID, documentType
-func (_m *JournalStore) GetByDocumentID(ctx context.Context, documentID uuid.UUID, documentType string) ([]models.JournalEntry, error) {
-	ret := _m.Called(ctx, documentID, documentType)
+// GetByDocumentID provides a mock function with given fields: ctx, documentID
+func (_m *JournalStore) GetByDocumentID(ctx context.Context, documentID uuid.UUID) ([]models.JournalEntry, error) {
+	ret := _m.Called(ctx, documentID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetByDocumentID")
@@ -56,19 +56,19 @@ func (_m *JournalStore) GetByDocumentID(ctx context.Context, documentID uuid.UUI
 
 	var r0 []models.JournalEntry
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) ([]models.JournalEntry, error)); ok {
-		return rf(ctx, documentID, documentType)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]models.JournalEntry, error)); ok {
+		return rf(ctx, documentID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) []models.JournalEntry); ok {
-		r0 = rf(ctx, documentID, documentType)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []models.JournalEntry); ok {
+		r0 = rf(ctx, documentID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.JournalEntry)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string) error); ok {
-		r1 = rf(ctx, documentID, documentType)
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, documentID)
 	} else {
 		r1 = ret.Error(1)
 	}
