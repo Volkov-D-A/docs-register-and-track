@@ -158,9 +158,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                             <span style={{ marginRight: 8, color: '#888' }}>Роль:</span>
                             <Select
                                 value={useAuthStore.getState().currentRole}
-                                onChange={(val: string) => {
-                                    useAuthStore.getState().setCurrentRole(val);
-                                    onPageChange('dashboard');
+                                onChange={async (val: string) => {
+                                    try {
+                                        await useAuthStore.getState().setCurrentRole(val);
+                                        onPageChange('dashboard');
+                                    } catch (err) {
+                                        console.error('Failed to switch role:', err);
+                                    }
                                 }}
                                 style={{ width: 140 }}
                                 options={[

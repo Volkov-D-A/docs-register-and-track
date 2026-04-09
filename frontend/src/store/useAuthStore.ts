@@ -50,7 +50,7 @@ interface AuthState {
     updateProfile: (login: string, fullName: string) => Promise<void>;
     clearError: () => void;
     hasRole: (role: string) => boolean;
-    setCurrentRole: (role: string) => void;
+    setCurrentRole: (role: string) => Promise<void>;
 }
 
 /**
@@ -75,6 +75,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 else defaultRole = user.roles[0];
             }
 
+            await SetActiveRole(defaultRole);
             set({
                 user: {
                     id: (user as any).id || '',
@@ -93,7 +94,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isLoading: false,
                 currentRole: defaultRole,
             });
-            await SetActiveRole(defaultRole);
         } catch (err: any) {
             set({ error: formatAuthError(err), isLoading: false });
         }
@@ -151,13 +151,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return currentRole === role;
     },
 
-    setCurrentRole: (role: string) => {
+    setCurrentRole: async (role: string) => {
         const { user } = get();
-        if (user?.roles?.includes(role)) {
-            set({ currentRole: role });
-            void SetActiveRole(role).catch((err) => {
-                console.error('SetActiveRole error:', err);
+        if (!user?.roles?.includes(role)) {
+            return;
+        }
+
+        set({ isLoading: true, error: null });
+
+        try {
+            await SetActiveRole(role);
+            set({ currentRole: role, isLoading: false });
+        } catch (err: any) {
+            set({
+                error: err?.message || String(err) || 'Ошибка смены роли',
+                isLoading: false,
             });
+            throw err;
         }
     }
 }));
