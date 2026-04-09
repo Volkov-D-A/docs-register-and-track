@@ -144,6 +144,9 @@ func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 	if err != nil {
 		return nil, err
 	}
+	if user == nil {
+		return nil, ErrNotAuthenticated
+	}
 
 	return dto.MapUser(user), nil
 }
@@ -169,6 +172,9 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 	dbUser, err := s.userRepo.GetByID(userID)
 	if err != nil {
 		return err
+	}
+	if dbUser == nil {
+		return ErrNotAuthenticated
 	}
 
 	if !security.VerifyPassword(dbUser.PasswordHash, oldPassword) {
@@ -313,6 +319,9 @@ func (s *AuthService) GetCurrentAuditInfo() (uuid.UUID, string) {
 	if err != nil {
 		return userID, "system"
 	}
+	if user == nil {
+		return userID, "system"
+	}
 
 	return user.ID, user.FullName
 }
@@ -329,6 +338,9 @@ func (s *AuthService) HasRole(role string) bool {
 
 	user, err := s.userRepo.GetByID(userID)
 	if err != nil {
+		return false
+	}
+	if user == nil {
 		return false
 	}
 

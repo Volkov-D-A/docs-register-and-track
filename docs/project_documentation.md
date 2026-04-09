@@ -47,7 +47,7 @@
 ### Основные сервисы
 
 - `AuthService` — логин, logout, текущий пользователь, активная роль
-- `DocumentAccessService` — централизованная проверка доступа к document-domain по роли, типу документа и связанным сущностям доступа
+- `DocumentAccessService` — централизованная проверка доступа к document-domain по роли, корневому документу и связанным сущностям доступа
 - `UserService` — пользователи и пароли
 - `DepartmentService` — подразделения
 - `NomenclatureService` — дела номенклатуры
@@ -61,6 +61,30 @@
 - `DashboardService` — дашборд по роли
 - `SettingsService` — системные настройки и миграции
 - `AdminAuditLogService` — административный аудит
+
+### Document-domain модель
+
+Текущая document-архитектура построена вокруг общей корневой сущности документа:
+
+- `documents` — общий корень документа с полями `id`, `kind`, `nomenclature_id`, `document_type_id`, `content`, `pages_count`, `created_by`, `created_at`, `updated_at`
+- `incoming_document_details` — типоспецифичные поля входящего документа
+- `outgoing_document_details` — типоспецифичные поля исходящего документа
+
+Связанные сущности больше не используют полиморфную пару `document_id + document_type` в БД:
+
+- `assignments`
+- `acknowledgments`
+- `attachments`
+- `document_journal`
+- `document_links`
+
+Все они ссылаются на единый `documents(id)`, а тип документа определяется через `documents.kind`.
+
+Это дает:
+
+- нормальную ссылочную целостность на уровне БД
+- более простой сервисный код без дублирующего `switch` по типу документа
+- единый путь расширения document-domain для будущих типов документов
 
 ## 4. Модель авторизации
 

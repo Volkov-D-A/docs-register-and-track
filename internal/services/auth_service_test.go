@@ -259,6 +259,22 @@ func TestAuthService_GetCurrentUser(t *testing.T) {
 		assert.Equal(t, ErrNotAuthenticated, err)
 		assert.Nil(t, dto)
 	})
+
+	t.Run("user deleted after login", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := authService.Login(user.Login, password)
+		require.NoError(t, err)
+
+		mockRepo.On("GetByID", user.ID).Return(nil, nil).Once()
+
+		dto, err := authService.GetCurrentUser()
+		require.Error(t, err)
+		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Nil(t, dto)
+	})
 }
 
 // ---------- TestAuthService_ChangePassword ----------
@@ -300,6 +316,21 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		authService := NewAuthService(nil, mockRepo)
 
 		err := authService.ChangePassword(password, newPassword)
+		require.Error(t, err)
+		assert.Equal(t, ErrNotAuthenticated, err)
+	})
+
+	t.Run("user deleted after login", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := authService.Login(user.Login, password)
+		require.NoError(t, err)
+
+		mockRepo.On("GetByID", user.ID).Return(nil, nil).Once()
+
+		err = authService.ChangePassword(password, newPassword)
 		require.Error(t, err)
 		assert.Equal(t, ErrNotAuthenticated, err)
 	})
@@ -419,6 +450,62 @@ func TestAuthService_HasRole(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := NewAuthService(nil, mockRepo)
 		assert.False(t, authService.HasRole("admin"))
+	})
+
+	t.Run("user deleted after login", func(t *testing.T) {
+		user, password := newTestUser()
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := authService.Login(user.Login, password)
+		require.NoError(t, err)
+
+		mockRepo.On("GetByID", user.ID).Return(nil, nil).Once()
+		assert.False(t, authService.HasRole("admin"))
+	})
+}
+
+func TestAuthService_GetCurrentAuditInfo(t *testing.T) {
+	t.Run("not authenticated", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+
+		userID, userName := authService.GetCurrentAuditInfo()
+		assert.Equal(t, uuid.Nil, userID)
+		assert.Equal(t, "system", userName)
+	})
+
+	t.Run("user deleted after login", func(t *testing.T) {
+		user, password := newTestUser()
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := authService.Login(user.Login, password)
+		require.NoError(t, err)
+
+		mockRepo.On("GetByID", user.ID).Return(nil, nil).Once()
+
+		userID, userName := authService.GetCurrentAuditInfo()
+		assert.Equal(t, user.ID, userID)
+		assert.Equal(t, "system", userName)
+	})
+
+	t.Run("repo error", func(t *testing.T) {
+		user, password := newTestUser()
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := authService.Login(user.Login, password)
+		require.NoError(t, err)
+
+		mockRepo.On("GetByID", user.ID).Return(nil, errors.New("db error")).Once()
+
+		userID, userName := authService.GetCurrentAuditInfo()
+		assert.Equal(t, user.ID, userID)
+		assert.Equal(t, "system", userName)
 	})
 }
 
