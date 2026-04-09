@@ -75,12 +75,22 @@ func (s *UserService) ResetPassword(userID string, newPassword string) error {
 		return err
 	}
 
+	user, err := s.userRepo.GetByID(uid)
+	if err != nil {
+		return err
+	}
+
 	if err := s.userRepo.ResetPassword(uid, newPassword); err != nil {
 		return err
 	}
 
+	targetUserName := user.FullName
+	if targetUserName == "" {
+		targetUserName = user.Login
+	}
+
 	adminID, adminName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(adminID, adminName, "USER_PASSWORD_RESET", fmt.Sprintf("Сброшен пароль пользователя (ID: %s)", userID))
+	s.auditService.LogAction(adminID, adminName, "USER_PASSWORD_RESET", fmt.Sprintf("Сброшен пароль пользователя «%s»", targetUserName))
 	return nil
 }
 

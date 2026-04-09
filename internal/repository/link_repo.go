@@ -126,7 +126,14 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 		WITH RECURSIVE doc_graph AS (
 			-- Base case: direct links to/from the root document
 			SELECT 
-				l.id, ds.kind, l.source_document_id, dt.kind, l.target_document_id, l.link_type, l.created_by, l.created_at,
+				l.id,
+				ds.kind AS source_type,
+				l.source_document_id AS source_id,
+				dt.kind AS target_type,
+				l.target_document_id AS target_id,
+				l.link_type,
+				l.created_by,
+				l.created_at,
 				1 as depth
 			FROM document_links l
 			JOIN documents ds ON ds.id = l.source_document_id
@@ -137,7 +144,14 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 			
 			-- Recursive step: find links connected to documents in the graph
 			SELECT 
-				l.id, ds.kind, l.source_document_id, dt.kind, l.target_document_id, l.link_type, l.created_by, l.created_at,
+				l.id,
+				ds.kind AS source_type,
+				l.source_document_id AS source_id,
+				dt.kind AS target_type,
+				l.target_document_id AS target_id,
+				l.link_type,
+				l.created_by,
+				l.created_at,
 				g.depth + 1
 			FROM document_links l
 			JOIN documents ds ON ds.id = l.source_document_id
@@ -151,7 +165,7 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 			WHERE g.depth < 5 AND l.id != g.id -- Limit depth to prevent infinite loops (though usually DAG)
 		)
 		SELECT DISTINCT 
-			id, source_type, source_id, target_type, target_id, link_type, created_by, created_at 
+			id, source_type, source_id, target_type, target_id, link_type, created_by, created_at
 		FROM doc_graph
 	`
 

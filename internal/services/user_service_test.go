@@ -8,8 +8,29 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+type adminAuditLogStoreMock struct {
+	mock.Mock
+}
+
+func (m *adminAuditLogStoreMock) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
+	args := m.Called(req)
+	return args.Get(0).(uuid.UUID), args.Error(1)
+}
+
+func (m *adminAuditLogStoreMock) GetAll(limit, offset int) ([]models.AdminAuditLog, int, error) {
+	args := m.Called(limit, offset)
+
+	var logs []models.AdminAuditLog
+	if got := args.Get(0); got != nil {
+		logs = got.([]models.AdminAuditLog)
+	}
+
+	return logs, args.Int(1), args.Error(2)
+}
 
 func TestUserService_GetAllUsers(t *testing.T) {
 	// Получение списка всех заведенных пользователей в системе
@@ -199,7 +220,20 @@ func TestUserService_ResetPassword(t *testing.T) {
 
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo := setupUserService(t, "admin")
+		auditRepo := new(adminAuditLogStoreMock)
+		svc.auditService = NewAdminAuditLogService(auditRepo, svc.auth)
+
+		targetUser := &models.User{ID: uid, FullName: "Иван Петров", Login: "ipetrov"}
+		repo.On("GetByID", uid).Return(targetUser, nil).Once()
 		repo.On("ResetPassword", uid, "NewPass123!").Return(nil).Once()
+		auditRepo.
+			On("Create", mock.MatchedBy(func(req models.CreateAdminAuditLogRequest) bool {
+				return req.Action == "USER_PASSWORD_RESET" &&
+					req.Details == "Сброшен пароль пользователя «Иван Петров»"
+			})).
+			Return(uuid.New(), nil).
+			Once()
+
 		err := svc.ResetPassword(uid.String(), "NewPass123!")
 		require.NoError(t, err)
 	})

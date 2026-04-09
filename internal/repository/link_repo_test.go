@@ -24,10 +24,10 @@ func TestLinkRepository_Create(t *testing.T) {
 	ctx := context.Background()
 
 	link := &models.DocumentLink{
-		SourceID:   uuid.New(),
-		TargetID:   uuid.New(),
-		LinkType:   "reply",
-		CreatedBy:  uuid.New(),
+		SourceID:  uuid.New(),
+		TargetID:  uuid.New(),
+		LinkType:  "reply",
+		CreatedBy: uuid.New(),
 	}
 
 	query := `INSERT INTO document_links \( source_document_id, target_document_id, link_type, created_by \) VALUES \(\$1, \$2, \$3, \$4\) RETURNING id, created_at`
@@ -107,7 +107,7 @@ func TestLinkRepository_GetGraph(t *testing.T) {
 	rootID := uuid.New()
 	now := time.Now()
 
-	query := `WITH RECURSIVE doc_graph AS \(.*source_document_id = \$1 OR target_document_id = \$1.*SELECT DISTINCT(.*)FROM doc_graph`
+	query := `WITH RECURSIVE doc_graph AS \(.*ds\.kind AS source_type.*l\.source_document_id AS source_id.*dt\.kind AS target_type.*l\.target_document_id AS target_id.*source_document_id = \$1 OR target_document_id = \$1.*SELECT DISTINCT.*source_type, source_id, target_type, target_id, link_type, created_by, created_at.*FROM doc_graph`
 
 	rows := sqlmock.NewRows([]string{
 		"id", "source_type", "source_id", "target_type", "target_id",

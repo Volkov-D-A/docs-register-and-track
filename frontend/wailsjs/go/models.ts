@@ -1013,7 +1013,6 @@ export namespace models {
 	}
 	export class CreateJournalEntryRequest {
 	    DocumentID: number[];
-	    DocumentType: string;
 	    UserID: number[];
 	    Action: string;
 	    Details: string;
@@ -1025,7 +1024,6 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.DocumentID = source["DocumentID"];
-	        this.DocumentType = source["DocumentType"];
 	        this.UserID = source["UserID"];
 	        this.Action = source["Action"];
 	        this.Details = source["Details"];
@@ -1356,3 +1354,4 @@ export namespace services {
 	}
 
 }
+
