@@ -49,7 +49,7 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 		return nil, models.ErrUnauthorized
 	}
 
-	if err := requireClerkDocumentRole(s.authService); err != nil {
+	if err := requireDocumentDomainReadRole(s.authService); err != nil {
 		return nil, err
 	}
 
@@ -58,6 +58,9 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 		return nil, fmt.Errorf("invalid document ID")
 	}
 	if _, err := s.access.RequireExists(documentID); err != nil {
+		return nil, err
+	}
+	if err := s.access.RequireReadAnyType(documentID); err != nil {
 		return nil, err
 	}
 

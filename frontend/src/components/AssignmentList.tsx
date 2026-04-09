@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, PlayCi
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import AssignmentModal from './AssignmentModal';
+import AssignmentCompletionModal from './AssignmentCompletionModal';
 
 /**
  * Свойства компонента AssignmentList.
@@ -29,9 +30,10 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
     const isExecutorOnly = currentRole === 'executor';
 
     // Report modal
-    const [reportModalOpen, setReportModalOpen] = useState(false);
-    const [currentAssignmentId, setCurrentAssignmentId] = useState<string>('');
-    const [reportText, setReportText] = useState('');
+    const [completionModalOpen, setCompletionModalOpen] = useState(false);
+    const [currentAssignment, setCurrentAssignment] = useState<any>(null);
+    const [returnModalOpen, setReturnModalOpen] = useState(false);
+    const [returnReasonText, setReturnReasonText] = useState('');
 
     const load = async () => {
         if (!documentId) return;
@@ -71,14 +73,15 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
         }
     };
 
-    const handleComplete = () => {
-        if (!reportText.trim()) {
-            message.error('Введите отчет об исполнении');
+    const handleReturnToRevision = () => {
+        if (!returnReasonText.trim()) {
+            message.error('Введите причину возврата');
             return;
         }
-        updateStatus(currentAssignmentId, 'completed', reportText);
-        setReportModalOpen(false);
-        setReportText('');
+        updateStatus(currentAssignment.id, 'returned', returnReasonText);
+        setReturnModalOpen(false);
+        setReturnReasonText('');
+        setCurrentAssignment(null);
     };
 
     const columns = [
@@ -165,13 +168,21 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
                         {isExecutor && r.status === 'in_progress' && (
                             <Tooltip title="Исполнить">
                                 <Button size="small" icon={<CheckCircleOutlined />}
-                                    onClick={() => { setCurrentAssignmentId(r.id); setReportText(r.report || ''); setReportModalOpen(true); }} />
+                                    onClick={() => { setCurrentAssignment(r); setCompletionModalOpen(true); }} />
                             </Tooltip>
                         )}
 
                         {isClerk && r.status === 'completed' && (
                             <Tooltip title="Вернуть на доработку">
-                                <Button size="small" icon={<UndoOutlined />} onClick={() => updateStatus(r.id, 'returned')} />
+                                <Button
+                                    size="small"
+                                    icon={<UndoOutlined />}
+                                    onClick={() => {
+                                        setCurrentAssignment(r);
+                                        setReturnReasonText('');
+                                        setReturnModalOpen(true);
+                                    }}
+                                />
                             </Tooltip>
                         )}
                     </Space>
@@ -201,7 +212,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
                     expandedRowRender: (record) => (
                         <div style={{ margin: 0 }}>
                             {record.report && (
-                                <p><b>Отчет об исполнении:</b> {record.report}</p>
+                                <p><b>{record.status === 'returned' ? 'Причина возврата:' : 'Отчет об исполнении:'}</b> {record.report}</p>
                             )}
                         </div>
                     ),
@@ -218,18 +229,38 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
                 initialValues={editAssignment}
             />
 
+            <AssignmentCompletionModal
+                open={completionModalOpen}
+                assignmentId={currentAssignment?.id || ''}
+                documentId={currentAssignment?.documentId || ''}
+                initialReport={currentAssignment?.report || ''}
+                onCancel={() => {
+                    setCompletionModalOpen(false);
+                    setCurrentAssignment(null);
+                }}
+                onSuccess={() => {
+                    setCompletionModalOpen(false);
+                    setCurrentAssignment(null);
+                    load();
+                }}
+            />
+
             <Modal
-                title="Отчет об исполнении"
-                open={reportModalOpen}
-                onCancel={() => setReportModalOpen(false)}
-                onOk={handleComplete}
-                okText="Исполнено"
+                title="Причина возврата на доработку"
+                open={returnModalOpen}
+                onCancel={() => {
+                    setReturnModalOpen(false);
+                    setReturnReasonText('');
+                    setCurrentAssignment(null);
+                }}
+                onOk={handleReturnToRevision}
+                okText="Вернуть"
             >
                 <TextArea
                     rows={4}
-                    value={reportText}
-                    onChange={e => setReportText(e.target.value)}
-                    placeholder="Введите результат выполнения поручения..."
+                    value={returnReasonText}
+                    onChange={e => setReturnReasonText(e.target.value)}
+                    placeholder="Введите причину возврата..."
                 />
             </Modal>
         </div>

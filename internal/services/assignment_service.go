@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,6 +186,22 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 
 	if !allowed {
 		return nil, models.NewForbidden(fmt.Sprintf("недостаточно прав для установки статуса %s", status))
+	}
+
+	report = strings.TrimSpace(report)
+	switch status {
+	case "completed":
+		if report == "" {
+			return nil, fmt.Errorf("отчет об исполнении обязателен")
+		}
+	case "returned":
+		if report == "" {
+			return nil, fmt.Errorf("причина возврата обязательна")
+		}
+	case "finished":
+		if report == "" {
+			report = existing.Report
+		}
 	}
 
 	// Вычисление даты завершения

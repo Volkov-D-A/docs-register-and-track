@@ -334,27 +334,78 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 
 	t.Run("clerk to finished from completed", func(t *testing.T) {
 		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		completedAt := time.Now()
 		completedAssignment := &models.Assignment{
 			ID:         assignmentID,
 			DocumentID: docID,
 			ExecutorID: execID,
 			Content:    "Контент",
 			Status:     "completed",
+			Report:     "Отчёт исполнителя",
+			CompletedAt: &completedAt,
 		}
 
 		repo.On("GetByID", assignmentID).Return(completedAssignment, nil).Once()
 		repo.On("Update", assignmentID, execID, "Контент",
-			(*time.Time)(nil), "finished", "",
-			(*time.Time)(nil), []string(nil),
+			(*time.Time)(nil), "finished", "Отчёт исполнителя",
+			completedAssignment.CompletedAt, []string(nil),
 		).Return(&models.Assignment{
 			ID:     assignmentID,
 			Status: "finished",
+			Report: "Отчёт исполнителя",
 		}, nil).Once()
 
 		result, err := svc.UpdateStatus(assignmentID.String(), "finished", "")
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "finished", result.Status)
+	})
+
+	t.Run("clerk to returned requires reason", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		completedAssignment := &models.Assignment{
+			ID:         assignmentID,
+			DocumentID: docID,
+			ExecutorID: execID,
+			Content:    "Контент",
+			Status:     "completed",
+			Report:     "Отчёт исполнителя",
+		}
+
+		repo.On("GetByID", assignmentID).Return(completedAssignment, nil).Once()
+
+		result, err := svc.UpdateStatus(assignmentID.String(), "returned", "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "причина возврата обязательна")
+		assert.Nil(t, result)
+	})
+
+	t.Run("clerk to returned with reason", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		completedAssignment := &models.Assignment{
+			ID:         assignmentID,
+			DocumentID: docID,
+			ExecutorID: execID,
+			Content:    "Контент",
+			Status:     "completed",
+			Report:     "Отчёт исполнителя",
+		}
+
+		repo.On("GetByID", assignmentID).Return(completedAssignment, nil).Once()
+		repo.On("Update", assignmentID, execID, "Контент",
+			(*time.Time)(nil), "returned", "Нужно исправить замечания",
+			(*time.Time)(nil), []string(nil),
+		).Return(&models.Assignment{
+			ID:     assignmentID,
+			Status: "returned",
+			Report: "Нужно исправить замечания",
+		}, nil).Once()
+
+		result, err := svc.UpdateStatus(assignmentID.String(), "returned", "Нужно исправить замечания")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "returned", result.Status)
+		assert.Equal(t, "Нужно исправить замечания", result.Report)
 	})
 
 	t.Run("admin forbidden", func(t *testing.T) {

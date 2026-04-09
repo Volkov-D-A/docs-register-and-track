@@ -138,6 +138,29 @@ func TestAttachmentService_Upload(t *testing.T) {
 		assert.Equal(t, "test.txt", result.Filename)
 	})
 
+	t.Run("success executor with assignment access", func(t *testing.T) {
+		svc, repo, settingsRepo, fileStorage, incomingRepo, _, _, assignmentRepo, _, _, auth := setupAttachmentService(t, "executor")
+		currentUserID, err := auth.GetCurrentUserUUID()
+		require.NoError(t, err)
+
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Twice()
+		assignmentRepo.On("HasDocumentAccess", currentUserID, docID).Return(true, nil).Once()
+
+		settingsRepo.On("Get", "max_file_size_mb").Return(
+			&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil,
+		).Once()
+		settingsRepo.On("Get", "allowed_file_types").Return(
+			&models.SystemSetting{Key: "allowed_file_types", Value: ".pdf,.doc,.txt"}, nil,
+		).Once()
+		fileStorage.On("UploadFile", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("[]uint8"), "text/plain; charset=utf-8").Return(nil).Once()
+		repo.On("Create", mock.AnythingOfType("*models.Attachment")).Return(nil).Once()
+
+		result, err := svc.Upload(docID.String(), "test.txt", b64)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "test.txt", result.Filename)
+	})
+
 	t.Run("not authenticated", func(t *testing.T) {
 		svc := setupAttachmentServiceNotAuth(t)
 		result, err := svc.Upload(docID.String(), "test.txt", b64)
