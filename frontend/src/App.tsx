@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuthStore } from './store/useAuthStore';
+import { resolveUserProfile, useAuthStore } from './store/useAuthStore';
 import { useDraftLinkStore } from './store/useDraftLinkStore';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -11,11 +11,12 @@ import ProfilePage from './pages/ProfilePage';
 import MainLayout from './components/MainLayout';
 import { GetCurrent, MarkCurrentViewed } from '../wailsjs/go/services/ReleaseNoteService';
 import { models } from '../wailsjs/go/models';
+import { getDocumentPageKey } from './constants/documentKinds';
 
 // Заглушки для страниц
 
 function App() {
-    const { isAuthenticated, currentRole, user } = useAuthStore();
+    const { isAuthenticated, hasRole, user } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
     const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
     const [release, setRelease] = useState<models.ReleaseNote | null>(null);
@@ -23,12 +24,12 @@ function App() {
     // При входе в приложение всегда перенаправляем на дашборд
     // Или на страницу создания документа, если есть draftLink
     useEffect(() => {
-        const targetType = useDraftLinkStore.getState().targetType;
+        const targetKind = useDraftLinkStore.getState().targetKind;
         const sourceId = useDraftLinkStore.getState().sourceId;
 
         if (isAuthenticated) {
-            if (sourceId && ['incoming', 'outgoing'].includes(targetType)) {
-                setCurrentPage(targetType);
+            if (sourceId && targetKind) {
+                setCurrentPage(getDocumentPageKey(targetKind));
             } else {
                 setCurrentPage('dashboard');
             }
@@ -38,19 +39,21 @@ function App() {
     // Подписка на изменения draftLink для мгновенного перехода из модалки
     useEffect(() => {
         const unsubscribe = useDraftLinkStore.subscribe((state) => {
-            if (state.sourceId && ['incoming', 'outgoing'].includes(state.targetType)) {
-                setCurrentPage(state.targetType);
+            if (state.sourceId && state.targetKind) {
+                setCurrentPage(getDocumentPageKey(state.targetKind));
             }
         });
         return unsubscribe;
     }, []);
 
     useEffect(() => {
-        if (!isAuthenticated || !user || !currentRole) {
+        if (!isAuthenticated || !user) {
             setRelease(null);
             setIsAboutModalOpen(false);
             return;
         }
+
+        const profile = resolveUserProfile(user.roles);
 
         let isMounted = true;
 
@@ -65,7 +68,7 @@ function App() {
                 if (
                     currentRelease &&
                     !currentRelease.isViewed &&
-                    ['clerk', 'executor'].includes(currentRole)
+                    ['clerk', 'executor', 'mixed'].includes(profile)
                 ) {
                     setIsAboutModalOpen(true);
                 }
@@ -80,7 +83,7 @@ function App() {
         return () => {
             isMounted = false;
         };
-    }, [isAuthenticated, user, currentRole]);
+    }, [isAuthenticated, user]);
 
     const handleAboutModalClose = () => {
         setIsAboutModalOpen(false);
@@ -107,11 +110,14 @@ function App() {
     }
 
     const renderPage = () => {
-        // Проверка прав доступа для администратора
-        // Администратор не должен иметь доступа к документам и поручениям
-        if (currentRole === 'admin' && ['incoming', 'outgoing', 'assignments'].includes(currentPage)) {
-            // Если администратор пытается зайти на запрещенную страницу, показываем дашборд
-            // Можно добавить уведомление, но пока просто редирект (рендеринг другой страницы)
+        const canAccessDocuments = hasRole('clerk') || hasRole('executor');
+        const canAccessSettings = hasRole('admin');
+
+        if (!canAccessDocuments && ['incoming', 'outgoing', 'assignments'].includes(currentPage)) {
+            return <DashboardPage />;
+        }
+
+        if (!canAccessSettings && currentPage === 'settings') {
             return <DashboardPage />;
         }
 

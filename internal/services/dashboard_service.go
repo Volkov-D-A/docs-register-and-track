@@ -24,6 +24,37 @@ func NewDashboardService(repo DashboardStore, auth *AuthService, storage Storage
 	return &DashboardService{repo: repo, auth: auth, storage: storage}
 }
 
+func determineDashboardProfile(user *dto.User) string {
+	if user == nil {
+		return "executor"
+	}
+
+	hasRole := func(expected string) bool {
+		for _, role := range user.Roles {
+			if role == expected {
+				return true
+			}
+		}
+		return false
+	}
+
+	hasClerk := hasRole("clerk")
+	hasExecutor := hasRole("executor")
+
+	switch {
+	case hasClerk && hasExecutor:
+		return "mixed"
+	case hasClerk:
+		return "clerk"
+	case hasExecutor:
+		return "executor"
+	case hasRole("admin"):
+		return "admin"
+	default:
+		return "executor"
+	}
+}
+
 // GetStats возвращает статистику для дашборда в зависимости от роли пользователя.
 func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateStr string) (*dto.DashboardStats, error) {
 	if !s.auth.IsAuthenticated() {
@@ -35,13 +66,9 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 		return nil, err
 	}
 
-	role := s.auth.GetActiveRole()
-	if role == "" {
-		role = "executor"
-	}
-	if requestedRole != "" && requestedRole != role {
-		return nil, models.ErrForbidden
-	}
+	_ = requestedRole
+
+	role := determineDashboardProfile(user)
 
 	// Инициализация пустым списком для избежания null в JSON
 	stats := &models.DashboardStats{
@@ -77,6 +104,9 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 		}
 
 		result, err = s.getClerkStats(stats, startDate, endDate)
+	case "mixed":
+		uid, _ := uuid.Parse(user.ID)
+		result, err = s.getMixedStats(stats, uid, startDateStr, endDateStr)
 	default:
 		// Исполнитель (по умолчанию)
 		uid, _ := uuid.Parse(user.ID)
@@ -88,6 +118,34 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 	}
 
 	return dto.MapDashboardStats(result), nil
+}
+
+func (s *DashboardService) getMixedStats(stats *models.DashboardStats, userID uuid.UUID, startDateStr, endDateStr string) (*models.DashboardStats, error) {
+	var startDate, endDate time.Time
+	var err error
+
+	if startDateStr == "" || endDateStr == "" {
+		now := time.Now()
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		endDate = startDate.AddDate(0, 1, -1).Add(24*time.Hour - time.Nanosecond)
+	} else {
+		startDate, err = time.Parse("2006-01-02", startDateStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start date: %w", err)
+		}
+		endDateParsed, err := time.Parse("2006-01-02", endDateStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid end date: %w", err)
+		}
+		endDate = endDateParsed.Add(24*time.Hour - time.Nanosecond)
+	}
+
+	stats, err = s.getClerkStats(stats, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.getExecutorStats(stats, userID)
 }
 
 func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID uuid.UUID) (*models.DashboardStats, error) {

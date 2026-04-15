@@ -46,13 +46,12 @@ func (s *AssignmentService) Create(
 	deadline string,
 	coExecutorIDs []string,
 ) (*dto.Assignment, error) {
-	if err := requireClerkDocumentRole(s.auth); err != nil {
-		return nil, err
-	}
-
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
+	}
+	if err := s.access.RequireDocumentAction(docUUID, "assign"); err != nil {
+		return nil, err
 	}
 	doc, err := s.access.RequireExists(docUUID)
 	if err != nil {
@@ -94,8 +93,14 @@ func (s *AssignmentService) Update(
 	deadline string,
 	coExecutorIDs []string,
 ) (*dto.Assignment, error) {
-	if err := requireClerkDocumentRole(s.auth); err != nil {
-		return nil, err
+	if s.access.accessRepo == nil {
+		isClerk, err := s.access.hasRole("clerk")
+		if err != nil {
+			return nil, err
+		}
+		if !isClerk {
+			return nil, models.ErrForbidden
+		}
 	}
 
 	uid, err := uuid.Parse(id)
@@ -110,6 +115,9 @@ func (s *AssignmentService) Update(
 	}
 	if existing == nil {
 		return nil, fmt.Errorf("поручение не найдено")
+	}
+	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
+		return nil, err
 	}
 
 	// Проверка прав
@@ -168,8 +176,20 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	currentUserID := s.auth.GetCurrentUserID()
 	isExecutor := existing.ExecutorID.String() == currentUserID
 
-	isClerk := s.auth.HasActiveRole("clerk")
-	isExecutorRole := s.auth.HasActiveRole("executor")
+	currentUser, err := s.auth.GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+	isClerk := false
+	isExecutorRole := false
+	for _, role := range currentUser.Roles {
+		if role == "clerk" {
+			isClerk = true
+		}
+		if role == "executor" {
+			isExecutorRole = true
+		}
+	}
 
 	allowed := false
 	if isClerk {
@@ -234,7 +254,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 
 // GetByID возвращает поручение по его ID.
 func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
-	if err := s.auth.RequireAnyActiveRole("clerk", "executor"); err != nil {
+	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
 	uid, err := uuid.Parse(id)
@@ -245,7 +265,18 @@ func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 	if err != nil || res == nil {
 		return dto.MapAssignment(res), err
 	}
-	if s.auth.HasActiveRole("executor") && !isAssignmentAccessibleToExecutor(s.auth.GetCurrentUserID(), res) {
+	currentUser, err := s.auth.GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+	isExecutorRole := false
+	for _, role := range currentUser.Roles {
+		if role == "executor" {
+			isExecutorRole = true
+			break
+		}
+	}
+	if isExecutorRole && !isAssignmentAccessibleToExecutor(s.auth.GetCurrentUserID(), res) {
 		return nil, models.ErrForbidden
 	}
 	return dto.MapAssignment(res), nil
@@ -253,7 +284,7 @@ func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 
 // GetList возвращает список поручений с учетом фильтрации.
 func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
-	if err := s.auth.RequireAnyActiveRole("clerk", "executor"); err != nil {
+	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
 	// Значения по умолчанию
@@ -263,8 +294,15 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 	if filter.PageSize < 1 {
 		filter.PageSize = 20
 	}
-	if s.auth.HasActiveRole("executor") {
-		filter.ExecutorID = s.auth.GetCurrentUserID()
+	currentUser, err := s.auth.GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+	for _, role := range currentUser.Roles {
+		if role == "executor" {
+			filter.ExecutorID = s.auth.GetCurrentUserID()
+			break
+		}
 	}
 	res, err := s.repo.GetList(filter)
 	if err != nil {
@@ -280,9 +318,16 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 
 // Delete удаляет поручение по его ID (только для незавершенных, если не админ).
 func (s *AssignmentService) Delete(id string) error {
-	if err := requireClerkDocumentRole(s.auth); err != nil {
-		return err
+	if s.access.accessRepo == nil {
+		isClerk, err := s.access.hasRole("clerk")
+		if err != nil {
+			return err
+		}
+		if !isClerk {
+			return models.ErrForbidden
+		}
 	}
+
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
@@ -294,6 +339,9 @@ func (s *AssignmentService) Delete(id string) error {
 	}
 	if existing == nil {
 		return nil
+	}
+	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
+		return err
 	}
 
 	// Завершенные поручения удалять нельзя

@@ -10,7 +10,7 @@ import (
 type Assignment struct {
 	ID           uuid.UUID `json:"-"`
 	DocumentID   uuid.UUID `json:"-"`
-	DocumentType string    `json:"documentType"` // 'incoming' или 'outgoing'
+	DocumentKind string    `json:"documentKind"` // incoming_letter или outgoing_letter
 
 	ExecutorID   uuid.UUID `json:"-"`
 	ExecutorName string    `json:"executorName,omitempty"`

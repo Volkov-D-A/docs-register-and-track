@@ -28,7 +28,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 	args := []interface{}{}
 	argIdx := 1
 
-	where = append(where, "d.kind = 'outgoing'")
+	where = append(where, "d.kind = 'outgoing_letter'")
 
 	if filter.AccessibleByUserID != "" {
 		accessClauses := make([]string, 0, 2)
@@ -215,7 +215,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 		JOIN organizations ro ON out.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
 		WHERE d.id = $1 AND d.kind = $2
-	`, id, models.DocumentKindOutgoing).Scan(
+	`, id, models.DocumentKindOutgoingLetter).Scan(
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 		&doc.OutgoingNumber, &doc.OutgoingDate,
 		&doc.DocumentTypeID, &doc.DocumentTypeName,
@@ -247,11 +247,11 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, document_type_id, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6)
+			kind, nomenclature_id, registration_number, registration_date, document_type_id, content, pages_count, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`,
-		models.DocumentKindOutgoing, req.NomenclatureID, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+		models.DocumentKindOutgoingLetter, req.NomenclatureID, req.OutgoingNumber, req.OutgoingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create document root: %w", err)
@@ -294,7 +294,7 @@ func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest)
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = $4 AND kind = $5
 	`,
-		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindOutgoing,
+		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindOutgoingLetter,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update document root: %w", err)
 	}
@@ -323,14 +323,14 @@ func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest)
 
 // Delete удаляет исходящий документ по его ID.
 func (r *OutgoingDocumentRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM documents WHERE id = $1 AND kind = $2`, id, models.DocumentKindOutgoing)
+	_, err := r.db.Exec(`DELETE FROM documents WHERE id = $1 AND kind = $2`, id, models.DocumentKindOutgoingLetter)
 	return err
 }
 
 // GetCount возвращает общее количество исходящих документов (для дашборда).
 func (r *OutgoingDocumentRepository) GetCount() (int, error) {
 	var count int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM documents WHERE kind = $1`, models.DocumentKindOutgoing).Scan(&count); err != nil {
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM documents WHERE kind = $1`, models.DocumentKindOutgoingLetter).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil

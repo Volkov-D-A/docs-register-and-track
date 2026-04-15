@@ -42,8 +42,8 @@ func NewLinkService(
 
 // LinkDocuments создает связь указанного типа между двумя документами.
 func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (*dto.DocumentLink, error) {
-	if err := requireClerkDocumentRole(s.authService); err != nil {
-		return nil, err
+	if !s.authService.IsAuthenticated() {
+		return nil, models.ErrUnauthorized
 	}
 	userIDStr := s.authService.GetCurrentUserID()
 	userID, err := uuid.Parse(userIDStr)
@@ -64,6 +64,10 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 	if sourceID == targetID {
 		return nil, fmt.Errorf("cannot link document to itself")
 	}
+	if err := s.access.RequireLink(sourceID, targetID); err != nil {
+		return nil, err
+	}
+
 	sourceDoc, err := s.access.RequireExists(sourceID)
 	if err != nil {
 		return nil, err
@@ -72,11 +76,10 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 	if err != nil {
 		return nil, err
 	}
-
 	link := &models.DocumentLink{
-		SourceType: string(sourceDoc.Kind),
+		SourceKind: sourceDoc.Kind,
 		SourceID:   sourceID,
-		TargetType: string(targetDoc.Kind),
+		TargetKind: targetDoc.Kind,
 		TargetID:   targetID,
 		LinkType:   linkType,
 		CreatedBy:  userID,
@@ -109,8 +112,14 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 
 // UnlinkDocument удаляет связь между документами по её ID.
 func (s *LinkService) UnlinkDocument(idStr string) error {
-	if err := requireClerkDocumentRole(s.authService); err != nil {
-		return err
+	if s.access.accessRepo == nil {
+		isClerk, err := s.access.hasRole("clerk")
+		if err != nil {
+			return err
+		}
+		if !isClerk {
+			return models.ErrForbidden
+		}
 	}
 
 	id, err := uuid.Parse(idStr)
@@ -120,6 +129,12 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 
 	link, err := s.repo.GetByID(context.Background(), id)
 	if err != nil {
+		return err
+	}
+	if link == nil {
+		return nil
+	}
+	if err := s.access.RequireLink(link.SourceID, link.TargetID); err != nil {
 		return err
 	}
 
@@ -144,13 +159,12 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 
 // GetDocumentLinks возвращает список всех прямых связей для указанного документа.
 func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, error) {
-	if err := requireClerkDocumentRole(s.authService); err != nil {
-		return nil, err
-	}
-
 	docID, err := uuid.Parse(docIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
+	}
+	if err := s.access.RequireDocumentAction(docID, "link"); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.GetByDocumentID(context.Background(), docID)
 	return dto.MapDocumentLinks(res), err
@@ -158,13 +172,12 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 
 // GetDocumentFlow возвращает граф связей для документа, включая связанные узлы (документы) и ребра (связи) для визуализации.
 func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, error) {
-	if err := requireClerkDocumentRole(s.authService); err != nil {
-		return nil, err
-	}
-
 	rootID, err := uuid.Parse(rootIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
+	}
+	if err := s.access.RequireDocumentAction(rootID, "link"); err != nil {
+		return nil, err
 	}
 
 	links, err := s.repo.GetGraph(context.Background(), rootID)
@@ -181,8 +194,8 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 	}
 
 	for _, l := range links {
-		docIDs[l.SourceID] = l.SourceType
-		docIDs[l.TargetID] = l.TargetType
+		docIDs[l.SourceID] = string(l.SourceKind)
+		docIDs[l.TargetID] = string(l.TargetKind)
 	}
 
 	// Получение деталей документов
@@ -193,8 +206,8 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 	for id, docType := range docIDs {
 		var label, subject, dateStr, sender, recipient string
 
-		switch docType {
-		case "incoming":
+		switch models.NormalizeDocumentKind(docType) {
+		case models.DocumentKindIncomingLetter:
 			doc, err := s.incomingDocRepo.GetByID(id)
 			if err == nil && doc != nil {
 				label = doc.IncomingNumber
@@ -205,7 +218,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 					sender = "Неизвестно"
 				}
 			}
-		case "outgoing":
+		case models.DocumentKindOutgoingLetter:
 			doc, err := s.outgoingDocRepo.GetByID(id)
 			if err == nil && doc != nil {
 				label = doc.OutgoingNumber
@@ -225,7 +238,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 		nodes = append(nodes, models.GraphNode{
 			ID:        id.String(),
 			Label:     label,
-			Type:      docType,
+			KindCode:  docType,
 			Subject:   subject,
 			Date:      dateStr,
 			Sender:    sender,

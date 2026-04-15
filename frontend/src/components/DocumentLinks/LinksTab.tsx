@@ -4,6 +4,9 @@ import { LinkOutlined, DeleteOutlined, PlusOutlined, ApartmentOutlined, UnlockOu
 import { LinkDocuments, UnlinkDocument, GetDocumentLinks, models } from '../../types/link';
 import { LinkGraph } from './LinkGraph';
 import dayjs from 'dayjs';
+import { GetList } from '../../../wailsjs/go/services/DocumentQueryService';
+import { documentKinds, DOCUMENT_KIND_OUTGOING_LETTER, type RegistrationKind } from '../../constants/documentKinds';
+import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentLabel } from '../../config/documentLinkConfig';
 
 /**
  * Свойства вкладки связей документа.
@@ -26,7 +29,7 @@ export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
     const [isLocked, setIsLocked] = useState(true);
 
     // Form state
-    const [targetType, setTargetType] = useState<'incoming' | 'outgoing'>('outgoing'); // default opposite?
+    const [targetKind, setTargetKind] = useState<RegistrationKind>(DOCUMENT_KIND_OUTGOING_LETTER);
     const [targetId, setTargetId] = useState('');
     const [linkType, setLinkType] = useState('related');
 
@@ -44,36 +47,35 @@ export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
             }
         }, 500);
         return () => clearTimeout(timeoutId);
-    }, [searchTerm, targetType]);
+    }, [searchTerm, targetKind]);
 
     const performSearch = async (query: string) => {
         setSearchLoading(true);
         try {
-            let items: any[] = [];
-            if (targetType === 'incoming') {
-                const { GetList } = await import('../../../wailsjs/go/services/IncomingDocumentService');
-                const res = await GetList({
-                    page: 1, pageSize: 20, search: query,
-                    nomenclatureId: '', documentTypeId: '', orgId: '',
-                    dateFrom: '', dateTo: '', incomingNumber: '', outgoingNumber: '',
-                    senderName: '', outgoingDateFrom: '', outgoingDateTo: '',
-                    resolution: '', noResolution: false, nomenclatureIds: []
-                } as any);
-                items = res?.items || [];
-            } else {
-                const { GetList } = await import('../../../wailsjs/go/services/OutgoingDocumentService');
-                const res = await GetList({
-                    page: 1, pageSize: 20, search: query,
-                    nomenclatureIds: [], documentTypeId: '', orgId: '',
-                    dateFrom: '', dateTo: '', outgoingNumber: '', recipientName: ''
-                } as any);
-                items = res?.items || [];
-            }
+            const res = await GetList(targetKind, {
+                page: 1,
+                pageSize: 20,
+                search: query,
+                nomenclatureIds: [],
+                documentTypeId: '',
+                orgId: '',
+                dateFrom: '',
+                dateTo: '',
+                incomingNumber: '',
+                outgoingNumber: '',
+                senderName: '',
+                recipientName: '',
+                outgoingDateFrom: '',
+                outgoingDateTo: '',
+                resolution: '',
+                noResolution: false,
+            } as any);
+            const items = res?.items || [];
 
             const options = items.map((item: any) => {
-                const date = targetType === 'incoming' ? item.incomingDate : item.outgoingDate;
-                const number = targetType === 'incoming' ? item.incomingNumber : item.outgoingNumber;
-                const content = item.content || item.subject || '';
+                const date = item.registrationDate;
+                const number = item.registrationNumber;
+                const content = item.content || '';
                 return {
                     value: item.id,
                     label: `${number} от ${dayjs(date).format('DD.MM.YYYY')} - ${content}`
@@ -143,15 +145,11 @@ export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
     const renderLinkItem = (item: models.DocumentLink) => {
         const isSource = item.sourceId === documentId;
         const otherId = isSource ? item.targetId : item.sourceId;
-        const otherType = isSource ? item.targetType : item.sourceType;
+        const otherType = isSource ? item.targetKind : item.sourceKind;
         const otherNumber = isSource ? item.targetNumber : item.sourceNumber;
         const otherSubject = item.targetSubject || ""; // We might only have target subject in my repo query
 
-        // Link type label
-        let typeLabel = item.linkType;
-        if (item.linkType === 'reply') typeLabel = 'Ответ';
-        if (item.linkType === 'follow_up') typeLabel = 'Во исполнение';
-        if (item.linkType === 'related') typeLabel = 'Связан';
+        const typeLabel = getDocumentLinkTypeLabel(item.linkType);
 
         const direction = isSource ? "->" : "<-";
 
@@ -164,7 +162,10 @@ export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
                     <div style={{ minWidth: 0 }}>
                         <div style={{ marginBottom: 4, fontWeight: 500 }}>
                             <Tag color="blue">{typeLabel}</Tag>
-                            {direction} {otherType === 'incoming' ? 'Входящий' : 'Исходящий'} № {otherNumber || '???'}
+                            <Tag color={getLinkedDocumentColor(otherType)} style={{ marginInlineStart: 8 }}>
+                                {getLinkedDocumentLabel(otherType)}
+                            </Tag>
+                            {direction} № {otherNumber || '???'}
                         </div>
                         <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 13, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
                             {otherSubject}
@@ -216,9 +217,12 @@ export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
                         <Select.Option value="related">Связан с...</Select.Option>
                     </Select>
 
-                    <Select value={targetType} onChange={(val) => { setTargetType(val); setTargetId(''); setSearchTerm(''); setTargetOptions([]); }} style={{ width: '100%' }}>
-                        <Select.Option value="incoming">Входящий документ</Select.Option>
-                        <Select.Option value="outgoing">Исходящий документ</Select.Option>
+                    <Select value={targetKind} onChange={(val) => { setTargetKind(val); setTargetId(''); setSearchTerm(''); setTargetOptions([]); }} style={{ width: '100%' }}>
+                        {documentKinds.map((kind) => (
+                            <Select.Option key={kind.code} value={kind.code}>
+                                {getLinkedDocumentLabel(kind.code)} документ
+                            </Select.Option>
+                        ))}
                     </Select>
 
                     <Select

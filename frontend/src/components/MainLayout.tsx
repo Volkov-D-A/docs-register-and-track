@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Select } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Modal, Spin } from 'antd';
 import {
     DashboardOutlined,
     InboxOutlined,
@@ -9,10 +9,14 @@ import {
     UserOutlined,
     LogoutOutlined,
     InfoCircleOutlined,
+    PlusOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store/useAuthStore';
 import AboutProgramModal from './AboutProgramModal';
 import { models } from '../../wailsjs/go/models';
+import { documentKinds } from '../constants/documentKinds';
+import { useRegisterDocumentStore } from '../store/useRegisterDocumentStore';
+import { useDocumentKinds } from '../hooks/useDocumentKinds';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -46,8 +50,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     onAboutModalClose,
     release,
 }) => {
-    const { user, logout, hasRole, currentRole } = useAuthStore();
+    const { user, logout, hasRole } = useAuthStore();
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+    const [registerModalOpen, setRegisterModalOpen] = useState(false);
+    const canAccessDocuments = hasRole('clerk') || hasRole('executor');
+    const canRegisterDocuments = hasRole('clerk');
+    const {
+        kinds: availableRegistrationKinds,
+        loading: registrationKindsLoading,
+    } = useDocumentKinds({
+        mode: 'registration',
+        fallbackKinds: documentKinds,
+    });
 
     const menuItems = [
         {
@@ -55,7 +69,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             icon: <DashboardOutlined />,
             label: 'Дашборд',
         },
-        ...(currentRole !== 'admin' ? [
+        ...(canAccessDocuments ? [
             {
                 key: 'incoming',
                 icon: <InboxOutlined />,
@@ -153,29 +167,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                     justifyContent: 'flex-end',
                     borderBottom: '1px solid #f0f0f0',
                 }}>
-                    {user?.roles && user.roles.length > 1 && (
-                        <div style={{ marginRight: 16 }}>
-                            <span style={{ marginRight: 8, color: '#888' }}>Роль:</span>
-                            <Select
-                                value={useAuthStore.getState().currentRole}
-                                onChange={async (val: string) => {
-                                    try {
-                                        await useAuthStore.getState().setCurrentRole(val);
-                                        onPageChange('dashboard');
-                                    } catch (err) {
-                                        console.error('Failed to switch role:', err);
-                                    }
-                                }}
-                                style={{ width: 140 }}
-                                options={[
-                                    { value: 'admin', label: 'Администратор' },
-                                    { value: 'clerk', label: 'Делопроизводитель' },
-                                    { value: 'executor', label: 'Исполнитель' },
-                                ].filter(opt => user.roles.includes(opt.value))}
-                            />
-                        </div>
-                    )}
-
                     <Space size="middle">
                         <Button icon={<InfoCircleOutlined />} onClick={onAboutModalOpen}>
                             О программе
@@ -196,6 +187,57 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                     </div>
                 </Content>
             </Layout>
+            {canRegisterDocuments && (
+                <>
+                    <Button
+                        type="primary"
+                        size="large"
+                        icon={<PlusOutlined />}
+                        onClick={() => setRegisterModalOpen(true)}
+                        style={{
+                            position: 'fixed',
+                            right: 28,
+                            bottom: 28,
+                            zIndex: 1000,
+                            height: 52,
+                            borderRadius: 999,
+                            paddingInline: 20,
+                            boxShadow: '0 10px 24px rgba(24, 144, 255, 0.24)',
+                        }}
+                    >
+                        Зарегистрировать
+                    </Button>
+                    <Modal
+                        title="Выберите вид документа"
+                        open={registerModalOpen}
+                        onCancel={() => setRegisterModalOpen(false)}
+                        footer={null}
+                    >
+                        <Space direction="vertical" style={{ width: '100%' }}>
+                            {registrationKindsLoading && canRegisterDocuments ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+                                    <Spin />
+                                </div>
+                            ) : (
+                                availableRegistrationKinds.map((kind) => (
+                                    <Button
+                                        key={kind.code}
+                                        block
+                                        size="large"
+                                        onClick={() => {
+                                            useRegisterDocumentStore.getState().requestOpen(kind.code);
+                                            setRegisterModalOpen(false);
+                                            onPageChange(kind.pageKey);
+                                        }}
+                                    >
+                                        {kind.label}
+                                    </Button>
+                                ))
+                            )}
+                        </Space>
+                    </Modal>
+                </>
+            )}
             <AboutProgramModal open={isAboutModalOpen} onClose={onAboutModalClose} release={release} />
         </Layout>
     );

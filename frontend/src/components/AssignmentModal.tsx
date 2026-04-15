@@ -22,7 +22,6 @@ const { TextArea } = Input;
  * @param onCancel Обработчик отмены
  * @param onSuccess Обработчик успешного создания/редактирования
  * @param documentId Идентификатор документа
- * @param documentType Тип документа
  * @param initialValues Начальные значения (при редактировании)
  * @param isEdit Флаг режима редактирования
  */

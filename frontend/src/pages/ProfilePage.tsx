@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, Button, Typography, Space, Divider, Descriptions, Tag, Row, Col, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
-import { useAuthStore } from '../store/useAuthStore';
+import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
 
 const { Title, Text } = Typography;
 
@@ -10,7 +10,7 @@ const { Title, Text } = Typography;
  * Позволяет просматривать информацию о профиле, редактировать данные и менять пароль.
  */
 const ProfilePage: React.FC = () => {
-    const { user, currentRole, changePassword, updateProfile, isLoading, error, clearError } = useAuthStore();
+    const { user, changePassword, updateProfile, isLoading, error, clearError } = useAuthStore();
     const { message } = App.useApp();
     const [profileForm] = Form.useForm();
     const [passwordForm] = Form.useForm();
@@ -61,8 +61,10 @@ const ProfilePage: React.FC = () => {
     const roleNameMap: Record<string, string> = {
         'admin': 'Администратор',
         'clerk': 'Делопроизводитель',
-        'executor': 'Исполнитель'
+        'executor': 'Исполнитель',
+        'mixed': 'Смешанный профиль',
     };
+    const currentProfile = resolveUserProfile(user.roles);
 
     return (
         <div style={{ padding: '0 24px 24px' }}>
@@ -79,8 +81,8 @@ const ProfilePage: React.FC = () => {
                                     <Descriptions.Item label="Подразделение">
                                         {user.department?.name || <Text type="secondary">Не указано</Text>}
                                     </Descriptions.Item>
-                                    <Descriptions.Item label="Текущая роль">
-                                        <Tag color="blue">{currentRole ? (roleNameMap[currentRole] || currentRole) : 'Нет'}</Tag>
+                                    <Descriptions.Item label="Рабочий профиль">
+                                        <Tag color="blue">{roleNameMap[currentProfile] || currentProfile}</Tag>
                                     </Descriptions.Item>
                                     <Descriptions.Item label="Доступные роли">
                                         <Space size={[0, 4]} wrap>

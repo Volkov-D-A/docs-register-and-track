@@ -52,7 +52,7 @@ func (r *LinkRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Doc
 		WHERE l.id = $1
 	`
 	var l models.DocumentLink
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&l.ID, &l.SourceType, &l.SourceID, &l.TargetType, &l.TargetID, &l.LinkType, &l.CreatedBy, &l.CreatedAt)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&l.ID, &l.SourceKind, &l.SourceID, &l.TargetKind, &l.TargetID, &l.LinkType, &l.CreatedBy, &l.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -73,10 +73,10 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 		JOIN documents ds ON ds.id = l.source_document_id
 		JOIN documents dt ON dt.id = l.target_document_id
 		JOIN documents dtarget ON dtarget.id = l.target_document_id
-		LEFT JOIN incoming_document_details si ON si.document_id = l.source_document_id AND ds.kind = 'incoming'
-		LEFT JOIN outgoing_document_details so ON so.document_id = l.source_document_id AND ds.kind = 'outgoing'
-		LEFT JOIN incoming_document_details ti ON ti.document_id = l.target_document_id AND dt.kind = 'incoming'
-		LEFT JOIN outgoing_document_details to2 ON to2.document_id = l.target_document_id AND dt.kind = 'outgoing'
+		LEFT JOIN incoming_document_details si ON si.document_id = l.source_document_id AND ds.kind = 'incoming_letter'
+		LEFT JOIN outgoing_document_details so ON so.document_id = l.source_document_id AND ds.kind = 'outgoing_letter'
+		LEFT JOIN incoming_document_details ti ON ti.document_id = l.target_document_id AND dt.kind = 'incoming_letter'
+		LEFT JOIN outgoing_document_details to2 ON to2.document_id = l.target_document_id AND dt.kind = 'outgoing_letter'
 		WHERE l.source_document_id = $1 OR l.target_document_id = $1
 		ORDER BY l.created_at DESC
 	`
@@ -92,8 +92,8 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 		var l models.DocumentLink
 		var sourceNum, targetNum, targetSubj sql.NullString
 		if err := rows.Scan(
-			&l.ID, &l.SourceType, &l.SourceID,
-			&l.TargetType, &l.TargetID,
+			&l.ID, &l.SourceKind, &l.SourceID,
+			&l.TargetKind, &l.TargetID,
 			&l.LinkType, &l.CreatedBy, &l.CreatedAt,
 			&sourceNum, &targetNum, &targetSubj,
 		); err != nil {
@@ -179,8 +179,8 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 	for rows.Next() {
 		var l models.DocumentLink
 		if err := rows.Scan(
-			&l.ID, &l.SourceType, &l.SourceID,
-			&l.TargetType, &l.TargetID,
+			&l.ID, &l.SourceKind, &l.SourceID,
+			&l.TargetKind, &l.TargetID,
 			&l.LinkType, &l.CreatedBy, &l.CreatedAt,
 		); err != nil {
 			return nil, err

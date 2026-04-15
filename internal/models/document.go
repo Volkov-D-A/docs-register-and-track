@@ -9,21 +9,40 @@ import (
 type DocumentKind string
 
 const (
-	DocumentKindIncoming DocumentKind = "incoming"
-	DocumentKindOutgoing DocumentKind = "outgoing"
+	DocumentKindIncomingLetter DocumentKind = "incoming_letter"
+	DocumentKindOutgoingLetter DocumentKind = "outgoing_letter"
 )
+
+func (k DocumentKind) IsIncoming() bool {
+	return k == DocumentKindIncomingLetter
+}
+
+func (k DocumentKind) IsOutgoing() bool {
+	return k == DocumentKindOutgoingLetter
+}
+
+func (k DocumentKind) LegacyViewType() string {
+	spec, ok := GetDocumentKindSpec(k)
+	if !ok {
+		return string(k)
+	}
+
+	return spec.LegacyViewType
+}
 
 // Document — общая корневая сущность документа.
 type Document struct {
-	ID             uuid.UUID    `json:"-"`
-	Kind           DocumentKind `json:"kind"`
-	NomenclatureID uuid.UUID    `json:"-"`
-	DocumentTypeID uuid.UUID    `json:"-"`
-	Content        string       `json:"content"`
-	PagesCount     int          `json:"pagesCount"`
-	CreatedBy      uuid.UUID    `json:"-"`
-	CreatedAt      time.Time    `json:"createdAt"`
-	UpdatedAt      time.Time    `json:"updatedAt"`
+	ID                 uuid.UUID    `json:"-"`
+	Kind               DocumentKind `json:"kind"`
+	NomenclatureID     uuid.UUID    `json:"-"`
+	RegistrationNumber string       `json:"registrationNumber"`
+	RegistrationDate   time.Time    `json:"registrationDate"`
+	DocumentTypeID     uuid.UUID    `json:"-"`
+	Content            string       `json:"content"`
+	PagesCount         int          `json:"pagesCount"`
+	CreatedBy          uuid.UUID    `json:"-"`
+	CreatedAt          time.Time    `json:"createdAt"`
+	UpdatedAt          time.Time    `json:"updatedAt"`
 }
 
 // IncomingDocument — входящий документ
@@ -104,14 +123,14 @@ type OutgoingDocument struct {
 
 // DocumentLink — связь между документами
 type DocumentLink struct {
-	ID         uuid.UUID `json:"-"`
-	SourceType string    `json:"sourceType"`
-	SourceID   uuid.UUID `json:"-"`
-	TargetType string    `json:"targetType"`
-	TargetID   uuid.UUID `json:"-"`
-	LinkType   string    `json:"linkType"`
-	CreatedBy  uuid.UUID `json:"-"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID         uuid.UUID    `json:"-"`
+	SourceKind DocumentKind `json:"sourceKind"`
+	SourceID   uuid.UUID    `json:"-"`
+	TargetKind DocumentKind `json:"targetKind"`
+	TargetID   uuid.UUID    `json:"-"`
+	LinkType   string       `json:"linkType"`
+	CreatedBy  uuid.UUID    `json:"-"`
+	CreatedAt  time.Time    `json:"createdAt"`
 
 	SourceNumber  string `json:"sourceNumber,omitempty"`
 	TargetNumber  string `json:"targetNumber,omitempty"`
@@ -124,6 +143,7 @@ type DocumentFilter struct {
 	NomenclatureIDs        []string `json:"nomenclatureIds,omitempty"`
 	AllowedNomenclatureIDs []string `json:"-"`
 	AccessibleByUserID     string   `json:"-"`
+	KindCode               string   `json:"kindCode,omitempty"`
 	DocumentTypeID         string   `json:"documentTypeId,omitempty"`
 	OrgID                  string   `json:"orgId,omitempty"`
 	DateFrom               string   `json:"dateFrom,omitempty"`
@@ -131,6 +151,7 @@ type DocumentFilter struct {
 	Search                 string   `json:"search,omitempty"`
 	IncomingNumber         string   `json:"incomingNumber,omitempty"`
 	OutgoingNumber         string   `json:"outgoingNumber,omitempty"`
+	RecipientName          string   `json:"recipientName,omitempty"`
 	SenderName             string   `json:"senderName,omitempty"`
 	OutgoingDateFrom       string   `json:"outgoingDateFrom,omitempty"`
 	OutgoingDateTo         string   `json:"outgoingDateTo,omitempty"`
@@ -145,6 +166,7 @@ type OutgoingDocumentFilter struct {
 	NomenclatureIDs        []string `json:"nomenclatureIds,omitempty"`
 	AllowedNomenclatureIDs []string `json:"-"`
 	AccessibleByUserID     string   `json:"-"`
+	KindCode               string   `json:"kindCode,omitempty"`
 	DocumentTypeID         string   `json:"documentTypeId,omitempty"`
 	OrgID                  string   `json:"orgId,omitempty"` // Организация-получатель
 	DateFrom               string   `json:"dateFrom,omitempty"`
@@ -168,7 +190,7 @@ type PagedResult[T any] struct {
 type GraphNode struct {
 	ID        string `json:"id"`
 	Label     string `json:"label"` // Номер документа
-	Type      string `json:"type"`  // входящий/исходящий
+	KindCode  string `json:"kindCode"`
 	Subject   string `json:"subject"`
 	Date      string `json:"date"`
 	Sender    string `json:"sender"`

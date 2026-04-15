@@ -23,7 +23,7 @@ func NewAdminAuditLogService(repo AdminAuditLogStore, auth *AuthService) *AdminA
 
 // GetAll возвращает записи журнала с пагинацией (только для администраторов).
 func (s *AdminAuditLogService) GetAll(page, pageSize int) (*dto.AdminAuditLogPage, error) {
-	if err := s.auth.RequireActiveRole("admin"); err != nil {
+	if err := s.auth.RequireRole("admin"); err != nil {
 		return nil, err
 	}
 

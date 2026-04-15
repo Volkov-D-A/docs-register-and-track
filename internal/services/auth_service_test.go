@@ -509,8 +509,8 @@ func TestAuthService_GetCurrentAuditInfo(t *testing.T) {
 	})
 }
 
-func TestAuthService_ActiveRole(t *testing.T) {
-	t.Run("login sets default active role by priority", func(t *testing.T) {
+func TestAuthService_RoleChecks(t *testing.T) {
+	t.Run("has role checks all assigned roles", func(t *testing.T) {
 		user := &models.User{
 			ID:           uuid.New(),
 			Login:        "multi_role_user",
@@ -521,12 +521,12 @@ func TestAuthService_ActiveRole(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := loginUser(t, mockRepo, user, "Passw0rd!")
 
-		assert.Equal(t, "clerk", authService.GetActiveRole())
-		assert.True(t, authService.HasActiveRole("clerk"))
-		assert.False(t, authService.HasActiveRole("executor"))
+		assert.True(t, authService.HasRole("clerk"))
+		assert.True(t, authService.HasRole("executor"))
+		assert.False(t, authService.HasRole("admin"))
 	})
 
-	t.Run("set active role switches to allowed role", func(t *testing.T) {
+	t.Run("require role validates membership", func(t *testing.T) {
 		user := &models.User{
 			ID:           uuid.New(),
 			Login:        "switch_role_user",
@@ -537,30 +537,28 @@ func TestAuthService_ActiveRole(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := loginUser(t, mockRepo, user, "Passw0rd!")
 
-		err := authService.SetActiveRole("clerk")
-		require.NoError(t, err)
-		assert.Equal(t, "clerk", authService.GetActiveRole())
-		assert.NoError(t, authService.RequireActiveRole("clerk"))
-		assert.ErrorIs(t, authService.RequireActiveRole("admin"), models.ErrForbidden)
+		assert.NoError(t, authService.RequireRole("clerk"))
+		assert.NoError(t, authService.RequireRole("admin"))
+		assert.ErrorIs(t, authService.RequireRole("executor"), models.ErrForbidden)
 	})
 
-	t.Run("set active role rejects missing role", func(t *testing.T) {
+	t.Run("require any role accepts any assigned role", func(t *testing.T) {
 		user, password := newTestUser()
 		mockRepo := mocks.NewUserStore(t)
 		authService := loginUser(t, mockRepo, user, password)
 
-		err := authService.SetActiveRole("admin")
-		assert.ErrorIs(t, err, models.ErrForbidden)
-		assert.Equal(t, "executor", authService.GetActiveRole())
+		assert.NoError(t, authService.RequireAnyRole("admin", "executor"))
+		assert.ErrorIs(t, authService.RequireAnyRole("admin", "clerk"), models.ErrForbidden)
 	})
 
-	t.Run("logout clears active role", func(t *testing.T) {
+	t.Run("logout clears authenticated role checks", func(t *testing.T) {
 		user, password := newTestUser()
 		mockRepo := mocks.NewUserStore(t)
 		authService := loginUser(t, mockRepo, user, password)
 
 		require.NoError(t, authService.Logout())
-		assert.Empty(t, authService.GetActiveRole())
+		assert.False(t, authService.HasRole("executor"))
+		assert.ErrorIs(t, authService.RequireRole("executor"), models.ErrUnauthorized)
 	})
 }
 

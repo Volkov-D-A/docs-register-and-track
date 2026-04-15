@@ -15,7 +15,6 @@ interface AcknowledgmentListProps {
 /**
  * Компонент списка ознакомлений с документом.
  * @param documentId Идентификатор документа
- * @param documentType Тип документа
  */
 const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId }) => {
     const { message } = App.useApp();

@@ -43,7 +43,13 @@ func setupAssignmentService(t *testing.T, role string) (
 	journalSvc := NewJournalService(journalRepo, auth, nil)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
-	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, nil, incomingRepo, outgoingRepo)
+	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+		return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, nil, nil, incomingRepo, outgoingRepo)
 
 	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc, accessSvc)
 	return svc, assignmentRepo, userRepo, auth, incomingRepo
@@ -59,7 +65,13 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 	journalSvc := NewJournalService(journalRepo, auth, nil)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
-	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, nil, incomingRepo, outgoingRepo)
+	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+		return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, nil, nil, incomingRepo, outgoingRepo)
 
 	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc, accessSvc)
 	return svc, assignmentRepo
@@ -74,7 +86,7 @@ func TestAssignmentService_Create(t *testing.T) {
 
 	t.Run("success with deadline", func(t *testing.T) {
 		svc, repo, _, _, incomingRepo := setupAssignmentService(t, "clerk")
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 
 		expected := &models.Assignment{
 			ID:         uuid.New(),
@@ -95,7 +107,7 @@ func TestAssignmentService_Create(t *testing.T) {
 
 	t.Run("success without deadline", func(t *testing.T) {
 		svc, repo, _, _, incomingRepo := setupAssignmentService(t, "clerk")
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 
 		expected := &models.Assignment{
 			ID:         uuid.New(),
@@ -133,7 +145,7 @@ func TestAssignmentService_Create(t *testing.T) {
 
 	t.Run("invalid executor ID", func(t *testing.T) {
 		svc, _, _, _, incomingRepo := setupAssignmentService(t, "clerk")
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 
 		result, err := svc.Create(docID.String(), "not-a-uuid", "Выполнить", "", nil)
 		require.Error(t, err)
@@ -274,7 +286,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 
 		incomingRepo := mocks.NewIncomingDocStore(t)
 		outgoingRepo := mocks.NewOutgoingDocStore(t)
-		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, nil, incomingRepo, outgoingRepo)
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, nil, nil, incomingRepo, outgoingRepo)
 		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
@@ -313,7 +325,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 
 		incomingRepo := mocks.NewIncomingDocStore(t)
 		outgoingRepo := mocks.NewOutgoingDocStore(t)
-		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, nil, incomingRepo, outgoingRepo)
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, nil, nil, incomingRepo, outgoingRepo)
 		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
@@ -336,12 +348,12 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 		completedAt := time.Now()
 		completedAssignment := &models.Assignment{
-			ID:         assignmentID,
-			DocumentID: docID,
-			ExecutorID: execID,
-			Content:    "Контент",
-			Status:     "completed",
-			Report:     "Отчёт исполнителя",
+			ID:          assignmentID,
+			DocumentID:  docID,
+			ExecutorID:  execID,
+			Content:     "Контент",
+			Status:      "completed",
+			Report:      "Отчёт исполнителя",
 			CompletedAt: &completedAt,
 		}
 

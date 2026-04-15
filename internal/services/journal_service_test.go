@@ -44,7 +44,7 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incomingRepo, outgoingRepo)
 	svc := NewJournalService(journalRepo, auth, accessSvc)
 	return svc, journalRepo, incomingRepo, outgoingRepo, auth
 }

@@ -1,8 +1,10 @@
 -- 8. Common Documents
 CREATE TABLE documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    kind VARCHAR(20) NOT NULL CHECK (kind IN ('incoming', 'outgoing')),
+    kind VARCHAR(40) NOT NULL CHECK (kind IN ('incoming_letter', 'outgoing_letter')),
     nomenclature_id UUID NOT NULL REFERENCES nomenclature(id),
+    registration_number VARCHAR(100) NOT NULL,
+    registration_date DATE NOT NULL,
     document_type_id UUID NOT NULL REFERENCES document_types(id),
     content TEXT NOT NULL,
     pages_count INT NOT NULL DEFAULT 1,
@@ -13,6 +15,9 @@ CREATE TABLE documents (
 
 CREATE INDEX idx_documents_kind ON documents (kind);
 CREATE INDEX idx_documents_nomenclature ON documents (nomenclature_id);
+CREATE INDEX idx_documents_registration_date ON documents (registration_date);
+CREATE UNIQUE INDEX idx_documents_kind_registration_number_year
+    ON documents (kind, registration_number, EXTRACT(YEAR FROM registration_date));
 CREATE INDEX idx_documents_created_at ON documents (created_at);
 
 -- 9. Incoming Document Details

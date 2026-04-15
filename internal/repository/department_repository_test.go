@@ -27,15 +27,15 @@ func TestDepartmentRepository_GetAll(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, name, created_at, updated_at FROM departments ORDER BY name ASC`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at", "updated_at"}).AddRow(depID, "IT Отдел", now, now))
 
-	nomQuery := `SELECT n.id, n.name, n.index, n.year, n.direction, n.next_number, n.is_active, n.created_at, n.updated_at
+	nomQuery := `SELECT n.id, n.name, n.index, n.year, n.kind_code, n.separator, n.numbering_mode, n.next_number, n.is_active, n.created_at, n.updated_at
 		FROM nomenclature n
 		JOIN department_nomenclature dn ON n.id = dn.nomenclature_id
 		WHERE dn.department_id = $1
 		ORDER BY n.index`
 
 	mock.ExpectQuery(regexp.QuoteMeta(nomQuery)).WithArgs(depID).WillReturnRows(sqlmock.NewRows([]string{
-		"id", "name", "index", "year", "direction", "next_number", "is_active", "created_at", "updated_at",
-	}).AddRow(uuid.New(), "Дело", "01-01", 2024, "incoming", 1, true, now, now))
+		"id", "name", "index", "year", "kind_code", "separator", "numbering_mode", "next_number", "is_active", "created_at", "updated_at",
+	}).AddRow(uuid.New(), "Дело", "01-01", 2024, "incoming_letter", "/", "index_and_number", 1, true, now, now))
 
 	deps, err := repo.GetAll()
 	require.NoError(t, err)
@@ -161,9 +161,9 @@ func TestDepartmentRepository_Errors(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectQuery(`INSERT INTO departments`).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at", "updated_at"}).AddRow(uuid.New(), "IT", time.Now(), time.Now()))
-		
+
 		mock.ExpectPrepare(`INSERT INTO department_nomenclature`)
-		
+
 		res, err := repo.Create("IT", []string{"invalid-uuid"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid nomenclature id")
@@ -173,7 +173,7 @@ func TestDepartmentRepository_Errors(t *testing.T) {
 	t.Run("Update not found", func(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectQuery(`UPDATE departments`).WillReturnError(sql.ErrNoRows)
-		
+
 		res, err := repo.Update(depID, "IT", nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "department not found")
@@ -182,7 +182,7 @@ func TestDepartmentRepository_Errors(t *testing.T) {
 
 	t.Run("Delete not found", func(t *testing.T) {
 		mock.ExpectExec(`DELETE FROM departments`).WillReturnResult(sqlmock.NewResult(0, 0))
-		
+
 		err = repo.Delete(depID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "department not found")

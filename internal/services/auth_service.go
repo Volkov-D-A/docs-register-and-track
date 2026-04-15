@@ -30,7 +30,6 @@ type AuthService struct {
 	userRepo      UserStore
 	auditService  *AdminAuditLogService
 	currentUserID uuid.UUID
-	activeRole    string
 	mu            sync.RWMutex
 }
 
@@ -97,7 +96,6 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 
 	s.mu.Lock()
 	s.currentUserID = user.ID
-	s.activeRole = defaultActiveRole(user.Roles)
 	s.mu.Unlock()
 
 	return dto.MapUser(user), nil
@@ -125,7 +123,6 @@ func (s *AuthService) logUserLock(user *models.User) {
 func (s *AuthService) Logout() error {
 	s.mu.Lock()
 	s.currentUserID = uuid.Nil
-	s.activeRole = ""
 	s.mu.Unlock()
 	return nil
 }
@@ -218,90 +215,6 @@ func (s *AuthService) GetCurrentUserID() string {
 		return ""
 	}
 	return s.currentUserID.String()
-}
-
-func defaultActiveRole(roles []string) string {
-	for _, role := range []string{"admin", "clerk", "executor"} {
-		for _, userRole := range roles {
-			if userRole == role {
-				return role
-			}
-		}
-	}
-
-	if len(roles) > 0 {
-		return roles[0]
-	}
-
-	return ""
-}
-
-// SetActiveRole устанавливает активную роль текущего пользователя.
-func (s *AuthService) SetActiveRole(role string) error {
-	if !s.IsAuthenticated() {
-		return models.ErrUnauthorized
-	}
-
-	s.mu.RLock()
-	userID := s.currentUserID
-	s.mu.RUnlock()
-
-	user, err := s.userRepo.GetByID(userID)
-	if err != nil {
-		return err
-	}
-	if user == nil {
-		return models.ErrUnauthorized
-	}
-
-	for _, userRole := range user.Roles {
-		if userRole == role {
-			s.mu.Lock()
-			s.activeRole = role
-			s.mu.Unlock()
-			return nil
-		}
-	}
-
-	return models.ErrForbidden
-}
-
-// GetActiveRole возвращает активную роль текущего пользователя.
-func (s *AuthService) GetActiveRole() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.activeRole
-}
-
-// HasActiveRole проверяет, совпадает ли активная роль с указанной.
-func (s *AuthService) HasActiveRole(role string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.currentUserID != uuid.Nil && s.activeRole == role
-}
-
-// RequireActiveRole возвращает nil, если активная роль совпадает с указанной.
-func (s *AuthService) RequireActiveRole(role string) error {
-	if !s.IsAuthenticated() {
-		return models.ErrUnauthorized
-	}
-	if !s.HasActiveRole(role) {
-		return models.ErrForbidden
-	}
-	return nil
-}
-
-// RequireAnyActiveRole возвращает nil, если активная роль входит в указанный список.
-func (s *AuthService) RequireAnyActiveRole(roles ...string) error {
-	if !s.IsAuthenticated() {
-		return models.ErrUnauthorized
-	}
-	for _, role := range roles {
-		if s.HasActiveRole(role) {
-			return nil
-		}
-	}
-	return models.ErrForbidden
 }
 
 // GetCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.

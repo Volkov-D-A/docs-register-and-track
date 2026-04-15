@@ -46,7 +46,7 @@ func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, incRepo, outRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incRepo, outRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
 	svc := NewLinkService(linkRepo, incRepo, outRepo, accessSvc, auth, journalSvc)
@@ -122,9 +122,9 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 		repo.On("GetByID", context.Background(), linkID).Return(&models.DocumentLink{
 			ID:         linkID,
 			SourceID:   rootID,
-			SourceType: "incoming",
+			SourceKind: models.DocumentKindIncomingLetter,
 			TargetID:   targetID,
-			TargetType: "outgoing",
+			TargetKind: models.DocumentKindOutgoingLetter,
 		}, nil).Once()
 		repo.On("Delete", context.Background(), linkID).Return(nil).Once()
 
@@ -190,7 +190,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		svc, repo, incRepo, outRepo, _ := setupLinkService(t, "clerk")
 
 		mockLinks := []models.DocumentLink{
-			{ID: uuid.New(), SourceID: rootID, SourceType: "incoming", TargetID: targetID, TargetType: "outgoing", LinkType: "ответ"},
+			{ID: uuid.New(), SourceID: rootID, SourceKind: models.DocumentKindIncomingLetter, TargetID: targetID, TargetKind: models.DocumentKindOutgoingLetter, LinkType: "ответ"},
 		}
 		repo.On("GetGraph", context.Background(), rootID).Return(mockLinks, nil).Once()
 
@@ -237,8 +237,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 	})
 
 	t.Run("admin не может читать граф связей", func(t *testing.T) {
-		svc, _, _, _, auth := setupLinkService(t, "admin")
-		require.Equal(t, "admin", auth.GetActiveRole())
+		svc, _, _, _, _ := setupLinkService(t, "admin")
 
 		result, err := svc.GetDocumentFlow(rootID.String())
 		require.Error(t, err)

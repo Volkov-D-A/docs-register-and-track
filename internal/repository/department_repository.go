@@ -2,9 +2,9 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -54,7 +54,7 @@ func (r *DepartmentRepository) GetAll() ([]models.Department, error) {
 
 func (r *DepartmentRepository) loadNomenclature(d *models.Department) error {
 	query := `
-		SELECT n.id, n.name, n.index, n.year, n.direction, n.next_number, n.is_active, n.created_at, n.updated_at
+		SELECT n.id, n.name, n.index, n.year, n.kind_code, n.separator, n.numbering_mode, n.next_number, n.is_active, n.created_at, n.updated_at
 		FROM nomenclature n
 		JOIN department_nomenclature dn ON n.id = dn.nomenclature_id
 		WHERE dn.department_id = $1
@@ -70,7 +70,7 @@ func (r *DepartmentRepository) loadNomenclature(d *models.Department) error {
 		var n models.Nomenclature
 		if err := rows.Scan(
 			&n.ID, &n.Name, &n.Index, &n.Year,
-			&n.Direction, &n.NextNumber, &n.IsActive,
+			&n.KindCode, &n.Separator, &n.NumberingMode, &n.NextNumber, &n.IsActive,
 			&n.CreatedAt, &n.UpdatedAt,
 		); err != nil {
 			return err

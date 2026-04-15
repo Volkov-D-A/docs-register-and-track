@@ -63,7 +63,7 @@ func TestMapNomenclature(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := uuid.New()
-		m := &models.Nomenclature{ID: id, Name: "N", Index: "1", Year: 2024, Direction: "in", NextNumber: 5, IsActive: true}
+		m := &models.Nomenclature{ID: id, Name: "N", Index: "1", Year: 2024, KindCode: "incoming_letter", Separator: "/", NumberingMode: "index_and_number", NextNumber: 5, IsActive: true}
 		d := MapNomenclature(m)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Equal(t, "N", d.Name)

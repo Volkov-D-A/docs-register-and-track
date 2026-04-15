@@ -9,6 +9,8 @@ import JournalList from './JournalList';
 
 import { useAuthStore } from '../store/useAuthStore';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
+import { getDocumentKindLabel, isIncomingKind } from '../constants/documentKinds';
+import { getDocumentViewConfig } from '../config/documentViewConfig';
 
 const { Text } = Typography;
 
@@ -19,7 +21,7 @@ interface DocumentViewModalProps {
     open: boolean;
     onCancel: () => void;
     documentId: string;
-    documentType: 'incoming' | 'outgoing';
+    documentKind: string;
 }
 
 /**
@@ -28,11 +30,11 @@ interface DocumentViewModalProps {
  * @param open Флаг открытия модального окна
  * @param onCancel Обработчик отмены/закрытия
  * @param documentId Идентификатор документа
- * @param documentType Тип документа
+ * @param documentKind Вид документа
  */
-const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, documentId, documentType }) => {
+const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, documentId, documentKind }) => {
     const { message } = App.useApp();
-    const { currentRole } = useAuthStore();
+    const { hasRole } = useAuthStore();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('info');
@@ -44,21 +46,14 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
         } else {
             setData(null);
         }
-    }, [open, documentId, documentType]);
+    }, [open, documentId, documentKind]);
 
     const loadData = async () => {
         setLoading(true);
         try {
-            let res;
-            if (documentType === 'incoming') {
-                // @ts-ignore
-                const { GetByID } = await import('../../wailsjs/go/services/IncomingDocumentService');
-                res = await GetByID(documentId);
-            } else {
-                // @ts-ignore
-                const { GetByID } = await import('../../wailsjs/go/services/OutgoingDocumentService');
-                res = await GetByID(documentId);
-            }
+            // @ts-ignore
+            const { GetByID } = await import('../../wailsjs/go/services/DocumentQueryService');
+            const res = await GetByID(documentId);
             setData(res);
         } catch (err: any) {
             message.error('Ошибка загрузки документа: ' + (err.message || String(err)));
@@ -192,14 +187,19 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
 
     const getNumber = () => {
         if (!data) return '';
-        return documentType === 'incoming' ? data.incomingNumber : data.outgoingNumber;
+        return data.registrationNumber || '';
     };
+
+    const resolvedKindCode = data?.kindCode || documentKind;
+    const isIncomingDocument = isIncomingKind(resolvedKindCode);
+    const details = isIncomingDocument ? data?.incomingLetter : data?.outgoingLetter;
+    const viewConfig = getDocumentViewConfig(resolvedKindCode);
 
     const getTabs = () => {
         const items = [
             {
                 key: 'info', label: 'Информация',
-                children: documentType === 'incoming' ? renderIncomingInfo(data) : renderOutgoingInfo(data)
+                children: isIncomingDocument ? renderIncomingInfo(details) : renderOutgoingInfo(details)
             },
             {
                 key: 'assignments', label: 'Поручения',
@@ -223,32 +223,40 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             }
         ];
 
-        if (currentRole === 'executor') {
-            return items.filter(i => ['info', 'files'].includes(i.key));
+        if (!hasRole('clerk')) {
+            return items.filter(i => viewConfig.restrictedTabs.includes(i.key as any));
         }
 
-        return items;
+        return items.filter(i => viewConfig.tabs.includes(i.key as any));
     };
 
     return (
         <Modal
-            title={`${documentType === 'incoming' ? 'Входящий' : 'Исходящий'} документ №${getNumber()}`}
+            title={`${data?.kindName || getDocumentKindLabel(documentKind)} №${getNumber()}`}
             open={open}
             onCancel={onCancel}
             width={800}
             footer={
                 <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                     <div>
-                        {(currentRole === 'clerk') && data && (
+                        {hasRole('clerk') && data && (
                             <Space>
-                                <Button onClick={() => {
-                                    useDraftLinkStore.getState().setDraftLink(data.id, documentType, getNumber(), 'incoming');
-                                    onCancel();
-                                }}>Создать связанный входящий</Button>
-                                <Button onClick={() => {
-                                    useDraftLinkStore.getState().setDraftLink(data.id, documentType, getNumber(), 'outgoing');
-                                    onCancel();
-                                }}>Создать связанный исходящий</Button>
+                                {viewConfig.footerActions.map((action) => (
+                                    <Button
+                                        key={action.targetKind}
+                                        onClick={() => {
+                                            useDraftLinkStore.getState().setDraftLink(
+                                                data.id,
+                                                data.kindCode,
+                                                getNumber(),
+                                                action.targetKind
+                                            );
+                                            onCancel();
+                                        }}
+                                    >
+                                        {action.label}
+                                    </Button>
+                                ))}
                             </Space>
                         )}
                     </div>
@@ -257,7 +265,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             }
         >
             {loading && <Spin />}
-            {!loading && data && (
+            {!loading && data && details && (
                 <Tabs
                     items={getTabs()}
                     activeKey={activeTab}

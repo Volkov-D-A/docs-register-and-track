@@ -1,27 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Typography, Table, Button, Modal, Form, Input, Select, DatePicker,
-    InputNumber, Space, Row, Col, Tag, Collapse, Tabs, App,
+    Form, Tag, App,
 } from 'antd';
-import AssignmentList from '../components/AssignmentList';
-import AcknowledgmentList from '../components/AcknowledgmentList';
-import FileListComponent from '../components/FileListComponent';
-import { LinksTab } from '../components/DocumentLinks/LinksTab';
-import DocumentViewModal from '../components/DocumentViewModal';
-
-import {
-    PlusOutlined, SearchOutlined, EyeOutlined, EditOutlined,
-    FilterOutlined, ClearOutlined
-} from '@ant-design/icons';
-import dayjs from 'dayjs';
-import locale from 'antd/es/date-picker/locale/ru_RU';
-
+import DocumentKindPage from '../components/DocumentKindPage';
 import { useAuthStore } from '../store/useAuthStore';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
-
-const { Title, Text } = Typography;
-const { TextArea } = Input;
-const { RangePicker } = DatePicker;
+import { DOCUMENT_KIND_OUTGOING_LETTER, getDocumentKindShortLabel, isIncomingKind, isOutgoingKind } from '../constants/documentKinds';
+import { useDocumentListPage } from '../hooks/useDocumentListPage';
+import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
+import { getDocumentPageConfig } from '../config/documentPageConfigs';
+import {
+    OutgoingLetterDocumentForm,
+    OutgoingLetterFilters,
+    buildOutgoingLetterEditFormValues,
+    buildOutgoingLetterQueryFilter,
+    hasOutgoingLetterFilters,
+    defaultOutgoingLetterFilters,
+} from '../modules/documentKinds/outgoingLetter';
 
 /**
  * Страница исходящих документов.
@@ -29,21 +24,13 @@ const { RangePicker } = DatePicker;
  */
 const OutgoingPage: React.FC = () => {
     const { message } = App.useApp();
-    const { user, currentRole } = useAuthStore();
-    const isExecutorOnly = currentRole === 'executor';
+    const { hasRole } = useAuthStore();
+    const isExecutorOnly = !hasRole('clerk');
+    const pageConfig = getDocumentPageConfig(DOCUMENT_KIND_OUTGOING_LETTER);
     // Скрываем фильтр, если пользователь — исполнитель без админских прав
     const filterDisabled = isExecutorOnly;
 
-    const { sourceId, sourceType, sourceNumber, targetType, clearDraftLink } = useDraftLinkStore();
-
-    // Данные
-    const [data, setData] = useState<any[]>([]);
-    const [totalCount, setTotalCount] = useState(0);
-    const [loading, setLoading] = useState(false);
-
-    // Пагинация
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
+    const { sourceId, sourceKind, sourceNumber, targetKind, clearDraftLink } = useDraftLinkStore();
 
     // Справочники
     const [nomenclatures, setNomenclatures] = useState<any[]>([]);
@@ -51,30 +38,24 @@ const OutgoingPage: React.FC = () => {
     const [orgOptionsRecipient, setOrgOptionsRecipient] = useState<any[]>([]);
 
     // Фильтры
-    const [search, setSearch] = useState('');
-    const [filterNomenclatureIds, setFilterNomenclatureIds] = useState<string[]>([]);
-    const [filterOutgoingNumber, setFilterOutgoingNumber] = useState('');
-    const [filterRecipientName, setFilterRecipientName] = useState('');
-    const [filterDateFrom, setFilterDateFrom] = useState('');
-    const [filterDateTo, setFilterDateTo] = useState('');
-
-    // Модалки
-    const [registerModalOpen, setRegisterModalOpen] = useState(false);
-    const [editModalOpen, setEditModalOpen] = useState(false);
-    const [viewDocId, setViewDocId] = useState<string>('');
-    const [viewModalOpen, setViewModalOpen] = useState(false);
-    const [editDoc, setEditDoc] = useState<any>(null);
+    const [filterNomenclatureIds, setFilterNomenclatureIds] = useState<string[]>(defaultOutgoingLetterFilters.filterNomenclatureIds);
+    const [filterOutgoingNumber, setFilterOutgoingNumber] = useState(defaultOutgoingLetterFilters.filterOutgoingNumber);
+    const [filterRecipientName, setFilterRecipientName] = useState(defaultOutgoingLetterFilters.filterRecipientName);
+    const [filterDateFrom, setFilterDateFrom] = useState(defaultOutgoingLetterFilters.filterDateFrom);
+    const [filterDateTo, setFilterDateTo] = useState(defaultOutgoingLetterFilters.filterDateTo);
 
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
+    const registerNomenclatureId = Form.useWatch('nomenclatureId', registerForm);
+    const selectedRegisterNomenclature = nomenclatures.find((n: any) => n.id === registerNomenclatureId);
 
     // Загрузка справочников
     const loadRefs = async () => {
         try {
-            const { GetActiveForDirection } = await import('../../wailsjs/go/services/NomenclatureService');
+            const { GetActiveForKind } = await import('../../wailsjs/go/services/NomenclatureService');
             const { GetDocumentTypes } = await import('../../wailsjs/go/services/ReferenceService');
 
-            const noms = await GetActiveForDirection('outgoing'); // Исходящие
+            const noms = await GetActiveForKind(DOCUMENT_KIND_OUTGOING_LETTER);
             setNomenclatures(noms || []);
 
             const types = await GetDocumentTypes();
@@ -99,70 +80,91 @@ const OutgoingPage: React.FC = () => {
         } catch (e) { console.error(e); }
     };
 
-    // Загрузка списка
-    const load = async () => {
-        setLoading(true);
-        try {
-            const { GetList } = await import('../../wailsjs/go/services/OutgoingDocumentService');
-            const result = await GetList({
-                search, page, pageSize,
-                nomenclatureIds: filterNomenclatureIds,
-                documentTypeId: '', orgId: '',
-                dateFrom: filterDateFrom, dateTo: filterDateTo,
-                outgoingNumber: filterOutgoingNumber,
-                recipientName: filterRecipientName,
-            });
-            setData(result?.items || []);
-            setTotalCount(result?.totalCount || 0);
-        } catch (err: any) {
+    const {
+        data,
+        totalCount,
+        loading,
+        page,
+        pageSize,
+        search,
+        setPage,
+        setPageSize,
+        setSearch,
+        load,
+        viewDocId,
+        viewModalOpen,
+        openViewModal,
+        closeViewModal,
+    } = useDocumentListPage({
+        kindCode: DOCUMENT_KIND_OUTGOING_LETTER,
+        filters: {
+            filterNomenclatureIds,
+            filterOutgoingNumber,
+            filterRecipientName,
+            filterDateFrom,
+            filterDateTo,
+        },
+        buildFilter: buildOutgoingLetterQueryFilter,
+        deps: [
+            filterNomenclatureIds,
+            filterOutgoingNumber,
+            filterRecipientName,
+            filterDateFrom,
+            filterDateTo,
+        ],
+        onError: (err: any) => {
             message.error(err?.message || String(err));
-        }
-        setLoading(false);
-    };
+        },
+    });
 
     useEffect(() => { loadRefs(); }, []);
-    useEffect(() => { load(); }, [page, search, filterNomenclatureIds, filterOutgoingNumber, filterRecipientName, filterDateFrom, filterDateTo]);
-
-    useEffect(() => {
-        if (sourceId && targetType === 'outgoing') {
-            registerForm.resetFields();
-            registerForm.setFieldsValue({ outgoingDate: dayjs(), pagesCount: 1 });
-            setRegisterModalOpen(true);
-        }
-    }, [sourceId, targetType, registerForm]);
 
     const clearFilters = () => {
-        setSearch(''); setFilterNomenclatureIds([]);
-        setFilterOutgoingNumber(''); setFilterRecipientName('');
-        setFilterDateFrom(''); setFilterDateTo('');
+        setSearch('');
+        setFilterNomenclatureIds(defaultOutgoingLetterFilters.filterNomenclatureIds);
+        setFilterOutgoingNumber(defaultOutgoingLetterFilters.filterOutgoingNumber);
+        setFilterRecipientName(defaultOutgoingLetterFilters.filterRecipientName);
+        setFilterDateFrom(defaultOutgoingLetterFilters.filterDateFrom);
+        setFilterDateTo(defaultOutgoingLetterFilters.filterDateTo);
         setPage(1);
     };
 
-    const hasFilters = filterNomenclatureIds.length > 0 || filterOutgoingNumber || filterRecipientName || filterDateFrom || filterDateTo;
+    const hasFilters = hasOutgoingLetterFilters({
+        filterNomenclatureIds,
+        filterOutgoingNumber,
+        filterRecipientName,
+        filterDateFrom,
+        filterDateTo,
+    });
 
     // Регистрация
     const onRegister = async (values: any) => {
         try {
-            const { Register } = await import('../../wailsjs/go/services/OutgoingDocumentService');
-            const newDoc = await Register(
-                values.nomenclatureId, values.documentTypeId,
-                values.recipientOrgName, values.addressee,
-                values.outgoingDate?.format('YYYY-MM-DD') || '',
-                values.content, values.pagesCount,
-                values.senderSignatory, values.senderExecutor
-            );
+            const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
+            const newDoc = await Register(DOCUMENT_KIND_OUTGOING_LETTER, {
+                nomenclatureId: values.nomenclatureId,
+                documentTypeId: values.documentTypeId,
+                recipientOrgName: values.recipientOrgName,
+                addressee: values.addressee,
+                outgoingDate: values.outgoingDate?.format('YYYY-MM-DD') || '',
+                content: values.content,
+                pagesCount: values.pagesCount,
+                senderSignatory: values.senderSignatory,
+                senderExecutor: values.senderExecutor,
+                registrationNumber: values.registrationNumber || '',
+            });
 
-            if (sourceId && targetType === 'outgoing') {
+            if (sourceId && targetKind === DOCUMENT_KIND_OUTGOING_LETTER) {
                 const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
                 // Если создаем исходящий из входящего -> Ответ (reply)
                 // Если создаем исходящий из исходящего -> Связан (related)
-                const linkType = sourceType === 'incoming' ? 'reply' : 'related';
+                const linkType = isIncomingKind(sourceKind) ? 'reply' : 'related';
                 await LinkDocuments(sourceId, newDoc.id, linkType);
                 clearDraftLink();
             }
 
             message.success('Документ зарегистрирован');
-            setRegisterModalOpen(false);
+            closeRegisterModal();
             registerForm.resetFields();
             load();
         } catch (err: any) {
@@ -173,317 +175,135 @@ const OutgoingPage: React.FC = () => {
     // Редактирование
     const onUpdate = async (values: any) => {
         try {
-            const { Update } = await import('../../wailsjs/go/services/OutgoingDocumentService');
-            await Update(
-                editDoc.id, values.documentTypeId,
-                values.recipientOrgName, values.addressee,
-                values.outgoingDate?.format('YYYY-MM-DD') || '',
-                values.content, values.pagesCount,
-                values.senderSignatory, values.senderExecutor
-            );
+            const { Update } = await import('../../wailsjs/go/services/DocumentRegistrationService');
+            await Update(DOCUMENT_KIND_OUTGOING_LETTER, {
+                id: editDoc.id,
+                documentTypeId: values.documentTypeId,
+                recipientOrgName: values.recipientOrgName,
+                addressee: values.addressee,
+                outgoingDate: values.outgoingDate?.format('YYYY-MM-DD') || '',
+                content: values.content,
+                pagesCount: values.pagesCount,
+                senderSignatory: values.senderSignatory,
+                senderExecutor: values.senderExecutor,
+            });
             message.success('Документ обновлен');
-            setEditModalOpen(false);
+            closeEditModal();
             editForm.resetFields();
-            setEditDoc(null);
             load();
         } catch (err: any) {
             message.error(err?.message || String(err));
         }
     };
 
-    const columns = [
-        {
-            title: 'Номер / Дата',
-            key: 'number',
-            width: 140,
-            render: (_: any, r: any) => (
-                <div>
-                    <div style={{ fontWeight: 600 }}>{r.outgoingNumber}</div>
-                    <div style={{ fontSize: 12, color: '#888' }}>
-                        от {dayjs(r.outgoingDate).format('DD.MM.YYYY')}
-                    </div>
+    const {
+        registerModalOpen,
+        editModalOpen,
+        editDoc,
+        openRegisterModal,
+        closeRegisterModal,
+        openEditModal,
+        closeEditModal,
+    } = useDocumentKindModals({
+        kindCode: DOCUMENT_KIND_OUTGOING_LETTER,
+        registerForm,
+        registerInitialValues: pageConfig.registerInitialValues,
+        sourceId,
+        targetKind,
+        onPrepareEdit: (record: any) => {
+            editForm.setFieldsValue(buildOutgoingLetterEditFormValues(record));
+        },
+    });
 
-                </div>
-            )
-        },
-        {
-            title: 'Получатель',
-            key: 'recipient',
-            width: '26%',
-            render: (_: any, r: any) => (
-                <div>
-                    <div style={{ fontWeight: 600 }}>{r.recipientOrgName}</div>
-                    <div style={{ fontSize: 13 }}>Адресат: {r.addressee}</div>
-                </div>
-            )
-        },
-        {
-            title: 'Содержание',
-            key: 'content',
-            width: '26%',
-            render: (_: any, r: any) => (
-                <div>
-                    <div style={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>{r.content}</div>
-                    <div style={{ fontSize: 13, color: '#666' }}>{r.documentTypeName}</div>
-                </div>
-            )
-        },
-        {
-            title: 'Исполнитель / Подписант',
-            key: 'executor',
-            width: '26%',
-            render: (_: any, r: any) => (
-                <div style={{ fontSize: 13 }}>
-                    <div>Исп: {r.senderExecutor}</div>
-                    <div>Подп: {r.senderSignatory}</div>
-                </div>
-            )
-        },
-        {
-            title: 'Действия',
-            key: 'actions',
-            width: 120,
-            render: (_: any, r: any) => (
-                <Space>
-                    <Button size="small" icon={<EyeOutlined />} onClick={() => { setViewDocId(r.id); setViewModalOpen(true); }} />
-                    {!isExecutorOnly && (
-                        <Button size="small" icon={<EditOutlined />} onClick={() => {
-                            setEditDoc(r);
-                            editForm.setFieldsValue({
-                                ...r,
-                                outgoingDate: dayjs(r.outgoingDate),
-                            });
-                            setEditModalOpen(true);
-                        }} />
-                    )}
-                </Space>
-            )
-        }
-    ];
+    const columns = pageConfig.buildColumns({
+        isExecutorOnly,
+        openViewModal,
+        onEdit: openEditModal,
+    });
 
     return (
-        <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Title level={4} style={{ margin: 0 }}>Исходящие документы</Title>
-                <Space>
-                    {!filterDisabled && (
-                        <Select
-                            mode="multiple" size="middle" style={{ minWidth: 250 }}
-                            placeholder="Все дела"
-                            value={filterNomenclatureIds}
-                            onChange={(vals: string[]) => { setFilterNomenclatureIds(vals); setPage(1); }}
-                            allowClear
-                            options={nomenclatures.map((n: any) => ({ value: n.id, label: `${n.index} — ${n.name}` }))}
-                        />
-                    )}
-                    <Input.Search placeholder="Поиск по содержанию..." allowClear onSearch={setSearch} style={{ width: 250 }} prefix={<SearchOutlined />} />
-                    {!isExecutorOnly && (
-                        <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-                            registerForm.resetFields();
-                            registerForm.setFieldsValue({ outgoingDate: dayjs(), pagesCount: 1 });
-                            setRegisterModalOpen(true);
-                        }}>Зарегистрировать</Button>
-                    )}
-                </Space>
-            </div>
-
-            <Collapse
-                size="small"
-                style={{ marginBottom: 16 }}
-                items={[{
-                    key: 'filters',
-                    label: <span><FilterOutlined /> Расширенный поиск {hasFilters ? <Tag color="blue" style={{ marginLeft: 8 }}>Активны</Tag> : null}</span>,
-                    children: (
-                        <div>
-                            <Row gutter={16}>
-                                <Col span={8}>
-                                    <div style={{ marginBottom: 8 }}>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Исх. номер</Text>
-                                        <Input size="small" value={filterOutgoingNumber} onChange={e => { setFilterOutgoingNumber(e.target.value); setPage(1); }} placeholder="Исх. номер" allowClear />
-                                    </div>
-                                </Col>
-                                <Col span={8}>
-                                    <div style={{ marginBottom: 8 }}>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Получатель</Text>
-                                        <Input size="small" value={filterRecipientName} onChange={e => { setFilterRecipientName(e.target.value); setPage(1); }} placeholder="Организация" allowClear />
-                                    </div>
-                                </Col>
-                                <Col span={8}>
-                                    <div style={{ marginBottom: 8 }}>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Дата (диапазон)</Text>
-                                        <RangePicker
-                                            size="small" style={{ width: '100%' }} format="DD.MM.YYYY"
-                                            value={filterDateFrom && filterDateTo ? [dayjs(filterDateFrom), dayjs(filterDateTo)] : null}
-                                            onChange={(dates) => {
-                                                setFilterDateFrom(dates?.[0]?.format('YYYY-MM-DD') || '');
-                                                setFilterDateTo(dates?.[1]?.format('YYYY-MM-DD') || '');
-                                                setPage(1);
-                                            }}
-                                        />
-                                    </div>
-                                </Col>
-                            </Row>
-                            {hasFilters && (
-                                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
-                                    <Button size="small" icon={<ClearOutlined />} onClick={clearFilters}>Сбросить фильтры</Button>
-                                </div>
-                            )}
-                        </div>
-                    )
-                }]}
-            />
-
-            <Table className="outgoing-documents-table" columns={columns} dataSource={data} rowKey="id" loading={loading} size="small" tableLayout="fixed"
-                pagination={{
-                    current: page, pageSize, total: totalCount,
-                    onChange: (p, ps) => { setPage(p); setPageSize(ps); },
-                    showSizeChanger: true, pageSizeOptions: ['10', '20', '50']
-                }}
-            />
-
-            {/* Модалка регистрации */}
-            <Modal
-                title="Регистрация исходящего документа"
-                open={registerModalOpen}
-                forceRender
-                onCancel={() => { setRegisterModalOpen(false); clearDraftLink(); }}
-                onOk={() => registerForm.submit()}
-                width={800}
-                confirmLoading={loading}
-            >
-                {sourceId && targetType === 'outgoing' && (
+        <DocumentKindPage
+            title={pageConfig.title}
+            filterDisabled={filterDisabled}
+            nomenclatures={nomenclatures}
+            filterNomenclatureIds={filterNomenclatureIds}
+            setFilterNomenclatureIds={setFilterNomenclatureIds}
+            setPage={setPage}
+            onSearch={setSearch}
+            canRegister={!isExecutorOnly}
+            onOpenRegister={openRegisterModal}
+            hasFilters={hasFilters}
+            filtersContent={
+                <OutgoingLetterFilters
+                    hasFilters={hasFilters}
+                    filterOutgoingNumber={filterOutgoingNumber}
+                    filterRecipientName={filterRecipientName}
+                    filterDateFrom={filterDateFrom}
+                    filterDateTo={filterDateTo}
+                    onOutgoingNumberChange={(value) => { setFilterOutgoingNumber(value); setPage(1); }}
+                    onRecipientNameChange={(value) => { setFilterRecipientName(value); setPage(1); }}
+                    onDateRangeChange={(from, to) => { setFilterDateFrom(from); setFilterDateTo(to); setPage(1); }}
+                    onClear={clearFilters}
+                />
+            }
+            tableClassName={pageConfig.tableClassName}
+            columns={columns}
+            data={data}
+            loading={loading}
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+            viewModalOpen={viewModalOpen}
+            onCloseViewModal={closeViewModal}
+            viewDocId={viewDocId}
+            documentKind={DOCUMENT_KIND_OUTGOING_LETTER}
+            registerModal={{
+                title: pageConfig.registerModalTitle,
+                open: registerModalOpen,
+                onCancel: () => { closeRegisterModal(); clearDraftLink(); },
+                onOk: () => registerForm.submit(),
+                width: 800,
+                confirmLoading: loading,
+                linkedBadge: sourceId && targetKind === DOCUMENT_KIND_OUTGOING_LETTER ? (
                     <div style={{ marginBottom: 16 }}>
-                        <Tag color="blue">Создание документа, связанного с: {sourceType === 'incoming' ? 'Входящий' : 'Исходящий'} №{sourceNumber}</Tag>
+                        <Tag color="blue">Создание документа, связанного с: {getDocumentKindShortLabel(sourceKind)} №{sourceNumber}</Tag>
                     </div>
-                )}
-                <Form form={registerForm} layout="vertical" onFinish={onRegister}>
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item name="nomenclatureId" label="Номенклатура дел" rules={[{ required: true, message: 'Выберите дело' }]}>
-                                <Select options={nomenclatures.map(n => ({ value: n.id, label: `${n.index} — ${n.name}` }))} placeholder="Выберите дело" />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item name="outgoingDate" label="Исходящая дата" rules={[{ required: true }]}>
-                                <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" locale={locale} />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item name="documentTypeId" label="Вид документа" rules={[{ required: true }]}>
-                                <Select options={docTypes.map(t => ({ value: t.id, label: t.name }))} />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item name="pagesCount" label="Кол-во листов">
-                                <InputNumber style={{ width: '100%' }} min={1} />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item name="recipientOrgName" label="Получатель (Организация)" rules={[{ required: true }]}>
-                                <Select showSearch onSearch={onRecipientOrgSearch} options={orgOptionsRecipient} notFoundContent={null}
-                                    onInputKeyDown={(e) => { if (e.key === ' ' && !e.isDefaultPrevented()) e.stopPropagation(); }} />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item name="addressee" label="Адресат (ФИО)" rules={[{ required: true }]}>
-                                <Input />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item name="senderSignatory" label="Кто подписывает" rules={[{ required: true }]}>
-                                <Input />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item name="senderExecutor" label="Исполнитель" rules={[{ required: true }]}>
-                                <Input />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-
-                    <Form.Item name="content" label="Содержание" rules={[{ required: true }]}>
-                        <TextArea rows={4} />
-                    </Form.Item>
-                </Form>
-            </Modal>
-
-            {/* Модалка редактирования */}
-            <Modal
-                title="Редактирование документа"
-                open={editModalOpen}
-                forceRender
-                onCancel={() => { setEditModalOpen(false); setEditDoc(null); }}
-                onOk={() => editForm.submit()}
-                width={800}
-                confirmLoading={loading}
-            >
-                <Form form={editForm} layout="vertical" onFinish={onUpdate}>
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item name="outgoingDate" label="Исходящая дата" rules={[{ required: true }]}>
-                                <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" locale={locale} />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item name="pagesCount" label="Кол-во листов">
-                                <InputNumber style={{ width: '100%' }} min={1} />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item name="documentTypeId" label="Вид документа" rules={[{ required: true }]}>
-                                <Select options={docTypes.map(t => ({ value: t.id, label: t.name }))} />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item name="recipientOrgName" label="Получатель (Организация)" rules={[{ required: true }]}>
-                                <Select showSearch onSearch={onRecipientOrgSearch} options={orgOptionsRecipient} notFoundContent={null}
-                                    onInputKeyDown={(e) => { if (e.key === ' ' && !e.isDefaultPrevented()) e.stopPropagation(); }} />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item name="addressee" label="Адресат (ФИО)" rules={[{ required: true }]}>
-                                <Input />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item name="senderSignatory" label="Кто подписывает" rules={[{ required: true }]}>
-                                <Input />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item name="senderExecutor" label="Исполнитель" rules={[{ required: true }]}>
-                                <Input />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                    <Form.Item name="content" label="Содержание" rules={[{ required: true }]}>
-                        <TextArea rows={4} />
-                    </Form.Item>
-                </Form>
-            </Modal>
-
-            {/* Просмотр */}
-            <DocumentViewModal
-                open={viewModalOpen}
-                onCancel={() => setViewModalOpen(false)}
-                documentId={viewDocId}
-                documentType="outgoing"
-            />
-        </div>
+                ) : undefined,
+                content: (
+                    <OutgoingLetterDocumentForm
+                        form={registerForm}
+                        isEdit={false}
+                        onFinish={onRegister}
+                        nomenclatures={nomenclatures}
+                        docTypes={docTypes}
+                        orgOptionsRecipient={orgOptionsRecipient}
+                        selectedRegisterNomenclature={selectedRegisterNomenclature}
+                        onRecipientOrgSearch={onRecipientOrgSearch}
+                    />
+                ),
+            }}
+            editModal={{
+                title: pageConfig.getEditModalTitle(editDoc),
+                open: editModalOpen,
+                onCancel: closeEditModal,
+                onOk: () => editForm.submit(),
+                width: 800,
+                confirmLoading: loading,
+                content: (
+                    <OutgoingLetterDocumentForm
+                        form={editForm}
+                        isEdit
+                        onFinish={onUpdate}
+                        nomenclatures={nomenclatures}
+                        docTypes={docTypes}
+                        orgOptionsRecipient={orgOptionsRecipient}
+                        selectedRegisterNomenclature={selectedRegisterNomenclature}
+                        onRecipientOrgSearch={onRecipientOrgSearch}
+                    />
+                ),
+            }}
+        />
     );
 };
 

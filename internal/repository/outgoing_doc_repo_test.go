@@ -47,7 +47,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 			now, now,
 		)
 
-		mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoing).WillReturnRows(rows)
+		mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoingLetter).WillReturnRows(rows)
 
 		doc, err := repo.GetByID(docID)
 		require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoing).WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoingLetter).WillReturnError(sql.ErrNoRows)
 
 		doc, err := repo.GetByID(docID)
 		require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestOutgoingDocumentRepository_GetCount(t *testing.T) {
 
 	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).WithArgs(models.DocumentKindOutgoing).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(15))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).WithArgs(models.DocumentKindOutgoingLetter).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(15))
 
 	count, err := repo.GetCount()
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestOutgoingDocumentRepository_Delete(t *testing.T) {
 	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
 	docID := uuid.New()
 
-	mock.ExpectExec(`DELETE FROM documents WHERE id = \$1 AND kind = \$2`).WithArgs(docID, models.DocumentKindOutgoing).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`DELETE FROM documents WHERE id = \$1 AND kind = \$2`).WithArgs(docID, models.DocumentKindOutgoingLetter).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = repo.Delete(docID)
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
-		models.DocumentKindOutgoing, req.NomenclatureID, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+		models.DocumentKindOutgoingLetter, req.NomenclatureID, req.OutgoingNumber, req.OutgoingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 	mock.ExpectExec(`INSERT INTO outgoing_document_details`).WithArgs(
 		docID, req.OutgoingNumber, req.OutgoingDate,
@@ -147,7 +147,7 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 		uuid.New(), "", "", uuid.New(), "", now, now,
 	)
 
-	mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoing).WillReturnRows(rows)
+	mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoingLetter).WillReturnRows(rows)
 
 	doc, err := repo.Create(req)
 	require.NoError(t, err)
@@ -244,7 +244,7 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE documents SET`).WithArgs(
-		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindOutgoing,
+		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindOutgoingLetter,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`UPDATE outgoing_document_details SET`).WithArgs(
 		req.OutgoingDate, req.SenderSignatory, req.SenderExecutor,
@@ -269,7 +269,7 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 		uuid.New(), "", "", uuid.New(), "", now, now,
 	)
 
-	mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoing).WillReturnRows(rows)
+	mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoingLetter).WillReturnRows(rows)
 
 	doc, err := repo.Update(req)
 	require.NoError(t, err)

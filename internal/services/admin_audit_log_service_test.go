@@ -44,9 +44,16 @@ func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) (*AdminAud
 	return NewAdminAuditLogService(&stubAdminAuditLogStore{}, auth), auth
 }
 
-func TestAdminAuditLogService_GetAll_RequiresActiveAdminRole(t *testing.T) {
-	svc, auth := setupAdminAuditLogServiceWithRoles(t, []string{"admin", "clerk"})
-	require.NoError(t, auth.SetActiveRole("clerk"))
+func TestAdminAuditLogService_GetAll_RequiresAdminRole(t *testing.T) {
+	svc, _ := setupAdminAuditLogServiceWithRoles(t, []string{"admin", "clerk"})
+
+	result, err := svc.GetAll(1, 10)
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+}
+
+func TestAdminAuditLogService_GetAll_ForbiddenWithoutAdminRole(t *testing.T) {
+	svc, _ := setupAdminAuditLogServiceWithRoles(t, []string{"clerk"})
 
 	result, err := svc.GetAll(1, 10)
 	require.Error(t, err)

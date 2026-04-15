@@ -197,7 +197,9 @@ export namespace dto {
 	    name: string;
 	    index: string;
 	    year: number;
-	    direction: string;
+	    kindCode: string;
+	    separator: string;
+	    numberingMode: string;
 	    nextNumber: number;
 	    isActive: boolean;
 	    // Go type: time
@@ -215,7 +217,9 @@ export namespace dto {
 	        this.name = source["name"];
 	        this.index = source["index"];
 	        this.year = source["year"];
-	        this.direction = source["direction"];
+	        this.kindCode = source["kindCode"];
+	        this.separator = source["separator"];
+	        this.numberingMode = source["numberingMode"];
 	        this.nextNumber = source["nextNumber"];
 	        this.isActive = source["isActive"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
@@ -1354,4 +1358,3 @@ export namespace services {
 	}
 
 }
-

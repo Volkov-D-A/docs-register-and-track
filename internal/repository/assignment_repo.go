@@ -164,8 +164,8 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 		FROM assignments a
 		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 		WHERE a.id = $1
 	`
 
@@ -177,7 +177,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	var docSubject sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
-		&a.ID, &a.DocumentID, &a.DocumentType,
+		&a.ID, &a.DocumentID, &a.DocumentKind,
 		&a.ExecutorID, &a.ExecutorName,
 		&a.Content, &deadline, &a.Status, &report, &completedAt,
 		&a.CreatedAt, &a.UpdatedAt,
@@ -254,8 +254,8 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		FROM assignments a
 		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 	`
 
 	where := []string{"1=1"}
@@ -319,7 +319,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	query += " WHERE " + strings.Join(where, " AND ")
 
 	// Запрос количества
-	countQuery := "SELECT COUNT(*) FROM assignments a JOIN documents d ON d.id = a.document_id LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming' LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing' WHERE " + strings.Join(where, " AND ")
+	countQuery := "SELECT COUNT(*) FROM assignments a JOIN documents d ON d.id = a.document_id LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter' LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter' WHERE " + strings.Join(where, " AND ")
 	var totalCount int
 	if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count assignments: %w", err)
@@ -359,7 +359,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		var docSubject sql.NullString
 
 		if err := rows.Scan(
-			&a.ID, &a.DocumentID, &a.DocumentType,
+			&a.ID, &a.DocumentID, &a.DocumentKind,
 			&a.ExecutorID, &a.ExecutorName,
 			&a.Content, &deadline, &a.Status, &report, &completedAt,
 			&a.CreatedAt, &a.UpdatedAt,

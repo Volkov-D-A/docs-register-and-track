@@ -15,9 +15,9 @@ type NomenclatureStore struct {
 	mock.Mock
 }
 
-// Create provides a mock function with given fields: name, index, year, direction
-func (_m *NomenclatureStore) Create(name string, index string, year int, direction string) (*models.Nomenclature, error) {
-	ret := _m.Called(name, index, year, direction)
+// Create provides a mock function with given fields: name, index, year, kindCode, separator, numberingMode
+func (_m *NomenclatureStore) Create(name string, index string, year int, kindCode string, separator string, numberingMode string) (*models.Nomenclature, error) {
+	ret := _m.Called(name, index, year, kindCode, separator, numberingMode)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -25,19 +25,19 @@ func (_m *NomenclatureStore) Create(name string, index string, year int, directi
 
 	var r0 *models.Nomenclature
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, int, string) (*models.Nomenclature, error)); ok {
-		return rf(name, index, year, direction)
+	if rf, ok := ret.Get(0).(func(string, string, int, string, string, string) (*models.Nomenclature, error)); ok {
+		return rf(name, index, year, kindCode, separator, numberingMode)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, int, string) *models.Nomenclature); ok {
-		r0 = rf(name, index, year, direction)
+	if rf, ok := ret.Get(0).(func(string, string, int, string, string, string) *models.Nomenclature); ok {
+		r0 = rf(name, index, year, kindCode, separator, numberingMode)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Nomenclature)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, int, string) error); ok {
-		r1 = rf(name, index, year, direction)
+	if rf, ok := ret.Get(1).(func(string, string, int, string, string, string) error); ok {
+		r1 = rf(name, index, year, kindCode, separator, numberingMode)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -63,21 +63,21 @@ func (_m *NomenclatureStore) Delete(id uuid.UUID) error {
 	return r0
 }
 
-// GetActiveByDirection provides a mock function with given fields: direction, year
-func (_m *NomenclatureStore) GetActiveByDirection(direction string, year int) ([]models.Nomenclature, error) {
-	ret := _m.Called(direction, year)
+// GetActiveByKind provides a mock function with given fields: kindCode, year
+func (_m *NomenclatureStore) GetActiveByKind(kindCode string, year int) ([]models.Nomenclature, error) {
+	ret := _m.Called(kindCode, year)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetActiveByDirection")
+		panic("no return value specified for GetActiveByKind")
 	}
 
 	var r0 []models.Nomenclature
 	var r1 error
 	if rf, ok := ret.Get(0).(func(string, int) ([]models.Nomenclature, error)); ok {
-		return rf(direction, year)
+		return rf(kindCode, year)
 	}
 	if rf, ok := ret.Get(0).(func(string, int) []models.Nomenclature); ok {
-		r0 = rf(direction, year)
+		r0 = rf(kindCode, year)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.Nomenclature)
@@ -85,7 +85,7 @@ func (_m *NomenclatureStore) GetActiveByDirection(direction string, year int) ([
 	}
 
 	if rf, ok := ret.Get(1).(func(string, int) error); ok {
-		r1 = rf(direction, year)
+		r1 = rf(kindCode, year)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -93,9 +93,9 @@ func (_m *NomenclatureStore) GetActiveByDirection(direction string, year int) ([
 	return r0, r1
 }
 
-// GetAll provides a mock function with given fields: year, direction
-func (_m *NomenclatureStore) GetAll(year int, direction string) ([]models.Nomenclature, error) {
-	ret := _m.Called(year, direction)
+// GetAll provides a mock function with given fields: year, kindCode
+func (_m *NomenclatureStore) GetAll(year int, kindCode string) ([]models.Nomenclature, error) {
+	ret := _m.Called(year, kindCode)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetAll")
@@ -104,10 +104,10 @@ func (_m *NomenclatureStore) GetAll(year int, direction string) ([]models.Nomenc
 	var r0 []models.Nomenclature
 	var r1 error
 	if rf, ok := ret.Get(0).(func(int, string) ([]models.Nomenclature, error)); ok {
-		return rf(year, direction)
+		return rf(year, kindCode)
 	}
 	if rf, ok := ret.Get(0).(func(int, string) []models.Nomenclature); ok {
-		r0 = rf(year, direction)
+		r0 = rf(year, kindCode)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.Nomenclature)
@@ -115,7 +115,7 @@ func (_m *NomenclatureStore) GetAll(year int, direction string) ([]models.Nomenc
 	}
 
 	if rf, ok := ret.Get(1).(func(int, string) error); ok {
-		r1 = rf(year, direction)
+		r1 = rf(year, kindCode)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -154,7 +154,7 @@ func (_m *NomenclatureStore) GetByID(id uuid.UUID) (*models.Nomenclature, error)
 }
 
 // GetNextNumber provides a mock function with given fields: id
-func (_m *NomenclatureStore) GetNextNumber(id uuid.UUID) (int, string, error) {
+func (_m *NomenclatureStore) GetNextNumber(id uuid.UUID) (int, string, string, string, error) {
 	ret := _m.Called(id)
 
 	if len(ret) == 0 {
@@ -163,8 +163,10 @@ func (_m *NomenclatureStore) GetNextNumber(id uuid.UUID) (int, string, error) {
 
 	var r0 int
 	var r1 string
-	var r2 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID) (int, string, error)); ok {
+	var r2 string
+	var r3 string
+	var r4 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID) (int, string, string, string, error)); ok {
 		return rf(id)
 	}
 	if rf, ok := ret.Get(0).(func(uuid.UUID) int); ok {
@@ -179,18 +181,30 @@ func (_m *NomenclatureStore) GetNextNumber(id uuid.UUID) (int, string, error) {
 		r1 = ret.Get(1).(string)
 	}
 
-	if rf, ok := ret.Get(2).(func(uuid.UUID) error); ok {
+	if rf, ok := ret.Get(2).(func(uuid.UUID) string); ok {
 		r2 = rf(id)
 	} else {
-		r2 = ret.Error(2)
+		r2 = ret.Get(2).(string)
 	}
 
-	return r0, r1, r2
+	if rf, ok := ret.Get(3).(func(uuid.UUID) string); ok {
+		r3 = rf(id)
+	} else {
+		r3 = ret.Get(3).(string)
+	}
+
+	if rf, ok := ret.Get(4).(func(uuid.UUID) error); ok {
+		r4 = rf(id)
+	} else {
+		r4 = ret.Error(4)
+	}
+
+	return r0, r1, r2, r3, r4
 }
 
-// Update provides a mock function with given fields: id, name, index, year, direction, isActive
-func (_m *NomenclatureStore) Update(id uuid.UUID, name string, index string, year int, direction string, isActive bool) (*models.Nomenclature, error) {
-	ret := _m.Called(id, name, index, year, direction, isActive)
+// Update provides a mock function with given fields: id, name, index, year, kindCode, separator, numberingMode, isActive
+func (_m *NomenclatureStore) Update(id uuid.UUID, name string, index string, year int, kindCode string, separator string, numberingMode string, isActive bool) (*models.Nomenclature, error) {
+	ret := _m.Called(id, name, index, year, kindCode, separator, numberingMode, isActive)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Update")
@@ -198,19 +212,19 @@ func (_m *NomenclatureStore) Update(id uuid.UUID, name string, index string, yea
 
 	var r0 *models.Nomenclature
 	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, string, string, int, string, bool) (*models.Nomenclature, error)); ok {
-		return rf(id, name, index, year, direction, isActive)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, string, string, int, string, string, string, bool) (*models.Nomenclature, error)); ok {
+		return rf(id, name, index, year, kindCode, separator, numberingMode, isActive)
 	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID, string, string, int, string, bool) *models.Nomenclature); ok {
-		r0 = rf(id, name, index, year, direction, isActive)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, string, string, int, string, string, string, bool) *models.Nomenclature); ok {
+		r0 = rf(id, name, index, year, kindCode, separator, numberingMode, isActive)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Nomenclature)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(uuid.UUID, string, string, int, string, bool) error); ok {
-		r1 = rf(id, name, index, year, direction, isActive)
+	if rf, ok := ret.Get(1).(func(uuid.UUID, string, string, int, string, string, string, bool) error); ok {
+		r1 = rf(id, name, index, year, kindCode, separator, numberingMode, isActive)
 	} else {
 		r1 = ret.Error(1)
 	}

@@ -18,7 +18,6 @@ interface AcknowledgmentModalProps {
  * @param onCancel Обработчик отмены
  * @param onSuccess Обработчик успешного создания задачи
  * @param documentId Идентификатор документа
- * @param documentType Тип документа
  */
 const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCancel, onSuccess, documentId }) => {
     const { message } = App.useApp();

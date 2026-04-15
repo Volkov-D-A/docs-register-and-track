@@ -2,8 +2,15 @@ package services
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
+)
+
+const (
+	NumberingModeIndexAndNumber = "index_and_number"
+	NumberingModeNumberOnly     = "number_only"
+	NumberingModeManualOnly     = "manual_only"
 )
 
 // parseUUID — парсинг строки UUID с обработкой ошибок
@@ -15,9 +22,22 @@ func parseUUID(s string) (uuid.UUID, error) {
 	return id, nil
 }
 
-// formatDocumentNumber — форматирование номера документа
-func formatDocumentNumber(index string, number int) string {
-	return fmt.Sprintf("%s/%d", index, number)
+// formatDocumentNumber — форматирование номера документа по правилам номенклатуры.
+func formatDocumentNumber(index, separator, numberingMode string, number int) string {
+	switch numberingMode {
+	case NumberingModeManualOnly:
+		return ""
+	case NumberingModeNumberOnly:
+		return fmt.Sprintf("%d", number)
+	default:
+		if strings.TrimSpace(index) == "" {
+			return fmt.Sprintf("%d", number)
+		}
+		if separator == "" {
+			separator = "/"
+		}
+		return fmt.Sprintf("%s%s%d", index, separator, number)
+	}
 }
 
 // filterNomenclaturesByDepartment — общая логика фильтрации номенклатур по подразделению пользователя.
@@ -90,7 +110,11 @@ func applyExecutorNomenclatureFilter(
 	nomenclatureIDs []string,
 	nomenclatureID string,
 ) (filteredIDs []string, isEmpty bool, err error) {
-	if !auth.HasActiveRole("executor") {
+	if auth.HasRole("clerk") || auth.HasRole("admin") {
+		return nomenclatureIDs, false, nil
+	}
+
+	if !auth.HasRole("executor") {
 		return nomenclatureIDs, false, nil
 	}
 
@@ -111,7 +135,11 @@ func applyExecutorNomenclatureFilter(
 
 // getExecutorAllowedNomenclatureIDs возвращает список номенклатур подразделения текущего исполнителя.
 func getExecutorAllowedNomenclatureIDs(auth *AuthService, depRepo DepartmentStore) ([]string, error) {
-	if !auth.HasActiveRole("executor") {
+	if auth.HasRole("clerk") || auth.HasRole("admin") {
+		return nil, nil
+	}
+
+	if !auth.HasRole("executor") {
 		return nil, nil
 	}
 

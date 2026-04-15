@@ -15,36 +15,60 @@ import (
 func TestFormatDocumentNumber(t *testing.T) {
 	// Тестирование функции формирования номера документа на основе индекса и порядкового номера
 	tests := []struct {
-		name     string
-		index    string
-		number   int
-		expected string
+		name          string
+		index         string
+		separator     string
+		numberingMode string
+		number        int
+		expected      string
 	}{
 		{
-			name:     "simple case",
-			index:    "01-02",
-			number:   123,
-			expected: "01-02/123",
+			name:          "simple case",
+			index:         "01-02",
+			separator:     "/",
+			numberingMode: NumberingModeIndexAndNumber,
+			number:        123,
+			expected:      "01-02/123",
 		},
 		{
-			name:     "empty index",
-			index:    "",
-			number:   456,
-			expected: "/456",
+			name:          "empty index",
+			index:         "",
+			separator:     "/",
+			numberingMode: NumberingModeIndexAndNumber,
+			number:        456,
+			expected:      "456",
 		},
 		{
-			name:     "zero number",
-			index:    "ABC",
-			number:   0,
-			expected: "ABC/0",
+			name:          "zero number",
+			index:         "ABC",
+			separator:     "/",
+			numberingMode: NumberingModeIndexAndNumber,
+			number:        0,
+			expected:      "ABC/0",
+		},
+		{
+			name:          "number only",
+			index:         "ABC",
+			separator:     "-",
+			numberingMode: NumberingModeNumberOnly,
+			number:        77,
+			expected:      "77",
+		},
+		{
+			name:          "manual only returns empty",
+			index:         "ABC",
+			separator:     "-",
+			numberingMode: NumberingModeManualOnly,
+			number:        77,
+			expected:      "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := formatDocumentNumber(tt.index, tt.number)
+			result := formatDocumentNumber(tt.index, tt.separator, tt.numberingMode, tt.number)
 			if result != tt.expected {
-				t.Errorf("formatDocumentNumber(%q, %d) = %q; want %q", tt.index, tt.number, result, tt.expected)
+				t.Errorf("formatDocumentNumber(%q, %q, %q, %d) = %q; want %q", tt.index, tt.separator, tt.numberingMode, tt.number, result, tt.expected)
 			}
 		})
 	}
@@ -291,11 +315,8 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 		auth.Logout()
 	})
 
-	t.Run("executor user with active clerk bypasses filter", func(t *testing.T) {
+	t.Run("user with clerk role bypasses executor filter", func(t *testing.T) {
 		setupUser([]string{"executor", "clerk"}, uuid.New().String())
-		if err := auth.SetActiveRole("clerk"); err != nil {
-			t.Fatalf("failed to set active role: %v", err)
-		}
 
 		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, []string{"X"}, "")
 		if err != nil {

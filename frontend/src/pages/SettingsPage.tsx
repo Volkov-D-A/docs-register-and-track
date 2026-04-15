@@ -4,6 +4,8 @@ import {
   Typography, Popconfirm, Switch, Tag, App, DatePicker
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, FileTextOutlined, BankOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined, SolutionOutlined } from '@ant-design/icons';
+import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindLabel, getDocumentKindMeta } from '../constants/documentKinds';
+import { useDocumentKinds } from '../hooks/useDocumentKinds';
 
 const { Title } = Typography;
 
@@ -20,6 +22,7 @@ const NomenclatureTab: React.FC = () => {
   const [form] = Form.useForm();
   const currentYear = new Date().getFullYear();
   const [filterYear, setFilterYear] = useState(currentYear);
+  const { kinds: allDocumentKinds } = useDocumentKinds();
 
   const load = async () => {
     setLoading(true);
@@ -39,10 +42,10 @@ const NomenclatureTab: React.FC = () => {
     try {
       if (editItem) {
         const { Update } = await import('../../wailsjs/go/services/NomenclatureService');
-        await Update(editItem.id, values.name, values.index, values.year, values.direction, values.isActive);
+        await Update(editItem.id, values.name, values.index, values.year, values.kindCode, values.separator, values.numberingMode, values.isActive);
       } else {
         const { Create } = await import('../../wailsjs/go/services/NomenclatureService');
-        await Create(values.name, values.index, values.year, values.direction);
+        await Create(values.name, values.index, values.year, values.kindCode, values.separator, values.numberingMode);
       }
       message.success(editItem ? 'Обновлено' : 'Создано');
       setModalOpen(false);
@@ -70,8 +73,20 @@ const NomenclatureTab: React.FC = () => {
     { title: 'Наименование', dataIndex: 'name', key: 'name' },
     { title: 'Год', dataIndex: 'year', key: 'year', width: 80 },
     {
-      title: 'Направление', dataIndex: 'direction', key: 'direction', width: 120,
-      render: (v: string) => v === 'incoming' ? <Tag color="blue">Входящие</Tag> : <Tag color="green">Исходящие</Tag>,
+      title: 'Вид документа', dataIndex: 'kindCode', key: 'kindCode', width: 160,
+      render: (v: string) => {
+        const meta = getDocumentKindMeta(v);
+        return <Tag color={meta?.color || 'blue'}>{getDocumentKindLabel(v)}</Tag>;
+      },
+    },
+    { title: 'Разделитель', dataIndex: 'separator', key: 'separator', width: 110 },
+    {
+      title: 'Нумерация', dataIndex: 'numberingMode', key: 'numberingMode', width: 160,
+      render: (v: string) => (
+        <Tag>
+          {v === 'manual_only' ? 'Вручную' : v === 'number_only' ? 'Только номер' : 'Индекс + номер'}
+        </Tag>
+      ),
     },
     { title: 'След. номер', dataIndex: 'nextNumber', key: 'nextNumber', width: 100 },
     {
@@ -106,7 +121,7 @@ const NomenclatureTab: React.FC = () => {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => {
           setEditItem(null);
           form.resetFields();
-          form.setFieldsValue({ year: currentYear });
+          form.setFieldsValue({ year: currentYear, kindCode: DOCUMENT_KIND_INCOMING_LETTER, separator: '/', numberingMode: 'index_and_number' });
           setModalOpen(true);
         }}>Добавить</Button>
       </Space>
@@ -129,10 +144,21 @@ const NomenclatureTab: React.FC = () => {
           <Form.Item name="year" label="Год" rules={[{ required: true }]}>
             <InputNumber min={2020} max={2030} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="direction" label="Направление" rules={[{ required: true }]}>
+          <Form.Item name="kindCode" label="Вид документа" rules={[{ required: true }]}>
             <Select>
-              <Select.Option value="incoming">Входящие</Select.Option>
-              <Select.Option value="outgoing">Исходящие</Select.Option>
+              {allDocumentKinds.map((kind) => (
+                <Select.Option key={kind.code} value={kind.code}>{kind.label}</Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item name="separator" label="Разделитель" rules={[{ required: true }]}>
+            <Input maxLength={10} placeholder="/" />
+          </Form.Item>
+          <Form.Item name="numberingMode" label="Режим нумерации" rules={[{ required: true }]}>
+            <Select>
+              <Select.Option value="index_and_number">Индекс + номер</Select.Option>
+              <Select.Option value="number_only">Только номер</Select.Option>
+              <Select.Option value="manual_only">Номер вводится вручную</Select.Option>
             </Select>
           </Form.Item>
           {editItem && (

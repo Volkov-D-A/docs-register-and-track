@@ -49,12 +49,16 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 		return nil, models.ErrUnauthorized
 	}
 
-	if s.authService.HasActiveRole("executor") && !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
-		return nil, models.NewForbidden("загрузка файлов при завершении поручения отключена в настройках")
+	currentRoles := currentUser.Roles
+	isExecutor := false
+	for _, role := range currentRoles {
+		if role == "executor" {
+			isExecutor = true
+			break
+		}
 	}
-
-	if err := requireDocumentDomainReadRole(s.authService); err != nil {
-		return nil, err
+	if isExecutor && !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
+		return nil, models.NewForbidden("загрузка файлов при завершении поручения отключена в настройках")
 	}
 
 	documentID, err := uuid.Parse(documentIDStr)
@@ -64,7 +68,7 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 	if _, err := s.access.RequireExists(documentID); err != nil {
 		return nil, err
 	}
-	if err := s.access.RequireReadAnyType(documentID); err != nil {
+	if err := s.access.RequireDocumentAction(documentID, "upload"); err != nil {
 		return nil, err
 	}
 
@@ -116,12 +120,12 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 	}
 
 	attachment := &models.Attachment{
-		DocumentID:   documentID,
-		Filename:     filename,
-		FileSize:     int64(len(data)),
-		ContentType:  contentType,
-		StoragePath:  objectName,
-		UploadedBy:   userID,
+		DocumentID:  documentID,
+		Filename:    filename,
+		FileSize:    int64(len(data)),
+		ContentType: contentType,
+		StoragePath: objectName,
+		UploadedBy:  userID,
 	}
 
 	if err := s.repo.Create(attachment); err != nil {
@@ -193,10 +197,6 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 // Delete — удалить вложение
 func (s *AttachmentService) Delete(idStr string) error {
 	// Проверка прав доступа
-	if err := requireClerkDocumentRole(s.authService); err != nil {
-		return err
-	}
-
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return fmt.Errorf("invalid attachment ID")
@@ -209,6 +209,9 @@ func (s *AttachmentService) Delete(idStr string) error {
 	}
 	if attachment == nil {
 		return nil
+	}
+	if err := s.access.RequireDocumentAction(attachment.DocumentID, "upload"); err != nil {
+		return err
 	}
 
 	// Удаление из файлового хранилища
@@ -382,7 +385,7 @@ func (s *AttachmentService) OpenFolder(path string) error {
 // BulkDeleteOlderThan — массовое удаление файлов, загруженных до указанной даты
 func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	// Проверка прав доступа
-	if err := s.authService.RequireActiveRole("admin"); err != nil {
+	if err := s.authService.RequireRole("admin"); err != nil {
 		return 0, err
 	}
 

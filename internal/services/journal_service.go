@@ -32,7 +32,7 @@ func (s *JournalService) GetByDocumentID(documentIDStr string) ([]dto.JournalEnt
 	}
 
 	if s.access != nil {
-		if err := s.access.RequireReadAnyType(docID); err != nil {
+		if err := s.access.RequireViewJournal(docID); err != nil {
 			return nil, err
 		}
 	} else {

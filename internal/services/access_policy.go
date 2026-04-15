@@ -6,13 +6,13 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-// requireClerkDocumentRole ограничивает document-domain активной ролью clerk.
+// requireClerkDocumentRole ограничивает document-domain ролью clerk.
 func requireClerkDocumentRole(auth *AuthService) error {
 	if auth == nil {
 		return models.ErrUnauthorized
 	}
 
-	return auth.RequireActiveRole("clerk")
+	return auth.RequireRole("clerk")
 }
 
 // requireDocumentDomainReadRole ограничивает document-domain ролями clerk и executor.
@@ -21,7 +21,7 @@ func requireDocumentDomainReadRole(auth *AuthService) error {
 		return models.ErrUnauthorized
 	}
 
-	return auth.RequireAnyActiveRole("clerk", "executor")
+	return auth.RequireAnyRole("clerk", "executor")
 }
 
 func hasExecutorNomenclatureAccess(auth *AuthService, depRepo DepartmentStore, nomenclatureID uuid.UUID) (bool, error) {
@@ -29,10 +29,10 @@ func hasExecutorNomenclatureAccess(auth *AuthService, depRepo DepartmentStore, n
 		return false, models.ErrUnauthorized
 	}
 
-	if auth.HasActiveRole("clerk") {
+	if auth.HasRole("clerk") {
 		return true, nil
 	}
-	if !auth.HasActiveRole("executor") {
+	if !auth.HasRole("executor") {
 		return false, models.ErrForbidden
 	}
 
@@ -76,10 +76,10 @@ func requireExecutorDocumentAccess(
 		return models.ErrUnauthorized
 	}
 
-	if auth.HasActiveRole("clerk") {
+	if auth.HasRole("clerk") {
 		return nil
 	}
-	if !auth.HasActiveRole("executor") {
+	if !auth.HasRole("executor") {
 		return models.ErrForbidden
 	}
 
@@ -115,7 +115,7 @@ func requireExecutorDocumentAccess(
 	return models.ErrForbidden
 }
 
-// requireDocumentReadAccess проверяет доступ к документу по роли и номенклатуре.
+// requireDocumentReadAccess проверяет доступ к документу по виду, роли и номенклатуре.
 func requireDocumentReadAccess(
 	auth *AuthService,
 	depRepo DepartmentStore,
@@ -123,19 +123,19 @@ func requireDocumentReadAccess(
 	acknowledgmentRepo AcknowledgmentStore,
 	incomingRepo IncomingDocStore,
 	outgoingRepo OutgoingDocStore,
-	documentType string,
+	documentKind string,
 	documentID uuid.UUID,
 ) error {
 	if err := requireDocumentDomainReadRole(auth); err != nil {
 		return err
 	}
 
-	if auth.HasActiveRole("clerk") {
+	if auth.HasRole("clerk") {
 		return nil
 	}
 
-	switch documentType {
-	case "incoming":
+	switch models.NormalizeDocumentKind(documentKind) {
+	case models.DocumentKindIncomingLetter:
 		doc, err := incomingRepo.GetByID(documentID)
 		if err != nil {
 			return err
@@ -144,7 +144,7 @@ func requireDocumentReadAccess(
 			return nil
 		}
 		return requireExecutorDocumentAccess(auth, depRepo, assignmentRepo, acknowledgmentRepo, doc.ID, doc.NomenclatureID)
-	case "outgoing":
+	case models.DocumentKindOutgoingLetter:
 		doc, err := outgoingRepo.GetByID(documentID)
 		if err != nil {
 			return err
@@ -172,7 +172,7 @@ func requireAnyDocumentReadAccess(
 		return err
 	}
 
-	if auth.HasActiveRole("clerk") {
+	if auth.HasRole("clerk") {
 		return nil
 	}
 

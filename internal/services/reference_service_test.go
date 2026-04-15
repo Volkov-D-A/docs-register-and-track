@@ -122,14 +122,13 @@ func TestReferenceService_CreateDocumentType(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
-	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
-		svc, _, _, auth := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+		repo.On("CreateDocumentType", "Test").Return(&models.DocumentType{ID: uuid.New(), Name: "Test"}, nil).Once()
 
 		result, err := svc.CreateDocumentType("Test")
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
+		require.NoError(t, err)
+		assert.NotNil(t, result)
 	})
 }
 
@@ -159,13 +158,12 @@ func TestReferenceService_UpdateDocumentType(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
-		svc, _, _, auth := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+		repo.On("UpdateDocumentType", mock.AnythingOfType("uuid.UUID"), "Test").Return(nil).Once()
 
 		err := svc.UpdateDocumentType(idStr, "Test")
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -195,13 +193,12 @@ func TestReferenceService_DeleteDocumentType(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
-		svc, _, _, auth := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+		repo.On("DeleteDocumentType", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
 
 		err := svc.DeleteDocumentType(idStr)
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -304,13 +301,12 @@ func TestReferenceService_UpdateOrganization(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
-		svc, _, _, auth := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+		repo.On("UpdateOrganization", mock.AnythingOfType("uuid.UUID"), "Тест").Return(nil).Once()
 
 		err := svc.UpdateOrganization(idStr, "Тест")
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -340,12 +336,11 @@ func TestReferenceService_DeleteOrganization(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
-		svc, _, _, auth := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+		repo.On("DeleteOrganization", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
 
 		err := svc.DeleteOrganization(idStr)
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
+		require.NoError(t, err)
 	})
 }

@@ -17,6 +17,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { GetDocumentFlow, services } from '../../types/link';
+import { isIncomingKind } from '../../constants/documentKinds';
+import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentCounterpartyLabel, getLinkedDocumentLabel } from '../../config/documentLinkConfig';
 
 /**
  * Свойства компонента графа связей.
@@ -44,7 +46,7 @@ const NODE_COLORS = {
 } as const;
 
 const getNodePalette = (type: string) => {
-    return type === 'incoming' ? NODE_COLORS.incoming : NODE_COLORS.outgoing;
+    return isIncomingKind(type) ? NODE_COLORS.incoming : NODE_COLORS.outgoing;
 };
 
 const getLayoutedElements = (nodes: Node[], edges: Edge[], rootId: string) => {
@@ -134,7 +136,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
             }
 
             const initialNodes: Node[] = data.nodes.map((n: services.GraphNode) => {
-                const palette = getNodePalette(n.type);
+                const palette = getNodePalette(n.kindCode);
                 const isRootNode = n.id === rootId;
 
                 return {
@@ -166,7 +168,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                                             letterSpacing: '0.04em',
                                         }}
                                     >
-                                        {n.type === 'incoming' ? 'Входящий' : 'Исходящий'}
+                                        {getLinkedDocumentLabel(n.kindCode)}
                                     </span>
                                 </div>
                                 <div
@@ -178,7 +180,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                     }}
-                                    title={`${n.type === 'incoming' ? 'Входящий' : 'Исходящий'} № ${n.label}`}
+                                    title={`${getLinkedDocumentLabel(n.kindCode)} № ${n.label}`}
                                 >
                                     № {n.label}
                                 </div>
@@ -193,7 +195,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                                         wordBreak: 'break-word',
                                     }}
                                 >
-                                    {n.type === 'incoming' ? `От: ${n.sender}` : `Кому: ${n.recipient}`}
+                                    {getLinkedDocumentCounterpartyLabel(n.kindCode, n.sender, n.recipient)}
                                 </div>
                                 <div
                                     style={{
@@ -220,9 +222,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                 id: e.id,
                 source: e.source,
                 target: e.target,
-                label: e.label === 'reply' ? 'Ответ' :
-                    e.label === 'follow_up' ? 'Во исполнение' :
-                        e.label === 'related' ? 'Связан' : e.label,
+                label: getDocumentLinkTypeLabel(e.label),
                 type: 'smoothstep',
                 animated: true,
                 markerEnd: {
@@ -272,12 +272,12 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                     }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#595959' }}>
-                        <span style={{ width: 10, height: 10, borderRadius: 999, background: NODE_COLORS.incoming.badgeBackground }} />
-                        Входящие
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: getLinkedDocumentColor('incoming') }} />
+                        {getLinkedDocumentLabel('incoming')}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#595959' }}>
-                        <span style={{ width: 10, height: 10, borderRadius: 999, background: NODE_COLORS.outgoing.badgeBackground }} />
-                        Исходящие
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: getLinkedDocumentColor('outgoing') }} />
+                        {getLinkedDocumentLabel('outgoing')}
                     </div>
                 </div>
             </Panel>

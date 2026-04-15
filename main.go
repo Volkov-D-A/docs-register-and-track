@@ -71,6 +71,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	nomenclatureRepo := repository.NewNomenclatureRepository(db)
 	referenceRepo := repository.NewReferenceRepository(db)
+	documentAccessRepo := repository.NewDocumentAccessRepository(db)
 	documentRepo := repository.NewDocumentRepository(db)
 	incomingDocRepo := repository.NewIncomingDocumentRepository(db)
 	outgoingDocRepo := repository.NewOutgoingDocumentRepository(db)
@@ -105,11 +106,19 @@ func main() {
 	userService := services.NewUserService(userRepo, authService, adminAuditLogService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService, adminAuditLogService)
 	referenceService := services.NewReferenceService(referenceRepo, authService, adminAuditLogService)
-	documentAccessService := services.NewDocumentAccessService(authService, departmentRepo, assignmentRepo, acknowledgmentRepo, documentRepo, incomingDocRepo, outgoingDocRepo)
+	documentAccessService := services.NewDocumentAccessService(authService, departmentRepo, assignmentRepo, acknowledgmentRepo, documentAccessRepo, documentRepo, incomingDocRepo, outgoingDocRepo)
+	documentKindService := services.NewDocumentKindService(documentAccessService)
 	journalService := services.NewJournalService(journalRepo, authService, documentAccessService)
-
-	incomingDocService := services.NewIncomingDocumentService(incomingDocRepo, nomenclatureRepo, referenceRepo, departmentRepo, authService, journalService, documentAccessService)
-	outgoingDocService := services.NewOutgoingDocumentService(outgoingDocRepo, referenceRepo, nomenclatureRepo, departmentRepo, authService, journalService, documentAccessService)
+	documentKindQueryRegistry := services.NewDocumentKindQueryRegistry(
+		services.NewIncomingLetterQueryHandler(incomingDocRepo),
+		services.NewOutgoingLetterQueryHandler(outgoingDocRepo),
+	)
+	documentQueryService := services.NewDocumentQueryService(documentKindQueryRegistry, documentAccessService)
+	documentKindCommandRegistry := services.NewDocumentKindCommandRegistry(
+		services.NewIncomingLetterCommandHandler(incomingDocRepo, nomenclatureRepo, referenceRepo, authService, journalService, documentAccessService),
+		services.NewOutgoingLetterCommandHandler(outgoingDocRepo, referenceRepo, nomenclatureRepo, authService, journalService, documentAccessService),
+	)
+	documentRegistrationService := services.NewDocumentRegistrationService(documentKindCommandRegistry)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService, documentAccessService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService, adminAuditLogService)
 
@@ -156,8 +165,9 @@ func main() {
 			userService,
 			nomenclatureService,
 			referenceService,
-			incomingDocService,
-			outgoingDocService,
+			documentKindService,
+			documentQueryService,
+			documentRegistrationService,
 			assignmentService,
 			dashboardService,
 			departmentService,

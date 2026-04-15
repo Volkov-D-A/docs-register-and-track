@@ -92,14 +92,13 @@ func TestSettingsService_GetAll(t *testing.T) {
 		assert.Len(t, result, 1)
 	})
 
-	t.Run("forbidden when admin is not active role", func(t *testing.T) {
-		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("allowed for user with admin role", func(t *testing.T) {
+		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
+		repo.On("GetAll").Return([]models.SystemSetting{{Key: "k1", Value: "v1"}}, nil).Once()
 
 		result, err := svc.GetAll()
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Equal(t, models.ErrForbidden, err)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
 	})
 }
 
@@ -167,13 +166,13 @@ func TestSettingsService_Update(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("forbidden when admin is not active role", func(t *testing.T) {
-		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("allowed for user with admin role", func(t *testing.T) {
+		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
+		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "old"}, nil).Once()
+		repo.On("Update", "key", "value").Return(nil).Once()
 
 		err := svc.Update("key", "value")
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -267,13 +266,13 @@ func TestSettingsService_RunMigrations(t *testing.T) {
 		assert.Contains(t, err.Error(), "Недостаточно прав")
 	})
 
-	t.Run("forbidden when admin is not active role", func(t *testing.T) {
-		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("allowed for user with admin role", func(t *testing.T) {
+		svc, _, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
 
 		err := svc.RunMigrations()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Недостаточно прав")
+		if err != nil {
+			assert.NotContains(t, err.Error(), "Недостаточно прав")
+		}
 	})
 
 	t.Run("success admin", func(t *testing.T) {
@@ -297,14 +296,15 @@ func TestSettingsService_GetMigrationStatus(t *testing.T) {
 		assert.Contains(t, err.Error(), "Недостаточно прав")
 	})
 
-	t.Run("forbidden when admin is not active role", func(t *testing.T) {
-		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("allowed for user with admin role", func(t *testing.T) {
+		svc, _, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
 
 		status, err := svc.GetMigrationStatus()
-		require.Error(t, err)
-		require.Nil(t, status)
-		assert.Contains(t, err.Error(), "Недостаточно прав")
+		if err != nil {
+			assert.NotContains(t, err.Error(), "Недостаточно прав")
+		} else {
+			assert.NotNil(t, status)
+		}
 	})
 
 	t.Run("success admin", func(t *testing.T) {
@@ -327,13 +327,13 @@ func TestSettingsService_RollbackMigration(t *testing.T) {
 		assert.Contains(t, err.Error(), "Недостаточно прав")
 	})
 
-	t.Run("forbidden when admin is not active role", func(t *testing.T) {
-		svc, _, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("allowed for user with admin role", func(t *testing.T) {
+		svc, _, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
 
 		err := svc.RollbackMigration()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Недостаточно прав")
+		if err != nil {
+			assert.NotContains(t, err.Error(), "Недостаточно прав")
+		}
 	})
 
 	t.Run("success admin", func(t *testing.T) {

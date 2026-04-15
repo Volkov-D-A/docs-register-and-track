@@ -21,51 +21,51 @@ func NewNomenclatureService(repo NomenclatureStore, auth *AuthService, auditServ
 	return &NomenclatureService{repo: repo, auth: auth, auditService: auditService}
 }
 
-// GetAll возвращает все дела номенклатуры за указанный год и по указанному направлению.
-func (s *NomenclatureService) GetAll(year int, direction string) ([]dto.Nomenclature, error) {
+// GetAll возвращает все дела номенклатуры за указанный год и по указанному виду документа.
+func (s *NomenclatureService) GetAll(year int, kindCode string) ([]dto.Nomenclature, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	res, err := s.repo.GetAll(year, direction)
+	res, err := s.repo.GetAll(year, kindCode)
 	return dto.MapNomenclatures(res), err
 }
 
-// GetActiveForDirection возвращает активные дела для выбора при регистрации документов.
-func (s *NomenclatureService) GetActiveForDirection(direction string) ([]dto.Nomenclature, error) {
+// GetActiveForKind возвращает активные дела для выбора при регистрации документов.
+func (s *NomenclatureService) GetActiveForKind(kindCode string) ([]dto.Nomenclature, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
 	year := time.Now().Year()
-	res, err := s.repo.GetActiveByDirection(direction, year)
+	res, err := s.repo.GetActiveByKind(kindCode, year)
 	return dto.MapNomenclatures(res), err
 }
 
 // Create создает новое дело номенклатуры (доступно только администраторам и делопроизводителям).
-func (s *NomenclatureService) Create(name, index string, year int, direction string) (*dto.Nomenclature, error) {
-	if err := s.auth.RequireAnyActiveRole("admin", "clerk"); err != nil {
+func (s *NomenclatureService) Create(name, index string, year int, kindCode, separator, numberingMode string) (*dto.Nomenclature, error) {
+	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
 		return nil, err
 	}
-	res, err := s.repo.Create(name, index, year, direction)
+	res, err := s.repo.Create(name, index, year, kindCode, separator, numberingMode)
 	if err != nil {
 		return nil, err
 	}
 
 	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "NOMENCLATURE_CREATE", fmt.Sprintf("Создано дело «%s» (%s), год: %d", name, index, year))
+	s.auditService.LogAction(userID, userName, "NOMENCLATURE_CREATE", fmt.Sprintf("Создано дело «%s» (%s), вид: %s, год: %d", name, index, kindCode, year))
 
 	return dto.MapNomenclature(res), nil
 }
 
 // Update обновляет существующее дело номенклатуры.
-func (s *NomenclatureService) Update(id string, name, index string, year int, direction string, isActive bool) (*dto.Nomenclature, error) {
-	if err := s.auth.RequireAnyActiveRole("admin", "clerk"); err != nil {
+func (s *NomenclatureService) Update(id string, name, index string, year int, kindCode, separator, numberingMode string, isActive bool) (*dto.Nomenclature, error) {
+	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
 		return nil, err
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
-	res, err := s.repo.Update(uid, name, index, year, direction, isActive)
+	res, err := s.repo.Update(uid, name, index, year, kindCode, separator, numberingMode, isActive)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (s *NomenclatureService) Update(id string, name, index string, year int, di
 
 // Delete удаляет дело номенклатуры по его ID (доступно только администраторам).
 func (s *NomenclatureService) Delete(id string) error {
-	if err := s.auth.RequireActiveRole("admin"); err != nil {
+	if err := s.auth.RequireRole("admin"); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)

@@ -79,7 +79,7 @@ func TestIncomingDocumentRepository_GetCount(t *testing.T) {
 
 	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).WithArgs(models.DocumentKindIncoming).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(42))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).WithArgs(models.DocumentKindIncomingLetter).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(42))
 
 	count, err := repo.GetCount()
 	require.NoError(t, err)
@@ -96,7 +96,7 @@ func TestIncomingDocumentRepository_Delete(t *testing.T) {
 	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
 	docID := uuid.New()
 
-	mock.ExpectExec(`DELETE FROM documents WHERE id = \$1 AND kind = \$2`).WithArgs(docID, models.DocumentKindIncoming).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`DELETE FROM documents WHERE id = \$1 AND kind = \$2`).WithArgs(docID, models.DocumentKindIncomingLetter).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = repo.Delete(docID)
 	require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
-		models.DocumentKindIncoming, req.NomenclatureID, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 	mock.ExpectExec(`INSERT INTO incoming_document_details`).WithArgs(
 		docID, req.IncomingNumber, req.IncomingDate,
@@ -249,7 +249,7 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE documents SET`).WithArgs(
-		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindIncoming,
+		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindIncomingLetter,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`UPDATE incoming_document_details SET`).WithArgs(
 		req.OutgoingNumberSender, req.OutgoingDateSender,

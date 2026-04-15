@@ -43,13 +43,12 @@ func (s *AcknowledgmentService) Create(
 	content string,
 	userIds []string,
 ) (*dto.Acknowledgment, error) {
-	if err := requireClerkDocumentRole(s.auth); err != nil {
-		return nil, err
-	}
-
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
+	}
+	if err := s.access.RequireDocumentAction(docUUID, "acknowledge"); err != nil {
+		return nil, err
 	}
 	doc, err := s.access.RequireExists(docUUID)
 	if err != nil {
@@ -65,7 +64,7 @@ func (s *AcknowledgmentService) Create(
 	ack := &models.Acknowledgment{
 		ID:           uuid.New(),
 		DocumentID:   docUUID,
-		DocumentType: string(doc.Kind),
+		DocumentKind: string(doc.Kind),
 		CreatorID:    creatorUUID,
 		Content:      content,
 		CreatedAt:    time.Now(),
@@ -107,12 +106,12 @@ func (s *AcknowledgmentService) Create(
 
 // GetList возвращает список задач на ознакомление для конкретного документа.
 func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment, error) {
-	if err := requireClerkDocumentRole(s.auth); err != nil {
-		return nil, err
-	}
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
+	}
+	if err := s.access.RequireDocumentAction(docUUID, "acknowledge"); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.GetByDocumentID(docUUID)
 	return dto.MapAcknowledgments(res), err
@@ -120,7 +119,7 @@ func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment
 
 // GetPendingForCurrentUser возвращает список невыполненных задач на ознакомление для текущего авторизованного пользователя.
 func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment, error) {
-	if err := s.auth.RequireAnyActiveRole("executor", "clerk"); err != nil {
+	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
 	userID := s.auth.GetCurrentUserID()
@@ -135,8 +134,19 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 // GetAllActive возвращает список всех активных (не завершенных) задач на ознакомление в системе.
 // Доступно только делопроизводителям.
 func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
-	if err := requireClerkDocumentRole(s.auth); err != nil {
+	currentUser, err := s.auth.GetCurrentUser()
+	if err != nil {
 		return nil, err
+	}
+	allowed := false
+	for _, role := range currentUser.Roles {
+		if role == "clerk" {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return nil, models.ErrForbidden
 	}
 	res, err := s.repo.GetAllActive()
 	return dto.MapAcknowledgments(res), err
@@ -204,8 +214,14 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 
 // Delete удаляет задачу на ознакомление по её ID.
 func (s *AcknowledgmentService) Delete(id string) error {
-	if err := requireClerkDocumentRole(s.auth); err != nil {
-		return err
+	if s.access.accessRepo == nil {
+		isClerk, err := s.access.hasRole("clerk")
+		if err != nil {
+			return err
+		}
+		if !isClerk {
+			return models.ErrForbidden
+		}
 	}
 
 	ackUUID, err := uuid.Parse(id)
@@ -215,6 +231,12 @@ func (s *AcknowledgmentService) Delete(id string) error {
 
 	ack, err := s.repo.GetByID(ackUUID)
 	if err != nil {
+		return err
+	}
+	if ack == nil {
+		return nil
+	}
+	if err := s.access.RequireDocumentAction(ack.DocumentID, "acknowledge"); err != nil {
 		return err
 	}
 

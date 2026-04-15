@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
+import { DOCUMENT_KIND_INCOMING_LETTER } from '../constants/documentKinds';
 import AssignmentModal from '../components/AssignmentModal';
 import AssignmentCompletionModal from '../components/AssignmentCompletionModal';
 
@@ -25,7 +26,7 @@ const { RangePicker } = DatePicker;
  */
 const AssignmentsPage: React.FC = () => {
     const { message } = App.useApp();
-    const { user, currentRole, hasRole } = useAuthStore();
+    const { user, hasRole } = useAuthStore();
     // const [activeTab, setActiveTab] = useState('inbox'); // Removed
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -52,7 +53,7 @@ const AssignmentsPage: React.FC = () => {
 
     // View Document
     const [viewDocId, setViewDocId] = useState<string>('');
-    const [viewDocType, setViewDocType] = useState<'incoming' | 'outgoing'>('incoming');
+    const [viewDocKind, setViewDocKind] = useState(DOCUMENT_KIND_INCOMING_LETTER);
     const [viewModalOpen, setViewModalOpen] = useState(false);
 
     // Refs
@@ -72,7 +73,7 @@ const AssignmentsPage: React.FC = () => {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
 
             let executorId = '';
-            const canViewAll = currentRole === 'clerk';
+            const canViewAll = hasRole('clerk');
 
             if (canViewAll) {
                 executorId = filterExecutorId;
@@ -102,7 +103,7 @@ const AssignmentsPage: React.FC = () => {
     useEffect(() => {
         load();
         loadUsers();
-    }, [page, pageSize, currentRole, search, filterStatus, filterDateFrom, filterDateTo, filterExecutorId, showFinished, filterOverdue]);
+    }, [page, pageSize, search, filterStatus, filterDateFrom, filterDateTo, filterExecutorId, showFinished, filterOverdue]);
 
     const updateStatus = async (id: string, status: string, report: string = '') => {
         try {
@@ -166,9 +167,9 @@ const AssignmentsPage: React.FC = () => {
         setFilterOverdue(true);
     };
 
-    const handleViewDocument = (id: string, type: string) => {
+    const handleViewDocument = (id: string, kind: string) => {
         setViewDocId(id);
-        setViewDocType(type as 'incoming' | 'outgoing');
+        setViewDocKind(kind);
         setViewModalOpen(true);
     };
 
@@ -247,7 +248,7 @@ const AssignmentsPage: React.FC = () => {
         {
             title: 'Действия', key: 'actions', width: 140,
             render: (_: any, r: any) => {
-                const isExecutor = user?.id === r.executorId && currentRole === 'executor';
+                const isExecutor = user?.id === r.executorId && hasRole('executor');
                 const isClerk = hasRole('clerk');
 
                 const canEdit = isClerk && r.status !== 'finished';
@@ -255,7 +256,7 @@ const AssignmentsPage: React.FC = () => {
                 return (
                     <Space size={2}>
                         <Tooltip title="Просмотреть карточку документа">
-                            <Button size="small" icon={<EyeOutlined />} onClick={() => handleViewDocument(r.documentId, r.documentType)} />
+                            <Button size="small" icon={<EyeOutlined />} onClick={() => handleViewDocument(r.documentId, r.documentKind)} />
                         </Tooltip>
                         {canEdit && (
                             <>
@@ -342,7 +343,7 @@ const AssignmentsPage: React.FC = () => {
                             />
                         </div>
                     </Col>
-                    {currentRole === 'clerk' && (
+                    {hasRole('clerk') && (
                         <>
                             <Col span={4}>
                                 <Select style={{ width: '100%' }} placeholder="Исполнитель" allowClear showSearch
@@ -444,7 +445,7 @@ const AssignmentsPage: React.FC = () => {
                 open={viewModalOpen}
                 onCancel={() => setViewModalOpen(false)}
                 documentId={viewDocId}
-                documentType={viewDocType}
+                documentKind={viewDocKind}
             />
         </div>
     );

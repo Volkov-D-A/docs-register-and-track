@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Login, Logout, ChangePassword, UpdateProfile, SetActiveRole } from '../../wailsjs/go/services/AuthService';
+import { Login, Logout, ChangePassword, UpdateProfile } from '../../wailsjs/go/services/AuthService';
 import { models } from '../../wailsjs/go/models';
 
 /**
@@ -24,6 +24,30 @@ interface User {
     department?: Department;
 }
 
+export const resolveUserProfile = (roles?: string[]): string => {
+    if (!roles || roles.length === 0) {
+        return 'executor';
+    }
+
+    const hasClerk = roles.includes('clerk');
+    const hasExecutor = roles.includes('executor');
+
+    if (hasClerk && hasExecutor) {
+        return 'mixed';
+    }
+    if (hasClerk) {
+        return 'clerk';
+    }
+    if (hasExecutor) {
+        return 'executor';
+    }
+    if (roles.includes('admin')) {
+        return 'admin';
+    }
+
+    return roles[0];
+};
+
 const BRUTEFORCE_LOCK_MESSAGE = 'Учетная запись заблокирована после 5 неверных попыток входа. Обратитесь к администратору для повторной активации.';
 
 const formatAuthError = (err: any): string => {
@@ -42,7 +66,6 @@ interface AuthState {
     isAuthenticated: boolean;
     isLoading: boolean;
     error: string | null;
-    currentRole: string | null;
 
     login: (username: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
@@ -50,7 +73,6 @@ interface AuthState {
     updateProfile: (login: string, fullName: string) => Promise<void>;
     clearError: () => void;
     hasRole: (role: string) => boolean;
-    setCurrentRole: (role: string) => Promise<void>;
 }
 
 /**
@@ -61,21 +83,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     isAuthenticated: false,
     isLoading: false,
     error: null,
-    currentRole: null,
 
     login: async (username: string, password: string) => {
         set({ isLoading: true, error: null });
         try {
             const user = await Login(username, password);
-            // Логика ролей по умолчанию: использовать первую роль или по приоритету
-            let defaultRole = 'executor';
-            if (user.roles && user.roles.length > 0) {
-                if (user.roles.includes('admin')) defaultRole = 'admin';
-                else if (user.roles.includes('clerk')) defaultRole = 'clerk';
-                else defaultRole = user.roles[0];
-            }
+            const roles = user.roles || [];
 
-            await SetActiveRole(defaultRole);
             set({
                 user: {
                     id: (user as any).id || '',
@@ -83,7 +97,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     fullName: user.fullName,
                     isActive: user.isActive,
                     failedLoginAttempts: user.failedLoginAttempts ?? 0,
-                    roles: user.roles || [],
+                    roles,
                     department: user.department ? {
                         id: (user.department as any).id || '',
                         name: user.department.name,
@@ -92,7 +106,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 },
                 isAuthenticated: true,
                 isLoading: false,
-                currentRole: defaultRole,
             });
         } catch (err: any) {
             set({ error: formatAuthError(err), isLoading: false });
@@ -105,7 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch (err) {
             console.error('Logout error:', err);
         }
-        set({ user: null, isAuthenticated: false, currentRole: null });
+        set({ user: null, isAuthenticated: false });
     },
 
     changePassword: async (oldPassword: string, newPassword: string) => {
@@ -144,30 +157,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     clearError: () => set({ error: null }),
 
     hasRole: (role: string) => {
-        const { currentRole } = get();
-        // Если currentRole установлена, проверяем только её.
-        // Если не установлена — возвращаем false.
-        // Согласно требованиям, учитывается только активная роль.
-        return currentRole === role;
-    },
-
-    setCurrentRole: async (role: string) => {
         const { user } = get();
-        if (!user?.roles?.includes(role)) {
-            return;
-        }
-
-        set({ isLoading: true, error: null });
-
-        try {
-            await SetActiveRole(role);
-            set({ currentRole: role, isLoading: false });
-        } catch (err: any) {
-            set({
-                error: err?.message || String(err) || 'Ошибка смены роли',
-                isLoading: false,
-            });
-            throw err;
-        }
-    }
+        return user?.roles?.includes(role) ?? false;
+    },
 }));

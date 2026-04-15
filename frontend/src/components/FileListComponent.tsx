@@ -18,13 +18,12 @@ interface FileListComponentProps {
  * Компонент управления прикрепленными файлами.
  * Позволяет просматривать, загружать, скачивать и удалять файлы, прикрепленные к документу.
  * @param documentId Идентификатор документа
- * @param documentType Тип документа
  * @param readOnly Флаг режима только для чтения
  */
 const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, readOnly }) => {
     const { message } = App.useApp();
-    const { currentRole } = useAuthStore();
-    const canEdit = !readOnly && currentRole === 'clerk';
+    const { hasRole } = useAuthStore();
+    const canEdit = !readOnly && hasRole('clerk');
 
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);

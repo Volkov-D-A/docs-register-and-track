@@ -4,19 +4,113 @@ CREATE TABLE nomenclature (
     name VARCHAR(500) NOT NULL,
     index VARCHAR(50) NOT NULL,
     year INT NOT NULL,
-    direction VARCHAR(20) NOT NULL CHECK (
-        direction IN ('incoming', 'outgoing')
+    kind_code VARCHAR(40) NOT NULL CHECK (
+        kind_code IN ('incoming_letter', 'outgoing_letter')
+    ),
+    separator VARCHAR(10) NOT NULL DEFAULT '/',
+    numbering_mode VARCHAR(30) NOT NULL DEFAULT 'index_and_number' CHECK (
+        numbering_mode IN ('index_and_number', 'number_only', 'manual_only')
     ),
     next_number INT NOT NULL DEFAULT 1,
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (index, year, direction)
+    UNIQUE (index, year, kind_code)
 );
 
 CREATE INDEX idx_nomenclature_year ON nomenclature (year);
 
-CREATE INDEX idx_nomenclature_direction ON nomenclature (direction);
+CREATE INDEX idx_nomenclature_kind_code ON nomenclature (kind_code);
+
+CREATE TABLE document_permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
+    kind_code VARCHAR(40) NOT NULL CHECK (
+        kind_code IN ('incoming_letter', 'outgoing_letter')
+    ),
+    subject_type VARCHAR(20) NOT NULL CHECK (
+        subject_type IN ('role', 'department', 'user')
+    ),
+    subject_key VARCHAR(100) NOT NULL,
+    action VARCHAR(30) NOT NULL CHECK (
+        action IN (
+            'create',
+            'read',
+            'update',
+            'delete',
+            'assign',
+            'acknowledge',
+            'upload',
+            'link',
+            'view_journal'
+        )
+    ),
+    is_allowed BOOLEAN NOT NULL DEFAULT true,
+    UNIQUE (kind_code, subject_type, subject_key, action)
+);
+
+CREATE TABLE document_visibility_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
+    kind_code VARCHAR(40) NOT NULL CHECK (
+        kind_code IN ('incoming_letter', 'outgoing_letter')
+    ),
+    subject_type VARCHAR(20) NOT NULL CHECK (
+        subject_type IN ('role', 'department', 'user')
+    ),
+    subject_key VARCHAR(100) NOT NULL,
+    visibility_channel VARCHAR(30) NOT NULL CHECK (
+        visibility_channel IN (
+            'department_nomenclature',
+            'assignment',
+            'acknowledgment'
+        )
+    ),
+    UNIQUE (kind_code, subject_type, subject_key, visibility_channel)
+);
+
+INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed)
+SELECT kind_code, 'role', 'clerk', action, true
+FROM (
+    VALUES
+        ('incoming_letter'), ('outgoing_letter')
+) kinds(kind_code)
+CROSS JOIN (
+    VALUES
+        ('create'),
+        ('read'),
+        ('update'),
+        ('delete'),
+        ('assign'),
+        ('acknowledge'),
+        ('upload'),
+        ('link'),
+        ('view_journal')
+) actions(action);
+
+INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed)
+SELECT kind_code, 'role', 'executor', action, true
+FROM (
+    VALUES
+        ('incoming_letter'), ('outgoing_letter')
+) kinds(kind_code)
+CROSS JOIN (
+    VALUES
+        ('read'),
+        ('upload'),
+        ('view_journal')
+) actions(action);
+
+INSERT INTO document_visibility_rules (kind_code, subject_type, subject_key, visibility_channel)
+SELECT kind_code, 'role', 'executor', visibility_channel
+FROM (
+    VALUES
+        ('incoming_letter'), ('outgoing_letter')
+) kinds(kind_code)
+CROSS JOIN (
+    VALUES
+        ('department_nomenclature'),
+        ('assignment'),
+        ('acknowledgment')
+) channels(visibility_channel);
 
 -- 5. Department Nomenclature
 CREATE TABLE IF NOT EXISTS department_nomenclature (

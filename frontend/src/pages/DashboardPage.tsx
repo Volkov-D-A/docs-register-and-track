@@ -6,15 +6,40 @@ import {
 import {
     ClockCircleOutlined, FileTextOutlined, CheckCircleOutlined,
     UserOutlined, DatabaseOutlined, ReloadOutlined, EyeOutlined,
+    InboxOutlined, SendOutlined,
     CloudOutlined, HddOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
+import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel } from '../constants/documentKinds';
 
 import DocumentViewModal from '../components/DocumentViewModal';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
+
+const resolveDashboardRole = (roles?: string[], backendRole?: string) => {
+    if (backendRole) {
+        return backendRole;
+    }
+    if (!roles || roles.length === 0) {
+        return 'executor';
+    }
+    const hasClerk = roles.includes('clerk');
+    const hasExecutor = roles.includes('executor');
+    if (hasClerk && hasExecutor) {
+        return 'mixed';
+    }
+    if (hasClerk) {
+        return 'clerk';
+    }
+    if (hasExecutor) {
+        return 'executor';
+    }
+    if (roles.includes('admin')) {
+        return 'admin';
+    }
+    return roles[0];
+};
 
 /**
  * Главная страница дашборда (панель управления).
@@ -22,7 +47,7 @@ const { Option } = Select;
  */
 const DashboardPage: React.FC = () => {
     const { message } = App.useApp();
-    const { user, hasRole, currentRole } = useAuthStore();
+    const { user } = useAuthStore();
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
@@ -30,16 +55,15 @@ const DashboardPage: React.FC = () => {
 
     // Состояние модального окна просмотра
     const [viewDocId, setViewDocId] = useState('');
-    const [viewDocType, setViewDocType] = useState<'incoming' | 'outgoing'>('incoming');
+    const [viewDocKind, setViewDocKind] = useState(DOCUMENT_KIND_INCOMING_LETTER);
     const [viewModalOpen, setViewModalOpen] = useState(false);
 
     const loadStats = async () => {
         setLoading(true);
         try {
             const { GetStats } = await import('../../wailsjs/go/services/DashboardService');
-            // Передаём текущую роль в GetStats
             // @ts-ignore
-            const data = await GetStats(currentRole || '', dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD'));
+            const data = await GetStats('', dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD'));
             setStats(data);
 
             // Загрузка ожидающих ознакомлений
@@ -47,9 +71,9 @@ const DashboardPage: React.FC = () => {
             const { GetPendingForCurrentUser, GetAllActive } = await import('../../wailsjs/go/services/AcknowledgmentService');
 
             let acks: any[] = [];
-            if (currentRole === 'clerk') {
+            if (data?.role === 'clerk') {
                 acks = await GetAllActive();
-            } else if (currentRole === 'executor') {
+            } else if (data?.role === 'executor' || data?.role === 'mixed') {
                 acks = await GetPendingForCurrentUser();
             }
             setPendingAcks(acks || []);
@@ -63,7 +87,7 @@ const DashboardPage: React.FC = () => {
 
     useEffect(() => {
         loadStats();
-    }, [currentRole, dateRange]); // Перезагрузка при смене роли или периода
+    }, [dateRange]);
 
     const onAcknowledge = async (id: string) => {
         try {
@@ -78,7 +102,7 @@ const DashboardPage: React.FC = () => {
     };
 
     // Определение отображения по текущей роли
-    const activeRole = currentRole || stats?.role || user?.roles?.[0] || 'executor';
+    const activeRole = resolveDashboardRole(user?.roles, stats?.role);
 
     if (loading && !stats) {
         return <div style={{ textAlign: 'center', marginTop: 50 }}><Spin size="large" /></div>;
@@ -126,7 +150,7 @@ const DashboardPage: React.FC = () => {
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setViewDocId(item.documentId);
-                                                    setViewDocType(item.documentType);
+                                                    setViewDocKind(item.documentKind);
                                                     setViewModalOpen(true);
                                                 }}
                                             >
@@ -171,11 +195,11 @@ const DashboardPage: React.FC = () => {
                                             }
                                             e.stopPropagation();
                                             setViewDocId(item.documentId);
-                                            setViewDocType(item.documentType as 'incoming' | 'outgoing');
+                                            setViewDocKind(item.documentKind);
                                             setViewModalOpen(true);
                                         }}
                                     >
-                                        {item.documentNumber || (item.documentType === 'incoming' ? 'Bx' : 'Исх')}
+                                        {item.documentNumber || getDocumentKindShortLabel(item.documentKind)}
                                     </Tag>
                                 </div>
 
@@ -303,6 +327,75 @@ const DashboardPage: React.FC = () => {
         </>
     );
 
+    const renderMixedView = () => (
+        <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Title level={4} style={{ margin: 0 }}>
+                    Операционная сводка
+                </Title>
+                <DatePicker.RangePicker
+                    value={dateRange}
+                    onChange={(dates) => {
+                        if (dates && dates[0] && dates[1]) {
+                            setDateRange([dates[0], dates[1]]);
+                        }
+                    }}
+                    allowClear={false}
+                />
+            </div>
+
+            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                <Col xs={24} sm={8}>
+                    <StatCard title="Входящие письма" value={stats?.incomingCount || 0} icon={<InboxOutlined />} color="#69c0ff" />
+                </Col>
+                <Col xs={24} sm={8}>
+                    <StatCard title="Исходящие письма" value={stats?.outgoingCount || 0} icon={<SendOutlined />} color="#95de64" />
+                </Col>
+                <Col xs={24} sm={8}>
+                    <StatCard title="Просроченные поручения" value={stats?.allAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
+                </Col>
+            </Row>
+
+            <Title level={5}>Мои задачи</Title>
+            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col xs={24} sm={6}>
+                    <StatCard title="Новые" value={stats?.myAssignmentsNew || 0} icon={<FileTextOutlined />} color="#69c0ff" />
+                </Col>
+                <Col xs={24} sm={6}>
+                    <StatCard title="В работе" value={stats?.myAssignmentsInProgress || 0} icon={<ClockCircleOutlined />} color="#ffc069" />
+                </Col>
+                <Col xs={24} sm={6}>
+                    <StatCard title="Просрочено" value={stats?.myAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
+                </Col>
+                <Col xs={24} sm={6}>
+                    <StatCard
+                        title="Завершено"
+                        value={stats?.myAssignmentsFinished || 0}
+                        icon={<CheckCircleOutlined />}
+                        color="#95de64"
+                        suffix={
+                            (stats?.myAssignmentsFinishedLate > 0) ? (
+                                <span style={{ marginLeft: 8, fontSize: 'inherit' }}>
+                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 16 }} />
+                                    <span style={{ color: 'black' }}>{stats.myAssignmentsFinishedLate}</span>
+                                </span>
+                            ) : null
+                        }
+                    />
+                </Col>
+            </Row>
+
+            <Row gutter={[16, 16]}>
+                <Col xs={24} md={12}>
+                    <PendingAcksList />
+                </Col>
+                <Col xs={24} md={12}>
+                    <ExpiringList list={stats?.expiringAssignments} title="Срочные поручения" />
+                </Col>
+            </Row>
+        </>
+    );
+
     const renderAdminView = () => (
         <>
             <Title level={4}>Система</Title>
@@ -334,14 +427,15 @@ const DashboardPage: React.FC = () => {
 
             {activeRole === 'admin' && renderAdminView()}
             {activeRole === 'clerk' && renderClerkView()}
-            {activeRole !== 'admin' && activeRole !== 'clerk' && renderExecutorView()}
+            {activeRole === 'mixed' && renderMixedView()}
+            {activeRole !== 'admin' && activeRole !== 'clerk' && activeRole !== 'mixed' && renderExecutorView()}
 
             {activeRole !== 'admin' && (
                 <DocumentViewModal
                     open={viewModalOpen}
                     onCancel={() => setViewModalOpen(false)}
                     documentId={viewDocId}
-                    documentType={viewDocType}
+                    documentKind={viewDocKind}
                 />
             )}
         </div>

@@ -34,7 +34,7 @@ func (s *DepartmentService) GetAllDepartments() ([]dto.Department, error) {
 
 // CreateDepartment создает новое подразделение.
 func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []string) (*dto.Department, error) {
-	if err := s.auth.RequireActiveRole("admin"); err != nil {
+	if err := s.auth.RequireRole("admin"); err != nil {
 		return nil, err
 	}
 	res, err := s.repo.Create(name, nomenclatureIDs)
@@ -50,7 +50,7 @@ func (s *DepartmentService) CreateDepartment(name string, nomenclatureIDs []stri
 
 // UpdateDepartment обновляет данные существующего подразделения.
 func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []string) (*dto.Department, error) {
-	if err := s.auth.RequireActiveRole("admin"); err != nil {
+	if err := s.auth.RequireRole("admin"); err != nil {
 		return nil, err
 	}
 	uid, err := uuid.Parse(id)
@@ -70,7 +70,7 @@ func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []
 
 // DeleteDepartment удаляет подразделение по его ID.
 func (s *DepartmentService) DeleteDepartment(id string) error {
-	if err := s.auth.RequireActiveRole("admin"); err != nil {
+	if err := s.auth.RequireRole("admin"); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)

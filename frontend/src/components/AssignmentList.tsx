@@ -18,7 +18,6 @@ const { TextArea } = Input;
 /**
  * Компонент списка поручений по документу.
  * @param documentId Идентификатор документа
- * @param documentType Тип документа
  */
 const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
     const { message } = App.useApp();
@@ -26,8 +25,8 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<any>(null);
-    const { user, hasRole, currentRole } = useAuthStore();
-    const isExecutorOnly = currentRole === 'executor';
+    const { user, hasRole } = useAuthStore();
+    const isExecutorOnly = !hasRole('clerk');
 
     // Report modal
     const [completionModalOpen, setCompletionModalOpen] = useState(false);
@@ -140,7 +139,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
         {
             title: '', key: 'actions', width: 150,
             render: (_: any, r: any) => {
-                const isExecutor = user?.id === r.executorId && currentRole === 'executor';
+                const isExecutor = user?.id === r.executorId && hasRole('executor');
                 const isClerk = hasRole('clerk');
 
                 const canEdit = isClerk && r.status !== 'finished';

@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
@@ -40,6 +41,17 @@ type DocumentStore interface {
 	GetByID(id uuid.UUID) (*models.Document, error)
 }
 
+// DocumentQueryReader — минимальный интерфейс для общего query-layer документов.
+type DocumentQueryReader interface {
+	GetByID(id string) (*dto.DocumentCard, error)
+}
+
+// DocumentAccessStore — интерфейс для чтения матрицы доступа document-domain.
+type DocumentAccessStore interface {
+	HasPermission(kindCode, action string, roles []string, departmentID, userID string) (bool, error)
+	GetVisibilityChannels(kindCode string, roles []string, departmentID, userID string) ([]string, error)
+}
+
 // OutgoingDocStore — интерфейс для работы с исходящими документами в хранилище.
 type OutgoingDocStore interface {
 	GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error)
@@ -52,13 +64,13 @@ type OutgoingDocStore interface {
 
 // NomenclatureStore — интерфейс для работы с номенклатурой дел в хранилище.
 type NomenclatureStore interface {
-	GetAll(year int, direction string) ([]models.Nomenclature, error)
+	GetAll(year int, kindCode string) ([]models.Nomenclature, error)
 	GetByID(id uuid.UUID) (*models.Nomenclature, error)
-	Create(name, index string, year int, direction string) (*models.Nomenclature, error)
-	Update(id uuid.UUID, name, index string, year int, direction string, isActive bool) (*models.Nomenclature, error)
+	Create(name, index string, year int, kindCode, separator, numberingMode string) (*models.Nomenclature, error)
+	Update(id uuid.UUID, name, index string, year int, kindCode, separator, numberingMode string, isActive bool) (*models.Nomenclature, error)
 	Delete(id uuid.UUID) error
-	GetNextNumber(id uuid.UUID) (int, string, error)
-	GetActiveByDirection(direction string, year int) ([]models.Nomenclature, error)
+	GetNextNumber(id uuid.UUID) (int, string, string, string, error)
+	GetActiveByKind(kindCode string, year int) ([]models.Nomenclature, error)
 }
 
 // ReferenceStore — интерфейс для работы со справочниками (типы документов, организации, исполнители резолюции) в хранилище.

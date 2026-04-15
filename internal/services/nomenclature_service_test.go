@@ -69,11 +69,11 @@ func TestNomenclatureService_GetAll(t *testing.T) {
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "clerk")
 		mockValues := []models.Nomenclature{
-			{ID: uuid.New(), Name: "Приказы", Index: "01-01", Direction: "incoming"},
+			{ID: uuid.New(), Name: "Приказы", Index: "01-01", KindCode: "incoming_letter", Separator: "/", NumberingMode: "index_and_number"},
 		}
-		repo.On("GetAll", 2024, "incoming").Return(mockValues, nil).Once()
+		repo.On("GetAll", 2024, "incoming_letter").Return(mockValues, nil).Once()
 
-		result, err := svc.GetAll(2024, "incoming")
+		result, err := svc.GetAll(2024, "incoming_letter")
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Equal(t, "Приказы", result[0].Name)
@@ -81,24 +81,24 @@ func TestNomenclatureService_GetAll(t *testing.T) {
 
 	t.Run("не авторизован", func(t *testing.T) {
 		svc, _, _ := setupNomenclatureService(t, "")
-		result, err := svc.GetAll(2024, "incoming")
+		result, err := svc.GetAll(2024, "incoming_letter")
 		require.Error(t, err)
 		assert.Equal(t, ErrNotAuthenticated, err)
 		assert.Nil(t, result)
 	})
 }
 
-func TestNomenclatureService_GetActiveForDirection(t *testing.T) {
+func TestNomenclatureService_GetActiveForKind(t *testing.T) {
 	// Получение списка только активных дел для определенного направления
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "clerk")
 		mockValues := []models.Nomenclature{
-			{ID: uuid.New(), Name: "Активные приказы", Index: "01-02", Direction: "incoming", IsActive: true},
+			{ID: uuid.New(), Name: "Активные приказы", Index: "01-02", KindCode: "incoming_letter", Separator: "/", NumberingMode: "index_and_number", IsActive: true},
 		}
 		currentYear := time.Now().Year()
-		repo.On("GetActiveByDirection", "incoming", currentYear).Return(mockValues, nil).Once()
+		repo.On("GetActiveByKind", "incoming_letter", currentYear).Return(mockValues, nil).Once()
 
-		result, err := svc.GetActiveForDirection("incoming")
+		result, err := svc.GetActiveForKind("incoming_letter")
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Equal(t, "Активные приказы", result[0].Name)
@@ -106,7 +106,7 @@ func TestNomenclatureService_GetActiveForDirection(t *testing.T) {
 
 	t.Run("не авторизован", func(t *testing.T) {
 		svc, _, _ := setupNomenclatureService(t, "")
-		result, err := svc.GetActiveForDirection("incoming")
+		result, err := svc.GetActiveForKind("incoming_letter")
 		require.Error(t, err)
 		assert.Equal(t, ErrNotAuthenticated, err)
 		assert.Nil(t, result)
@@ -119,9 +119,9 @@ func TestNomenclatureService_Create(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "admin")
 		name := "Новое дело"
 		expected := &models.Nomenclature{ID: uuid.New(), Name: name}
-		repo.On("Create", name, "01-03", 2024, "incoming").Return(expected, nil).Once()
+		repo.On("Create", name, "01-03", 2024, "incoming_letter", "/", "index_and_number").Return(expected, nil).Once()
 
-		result, err := svc.Create(name, "01-03", 2024, "incoming")
+		result, err := svc.Create(name, "01-03", 2024, "incoming_letter", "/", "index_and_number")
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, name, result.Name)
@@ -131,36 +131,38 @@ func TestNomenclatureService_Create(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "clerk")
 		name := "Новое дело clerk"
 		expected := &models.Nomenclature{ID: uuid.New(), Name: name}
-		repo.On("Create", name, "01-03", 2024, "incoming").Return(expected, nil).Once()
+		repo.On("Create", name, "01-03", 2024, "incoming_letter", "/", "index_and_number").Return(expected, nil).Once()
 
-		result, err := svc.Create(name, "01-03", 2024, "incoming")
+		result, err := svc.Create(name, "01-03", 2024, "incoming_letter", "/", "index_and_number")
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 	})
 
 	t.Run("запрещено (исполнитель)", func(t *testing.T) {
 		svc, _, _ := setupNomenclatureService(t, "executor")
-		result, err := svc.Create("Test", "idx", 2024, "dir")
+		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number")
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
 
-	t.Run("запрещено при активной executor роли у мульти-ролевого пользователя", func(t *testing.T) {
-		svc, _, auth := setupNomenclatureServiceWithRoles(t, []string{"admin", "executor"})
-		require.NoError(t, auth.SetActiveRole("executor"))
+	t.Run("разрешено мульти-ролевому пользователю с ролью admin", func(t *testing.T) {
+		svc, repo, _ := setupNomenclatureServiceWithRoles(t, []string{"admin", "executor"})
+		repo.On("Create", "Test", "idx", 2024, "incoming_letter", "/", "index_and_number").Return(&models.Nomenclature{
+			ID:   uuid.New(),
+			Name: "Test",
+		}, nil).Once()
 
-		result, err := svc.Create("Test", "idx", 2024, "dir")
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
+		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number")
+		require.NoError(t, err)
+		assert.NotNil(t, result)
 	})
 
 	t.Run("ошибка базы", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "admin")
-		repo.On("Create", "Test", "idx", 2024, "dir").Return(nil, errors.New("db create error")).Once()
+		repo.On("Create", "Test", "idx", 2024, "incoming_letter", "/", "index_and_number").Return(nil, errors.New("db create error")).Once()
 
-		result, err := svc.Create("Test", "idx", 2024, "dir")
+		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "db create error")
 		assert.Nil(t, result)
@@ -175,9 +177,9 @@ func TestNomenclatureService_Update(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "clerk")
 		name := "Обновлено"
 		expected := &models.Nomenclature{ID: uuid.MustParse(idStr), Name: name}
-		repo.On("Update", mock.AnythingOfType("uuid.UUID"), name, "01-04", 2024, "outgoing", true).Return(expected, nil).Once()
+		repo.On("Update", mock.AnythingOfType("uuid.UUID"), name, "01-04", 2024, "outgoing_letter", "-", "number_only", true).Return(expected, nil).Once()
 
-		result, err := svc.Update(idStr, name, "01-04", 2024, "outgoing", true)
+		result, err := svc.Update(idStr, name, "01-04", 2024, "outgoing_letter", "-", "number_only", true)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, name, result.Name)
@@ -185,7 +187,7 @@ func TestNomenclatureService_Update(t *testing.T) {
 
 	t.Run("невалидный ID", func(t *testing.T) {
 		svc, _, _ := setupNomenclatureService(t, "admin")
-		result, err := svc.Update("invalid-uuid", "Тест", "idx", 2024, "dir", true)
+		result, err := svc.Update("invalid-uuid", "Тест", "idx", 2024, "incoming_letter", "/", "index_and_number", true)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid ID")
 		assert.Nil(t, result)
@@ -193,20 +195,22 @@ func TestNomenclatureService_Update(t *testing.T) {
 
 	t.Run("запрещено (исполнитель)", func(t *testing.T) {
 		svc, _, _ := setupNomenclatureService(t, "executor")
-		result, err := svc.Update(idStr, "Тест", "idx", 2024, "dir", true)
+		result, err := svc.Update(idStr, "Тест", "idx", 2024, "incoming_letter", "/", "index_and_number", true)
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
 
-	t.Run("запрещено при активной executor роли у мульти-ролевого пользователя", func(t *testing.T) {
-		svc, _, auth := setupNomenclatureServiceWithRoles(t, []string{"admin", "executor"})
-		require.NoError(t, auth.SetActiveRole("executor"))
+	t.Run("разрешено мульти-ролевому пользователю с ролью admin", func(t *testing.T) {
+		svc, repo, _ := setupNomenclatureServiceWithRoles(t, []string{"admin", "executor"})
+		repo.On("Update", mock.AnythingOfType("uuid.UUID"), "Тест", "idx", 2024, "incoming_letter", "/", "index_and_number", true).Return(&models.Nomenclature{
+			ID:   uuid.MustParse(idStr),
+			Name: "Тест",
+		}, nil).Once()
 
-		result, err := svc.Update(idStr, "Тест", "idx", 2024, "dir", true)
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
+		result, err := svc.Update(idStr, "Тест", "idx", 2024, "incoming_letter", "/", "index_and_number", true)
+		require.NoError(t, err)
+		assert.NotNil(t, result)
 	})
 }
 
@@ -236,12 +240,11 @@ func TestNomenclatureService_Delete(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
-		svc, _, auth := setupNomenclatureServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
+		svc, repo, _ := setupNomenclatureServiceWithRoles(t, []string{"admin", "clerk"})
+		repo.On("Delete", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
 
 		err := svc.Delete(idStr)
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
+		require.NoError(t, err)
 	})
 }

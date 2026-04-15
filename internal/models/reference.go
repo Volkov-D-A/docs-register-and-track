@@ -8,15 +8,17 @@ import (
 
 // Nomenclature — дело номенклатуры
 type Nomenclature struct {
-	ID         uuid.UUID `json:"-"`
-	Name       string    `json:"name"`
-	Index      string    `json:"index"`
-	Year       int       `json:"year"`
-	Direction  string    `json:"direction"` // incoming, outgoing
-	NextNumber int       `json:"nextNumber"`
-	IsActive   bool      `json:"isActive"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	ID            uuid.UUID `json:"-"`
+	Name          string    `json:"name"`
+	Index         string    `json:"index"`
+	Year          int       `json:"year"`
+	KindCode      string    `json:"kindCode"`
+	Separator     string    `json:"separator"`
+	NumberingMode string    `json:"numberingMode"`
+	NextNumber    int       `json:"nextNumber"`
+	IsActive      bool      `json:"isActive"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // Organization — организация (автозаполняемый справочник)

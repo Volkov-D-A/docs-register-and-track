@@ -1,9 +1,9 @@
 export namespace models {
     export class DocumentLink {
         id: string;
-        sourceType: string;
+        sourceKind: string;
         sourceId: string;
-        targetType: string;
+        targetKind: string;
         targetId: string;
         linkType: string;
         createdBy: string;
@@ -21,9 +21,9 @@ export namespace models {
         constructor(source: any = {}) {
             if ('string' === typeof source) source = JSON.parse(source);
             this.id = source["id"];
-            this.sourceType = source["sourceType"];
+            this.sourceKind = source["sourceKind"];
             this.sourceId = source["sourceId"];
-            this.targetType = source["targetType"];
+            this.targetKind = source["targetKind"];
             this.targetId = source["targetId"];
             this.linkType = source["linkType"];
             this.createdBy = source["createdBy"];
@@ -39,7 +39,7 @@ export namespace services {
     export class GraphNode {
         id: string;
         label: string;
-        type: string;
+        kindCode: string;
         subject: string;
         date: string;
         sender: string;
@@ -49,7 +49,7 @@ export namespace services {
             if ('string' === typeof source) source = JSON.parse(source);
             this.id = source["id"];
             this.label = source["label"];
-            this.type = source["type"];
+            this.kindCode = source["kindCode"];
             this.subject = source["subject"];
             this.date = source["date"];
             this.sender = source["sender"];

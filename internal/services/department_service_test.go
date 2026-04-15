@@ -122,9 +122,8 @@ func TestDepartmentService_CreateDepartment(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
-	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
-		svc, _, auth := setupDepartmentServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("запрещено без роли admin", func(t *testing.T) {
+		svc, _, _ := setupDepartmentServiceWithRoles(t, []string{"clerk"})
 
 		result, err := svc.CreateDepartment("Test", []string{})
 		require.Error(t, err)
@@ -167,9 +166,8 @@ func TestDepartmentService_UpdateDepartment(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
-	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
-		svc, _, auth := setupDepartmentServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("запрещено без роли admin", func(t *testing.T) {
+		svc, _, _ := setupDepartmentServiceWithRoles(t, []string{"clerk"})
 
 		result, err := svc.UpdateDepartment(idStr, "Тест", nil)
 		require.Error(t, err)
@@ -204,9 +202,8 @@ func TestDepartmentService_DeleteDepartment(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("запрещено при неактивной admin роли", func(t *testing.T) {
-		svc, _, auth := setupDepartmentServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("запрещено без роли admin", func(t *testing.T) {
+		svc, _, _ := setupDepartmentServiceWithRoles(t, []string{"clerk"})
 
 		err := svc.DeleteDepartment(idStr)
 		require.Error(t, err)

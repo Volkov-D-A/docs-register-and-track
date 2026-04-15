@@ -9,6 +9,6 @@ export function GetCount():Promise<number>;
 
 export function GetList(arg1:models.DocumentFilter):Promise<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_IncomingDocument_>;
 
-export function Register(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:string,arg9:string,arg10:number,arg11:string,arg12:string,arg13:string,arg14:string):Promise<dto.IncomingDocument>;
+export function Register(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:string,arg9:string,arg10:number,arg11:string,arg12:string,arg13:string,arg14:string,arg15:string):Promise<dto.IncomingDocument>;
 
 export function Update(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:string,arg9:number,arg10:string,arg11:string,arg12:string,arg13:string):Promise<dto.IncomingDocument>;

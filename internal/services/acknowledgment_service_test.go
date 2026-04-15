@@ -39,7 +39,13 @@ func setupAckService(t *testing.T, role string) (
 	journalSvc := NewJournalService(journalRepo, auth, nil)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
-	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, nil, incomingRepo, outgoingRepo)
+	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+		return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, nil, nil, incomingRepo, outgoingRepo)
 
 	svc := NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc, accessSvc)
 	return svc, ackRepo, userRepo, auth, incomingRepo
@@ -55,7 +61,13 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	journalSvc := NewJournalService(journalRepo, auth, nil)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
-	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, nil, incomingRepo, outgoingRepo)
+	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+		return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, nil, nil, incomingRepo, outgoingRepo)
 
 	return NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc, accessSvc)
 }
@@ -68,7 +80,7 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		svc, repo, _, _, incomingRepo := setupAckService(t, "clerk")
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 		repo.On("Create", mock.AnythingOfType("*models.Acknowledgment")).Return(nil).Once()
 		result, err := svc.Create(docID.String(), "text", []string{user1.String(), user2.String()})
 		require.NoError(t, err)
@@ -94,7 +106,7 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 
 	t.Run("no users selected", func(t *testing.T) {
 		svc, _, _, _, incomingRepo := setupAckService(t, "clerk")
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 		result, err := svc.Create(docID.String(), "text", []string{"not-a-uuid"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "не выбраны пользователи")
@@ -198,7 +210,7 @@ func TestAcknowledgmentService_MarkViewed(t *testing.T) {
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
 			DocumentID:   uuid.New(),
-			DocumentType: "incoming",
+			DocumentKind: "incoming_letter",
 		}, nil).Once()
 		repo.On("MarkViewed", ackID, userUUID).Return(nil).Once()
 		err := svc.MarkViewed(ackID.String())
@@ -230,7 +242,7 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
 			DocumentID:   uuid.New(),
-			DocumentType: "incoming",
+			DocumentKind: "incoming_letter",
 		}, nil).Once()
 		repo.On("MarkConfirmed", ackID, userUUID).Return(nil).Once()
 		err := svc.MarkConfirmed(ackID.String())
@@ -254,7 +266,7 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
 			DocumentID:   uuid.New(),
-			DocumentType: "incoming",
+			DocumentKind: "incoming_letter",
 		}, nil).Once()
 		repo.On("Delete", ackID).Return(nil).Once()
 		err := svc.Delete(ackID.String())

@@ -22,6 +22,12 @@ func setupAttachmentService(t *testing.T, role string) (
 	fileStorage := mocks.NewFileStorage(t)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
+	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+		return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
 	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	ackRepo := mocks.NewAcknowledgmentStore(t)
@@ -46,7 +52,7 @@ func setupAttachmentService(t *testing.T, role string) (
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incomingRepo, outgoingRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
 	svc := NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, nil, fileStorage, accessSvc)
@@ -62,6 +68,12 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	fileStorage := mocks.NewFileStorage(t)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
+	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+		return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
 	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	ackRepo := mocks.NewAcknowledgmentStore(t)
@@ -86,7 +98,7 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incomingRepo, outgoingRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
 	svc := NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, nil, fileStorage, accessSvc)
@@ -100,6 +112,12 @@ func setupAttachmentServiceNotAuth(t *testing.T) *AttachmentService {
 	fileStorage := mocks.NewFileStorage(t)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
+	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+		return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
 	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	ackRepo := mocks.NewAcknowledgmentStore(t)
@@ -108,7 +126,7 @@ func setupAttachmentServiceNotAuth(t *testing.T) *AttachmentService {
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incomingRepo, outgoingRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 	return NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, nil, fileStorage, accessSvc)
 }
@@ -121,7 +139,7 @@ func TestAttachmentService_Upload(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		svc, repo, settingsRepo, fileStorage, incomingRepo, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 
 		settingsRepo.On("Get", "max_file_size_mb").Return(
 			&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil,
@@ -143,11 +161,11 @@ func TestAttachmentService_Upload(t *testing.T) {
 		currentUserID, err := auth.GetCurrentUserUUID()
 		require.NoError(t, err)
 
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Twice()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 		settingsRepo.On("Get", "assignment_completion_attachments_enabled").Return(
 			&models.SystemSetting{Key: "assignment_completion_attachments_enabled", Value: "true"}, nil,
 		).Once()
-		assignmentRepo.On("HasDocumentAccess", currentUserID, docID).Return(true, nil).Once()
+		assignmentRepo.On("HasDocumentAccess", currentUserID, docID).Return(true, nil).Maybe()
 
 		settingsRepo.On("Get", "max_file_size_mb").Return(
 			&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil,
@@ -185,7 +203,7 @@ func TestAttachmentService_Upload(t *testing.T) {
 
 	t.Run("invalid base64", func(t *testing.T) {
 		svc, _, _, _, incomingRepo, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 
 		result, err := svc.Upload(docID.String(), "test.txt", "!!!not-base64!!!")
 		require.Error(t, err)
@@ -195,7 +213,7 @@ func TestAttachmentService_Upload(t *testing.T) {
 
 	t.Run("file too large", func(t *testing.T) {
 		svc, _, settingsRepo, _, incomingRepo, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 
 		// Max 1 byte
 		settingsRepo.On("Get", "max_file_size_mb").Return(
@@ -210,7 +228,7 @@ func TestAttachmentService_Upload(t *testing.T) {
 
 	t.Run("forbidden extension", func(t *testing.T) {
 		svc, _, settingsRepo, _, incomingRepo, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 
 		settingsRepo.On("Get", "max_file_size_mb").Return(
 			&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil,
@@ -295,10 +313,18 @@ func TestAttachmentService_Delete(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
+	t.Run("executor can delete with upload access", func(t *testing.T) {
+		svc, repo, _, fileStorage, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
+		att := &models.Attachment{
+			ID:          attID,
+			DocumentID:  uuid.New(),
+			StoragePath: "minio/path",
+		}
+		repo.On("GetByID", attID).Return(att, nil).Once()
+		fileStorage.On("DeleteFile", mock.Anything, att.StoragePath).Return(nil).Once()
+		repo.On("Delete", attID).Return(nil).Once()
 		err := svc.Delete(attID.String())
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -327,13 +353,21 @@ func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
 }
 
 func TestAttachmentService_BulkDeleteOlderThan(t *testing.T) {
-	t.Run("forbidden when admin is not active role", func(t *testing.T) {
-		svc, _, _, _, _, _, _, _, _, _, auth := setupAttachmentServiceWithRoles(t, []string{"admin", "clerk"})
-		require.NoError(t, auth.SetActiveRole("clerk"))
+	t.Run("forbidden without admin role", func(t *testing.T) {
+		svc, _, _, _, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"clerk"})
 
 		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("allowed for user with admin role regardless of other roles", func(t *testing.T) {
+		svc, repo, _, _, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"admin", "clerk"})
+		repo.On("GetOlderThan", mock.AnythingOfType("time.Time")).Return([]models.Attachment{}, nil).Once()
+
+		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
+		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
 }

@@ -63,7 +63,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 	args := []interface{}{}
 	argIdx := 1
 
-	where = append(where, "d.kind = 'incoming'")
+	where = append(where, "d.kind = 'incoming_letter'")
 
 	if filter.AccessibleByUserID != "" {
 		accessClauses := make([]string, 0, 2)
@@ -256,11 +256,11 @@ func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest)
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, document_type_id, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6)
+			kind, nomenclature_id, registration_number, registration_date, document_type_id, content, pages_count, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`,
-		models.DocumentKindIncoming, req.NomenclatureID, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create document root: %w", err)
@@ -307,7 +307,7 @@ func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest)
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = $4 AND kind = $5
 	`,
-		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindIncoming,
+		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindIncomingLetter,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update document root: %w", err)
 	}
@@ -343,7 +343,7 @@ func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest)
 
 // Delete удаляет входящий документ по его ID.
 func (r *IncomingDocumentRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM documents WHERE id = $1 AND kind = $2`, id, models.DocumentKindIncoming)
+	_, err := r.db.Exec(`DELETE FROM documents WHERE id = $1 AND kind = $2`, id, models.DocumentKindIncomingLetter)
 	if err != nil {
 		return fmt.Errorf("failed to delete incoming document: %w", err)
 	}
@@ -353,6 +353,6 @@ func (r *IncomingDocumentRepository) Delete(id uuid.UUID) error {
 // GetCount — общее количество для дашборда
 func (r *IncomingDocumentRepository) GetCount() (int, error) {
 	var count int
-	err := r.db.QueryRow(`SELECT COUNT(*) FROM documents WHERE kind = $1`, models.DocumentKindIncoming).Scan(&count)
+	err := r.db.QueryRow(`SELECT COUNT(*) FROM documents WHERE kind = $1`, models.DocumentKindIncomingLetter).Scan(&count)
 	return count, err
 }

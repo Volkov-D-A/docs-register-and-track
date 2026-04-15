@@ -54,15 +54,17 @@ func MapNomenclature(m *models.Nomenclature) *Nomenclature {
 		return nil
 	}
 	return &Nomenclature{
-		ID:         m.ID.String(),
-		Name:       m.Name,
-		Index:      m.Index,
-		Year:       m.Year,
-		Direction:  m.Direction,
-		NextNumber: m.NextNumber,
-		IsActive:   m.IsActive,
-		CreatedAt:  m.CreatedAt,
-		UpdatedAt:  m.UpdatedAt,
+		ID:            m.ID.String(),
+		Name:          m.Name,
+		Index:         m.Index,
+		Year:          m.Year,
+		KindCode:      m.KindCode,
+		Separator:     m.Separator,
+		NumberingMode: m.NumberingMode,
+		NextNumber:    m.NextNumber,
+		IsActive:      m.IsActive,
+		CreatedAt:     m.CreatedAt,
+		UpdatedAt:     m.UpdatedAt,
 	}
 }
 
@@ -152,6 +154,164 @@ func MapOutgoingDocument(m *models.OutgoingDocument) *OutgoingDocument {
 	}
 }
 
+// MapDocumentKindSpec преобразует метаданные системного вида документа в DTO.
+func MapDocumentKindSpec(spec models.DocumentKindSpec) *DocumentKind {
+	actions := make([]string, len(spec.SupportedActions))
+	for i, action := range spec.SupportedActions {
+		actions[i] = string(action)
+	}
+
+	return &DocumentKind{
+		Code:                 string(spec.Code),
+		Name:                 spec.Name,
+		LegacyViewType:       spec.LegacyViewType,
+		RegistrationFormCode: spec.RegistrationFormCode,
+		RegistryGroup:        spec.RegistryGroup,
+		SupportedActions:     actions,
+	}
+}
+
+// MapIncomingDocumentCard преобразует входящее письмо в общий DTO карточки документа.
+func MapIncomingDocumentCard(m *models.IncomingDocument) *DocumentCard {
+	if m == nil {
+		return nil
+	}
+	return &DocumentCard{
+		ID:                 m.ID.String(),
+		KindCode:           string(models.DocumentKindIncomingLetter),
+		KindName:           models.DocumentKindIncomingLetter.Label(),
+		RegistrationNumber: m.IncomingNumber,
+		RegistrationDate:   m.IncomingDate,
+		NomenclatureID:     m.NomenclatureID.String(),
+		NomenclatureName:   m.NomenclatureName,
+		DocumentTypeID:     m.DocumentTypeID.String(),
+		DocumentTypeName:   m.DocumentTypeName,
+		Content:            m.Content,
+		CreatedBy:          m.CreatedBy.String(),
+		CreatedByName:      m.CreatedByName,
+		CreatedAt:          m.CreatedAt,
+		UpdatedAt:          m.UpdatedAt,
+		IncomingLetter:     MapIncomingDocument(m),
+	}
+}
+
+// MapOutgoingDocumentCard преобразует исходящее письмо в общий DTO карточки документа.
+func MapOutgoingDocumentCard(m *models.OutgoingDocument) *DocumentCard {
+	if m == nil {
+		return nil
+	}
+	return &DocumentCard{
+		ID:                 m.ID.String(),
+		KindCode:           string(models.DocumentKindOutgoingLetter),
+		KindName:           models.DocumentKindOutgoingLetter.Label(),
+		RegistrationNumber: m.OutgoingNumber,
+		RegistrationDate:   m.OutgoingDate,
+		NomenclatureID:     m.NomenclatureID.String(),
+		NomenclatureName:   m.NomenclatureName,
+		DocumentTypeID:     m.DocumentTypeID.String(),
+		DocumentTypeName:   m.DocumentTypeName,
+		Content:            m.Content,
+		CreatedBy:          m.CreatedBy.String(),
+		CreatedByName:      m.CreatedByName,
+		CreatedAt:          m.CreatedAt,
+		UpdatedAt:          m.UpdatedAt,
+		OutgoingLetter:     MapOutgoingDocument(m),
+	}
+}
+
+// MapIncomingDocumentListItem преобразует входящее письмо в общую строку списка документов.
+func MapIncomingDocumentListItem(m *models.IncomingDocument) *DocumentListItem {
+	if m == nil {
+		return nil
+	}
+	return &DocumentListItem{
+		ID:                   m.ID.String(),
+		KindCode:             string(models.DocumentKindIncomingLetter),
+		KindName:             models.DocumentKindIncomingLetter.Label(),
+		RegistrationNumber:   m.IncomingNumber,
+		RegistrationDate:     m.IncomingDate,
+		NomenclatureID:       m.NomenclatureID.String(),
+		NomenclatureName:     m.NomenclatureName,
+		DocumentTypeID:       m.DocumentTypeID.String(),
+		DocumentTypeName:     m.DocumentTypeName,
+		Content:              m.Content,
+		CreatedBy:            m.CreatedBy.String(),
+		CreatedByName:        m.CreatedByName,
+		CreatedAt:            m.CreatedAt,
+		UpdatedAt:            m.UpdatedAt,
+		IncomingNumber:       m.IncomingNumber,
+		IncomingDate:         &m.IncomingDate,
+		OutgoingNumberSender: m.OutgoingNumberSender,
+		OutgoingDateSender:   &m.OutgoingDateSender,
+		IntermediateNumber:   m.IntermediateNumber,
+		IntermediateDate:     m.IntermediateDate,
+		SenderOrgName:        m.SenderOrgName,
+		SenderSignatory:      m.SenderSignatory,
+		Resolution:           m.Resolution,
+		ResolutionAuthor:     m.ResolutionAuthor,
+		ResolutionExecutors:  m.ResolutionExecutors,
+	}
+}
+
+// MapOutgoingDocumentListItem преобразует исходящее письмо в общую строку списка документов.
+func MapOutgoingDocumentListItem(m *models.OutgoingDocument) *DocumentListItem {
+	if m == nil {
+		return nil
+	}
+	return &DocumentListItem{
+		ID:                 m.ID.String(),
+		KindCode:           string(models.DocumentKindOutgoingLetter),
+		KindName:           models.DocumentKindOutgoingLetter.Label(),
+		RegistrationNumber: m.OutgoingNumber,
+		RegistrationDate:   m.OutgoingDate,
+		NomenclatureID:     m.NomenclatureID.String(),
+		NomenclatureName:   m.NomenclatureName,
+		DocumentTypeID:     m.DocumentTypeID.String(),
+		DocumentTypeName:   m.DocumentTypeName,
+		Content:            m.Content,
+		CreatedBy:          m.CreatedBy.String(),
+		CreatedByName:      m.CreatedByName,
+		CreatedAt:          m.CreatedAt,
+		UpdatedAt:          m.UpdatedAt,
+		OutgoingNumber:     m.OutgoingNumber,
+		OutgoingDate:       &m.OutgoingDate,
+		RecipientOrgName:   m.RecipientOrgName,
+		Addressee:          m.Addressee,
+		SenderSignatory:    m.SenderSignatory,
+		SenderExecutor:     m.SenderExecutor,
+	}
+}
+
+// MapDocumentListItemsFromIncoming преобразует список входящих документов в общий список документов.
+func MapDocumentListItemsFromIncoming(m []models.IncomingDocument) []DocumentListItem {
+	if m == nil {
+		return nil
+	}
+	res := make([]DocumentListItem, 0, len(m))
+	for _, item := range m {
+		mapped := MapIncomingDocumentListItem(&item)
+		if mapped != nil {
+			res = append(res, *mapped)
+		}
+	}
+	return res
+}
+
+// MapDocumentListItemsFromOutgoing преобразует список исходящих документов в общий список документов.
+func MapDocumentListItemsFromOutgoing(m []models.OutgoingDocument) []DocumentListItem {
+	if m == nil {
+		return nil
+	}
+	res := make([]DocumentListItem, 0, len(m))
+	for _, item := range m {
+		mapped := MapOutgoingDocumentListItem(&item)
+		if mapped != nil {
+			res = append(res, *mapped)
+		}
+	}
+	return res
+}
+
 // MapDocumentLink преобразует связь документов в DTO.
 func MapDocumentLink(m *models.DocumentLink) *DocumentLink {
 	if m == nil {
@@ -159,9 +319,9 @@ func MapDocumentLink(m *models.DocumentLink) *DocumentLink {
 	}
 	return &DocumentLink{
 		ID:            m.ID.String(),
-		SourceType:    m.SourceType,
+		SourceKind:    string(m.SourceKind),
 		SourceID:      m.SourceID.String(),
-		TargetType:    m.TargetType,
+		TargetKind:    string(m.TargetKind),
 		TargetID:      m.TargetID.String(),
 		LinkType:      m.LinkType,
 		CreatedBy:     m.CreatedBy.String(),
@@ -208,7 +368,7 @@ func MapAssignment(m *models.Assignment) *Assignment {
 	return &Assignment{
 		ID:              m.ID.String(),
 		DocumentID:      m.DocumentID.String(),
-		DocumentType:    m.DocumentType,
+		DocumentKind:    m.DocumentKind,
 		ExecutorID:      m.ExecutorID.String(),
 		ExecutorName:    m.ExecutorName,
 		Content:         m.Content,
@@ -243,7 +403,7 @@ func MapAcknowledgment(m *models.Acknowledgment) *Acknowledgment {
 	return &Acknowledgment{
 		ID:             m.ID.String(),
 		DocumentID:     m.DocumentID.String(),
-		DocumentType:   m.DocumentType,
+		DocumentKind:   m.DocumentKind,
 		DocumentNumber: m.DocumentNumber,
 		CreatorID:      m.CreatorID.String(),
 		CreatorName:    m.CreatorName,

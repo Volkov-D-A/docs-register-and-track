@@ -61,7 +61,7 @@ func (r *AcknowledgmentRepository) GetByID(id uuid.UUID) (*models.Acknowledgment
 		WHERE a.id = $1
 	`
 	var a models.Acknowledgment
-	err := r.db.QueryRow(query, id).Scan(&a.ID, &a.DocumentID, &a.DocumentType, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt)
+	err := r.db.QueryRow(query, id).Scan(&a.ID, &a.DocumentID, &a.DocumentKind, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +78,8 @@ func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]mode
 		FROM acknowledgments a
 		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 		WHERE a.document_id = $1
 		ORDER BY a.created_at DESC
 	`
@@ -94,7 +94,7 @@ func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]mode
 		var a models.Acknowledgment
 		var docNumber string
 		err := rows.Scan(
-			&a.ID, &a.DocumentID, &a.DocumentType, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt,
+			&a.ID, &a.DocumentID, &a.DocumentKind, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt,
 			&a.CreatorName, &docNumber,
 		)
 		if err != nil {
@@ -164,8 +164,8 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 		JOIN acknowledgments a ON au.acknowledgment_id = a.id
 		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 		WHERE au.user_id = $1 AND au.confirmed_at IS NULL
 		ORDER BY a.created_at DESC
 	`
@@ -180,7 +180,7 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 		var a models.Acknowledgment
 		var docNumber string
 		err := rows.Scan(
-			&a.ID, &a.DocumentID, &a.DocumentType, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt,
+			&a.ID, &a.DocumentID, &a.DocumentKind, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt,
 			&a.CreatorName, &docNumber,
 		)
 		if err != nil {
@@ -293,8 +293,8 @@ func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, erro
 		FROM acknowledgments a
 		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing'
+		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
+		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 		WHERE a.completed_at IS NULL
 		ORDER BY a.created_at DESC
 	`
@@ -309,7 +309,7 @@ func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, erro
 		var a models.Acknowledgment
 		var docNumber string
 		err := rows.Scan(
-			&a.ID, &a.DocumentID, &a.DocumentType, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt,
+			&a.ID, &a.DocumentID, &a.DocumentKind, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt,
 			&a.CreatorName, &docNumber,
 		)
 		if err != nil {

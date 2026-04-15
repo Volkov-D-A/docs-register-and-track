@@ -62,6 +62,14 @@ func TestDashboardService_GetStats(t *testing.T) {
 		Roles:        []string{"clerk"},
 	}
 
+	mixedUser := &models.User{
+		ID:           uuid.New(),
+		Login:        "mixeduser",
+		PasswordHash: hash,
+		IsActive:     true,
+		Roles:        []string{"clerk", "executor"},
+	}
+
 	t.Run("executor stats", func(t *testing.T) {
 		authRepo.On("GetByLogin", login).Return(executorUser, nil).Once()
 		authService.Login(login, password)
@@ -168,14 +176,58 @@ func TestDashboardService_GetStats(t *testing.T) {
 		authService.Logout()
 	})
 
-	t.Run("executor specific role fallback and error", func(t *testing.T) {
+	t.Run("requested role is ignored in favor of computed profile", func(t *testing.T) {
 		authRepo.On("GetByLogin", login).Return(executorUser, nil).Once()
 		authService.Login(login, password)
 		authRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 
+		var assignments []models.Assignment
+		uidPtr := &executorUser.ID
+		mockRepo.On("GetExecutorStatusCounts", executorUser.ID).Return(1, 1, nil).Once()
+		mockRepo.On("GetExecutorOverdueCount", executorUser.ID).Return(0, nil).Once()
+		mockRepo.On("GetExecutorFinishedCounts", executorUser.ID).Return(2, 0, nil).Once()
+		mockRepo.On("GetExpiringAssignments", uidPtr, 3).Return(assignments, nil).Once()
+
 		stats, err := dashboardService.GetStats("admin", "", "")
-		require.ErrorIs(t, err, models.ErrForbidden)
-		require.Nil(t, stats)
+		require.NoError(t, err)
+		require.NotNil(t, stats)
+		assert.Equal(t, "executor", stats.Role)
+
+		authService.Logout()
+	})
+
+	t.Run("mixed stats", func(t *testing.T) {
+		authRepo.On("GetByLogin", "mixeduser").Return(mixedUser, nil).Once()
+		authService.Login("mixeduser", password)
+		authRepo.On("GetByID", mixedUser.ID).Return(mixedUser, nil).Maybe()
+
+		startDateStr := "2024-01-01"
+		endDateStr := "2024-01-31"
+
+		start, _ := time.Parse("2006-01-02", startDateStr)
+		endParsed, _ := time.Parse("2006-01-02", endDateStr)
+		end := endParsed.Add(24*time.Hour - time.Nanosecond)
+
+		mockRepo.On("GetDocCountsByPeriod", start, end).Return(12, 8, nil).Once()
+		mockRepo.On("GetOverdueCountByPeriod", start, end).Return(2, nil).Once()
+		mockRepo.On("GetFinishedCountsByPeriod", start, end).Return(6, 1, nil).Once()
+		var globalAssignments []models.Assignment
+		mockRepo.On("GetExpiringAssignments", (*uuid.UUID)(nil), 7).Return(globalAssignments, nil).Once()
+
+		mockRepo.On("GetExecutorStatusCounts", mixedUser.ID).Return(3, 4, nil).Once()
+		mockRepo.On("GetExecutorOverdueCount", mixedUser.ID).Return(1, nil).Once()
+		mockRepo.On("GetExecutorFinishedCounts", mixedUser.ID).Return(5, 2, nil).Once()
+		var personalAssignments []models.Assignment
+		uidPtr := &mixedUser.ID
+		mockRepo.On("GetExpiringAssignments", uidPtr, 3).Return(personalAssignments, nil).Once()
+
+		stats, err := dashboardService.GetStats("", startDateStr, endDateStr)
+		require.NoError(t, err)
+		require.NotNil(t, stats)
+		assert.Equal(t, "mixed", stats.Role)
+		assert.Equal(t, 12, stats.IncomingCount)
+		assert.Equal(t, 3, stats.MyAssignmentsNew)
+		assert.Equal(t, 5, stats.MyAssignmentsFinished)
 
 		authService.Logout()
 	})

@@ -35,15 +35,17 @@ type Department struct {
 
 // Nomenclature описывает DTO номенклатуры дел.
 type Nomenclature struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Index      string    `json:"index"`
-	Year       int       `json:"year"`
-	Direction  string    `json:"direction"`
-	NextNumber int       `json:"nextNumber"`
-	IsActive   bool      `json:"isActive"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Index         string    `json:"index"`
+	Year          int       `json:"year"`
+	KindCode      string    `json:"kindCode"`
+	Separator     string    `json:"separator"`
+	NumberingMode string    `json:"numberingMode"`
+	NextNumber    int       `json:"nextNumber"`
+	IsActive      bool      `json:"isActive"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // Organization описывает DTO организации.
@@ -58,6 +60,16 @@ type DocumentType struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// DocumentKind описывает DTO системного вида документа.
+type DocumentKind struct {
+	Code                 string   `json:"code"`
+	Name                 string   `json:"name"`
+	LegacyViewType       string   `json:"legacyViewType"`
+	RegistrationFormCode string   `json:"registrationFormCode"`
+	RegistryGroup        string   `json:"registryGroup"`
+	SupportedActions     []string `json:"supportedActions"`
 }
 
 // ResolutionExecutor описывает DTO исполнителя резолюции.
@@ -133,12 +145,68 @@ type OutgoingDocument struct {
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
+// DocumentCard описывает общую оболочку документа с привязанными деталями конкретного вида.
+type DocumentCard struct {
+	ID                 string    `json:"id"`
+	KindCode           string    `json:"kindCode"`
+	KindName           string    `json:"kindName"`
+	RegistrationNumber string    `json:"registrationNumber"`
+	RegistrationDate   time.Time `json:"registrationDate"`
+	NomenclatureID     string    `json:"nomenclatureId"`
+	NomenclatureName   string    `json:"nomenclatureName,omitempty"`
+	DocumentTypeID     string    `json:"documentTypeId"`
+	DocumentTypeName   string    `json:"documentTypeName,omitempty"`
+	Content            string    `json:"content"`
+	CreatedBy          string    `json:"createdBy"`
+	CreatedByName      string    `json:"createdByName,omitempty"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt"`
+
+	IncomingLetter *IncomingDocument `json:"incomingLetter,omitempty"`
+	OutgoingLetter *OutgoingDocument `json:"outgoingLetter,omitempty"`
+}
+
+// DocumentListItem описывает общую строку списка документов с detail-полями для конкретного вида.
+type DocumentListItem struct {
+	ID                 string    `json:"id"`
+	KindCode           string    `json:"kindCode"`
+	KindName           string    `json:"kindName"`
+	RegistrationNumber string    `json:"registrationNumber"`
+	RegistrationDate   time.Time `json:"registrationDate"`
+	NomenclatureID     string    `json:"nomenclatureId"`
+	NomenclatureName   string    `json:"nomenclatureName,omitempty"`
+	DocumentTypeID     string    `json:"documentTypeId"`
+	DocumentTypeName   string    `json:"documentTypeName,omitempty"`
+	Content            string    `json:"content"`
+	CreatedBy          string    `json:"createdBy"`
+	CreatedByName      string    `json:"createdByName,omitempty"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt"`
+
+	IncomingNumber       string     `json:"incomingNumber,omitempty"`
+	IncomingDate         *time.Time `json:"incomingDate,omitempty"`
+	OutgoingNumber       string     `json:"outgoingNumber,omitempty"`
+	OutgoingDate         *time.Time `json:"outgoingDate,omitempty"`
+	OutgoingNumberSender string     `json:"outgoingNumberSender,omitempty"`
+	OutgoingDateSender   *time.Time `json:"outgoingDateSender,omitempty"`
+	IntermediateNumber   *string    `json:"intermediateNumber,omitempty"`
+	IntermediateDate     *time.Time `json:"intermediateDate,omitempty"`
+	SenderOrgName        string     `json:"senderOrgName,omitempty"`
+	SenderSignatory      string     `json:"senderSignatory,omitempty"`
+	Resolution           *string    `json:"resolution,omitempty"`
+	ResolutionAuthor     *string    `json:"resolutionAuthor,omitempty"`
+	ResolutionExecutors  *string    `json:"resolutionExecutors,omitempty"`
+	RecipientOrgName     string     `json:"recipientOrgName,omitempty"`
+	Addressee            string     `json:"addressee,omitempty"`
+	SenderExecutor       string     `json:"senderExecutor,omitempty"`
+}
+
 // DocumentLink описывает DTO связи между документами.
 type DocumentLink struct {
 	ID         string    `json:"id"`
-	SourceType string    `json:"sourceType"`
+	SourceKind string    `json:"sourceKind"`
 	SourceID   string    `json:"sourceId"`
-	TargetType string    `json:"targetType"`
+	TargetKind string    `json:"targetKind"`
 	TargetID   string    `json:"targetId"`
 	LinkType   string    `json:"linkType"`
 	CreatedBy  string    `json:"createdBy"`
@@ -172,7 +240,7 @@ type DownloadResponse struct {
 type Assignment struct {
 	ID           string `json:"id"`
 	DocumentID   string `json:"documentId"`
-	DocumentType string `json:"documentType"`
+	DocumentKind string `json:"documentKind"`
 
 	ExecutorID   string `json:"executorId"`
 	ExecutorName string `json:"executorName,omitempty"`
@@ -197,7 +265,7 @@ type Assignment struct {
 type Acknowledgment struct {
 	ID             string `json:"id"`
 	DocumentID     string `json:"documentId"`
-	DocumentType   string `json:"documentType"`
+	DocumentKind   string `json:"documentKind"`
 	DocumentNumber string `json:"documentNumber,omitempty"`
 
 	CreatorID   string `json:"creatorId"`

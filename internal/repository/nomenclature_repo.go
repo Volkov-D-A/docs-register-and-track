@@ -21,9 +21,9 @@ func NewNomenclatureRepository(db *database.DB) *NomenclatureRepository {
 	return &NomenclatureRepository{db: db}
 }
 
-// GetAll возвращает список номенклатурных дел, с возможностью фильтрации по году и направлению.
-func (r *NomenclatureRepository) GetAll(year int, direction string) ([]models.Nomenclature, error) {
-	query := `SELECT id, name, index, year, direction, next_number, is_active, created_at, updated_at
+// GetAll возвращает список номенклатурных дел, с возможностью фильтрации по году и виду документа.
+func (r *NomenclatureRepository) GetAll(year int, kindCode string) ([]models.Nomenclature, error) {
+	query := `SELECT id, name, index, year, kind_code, separator, numbering_mode, next_number, is_active, created_at, updated_at
 		FROM nomenclature WHERE 1=1`
 	args := []interface{}{}
 	argIdx := 1
@@ -33,9 +33,9 @@ func (r *NomenclatureRepository) GetAll(year int, direction string) ([]models.No
 		args = append(args, year)
 		argIdx++
 	}
-	if direction != "" {
-		query += fmt.Sprintf(" AND direction = $%d", argIdx)
-		args = append(args, direction)
+	if kindCode != "" {
+		query += fmt.Sprintf(" AND kind_code = $%d", argIdx)
+		args = append(args, kindCode)
 		argIdx++
 	}
 
@@ -52,7 +52,7 @@ func (r *NomenclatureRepository) GetAll(year int, direction string) ([]models.No
 		var item models.Nomenclature
 		if err := rows.Scan(
 			&item.ID, &item.Name, &item.Index, &item.Year,
-			&item.Direction, &item.NextNumber, &item.IsActive,
+			&item.KindCode, &item.Separator, &item.NumberingMode, &item.NextNumber, &item.IsActive,
 			&item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -70,11 +70,11 @@ func (r *NomenclatureRepository) GetAll(year int, direction string) ([]models.No
 func (r *NomenclatureRepository) GetByID(id uuid.UUID) (*models.Nomenclature, error) {
 	item := &models.Nomenclature{}
 	err := r.db.QueryRow(`
-		SELECT id, name, index, year, direction, next_number, is_active, created_at, updated_at
+		SELECT id, name, index, year, kind_code, separator, numbering_mode, next_number, is_active, created_at, updated_at
 		FROM nomenclature WHERE id = $1
 	`, id).Scan(
 		&item.ID, &item.Name, &item.Index, &item.Year,
-		&item.Direction, &item.NextNumber, &item.IsActive,
+		&item.KindCode, &item.Separator, &item.NumberingMode, &item.NextNumber, &item.IsActive,
 		&item.CreatedAt, &item.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -88,13 +88,13 @@ func (r *NomenclatureRepository) GetByID(id uuid.UUID) (*models.Nomenclature, er
 }
 
 // Create создает новую запись в номенклатуре дел.
-func (r *NomenclatureRepository) Create(name, index string, year int, direction string) (*models.Nomenclature, error) {
+func (r *NomenclatureRepository) Create(name, index string, year int, kindCode, separator, numberingMode string) (*models.Nomenclature, error) {
 	var id uuid.UUID
 	err := r.db.QueryRow(`
-		INSERT INTO nomenclature (name, index, year, direction)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO nomenclature (name, index, year, kind_code, separator, numbering_mode)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
-	`, name, index, year, direction).Scan(&id)
+	`, name, index, year, kindCode, separator, numberingMode).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create nomenclature: %w", err)
 	}
@@ -102,11 +102,11 @@ func (r *NomenclatureRepository) Create(name, index string, year int, direction 
 }
 
 // Update обновляет данные существующего дела в номенклатуре.
-func (r *NomenclatureRepository) Update(id uuid.UUID, name, index string, year int, direction string, isActive bool) (*models.Nomenclature, error) {
+func (r *NomenclatureRepository) Update(id uuid.UUID, name, index string, year int, kindCode, separator, numberingMode string, isActive bool) (*models.Nomenclature, error) {
 	_, err := r.db.Exec(`
-		UPDATE nomenclature SET name = $1, index = $2, year = $3, direction = $4, is_active = $5, updated_at = $6
-		WHERE id = $7
-	`, name, index, year, direction, isActive, time.Now(), id)
+		UPDATE nomenclature SET name = $1, index = $2, year = $3, kind_code = $4, separator = $5, numbering_mode = $6, is_active = $7, updated_at = $8
+		WHERE id = $9
+	`, name, index, year, kindCode, separator, numberingMode, isActive, time.Now(), id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update nomenclature: %w", err)
 	}
@@ -122,29 +122,31 @@ func (r *NomenclatureRepository) Delete(id uuid.UUID) error {
 	return nil
 }
 
-// GetNextNumber — получить и инкрементировать следующий номер
-func (r *NomenclatureRepository) GetNextNumber(id uuid.UUID) (int, string, error) {
+// GetNextNumber — получить и инкрементировать следующий номер.
+func (r *NomenclatureRepository) GetNextNumber(id uuid.UUID) (int, string, string, string, error) {
 	var nextNumber int
 	var index string
+	var separator string
+	var numberingMode string
 	err := r.db.QueryRow(`
 		UPDATE nomenclature SET next_number = next_number + 1, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1
-		RETURNING next_number - 1, index
-	`, id).Scan(&nextNumber, &index)
+		RETURNING next_number - 1, index, separator, numbering_mode
+	`, id).Scan(&nextNumber, &index, &separator, &numberingMode)
 	if err != nil {
-		return 0, "", fmt.Errorf("failed to get next number: %w", err)
+		return 0, "", "", "", fmt.Errorf("failed to get next number: %w", err)
 	}
-	return nextNumber, index, nil
+	return nextNumber, index, separator, numberingMode, nil
 }
 
-// GetActiveByDirection — активные дела по направлению
-func (r *NomenclatureRepository) GetActiveByDirection(direction string, year int) ([]models.Nomenclature, error) {
+// GetActiveByKind — активные дела по виду документа.
+func (r *NomenclatureRepository) GetActiveByKind(kindCode string, year int) ([]models.Nomenclature, error) {
 	rows, err := r.db.Query(`
-		SELECT id, name, index, year, direction, next_number, is_active, created_at, updated_at
+		SELECT id, name, index, year, kind_code, separator, numbering_mode, next_number, is_active, created_at, updated_at
 		FROM nomenclature
-		WHERE direction = $1 AND year = $2 AND is_active = true
+		WHERE kind_code = $1 AND year = $2 AND is_active = true
 		ORDER BY index
-	`, direction, year)
+	`, kindCode, year)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active nomenclature: %w", err)
 	}
@@ -155,7 +157,7 @@ func (r *NomenclatureRepository) GetActiveByDirection(direction string, year int
 		var item models.Nomenclature
 		if err := rows.Scan(
 			&item.ID, &item.Name, &item.Index, &item.Year,
-			&item.Direction, &item.NextNumber, &item.IsActive,
+			&item.KindCode, &item.Separator, &item.NumberingMode, &item.NextNumber, &item.IsActive,
 			&item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
 			return nil, err
