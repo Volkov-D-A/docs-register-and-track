@@ -31,7 +31,7 @@ func NewSettingsService(db *database.DB, repo SettingsStore, authService *AuthSe
 
 // GetAll возвращает все системные настройки.
 func (s *SettingsService) GetAll() ([]models.SystemSetting, error) {
-	if err := s.authService.RequireRole("admin"); err != nil {
+	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
 	return s.repo.GetAll()
@@ -39,7 +39,7 @@ func (s *SettingsService) GetAll() ([]models.SystemSetting, error) {
 
 // Update обновляет значение настройки по ключу (только для администраторов).
 func (s *SettingsService) Update(key, value string) error {
-	if err := s.authService.RequireRole("admin"); err != nil {
+	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return err
 	}
 
@@ -59,7 +59,7 @@ func (s *SettingsService) Update(key, value string) error {
 
 // RunMigrations запускает миграции БД (только admin).
 func (s *SettingsService) RunMigrations() error {
-	if err := s.authService.RequireRole("admin"); err != nil {
+	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для управления миграциями")
 	}
 	if err := s.db.RunMigrations(migrationsPath); err != nil {
@@ -73,7 +73,7 @@ func (s *SettingsService) RunMigrations() error {
 
 // GetMigrationStatus возвращает текущий статус миграций БД (только admin).
 func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error) {
-	if err := s.authService.RequireRole("admin"); err != nil {
+	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, models.NewForbidden("Недостаточно прав для просмотра статуса миграций")
 	}
 	return s.db.GetMigrationStatus(migrationsPath)
@@ -81,7 +81,7 @@ func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error
 
 // RollbackMigration откатывает последнюю миграцию БД (только admin).
 func (s *SettingsService) RollbackMigration() error {
-	if err := s.authService.RequireRole("admin"); err != nil {
+	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для отката миграций")
 	}
 	if err := s.db.RollbackMigration(migrationsPath); err != nil {
@@ -99,11 +99,14 @@ func (s *SettingsService) RollbackMigration() error {
 func (s *SettingsService) GetMaxFileSize() (int64, error) {
 	setting, err := s.repo.Get("max_file_size_mb")
 	if err != nil {
-		return 10 * 1024 * 1024, nil // По умолчанию 10 МБ
+		return 15 * 1024 * 1024, nil
+	}
+	if setting == nil || strings.TrimSpace(setting.Value) == "" {
+		return 15 * 1024 * 1024, nil
 	}
 	mb, err := strconv.Atoi(setting.Value)
 	if err != nil {
-		return 10 * 1024 * 1024, nil
+		return 15 * 1024 * 1024, nil
 	}
 	return int64(mb) * 1024 * 1024, nil
 }
@@ -112,20 +115,36 @@ func (s *SettingsService) GetMaxFileSize() (int64, error) {
 func (s *SettingsService) GetAllowedFileTypes() ([]string, error) {
 	setting, err := s.repo.Get("allowed_file_types")
 	if err != nil {
-		return []string{".pdf", ".doc", ".docx", ".jpg", ".png"}, nil
+		return []string{".pdf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods"}, nil
+	}
+	if setting == nil || strings.TrimSpace(setting.Value) == "" {
+		return []string{".pdf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods"}, nil
 	}
 	types := strings.Split(setting.Value, ",")
+	result := make([]string, 0, len(types))
 	for i, t := range types {
 		types[i] = strings.TrimSpace(strings.ToLower(t))
+		if types[i] != "" {
+			result = append(result, types[i])
+		}
 	}
-	return types, nil
+	return result, nil
 }
 
 // GetOrganizationName возвращает название основной организации из настроек.
 func (s *SettingsService) GetOrganizationName() string {
 	setting, err := s.repo.Get("organization_name")
-	if err != nil || setting.Value == "" {
-		return "НАША ОРГАНИЗАЦИЯ"
+	if err != nil || setting == nil || setting.Value == "" {
+		return ""
+	}
+	return setting.Value
+}
+
+// GetOrganizationShortName возвращает краткое название организации из настроек.
+func (s *SettingsService) GetOrganizationShortName() string {
+	setting, err := s.repo.Get("organization_short_name")
+	if err != nil || setting == nil || setting.Value == "" {
+		return ""
 	}
 	return setting.Value
 }
@@ -134,7 +153,7 @@ func (s *SettingsService) GetOrganizationName() string {
 func (s *SettingsService) IsAssignmentCompletionAttachmentsEnabled() bool {
 	setting, err := s.repo.Get("assignment_completion_attachments_enabled")
 	if err != nil || setting == nil || setting.Value == "" {
-		return true
+		return false
 	}
 
 	switch strings.ToLower(strings.TrimSpace(setting.Value)) {
@@ -149,6 +168,8 @@ func (s *SettingsService) getSettingAuditLabel(key string, current *models.Syste
 	switch key {
 	case "organization_name":
 		return "Название организации"
+	case "organization_short_name":
+		return "Краткое название организации"
 	case "max_file_size_mb":
 		return "Максимальный размер файла"
 	case "allowed_file_types":

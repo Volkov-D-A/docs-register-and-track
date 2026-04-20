@@ -13,6 +13,8 @@ export function GetMigrationStatus():Promise<database.MigrationStatus>;
 
 export function GetOrganizationName():Promise<string>;
 
+export function GetOrganizationShortName():Promise<string>;
+
 export function IsAssignmentCompletionAttachmentsEnabled():Promise<boolean>;
 
 export function RollbackMigration():Promise<void>;

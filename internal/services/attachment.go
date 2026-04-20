@@ -49,15 +49,11 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 		return nil, models.ErrUnauthorized
 	}
 
-	currentRoles := currentUser.Roles
-	isExecutor := false
-	for _, role := range currentRoles {
-		if role == "executor" {
-			isExecutor = true
-			break
-		}
+	canManageAssignments, err := s.access.HasAnyDocumentAction("assign")
+	if err != nil {
+		return nil, err
 	}
-	if isExecutor && !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
+	if !canManageAssignments && !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
 		return nil, models.NewForbidden("загрузка файлов при завершении поручения отключена в настройках")
 	}
 
@@ -385,7 +381,7 @@ func (s *AttachmentService) OpenFolder(path string) error {
 // BulkDeleteOlderThan — массовое удаление файлов, загруженных до указанной даты
 func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	// Проверка прав доступа
-	if err := s.authService.RequireRole("admin"); err != nil {
+	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return 0, err
 	}
 

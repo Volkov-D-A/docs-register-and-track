@@ -7,10 +7,10 @@ import FileListComponent from './FileListComponent';
 import { LinksTab } from './DocumentLinks/LinksTab';
 import JournalList from './JournalList';
 
-import { useAuthStore } from '../store/useAuthStore';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
 import { getDocumentKindLabel, isIncomingKind } from '../constants/documentKinds';
 import { getDocumentViewConfig } from '../config/documentViewConfig';
+import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 
 const { Text } = Typography;
 
@@ -34,7 +34,7 @@ interface DocumentViewModalProps {
  */
 const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, documentId, documentKind }) => {
     const { message } = App.useApp();
-    const { hasRole } = useAuthStore();
+    const { hasAction } = useDocumentKindAccess();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('info');
@@ -194,6 +194,11 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     const isIncomingDocument = isIncomingKind(resolvedKindCode);
     const details = isIncomingDocument ? data?.incomingLetter : data?.outgoingLetter;
     const viewConfig = getDocumentViewConfig(resolvedKindCode);
+    const canManageAssignments = hasAction(resolvedKindCode, 'assign');
+    const canManageLinks = hasAction(resolvedKindCode, 'link');
+    const canManageAcknowledgments = hasAction(resolvedKindCode, 'acknowledge');
+    const canViewJournal = hasAction(resolvedKindCode, 'view_journal');
+    const canViewFiles = !!data;
 
     const getTabs = () => {
         const items = [
@@ -203,19 +208,19 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             },
             {
                 key: 'assignments', label: 'Поручения',
-                children: <AssignmentList documentId={data.id} />
+                children: <AssignmentList documentId={data.id} documentKind={resolvedKindCode} />
             },
             {
                 key: 'files', label: 'Файлы',
-                children: <FileListComponent documentId={data.id} readOnly={false} />
+                children: <FileListComponent documentId={data.id} documentKind={resolvedKindCode} readOnly={false} />
             },
             {
                 key: 'links', label: 'Связи',
-                children: <LinksTab documentId={data.id} documentNumber={getNumber()} />
+                children: <LinksTab documentId={data.id} documentNumber={getNumber()} documentKind={resolvedKindCode} />
             },
             {
                 key: 'acknowledgments', label: 'Ознакомление',
-                children: <AcknowledgmentList documentId={data.id} />
+                children: <AcknowledgmentList documentId={data.id} documentKind={resolvedKindCode} />
             },
             {
                 key: 'journal', label: 'Журнал',
@@ -223,11 +228,24 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             }
         ];
 
-        if (!hasRole('clerk')) {
-            return items.filter(i => viewConfig.restrictedTabs.includes(i.key as any));
-        }
+        const allowedKeys = new Set(viewConfig.tabs.filter((key) => {
+            switch (key) {
+                case 'assignments':
+                    return canManageAssignments;
+                case 'links':
+                    return canManageLinks;
+                case 'acknowledgments':
+                    return canManageAcknowledgments;
+                case 'journal':
+                    return canViewJournal;
+                case 'files':
+                    return canViewFiles;
+                default:
+                    return true;
+            }
+        }));
 
-        return items.filter(i => viewConfig.tabs.includes(i.key as any));
+        return items.filter((item) => allowedKeys.has(item.key as any));
     };
 
     return (
@@ -239,9 +257,11 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             footer={
                 <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                     <div>
-                        {hasRole('clerk') && data && (
+                        {canManageLinks && data && (
                             <Space>
-                                {viewConfig.footerActions.map((action) => (
+                                {viewConfig.footerActions
+                                    .filter((action) => hasAction(action.targetKind, 'create'))
+                                    .map((action) => (
                                     <Button
                                         key={action.targetKind}
                                         onClick={() => {

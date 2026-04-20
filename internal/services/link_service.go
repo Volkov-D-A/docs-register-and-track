@@ -64,15 +64,7 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 	if sourceID == targetID {
 		return nil, fmt.Errorf("cannot link document to itself")
 	}
-	if err := s.access.RequireLink(sourceID, targetID); err != nil {
-		return nil, err
-	}
-
-	sourceDoc, err := s.access.RequireExists(sourceID)
-	if err != nil {
-		return nil, err
-	}
-	targetDoc, err := s.access.RequireExists(targetID)
+	sourceDoc, targetDoc, err := s.access.ResolveLink(sourceID, targetID)
 	if err != nil {
 		return nil, err
 	}
@@ -112,16 +104,6 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 
 // UnlinkDocument удаляет связь между документами по её ID.
 func (s *LinkService) UnlinkDocument(idStr string) error {
-	if s.access.accessRepo == nil {
-		isClerk, err := s.access.hasRole("clerk")
-		if err != nil {
-			return err
-		}
-		if !isClerk {
-			return models.ErrForbidden
-		}
-	}
-
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)

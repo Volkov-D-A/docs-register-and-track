@@ -31,18 +31,21 @@ func setupAttachmentService(t *testing.T, role string) (
 	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	ackRepo := mocks.NewAcknowledgmentStore(t)
+	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:           uuid.New(),
-		Login:        role + "_att",
-		PasswordHash: hash,
-		FullName:     "Test User",
-		IsActive:     true,
-		Roles:        []string{role},
+		ID:                    uuid.New(),
+		Login:                 role + "_att",
+		PasswordHash:          hash,
+		FullName:              "Test User",
+		IsDocumentParticipant: role != "" && role != "admin",
+		IsActive:              true,
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
@@ -52,7 +55,7 @@ func setupAttachmentService(t *testing.T, role string) (
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
 	svc := NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, nil, fileStorage, accessSvc)
@@ -77,18 +80,21 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	ackRepo := mocks.NewAcknowledgmentStore(t)
+	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:           uuid.New(),
-		Login:        "multi_att_" + uuid.New().String(),
-		PasswordHash: hash,
-		FullName:     "Test User",
-		IsActive:     true,
-		Roles:        roles,
+		ID:                    uuid.New(),
+		Login:                 "multi_att_" + uuid.New().String(),
+		PasswordHash:          hash,
+		FullName:              "Test User",
+		IsDocumentParticipant: true,
+		IsActive:              true,
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
@@ -98,7 +104,7 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(roles...), nil, incomingRepo, outgoingRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
 	svc := NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, nil, fileStorage, accessSvc)
@@ -121,12 +127,14 @@ func setupAttachmentServiceNotAuth(t *testing.T) *AttachmentService {
 	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	ackRepo := mocks.NewAcknowledgmentStore(t)
+	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 	return NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, nil, fileStorage, accessSvc)
 }

@@ -28,6 +28,7 @@ var (
 type AuthService struct {
 	db            *database.DB
 	userRepo      UserStore
+	accessRepo    DocumentAccessStore
 	auditService  *AdminAuditLogService
 	currentUserID uuid.UUID
 	mu            sync.RWMutex
@@ -44,6 +45,11 @@ func NewAuthService(db *database.DB, userRepo UserStore) *AuthService {
 // SetAdminAuditLogService подключает журнал аудита администратора к сервису аутентификации.
 func (s *AuthService) SetAdminAuditLogService(auditService *AdminAuditLogService) {
 	s.auditService = auditService
+}
+
+// SetAccessStore подключает источник системных прав пользователя.
+func (s *AuthService) SetAccessStore(accessRepo DocumentAccessStore) {
+	s.accessRepo = accessRepo
 }
 
 // isTableNotExistsError проверяет, является ли ошибка «таблица не существует» (PostgreSQL 42P01).
@@ -239,55 +245,53 @@ func (s *AuthService) GetCurrentAuditInfo() (uuid.UUID, string) {
 	return user.ID, user.FullName
 }
 
-// HasRole — проверка роли
-func (s *AuthService) HasRole(role string) bool {
+// HasSystemPermission проверяет прямое системное право текущего пользователя.
+func (s *AuthService) HasSystemPermission(permission string) bool {
 	s.mu.RLock()
 	userID := s.currentUserID
 	s.mu.RUnlock()
 
-	if userID == uuid.Nil {
+	if userID == uuid.Nil || s.accessRepo == nil {
 		return false
 	}
 
-	user, err := s.userRepo.GetByID(userID)
+	allowed, err := s.accessRepo.HasSystemPermission(permission, userID.String())
 	if err != nil {
 		return false
 	}
-	if user == nil {
-		return false
-	}
+	return allowed
+}
 
-	for _, r := range user.Roles {
-		if r == role {
+// RequireSystemPermission возвращает nil если у текущего пользователя есть указанное системное право.
+func (s *AuthService) RequireSystemPermission(permission string) error {
+	if !s.IsAuthenticated() {
+		return models.ErrUnauthorized
+	}
+	if !s.HasSystemPermission(permission) {
+		return models.ErrForbidden
+	}
+	return nil
+}
+
+// HasAnySystemPermission проверяет наличие хотя бы одного системного права у текущего пользователя.
+func (s *AuthService) HasAnySystemPermission(permissions ...string) bool {
+	for _, permission := range permissions {
+		if s.HasSystemPermission(permission) {
 			return true
 		}
 	}
 	return false
 }
 
-// RequireRole возвращает nil если у текущего пользователя есть указанная роль,
-// иначе возвращает ErrUnauthorized (не залогинен) или ErrForbidden (нет прав).
-func (s *AuthService) RequireRole(role string) error {
+// RequireAnySystemPermission возвращает nil если у текущего пользователя есть хотя бы одно системное право.
+func (s *AuthService) RequireAnySystemPermission(permissions ...string) error {
 	if !s.IsAuthenticated() {
 		return models.ErrUnauthorized
 	}
-	if !s.HasRole(role) {
+	if !s.HasAnySystemPermission(permissions...) {
 		return models.ErrForbidden
 	}
 	return nil
-}
-
-// RequireAnyRole возвращает nil если у текущего пользователя есть хотя бы одна из указанных ролей.
-func (s *AuthService) RequireAnyRole(roles ...string) error {
-	if !s.IsAuthenticated() {
-		return models.ErrUnauthorized
-	}
-	for _, r := range roles {
-		if s.HasRole(r) {
-			return nil
-		}
-	}
-	return models.ErrForbidden
 }
 
 // NeedsInitialSetup — проверяет, нужна ли первоначальная настройка.
@@ -332,14 +336,25 @@ func (s *AuthService) InitialSetup(password string) error {
 		return err
 	}
 
-	_, err = s.userRepo.Create(models.CreateUserRequest{
-		Login:    "admin",
-		Password: password,
-		FullName: "Администратор",
-		Roles:    []string{"admin"},
+	user, err := s.userRepo.Create(models.CreateUserRequest{
+		Login:                 "admin",
+		Password:              password,
+		FullName:              "Администратор",
+		IsDocumentParticipant: false,
 	})
 	if err != nil {
 		return fmt.Errorf("ошибка создания администратора: %w", err)
+	}
+
+	if s.accessRepo == nil {
+		return fmt.Errorf("ошибка назначения системного права администратора: access store не подключен")
+	}
+	if err := s.accessRepo.ReplaceUserAccessProfile(
+		user.ID.String(),
+		[]models.UserSystemPermissionRule{{Permission: models.SystemPermissionAdmin, IsAllowed: true}},
+		nil,
+	); err != nil {
+		return fmt.Errorf("ошибка назначения системного права администратора: %w", err)
 	}
 
 	return nil

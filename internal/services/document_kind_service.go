@@ -21,7 +21,15 @@ func (s *DocumentKindService) GetAll() ([]dto.DocumentKind, error) {
 	result := make([]dto.DocumentKind, 0, len(specs))
 
 	for _, spec := range specs {
-		result = append(result, *dto.MapDocumentKindSpec(spec))
+		item := dto.MapDocumentKindSpec(spec)
+		if s.access != nil && s.access.auth.IsAuthenticated() {
+			actions, err := s.access.GetAvailableActions(spec.Code)
+			if err != nil {
+				return nil, err
+			}
+			item.AvailableActions = actions
+		}
+		result = append(result, *item)
 	}
 
 	return result, nil

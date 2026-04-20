@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, App } from 'antd';
-import { useAuthStore } from '../store/useAuthStore';
 
 /**
  * Свойства модального окна создания задачи на ознакомление.
@@ -34,14 +33,9 @@ const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCance
 
     const loadUsers = async () => {
         try {
-            // @ts-ignore
-            const { GetAllUsers } = await import('../../wailsjs/go/services/UserService');
-            const data = await GetAllUsers();
-            const allUsers = data || [];
-            const filteredUsers = allUsers.filter((u: any) =>
-                u.roles?.includes('executor') || u.roles?.includes('clerk')
-            );
-            setUsers(filteredUsers);
+            const { GetExecutors } = await import('../../wailsjs/go/services/UserService');
+            const data = await GetExecutors();
+            setUsers(data || []);
         } catch (err) {
             console.error(err);
         }

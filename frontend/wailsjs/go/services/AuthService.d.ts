@@ -7,8 +7,6 @@ import {models} from '../models';
 
 export function ChangePassword(arg1:string,arg2:string):Promise<void>;
 
-export function GetActiveRole():Promise<string>;
-
 export function GetCurrentAuditInfo():Promise<uuid.UUID|string>;
 
 export function GetCurrentUser():Promise<dto.User>;
@@ -17,9 +15,9 @@ export function GetCurrentUserID():Promise<string>;
 
 export function GetCurrentUserUUID():Promise<uuid.UUID>;
 
-export function HasActiveRole(arg1:string):Promise<boolean>;
+export function HasAnySystemPermission(arg1:Array<string>):Promise<boolean>;
 
-export function HasRole(arg1:string):Promise<boolean>;
+export function HasSystemPermission(arg1:string):Promise<boolean>;
 
 export function InitialSetup(arg1:string):Promise<void>;
 
@@ -31,15 +29,11 @@ export function Logout():Promise<void>;
 
 export function NeedsInitialSetup():Promise<boolean>;
 
-export function RequireActiveRole(arg1:string):Promise<void>;
+export function RequireAnySystemPermission(arg1:Array<string>):Promise<void>;
 
-export function RequireAnyActiveRole(arg1:Array<string>):Promise<void>;
+export function RequireSystemPermission(arg1:string):Promise<void>;
 
-export function RequireAnyRole(arg1:Array<string>):Promise<void>;
-
-export function RequireRole(arg1:string):Promise<void>;
-
-export function SetActiveRole(arg1:string):Promise<void>;
+export function SetAccessStore(arg1:services.DocumentAccessStore):Promise<void>;
 
 export function SetAdminAuditLogService(arg1:services.AdminAuditLogService):Promise<void>;
 

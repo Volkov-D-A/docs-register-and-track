@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { GetList } from '../../wailsjs/go/services/DocumentQueryService';
 
 type BuildFilter<TFilter> = (params: {
@@ -31,6 +31,13 @@ export const useDocumentListPage = <TFilter,>({
     const [search, setSearch] = useState('');
     const [viewDocId, setViewDocId] = useState('');
     const [viewModalOpen, setViewModalOpen] = useState(false);
+    const filtersRef = useRef(filters);
+    const buildFilterRef = useRef(buildFilter);
+    const onErrorRef = useRef(onError);
+
+    filtersRef.current = filters;
+    buildFilterRef.current = buildFilter;
+    onErrorRef.current = onError;
 
     const openViewModal = useCallback((documentId: string) => {
         setViewDocId(documentId);
@@ -44,15 +51,23 @@ export const useDocumentListPage = <TFilter,>({
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const result = await GetList(kindCode, buildFilter({ search, page, pageSize, filters }) as any);
+            const result = await GetList(
+                kindCode,
+                buildFilterRef.current({
+                    search,
+                    page,
+                    pageSize,
+                    filters: filtersRef.current,
+                }) as any,
+            );
             setData(result?.items || []);
             setTotalCount(result?.totalCount || 0);
         } catch (error) {
-            onError?.(error);
+            onErrorRef.current?.(error);
         } finally {
             setLoading(false);
         }
-    }, [buildFilter, filters, kindCode, onError, page, pageSize, search]);
+    }, [kindCode, page, pageSize, search]);
 
     useEffect(() => {
         void load();

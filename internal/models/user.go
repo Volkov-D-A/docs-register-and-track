@@ -8,44 +8,37 @@ import (
 
 // User представляет собой сущность пользователя системы.
 type User struct {
-	ID                  uuid.UUID   `json:"-"`
-	Login               string      `json:"login"`
-	PasswordHash        string      `json:"-"`
-	FullName            string      `json:"fullName"`
-	IsActive            bool        `json:"isActive"`
-	FailedLoginAttempts int         `json:"failedLoginAttempts"`
-	Roles               []string    `json:"roles"`
-	CreatedAt           time.Time   `json:"createdAt"`
-	UpdatedAt           time.Time   `json:"updatedAt"`
-	DepartmentID        *uuid.UUID  `json:"-"`
-	Department          *Department `json:"department,omitempty"`
-}
-
-// UserRole представляет собой связь пользователя с его ролью в системе.
-type UserRole struct {
-	ID        uuid.UUID `json:"-"`
-	UserID    uuid.UUID `json:"-"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID                    uuid.UUID   `json:"-"`
+	Login                 string      `json:"login"`
+	PasswordHash          string      `json:"-"`
+	FullName              string      `json:"fullName"`
+	IsDocumentParticipant bool        `json:"isDocumentParticipant"`
+	IsActive              bool        `json:"isActive"`
+	FailedLoginAttempts   int         `json:"failedLoginAttempts"`
+	SystemPermissions     []string    `json:"systemPermissions"`
+	CreatedAt             time.Time   `json:"createdAt"`
+	UpdatedAt             time.Time   `json:"updatedAt"`
+	DepartmentID          *uuid.UUID  `json:"-"`
+	Department            *Department `json:"department,omitempty"`
 }
 
 // CreateUserRequest описывает полезную нагрузку для создания нового пользователя.
 type CreateUserRequest struct {
-	Login        string   `json:"login"`
-	Password     string   `json:"password"`
-	FullName     string   `json:"fullName"`
-	Roles        []string `json:"roles"`
-	DepartmentID string   `json:"departmentId"`
+	Login                 string `json:"login"`
+	Password              string `json:"password"`
+	FullName              string `json:"fullName"`
+	DepartmentID          string `json:"departmentId"`
+	IsDocumentParticipant bool   `json:"isDocumentParticipant"`
 }
 
 // UpdateUserRequest описывает полезную нагрузку для обновления данных существующего пользователя администратором.
 type UpdateUserRequest struct {
-	ID           string   `json:"id"`
-	Login        string   `json:"login"`
-	FullName     string   `json:"fullName"`
-	IsActive     bool     `json:"isActive"`
-	Roles        []string `json:"roles"`
-	DepartmentID string   `json:"departmentId"`
+	ID                    string `json:"id"`
+	Login                 string `json:"login"`
+	FullName              string `json:"fullName"`
+	IsActive              bool   `json:"isActive"`
+	DepartmentID          string `json:"departmentId"`
+	IsDocumentParticipant bool   `json:"isDocumentParticipant"`
 }
 
 // UpdateProfileRequest описывает полезную нагрузку для обновления профиля самим пользователем.

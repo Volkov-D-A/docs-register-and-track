@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRegisterDocumentStore } from '../store/useRegisterDocumentStore';
 import { RegistrationKind } from '../constants/documentKinds';
 
@@ -22,40 +22,42 @@ export const useDocumentKindModals = ({
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editDoc, setEditDoc] = useState<any>(null);
+    const requestedKind = useRegisterDocumentStore((state) => state.requestedKind);
+    const clearRequest = useRegisterDocumentStore((state) => state.clearRequest);
 
-    const openRegisterModal = () => {
+    const openRegisterModal = useCallback(() => {
         registerForm.resetFields();
         registerForm.setFieldsValue(registerInitialValues);
         setRegisterModalOpen(true);
-    };
+    }, [registerForm, registerInitialValues]);
 
-    const closeRegisterModal = () => {
+    const closeRegisterModal = useCallback(() => {
         setRegisterModalOpen(false);
-    };
+        clearRequest();
+    }, [clearRequest]);
 
-    const openEditModal = (record: any) => {
+    const openEditModal = useCallback((record: any) => {
         setEditDoc(record);
         onPrepareEdit(record);
         setEditModalOpen(true);
-    };
+    }, [onPrepareEdit]);
 
-    const closeEditModal = () => {
+    const closeEditModal = useCallback(() => {
         setEditModalOpen(false);
         setEditDoc(null);
-    };
+    }, []);
 
     useEffect(() => {
-        if (sourceId && targetKind === kindCode) {
+        if (!registerModalOpen && sourceId && targetKind === kindCode) {
             openRegisterModal();
         }
-    }, [kindCode, registerInitialValues, registerForm, sourceId, targetKind]);
+    }, [kindCode, openRegisterModal, registerModalOpen, sourceId, targetKind]);
 
     useEffect(() => {
-        if (useRegisterDocumentStore.getState().requestedKind === kindCode) {
+        if (requestedKind === kindCode) {
             openRegisterModal();
-            useRegisterDocumentStore.getState().clearRequest();
         }
-    }, [kindCode, registerInitialValues, registerForm]);
+    }, [kindCode, openRegisterModal, requestedKind]);
 
     return {
         registerModalOpen,

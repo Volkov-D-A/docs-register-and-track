@@ -17,38 +17,50 @@ type DashboardService struct {
 	repo    DashboardStore
 	auth    *AuthService
 	storage StorageInfoProvider
+	access  *DocumentAccessService
 }
 
 // NewDashboardService создает новый экземпляр DashboardService.
-func NewDashboardService(repo DashboardStore, auth *AuthService, storage StorageInfoProvider) *DashboardService {
-	return &DashboardService{repo: repo, auth: auth, storage: storage}
+func NewDashboardService(repo DashboardStore, auth *AuthService, storage StorageInfoProvider, access *DocumentAccessService) *DashboardService {
+	return &DashboardService{repo: repo, auth: auth, storage: storage, access: access}
 }
 
-func determineDashboardProfile(user *dto.User) string {
+func (s *DashboardService) determineDashboardProfile(user *dto.User) string {
 	if user == nil {
 		return "executor"
 	}
 
-	hasRole := func(expected string) bool {
-		for _, role := range user.Roles {
-			if role == expected {
+	hasSystemPermission := func(expected string) bool {
+		for _, permission := range user.SystemPermissions {
+			if permission == expected {
 				return true
 			}
 		}
 		return false
 	}
 
-	hasClerk := hasRole("clerk")
-	hasExecutor := hasRole("executor")
+	canCreate := false
+	canManageAssignments := false
+	canManageAcknowledgments := false
+	canRead := false
+	if s.access != nil {
+		canCreate, _ = s.access.HasAnyDocumentAction("create")
+		canManageAssignments, _ = s.access.HasAnyDocumentAction("assign")
+		canManageAcknowledgments, _ = s.access.HasAnyDocumentAction("acknowledge")
+		canRead, _ = s.access.HasAnyDocumentAction("read")
+	}
+
+	hasClerkFlow := canCreate || canRead
+	hasExecutorFlow := canManageAssignments || canManageAcknowledgments || (!hasClerkFlow && user.IsDocumentParticipant)
 
 	switch {
-	case hasClerk && hasExecutor:
-		return "mixed"
-	case hasClerk:
+	case hasSystemPermission("admin") && !hasClerkFlow && !hasExecutorFlow:
+		return "admin"
+	case hasClerkFlow:
 		return "clerk"
-	case hasExecutor:
+	case hasExecutorFlow:
 		return "executor"
-	case hasRole("admin"):
+	case hasSystemPermission("admin"):
 		return "admin"
 	default:
 		return "executor"
@@ -68,7 +80,11 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 
 	_ = requestedRole
 
-	role := determineDashboardProfile(user)
+	role := s.determineDashboardProfile(user)
+	canViewIncomingStats := s.auth.HasSystemPermission(models.SystemPermissionStatsIncoming)
+	canViewOutgoingStats := s.auth.HasSystemPermission(models.SystemPermissionStatsOutgoing)
+	canViewAssignmentsStats := s.auth.HasSystemPermission(models.SystemPermissionStatsAssignments)
+	canViewSystemStats := s.auth.HasSystemPermission(models.SystemPermissionStatsSystem)
 
 	// Инициализация пустым списком для избежания null в JSON
 	stats := &models.DashboardStats{
@@ -115,6 +131,73 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 
 	if err != nil {
 		return nil, err
+	}
+
+	if (canViewIncomingStats || canViewOutgoingStats || (canViewAssignmentsStats && role == "admin")) && role != "clerk" {
+		var startDate, endDate time.Time
+		if startDateStr == "" || endDateStr == "" {
+			now := time.Now()
+			startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+			endDate = startDate.AddDate(0, 1, -1).Add(24*time.Hour - time.Nanosecond)
+		} else {
+			startDate, err = time.Parse("2006-01-02", startDateStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid start date: %w", err)
+			}
+			endDateParsed, err := time.Parse("2006-01-02", endDateStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid end date: %w", err)
+			}
+			endDate = endDateParsed.Add(24*time.Hour - time.Nanosecond)
+		}
+
+		clerkSupplement, clerkErr := s.getClerkStats(&models.DashboardStats{}, startDate, endDate)
+		if clerkErr != nil {
+			return nil, clerkErr
+		}
+		result.IncomingCount = clerkSupplement.IncomingCount
+		result.OutgoingCount = clerkSupplement.OutgoingCount
+		if role == "admin" {
+			result.AllAssignmentsOverdue = clerkSupplement.AllAssignmentsOverdue
+			result.AllAssignmentsFinished = clerkSupplement.AllAssignmentsFinished
+			result.AllAssignmentsFinishedLate = clerkSupplement.AllAssignmentsFinishedLate
+		}
+	}
+
+	if canViewSystemStats && role != "admin" {
+		adminSupplement, adminErr := s.getAdminStats(&models.DashboardStats{})
+		if adminErr != nil {
+			return nil, adminErr
+		}
+		result.UserCount = adminSupplement.UserCount
+		result.TotalDocuments = adminSupplement.TotalDocuments
+		result.DBSize = adminSupplement.DBSize
+		result.StorageObjects = adminSupplement.StorageObjects
+		result.StorageSize = adminSupplement.StorageSize
+	}
+
+	if !canViewIncomingStats {
+		result.IncomingCount = 0
+	}
+	if !canViewOutgoingStats {
+		result.OutgoingCount = 0
+	}
+	if !canViewAssignmentsStats {
+		result.MyAssignmentsNew = 0
+		result.MyAssignmentsInProgress = 0
+		result.MyAssignmentsOverdue = 0
+		result.MyAssignmentsFinished = 0
+		result.MyAssignmentsFinishedLate = 0
+		result.AllAssignmentsOverdue = 0
+		result.AllAssignmentsFinished = 0
+		result.AllAssignmentsFinishedLate = 0
+	}
+	if !canViewSystemStats {
+		result.UserCount = 0
+		result.TotalDocuments = 0
+		result.DBSize = ""
+		result.StorageObjects = 0
+		result.StorageSize = ""
 	}
 
 	return dto.MapDashboardStats(result), nil

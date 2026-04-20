@@ -4,24 +4,28 @@ import { PlusOutlined, DeleteOutlined, EyeOutlined, CheckCircleOutlined } from '
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import AcknowledgmentModal from './AcknowledgmentModal';
+import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 
 /**
  * Свойства компонента AcknowledgmentList.
  */
 interface AcknowledgmentListProps {
     documentId: string;
+    documentKind: string;
 }
 
 /**
  * Компонент списка ознакомлений с документом.
  * @param documentId Идентификатор документа
  */
-const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId }) => {
+const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, documentKind }) => {
     const { message } = App.useApp();
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
-    const { user, hasRole } = useAuthStore();
+    const { user } = useAuthStore();
+    const { hasAction } = useDocumentKindAccess();
+    const canManageAcknowledgments = hasAction(documentKind, 'acknowledge');
 
     const load = async () => {
         if (!documentId) return;
@@ -95,8 +99,7 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId }) =
         {
             title: '', key: 'actions', width: 50,
             render: (_: any, r: any) => {
-                const isClerk = hasRole('clerk');
-                const canDelete = isClerk && user?.id === r.creatorId;
+                const canDelete = canManageAcknowledgments && user?.id === r.creatorId;
 
                 return (
                     <Space size={2}>
@@ -111,12 +114,10 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId }) =
         },
     ];
 
-    const canCreate = hasRole('clerk');
-
     return (
         <div>
             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
-                {canCreate && (
+                {canManageAcknowledgments && (
                     <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
                         На ознакомление
                     </Button>

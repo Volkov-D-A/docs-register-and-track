@@ -19,6 +19,7 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	settingsRepo := mocks.NewSettingsStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
@@ -28,7 +29,6 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 		FullName:     role + " settings",
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        []string{role},
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	auth.Login(user.Login, password)
@@ -46,6 +46,7 @@ func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsServi
 	settingsRepo := mocks.NewSettingsStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
@@ -55,7 +56,6 @@ func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsServi
 		FullName:     "Multi Role Settings",
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        roles,
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	auth.Login(user.Login, password)
@@ -191,7 +191,7 @@ func TestSettingsService_GetMaxFileSize(t *testing.T) {
 		repo.On("Get", "max_file_size_mb").Return((*models.SystemSetting)(nil), assert.AnError).Once()
 		size, err := svc.GetMaxFileSize()
 		require.NoError(t, err)
-		assert.Equal(t, int64(10*1024*1024), size)
+		assert.Equal(t, int64(15*1024*1024), size)
 	})
 }
 
@@ -210,7 +210,15 @@ func TestSettingsService_GetAllowedFileTypes(t *testing.T) {
 		repo.On("Get", "allowed_file_types").Return((*models.SystemSetting)(nil), assert.AnError).Once()
 		types, err := svc.GetAllowedFileTypes()
 		require.NoError(t, err)
-		assert.Contains(t, types, ".pdf")
+		assert.Equal(t, []string{".pdf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods"}, types)
+	})
+
+	t.Run("empty setting returns default list", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "allowed_file_types").Return(&models.SystemSetting{Key: "allowed_file_types", Value: ""}, nil).Once()
+		types, err := svc.GetAllowedFileTypes()
+		require.NoError(t, err)
+		assert.Equal(t, []string{".pdf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods"}, types)
 	})
 }
 
@@ -227,7 +235,23 @@ func TestSettingsService_GetOrganizationName(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
 		repo.On("Get", "organization_name").Return((*models.SystemSetting)(nil), assert.AnError).Once()
 		name := svc.GetOrganizationName()
-		assert.Equal(t, "НАША ОРГАНИЗАЦИЯ", name)
+		assert.Equal(t, "", name)
+	})
+}
+
+func TestSettingsService_GetOrganizationShortName(t *testing.T) {
+	t.Run("from settings", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "organization_short_name").Return(&models.SystemSetting{Key: "organization_short_name", Value: "Custom Short"}, nil).Once()
+		name := svc.GetOrganizationShortName()
+		assert.Equal(t, "Custom Short", name)
+	})
+
+	t.Run("default on error", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "organization_short_name").Return((*models.SystemSetting)(nil), assert.AnError).Once()
+		name := svc.GetOrganizationShortName()
+		assert.Equal(t, "", name)
 	})
 }
 
@@ -253,7 +277,7 @@ func TestSettingsService_IsAssignmentCompletionAttachmentsEnabled(t *testing.T) 
 	t.Run("default on error", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
 		repo.On("Get", "assignment_completion_attachments_enabled").Return((*models.SystemSetting)(nil), assert.AnError).Once()
-		assert.True(t, svc.IsAssignmentCompletionAttachmentsEnabled())
+		assert.False(t, svc.IsAssignmentCompletionAttachmentsEnabled())
 	})
 }
 

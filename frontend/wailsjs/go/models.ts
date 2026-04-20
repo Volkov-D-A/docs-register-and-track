@@ -69,7 +69,7 @@ export namespace dto {
 	export class Acknowledgment {
 	    id: string;
 	    documentId: string;
-	    documentType: string;
+	    documentKind: string;
 	    documentNumber?: string;
 	    creatorId: string;
 	    creatorName?: string;
@@ -89,7 +89,7 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.documentId = source["documentId"];
-	        this.documentType = source["documentType"];
+	        this.documentKind = source["documentKind"];
 	        this.documentNumber = source["documentNumber"];
 	        this.creatorId = source["creatorId"];
 	        this.creatorName = source["creatorName"];
@@ -290,9 +290,10 @@ export namespace dto {
 	    id: string;
 	    login: string;
 	    fullName: string;
+	    isDocumentParticipant: boolean;
 	    isActive: boolean;
 	    failedLoginAttempts: number;
-	    roles: string[];
+	    systemPermissions: string[];
 	    // Go type: time
 	    createdAt: any;
 	    // Go type: time
@@ -308,9 +309,10 @@ export namespace dto {
 	        this.id = source["id"];
 	        this.login = source["login"];
 	        this.fullName = source["fullName"];
+	        this.isDocumentParticipant = source["isDocumentParticipant"];
 	        this.isActive = source["isActive"];
 	        this.failedLoginAttempts = source["failedLoginAttempts"];
-	        this.roles = source["roles"];
+	        this.systemPermissions = source["systemPermissions"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	        this.department = this.convertValues(source["department"], Department);
@@ -337,7 +339,7 @@ export namespace dto {
 	export class Assignment {
 	    id: string;
 	    documentId: string;
-	    documentType: string;
+	    documentKind: string;
 	    executorId: string;
 	    executorName?: string;
 	    content: string;
@@ -364,7 +366,7 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.documentId = source["documentId"];
-	        this.documentType = source["documentType"];
+	        this.documentKind = source["documentKind"];
 	        this.executorId = source["executorId"];
 	        this.executorName = source["executorName"];
 	        this.content = source["content"];
@@ -508,105 +510,74 @@ export namespace dto {
 		}
 	}
 	
-	export class DocumentLink {
+	export class OutgoingDocument {
 	    id: string;
-	    sourceType: string;
-	    sourceId: string;
-	    targetType: string;
-	    targetId: string;
-	    linkType: string;
-	    createdBy: string;
+	    nomenclatureId: string;
+	    nomenclatureName?: string;
+	    outgoingNumber: string;
 	    // Go type: time
-	    createdAt: any;
-	    sourceNumber?: string;
-	    targetNumber?: string;
-	    targetSubject?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new DocumentLink(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.sourceType = source["sourceType"];
-	        this.sourceId = source["sourceId"];
-	        this.targetType = source["targetType"];
-	        this.targetId = source["targetId"];
-	        this.linkType = source["linkType"];
-	        this.createdBy = source["createdBy"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.sourceNumber = source["sourceNumber"];
-	        this.targetNumber = source["targetNumber"];
-	        this.targetSubject = source["targetSubject"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class DocumentType {
-	    id: string;
-	    name: string;
-	    // Go type: time
-	    createdAt: any;
-	
-	    static createFrom(source: any = {}) {
-	        return new DocumentType(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class DownloadResponse {
-	    filename: string;
+	    outgoingDate: any;
+	    documentTypeId: string;
+	    documentTypeName?: string;
 	    content: string;
+	    pagesCount: number;
+	    senderSignatory: string;
+	    senderExecutor: string;
+	    recipientOrgId: string;
+	    recipientOrgName?: string;
+	    addressee: string;
+	    createdBy: string;
+	    createdByName?: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    attachmentsCount?: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new DownloadResponse(source);
+	        return new OutgoingDocument(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.filename = source["filename"];
+	        this.id = source["id"];
+	        this.nomenclatureId = source["nomenclatureId"];
+	        this.nomenclatureName = source["nomenclatureName"];
+	        this.outgoingNumber = source["outgoingNumber"];
+	        this.outgoingDate = this.convertValues(source["outgoingDate"], null);
+	        this.documentTypeId = source["documentTypeId"];
+	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
+	        this.pagesCount = source["pagesCount"];
+	        this.senderSignatory = source["senderSignatory"];
+	        this.senderExecutor = source["senderExecutor"];
+	        this.recipientOrgId = source["recipientOrgId"];
+	        this.recipientOrgName = source["recipientOrgName"];
+	        this.addressee = source["addressee"];
+	        this.createdBy = source["createdBy"];
+	        this.createdByName = source["createdByName"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.attachmentsCount = source["attachmentsCount"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class IncomingDocument {
 	    id: string;
@@ -691,6 +662,289 @@ export namespace dto {
 		    return a;
 		}
 	}
+	export class DocumentCard {
+	    id: string;
+	    kindCode: string;
+	    kindName: string;
+	    registrationNumber: string;
+	    // Go type: time
+	    registrationDate: any;
+	    nomenclatureId: string;
+	    nomenclatureName?: string;
+	    documentTypeId: string;
+	    documentTypeName?: string;
+	    content: string;
+	    createdBy: string;
+	    createdByName?: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    incomingLetter?: IncomingDocument;
+	    outgoingLetter?: OutgoingDocument;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentCard(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kindCode = source["kindCode"];
+	        this.kindName = source["kindName"];
+	        this.registrationNumber = source["registrationNumber"];
+	        this.registrationDate = this.convertValues(source["registrationDate"], null);
+	        this.nomenclatureId = source["nomenclatureId"];
+	        this.nomenclatureName = source["nomenclatureName"];
+	        this.documentTypeId = source["documentTypeId"];
+	        this.documentTypeName = source["documentTypeName"];
+	        this.content = source["content"];
+	        this.createdBy = source["createdBy"];
+	        this.createdByName = source["createdByName"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.incomingLetter = this.convertValues(source["incomingLetter"], IncomingDocument);
+	        this.outgoingLetter = this.convertValues(source["outgoingLetter"], OutgoingDocument);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DocumentKind {
+	    code: string;
+	    name: string;
+	    legacyViewType: string;
+	    registrationFormCode: string;
+	    registryGroup: string;
+	    supportedActions: string[];
+	    availableActions: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentKind(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.legacyViewType = source["legacyViewType"];
+	        this.registrationFormCode = source["registrationFormCode"];
+	        this.registryGroup = source["registryGroup"];
+	        this.supportedActions = source["supportedActions"];
+	        this.availableActions = source["availableActions"];
+	    }
+	}
+	export class DocumentLink {
+	    id: string;
+	    sourceKind: string;
+	    sourceId: string;
+	    targetKind: string;
+	    targetId: string;
+	    linkType: string;
+	    createdBy: string;
+	    // Go type: time
+	    createdAt: any;
+	    sourceNumber?: string;
+	    targetNumber?: string;
+	    targetSubject?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentLink(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.sourceKind = source["sourceKind"];
+	        this.sourceId = source["sourceId"];
+	        this.targetKind = source["targetKind"];
+	        this.targetId = source["targetId"];
+	        this.linkType = source["linkType"];
+	        this.createdBy = source["createdBy"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.sourceNumber = source["sourceNumber"];
+	        this.targetNumber = source["targetNumber"];
+	        this.targetSubject = source["targetSubject"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DocumentListItem {
+	    id: string;
+	    kindCode: string;
+	    kindName: string;
+	    registrationNumber: string;
+	    // Go type: time
+	    registrationDate: any;
+	    nomenclatureId: string;
+	    nomenclatureName?: string;
+	    documentTypeId: string;
+	    documentTypeName?: string;
+	    content: string;
+	    createdBy: string;
+	    createdByName?: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    incomingNumber?: string;
+	    // Go type: time
+	    incomingDate?: any;
+	    outgoingNumber?: string;
+	    // Go type: time
+	    outgoingDate?: any;
+	    outgoingNumberSender?: string;
+	    // Go type: time
+	    outgoingDateSender?: any;
+	    intermediateNumber?: string;
+	    // Go type: time
+	    intermediateDate?: any;
+	    senderOrgName?: string;
+	    senderSignatory?: string;
+	    resolution?: string;
+	    resolutionAuthor?: string;
+	    resolutionExecutors?: string;
+	    recipientOrgName?: string;
+	    addressee?: string;
+	    senderExecutor?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentListItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kindCode = source["kindCode"];
+	        this.kindName = source["kindName"];
+	        this.registrationNumber = source["registrationNumber"];
+	        this.registrationDate = this.convertValues(source["registrationDate"], null);
+	        this.nomenclatureId = source["nomenclatureId"];
+	        this.nomenclatureName = source["nomenclatureName"];
+	        this.documentTypeId = source["documentTypeId"];
+	        this.documentTypeName = source["documentTypeName"];
+	        this.content = source["content"];
+	        this.createdBy = source["createdBy"];
+	        this.createdByName = source["createdByName"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.incomingNumber = source["incomingNumber"];
+	        this.incomingDate = this.convertValues(source["incomingDate"], null);
+	        this.outgoingNumber = source["outgoingNumber"];
+	        this.outgoingDate = this.convertValues(source["outgoingDate"], null);
+	        this.outgoingNumberSender = source["outgoingNumberSender"];
+	        this.outgoingDateSender = this.convertValues(source["outgoingDateSender"], null);
+	        this.intermediateNumber = source["intermediateNumber"];
+	        this.intermediateDate = this.convertValues(source["intermediateDate"], null);
+	        this.senderOrgName = source["senderOrgName"];
+	        this.senderSignatory = source["senderSignatory"];
+	        this.resolution = source["resolution"];
+	        this.resolutionAuthor = source["resolutionAuthor"];
+	        this.resolutionExecutors = source["resolutionExecutors"];
+	        this.recipientOrgName = source["recipientOrgName"];
+	        this.addressee = source["addressee"];
+	        this.senderExecutor = source["senderExecutor"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DocumentType {
+	    id: string;
+	    name: string;
+	    // Go type: time
+	    createdAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentType(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DownloadResponse {
+	    filename: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filename = source["filename"];
+	        this.content = source["content"];
+	    }
+	}
+	
 	export class JournalEntry {
 	    id: string;
 	    documentId: string;
@@ -768,75 +1022,7 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class OutgoingDocument {
-	    id: string;
-	    nomenclatureId: string;
-	    nomenclatureName?: string;
-	    outgoingNumber: string;
-	    // Go type: time
-	    outgoingDate: any;
-	    documentTypeId: string;
-	    documentTypeName?: string;
-	    content: string;
-	    pagesCount: number;
-	    senderSignatory: string;
-	    senderExecutor: string;
-	    recipientOrgId: string;
-	    recipientOrgName?: string;
-	    addressee: string;
-	    createdBy: string;
-	    createdByName?: string;
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
-	    attachmentsCount?: number;
 	
-	    static createFrom(source: any = {}) {
-	        return new OutgoingDocument(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.nomenclatureId = source["nomenclatureId"];
-	        this.nomenclatureName = source["nomenclatureName"];
-	        this.outgoingNumber = source["outgoingNumber"];
-	        this.outgoingDate = this.convertValues(source["outgoingDate"], null);
-	        this.documentTypeId = source["documentTypeId"];
-	        this.documentTypeName = source["documentTypeName"];
-	        this.content = source["content"];
-	        this.pagesCount = source["pagesCount"];
-	        this.senderSignatory = source["senderSignatory"];
-	        this.senderExecutor = source["senderExecutor"];
-	        this.recipientOrgId = source["recipientOrgId"];
-	        this.recipientOrgName = source["recipientOrgName"];
-	        this.addressee = source["addressee"];
-	        this.createdBy = source["createdBy"];
-	        this.createdByName = source["createdByName"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
-	        this.attachmentsCount = source["attachmentsCount"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_Assignment_ {
 	    items: Assignment[];
 	    totalCount: number;
@@ -873,55 +1059,19 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_IncomingDocument_ {
-	    items: IncomingDocument[];
+	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_DocumentListItem_ {
+	    items: DocumentListItem[];
 	    totalCount: number;
 	    page: number;
 	    pageSize: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_IncomingDocument_(source);
+	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_DocumentListItem_(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.items = this.convertValues(source["items"], IncomingDocument);
-	        this.totalCount = source["totalCount"];
-	        this.page = source["page"];
-	        this.pageSize = source["pageSize"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_OutgoingDocument_ {
-	    items: OutgoingDocument[];
-	    totalCount: number;
-	    page: number;
-	    pageSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_OutgoingDocument_(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.items = this.convertValues(source["items"], OutgoingDocument);
+	        this.items = this.convertValues(source["items"], DocumentListItem);
 	        this.totalCount = source["totalCount"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
@@ -1037,8 +1187,8 @@ export namespace models {
 	    login: string;
 	    password: string;
 	    fullName: string;
-	    roles: string[];
 	    departmentId: string;
+	    isDocumentParticipant: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateUserRequest(source);
@@ -1049,13 +1199,14 @@ export namespace models {
 	        this.login = source["login"];
 	        this.password = source["password"];
 	        this.fullName = source["fullName"];
-	        this.roles = source["roles"];
 	        this.departmentId = source["departmentId"];
+	        this.isDocumentParticipant = source["isDocumentParticipant"];
 	    }
 	}
 	export class DocumentFilter {
 	    nomenclatureId?: string;
 	    nomenclatureIds?: string[];
+	    kindCode?: string;
 	    documentTypeId?: string;
 	    orgId?: string;
 	    dateFrom?: string;
@@ -1063,6 +1214,7 @@ export namespace models {
 	    search?: string;
 	    incomingNumber?: string;
 	    outgoingNumber?: string;
+	    recipientName?: string;
 	    senderName?: string;
 	    outgoingDateFrom?: string;
 	    outgoingDateTo?: string;
@@ -1079,6 +1231,7 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.nomenclatureId = source["nomenclatureId"];
 	        this.nomenclatureIds = source["nomenclatureIds"];
+	        this.kindCode = source["kindCode"];
 	        this.documentTypeId = source["documentTypeId"];
 	        this.orgId = source["orgId"];
 	        this.dateFrom = source["dateFrom"];
@@ -1086,6 +1239,7 @@ export namespace models {
 	        this.search = source["search"];
 	        this.incomingNumber = source["incomingNumber"];
 	        this.outgoingNumber = source["outgoingNumber"];
+	        this.recipientName = source["recipientName"];
 	        this.senderName = source["senderName"];
 	        this.outgoingDateFrom = source["outgoingDateFrom"];
 	        this.outgoingDateTo = source["outgoingDateTo"];
@@ -1116,7 +1270,7 @@ export namespace models {
 	export class GraphNode {
 	    id: string;
 	    label: string;
-	    type: string;
+	    kindCode: string;
 	    subject: string;
 	    date: string;
 	    sender: string;
@@ -1130,7 +1284,7 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.label = source["label"];
-	        this.type = source["type"];
+	        this.kindCode = source["kindCode"];
 	        this.subject = source["subject"];
 	        this.date = source["date"];
 	        this.sender = source["sender"];
@@ -1171,36 +1325,6 @@ export namespace models {
 	}
 	
 	
-	export class OutgoingDocumentFilter {
-	    nomenclatureIds?: string[];
-	    documentTypeId?: string;
-	    orgId?: string;
-	    dateFrom?: string;
-	    dateTo?: string;
-	    search?: string;
-	    outgoingNumber?: string;
-	    recipientName?: string;
-	    page: number;
-	    pageSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new OutgoingDocumentFilter(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.nomenclatureIds = source["nomenclatureIds"];
-	        this.documentTypeId = source["documentTypeId"];
-	        this.orgId = source["orgId"];
-	        this.dateFrom = source["dateFrom"];
-	        this.dateTo = source["dateTo"];
-	        this.search = source["search"];
-	        this.outgoingNumber = source["outgoingNumber"];
-	        this.recipientName = source["recipientName"];
-	        this.page = source["page"];
-	        this.pageSize = source["pageSize"];
-	    }
-	}
 	export class ReleaseNoteChange {
 	    id: number[];
 	    releaseNoteId: number[];
@@ -1317,13 +1441,77 @@ export namespace models {
 	        this.fullName = source["fullName"];
 	    }
 	}
+	export class UserDocumentPermissionRule {
+	    kindCode: string;
+	    action: string;
+	    isAllowed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserDocumentPermissionRule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kindCode = source["kindCode"];
+	        this.action = source["action"];
+	        this.isAllowed = source["isAllowed"];
+	    }
+	}
+	export class UserSystemPermissionRule {
+	    permission: string;
+	    isAllowed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserSystemPermissionRule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.permission = source["permission"];
+	        this.isAllowed = source["isAllowed"];
+	    }
+	}
+	export class UpdateUserDocumentAccessRequest {
+	    userId: string;
+	    systemPermissions: UserSystemPermissionRule[];
+	    permissions: UserDocumentPermissionRule[];
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateUserDocumentAccessRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.userId = source["userId"];
+	        this.systemPermissions = this.convertValues(source["systemPermissions"], UserSystemPermissionRule);
+	        this.permissions = this.convertValues(source["permissions"], UserDocumentPermissionRule);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class UpdateUserRequest {
 	    id: string;
 	    login: string;
 	    fullName: string;
 	    isActive: boolean;
-	    roles: string[];
 	    departmentId: string;
+	    isDocumentParticipant: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateUserRequest(source);
@@ -1335,10 +1523,43 @@ export namespace models {
 	        this.login = source["login"];
 	        this.fullName = source["fullName"];
 	        this.isActive = source["isActive"];
-	        this.roles = source["roles"];
 	        this.departmentId = source["departmentId"];
+	        this.isDocumentParticipant = source["isDocumentParticipant"];
 	    }
 	}
+	export class UserDocumentAccessProfile {
+	    systemPermissions: UserSystemPermissionRule[];
+	    permissions: UserDocumentPermissionRule[];
+	
+	    static createFrom(source: any = {}) {
+	        return new UserDocumentAccessProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.systemPermissions = this.convertValues(source["systemPermissions"], UserSystemPermissionRule);
+	        this.permissions = this.convertValues(source["permissions"], UserDocumentPermissionRule);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 
 }
 
@@ -1358,3 +1579,4 @@ export namespace services {
 	}
 
 }
+

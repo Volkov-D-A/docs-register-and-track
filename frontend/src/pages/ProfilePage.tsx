@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, Button, Typography, Space, Divider, Descriptions, Tag, Row, Col, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
+import { documentKinds } from '../constants/documentKinds';
+import { useDocumentKinds } from '../hooks/useDocumentKinds';
+const emptyKinds: typeof documentKinds = [];
 
 const { Title, Text } = Typography;
 
@@ -12,6 +15,7 @@ const { Title, Text } = Typography;
 const ProfilePage: React.FC = () => {
     const { user, changePassword, updateProfile, isLoading, error, clearError } = useAuthStore();
     const { message } = App.useApp();
+    const { kinds: readableKinds } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
     const [profileForm] = Form.useForm();
     const [passwordForm] = Form.useForm();
     const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -60,11 +64,16 @@ const ProfilePage: React.FC = () => {
 
     const roleNameMap: Record<string, string> = {
         'admin': 'Администратор',
+        'references': 'Справочники',
+        'stats_incoming': 'Статистика: входящие письма',
+        'stats_outgoing': 'Статистика: исходящие письма',
+        'stats_assignments': 'Статистика: поручения',
+        'stats_system': 'Статистика: системная',
         'clerk': 'Делопроизводитель',
         'executor': 'Исполнитель',
         'mixed': 'Смешанный профиль',
     };
-    const currentProfile = resolveUserProfile(user.roles);
+    const currentProfile = resolveUserProfile(user.systemPermissions, readableKinds, user.isDocumentParticipant);
 
     return (
         <div style={{ padding: '0 24px 24px' }}>
@@ -81,12 +90,15 @@ const ProfilePage: React.FC = () => {
                                     <Descriptions.Item label="Подразделение">
                                         {user.department?.name || <Text type="secondary">Не указано</Text>}
                                     </Descriptions.Item>
+                                    <Descriptions.Item label="Участие в документообороте">
+                                        {user.isDocumentParticipant ? <Tag color="green">Да</Tag> : <Tag>Нет</Tag>}
+                                    </Descriptions.Item>
                                     <Descriptions.Item label="Рабочий профиль">
                                         <Tag color="blue">{roleNameMap[currentProfile] || currentProfile}</Tag>
                                     </Descriptions.Item>
-                                    <Descriptions.Item label="Доступные роли">
+                                    <Descriptions.Item label="Системные права">
                                         <Space size={[0, 4]} wrap>
-                                            {user.roles && user.roles.map(r => (
+                                            {user.systemPermissions && user.systemPermissions.map(r => (
                                                 <Tag key={r}>{roleNameMap[r] || r}</Tag>
                                             ))}
                                         </Space>

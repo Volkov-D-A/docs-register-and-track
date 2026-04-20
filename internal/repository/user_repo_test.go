@@ -29,23 +29,22 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 
 	t.Run("success without department", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
-			"id", "login", "password_hash", "full_name", "is_active", "failed_login_attempts", "created_at", "updated_at",
+			"id", "login", "password_hash", "full_name", "is_document_participant", "is_active", "failed_login_attempts", "created_at", "updated_at",
 			"d.id", "d.name",
 		}).AddRow(
-			id, login, "hash", "Test User", true, 0, now, now,
+			id, login, "hash", "Test User", true, true, 0, now, now,
 			nil, nil, // нет подразделения
 		)
 
-		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
+		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id WHERE u.login = \$1`
 
 		mock.ExpectQuery(expectedQuery).WithArgs(login).WillReturnRows(rows)
 
-		// Также вызывается GetUserRoles
-		roleRows := sqlmock.NewRows([]string{"role"}).AddRow("admin")
-		mock.ExpectQuery(`SELECT role FROM user_roles WHERE user_id = \$1`).WithArgs(id).WillReturnRows(roleRows)
+		systemPermissionRows := sqlmock.NewRows([]string{"permission"}).AddRow("admin")
+		mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).WithArgs(id).WillReturnRows(systemPermissionRows)
 
 		user, err := repo.GetByLogin(login)
 
@@ -54,13 +53,13 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 		assert.Equal(t, id, user.ID)
 		assert.Equal(t, login, user.Login)
 		assert.Equal(t, "Test User", user.FullName)
-		assert.Equal(t, []string{"admin"}, user.Roles)
+		assert.Equal(t, []string{"admin"}, user.SystemPermissions)
 		assert.Nil(t, user.Department)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
+		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id WHERE u.login = \$1`
@@ -88,14 +87,14 @@ func TestUserRepository_GetAll(t *testing.T) {
 
 	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "full_name", "is_active", "failed_login_attempts", "created_at", "updated_at",
+			"id", "login", "full_name", "is_document_participant", "is_active", "failed_login_attempts", "created_at", "updated_at",
 			"d.id", "d.name",
-		}).AddRow(uid, "user1", "User One", false, 5, now, now, depID, "IT Dept"))
+		}).AddRow(uid, "user1", "User One", true, false, 5, now, now, depID, "IT Dept"))
 
-	// Expect roles
-	mock.ExpectQuery(`SELECT(.*)FROM user_roles(.*)`).
+	// Expect system permissions
+	mock.ExpectQuery(`SELECT(.*)FROM user_system_permissions(.*)`).
 		WithArgs(pq.Array([]uuid.UUID{uid})).
-		WillReturnRows(sqlmock.NewRows([]string{"user_id", "role"}).AddRow(uid, "admin"))
+		WillReturnRows(sqlmock.NewRows([]string{"user_id", "permission"}).AddRow(uid, "admin"))
 
 	// Expect department nomenclatures
 	mock.ExpectQuery(`SELECT(.*)FROM department_nomenclature(.*)`).
@@ -107,7 +106,7 @@ func TestUserRepository_GetAll(t *testing.T) {
 	require.Len(t, users, 1)
 	assert.Equal(t, "user1", users[0].Login)
 	assert.Equal(t, 5, users[0].FailedLoginAttempts)
-	assert.Equal(t, []string{"admin"}, users[0].Roles)
+	assert.Equal(t, []string{"admin"}, users[0].SystemPermissions)
 	require.NotNil(t, users[0].Department)
 	assert.Equal(t, "IT Dept", users[0].Department.Name)
 	assert.Len(t, users[0].Department.NomenclatureIDs, 1)
@@ -124,22 +123,18 @@ func TestUserRepository_Create(t *testing.T) {
 	repo := NewUserRepository(&database.DB{DB: db})
 
 	req := models.CreateUserRequest{
-		Login:    "newuser",
-		Password: "Password123!",
-		FullName: "New User",
-		Roles:    []string{"user"},
+		Login:                 "newuser",
+		Password:              "Password123!",
+		FullName:              "New User",
+		IsDocumentParticipant: true,
 	}
 
 	mock.ExpectBegin()
 	uid := uuid.New()
 
 	mock.ExpectQuery(`INSERT INTO users`).
-		WithArgs(req.Login, sqlmock.AnyArg(), req.FullName, nil).
+		WithArgs(req.Login, sqlmock.AnyArg(), req.FullName, nil, req.IsDocumentParticipant).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uid))
-
-	mock.ExpectExec(`INSERT INTO user_roles`).
-		WithArgs(uid, "user").
-		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	mock.ExpectCommit()
 
@@ -147,12 +142,12 @@ func TestUserRepository_Create(t *testing.T) {
 	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "password_hash", "full_name", "is_active", "failed_login_attempts", "created_at", "updated_at",
+			"id", "login", "password_hash", "full_name", "is_document_participant", "is_active", "failed_login_attempts", "created_at", "updated_at",
 			"d.id", "d.name",
-		}).AddRow(uid, req.Login, "hash", req.FullName, true, 0, time.Now(), time.Now(), nil, nil))
-	mock.ExpectQuery(`SELECT role FROM user_roles`).
+		}).AddRow(uid, req.Login, "hash", req.FullName, true, true, 0, time.Now(), time.Now(), nil, nil))
+	mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).
 		WithArgs(uid).
-		WillReturnRows(sqlmock.NewRows([]string{"role"}).AddRow("user"))
+		WillReturnRows(sqlmock.NewRows([]string{"permission"}))
 
 	user, err := repo.Create(req)
 	require.NoError(t, err)
@@ -170,24 +165,16 @@ func TestUserRepository_Update(t *testing.T) {
 	repo := NewUserRepository(&database.DB{DB: db})
 	uid := uuid.New()
 	req := models.UpdateUserRequest{
-		ID:       uid.String(),
-		Login:    "upduser",
-		FullName: "Upd User",
-		IsActive: true,
-		Roles:    []string{"admin"},
+		ID:                    uid.String(),
+		Login:                 "upduser",
+		FullName:              "Upd User",
+		IsActive:              true,
+		IsDocumentParticipant: true,
 	}
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE users SET`).
-		WithArgs(req.Login, req.FullName, req.IsActive, nil, uid).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	mock.ExpectExec(`DELETE FROM user_roles`).
-		WithArgs(uid).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	mock.ExpectExec(`INSERT INTO user_roles`).
-		WithArgs(uid, "admin").
+		WithArgs(req.Login, req.FullName, req.IsActive, nil, req.IsDocumentParticipant, uid).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	mock.ExpectCommit()
@@ -196,12 +183,12 @@ func TestUserRepository_Update(t *testing.T) {
 	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "password_hash", "full_name", "is_active", "failed_login_attempts", "created_at", "updated_at",
+			"id", "login", "password_hash", "full_name", "is_document_participant", "is_active", "failed_login_attempts", "created_at", "updated_at",
 			"d.id", "d.name",
-		}).AddRow(uid, req.Login, "hash", req.FullName, true, 0, time.Now(), time.Now(), nil, nil))
-	mock.ExpectQuery(`SELECT role FROM user_roles`).
+		}).AddRow(uid, req.Login, "hash", req.FullName, true, true, 0, time.Now(), time.Now(), nil, nil))
+	mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).
 		WithArgs(uid).
-		WillReturnRows(sqlmock.NewRows([]string{"role"}).AddRow("admin"))
+		WillReturnRows(sqlmock.NewRows([]string{"permission"}))
 
 	user, err := repo.Update(req)
 	require.NoError(t, err)

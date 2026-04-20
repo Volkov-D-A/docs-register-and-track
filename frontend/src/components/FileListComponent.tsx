@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button, Upload, Popconfirm, Typography, Tooltip, notification, Space, Spin, Empty, App } from 'antd';
 import { UploadOutlined, DownloadOutlined, DeleteOutlined, FileOutlined, FilePdfOutlined, FileImageOutlined, FileWordOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
-import { useAuthStore } from '../store/useAuthStore';
+import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 
 const { Text } = Typography;
 
@@ -11,6 +11,7 @@ const { Text } = Typography;
  */
 interface FileListComponentProps {
     documentId: string;
+    documentKind: string;
     readOnly?: boolean;
 }
 
@@ -20,10 +21,10 @@ interface FileListComponentProps {
  * @param documentId Идентификатор документа
  * @param readOnly Флаг режима только для чтения
  */
-const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, readOnly }) => {
+const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, documentKind, readOnly }) => {
     const { message } = App.useApp();
-    const { hasRole } = useAuthStore();
-    const canEdit = !readOnly && hasRole('clerk');
+    const { hasAction } = useDocumentKindAccess();
+    const canEdit = !readOnly && hasAction(documentKind, 'upload');
 
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);

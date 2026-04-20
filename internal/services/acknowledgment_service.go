@@ -134,16 +134,9 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 // GetAllActive возвращает список всех активных (не завершенных) задач на ознакомление в системе.
 // Доступно только делопроизводителям.
 func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
-	currentUser, err := s.auth.GetCurrentUser()
+	allowed, err := s.access.HasAnyDocumentAction("acknowledge")
 	if err != nil {
 		return nil, err
-	}
-	allowed := false
-	for _, role := range currentUser.Roles {
-		if role == "clerk" {
-			allowed = true
-			break
-		}
 	}
 	if !allowed {
 		return nil, models.ErrForbidden
@@ -214,16 +207,6 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 
 // Delete удаляет задачу на ознакомление по её ID.
 func (s *AcknowledgmentService) Delete(id string) error {
-	if s.access.accessRepo == nil {
-		isClerk, err := s.access.hasRole("clerk")
-		if err != nil {
-			return err
-		}
-		if !isClerk {
-			return models.ErrForbidden
-		}
-	}
-
 	ackUUID, err := uuid.Parse(id)
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)

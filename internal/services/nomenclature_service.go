@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 // NomenclatureService предоставляет бизнес-логику для работы с номенклатурой дел.
@@ -42,7 +43,7 @@ func (s *NomenclatureService) GetActiveForKind(kindCode string) ([]dto.Nomenclat
 
 // Create создает новое дело номенклатуры (доступно только администраторам и делопроизводителям).
 func (s *NomenclatureService) Create(name, index string, year int, kindCode, separator, numberingMode string) (*dto.Nomenclature, error) {
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
 	res, err := s.repo.Create(name, index, year, kindCode, separator, numberingMode)
@@ -58,7 +59,7 @@ func (s *NomenclatureService) Create(name, index string, year int, kindCode, sep
 
 // Update обновляет существующее дело номенклатуры.
 func (s *NomenclatureService) Update(id string, name, index string, year int, kindCode, separator, numberingMode string, isActive bool) (*dto.Nomenclature, error) {
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
 	uid, err := uuid.Parse(id)
@@ -78,7 +79,7 @@ func (s *NomenclatureService) Update(id string, name, index string, year int, ki
 
 // Delete удаляет дело номенклатуры по его ID (доступно только администраторам).
 func (s *NomenclatureService) Delete(id string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return err
 	}
 	uid, err := uuid.Parse(id)

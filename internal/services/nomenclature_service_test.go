@@ -20,6 +20,7 @@ func setupNomenclatureService(t *testing.T, role string) (*NomenclatureService, 
 	nomRepo := mocks.NewNomenclatureStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 
 	if role != "" {
 		password := "Passw0rd!"
@@ -29,7 +30,6 @@ func setupNomenclatureService(t *testing.T, role string) (*NomenclatureService, 
 			Login:        role + "_nom",
 			PasswordHash: hash,
 			IsActive:     true,
-			Roles:        []string{role},
 		}
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
 		_, err := auth.Login(user.Login, password)
@@ -46,6 +46,7 @@ func setupNomenclatureServiceWithRoles(t *testing.T, roles []string) (*Nomenclat
 	nomRepo := mocks.NewNomenclatureStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
@@ -54,7 +55,6 @@ func setupNomenclatureServiceWithRoles(t *testing.T, roles []string) (*Nomenclat
 		Login:        "multi_nom_" + uuid.New().String(),
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        roles,
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
@@ -127,15 +127,12 @@ func TestNomenclatureService_Create(t *testing.T) {
 		assert.Equal(t, name, result.Name)
 	})
 
-	t.Run("успех (делопроизводитель)", func(t *testing.T) {
-		svc, repo, _ := setupNomenclatureService(t, "clerk")
-		name := "Новое дело clerk"
-		expected := &models.Nomenclature{ID: uuid.New(), Name: name}
-		repo.On("Create", name, "01-03", 2024, "incoming_letter", "/", "index_and_number").Return(expected, nil).Once()
-
-		result, err := svc.Create(name, "01-03", 2024, "incoming_letter", "/", "index_and_number")
-		require.NoError(t, err)
-		assert.NotNil(t, result)
+	t.Run("запрещено (делопроизводитель)", func(t *testing.T) {
+		svc, _, _ := setupNomenclatureService(t, "clerk")
+		result, err := svc.Create("Новое дело clerk", "01-03", 2024, "incoming_letter", "/", "index_and_number")
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
 	})
 
 	t.Run("запрещено (исполнитель)", func(t *testing.T) {
@@ -173,16 +170,12 @@ func TestNomenclatureService_Update(t *testing.T) {
 	// Обновление атрибутов дела в номенклатуре
 	idStr := uuid.New().String()
 
-	t.Run("успех (clerk)", func(t *testing.T) {
-		svc, repo, _ := setupNomenclatureService(t, "clerk")
-		name := "Обновлено"
-		expected := &models.Nomenclature{ID: uuid.MustParse(idStr), Name: name}
-		repo.On("Update", mock.AnythingOfType("uuid.UUID"), name, "01-04", 2024, "outgoing_letter", "-", "number_only", true).Return(expected, nil).Once()
-
-		result, err := svc.Update(idStr, name, "01-04", 2024, "outgoing_letter", "-", "number_only", true)
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, name, result.Name)
+	t.Run("запрещено (clerk)", func(t *testing.T) {
+		svc, _, _ := setupNomenclatureService(t, "clerk")
+		result, err := svc.Update(idStr, "Обновлено", "01-04", 2024, "outgoing_letter", "-", "number_only", true)
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
 	})
 
 	t.Run("невалидный ID", func(t *testing.T) {

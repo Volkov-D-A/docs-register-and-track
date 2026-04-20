@@ -267,7 +267,7 @@ func TestFilterNomenclaturesByDepartment(t *testing.T) {
 }
 
 func TestApplyExecutorNomenclatureFilter(t *testing.T) {
-	// Тестирование логики ограничения доступа к документам по подразделению для роли executor
+	// Тестирование логики ограничения доступа к документам по подразделению текущего пользователя
 	depRepo := &MockDepartmentStore{
 		GetNomsFunc: func(d uuid.UUID) ([]string, error) {
 			return []string{"A", "B"}, nil
@@ -280,7 +280,7 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 
 	hash, _ := security.HashPassword("CorrectP@ssword1!")
 
-	setupUser := func(roles []string, depIDStr string) *models.User {
+	setupUser := func(depIDStr string) *models.User {
 		var dep *models.Department
 		if depIDStr != "" {
 			dID, _ := uuid.Parse(depIDStr)
@@ -291,7 +291,6 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 			Login:        "test_" + uuid.New().String(),
 			PasswordHash: hash,
 			IsActive:     true,
-			Roles:        roles,
 			Department:   dep,
 		}
 		userStore.On("GetByLogin", u.Login).Return(u, nil).Once()
@@ -300,39 +299,24 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 		return u
 	}
 
-	t.Run("admin bypasses filter", func(t *testing.T) {
-		setupUser([]string{"admin"}, "")
-		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, []string{"X"}, "")
-		if err != nil {
-			t.Errorf("expected no err, got %v", err)
-		}
-		if isEmpty {
-			t.Errorf("expected not empty")
-		}
-		if len(filtered) != 1 || filtered[0] != "X" {
-			t.Errorf("expected original ids")
-		}
-		auth.Logout()
-	})
-
-	t.Run("user with clerk role bypasses executor filter", func(t *testing.T) {
-		setupUser([]string{"executor", "clerk"}, uuid.New().String())
+	t.Run("authenticated user with department gets department filter", func(t *testing.T) {
+		setupUser(uuid.New().String())
 
 		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, []string{"X"}, "")
 		if err != nil {
 			t.Errorf("expected no err, got %v", err)
 		}
-		if isEmpty {
-			t.Errorf("expected not empty")
+		if !isEmpty {
+			t.Errorf("expected empty because requested nomenclature is outside department scope")
 		}
-		if len(filtered) != 1 || filtered[0] != "X" {
-			t.Errorf("expected original ids")
+		if len(filtered) != 0 {
+			t.Errorf("expected no permitted ids")
 		}
 		auth.Logout()
 	})
 
-	t.Run("executor with valid dep", func(t *testing.T) {
-		setupUser([]string{"executor"}, uuid.New().String())
+	t.Run("user with valid dep", func(t *testing.T) {
+		setupUser(uuid.New().String())
 		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, nil, "")
 		if err != nil {
 			t.Errorf("expected no err, got %v", err)
@@ -346,8 +330,8 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 		auth.Logout()
 	})
 
-	t.Run("executor with specific missing filter", func(t *testing.T) {
-		setupUser([]string{"executor"}, uuid.New().String())
+	t.Run("user with specific missing filter", func(t *testing.T) {
+		setupUser(uuid.New().String())
 		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, []string{"C"}, "")
 		if err != nil {
 			t.Errorf("expected no err, got %v", err)
@@ -361,8 +345,8 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 		auth.Logout()
 	})
 
-	t.Run("executor no dep", func(t *testing.T) {
-		setupUser([]string{"executor"}, "")
+	t.Run("user without department", func(t *testing.T) {
+		setupUser("")
 		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, nil, "")
 		if err != nil {
 			t.Errorf("expected no err, got %v", err)
@@ -378,16 +362,15 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 
 	t.Run("not authenticated", func(t *testing.T) {
 		auth.Logout()
-		// Неавторизованный пользователь не считается активным executor, поэтому фильтр не применяется.
 		filtered, isEmpty, err := applyExecutorNomenclatureFilter(auth, depRepo, []string{"X"}, "")
-		if err != nil {
-			t.Errorf("expected no err, got %v", err)
+		if err == nil {
+			t.Errorf("expected auth error")
 		}
 		if isEmpty {
-			t.Errorf("expected not empty")
+			t.Errorf("expected zero-value empty flag")
 		}
-		if len(filtered) != 1 || filtered[0] != "X" {
-			t.Errorf("expected original ids")
+		if len(filtered) != 0 {
+			t.Errorf("expected nil ids")
 		}
 	})
 }

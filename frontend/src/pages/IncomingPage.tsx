@@ -8,6 +8,7 @@ import { useDraftLinkStore } from '../store/useDraftLinkStore';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel, isIncomingKind, isOutgoingKind } from '../constants/documentKinds';
 import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
+import { useDocumentKinds } from '../hooks/useDocumentKinds';
 import { getDocumentPageConfig } from '../config/documentPageConfigs';
 import {
     IncomingLetterDocumentForm,
@@ -24,8 +25,11 @@ import {
  */
 const IncomingPage: React.FC = () => {
     const { message } = App.useApp();
-    const { hasRole } = useAuthStore();
-    const isExecutorOnly = !hasRole('clerk');
+    const { kinds: allKinds } = useDocumentKinds();
+    const currentKind = allKinds.find((kind) => kind.code === DOCUMENT_KIND_INCOMING_LETTER);
+    const canCreateCurrentKind = currentKind?.availableActions?.includes('create') ?? false;
+    const canUpdateCurrentKind = currentKind?.availableActions?.includes('update') ?? false;
+    const isExecutorOnly = !canUpdateCurrentKind;
     const pageConfig = getDocumentPageConfig(DOCUMENT_KIND_INCOMING_LETTER);
     // Скрываем фильтр, если пользователь — исполнитель без админских прав
     const filterDisabled = isExecutorOnly;
@@ -261,7 +265,7 @@ const IncomingPage: React.FC = () => {
             setFilterNomenclatureIds={setFilterNomenclatureIds}
             setPage={setPage}
             onSearch={setSearch}
-            canRegister={!isExecutorOnly}
+            canRegister={canCreateCurrentKind}
             onOpenRegister={openRegisterModal}
             hasFilters={hasFilters}
             filtersContent={

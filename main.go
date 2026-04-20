@@ -87,6 +87,7 @@ func main() {
 
 	// Создание сервисов
 	authService := services.NewAuthService(db, userRepo)
+	authService.SetAccessStore(documentAccessRepo)
 
 	// Подключаем информацию о пользователе к логгеру
 	logger.GetAppUser = func() string {
@@ -107,6 +108,7 @@ func main() {
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService, adminAuditLogService)
 	referenceService := services.NewReferenceService(referenceRepo, authService, adminAuditLogService)
 	documentAccessService := services.NewDocumentAccessService(authService, departmentRepo, assignmentRepo, acknowledgmentRepo, documentAccessRepo, documentRepo, incomingDocRepo, outgoingDocRepo)
+	documentAccessAdminService := services.NewDocumentAccessAdminService(authService, documentAccessRepo, userRepo)
 	documentKindService := services.NewDocumentKindService(documentAccessService)
 	journalService := services.NewJournalService(journalRepo, authService, documentAccessService)
 	documentKindQueryRegistry := services.NewDocumentKindQueryRegistry(
@@ -128,7 +130,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService)
+	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService, documentAccessService)
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService, documentAccessService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, documentAccessService, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService)
@@ -165,6 +167,7 @@ func main() {
 			userService,
 			nomenclatureService,
 			referenceService,
+			documentAccessAdminService,
 			documentKindService,
 			documentQueryService,
 			documentRegistrationService,

@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Modal, Spin } from 'antd';
 import {
     DashboardOutlined,
+    BarChartOutlined,
     InboxOutlined,
     SendOutlined,
     CheckSquareOutlined,
     SettingOutlined,
+    FileTextOutlined,
     UserOutlined,
     LogoutOutlined,
     InfoCircleOutlined,
@@ -20,6 +22,7 @@ import { useDocumentKinds } from '../hooks/useDocumentKinds';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
+const emptyKinds: typeof documentKinds = [];
 
 /**
  * Свойства основного слоя (мэйкапа) приложения.
@@ -50,35 +53,57 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     onAboutModalClose,
     release,
 }) => {
-    const { user, logout, hasRole } = useAuthStore();
+    const { user, logout, hasSystemPermission } = useAuthStore();
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
-    const canAccessDocuments = hasRole('clerk') || hasRole('executor');
-    const canRegisterDocuments = hasRole('clerk');
+    const {
+        kinds: readableKinds,
+    } = useDocumentKinds({
+        mode: 'all',
+        fallbackKinds: emptyKinds,
+    });
     const {
         kinds: availableRegistrationKinds,
         loading: registrationKindsLoading,
     } = useDocumentKinds({
         mode: 'registration',
-        fallbackKinds: documentKinds,
+        fallbackKinds: emptyKinds,
     });
+    const accessByCode = new Map<string, { read: boolean; create: boolean; pageKey: string }>();
+    [...readableKinds, ...availableRegistrationKinds].forEach((kind) => {
+        const current = accessByCode.get(kind.code) || { read: false, create: false, pageKey: kind.pageKey };
+        accessByCode.set(kind.code, {
+            pageKey: kind.pageKey,
+            read: current.read || kind.availableActions?.includes('read') || false,
+            create: current.create || kind.availableActions?.includes('create') || availableRegistrationKinds.some((item) => item.code === kind.code),
+        });
+    });
+    const canAccessKindPage = (pageKey: string) => Array.from(accessByCode.values()).some(
+        (kind) => kind.pageKey === pageKey && (kind.read || kind.create),
+    );
+    const canAccessDocuments = !!user?.isDocumentParticipant || Array.from(accessByCode.values()).some((kind) => kind.read || kind.create);
+    const canRegisterDocuments = availableRegistrationKinds.length > 0;
+    const canAccessIncoming = !!user?.isDocumentParticipant || canAccessKindPage('incoming');
+    const canAccessOutgoing = !!user?.isDocumentParticipant || canAccessKindPage('outgoing');
 
     const menuItems = [
-        {
+        ...(canAccessDocuments ? [{
             key: 'dashboard',
             icon: <DashboardOutlined />,
             label: 'Дашборд',
-        },
+        }] : []),
         ...(canAccessDocuments ? [
             {
                 key: 'incoming',
                 icon: <InboxOutlined />,
                 label: 'Входящие',
+                disabled: !canAccessIncoming,
             },
             {
                 key: 'outgoing',
                 icon: <SendOutlined />,
                 label: 'Исходящие',
+                disabled: !canAccessOutgoing,
             },
             {
                 key: 'assignments',
@@ -86,7 +111,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 label: 'Поручения',
             },
         ] : []),
-        ...(hasRole('admin') ? [{
+        ...(hasSystemPermission('references') ? [{
+            key: 'references',
+            icon: <FileTextOutlined />,
+            label: 'Справочники',
+        }] : []),
+        ...((hasSystemPermission('stats_incoming') || hasSystemPermission('stats_outgoing') || hasSystemPermission('stats_assignments') || hasSystemPermission('stats_system')) ? [{
+            key: 'statistics',
+            icon: <BarChartOutlined />,
+            label: 'Статистика',
+        }] : []),
+        ...(hasSystemPermission('admin') ? [{
             key: 'settings',
             icon: <SettingOutlined />,
             label: 'Настройки',
@@ -213,7 +248,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                         onCancel={() => setRegisterModalOpen(false)}
                         footer={null}
                     >
-                        <Space direction="vertical" style={{ width: '100%' }}>
+                        <Space orientation="vertical" style={{ width: '100%' }}>
                             {registrationKindsLoading && canRegisterDocuments ? (
                                 <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
                                     <Spin />

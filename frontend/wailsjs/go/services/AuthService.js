@@ -6,10 +6,6 @@ export function ChangePassword(arg1, arg2) {
   return window['go']['services']['AuthService']['ChangePassword'](arg1, arg2);
 }
 
-export function GetActiveRole() {
-  return window['go']['services']['AuthService']['GetActiveRole']();
-}
-
 export function GetCurrentAuditInfo() {
   return window['go']['services']['AuthService']['GetCurrentAuditInfo']();
 }
@@ -26,12 +22,12 @@ export function GetCurrentUserUUID() {
   return window['go']['services']['AuthService']['GetCurrentUserUUID']();
 }
 
-export function HasActiveRole(arg1) {
-  return window['go']['services']['AuthService']['HasActiveRole'](arg1);
+export function HasAnySystemPermission(arg1) {
+  return window['go']['services']['AuthService']['HasAnySystemPermission'](arg1);
 }
 
-export function HasRole(arg1) {
-  return window['go']['services']['AuthService']['HasRole'](arg1);
+export function HasSystemPermission(arg1) {
+  return window['go']['services']['AuthService']['HasSystemPermission'](arg1);
 }
 
 export function InitialSetup(arg1) {
@@ -54,24 +50,16 @@ export function NeedsInitialSetup() {
   return window['go']['services']['AuthService']['NeedsInitialSetup']();
 }
 
-export function RequireActiveRole(arg1) {
-  return window['go']['services']['AuthService']['RequireActiveRole'](arg1);
+export function RequireAnySystemPermission(arg1) {
+  return window['go']['services']['AuthService']['RequireAnySystemPermission'](arg1);
 }
 
-export function RequireAnyActiveRole(arg1) {
-  return window['go']['services']['AuthService']['RequireAnyActiveRole'](arg1);
+export function RequireSystemPermission(arg1) {
+  return window['go']['services']['AuthService']['RequireSystemPermission'](arg1);
 }
 
-export function RequireAnyRole(arg1) {
-  return window['go']['services']['AuthService']['RequireAnyRole'](arg1);
-}
-
-export function RequireRole(arg1) {
-  return window['go']['services']['AuthService']['RequireRole'](arg1);
-}
-
-export function SetActiveRole(arg1) {
-  return window['go']['services']['AuthService']['SetActiveRole'](arg1);
+export function SetAccessStore(arg1) {
+  return window['go']['services']['AuthService']['SetAccessStore'](arg1);
 }
 
 export function SetAdminAuditLogService(arg1) {

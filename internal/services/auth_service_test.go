@@ -48,7 +48,6 @@ func newTestUser() (*models.User, string) {
 		PasswordHash: hash,
 		FullName:     "Test User",
 		IsActive:     true,
-		Roles:        []string{"executor"},
 	}, password
 }
 
@@ -69,7 +68,6 @@ func TestAuthService_Login(t *testing.T) {
 		Login:        login,
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        []string{"executor"},
 	}
 
 	inactiveUser := &models.User{
@@ -77,7 +75,6 @@ func TestAuthService_Login(t *testing.T) {
 		Login:        login,
 		PasswordHash: hash,
 		IsActive:     false,
-		Roles:        []string{"executor"},
 	}
 
 	t.Run("success", func(t *testing.T) {
@@ -132,7 +129,6 @@ func TestAuthService_Login(t *testing.T) {
 			IsActive:            true,
 			FullName:            "Test User",
 			FailedLoginAttempts: 4,
-			Roles:               []string{"executor"},
 		}
 		mockRepo.On("GetByLogin", login).Return(userAtLimit, nil).Once()
 		mockRepo.On("IncrementFailedLoginAttempts", userID).Return(5, false, nil).Once()
@@ -158,7 +154,6 @@ func TestAuthService_Login(t *testing.T) {
 			PasswordHash:        hash,
 			IsActive:            true,
 			FailedLoginAttempts: 3,
-			Roles:               []string{"executor"},
 		}
 		mockRepo.On("GetByLogin", login).Return(userWithFailures, nil).Once()
 		mockRepo.On("ResetFailedLoginAttempts", userID).Return(nil).Once()
@@ -180,7 +175,6 @@ func TestAuthService_Login(t *testing.T) {
 			PasswordHash:        hash,
 			IsActive:            false,
 			FailedLoginAttempts: 5,
-			Roles:               []string{"executor"},
 		}
 		mockRepo.On("GetByLogin", login).Return(lockedUser, nil).Once()
 
@@ -357,7 +351,6 @@ func TestAuthService_UpdateProfile(t *testing.T) {
 			FullName:     req.FullName,
 			PasswordHash: user.PasswordHash,
 			IsActive:     true,
-			Roles:        user.Roles,
 		}
 
 		mockRepo.On("UpdateProfile", user.ID, req).Return(nil).Once()
@@ -421,51 +414,6 @@ func TestAuthService_IsAuthenticated(t *testing.T) {
 	})
 }
 
-// ---------- TestAuthService_HasRole ----------
-
-func TestAuthService_HasRole(t *testing.T) {
-	// Проверка наличия необходимой роли у текущего пользователя
-	t.Run("has role", func(t *testing.T) {
-		user := &models.User{
-			ID:           uuid.New(),
-			Login:        "admin",
-			PasswordHash: func() string { h, _ := security.HashPassword("Passw0rd!"); return h }(),
-			IsActive:     true,
-			Roles:        []string{"admin", "clerk"},
-		}
-		mockRepo := mocks.NewUserStore(t)
-		authService := loginUser(t, mockRepo, user, "Passw0rd!")
-		assert.True(t, authService.HasRole("admin"))
-		assert.True(t, authService.HasRole("clerk"))
-	})
-
-	t.Run("no role", func(t *testing.T) {
-		user, password := newTestUser() // roles = ["executor"]
-		mockRepo := mocks.NewUserStore(t)
-		authService := loginUser(t, mockRepo, user, password)
-		assert.False(t, authService.HasRole("admin"))
-	})
-
-	t.Run("not authenticated", func(t *testing.T) {
-		mockRepo := mocks.NewUserStore(t)
-		authService := NewAuthService(nil, mockRepo)
-		assert.False(t, authService.HasRole("admin"))
-	})
-
-	t.Run("user deleted after login", func(t *testing.T) {
-		user, password := newTestUser()
-		mockRepo := mocks.NewUserStore(t)
-		authService := NewAuthService(nil, mockRepo)
-
-		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-		_, err := authService.Login(user.Login, password)
-		require.NoError(t, err)
-
-		mockRepo.On("GetByID", user.ID).Return(nil, nil).Once()
-		assert.False(t, authService.HasRole("admin"))
-	})
-}
-
 func TestAuthService_GetCurrentAuditInfo(t *testing.T) {
 	t.Run("not authenticated", func(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
@@ -509,56 +457,54 @@ func TestAuthService_GetCurrentAuditInfo(t *testing.T) {
 	})
 }
 
-func TestAuthService_RoleChecks(t *testing.T) {
-	t.Run("has role checks all assigned roles", func(t *testing.T) {
-		user := &models.User{
-			ID:           uuid.New(),
-			Login:        "multi_role_user",
-			PasswordHash: func() string { h, _ := security.HashPassword("Passw0rd!"); return h }(),
-			IsActive:     true,
-			Roles:        []string{"executor", "clerk"},
-		}
-		mockRepo := mocks.NewUserStore(t)
-		authService := loginUser(t, mockRepo, user, "Passw0rd!")
-
-		assert.True(t, authService.HasRole("clerk"))
-		assert.True(t, authService.HasRole("executor"))
-		assert.False(t, authService.HasRole("admin"))
-	})
-
-	t.Run("require role validates membership", func(t *testing.T) {
-		user := &models.User{
-			ID:           uuid.New(),
-			Login:        "switch_role_user",
-			PasswordHash: func() string { h, _ := security.HashPassword("Passw0rd!"); return h }(),
-			IsActive:     true,
-			Roles:        []string{"admin", "clerk"},
-		}
-		mockRepo := mocks.NewUserStore(t)
-		authService := loginUser(t, mockRepo, user, "Passw0rd!")
-
-		assert.NoError(t, authService.RequireRole("clerk"))
-		assert.NoError(t, authService.RequireRole("admin"))
-		assert.ErrorIs(t, authService.RequireRole("executor"), models.ErrForbidden)
-	})
-
-	t.Run("require any role accepts any assigned role", func(t *testing.T) {
+func TestAuthService_SystemPermissionChecks(t *testing.T) {
+	t.Run("has system permission", func(t *testing.T) {
 		user, password := newTestUser()
 		mockRepo := mocks.NewUserStore(t)
 		authService := loginUser(t, mockRepo, user, password)
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionAdmin))
 
-		assert.NoError(t, authService.RequireAnyRole("admin", "executor"))
-		assert.ErrorIs(t, authService.RequireAnyRole("admin", "clerk"), models.ErrForbidden)
+		assert.True(t, authService.HasSystemPermission(models.SystemPermissionAdmin))
+		assert.NoError(t, authService.RequireSystemPermission(models.SystemPermissionAdmin))
 	})
 
-	t.Run("logout clears authenticated role checks", func(t *testing.T) {
+	t.Run("missing system permission", func(t *testing.T) {
 		user, password := newTestUser()
 		mockRepo := mocks.NewUserStore(t)
 		authService := loginUser(t, mockRepo, user, password)
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore())
 
-		require.NoError(t, authService.Logout())
-		assert.False(t, authService.HasRole("executor"))
-		assert.ErrorIs(t, authService.RequireRole("executor"), models.ErrUnauthorized)
+		assert.False(t, authService.HasSystemPermission(models.SystemPermissionAdmin))
+		assert.ErrorIs(t, authService.RequireSystemPermission(models.SystemPermissionAdmin), models.ErrForbidden)
+	})
+
+	t.Run("not authenticated", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionAdmin))
+
+		assert.False(t, authService.HasSystemPermission(models.SystemPermissionAdmin))
+		assert.ErrorIs(t, authService.RequireSystemPermission(models.SystemPermissionAdmin), models.ErrUnauthorized)
+	})
+
+	t.Run("has any system permission", func(t *testing.T) {
+		user, password := newTestUser()
+		mockRepo := mocks.NewUserStore(t)
+		authService := loginUser(t, mockRepo, user, password)
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionReferences))
+
+		assert.True(t, authService.HasAnySystemPermission(models.SystemPermissionAdmin, models.SystemPermissionReferences))
+		assert.NoError(t, authService.RequireAnySystemPermission(models.SystemPermissionAdmin, models.SystemPermissionReferences))
+	})
+
+	t.Run("missing any system permission", func(t *testing.T) {
+		user, password := newTestUser()
+		mockRepo := mocks.NewUserStore(t)
+		authService := loginUser(t, mockRepo, user, password)
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore())
+
+		assert.False(t, authService.HasAnySystemPermission(models.SystemPermissionAdmin, models.SystemPermissionReferences))
+		assert.ErrorIs(t, authService.RequireAnySystemPermission(models.SystemPermissionAdmin, models.SystemPermissionReferences), models.ErrForbidden)
 	})
 }
 
@@ -605,12 +551,12 @@ func TestAuthService_InitialSetup(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := NewAuthService(nil, mockRepo)
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore())
 
 		// Первый вызов CountUsers — таблица существует, 0 пользователей
 		mockRepo.On("CountUsers").Return(0, nil).Twice()
 		mockRepo.On("Create", mock.MatchedBy(func(req models.CreateUserRequest) bool {
-			return req.Login == "admin" && req.FullName == "Администратор" &&
-				len(req.Roles) == 1 && req.Roles[0] == "admin"
+			return req.Login == "admin" && req.FullName == "Администратор"
 		})).Return(&models.User{ID: uuid.New()}, nil).Once()
 
 		err := authService.InitialSetup(goodPassword)

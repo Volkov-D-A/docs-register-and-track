@@ -36,17 +36,18 @@ func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore
 			Login:        role + "_link",
 			PasswordHash: hash,
 			IsActive:     true,
-			Roles:        []string{role},
 		}
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
 		_, err := auth.Login(user.Login, password)
 		require.NoError(t, err)
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
+	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incRepo, outRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), nil, incRepo, outRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
 	svc := NewLinkService(linkRepo, incRepo, outRepo, accessSvc, auth, journalSvc)
@@ -102,7 +103,10 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 	})
 
 	t.Run("executor не может создавать связи", func(t *testing.T) {
-		svc, _, _, _, _ := setupLinkService(t, "executor")
+		svc, _, incRepo, outRepo, _ := setupLinkService(t, "executor")
+		incRepo.On("GetByID", sourceID).Return(&models.IncomingDocument{ID: sourceID}, nil).Once()
+		incRepo.On("GetByID", targetID).Return((*models.IncomingDocument)(nil), nil).Once()
+		outRepo.On("GetByID", targetID).Return(&models.OutgoingDocument{ID: targetID}, nil).Once()
 		result, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "ответ")
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
@@ -115,9 +119,12 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 	linkID := uuid.New()
 
 	t.Run("успех", func(t *testing.T) {
-		svc, repo, _, _, _ := setupLinkService(t, "clerk")
+		svc, repo, incRepo, outRepo, _ := setupLinkService(t, "clerk")
 		rootID := uuid.New()
 		targetID := uuid.New()
+		incRepo.On("GetByID", rootID).Return(&models.IncomingDocument{ID: rootID}, nil).Once()
+		incRepo.On("GetByID", targetID).Return((*models.IncomingDocument)(nil), nil).Once()
+		outRepo.On("GetByID", targetID).Return(&models.OutgoingDocument{ID: targetID}, nil).Once()
 
 		repo.On("GetByID", context.Background(), linkID).Return(&models.DocumentLink{
 			ID:         linkID,
@@ -140,7 +147,19 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 	})
 
 	t.Run("executor не может удалять связи", func(t *testing.T) {
-		svc, _, _, _, _ := setupLinkService(t, "executor")
+		svc, repo, incRepo, outRepo, _ := setupLinkService(t, "executor")
+		sourceID := uuid.New()
+		targetID := uuid.New()
+		repo.On("GetByID", context.Background(), linkID).Return(&models.DocumentLink{
+			ID:         linkID,
+			SourceID:   sourceID,
+			SourceKind: models.DocumentKindIncomingLetter,
+			TargetID:   targetID,
+			TargetKind: models.DocumentKindOutgoingLetter,
+		}, nil).Once()
+		incRepo.On("GetByID", sourceID).Return(&models.IncomingDocument{ID: sourceID}, nil).Once()
+		incRepo.On("GetByID", targetID).Return((*models.IncomingDocument)(nil), nil).Once()
+		outRepo.On("GetByID", targetID).Return(&models.OutgoingDocument{ID: targetID}, nil).Once()
 		err := svc.UnlinkDocument(linkID.String())
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
@@ -152,7 +171,8 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("успех", func(t *testing.T) {
-		svc, repo, _, _, _ := setupLinkService(t, "clerk")
+		svc, repo, incRepo, _, _ := setupLinkService(t, "clerk")
+		incRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
 		mockValues := []models.DocumentLink{
 			{ID: uuid.New(), SourceID: docID, TargetID: uuid.New(), LinkType: "ответ"},
 		}
@@ -173,7 +193,8 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 	})
 
 	t.Run("executor не может читать связи", func(t *testing.T) {
-		svc, _, _, _, _ := setupLinkService(t, "executor")
+		svc, _, incRepo, _, _ := setupLinkService(t, "executor")
+		incRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
 		result, err := svc.GetDocumentLinks(docID.String())
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
@@ -197,7 +218,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		incDoc := &models.IncomingDocument{ID: rootID, IncomingNumber: "ВХ-1", Content: "Тест вх", IncomingDate: time.Now()}
 		outDoc := &models.OutgoingDocument{ID: targetID, OutgoingNumber: "ИСХ-2", Content: "Тест исх", OutgoingDate: time.Now()}
 
-		incRepo.On("GetByID", rootID).Return(incDoc, nil).Once()
+		incRepo.On("GetByID", rootID).Return(incDoc, nil).Twice()
 		outRepo.On("GetByID", targetID).Return(outDoc, nil).Once()
 
 		result, err := svc.GetDocumentFlow(rootID.String())
@@ -208,7 +229,8 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 	})
 
 	t.Run("пустой граф", func(t *testing.T) {
-		svc, repo, _, _, _ := setupLinkService(t, "clerk")
+		svc, repo, incRepo, _, _ := setupLinkService(t, "clerk")
+		incRepo.On("GetByID", rootID).Return(&models.IncomingDocument{ID: rootID}, nil).Once()
 		repo.On("GetGraph", context.Background(), rootID).Return([]models.DocumentLink{}, nil).Once()
 
 		result, err := svc.GetDocumentFlow(rootID.String())
@@ -219,7 +241,8 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 	})
 
 	t.Run("ошибка базы", func(t *testing.T) {
-		svc, repo, _, _, _ := setupLinkService(t, "clerk")
+		svc, repo, incRepo, _, _ := setupLinkService(t, "clerk")
+		incRepo.On("GetByID", rootID).Return(&models.IncomingDocument{ID: rootID}, nil).Once()
 		repo.On("GetGraph", context.Background(), rootID).Return(nil, errors.New("db error")).Once()
 
 		result, err := svc.GetDocumentFlow(rootID.String())
@@ -237,7 +260,8 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 	})
 
 	t.Run("admin не может читать граф связей", func(t *testing.T) {
-		svc, _, _, _, _ := setupLinkService(t, "admin")
+		svc, _, incRepo, _, _ := setupLinkService(t, "admin")
+		incRepo.On("GetByID", rootID).Return(&models.IncomingDocument{ID: rootID}, nil).Once()
 
 		result, err := svc.GetDocumentFlow(rootID.String())
 		require.Error(t, err)

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Space,
-  Typography, Popconfirm, Switch, Tag, App, DatePicker
+  Typography, Popconfirm, Switch, Tag, App, DatePicker, Checkbox, Row, Col, Collapse
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, FileTextOutlined, BankOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined, SolutionOutlined } from '@ant-design/icons';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindLabel, getDocumentKindMeta } from '../constants/documentKinds';
 import { useDocumentKinds } from '../hooks/useDocumentKinds';
+import { useAuthStore } from '../store/useAuthStore';
+import { models } from '../../wailsjs/go/models';
 
 const { Title } = Typography;
 
@@ -594,8 +596,104 @@ const UsersTab: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
+  const [documentAccessCollapseKeys, setDocumentAccessCollapseKeys] = useState<string[]>([]);
   const [passwordForm] = Form.useForm();
   const [form] = Form.useForm();
+  const { kinds: allDocumentKinds } = useDocumentKinds();
+
+  const documentActionOptions = [
+    { value: 'create', label: 'Регистрация' },
+    { value: 'read', label: 'Просмотр всех' },
+    { value: 'update', label: 'Редактирование' },
+    { value: 'delete', label: 'Удаление' },
+    { value: 'assign', label: 'Поручения' },
+    { value: 'acknowledge', label: 'Ознакомления' },
+    { value: 'upload', label: 'Управление файлами' },
+    { value: 'link', label: 'Связи' },
+    { value: 'view_journal', label: 'Журнал' },
+  ];
+
+  const buildEmptyDocumentAccess = () => (
+    allDocumentKinds.reduce((acc: Record<string, { actions: string[] }>, kind) => {
+      acc[kind.code] = { actions: [] };
+      return acc;
+    }, {})
+  );
+
+  const buildDocumentAccessFormValue = (profile?: any) => {
+    const result = buildEmptyDocumentAccess();
+
+    for (const permission of profile?.permissions || []) {
+      if (!permission?.isAllowed || !result[permission.kindCode]) {
+        continue;
+      }
+      result[permission.kindCode].actions.push(permission.action);
+    }
+    return result;
+  };
+
+  const buildSystemPermissionsFormValue = (profile?: any) => (
+    (profile?.systemPermissions || [])
+      .filter((permission: any) => permission?.isAllowed)
+      .filter((permission: any) => !String(permission.permission || '').startsWith('stats_'))
+      .map((permission: any) => permission.permission)
+  );
+
+  const buildStatisticsPermissionsFormValue = (profile?: any) => (
+    (profile?.systemPermissions || [])
+      .filter((permission: any) => permission?.isAllowed)
+      .filter((permission: any) => String(permission.permission || '').startsWith('stats_'))
+      .map((permission: any) => permission.permission)
+  );
+
+  const buildAccessRequest = (userId: string, values: any) => {
+    const documentAccess = values.documentAccess || {};
+    const systemPermissions = [...(values.systemPermissions || []), ...(values.statisticsPermissions || [])]
+      .map((permission: string) => ({ permission, isAllowed: true }));
+    const permissions: any[] = [];
+
+    Object.entries(documentAccess).forEach(([kindCode, config]: [string, any]) => {
+      for (const action of config?.actions || []) {
+        permissions.push({ kindCode, action, isAllowed: true });
+      }
+    });
+
+    return models.UpdateUserDocumentAccessRequest.createFrom({
+      userId,
+      systemPermissions,
+      permissions,
+    });
+  };
+
+  const openCreateModal = () => {
+    setEditItem(null);
+    setDocumentAccessCollapseKeys([]);
+    form.resetFields();
+    form.setFieldsValue({ documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], isActive: true, isDocumentParticipant: false });
+    setModalOpen(true);
+  };
+
+  const openEditModal = async (record: any) => {
+    setEditItem(record);
+    setDocumentAccessCollapseKeys([]);
+    form.resetFields();
+    form.setFieldsValue({ ...record, departmentId: record.department?.id, documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], isDocumentParticipant: record.isDocumentParticipant });
+    setModalOpen(true);
+
+    try {
+      const { GetUserAccessProfile } = await import('../../wailsjs/go/services/DocumentAccessAdminService');
+      const profile = await GetUserAccessProfile(record.id);
+      form.setFieldsValue({
+        ...record,
+        departmentId: record.department?.id,
+        systemPermissions: buildSystemPermissionsFormValue(profile),
+        statisticsPermissions: buildStatisticsPermissionsFormValue(profile),
+        documentAccess: buildDocumentAccessFormValue(profile),
+      });
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -616,12 +714,29 @@ const UsersTab: React.FC = () => {
 
   const onSave = async (values: any) => {
     try {
+      const { UpdateUserAccessProfile } = await import('../../wailsjs/go/services/DocumentAccessAdminService');
+
       if (editItem) {
         const { UpdateUser } = await import('../../wailsjs/go/services/UserService');
-        await UpdateUser({ id: editItem.id, ...values });
+        await UpdateUser({
+          id: editItem.id,
+          login: values.login,
+          fullName: values.fullName,
+          isActive: values.isActive,
+          departmentId: values.departmentId,
+          isDocumentParticipant: !!values.isDocumentParticipant,
+        });
+        await UpdateUserAccessProfile(buildAccessRequest(editItem.id, values));
       } else {
         const { CreateUser } = await import('../../wailsjs/go/services/UserService');
-        await CreateUser(values);
+        const createdUser = await CreateUser({
+          login: values.login,
+          password: values.password,
+          fullName: values.fullName,
+          departmentId: values.departmentId,
+          isDocumentParticipant: !!values.isDocumentParticipant,
+        });
+        await UpdateUserAccessProfile(buildAccessRequest(createdUser.id, values));
       }
       message.success(editItem ? 'Обновлено' : 'Создано');
       setModalOpen(false);
@@ -646,10 +761,13 @@ const UsersTab: React.FC = () => {
     }
   };
 
-  const roleLabels: Record<string, string> = {
+  const systemPermissionLabels: Record<string, string> = {
     admin: 'Администратор',
-    clerk: 'Делопроизводитель',
-    executor: 'Исполнитель',
+    references: 'Справочники',
+    stats_incoming: 'Статистика: входящие письма',
+    stats_outgoing: 'Статистика: исходящие письма',
+    stats_assignments: 'Статистика: поручения',
+    stats_system: 'Статистика: системная',
   };
 
   const isBruteforceLocked = (user: any) => !user?.isActive && (user?.failedLoginAttempts || 0) >= 5;
@@ -662,10 +780,10 @@ const UsersTab: React.FC = () => {
       render: (dep: any) => dep?.name || '-',
     },
     {
-      title: 'Роли', dataIndex: 'roles', key: 'roles',
-      render: (roles: string[]) => (roles || []).map(r => (
-        <Tag key={r} color={r === 'admin' ? 'red' : r === 'clerk' ? 'blue' : 'green'}>
-          {roleLabels[r] || r}
+      title: 'Системные права', dataIndex: 'systemPermissions', key: 'systemPermissions',
+      render: (permissions: string[]) => (permissions || []).map(permission => (
+        <Tag key={permission} color={permission === 'admin' ? 'red' : 'blue'}>
+          {systemPermissionLabels[permission] || permission}
         </Tag>
       )),
     },
@@ -674,7 +792,7 @@ const UsersTab: React.FC = () => {
       render: (_: any, record: any) => {
         if (isBruteforceLocked(record)) {
           return (
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
               <Tag color="volcano">Заблокирован</Tag>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 5 ошибок входа подряд
@@ -692,11 +810,7 @@ const UsersTab: React.FC = () => {
       title: 'Действия', key: 'actions', width: 120,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => {
-            setEditItem(record);
-            form.setFieldsValue({ ...record, departmentId: record.department?.id });
-            setModalOpen(true);
-          }} />
+          <Button size="small" icon={<EditOutlined />} onClick={() => { void openEditModal(record); }} />
           <Button size="small" icon={<KeyOutlined />} onClick={() => {
             setEditItem(record);
             setPasswordModalOpen(true);
@@ -708,11 +822,7 @@ const UsersTab: React.FC = () => {
 
   return (
     <div>
-      <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-        setEditItem(null);
-        form.resetFields();
-        setModalOpen(true);
-      }} style={{ marginBottom: 16 }}>Новый пользователь</Button>
+      <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginBottom: 16 }}>Новый пользователь</Button>
 
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading} size="small" pagination={false} />
 
@@ -724,48 +834,92 @@ const UsersTab: React.FC = () => {
       <Modal
         title={editItem ? 'Редактировать пользователя' : 'Новый пользователь'}
         open={modalOpen}
-        onCancel={() => { setModalOpen(false); setEditItem(null); }}
+        onCancel={() => {
+          setModalOpen(false);
+          setEditItem(null);
+          setDocumentAccessCollapseKeys([]);
+        }}
         onOk={() => form.submit()}
-        width={500}
+        width={1100}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto', overflowX: 'hidden' } }}
       >
-        <Form form={form} layout="vertical" onFinish={onSave}>
-          <Form.Item name="login" label="Логин" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          {!editItem && (
-            <Form.Item name="password" label="Пароль" rules={[{ required: true, min: 6 }]}>
-              <Input.Password />
-            </Form.Item>
-          )}
-          <Form.Item name="fullName" label="ФИО" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="departmentId" label="Подразделение" rules={[{ required: true }]}>
-            <Select showSearch optionFilterProp="children">
-              {departments.map(d => (
-                <Select.Option key={d.id} value={d.id}>{d.name}</Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="roles" label="Роли" rules={[{ required: true }]}>
-            <Select mode="multiple">
-              <Select.Option value="admin">Администратор</Select.Option>
-              <Select.Option value="clerk">Делопроизводитель</Select.Option>
-              <Select.Option value="executor">Исполнитель</Select.Option>
-            </Select>
-          </Form.Item>
-          {editItem && (
-            <>
-              {isBruteforceLocked(editItem) && (
-                <Typography.Text type="warning" style={{ display: 'block', marginBottom: 12 }}>
-                  Пользователь автоматически заблокирован после 5 неверных попыток входа. Включение флага «Активен» разблокирует его и сбросит счетчик ошибок.
-                </Typography.Text>
+        <Form form={form} layout="vertical" onFinish={onSave} style={{ overflowX: 'hidden' }}>
+          <Row gutter={24} align="top" wrap style={{ marginInline: 0 }}>
+            <Col xs={24} lg={10}>
+              <Typography.Title level={5}>Сведения о пользователе</Typography.Title>
+              <Form.Item name="login" label="Логин" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+              {!editItem && (
+                <Form.Item name="password" label="Пароль" rules={[{ required: true, min: 6 }]}>
+                  <Input.Password />
+                </Form.Item>
               )}
-              <Form.Item name="isActive" label="Активен" valuePropName="checked">
+              <Form.Item name="fullName" label="ФИО" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item name="departmentId" label="Подразделение" rules={[{ required: true }]}>
+                <Select showSearch optionFilterProp="children">
+                  {departments.map(d => (
+                    <Select.Option key={d.id} value={d.id}>{d.name}</Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+              <Form.Item name="isDocumentParticipant" label="Участник документооборота" valuePropName="checked">
                 <Switch />
               </Form.Item>
-            </>
-          )}
+              {editItem && (
+                <>
+                  {isBruteforceLocked(editItem) && (
+                    <Typography.Text type="warning" style={{ display: 'block', marginBottom: 12 }}>
+                      Пользователь автоматически заблокирован после 5 неверных попыток входа. Включение флага «Активен» разблокирует его и сбросит счетчик ошибок.
+                    </Typography.Text>
+                  )}
+                  <Form.Item name="isActive" label="Активен" valuePropName="checked">
+                    <Switch />
+                  </Form.Item>
+                </>
+              )}
+            </Col>
+            <Col xs={24} lg={14}>
+              <Typography.Title level={5} style={{ marginBottom: 8 }}>Права доступа</Typography.Title>
+              <Form.Item name="systemPermissions" label="Системные права" style={{ marginBottom: 8 }}>
+                <Checkbox.Group options={[
+                  { label: 'Администратор', value: 'admin' },
+                  { label: 'Справочники', value: 'references' },
+                ]} />
+              </Form.Item>
+              <Form.Item name="statisticsPermissions" label="Статистика" style={{ marginBottom: 8 }}>
+                <Checkbox.Group options={[
+                  { label: 'Входящие письма', value: 'stats_incoming' },
+                  { label: 'Исходящие письма', value: 'stats_outgoing' },
+                  { label: 'Поручения', value: 'stats_assignments' },
+                  { label: 'Системная', value: 'stats_system' },
+                ]} />
+              </Form.Item>
+              <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 6 }}>Права на документы</Typography.Title>
+              <Collapse
+                ghost
+                size="small"
+                destroyOnHidden
+                activeKey={documentAccessCollapseKeys}
+                onChange={(keys) => setDocumentAccessCollapseKeys(Array.isArray(keys) ? keys.map(String) : [String(keys)])}
+                style={{ marginTop: 0 }}
+                items={allDocumentKinds.map((kind) => ({
+                  key: kind.code,
+                  label: kind.label,
+                  children: (
+                    <Form.Item
+                      name={['documentAccess', kind.code, 'actions']}
+                      style={{ marginBottom: 0 }}
+                    >
+                      <Checkbox.Group options={documentActionOptions} />
+                    </Form.Item>
+                  ),
+                }))}
+              />
+            </Col>
+          </Row>
         </Form>
       </Modal>
 
@@ -814,7 +968,7 @@ const SystemSettingsTab: React.FC = () => {
           values[s.key] = s.value;
         });
         if (values.assignment_completion_attachments_enabled === undefined) {
-          values.assignment_completion_attachments_enabled = true;
+          values.assignment_completion_attachments_enabled = false;
         }
         form.setFieldsValue(values);
       }
@@ -857,6 +1011,9 @@ const SystemSettingsTab: React.FC = () => {
       <Form form={form} layout="vertical" onFinish={onSave}>
         <Form.Item name="organization_name" label="Название организации" rules={[{ required: true }]}>
           <Input placeholder="Название вашей организации" />
+        </Form.Item>
+        <Form.Item name="organization_short_name" label="Краткое название организации" rules={[{ required: true }]}>
+          <Input placeholder="Краткое название организации" />
         </Form.Item>
         <Form.Item name="max_file_size_mb" label="Максимальный размер файла (МБ)" rules={[{ required: true }]}>
           <InputNumber min={1} max={1000} style={{ width: '100%' }} />
@@ -1189,30 +1346,47 @@ const AuditLogTab: React.FC = () => {
   );
 };
 
+export const ReferenceDirectoriesTab: React.FC = () => (
+  <Tabs
+    defaultActiveKey="documentTypes"
+    destroyOnHidden
+    items={[
+      { key: 'documentTypes', label: 'Типы документов', icon: <FileTextOutlined />, children: <DocumentTypesTab /> },
+      { key: 'organizations', label: 'Организации', icon: <BankOutlined />, children: <OrganizationsTab /> },
+      { key: 'resolutionExecutors', label: 'Исполнители', icon: <SolutionOutlined />, children: <ResolutionExecutorsTab /> },
+    ]}
+  />
+);
+
 // === Основная страница ===
 /**
  * Страница настроек системы. 
  * Объединяет все административные справочники и системные опции во вкладках.
  */
 const SettingsPage: React.FC = () => {
+  const { hasSystemPermission } = useAuthStore();
+  const canAccessAdminSettings = hasSystemPermission('admin');
+  const items = [
+    ...(canAccessAdminSettings ? [
+      { key: 'nomenclature', label: 'Номенклатура', icon: <BookOutlined />, children: <NomenclatureTab /> },
+    ] : []),
+    ...(canAccessAdminSettings ? [
+      { key: 'departments', label: 'Отделы', icon: <ApartmentOutlined />, children: <DepartmentsTab /> },
+      { key: 'users', label: 'Пользователи', icon: <TeamOutlined />, children: <UsersTab /> },
+      { key: 'system', label: 'Настройки', icon: <SettingOutlined />, children: <SystemSettingsTab /> },
+      { key: 'storage', label: 'Хранилище', icon: <CloudServerOutlined />, children: <StorageTab /> },
+      { key: 'migrations', label: 'Миграции', icon: <DatabaseOutlined />, children: <MigrationsTab /> },
+      { key: 'auditLog', label: 'Журнал', icon: <FileSearchOutlined />, children: <AuditLogTab /> },
+    ] : []),
+  ];
+
   return (
     <div>
       <Title level={4}>Настройки</Title>
       <Tabs
-        defaultActiveKey="nomenclature"
+        defaultActiveKey={items[0]?.key}
         destroyOnHidden
-        items={[
-          { key: 'nomenclature', label: 'Номенклатура', icon: <BookOutlined />, children: <NomenclatureTab /> },
-          { key: 'documentTypes', label: 'Типы док.', icon: <FileTextOutlined />, children: <DocumentTypesTab /> },
-          { key: 'organizations', label: 'Организации', icon: <BankOutlined />, children: <OrganizationsTab /> },
-          { key: 'resolutionExecutors', label: 'Исполнители', icon: <SolutionOutlined />, children: <ResolutionExecutorsTab /> },
-          { key: 'departments', label: 'Отделы', icon: <ApartmentOutlined />, children: <DepartmentsTab /> },
-          { key: 'users', label: 'Пользователи', icon: <TeamOutlined />, children: <UsersTab /> },
-          { key: 'system', label: 'Настройки', icon: <SettingOutlined />, children: <SystemSettingsTab /> },
-          { key: 'storage', label: 'Хранилище', icon: <CloudServerOutlined />, children: <StorageTab /> },
-          { key: 'migrations', label: 'Миграции', icon: <DatabaseOutlined />, children: <MigrationsTab /> },
-          { key: 'auditLog', label: 'Журнал', icon: <FileSearchOutlined />, children: <AuditLogTab /> },
-        ]}
+        items={items}
       />
     </div>
   );

@@ -49,7 +49,6 @@ func TestUserService_GetAllUsers(t *testing.T) {
 		Login:        login,
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        []string{"admin"},
 	}
 
 	regularUser := &models.User{
@@ -57,10 +56,10 @@ func TestUserService_GetAllUsers(t *testing.T) {
 		Login:        "regular",
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        []string{"user"},
 	}
 
 	t.Run("success with admin role", func(t *testing.T) {
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore("admin"))
 		authRepo.On("GetByLogin", login).Return(adminUser, nil).Once()
 		authService.Login(login, password)
 		authRepo.On("GetByID", adminUser.ID).Return(adminUser, nil).Maybe()
@@ -76,6 +75,7 @@ func TestUserService_GetAllUsers(t *testing.T) {
 	})
 
 	t.Run("failure with regular role", func(t *testing.T) {
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore())
 		authRepo.On("GetByLogin", "regular").Return(regularUser, nil).Once()
 		authService.Login("regular", password)
 		authRepo.On("GetByID", regularUser.ID).Return(regularUser, nil).Maybe()
@@ -95,7 +95,7 @@ func TestUserService_GetAllUsers(t *testing.T) {
 		assert.Nil(t, users)
 	})
 
-	t.Run("success with clerk role for multi-role user", func(t *testing.T) {
+	t.Run("success with admin system permission for multi-subject user", func(t *testing.T) {
 		svc, repo, _ := setupUserServiceWithRoles(t, []string{"admin", "clerk"})
 
 		usersList := []models.User{*regularUser}
@@ -112,6 +112,7 @@ func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore
 	mockRepo := mocks.NewUserStore(t)
 	authRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, authRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
@@ -120,7 +121,6 @@ func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore
 		Login:        role + "_usr",
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        []string{role},
 	}
 	authRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	auth.Login(user.Login, password)
@@ -134,6 +134,7 @@ func setupUserServiceWithRoles(t *testing.T, roles []string) (*UserService, *moc
 	mockRepo := mocks.NewUserStore(t)
 	authRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, authRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
@@ -142,7 +143,6 @@ func setupUserServiceWithRoles(t *testing.T, roles []string) (*UserService, *moc
 		Login:        "multi_usr_" + uuid.New().String(),
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        roles,
 	}
 	authRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
@@ -156,7 +156,7 @@ func TestUserService_CreateUser(t *testing.T) {
 	// Создание новой карточки пользователя системы
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo := setupUserService(t, "admin")
-		req := models.CreateUserRequest{Login: "newuser", Password: "Pass1234!", FullName: "New User", Roles: []string{"executor"}}
+		req := models.CreateUserRequest{Login: "newuser", Password: "Pass1234!", FullName: "New User"}
 		repo.On("Create", req).Return(&models.User{ID: uuid.New(), Login: "newuser"}, nil).Once()
 		result, err := svc.CreateUser(req)
 		require.NoError(t, err)
@@ -188,7 +188,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo := setupUserService(t, "admin")
 		uid := uuid.New()
-		req := models.UpdateUserRequest{ID: uid.String(), FullName: "Updated", Roles: []string{"executor"}, IsActive: true}
+		req := models.UpdateUserRequest{ID: uid.String(), FullName: "Updated", IsActive: true}
 		repo.On("Update", req).Return(&models.User{ID: uid, FullName: "Updated"}, nil).Once()
 		result, err := svc.UpdateUser(req)
 		require.NoError(t, err)

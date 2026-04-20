@@ -28,7 +28,6 @@ func setupDocumentKindService(t *testing.T, role string) (*DocumentKindService, 
 		Login:        role + "_kind",
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        []string{role},
 	}
 
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
@@ -36,7 +35,7 @@ func setupDocumentKindService(t *testing.T, role string) (*DocumentKindService, 
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	access := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, nil, nil)
+	access := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), nil, nil, nil)
 	return NewDocumentKindService(access), auth
 }
 

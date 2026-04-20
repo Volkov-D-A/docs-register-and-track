@@ -19,6 +19,7 @@ func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *moc
 	depRepo := mocks.NewDepartmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 
 	if role != "" {
 		password := "Passw0rd!"
@@ -28,7 +29,6 @@ func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *moc
 			Login:        role + "_dep",
 			PasswordHash: hash,
 			IsActive:     true,
-			Roles:        []string{role},
 		}
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
 		_, err := auth.Login(user.Login, password)
@@ -45,6 +45,7 @@ func setupDepartmentServiceWithRoles(t *testing.T, roles []string) (*DepartmentS
 	depRepo := mocks.NewDepartmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
@@ -53,7 +54,6 @@ func setupDepartmentServiceWithRoles(t *testing.T, roles []string) (*DepartmentS
 		Login:        "multi_dep_" + uuid.New().String(),
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        roles,
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)

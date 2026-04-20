@@ -26,6 +26,7 @@ func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) (*AdminAud
 	t.Helper()
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
@@ -34,7 +35,6 @@ func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) (*AdminAud
 		Login:        "multi_audit_" + uuid.New().String(),
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        roles,
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)

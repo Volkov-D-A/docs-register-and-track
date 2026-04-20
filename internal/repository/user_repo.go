@@ -24,7 +24,7 @@ func NewUserRepository(db *database.DB) *UserRepository {
 
 // userSelectBase — базовый SELECT для получения пользователя с department.
 const userSelectBase = `
-	SELECT u.id, u.login, u.password_hash, u.full_name, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
+	SELECT u.id, u.login, u.password_hash, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id`
@@ -39,7 +39,7 @@ func (r *UserRepository) getUserByCondition(whereClause string, arg interface{})
 	query := userSelectBase + " " + whereClause
 	err := r.db.QueryRow(query, arg).Scan(
 		&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
-		&user.IsActive, &user.FailedLoginAttempts, &user.CreatedAt, &user.UpdatedAt,
+		&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts, &user.CreatedAt, &user.UpdatedAt,
 		&departmentID, &departmentName,
 	)
 
@@ -62,11 +62,11 @@ func (r *UserRepository) getUserByCondition(whereClause string, arg interface{})
 		}
 	}
 
-	roles, err := r.GetUserRoles(user.ID)
+	systemPermissions, err := r.GetUserSystemPermissions(user.ID)
 	if err != nil {
 		return nil, err
 	}
-	user.Roles = roles
+	user.SystemPermissions = systemPermissions
 
 	return user, nil
 }
@@ -84,7 +84,7 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 // GetAll возвращает список всех пользователей.
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.full_name, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
+		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -107,7 +107,7 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 
 		if err := rows.Scan(
 			&user.ID, &user.Login, &user.FullName,
-			&user.IsActive, &user.FailedLoginAttempts, &user.CreatedAt, &user.UpdatedAt,
+			&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts, &user.CreatedAt, &user.UpdatedAt,
 			&departmentID, &departmentName,
 		); err != nil {
 			return nil, err
@@ -137,8 +137,7 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 		return users, nil
 	}
 
-	// Batch-загрузка ролей для всех пользователей одним запросом
-	if err := r.batchLoadUserRoles(users, userIDs); err != nil {
+	if err := r.batchLoadUserSystemPermissions(users, userIDs); err != nil {
 		return nil, err
 	}
 
@@ -176,22 +175,13 @@ func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, err
 
 	var userID uuid.UUID
 	err = tx.QueryRow(`
-		INSERT INTO users (login, password_hash, full_name, department_id)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO users (login, password_hash, full_name, department_id, is_document_participant)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
-	`, req.Login, passwordHash, req.FullName, depID).Scan(&userID)
+	`, req.Login, passwordHash, req.FullName, depID, req.IsDocumentParticipant).Scan(&userID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	for _, role := range req.Roles {
-		_, err := tx.Exec(`
-			INSERT INTO user_roles (user_id, role) VALUES ($1, $2)
-		`, userID, role)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add role %s: %w", role, err)
-		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -227,31 +217,17 @@ func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, err
 		    full_name = $2,
 		    is_active = $3,
 		    department_id = $4,
+		    is_document_participant = $5,
 		    failed_login_attempts = CASE
 		        WHEN is_active = false AND $3 = true THEN 0
 		        ELSE failed_login_attempts
 		    END,
 		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $5
-	`, req.Login, req.FullName, req.IsActive, depID, uid)
+		WHERE id = $6
+	`, req.Login, req.FullName, req.IsActive, depID, req.IsDocumentParticipant, uid)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
-	}
-
-	// Обновляем роли: удаляем старые, добавляем новые
-	_, err = tx.Exec(`DELETE FROM user_roles WHERE user_id = $1`, uid)
-	if err != nil {
-		return nil, fmt.Errorf("failed to clear roles: %w", err)
-	}
-
-	for _, role := range req.Roles {
-		_, err := tx.Exec(`
-			INSERT INTO user_roles (user_id, role) VALUES ($1, $2)
-		`, uid, role)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add role %s: %w", role, err)
-		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -261,44 +237,43 @@ func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, err
 	return r.GetByID(uid)
 }
 
-// GetUserRoles возвращает список ролей пользователя по его ID.
-func (r *UserRepository) GetUserRoles(userID uuid.UUID) ([]string, error) {
+// GetUserSystemPermissions возвращает список системных прав пользователя по его ID.
+func (r *UserRepository) GetUserSystemPermissions(userID uuid.UUID) ([]string, error) {
 	rows, err := r.db.Query(`
-		SELECT role FROM user_roles WHERE user_id = $1
+		SELECT permission FROM user_system_permissions WHERE user_id = $1 AND is_allowed = true
 	`, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user roles: %w", err)
+		return nil, fmt.Errorf("failed to get user system permissions: %w", err)
 	}
 	defer rows.Close()
 
-	roles := make([]string, 0)
+	permissions := make([]string, 0)
 	for rows.Next() {
-		var role string
-		if err := rows.Scan(&role); err != nil {
+		var permission string
+		if err := rows.Scan(&permission); err != nil {
 			return nil, err
 		}
-		roles = append(roles, role)
+		permissions = append(permissions, permission)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return roles, nil
+	return permissions, nil
 }
 
-// GetExecutors возвращает список всех активных пользователей с ролью 'executor' (исполнитель).
+// GetExecutors возвращает список активных пользователей, доступных для назначения и ознакомления.
 func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT DISTINCT u.id, u.login, u.full_name, u.is_active, u.created_at, u.updated_at,
+		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active, u.created_at, u.updated_at,
 		       d.id, d.name
 		FROM users u
-		JOIN user_roles ur ON u.id = ur.user_id
 		LEFT JOIN departments d ON u.department_id = d.id
-		WHERE ur.role = 'executor' AND u.is_active = true
+		WHERE u.is_active = true AND u.is_document_participant = true
 		ORDER BY u.full_name
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get executors: %w", err)
+		return nil, fmt.Errorf("failed to get assignable users: %w", err)
 	}
 	defer rows.Close()
 
@@ -314,7 +289,7 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 
 		if err := rows.Scan(
 			&user.ID, &user.Login, &user.FullName,
-			&user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+			&user.IsDocumentParticipant, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 			&departmentID, &departmentName,
 		); err != nil {
 			return nil, err
@@ -344,8 +319,7 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 		return users, nil
 	}
 
-	// Batch-загрузка ролей одним запросом
-	if err := r.batchLoadUserRoles(users, userIDs); err != nil {
+	if err := r.batchLoadUserSystemPermissions(users, userIDs); err != nil {
 		return nil, err
 	}
 
@@ -438,35 +412,35 @@ func (r *UserRepository) ResetFailedLoginAttempts(userID uuid.UUID) error {
 	return nil
 }
 
-// batchLoadUserRoles загружает роли для всех пользователей одним SQL-запросом
-// вместо N отдельных запросов (решение проблемы N+1).
-func (r *UserRepository) batchLoadUserRoles(users []models.User, userIDs []uuid.UUID) error {
+// batchLoadUserSystemPermissions загружает системные права пользователей одним SQL-запросом.
+func (r *UserRepository) batchLoadUserSystemPermissions(users []models.User, userIDs []uuid.UUID) error {
 	if len(userIDs) == 0 {
 		return nil
 	}
 
-	// Создаём индекс userID -> позиция в слайсе users
 	userIndex := make(map[uuid.UUID]int, len(userIDs))
 	for i, uid := range userIDs {
 		userIndex[uid] = i
 	}
 
 	rows, err := r.db.Query(`
-		SELECT user_id, role FROM user_roles WHERE user_id = ANY($1)
+		SELECT user_id, permission
+		FROM user_system_permissions
+		WHERE user_id = ANY($1) AND is_allowed = true
 	`, pq.Array(userIDs))
 	if err != nil {
-		return fmt.Errorf("failed to batch load user roles: %w", err)
+		return fmt.Errorf("failed to batch load user system permissions: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var userID uuid.UUID
-		var role string
-		if err := rows.Scan(&userID, &role); err != nil {
+		var permission string
+		if err := rows.Scan(&userID, &permission); err != nil {
 			return err
 		}
 		if idx, ok := userIndex[userID]; ok {
-			users[idx].Roles = append(users[idx].Roles, role)
+			users[idx].SystemPermissions = append(users[idx].SystemPermissions, permission)
 		}
 	}
 	return rows.Err()

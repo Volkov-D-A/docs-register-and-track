@@ -1,45 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Typography, Card, Row, Col, Statistic, Tag, Spin, App,
-    Button, Empty, Select, DatePicker
+    Typography, Card, Row, Col, Tag, Spin, App,
+    Button, Empty
 } from 'antd';
 import {
-    ClockCircleOutlined, FileTextOutlined, CheckCircleOutlined,
-    UserOutlined, DatabaseOutlined, ReloadOutlined, EyeOutlined,
-    InboxOutlined, SendOutlined,
-    CloudOutlined, HddOutlined
+    ClockCircleOutlined, UserOutlined, ReloadOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { useAuthStore } from '../store/useAuthStore';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel } from '../constants/documentKinds';
+import { useAuthStore } from '../store/useAuthStore';
 
 import DocumentViewModal from '../components/DocumentViewModal';
 
 const { Title, Text } = Typography;
-
-const resolveDashboardRole = (roles?: string[], backendRole?: string) => {
-    if (backendRole) {
-        return backendRole;
-    }
-    if (!roles || roles.length === 0) {
-        return 'executor';
-    }
-    const hasClerk = roles.includes('clerk');
-    const hasExecutor = roles.includes('executor');
-    if (hasClerk && hasExecutor) {
-        return 'mixed';
-    }
-    if (hasClerk) {
-        return 'clerk';
-    }
-    if (hasExecutor) {
-        return 'executor';
-    }
-    if (roles.includes('admin')) {
-        return 'admin';
-    }
-    return roles[0];
-};
 
 /**
  * Главная страница дашборда (панель управления).
@@ -50,7 +23,6 @@ const DashboardPage: React.FC = () => {
     const { user } = useAuthStore();
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
-    const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
     const [pendingAcks, setPendingAcks] = useState<any[]>([]);
 
     // Состояние модального окна просмотра
@@ -62,8 +34,7 @@ const DashboardPage: React.FC = () => {
         setLoading(true);
         try {
             const { GetStats } = await import('../../wailsjs/go/services/DashboardService');
-            // @ts-ignore
-            const data = await GetStats('', dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD'));
+            const data = await GetStats('', '', '');
             setStats(data);
 
             // Загрузка ожидающих ознакомлений
@@ -87,7 +58,7 @@ const DashboardPage: React.FC = () => {
 
     useEffect(() => {
         loadStats();
-    }, [dateRange]);
+    }, []);
 
     const onAcknowledge = async (id: string) => {
         try {
@@ -102,25 +73,13 @@ const DashboardPage: React.FC = () => {
     };
 
     // Определение отображения по текущей роли
-    const activeRole = resolveDashboardRole(user?.roles, stats?.role);
+    const activeRole = stats?.role || 'executor';
 
     if (loading && !stats) {
         return <div style={{ textAlign: 'center', marginTop: 50 }}><Spin size="large" /></div>;
     }
 
     // --- Подкомпоненты ---
-
-    const StatCard = ({ title, value, icon, color = '#1890ff', suffix = '' }: any) => (
-        <Card variant="borderless" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <Statistic
-                title={<span style={{ fontWeight: 500 }}>{title}</span>}
-                value={value}
-                prefix={icon && <span style={{ color, marginRight: 8, fontSize: 24 }}>{icon}</span>}
-                suffix={suffix}
-                styles={{ content: { fontWeight: 600 } }}
-            />
-        </Card>
-    );
 
     const ExpiringList = ({ list, title = 'Истекающий срок исполнения' }: any) => (
         <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
@@ -184,43 +143,55 @@ const DashboardPage: React.FC = () => {
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {pendingAcks.map((item: any) => (
-                            <div key={item.id} style={{ paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                                    <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginRight: 8 }}>{item.content || 'Без описания'}</Text>
-                                    <Tag
-                                        style={{ cursor: activeRole === 'admin' ? 'default' : 'pointer', margin: 0, flexShrink: 0 }}
-                                        onClick={(e) => {
-                                            if (activeRole === 'admin') {
-                                                return;
-                                            }
-                                            e.stopPropagation();
-                                            setViewDocId(item.documentId);
-                                            setViewDocKind(item.documentKind);
-                                            setViewModalOpen(true);
-                                        }}
-                                    >
-                                        {item.documentNumber || getDocumentKindShortLabel(item.documentKind)}
-                                    </Tag>
-                                </div>
+                            (() => {
+                                const currentAckUser = item.users?.find((u: any) => u.userId === user?.id);
+                                const canSelfAcknowledge = !!currentAckUser && !currentAckUser.confirmedAt;
 
-                                {activeRole === 'clerk' ? (
-                                    <div style={{ marginTop: 8 }}>
-                                        {item.users && item.users.length > 0 ? (
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                                {item.users.map((u: any) => (
-                                                    <Tag key={u.userId} color={u.confirmedAt ? 'green' : 'default'} style={{ margin: 0 }}>
-                                                        {u.userName}
-                                                    </Tag>
-                                                ))}
+                                return (
+                                    <div key={item.id} style={{ paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                                            <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginRight: 8 }}>{item.content || 'Без описания'}</Text>
+                                            <Tag
+                                                style={{ cursor: activeRole === 'admin' ? 'default' : 'pointer', margin: 0, flexShrink: 0 }}
+                                                onClick={(e) => {
+                                                    if (activeRole === 'admin') {
+                                                        return;
+                                                    }
+                                                    e.stopPropagation();
+                                                    setViewDocId(item.documentId);
+                                                    setViewDocKind(item.documentKind);
+                                                    setViewModalOpen(true);
+                                                }}
+                                            >
+                                                {item.documentNumber || getDocumentKindShortLabel(item.documentKind)}
+                                            </Tag>
+                                        </div>
+
+                                        {activeRole === 'clerk' ? (
+                                            <div style={{ marginTop: 8 }}>
+                                                {item.users && item.users.length > 0 ? (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                        {item.users.map((u: any) => (
+                                                            <Tag key={u.userId} color={u.confirmedAt ? 'green' : 'default'} style={{ margin: 0 }}>
+                                                                {u.userName}
+                                                            </Tag>
+                                                        ))}
+                                                    </div>
+                                                ) : <Text type="secondary" style={{ fontSize: 12 }}>Нет участников</Text>}
+                                                {canSelfAcknowledge && (
+                                                    <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-start' }}>
+                                                        <Button size="small" type="primary" onClick={() => onAcknowledge(item.id)}>ознакомлен</Button>
+                                                    </div>
+                                                )}
                                             </div>
-                                        ) : <Text type="secondary" style={{ fontSize: 12 }}>Нет участников</Text>}
+                                        ) : (
+                                            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-start' }}>
+                                                <Button size="small" type="primary" onClick={() => onAcknowledge(item.id)}>ознакомлен</Button>
+                                            </div>
+                                        )}
                                     </div>
-                                ) : (
-                                    <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-start' }}>
-                                        <Button size="small" type="primary" onClick={() => onAcknowledge(item.id)}>ознакомлен</Button>
-                                    </div>
-                                )}
-                            </div>
+                                );
+                            })()
                         ))}
                     </div>
                 )}
@@ -232,35 +203,6 @@ const DashboardPage: React.FC = () => {
 
     const renderExecutorView = () => (
         <>
-            <Title level={4}>Моя статистика</Title>
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={24} sm={6}>
-                    <StatCard title="Новые" value={stats?.myAssignmentsNew || 0} icon={<FileTextOutlined />} color="#69c0ff" />
-                </Col>
-                <Col xs={24} sm={6}>
-                    <StatCard title="В работе" value={stats?.myAssignmentsInProgress || 0} icon={<ClockCircleOutlined />} color="#ffc069" />
-                </Col>
-                <Col xs={24} sm={6}>
-                    <StatCard title="Просрочено" value={stats?.myAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
-                </Col>
-                <Col xs={24} sm={6}>
-                    <StatCard
-                        title="Завершено"
-                        value={stats?.myAssignmentsFinished || 0}
-                        icon={<CheckCircleOutlined />}
-                        color="#95de64"
-                        suffix={
-                            (stats?.myAssignmentsFinishedLate > 0) ? (
-                                <span style={{ marginLeft: 8, fontSize: 'inherit' }}>
-                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 16 }} />
-                                    <span style={{ color: 'black' }}>{stats.myAssignmentsFinishedLate}</span>
-                                </span>
-                            ) : null
-                        }
-                    />
-                </Col>
-            </Row>
-
             <Row gutter={[16, 16]}>
                 <Col xs={24} md={12}>
                     <PendingAcksList />
@@ -274,48 +216,6 @@ const DashboardPage: React.FC = () => {
 
     const renderClerkView = () => (
         <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Title level={4} style={{ margin: 0 }}>
-                    Статистика за период
-                </Title>
-                <DatePicker.RangePicker
-                    value={dateRange}
-                    onChange={(dates) => {
-                        if (dates && dates[0] && dates[1]) {
-                            setDateRange([dates[0], dates[1]]);
-                        }
-                    }}
-                    allowClear={false}
-                />
-            </div>
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={24} sm={6}>
-                    <StatCard title="Входящие" value={stats?.incomingCount || 0} icon={<FileTextOutlined />} color="#95de64" />
-                </Col>
-                <Col xs={24} sm={6}>
-                    <StatCard title="Исходящие" value={stats?.outgoingCount || 0} icon={<FileTextOutlined />} color="#b37feb" />
-                </Col>
-                <Col xs={24} sm={6}>
-                    <StatCard title="Просрочено" value={stats?.allAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
-                </Col>
-                <Col xs={24} sm={6}>
-                    <StatCard
-                        title="Завершено"
-                        value={stats?.allAssignmentsFinished || 0}
-                        icon={<CheckCircleOutlined />}
-                        color="#95de64"
-                        suffix={
-                            (stats?.allAssignmentsFinishedLate > 0) ? (
-                                <span style={{ marginLeft: 8, fontSize: 'inherit' }}>
-                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 16 }} />
-                                    <span style={{ color: 'black' }}>{stats.allAssignmentsFinishedLate}</span>
-                                </span>
-                            ) : null
-                        }
-                    />
-                </Col>
-            </Row>
-
             <Row gutter={[16, 16]}>
                 <Col xs={24} md={12}>
                     <PendingAcksList />
@@ -329,62 +229,6 @@ const DashboardPage: React.FC = () => {
 
     const renderMixedView = () => (
         <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Title level={4} style={{ margin: 0 }}>
-                    Операционная сводка
-                </Title>
-                <DatePicker.RangePicker
-                    value={dateRange}
-                    onChange={(dates) => {
-                        if (dates && dates[0] && dates[1]) {
-                            setDateRange([dates[0], dates[1]]);
-                        }
-                    }}
-                    allowClear={false}
-                />
-            </div>
-
-            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Входящие письма" value={stats?.incomingCount || 0} icon={<InboxOutlined />} color="#69c0ff" />
-                </Col>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Исходящие письма" value={stats?.outgoingCount || 0} icon={<SendOutlined />} color="#95de64" />
-                </Col>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Просроченные поручения" value={stats?.allAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
-                </Col>
-            </Row>
-
-            <Title level={5}>Мои задачи</Title>
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={24} sm={6}>
-                    <StatCard title="Новые" value={stats?.myAssignmentsNew || 0} icon={<FileTextOutlined />} color="#69c0ff" />
-                </Col>
-                <Col xs={24} sm={6}>
-                    <StatCard title="В работе" value={stats?.myAssignmentsInProgress || 0} icon={<ClockCircleOutlined />} color="#ffc069" />
-                </Col>
-                <Col xs={24} sm={6}>
-                    <StatCard title="Просрочено" value={stats?.myAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />
-                </Col>
-                <Col xs={24} sm={6}>
-                    <StatCard
-                        title="Завершено"
-                        value={stats?.myAssignmentsFinished || 0}
-                        icon={<CheckCircleOutlined />}
-                        color="#95de64"
-                        suffix={
-                            (stats?.myAssignmentsFinishedLate > 0) ? (
-                                <span style={{ marginLeft: 8, fontSize: 'inherit' }}>
-                                    <ClockCircleOutlined style={{ color: '#ff7875', marginRight: 4, fontSize: 16 }} />
-                                    <span style={{ color: 'black' }}>{stats.myAssignmentsFinishedLate}</span>
-                                </span>
-                            ) : null
-                        }
-                    />
-                </Col>
-            </Row>
-
             <Row gutter={[16, 16]}>
                 <Col xs={24} md={12}>
                     <PendingAcksList />
@@ -397,31 +241,15 @@ const DashboardPage: React.FC = () => {
     );
 
     const renderAdminView = () => (
-        <>
-            <Title level={4}>Система</Title>
-            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Пользователи" value={stats?.userCount || 0} icon={<UserOutlined />} color="#1890ff" />
-                </Col>
-                <Col xs={24} sm={8}>
-                    <StatCard title="БД" value={stats?.dbSize || "N/A"} icon={<DatabaseOutlined />} color="#52c41a" />
-                </Col>
-            </Row>
-            <Row gutter={[16, 16]}>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Файлов в хранилище" value={stats?.storageObjects || 0} icon={<CloudOutlined />} color="#722ed1" />
-                </Col>
-                <Col xs={24} sm={8}>
-                    <StatCard title="Размер хранилища" value={stats?.storageSize || "N/A"} icon={<HddOutlined />} color="#fa8c16" />
-                </Col>
-            </Row>
-        </>
+        <Card variant="borderless" style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <Empty description="Для администратора оперативная активность не отображается" />
+        </Card>
     );
 
     return (
         <div style={{ padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <Title level={3} style={{ margin: 0 }}>Дашборд</Title>
+                <Title level={4} style={{ margin: 0 }}>Текущая активность</Title>
                 <Button icon={<ReloadOutlined />} onClick={loadStats} disabled={loading}>Обновить</Button>
             </div>
 

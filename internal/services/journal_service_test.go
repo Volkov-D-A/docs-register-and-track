@@ -36,15 +36,20 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 			Login:        role + "_journal",
 			PasswordHash: hash,
 			IsActive:     true,
-			Roles:        []string{role},
 		}
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
 		_, err := auth.Login(user.Login, password)
 		require.NoError(t, err)
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
+	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+		return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
+	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+	}, nil).Maybe()
 
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, nil, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
 	svc := NewJournalService(journalRepo, auth, accessSvc)
 	return svc, journalRepo, incomingRepo, outgoingRepo, auth
 }

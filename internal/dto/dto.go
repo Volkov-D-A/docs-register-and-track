@@ -4,23 +4,16 @@ import "time"
 
 // User описывает DTO пользователя.
 type User struct {
-	ID                  string      `json:"id"`
-	Login               string      `json:"login"`
-	FullName            string      `json:"fullName"`
-	IsActive            bool        `json:"isActive"`
-	FailedLoginAttempts int         `json:"failedLoginAttempts"`
-	Roles               []string    `json:"roles"`
-	CreatedAt           time.Time   `json:"createdAt"`
-	UpdatedAt           time.Time   `json:"updatedAt"`
-	Department          *Department `json:"department,omitempty"`
-}
-
-// UserRole описывает DTO роли пользователя.
-type UserRole struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"userId"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID                    string      `json:"id"`
+	Login                 string      `json:"login"`
+	FullName              string      `json:"fullName"`
+	IsDocumentParticipant bool        `json:"isDocumentParticipant"`
+	IsActive              bool        `json:"isActive"`
+	FailedLoginAttempts   int         `json:"failedLoginAttempts"`
+	SystemPermissions     []string    `json:"systemPermissions"`
+	CreatedAt             time.Time   `json:"createdAt"`
+	UpdatedAt             time.Time   `json:"updatedAt"`
+	Department            *Department `json:"department,omitempty"`
 }
 
 // Department описывает DTO подразделения.
@@ -70,6 +63,7 @@ type DocumentKind struct {
 	RegistrationFormCode string   `json:"registrationFormCode"`
 	RegistryGroup        string   `json:"registryGroup"`
 	SupportedActions     []string `json:"supportedActions"`
+	AvailableActions     []string `json:"availableActions"`
 }
 
 // ResolutionExecutor описывает DTO исполнителя резолюции.

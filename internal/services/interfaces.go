@@ -48,8 +48,10 @@ type DocumentQueryReader interface {
 
 // DocumentAccessStore — интерфейс для чтения матрицы доступа document-domain.
 type DocumentAccessStore interface {
-	HasPermission(kindCode, action string, roles []string, departmentID, userID string) (bool, error)
-	GetVisibilityChannels(kindCode string, roles []string, departmentID, userID string) ([]string, error)
+	HasPermission(kindCode, action string, departmentID, userID string) (bool, error)
+	HasSystemPermission(permission, userID string) (bool, error)
+	GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error)
+	ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error
 }
 
 // OutgoingDocStore — интерфейс для работы с исходящими документами в хранилище.

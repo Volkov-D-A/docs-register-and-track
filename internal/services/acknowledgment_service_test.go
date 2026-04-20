@@ -27,7 +27,6 @@ func setupAckService(t *testing.T, role string) (
 		Login:        role + "_ack",
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        []string{role},
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
@@ -45,7 +44,7 @@ func setupAckService(t *testing.T, role string) (
 	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, nil, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
 
 	svc := NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc, accessSvc)
 	return svc, ackRepo, userRepo, auth, incomingRepo
@@ -67,7 +66,7 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, nil, nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
 
 	return NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc, accessSvc)
 }
@@ -274,14 +273,24 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _, _ := setupAckService(t, "executor")
+		svc, repo, _, _, _ := setupAckService(t, "executor")
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+			ID:           ackID,
+			DocumentID:   uuid.New(),
+			DocumentKind: "incoming_letter",
+		}, nil).Once()
 		err := svc.Delete(ackID.String())
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
 	t.Run("forbidden admin", func(t *testing.T) {
-		svc, _, _, _, _ := setupAckService(t, "admin")
+		svc, repo, _, _, _ := setupAckService(t, "admin")
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+			ID:           ackID,
+			DocumentID:   uuid.New(),
+			DocumentKind: "incoming_letter",
+		}, nil).Once()
 		err := svc.Delete(ackID.String())
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)

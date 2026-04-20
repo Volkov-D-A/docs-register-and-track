@@ -5,12 +5,14 @@ import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import AssignmentModal from './AssignmentModal';
 import AssignmentCompletionModal from './AssignmentCompletionModal';
+import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 
 /**
  * Свойства компонента AssignmentList.
  */
 interface AssignmentListProps {
     documentId: string;
+    documentKind: string;
 }
 
 const { TextArea } = Input;
@@ -19,14 +21,15 @@ const { TextArea } = Input;
  * Компонент списка поручений по документу.
  * @param documentId Идентификатор документа
  */
-const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
+const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKind }) => {
     const { message } = App.useApp();
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<any>(null);
-    const { user, hasRole } = useAuthStore();
-    const isExecutorOnly = !hasRole('clerk');
+    const { user } = useAuthStore();
+    const { hasAction } = useDocumentKindAccess();
+    const canManageAssignments = hasAction(documentKind, 'assign');
 
     // Report modal
     const [completionModalOpen, setCompletionModalOpen] = useState(false);
@@ -139,10 +142,8 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
         {
             title: '', key: 'actions', width: 150,
             render: (_: any, r: any) => {
-                const isExecutor = user?.id === r.executorId && hasRole('executor');
-                const isClerk = hasRole('clerk');
-
-                const canEdit = isClerk && r.status !== 'finished';
+                const isExecutor = user?.id === r.executorId;
+                const canEdit = canManageAssignments && r.status !== 'finished';
 
                 return (
                     <Space size={2}>
@@ -171,7 +172,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
                             </Tooltip>
                         )}
 
-                        {isClerk && r.status === 'completed' && (
+                        {canManageAssignments && r.status === 'completed' && (
                             <Tooltip title="Вернуть на доработку">
                                 <Button
                                     size="small"
@@ -193,7 +194,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId }) => {
     return (
         <div>
             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
-                {!isExecutorOnly && (
+                {canManageAssignments && (
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditAssignment(null); setModalOpen(true); }}>
                         Добавить поручение
                     </Button>

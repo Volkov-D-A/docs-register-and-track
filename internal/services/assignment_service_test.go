@@ -27,11 +27,11 @@ func setupAssignmentService(t *testing.T, role string) (
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:           uuid.New(),
-		Login:        role + "_user",
-		PasswordHash: hash,
-		IsActive:     true,
-		Roles:        []string{role},
+		ID:                    uuid.New(),
+		Login:                 role + "_user",
+		PasswordHash:          hash,
+		IsDocumentParticipant: role != "" && role != "admin",
+		IsActive:              true,
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
@@ -49,7 +49,8 @@ func setupAssignmentService(t *testing.T, role string) (
 	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, nil, nil, incomingRepo, outgoingRepo)
+	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
 
 	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc, accessSvc)
 	return svc, assignmentRepo, userRepo, auth, incomingRepo
@@ -71,7 +72,8 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, nil, nil, incomingRepo, outgoingRepo)
+	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
 
 	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc, accessSvc)
 	return svc, assignmentRepo
@@ -210,7 +212,8 @@ func TestAssignmentService_Update(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _, _ := setupAssignmentService(t, "executor")
+		svc, repo, _, _, _ := setupAssignmentService(t, "executor")
+		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 
 		result, err := svc.Update(assignmentID.String(), execID.String(), "Новое", "", nil)
 		require.Error(t, err)
@@ -270,11 +273,11 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		password := "Passw0rd!"
 		hash, _ := security.HashPassword(password)
 		executorUser := &models.User{
-			ID:           execID,
-			Login:        "exec",
-			PasswordHash: hash,
-			IsActive:     true,
-			Roles:        []string{"executor"},
+			ID:                    execID,
+			Login:                 "exec",
+			PasswordHash:          hash,
+			IsDocumentParticipant: true,
+			IsActive:              true,
 		}
 		authSvc := NewAuthService(nil, userRepo)
 		userRepo.On("GetByLogin", "exec").Return(executorUser, nil).Once()
@@ -286,7 +289,14 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 
 		incomingRepo := mocks.NewIncomingDocStore(t)
 		outgoingRepo := mocks.NewOutgoingDocStore(t)
-		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, nil, nil, incomingRepo, outgoingRepo)
+		incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+			return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+		}, nil).Maybe()
+		outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+			return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+		}, nil).Maybe()
+		repo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore("executor"), nil, incomingRepo, outgoingRepo)
 		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
@@ -309,11 +319,11 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		password := "Passw0rd!"
 		hash, _ := security.HashPassword(password)
 		executorUser := &models.User{
-			ID:           execID,
-			Login:        "exec2",
-			PasswordHash: hash,
-			IsActive:     true,
-			Roles:        []string{"executor"},
+			ID:                    execID,
+			Login:                 "exec2",
+			PasswordHash:          hash,
+			IsDocumentParticipant: true,
+			IsActive:              true,
 		}
 		authSvc := NewAuthService(nil, userRepo)
 		userRepo.On("GetByLogin", "exec2").Return(executorUser, nil).Once()
@@ -325,7 +335,14 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 
 		incomingRepo := mocks.NewIncomingDocStore(t)
 		outgoingRepo := mocks.NewOutgoingDocStore(t)
-		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, nil, nil, incomingRepo, outgoingRepo)
+		incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+			return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+		}, nil).Maybe()
+		outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+			return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+		}, nil).Maybe()
+		repo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore("executor"), nil, incomingRepo, outgoingRepo)
 		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
@@ -541,9 +558,42 @@ func TestAssignmentService_GetList(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
-	t.Run("admin forbidden", func(t *testing.T) {
+	t.Run("admin without document rights is forbidden", func(t *testing.T) {
 		svc, _, _, _, _ := setupAssignmentService(t, "admin")
 		result, err := svc.GetList(models.AssignmentFilter{})
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("document assignments allowed for clerk", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		docID := uuid.New()
+		filter := models.AssignmentFilter{DocumentID: docID.String(), Page: 1, PageSize: 100, ShowFinished: true}
+		repoResult := &models.PagedResult[models.Assignment]{
+			Items:      []models.Assignment{{ID: uuid.New(), DocumentID: docID, Status: "new"}},
+			TotalCount: 1,
+			Page:       1,
+			PageSize:   100,
+		}
+		repo.On("GetList", filter).Return(repoResult, nil).Once()
+
+		result, err := svc.GetList(filter)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Len(t, result.Items, 1)
+	})
+
+	t.Run("document assignments forbidden for executor without assign right", func(t *testing.T) {
+		svc, _, _, _, _ := setupAssignmentService(t, "executor")
+		docID := uuid.New()
+
+		result, err := svc.GetList(models.AssignmentFilter{
+			DocumentID:   docID.String(),
+			Page:         1,
+			PageSize:     100,
+			ShowFinished: true,
+		})
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
@@ -577,7 +627,8 @@ func TestAssignmentService_Delete(t *testing.T) {
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _, _, _, _ := setupAssignmentService(t, "executor")
+		svc, repo, _, _, _ := setupAssignmentService(t, "executor")
+		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 
 		err := svc.Delete(assignmentID.String())
 		require.Error(t, err)

@@ -4,4 +4,6 @@ DROP TABLE IF EXISTS organizations;
 
 DROP TABLE IF EXISTS department_nomenclature;
 
+DROP TABLE IF EXISTS document_permissions;
+
 DROP TABLE IF EXISTS nomenclature;

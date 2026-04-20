@@ -15,6 +15,7 @@ import AssignmentModal from '../components/AssignmentModal';
 import AssignmentCompletionModal from '../components/AssignmentCompletionModal';
 
 import DocumentViewModal from '../components/DocumentViewModal';
+import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -26,7 +27,8 @@ const { RangePicker } = DatePicker;
  */
 const AssignmentsPage: React.FC = () => {
     const { message } = App.useApp();
-    const { user, hasRole } = useAuthStore();
+    const { user } = useAuthStore();
+    const { hasAction, hasAnyAction } = useDocumentKindAccess();
     // const [activeTab, setActiveTab] = useState('inbox'); // Removed
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -73,7 +75,7 @@ const AssignmentsPage: React.FC = () => {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
 
             let executorId = '';
-            const canViewAll = hasRole('clerk');
+            const canViewAll = hasAnyAction('assign');
 
             if (canViewAll) {
                 executorId = filterExecutorId;
@@ -248,10 +250,9 @@ const AssignmentsPage: React.FC = () => {
         {
             title: 'Действия', key: 'actions', width: 140,
             render: (_: any, r: any) => {
-                const isExecutor = user?.id === r.executorId && hasRole('executor');
-                const isClerk = hasRole('clerk');
-
-                const canEdit = isClerk && r.status !== 'finished';
+                const isExecutor = user?.id === r.executorId;
+                const canManageAssignment = hasAction(r.documentKind, 'assign');
+                const canEdit = canManageAssignment && r.status !== 'finished';
 
                 return (
                     <Space size={2}>
@@ -277,7 +278,7 @@ const AssignmentsPage: React.FC = () => {
                                     onClick={() => { setCurrentAssignment(r); setCompletionModalOpen(true); }} />
                             </Tooltip>
                         )}
-                        {isClerk && r.status === 'completed' && (
+                        {canManageAssignment && r.status === 'completed' && (
                             <>
                                 <Tooltip title="Завершить">
                                     <Button size="small" icon={<FileDoneOutlined />} onClick={() => updateStatus(r.id, 'finished')} />
@@ -343,7 +344,7 @@ const AssignmentsPage: React.FC = () => {
                             />
                         </div>
                     </Col>
-                    {hasRole('clerk') && (
+                    {hasAnyAction('assign') && (
                         <>
                             <Col span={4}>
                                 <Select style={{ width: '100%' }} placeholder="Исполнитель" allowClear showSearch

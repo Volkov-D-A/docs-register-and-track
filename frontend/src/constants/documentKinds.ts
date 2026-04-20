@@ -11,6 +11,7 @@ export type DocumentKindMeta = {
     registrationFormCode: string;
     registryGroup?: string;
     supportedActions?: string[];
+    availableActions?: string[];
     color?: string;
 };
 
@@ -55,6 +56,10 @@ export const getDocumentKindColor = (kind: string): string => (
     getDocumentKindMeta(kind)?.color || 'blue'
 );
 
+export const hasDocumentKindAction = (kind: string, action: string): boolean => (
+    getDocumentKindMeta(kind)?.availableActions?.includes(action) ?? false
+);
+
 export const getDocumentPageKey = (kind: string): DocumentPageKey => (
     getDocumentKindMeta(kind)?.pageKey || 'incoming'
 );
@@ -77,6 +82,7 @@ export const toDocumentKindMeta = (kind: {
     registrationFormCode: string;
     registryGroup?: string;
     supportedActions?: string[];
+    availableActions?: string[];
 }): DocumentKindMeta | null => {
     const localMeta = getDocumentKindMeta(kind.code);
     if (!localMeta) {
@@ -91,5 +97,6 @@ export const toDocumentKindMeta = (kind: {
         registrationFormCode: kind.registrationFormCode || localMeta.registrationFormCode,
         registryGroup: kind.registryGroup || localMeta.registryGroup,
         supportedActions: kind.supportedActions || localMeta.supportedActions,
+        availableActions: kind.availableActions || localMeta.availableActions || [],
     };
 };

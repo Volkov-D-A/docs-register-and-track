@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 import { GetList } from '../../../wailsjs/go/services/DocumentQueryService';
 import { documentKinds, DOCUMENT_KIND_OUTGOING_LETTER, type RegistrationKind } from '../../constants/documentKinds';
 import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentLabel } from '../../config/documentLinkConfig';
+import { useDocumentKindAccess } from '../../hooks/useDocumentKindAccess';
 
 /**
  * Свойства вкладки связей документа.
@@ -14,14 +15,16 @@ import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentLabe
 interface LinksTabProps {
     documentId: string;
     documentNumber: string; // Passed for context
+    documentKind: string;
 }
 
 /**
  * Вкладка для отображения и управления связями документа.
  * Позволяет добавлять новые связи между документами и просматривать граф связей.
  */
-export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
+export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabProps) => {
     const { message } = App.useApp();
+    const { hasAction, kinds } = useDocumentKindAccess();
     const [links, setLinks] = useState<models.DocumentLink[]>([]);
     const [loading, setLoading] = useState(false);
     const [isModalVisible, setIsModalVisible] = useState(false);
@@ -37,6 +40,8 @@ export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchLoading, setSearchLoading] = useState(false);
     const [targetOptions, setTargetOptions] = useState<{ value: string; label: string }[]>([]);
+    const canManageLinks = hasAction(documentKind, 'link');
+    const creatableKinds = kinds.filter((kind) => hasAction(kind.code, 'create'));
 
     useEffect(() => {
         const timeoutId = setTimeout(() => {
@@ -173,9 +178,11 @@ export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
                     </div>
                 </div>
                 <div style={{ flexShrink: 0, marginLeft: 16 }}>
-                    <Popconfirm title="Удалить связь?" onConfirm={() => handleUnlink(item.id)}>
-                        <Button type="text" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>
+                    {canManageLinks && (
+                        <Popconfirm title="Удалить связь?" onConfirm={() => handleUnlink(item.id)}>
+                            <Button type="text" danger icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                    )}
                 </div>
             </div>
         );
@@ -184,9 +191,11 @@ export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
     return (
         <div>
             <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)}>
-                    Добавить связь
-                </Button>
+                {canManageLinks && (
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)}>
+                        Добавить связь
+                    </Button>
+                )}
                 <Button icon={<ApartmentOutlined />} onClick={() => setIsGraphVisible(true)}>
                     Показать граф
                 </Button>
@@ -218,7 +227,7 @@ export const LinksTab = ({ documentId, documentNumber }: LinksTabProps) => {
                     </Select>
 
                     <Select value={targetKind} onChange={(val) => { setTargetKind(val); setTargetId(''); setSearchTerm(''); setTargetOptions([]); }} style={{ width: '100%' }}>
-                        {documentKinds.map((kind) => (
+                        {(creatableKinds.length > 0 ? creatableKinds : documentKinds).map((kind) => (
                             <Select.Option key={kind.code} value={kind.code}>
                                 {getLinkedDocumentLabel(kind.code)} документ
                             </Select.Option>

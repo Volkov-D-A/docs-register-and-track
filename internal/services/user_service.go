@@ -25,7 +25,7 @@ func NewUserService(userRepo UserStore, auth *AuthService, auditService *AdminAu
 
 // GetAllUsers возвращает список всех пользователей (доступно администраторам и делопроизводителям).
 func (s *UserService) GetAllUsers() ([]dto.User, error) {
-	if err := s.auth.RequireAnyRole("admin", "clerk"); err != nil {
+	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
 	res, err := s.userRepo.GetAll()
@@ -34,7 +34,7 @@ func (s *UserService) GetAllUsers() ([]dto.User, error) {
 
 // CreateUser создает нового пользователя (доступно только администраторам).
 func (s *UserService) CreateUser(req models.CreateUserRequest) (*dto.User, error) {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
 	res, err := s.userRepo.Create(req)
@@ -50,7 +50,7 @@ func (s *UserService) CreateUser(req models.CreateUserRequest) (*dto.User, error
 
 // UpdateUser обновляет данные пользователя (доступно только администраторам).
 func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*dto.User, error) {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
 	res, err := s.userRepo.Update(req)
@@ -66,7 +66,7 @@ func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*dto.User, error
 
 // ResetPassword сбрасывает пароль пользователя (доступно только администраторам).
 func (s *UserService) ResetPassword(userID string, newPassword string) error {
-	if err := s.auth.RequireRole("admin"); err != nil {
+	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return err
 	}
 
@@ -94,7 +94,7 @@ func (s *UserService) ResetPassword(userID string, newPassword string) error {
 	return nil
 }
 
-// GetExecutors возвращает список пользователей-исполнителей.
+// GetExecutors возвращает список активных сотрудников для назначений и ознакомления.
 func (s *UserService) GetExecutors() ([]dto.User, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated

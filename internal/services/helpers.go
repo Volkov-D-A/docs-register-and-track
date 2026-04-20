@@ -110,14 +110,6 @@ func applyExecutorNomenclatureFilter(
 	nomenclatureIDs []string,
 	nomenclatureID string,
 ) (filteredIDs []string, isEmpty bool, err error) {
-	if auth.HasRole("clerk") || auth.HasRole("admin") {
-		return nomenclatureIDs, false, nil
-	}
-
-	if !auth.HasRole("executor") {
-		return nomenclatureIDs, false, nil
-	}
-
 	user, err := auth.GetCurrentUser()
 	if err != nil {
 		return nil, false, err
@@ -135,14 +127,6 @@ func applyExecutorNomenclatureFilter(
 
 // getExecutorAllowedNomenclatureIDs возвращает список номенклатур подразделения текущего исполнителя.
 func getExecutorAllowedNomenclatureIDs(auth *AuthService, depRepo DepartmentStore) ([]string, error) {
-	if auth.HasRole("clerk") || auth.HasRole("admin") {
-		return nil, nil
-	}
-
-	if !auth.HasRole("executor") {
-		return nil, nil
-	}
-
 	user, err := auth.GetCurrentUser()
 	if err != nil {
 		return nil, err

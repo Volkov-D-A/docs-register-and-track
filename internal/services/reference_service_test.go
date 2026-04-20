@@ -19,6 +19,7 @@ func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks
 	refRepo := mocks.NewReferenceStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 
 	if role != "" {
 		password := "Passw0rd!"
@@ -28,7 +29,6 @@ func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks
 			Login:        role + "_ref",
 			PasswordHash: hash,
 			IsActive:     true,
-			Roles:        []string{role},
 		}
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
 		_, err := auth.Login(user.Login, password)
@@ -45,6 +45,7 @@ func setupReferenceServiceWithRoles(t *testing.T, roles []string) (*ReferenceSer
 	refRepo := mocks.NewReferenceStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
@@ -53,7 +54,6 @@ func setupReferenceServiceWithRoles(t *testing.T, roles []string) (*ReferenceSer
 		Login:        "multi_ref_" + uuid.New().String(),
 		PasswordHash: hash,
 		IsActive:     true,
-		Roles:        roles,
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
@@ -102,18 +102,6 @@ func TestReferenceService_GetDocumentTypes(t *testing.T) {
 
 func TestReferenceService_CreateDocumentType(t *testing.T) {
 	// Запись нового типа документа в справочник
-	t.Run("успех (админ)", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "admin")
-		name := "Заявление"
-		expected := &models.DocumentType{ID: uuid.New(), Name: name}
-		repo.On("CreateDocumentType", name).Return(expected, nil).Once()
-
-		result, err := svc.CreateDocumentType(name)
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, name, result.Name)
-	})
-
 	t.Run("запрещено (не админ)", func(t *testing.T) {
 		svc, _, _, _ := setupReferenceService(t, "clerk")
 		result, err := svc.CreateDocumentType("Test")
@@ -122,13 +110,22 @@ func TestReferenceService_CreateDocumentType(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
-	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		repo.On("CreateDocumentType", "Test").Return(&models.DocumentType{ID: uuid.New(), Name: "Test"}, nil).Once()
 
 		result, err := svc.CreateDocumentType("Test")
 		require.NoError(t, err)
 		assert.NotNil(t, result)
+	})
+
+	t.Run("администратору без references запрещено", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionAdmin)
+
+		result, err := svc.CreateDocumentType("Test")
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+		assert.Nil(t, result)
 	})
 }
 
@@ -136,16 +133,8 @@ func TestReferenceService_UpdateDocumentType(t *testing.T) {
 	// Переименование существующего типа документа
 	idStr := uuid.New().String()
 
-	t.Run("успех (админ)", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "admin")
-		repo.On("UpdateDocumentType", mock.AnythingOfType("uuid.UUID"), "Новое имя").Return(nil).Once()
-
-		err := svc.UpdateDocumentType(idStr, "Новое имя")
-		require.NoError(t, err)
-	})
-
 	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "admin")
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		err := svc.UpdateDocumentType("invalid-uuid", "Новое имя")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid ID")
@@ -158,8 +147,8 @@ func TestReferenceService_UpdateDocumentType(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		repo.On("UpdateDocumentType", mock.AnythingOfType("uuid.UUID"), "Test").Return(nil).Once()
 
 		err := svc.UpdateDocumentType(idStr, "Test")
@@ -171,16 +160,8 @@ func TestReferenceService_DeleteDocumentType(t *testing.T) {
 	// Физическое удаление типа документа из справочника
 	idStr := uuid.New().String()
 
-	t.Run("успех (админ)", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "admin")
-		repo.On("DeleteDocumentType", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
-
-		err := svc.DeleteDocumentType(idStr)
-		require.NoError(t, err)
-	})
-
 	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "admin")
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		err := svc.DeleteDocumentType("invalid-uuid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid ID")
@@ -193,8 +174,8 @@ func TestReferenceService_DeleteDocumentType(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		repo.On("DeleteDocumentType", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
 
 		err := svc.DeleteDocumentType(idStr)
@@ -279,16 +260,8 @@ func TestReferenceService_UpdateOrganization(t *testing.T) {
 	// Изменение официального названия организации-корреспондента
 	idStr := uuid.New().String()
 
-	t.Run("успех (админ)", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "admin")
-		repo.On("UpdateOrganization", mock.AnythingOfType("uuid.UUID"), "Новое имя орг").Return(nil).Once()
-
-		err := svc.UpdateOrganization(idStr, "Новое имя орг")
-		require.NoError(t, err)
-	})
-
 	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "admin")
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		err := svc.UpdateOrganization("invalid-uuid", "Тест")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid ID")
@@ -301,8 +274,8 @@ func TestReferenceService_UpdateOrganization(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		repo.On("UpdateOrganization", mock.AnythingOfType("uuid.UUID"), "Тест").Return(nil).Once()
 
 		err := svc.UpdateOrganization(idStr, "Тест")
@@ -314,16 +287,8 @@ func TestReferenceService_DeleteOrganization(t *testing.T) {
 	// Удаление организации из справочника контрагентов
 	idStr := uuid.New().String()
 
-	t.Run("успех (админ)", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "admin")
-		repo.On("DeleteOrganization", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
-
-		err := svc.DeleteOrganization(idStr)
-		require.NoError(t, err)
-	})
-
 	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "admin")
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		err := svc.DeleteOrganization("invalid-uuid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid ID")
@@ -336,8 +301,8 @@ func TestReferenceService_DeleteOrganization(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 	})
 
-	t.Run("разрешено пользователю с ролью admin", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceServiceWithRoles(t, []string{"admin", "clerk"})
+	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		repo.On("DeleteOrganization", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
 
 		err := svc.DeleteOrganization(idStr)

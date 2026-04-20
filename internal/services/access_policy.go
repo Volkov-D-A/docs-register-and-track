@@ -11,8 +11,7 @@ func requireClerkDocumentRole(auth *AuthService) error {
 	if auth == nil {
 		return models.ErrUnauthorized
 	}
-
-	return auth.RequireRole("clerk")
+	return models.ErrForbidden
 }
 
 // requireDocumentDomainReadRole ограничивает document-domain ролями clerk и executor.
@@ -20,20 +19,15 @@ func requireDocumentDomainReadRole(auth *AuthService) error {
 	if auth == nil {
 		return models.ErrUnauthorized
 	}
-
-	return auth.RequireAnyRole("clerk", "executor")
+	if !auth.IsAuthenticated() {
+		return models.ErrUnauthorized
+	}
+	return nil
 }
 
 func hasExecutorNomenclatureAccess(auth *AuthService, depRepo DepartmentStore, nomenclatureID uuid.UUID) (bool, error) {
 	if auth == nil {
 		return false, models.ErrUnauthorized
-	}
-
-	if auth.HasRole("clerk") {
-		return true, nil
-	}
-	if !auth.HasRole("executor") {
-		return false, models.ErrForbidden
 	}
 
 	user, err := auth.GetCurrentUser()
@@ -74,13 +68,6 @@ func requireExecutorDocumentAccess(
 ) error {
 	if auth == nil {
 		return models.ErrUnauthorized
-	}
-
-	if auth.HasRole("clerk") {
-		return nil
-	}
-	if !auth.HasRole("executor") {
-		return models.ErrForbidden
 	}
 
 	allowedByDepartment, err := hasExecutorNomenclatureAccess(auth, depRepo, nomenclatureID)
@@ -130,10 +117,6 @@ func requireDocumentReadAccess(
 		return err
 	}
 
-	if auth.HasRole("clerk") {
-		return nil
-	}
-
 	switch models.NormalizeDocumentKind(documentKind) {
 	case models.DocumentKindIncomingLetter:
 		doc, err := incomingRepo.GetByID(documentID)
@@ -170,10 +153,6 @@ func requireAnyDocumentReadAccess(
 ) error {
 	if err := requireDocumentDomainReadRole(auth); err != nil {
 		return err
-	}
-
-	if auth.HasRole("clerk") {
-		return nil
 	}
 
 	if doc, err := incomingRepo.GetByID(documentID); err == nil && doc != nil {
