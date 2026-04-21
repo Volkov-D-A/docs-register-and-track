@@ -448,7 +448,6 @@ export namespace dto {
 		}
 	}
 	export class DashboardStats {
-	    role: string;
 	    myAssignmentsNew?: number;
 	    myAssignmentsInProgress?: number;
 	    myAssignmentsOverdue?: number;
@@ -472,7 +471,6 @@ export namespace dto {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.role = source["role"];
 	        this.myAssignmentsNew = source["myAssignmentsNew"];
 	        this.myAssignmentsInProgress = source["myAssignmentsInProgress"];
 	        this.myAssignmentsOverdue = source["myAssignmentsOverdue"];
@@ -728,7 +726,6 @@ export namespace dto {
 	export class DocumentKind {
 	    code: string;
 	    name: string;
-	    legacyViewType: string;
 	    registrationFormCode: string;
 	    registryGroup: string;
 	    supportedActions: string[];
@@ -742,7 +739,6 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.code = source["code"];
 	        this.name = source["name"];
-	        this.legacyViewType = source["legacyViewType"];
 	        this.registrationFormCode = source["registrationFormCode"];
 	        this.registryGroup = source["registryGroup"];
 	        this.supportedActions = source["supportedActions"];
