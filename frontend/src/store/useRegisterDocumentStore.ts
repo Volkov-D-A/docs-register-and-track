@@ -1,9 +1,8 @@
 import { create } from 'zustand';
-import { RegistrationKind } from '../constants/documentKinds';
 
 interface RegisterDocumentState {
-    requestedKind: RegistrationKind | null;
-    requestOpen: (kind: RegistrationKind) => void;
+    requestedKind: string | null;
+    requestOpen: (kind: string) => void;
     clearRequest: () => void;
 }
 

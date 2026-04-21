@@ -1,8 +1,6 @@
 import {
     DOCUMENT_KIND_INCOMING_LETTER,
     DOCUMENT_KIND_OUTGOING_LETTER,
-    RegistrationKind,
-    getDocumentKindShortLabel,
 } from '../constants/documentKinds';
 
 export type DocumentViewTabKey =
@@ -13,28 +11,14 @@ export type DocumentViewTabKey =
     | 'acknowledgments'
     | 'journal';
 
-export type DocumentViewAction = {
-    targetKind: RegistrationKind;
-    label: string;
-};
-
 export type DocumentViewConfig = {
     tabs: DocumentViewTabKey[];
-    footerActions: DocumentViewAction[];
+    createRelatedLabel: string;
 };
 
 const defaultViewConfig: DocumentViewConfig = {
     tabs: ['info', 'assignments', 'files', 'links', 'acknowledgments', 'journal'],
-    footerActions: [
-        {
-            targetKind: DOCUMENT_KIND_INCOMING_LETTER,
-            label: `Создать связанный ${getDocumentKindShortLabel(DOCUMENT_KIND_INCOMING_LETTER).toLowerCase()}`,
-        },
-        {
-            targetKind: DOCUMENT_KIND_OUTGOING_LETTER,
-            label: `Создать связанный ${getDocumentKindShortLabel(DOCUMENT_KIND_OUTGOING_LETTER).toLowerCase()}`,
-        },
-    ],
+    createRelatedLabel: 'Создать связанный документ',
 };
 
 const documentViewConfigs: Record<string, DocumentViewConfig> = {

@@ -5,7 +5,7 @@ import { LinkDocuments, UnlinkDocument, GetDocumentLinks, models } from '../../t
 import { LinkGraph } from './LinkGraph';
 import dayjs from 'dayjs';
 import { GetList } from '../../../wailsjs/go/services/DocumentQueryService';
-import { documentKinds, DOCUMENT_KIND_OUTGOING_LETTER, type RegistrationKind } from '../../constants/documentKinds';
+import { documentKinds, DOCUMENT_KIND_OUTGOING_LETTER } from '../../constants/documentKinds';
 import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentLabel } from '../../config/documentLinkConfig';
 import { useDocumentKindAccess } from '../../hooks/useDocumentKindAccess';
 
@@ -32,7 +32,7 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
     const [isLocked, setIsLocked] = useState(true);
 
     // Form state
-    const [targetKind, setTargetKind] = useState<RegistrationKind>(DOCUMENT_KIND_OUTGOING_LETTER);
+    const [targetKind, setTargetKind] = useState<string>(DOCUMENT_KIND_OUTGOING_LETTER);
     const [targetId, setTargetId] = useState('');
     const [linkType, setLinkType] = useState('related');
 

@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRegisterDocumentStore } from '../store/useRegisterDocumentStore';
-import { RegistrationKind } from '../constants/documentKinds';
 
 type UseDocumentKindModalsOptions = {
     kindCode: string;
     registerForm: any;
     registerInitialValues: Record<string, unknown>;
     sourceId: string;
-    targetKind: RegistrationKind;
+    targetKind: string;
     onPrepareEdit: (record: any) => void;
 };
 

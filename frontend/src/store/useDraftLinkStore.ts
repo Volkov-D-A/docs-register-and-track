@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import { DOCUMENT_KIND_INCOMING_LETTER, DOCUMENT_KIND_OUTGOING_LETTER, RegistrationKind } from '../constants/documentKinds';
+import { DOCUMENT_KIND_INCOMING_LETTER, DOCUMENT_KIND_OUTGOING_LETTER } from '../constants/documentKinds';
 
 interface DraftLinkState {
     sourceId: string;
-    sourceKind: RegistrationKind;
+    sourceKind: string;
     sourceNumber: string;
-    targetKind: RegistrationKind;
-    setDraftLink: (sourceId: string, sourceKind: RegistrationKind, sourceNumber: string, targetKind: RegistrationKind) => void;
+    targetKind: string;
+    setDraftLink: (sourceId: string, sourceKind: string, sourceNumber: string, targetKind: string) => void;
     clearDraftLink: () => void;
 }
 

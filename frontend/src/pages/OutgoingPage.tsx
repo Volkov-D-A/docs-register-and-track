@@ -5,11 +5,12 @@ import {
 import DocumentKindPage from '../components/DocumentKindPage';
 import { useAuthStore } from '../store/useAuthStore';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
-import { DOCUMENT_KIND_OUTGOING_LETTER, getDocumentKindShortLabel, isIncomingKind, isOutgoingKind } from '../constants/documentKinds';
+import { DOCUMENT_KIND_OUTGOING_LETTER, getDocumentKindShortLabel, isOutgoingKind } from '../constants/documentKinds';
 import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
 import { useDocumentKinds } from '../hooks/useDocumentKinds';
 import { getDocumentPageConfig } from '../config/documentPageConfigs';
+import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
 import {
     OutgoingLetterDocumentForm,
     OutgoingLetterFilters,
@@ -160,9 +161,7 @@ const OutgoingPage: React.FC = () => {
 
             if (sourceId && targetKind === DOCUMENT_KIND_OUTGOING_LETTER) {
                 const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
-                // Если создаем исходящий из входящего -> Ответ (reply)
-                // Если создаем исходящий из исходящего -> Связан (related)
-                const linkType = isIncomingKind(sourceKind) ? 'reply' : 'related';
+                const linkType = resolveLinkTypeForNewDocument(sourceKind, DOCUMENT_KIND_OUTGOING_LETTER);
                 await LinkDocuments(sourceId, newDoc.id, linkType);
                 clearDraftLink();
             }

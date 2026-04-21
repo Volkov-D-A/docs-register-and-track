@@ -1,7 +1,10 @@
 import {
+    DOCUMENT_KIND_INCOMING_LETTER,
+    DOCUMENT_KIND_OUTGOING_LETTER,
     getDocumentKindColor,
     getDocumentKindShortLabel,
     isIncomingKind,
+    isOutgoingKind,
 } from '../constants/documentKinds';
 
 export const getDocumentLinkTypeLabel = (linkType: string): string => {
@@ -28,3 +31,15 @@ export const getLinkedDocumentColor = (kind: string): string => (
 export const getLinkedDocumentCounterpartyLabel = (kind: string, sender: string, recipient: string): string => (
     isIncomingKind(kind) ? `От: ${sender}` : `Кому: ${recipient}`
 );
+
+export const resolveLinkTypeForNewDocument = (sourceKind: string, targetKind: string): string => {
+    if (isIncomingKind(sourceKind) && targetKind === DOCUMENT_KIND_OUTGOING_LETTER) {
+        return 'reply';
+    }
+
+    if (isOutgoingKind(sourceKind) && targetKind === DOCUMENT_KIND_INCOMING_LETTER) {
+        return 'follow_up';
+    }
+
+    return 'related';
+};

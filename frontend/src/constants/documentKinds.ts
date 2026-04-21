@@ -1,7 +1,7 @@
 export const DOCUMENT_KIND_INCOMING_LETTER = 'incoming_letter';
 export const DOCUMENT_KIND_OUTGOING_LETTER = 'outgoing_letter';
 
-export type RegistrationKind = typeof DOCUMENT_KIND_INCOMING_LETTER | typeof DOCUMENT_KIND_OUTGOING_LETTER;
+export type RegistrationKind = string;
 export type DocumentPageKey = 'incoming' | 'outgoing';
 export type DocumentKindMeta = {
     code: RegistrationKind;
@@ -15,7 +15,7 @@ export type DocumentKindMeta = {
     color?: string;
 };
 
-export const documentKindRegistry: Record<RegistrationKind, DocumentKindMeta> = {
+export const documentKindRegistry: Record<string, DocumentKindMeta> = {
     [DOCUMENT_KIND_INCOMING_LETTER]: {
         code: DOCUMENT_KIND_INCOMING_LETTER,
         label: 'Входящее письмо',

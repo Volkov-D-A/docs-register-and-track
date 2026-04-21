@@ -34,10 +34,11 @@ interface DocumentViewModalProps {
  */
 const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, documentId, documentKind }) => {
     const { message } = App.useApp();
-    const { hasAction } = useDocumentKindAccess();
+    const { hasAction, kinds, loading: kindsLoading } = useDocumentKindAccess();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('info');
+    const [createRelatedModalOpen, setCreateRelatedModalOpen] = useState(false);
 
     useEffect(() => {
         if (open && documentId) {
@@ -199,6 +200,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     const canManageAcknowledgments = hasAction(resolvedKindCode, 'acknowledge');
     const canViewJournal = hasAction(resolvedKindCode, 'view_journal');
     const canViewFiles = !!data;
+    const creatableKinds = kinds.filter((kind) => hasAction(kind.code, 'create'));
 
     const getTabs = () => {
         const items = [
@@ -249,51 +251,72 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     };
 
     return (
-        <Modal
-            title={`${data?.kindName || getDocumentKindLabel(documentKind)} №${getNumber()}`}
-            open={open}
-            onCancel={onCancel}
-            width={800}
-            footer={
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                    <div>
-                        {canManageLinks && data && (
-                            <Space>
-                                {viewConfig.footerActions
-                                    .filter((action) => hasAction(action.targetKind, 'create'))
-                                    .map((action) => (
-                                    <Button
-                                        key={action.targetKind}
-                                        onClick={() => {
-                                            useDraftLinkStore.getState().setDraftLink(
-                                                data.id,
-                                                data.kindCode,
-                                                getNumber(),
-                                                action.targetKind
-                                            );
-                                            onCancel();
-                                        }}
-                                    >
-                                        {action.label}
-                                    </Button>
-                                ))}
-                            </Space>
-                        )}
+        <>
+            <Modal
+                title={`${data?.kindName || getDocumentKindLabel(documentKind)} №${getNumber()}`}
+                open={open}
+                onCancel={onCancel}
+                width={800}
+                footer={
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                        <div>
+                            {canManageLinks && data && creatableKinds.length > 0 && (
+                                <Button onClick={() => setCreateRelatedModalOpen(true)}>
+                                    {viewConfig.createRelatedLabel}
+                                </Button>
+                            )}
+                        </div>
+                        <Button onClick={onCancel}>Закрыть</Button>
                     </div>
-                    <Button onClick={onCancel}>Закрыть</Button>
-                </div>
-            }
-        >
-            {loading && <Spin />}
-            {!loading && data && details && (
-                <Tabs
-                    items={getTabs()}
-                    activeKey={activeTab}
-                    onChange={setActiveTab}
-                    destroyOnHidden
-                />
-            )}
-        </Modal>
+                }
+            >
+                {loading && <Spin />}
+                {!loading && data && details && (
+                    <Tabs
+                        items={getTabs()}
+                        activeKey={activeTab}
+                        onChange={setActiveTab}
+                        destroyOnHidden
+                    />
+                )}
+            </Modal>
+
+            <Modal
+                title="Выберите вид связанного документа"
+                open={createRelatedModalOpen}
+                onCancel={() => setCreateRelatedModalOpen(false)}
+                footer={null}
+                destroyOnHidden
+            >
+                {kindsLoading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+                        <Spin />
+                    </div>
+                ) : (
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                        {creatableKinds.map((kind) => (
+                            <Button
+                                key={kind.code}
+                                block
+                                size="large"
+                                onClick={() => {
+                                    useDraftLinkStore.getState().setDraftLink(
+                                        data.id,
+                                        data.kindCode,
+                                        getNumber(),
+                                        kind.code
+                                    );
+                                    setCreateRelatedModalOpen(false);
+                                    onCancel();
+                                }}
+                            >
+                                {kind.label}
+                            </Button>
+                        ))}
+                    </Space>
+                )}
+            </Modal>
+        </>
     );
 };
 
