@@ -49,6 +49,32 @@ const getNodePalette = (type: string) => {
     return isIncomingKind(type) ? NODE_COLORS.incoming : NODE_COLORS.outgoing;
 };
 
+const NODE_WIDTH = 265;
+const LAYER_HORIZONTAL_GAP = 460;
+const LAYER_VERTICAL_GAP = 200;
+
+
+const compareNodesForLayout = (a: Node, b: Node) => {
+    const aLabel = typeof a.data?.documentNumber === 'string' ? a.data.documentNumber : '';
+    const bLabel = typeof b.data?.documentNumber === 'string' ? b.data.documentNumber : '';
+    const aDate = typeof a.data?.documentDate === 'string' ? a.data.documentDate : '';
+    const bDate = typeof b.data?.documentDate === 'string' ? b.data.documentDate : '';
+    const aKind = typeof a.data?.kindCode === 'string' ? a.data.kindCode : '';
+    const bKind = typeof b.data?.kindCode === 'string' ? b.data.kindCode : '';
+
+    if (aDate !== bDate) {
+        return aDate.localeCompare(bDate);
+    }
+    if (aLabel !== bLabel) {
+        return aLabel.localeCompare(bLabel);
+    }
+    if (aKind !== bKind) {
+        return aKind.localeCompare(bKind);
+    }
+
+    return a.id.localeCompare(b.id);
+};
+
 const getLayoutedElements = (nodes: Node[], edges: Edge[], rootId: string) => {
     // Simple layered layout
     const layers: Record<string, number> = {};
@@ -89,8 +115,11 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], rootId: string) => {
         nodesByLayer[layer].push(node);
     });
 
-    return {
-        nodes: nodes.map(node => {
+    Object.values(nodesByLayer).forEach((nodesInLayer) => {
+        nodesInLayer.sort(compareNodesForLayout);
+    });
+
+    const layoutedNodes = nodes.map(node => {
             const layer = layers[node.id] !== undefined ? layers[node.id] : 0;
             const nodesInThisLayer = nodesByLayer[layer];
             const index = nodesInThisLayer.indexOf(node);
@@ -98,13 +127,16 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], rootId: string) => {
             return {
                 ...node,
                 position: {
-                    x: layer * 350,
-                    y: index * 150 - (nodesInThisLayer.length * 150) / 2,
+                    x: layer * LAYER_HORIZONTAL_GAP,
+                    y: index * LAYER_VERTICAL_GAP - (nodesInThisLayer.length * LAYER_VERTICAL_GAP) / 2,
                 },
                 targetPosition: Position.Left,
                 sourcePosition: Position.Right,
             };
-        }),
+        });
+
+    return {
+        nodes: layoutedNodes,
         edges,
     };
 };
@@ -142,6 +174,9 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                 return {
                     id: n.id,
                     data: {
+                        documentNumber: n.label,
+                        documentDate: n.date,
+                        kindCode: n.kindCode,
                         label: (
                             <div
                                 style={{
@@ -213,7 +248,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                             </div>
                         )
                     },
-                    style: { width: 265, border: 'none', background: 'transparent' },
+                    style: { width: NODE_WIDTH, border: 'none', background: 'transparent' },
                     position: { x: 0, y: 0 }, // will be calculated
                 };
             });
@@ -229,17 +264,26 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                     type: MarkerType.ArrowClosed,
                 },
                 style: { stroke: '#555' },
+                labelStyle: {
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fill: '#434343',
+                },
+                labelBgStyle: {
+                    fill: 'rgba(255, 255, 255, 0.96)',
+                    stroke: '#d9d9d9',
+                },
+                labelBgPadding: [8, 4],
+                labelBgBorderRadius: 6,
             }));
 
             const layouted = getLayoutedElements(initialNodes, initialEdges, rootId);
             setNodes(layouted.nodes);
             setEdges(layouted.edges);
 
-            // Fit view after nodes are set and layouted
-            setTimeout(() => fitView({ padding: 0.2, duration: 800 }), 100);
-
+            setTimeout(() => fitView({ padding: 0.2, duration: 0 }), 100);
         }).catch(err => console.error("Failed to fetch graph:", err));
-    }, [rootId, fitView]);
+    }, [rootId, fitView, setEdges, setNodes]);
 
     const onConnect = useCallback(
         (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -253,7 +297,6 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            fitView
             nodesDraggable={!isLocked}
             nodesConnectable={!isLocked}
             elementsSelectable={true}

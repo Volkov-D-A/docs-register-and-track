@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -228,6 +229,19 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 		})
 	}
 
+	sort.Slice(nodes, func(i, j int) bool {
+		if nodes[i].Date != nodes[j].Date {
+			return nodes[i].Date < nodes[j].Date
+		}
+		if nodes[i].Label != nodes[j].Label {
+			return nodes[i].Label < nodes[j].Label
+		}
+		if nodes[i].KindCode != nodes[j].KindCode {
+			return nodes[i].KindCode < nodes[j].KindCode
+		}
+		return nodes[i].ID < nodes[j].ID
+	})
+
 	edges := []models.GraphEdge{}
 	for _, l := range links {
 		edges = append(edges, models.GraphEdge{
@@ -237,6 +251,19 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 			Label:  l.LinkType,
 		})
 	}
+
+	sort.Slice(edges, func(i, j int) bool {
+		if edges[i].Source != edges[j].Source {
+			return edges[i].Source < edges[j].Source
+		}
+		if edges[i].Target != edges[j].Target {
+			return edges[i].Target < edges[j].Target
+		}
+		if edges[i].Label != edges[j].Label {
+			return edges[i].Label < edges[j].Label
+		}
+		return edges[i].ID < edges[j].ID
+	})
 
 	return &models.GraphData{Nodes: nodes, Edges: edges}, nil
 }

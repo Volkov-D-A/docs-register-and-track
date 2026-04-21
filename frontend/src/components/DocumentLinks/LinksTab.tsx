@@ -29,7 +29,9 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
     const [loading, setLoading] = useState(false);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [isGraphVisible, setIsGraphVisible] = useState(false);
+    const [isGraphMounted, setIsGraphMounted] = useState(false);
     const [isLocked, setIsLocked] = useState(true);
+    const [graphRenderKey, setGraphRenderKey] = useState(0);
 
     // Form state
     const [targetKind, setTargetKind] = useState<string>(DOCUMENT_KIND_OUTGOING_LETTER);
@@ -97,6 +99,24 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
 
     const handleSearch = (val: string) => {
         setSearchTerm(val);
+    };
+
+    const openGraph = () => {
+        setIsGraphVisible(true);
+    };
+
+    const closeGraph = () => {
+        setIsGraphVisible(false);
+    };
+
+    const handleGraphModalOpenChange = (open: boolean) => {
+        if (open) {
+            setGraphRenderKey((value) => value + 1);
+            setIsGraphMounted(true);
+            return;
+        }
+
+        setIsGraphMounted(false);
     };
 
     const fetchLinks = async () => {
@@ -196,7 +216,7 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
                         Добавить связь
                     </Button>
                 )}
-                <Button icon={<ApartmentOutlined />} onClick={() => setIsGraphVisible(true)}>
+                <Button icon={<ApartmentOutlined />} onClick={openGraph}>
                     Показать граф
                 </Button>
             </div>
@@ -267,13 +287,14 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
                     </div>
                 }
                 open={isGraphVisible}
-                onCancel={() => setIsGraphVisible(false)}
+                onCancel={closeGraph}
+                afterOpenChange={handleGraphModalOpenChange}
                 width={1000}
                 footer={null}
                 destroyOnHidden={true}
                 styles={{ body: { height: '600px', padding: 0 } }}
             >
-                {isGraphVisible && <LinkGraph rootId={documentId} isLocked={isLocked} />}
+                {isGraphMounted && <LinkGraph key={`${documentId}-${graphRenderKey}`} rootId={documentId} isLocked={isLocked} />}
             </Modal>
         </div>
     );
