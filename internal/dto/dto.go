@@ -59,7 +59,6 @@ type DocumentType struct {
 type DocumentKind struct {
 	Code                 string   `json:"code"`
 	Name                 string   `json:"name"`
-	LegacyViewType       string   `json:"legacyViewType"`
 	RegistrationFormCode string   `json:"registrationFormCode"`
 	RegistryGroup        string   `json:"registryGroup"`
 	SupportedActions     []string `json:"supportedActions"`
@@ -293,8 +292,6 @@ type PagedResult[T any] struct {
 
 // DashboardStats описывает DTO статистики для дашборда.
 type DashboardStats struct {
-	Role string `json:"role"`
-
 	// Статистика исполнителя
 	MyAssignmentsNew          int `json:"myAssignmentsNew,omitempty"`
 	MyAssignmentsInProgress   int `json:"myAssignmentsInProgress,omitempty"`

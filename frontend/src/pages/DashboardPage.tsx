@@ -8,11 +8,13 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel } from '../constants/documentKinds';
-import { useAuthStore } from '../store/useAuthStore';
+import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
+import { useDocumentKinds } from '../hooks/useDocumentKinds';
 
 import DocumentViewModal from '../components/DocumentViewModal';
 
 const { Title, Text } = Typography;
+const emptyKinds: any[] = [];
 
 /**
  * Главная страница дашборда (панель управления).
@@ -21,6 +23,7 @@ const { Title, Text } = Typography;
 const DashboardPage: React.FC = () => {
     const { message } = App.useApp();
     const { user } = useAuthStore();
+    const { kinds: readableKinds } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [pendingAcks, setPendingAcks] = useState<any[]>([]);
@@ -29,6 +32,8 @@ const DashboardPage: React.FC = () => {
     const [viewDocId, setViewDocId] = useState('');
     const [viewDocKind, setViewDocKind] = useState(DOCUMENT_KIND_INCOMING_LETTER);
     const [viewModalOpen, setViewModalOpen] = useState(false);
+
+    const profile = resolveUserProfile(user?.systemPermissions, readableKinds, user?.isDocumentParticipant);
 
     const loadStats = async () => {
         setLoading(true);
@@ -42,9 +47,9 @@ const DashboardPage: React.FC = () => {
             const { GetPendingForCurrentUser, GetAllActive } = await import('../../wailsjs/go/services/AcknowledgmentService');
 
             let acks: any[] = [];
-            if (data?.role === 'clerk') {
+            if (profile === 'clerk' || profile === 'mixed') {
                 acks = await GetAllActive();
-            } else if (data?.role === 'executor' || data?.role === 'mixed') {
+            } else if (profile === 'executor') {
                 acks = await GetPendingForCurrentUser();
             }
             setPendingAcks(acks || []);
@@ -73,8 +78,6 @@ const DashboardPage: React.FC = () => {
     };
 
     // Определение отображения по текущей роли
-    const activeRole = stats?.role || 'executor';
-
     if (loading && !stats) {
         return <div style={{ textAlign: 'center', marginTop: 50 }}><Spin size="large" /></div>;
     }
@@ -103,7 +106,7 @@ const DashboardPage: React.FC = () => {
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                                         <Text style={{ whiteSpace: 'pre-wrap', marginRight: 8, wordBreak: 'break-word' }}>{item.content}</Text>
-                                        {item.documentNumber && activeRole !== 'admin' && (
+                                        {item.documentNumber && profile !== 'admin' && (
                                             <Tag
                                                 style={{ cursor: 'pointer', margin: 0, flexShrink: 0 }}
                                                 onClick={(e) => {
@@ -135,7 +138,7 @@ const DashboardPage: React.FC = () => {
 
     const PendingAcksList = () => {
         const hasItems = pendingAcks && pendingAcks.length > 0;
-        const title = activeRole === 'clerk' ? "Все текущие ознакомления" : "Мои ознакомления";
+        const title = profile === 'clerk' || profile === 'mixed' ? "Все текущие ознакомления" : "Мои ознакомления";
         return (
             <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                 {!hasItems ? (
@@ -152,9 +155,9 @@ const DashboardPage: React.FC = () => {
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                                             <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginRight: 8 }}>{item.content || 'Без описания'}</Text>
                                             <Tag
-                                                style={{ cursor: activeRole === 'admin' ? 'default' : 'pointer', margin: 0, flexShrink: 0 }}
+                                                style={{ cursor: profile === 'admin' ? 'default' : 'pointer', margin: 0, flexShrink: 0 }}
                                                 onClick={(e) => {
-                                                    if (activeRole === 'admin') {
+                                                    if (profile === 'admin') {
                                                         return;
                                                     }
                                                     e.stopPropagation();
@@ -167,7 +170,7 @@ const DashboardPage: React.FC = () => {
                                             </Tag>
                                         </div>
 
-                                        {activeRole === 'clerk' ? (
+                                        {profile === 'clerk' || profile === 'mixed' ? (
                                             <div style={{ marginTop: 8 }}>
                                                 {item.users && item.users.length > 0 ? (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -253,12 +256,12 @@ const DashboardPage: React.FC = () => {
                 <Button icon={<ReloadOutlined />} onClick={loadStats} disabled={loading}>Обновить</Button>
             </div>
 
-            {activeRole === 'admin' && renderAdminView()}
-            {activeRole === 'clerk' && renderClerkView()}
-            {activeRole === 'mixed' && renderMixedView()}
-            {activeRole !== 'admin' && activeRole !== 'clerk' && activeRole !== 'mixed' && renderExecutorView()}
+            {profile === 'admin' && renderAdminView()}
+            {profile === 'clerk' && renderClerkView()}
+            {profile === 'mixed' && renderMixedView()}
+            {profile !== 'admin' && profile !== 'clerk' && profile !== 'mixed' && renderExecutorView()}
 
-            {activeRole !== 'admin' && (
+            {profile !== 'admin' && (
                 <DocumentViewModal
                     open={viewModalOpen}
                     onCancel={() => setViewModalOpen(false)}

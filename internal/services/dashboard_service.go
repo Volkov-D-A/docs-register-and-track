@@ -40,22 +40,20 @@ func (s *DashboardService) determineDashboardProfile(user *dto.User) string {
 	}
 
 	canCreate := false
-	canManageAssignments := false
-	canManageAcknowledgments := false
 	canRead := false
 	if s.access != nil {
 		canCreate, _ = s.access.HasAnyDocumentAction("create")
-		canManageAssignments, _ = s.access.HasAnyDocumentAction("assign")
-		canManageAcknowledgments, _ = s.access.HasAnyDocumentAction("acknowledge")
 		canRead, _ = s.access.HasAnyDocumentAction("read")
 	}
 
 	hasClerkFlow := canCreate || canRead
-	hasExecutorFlow := canManageAssignments || canManageAcknowledgments || (!hasClerkFlow && user.IsDocumentParticipant)
+	hasExecutorFlow := user.IsDocumentParticipant
 
 	switch {
 	case hasSystemPermission("admin") && !hasClerkFlow && !hasExecutorFlow:
 		return "admin"
+	case hasClerkFlow && hasExecutorFlow:
+		return "mixed"
 	case hasClerkFlow:
 		return "clerk"
 	case hasExecutorFlow:
@@ -88,7 +86,6 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 
 	// Инициализация пустым списком для избежания null в JSON
 	stats := &models.DashboardStats{
-		Role:                role,
 		ExpiringAssignments: []models.Assignment{},
 	}
 
@@ -133,7 +130,7 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 		return nil, err
 	}
 
-	if (canViewIncomingStats || canViewOutgoingStats || (canViewAssignmentsStats && role == "admin")) && role != "clerk" {
+	if (canViewIncomingStats || canViewOutgoingStats || (canViewAssignmentsStats && role == "admin")) && role != "clerk" && role != "mixed" {
 		var startDate, endDate time.Time
 		if startDateStr == "" || endDateStr == "" {
 			now := time.Now()

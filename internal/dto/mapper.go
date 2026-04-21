@@ -165,7 +165,6 @@ func MapDocumentKindSpec(spec models.DocumentKindSpec) *DocumentKind {
 	return &DocumentKind{
 		Code:                 string(spec.Code),
 		Name:                 spec.Name,
-		LegacyViewType:       spec.LegacyViewType,
 		RegistrationFormCode: spec.RegistrationFormCode,
 		RegistryGroup:        spec.RegistryGroup,
 		SupportedActions:     actions,
@@ -631,7 +630,6 @@ func MapDashboardStats(m *models.DashboardStats) *DashboardStats {
 		return nil
 	}
 	return &DashboardStats{
-		Role:                       m.Role,
 		MyAssignmentsNew:           m.MyAssignmentsNew,
 		MyAssignmentsInProgress:    m.MyAssignmentsInProgress,
 		MyAssignmentsOverdue:       m.MyAssignmentsOverdue,

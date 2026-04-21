@@ -11,13 +11,16 @@ import {
   HddOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { useAuthStore } from '../store/useAuthStore';
+import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
+import { useDocumentKinds } from '../hooks/useDocumentKinds';
 
 const { Title } = Typography;
+const emptyKinds: any[] = [];
 
 const StatisticsPage: React.FC = () => {
   const { message } = App.useApp();
-  const { hasSystemPermission } = useAuthStore();
+  const { hasSystemPermission, user } = useAuthStore();
+  const { kinds: readableKinds } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
@@ -55,7 +58,7 @@ const StatisticsPage: React.FC = () => {
     </Card>
   );
 
-  const role = stats?.role || 'executor';
+  const profile = resolveUserProfile(user?.systemPermissions, readableKinds, user?.isDocumentParticipant);
   const hasAnySection = canViewIncoming || canViewOutgoing || canViewAssignments || canViewSystem;
 
   return (
@@ -101,7 +104,7 @@ const StatisticsPage: React.FC = () => {
             <div>
               <Title level={5}>Поручения</Title>
               <Row gutter={[16, 16]}>
-                {role === 'clerk' ? (
+                {profile === 'clerk' ? (
                   <>
                     <Col xs={24} sm={8} lg={6}>
                       <StatCard title="Просрочено" value={stats?.allAssignmentsOverdue || 0} icon={<ClockCircleOutlined />} color="#ff7875" />

@@ -250,6 +250,22 @@ func (s *DocumentAccessService) getDepartmentNomenclatureIDs() ([]string, error)
 	return s.depRepo.GetNomenclatureIDs(departmentID)
 }
 
+func (s *DocumentAccessService) hasDepartmentNomenclatureAccess(nomenclatureID uuid.UUID) (bool, error) {
+	allowedNomenclatures, err := s.getDepartmentNomenclatureIDs()
+	if err != nil {
+		return false, err
+	}
+
+	nomenclatureIDStr := nomenclatureID.String()
+	for _, allowedID := range allowedNomenclatures {
+		if allowedID == nomenclatureIDStr {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (s *DocumentAccessService) hasImplicitReadAccess(doc *models.Document) (bool, error) {
 	if doc == nil {
 		return false, models.NewBadRequest("документ не найден")
@@ -263,7 +279,7 @@ func (s *DocumentAccessService) hasImplicitReadAccess(doc *models.Document) (boo
 		return false, nil
 	}
 
-	ok, err := hasExecutorNomenclatureAccess(s.auth, s.depRepo, doc.NomenclatureID)
+	ok, err := s.hasDepartmentNomenclatureAccess(doc.NomenclatureID)
 	if err == nil && ok {
 		return true, nil
 	}
@@ -413,7 +429,7 @@ func (s *DocumentAccessService) RequireResolvedRead(documentKind string, documen
 		return models.ErrForbidden
 	}
 
-	ok, err := hasExecutorNomenclatureAccess(s.auth, s.depRepo, nomenclatureID)
+	ok, err := s.hasDepartmentNomenclatureAccess(nomenclatureID)
 	if err == nil && ok {
 		return nil
 	}
@@ -464,6 +480,22 @@ func (s *DocumentAccessService) RequireDocumentAction(documentID uuid.UUID, acti
 func (s *DocumentAccessService) RequireLink(sourceID, targetID uuid.UUID) error {
 	_, _, err := s.ResolveLink(sourceID, targetID)
 	return err
+}
+
+func (s *DocumentAccessService) HasAssignmentAccess(documentID uuid.UUID) (bool, error) {
+	if err := s.RequireDomainRead(); err != nil {
+		return false, err
+	}
+	if s.assignmentRepo == nil {
+		return false, nil
+	}
+
+	currentUserID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return false, err
+	}
+
+	return s.assignmentRepo.HasDocumentAccess(currentUserID, documentID)
 }
 
 func (s *DocumentAccessService) ResolveLink(sourceID, targetID uuid.UUID) (*models.Document, *models.Document, error) {

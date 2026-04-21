@@ -78,7 +78,6 @@ export const isOutgoingKind = (kind: string): boolean => (
 export const toDocumentKindMeta = (kind: {
     code: string;
     name: string;
-    legacyViewType: string;
     registrationFormCode: string;
     registryGroup?: string;
     supportedActions?: string[];

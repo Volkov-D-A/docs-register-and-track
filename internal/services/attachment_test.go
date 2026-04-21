@@ -44,7 +44,7 @@ func setupAttachmentService(t *testing.T, role string) (
 		Login:                 role + "_att",
 		PasswordHash:          hash,
 		FullName:              "Test User",
-		IsDocumentParticipant: role != "" && role != "admin",
+		IsDocumentParticipant: role != "admin",
 		IsActive:              true,
 	}
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
@@ -164,8 +164,8 @@ func TestAttachmentService_Upload(t *testing.T) {
 		assert.Equal(t, "test.txt", result.Filename)
 	})
 
-	t.Run("success executor with assignment access", func(t *testing.T) {
-		svc, repo, settingsRepo, fileStorage, incomingRepo, _, _, assignmentRepo, _, _, auth := setupAttachmentService(t, "executor")
+	t.Run("success participant with assignment access", func(t *testing.T) {
+		svc, repo, settingsRepo, fileStorage, incomingRepo, _, _, assignmentRepo, _, _, auth := setupAttachmentService(t, "")
 		currentUserID, err := auth.GetCurrentUserUUID()
 		require.NoError(t, err)
 
@@ -190,8 +190,8 @@ func TestAttachmentService_Upload(t *testing.T) {
 		assert.Equal(t, "test.txt", result.Filename)
 	})
 
-	t.Run("executor upload disabled by settings", func(t *testing.T) {
-		svc, _, settingsRepo, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
+	t.Run("participant upload disabled by settings", func(t *testing.T) {
+		svc, _, settingsRepo, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "")
 		settingsRepo.On("Get", "assignment_completion_attachments_enabled").Return(
 			&models.SystemSetting{Key: "assignment_completion_attachments_enabled", Value: "false"}, nil,
 		).Once()

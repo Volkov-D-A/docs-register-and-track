@@ -49,14 +49,6 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 		return nil, models.ErrUnauthorized
 	}
 
-	canManageAssignments, err := s.access.HasAnyDocumentAction("assign")
-	if err != nil {
-		return nil, err
-	}
-	if !canManageAssignments && !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
-		return nil, models.NewForbidden("загрузка файлов при завершении поручения отключена в настройках")
-	}
-
 	documentID, err := uuid.Parse(documentIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID")
@@ -64,8 +56,20 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 	if _, err := s.access.RequireExists(documentID); err != nil {
 		return nil, err
 	}
-	if err := s.access.RequireDocumentAction(documentID, "upload"); err != nil {
-		return nil, err
+
+	canUploadDirectly := s.access.RequireDocumentAction(documentID, "upload") == nil
+	if !canUploadDirectly {
+		if !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
+			return nil, models.NewForbidden("загрузка файлов при завершении поручения отключена в настройках")
+		}
+
+		hasAssignmentAccess, err := s.access.HasAssignmentAccess(documentID)
+		if err != nil {
+			return nil, err
+		}
+		if !hasAssignmentAccess {
+			return nil, models.ErrForbidden
+		}
 	}
 
 	// 1. Декодирование содержимого

@@ -82,13 +82,13 @@ func TestDashboardService_GetStats(t *testing.T) {
 		SystemPermissions:     []string{models.SystemPermissionAdmin},
 	}
 
-	clerkUser := &models.User{
-		ID:                    uuid.New(),
-		Login:                 "clerkuser",
-		PasswordHash:          hash,
-		IsDocumentParticipant: true,
-		IsActive:              true,
-	}
+		clerkUser := &models.User{
+			ID:                    uuid.New(),
+			Login:                 "clerkuser",
+			PasswordHash:          hash,
+			IsDocumentParticipant: false,
+			IsActive:              true,
+		}
 
 	mixedUser := &models.User{
 		ID:                    uuid.New(),
@@ -112,11 +112,10 @@ func TestDashboardService_GetStats(t *testing.T) {
 		uidPtr := &executorUser.ID
 		mockRepo.On("GetExpiringAssignments", uidPtr, 3).Return(assignments, nil).Once()
 
-		stats, err := dashboardService.GetStats("", "", "")
-		require.NoError(t, err)
-		assert.Equal(t, "executor", stats.Role)
-		assert.Equal(t, 5, stats.MyAssignmentsNew)
-		assert.Equal(t, 10, stats.MyAssignmentsFinished)
+			stats, err := dashboardService.GetStats("", "", "")
+			require.NoError(t, err)
+			assert.Equal(t, 5, stats.MyAssignmentsNew)
+			assert.Equal(t, 10, stats.MyAssignmentsFinished)
 
 		authService.Logout()
 	})
@@ -131,11 +130,10 @@ func TestDashboardService_GetStats(t *testing.T) {
 		mockRepo.On("GetAdminDocCounts").Return(100, 200, nil).Once()
 		mockRepo.On("GetDBSize").Return("10MB").Once()
 
-		stats, err := dashboardService.GetStats("", "", "")
-		require.NoError(t, err)
-		assert.Equal(t, "admin", stats.Role)
-		assert.Equal(t, 50, stats.UserCount)
-		assert.Equal(t, 300, stats.TotalDocuments)
+			stats, err := dashboardService.GetStats("", "", "")
+			require.NoError(t, err)
+			assert.Equal(t, 50, stats.UserCount)
+			assert.Equal(t, 300, stats.TotalDocuments)
 		assert.Equal(t, "10MB", stats.DBSize)
 		assert.Equal(t, 42, stats.StorageObjects)
 		assert.Equal(t, "128.5 MB", stats.StorageSize)
@@ -165,11 +163,10 @@ func TestDashboardService_GetStats(t *testing.T) {
 		var uidPtr *uuid.UUID = nil
 		mockRepo.On("GetExpiringAssignments", uidPtr, 7).Return(assignments, nil).Once()
 
-		stats, err := dashboardService.GetStats("", startDateStr, endDateStr)
-		require.NoError(t, err)
-		assert.Equal(t, "clerk", stats.Role)
-		assert.Equal(t, 50, stats.IncomingCount)
-		assert.Equal(t, 40, stats.OutgoingCount)
+			stats, err := dashboardService.GetStats("", startDateStr, endDateStr)
+			require.NoError(t, err)
+			assert.Equal(t, 50, stats.IncomingCount)
+			assert.Equal(t, 40, stats.OutgoingCount)
 		assert.Equal(t, 5, stats.AllAssignmentsOverdue)
 
 		authService.Logout()
@@ -223,12 +220,11 @@ func TestDashboardService_GetStats(t *testing.T) {
 		mockRepo.On("GetExecutorFinishedCounts", executorUser.ID).Return(2, 0, nil).Once()
 		mockRepo.On("GetExpiringAssignments", uidPtr, 3).Return(assignments, nil).Once()
 
-		stats, err := dashboardService.GetStats("admin", "", "")
-		require.NoError(t, err)
-		require.NotNil(t, stats)
-		assert.Equal(t, "executor", stats.Role)
+			stats, err := dashboardService.GetStats("admin", "", "")
+			require.NoError(t, err)
+			require.NotNil(t, stats)
 
-		authService.Logout()
+			authService.Logout()
 	})
 
 	t.Run("mixed stats", func(t *testing.T) {
@@ -244,18 +240,24 @@ func TestDashboardService_GetStats(t *testing.T) {
 		endParsed, _ := time.Parse("2006-01-02", endDateStr)
 		end := endParsed.Add(24*time.Hour - time.Nanosecond)
 
-		mockRepo.On("GetDocCountsByPeriod", start, end).Return(12, 8, nil).Once()
-		mockRepo.On("GetOverdueCountByPeriod", start, end).Return(2, nil).Once()
-		mockRepo.On("GetFinishedCountsByPeriod", start, end).Return(6, 1, nil).Once()
-		var globalAssignments []models.Assignment
-		mockRepo.On("GetExpiringAssignments", (*uuid.UUID)(nil), 7).Return(globalAssignments, nil).Once()
+			mockRepo.On("GetDocCountsByPeriod", start, end).Return(12, 8, nil).Once()
+			mockRepo.On("GetOverdueCountByPeriod", start, end).Return(2, nil).Once()
+			mockRepo.On("GetFinishedCountsByPeriod", start, end).Return(6, 1, nil).Once()
+			var globalAssignments []models.Assignment
+			mockRepo.On("GetExpiringAssignments", (*uuid.UUID)(nil), 7).Return(globalAssignments, nil).Once()
+			mockRepo.On("GetExecutorStatusCounts", mixedUser.ID).Return(3, 4, nil).Once()
+			mockRepo.On("GetExecutorOverdueCount", mixedUser.ID).Return(1, nil).Once()
+			mockRepo.On("GetExecutorFinishedCounts", mixedUser.ID).Return(5, 1, nil).Once()
+			var personalAssignments []models.Assignment
+			mockRepo.On("GetExpiringAssignments", &mixedUser.ID, 3).Return(personalAssignments, nil).Once()
 
-		stats, err := dashboardService.GetStats("", startDateStr, endDateStr)
-		require.NoError(t, err)
-		require.NotNil(t, stats)
-		assert.Equal(t, "clerk", stats.Role)
-		assert.Equal(t, 12, stats.IncomingCount)
-		assert.Equal(t, 2, stats.AllAssignmentsOverdue)
+			stats, err := dashboardService.GetStats("", startDateStr, endDateStr)
+			require.NoError(t, err)
+			require.NotNil(t, stats)
+			assert.Equal(t, 12, stats.IncomingCount)
+			assert.Equal(t, 2, stats.AllAssignmentsOverdue)
+			assert.Equal(t, 3, stats.MyAssignmentsNew)
+			assert.Equal(t, 5, stats.MyAssignmentsFinished)
 
 		authService.Logout()
 	})

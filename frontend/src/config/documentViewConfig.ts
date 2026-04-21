@@ -20,13 +20,11 @@ export type DocumentViewAction = {
 
 export type DocumentViewConfig = {
     tabs: DocumentViewTabKey[];
-    restrictedTabs: DocumentViewTabKey[];
     footerActions: DocumentViewAction[];
 };
 
 const defaultViewConfig: DocumentViewConfig = {
     tabs: ['info', 'assignments', 'files', 'links', 'acknowledgments', 'journal'],
-    restrictedTabs: ['info', 'files'],
     footerActions: [
         {
             targetKind: DOCUMENT_KIND_INCOMING_LETTER,

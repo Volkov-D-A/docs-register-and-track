@@ -29,14 +29,15 @@ interface User {
 export const resolveUserProfile = (systemPermissions?: string[], kinds?: DocumentKindMeta[], isDocumentParticipant?: boolean): string => {
     if (kinds && kinds.length > 0) {
         const canCreate = kinds.some((kind) => kind.availableActions?.includes('create'));
-        const canManageAssignments = kinds.some((kind) => kind.availableActions?.includes('assign'));
-        const canManageAcknowledgments = kinds.some((kind) => kind.availableActions?.includes('acknowledge'));
         const canRead = kinds.some((kind) => kind.availableActions?.includes('read'));
         const hasClerkFlow = canCreate || canRead;
-        const hasExecutorFlow = canManageAssignments || canManageAcknowledgments || (!hasClerkFlow && !!isDocumentParticipant);
+        const hasExecutorFlow = !!isDocumentParticipant;
 
         if (systemPermissions?.includes('admin') && !hasClerkFlow && !hasExecutorFlow) {
             return 'admin';
+        }
+        if (hasClerkFlow && hasExecutorFlow) {
+            return 'mixed';
         }
         if (hasClerkFlow) {
             return 'clerk';

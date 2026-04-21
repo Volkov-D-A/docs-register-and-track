@@ -21,15 +21,6 @@ func (k DocumentKind) IsOutgoing() bool {
 	return k == DocumentKindOutgoingLetter
 }
 
-func (k DocumentKind) LegacyViewType() string {
-	spec, ok := GetDocumentKindSpec(k)
-	if !ok {
-		return string(k)
-	}
-
-	return spec.LegacyViewType
-}
-
 // Document — общая корневая сущность документа.
 type Document struct {
 	ID                 uuid.UUID    `json:"-"`

@@ -2,8 +2,6 @@ package models
 
 // DashboardStats — общая структура для статистики
 type DashboardStats struct {
-	Role string `json:"role"` // роль: executor, clerk, admin
-
 	// Статистика исполнителя
 	MyAssignmentsNew          int `json:"myAssignmentsNew,omitempty"`
 	MyAssignmentsInProgress   int `json:"myAssignmentsInProgress,omitempty"`

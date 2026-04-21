@@ -19,20 +19,18 @@ const (
 type DocumentKindSpec struct {
 	Code                 DocumentKind         `json:"code"`
 	Name                 string               `json:"name"`
-	LegacyViewType       string               `json:"legacyViewType"`
 	RegistrationFormCode string               `json:"registrationFormCode"`
 	RegistryGroup        string               `json:"registryGroup"`
 	SupportedActions     []DocumentKindAction `json:"supportedActions"`
 }
 
 var documentKindSpecs = []DocumentKindSpec{
-	{
-		Code:                 DocumentKindIncomingLetter,
-		Name:                 "Входящее письмо",
-		LegacyViewType:       "incoming",
-		RegistrationFormCode: "incoming_letter_form",
-		RegistryGroup:        "letters",
-		SupportedActions: []DocumentKindAction{
+		{
+			Code:                 DocumentKindIncomingLetter,
+			Name:                 "Входящее письмо",
+			RegistrationFormCode: "incoming_letter_form",
+			RegistryGroup:        "letters",
+			SupportedActions: []DocumentKindAction{
 			DocumentActionCreate,
 			DocumentActionRead,
 			DocumentActionUpdate,
@@ -44,13 +42,12 @@ var documentKindSpecs = []DocumentKindSpec{
 			DocumentActionViewJournal,
 		},
 	},
-	{
-		Code:                 DocumentKindOutgoingLetter,
-		Name:                 "Исходящее письмо",
-		LegacyViewType:       "outgoing",
-		RegistrationFormCode: "outgoing_letter_form",
-		RegistryGroup:        "letters",
-		SupportedActions: []DocumentKindAction{
+		{
+			Code:                 DocumentKindOutgoingLetter,
+			Name:                 "Исходящее письмо",
+			RegistrationFormCode: "outgoing_letter_form",
+			RegistryGroup:        "letters",
+			SupportedActions: []DocumentKindAction{
 			DocumentActionCreate,
 			DocumentActionRead,
 			DocumentActionUpdate,
