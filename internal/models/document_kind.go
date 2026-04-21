@@ -7,7 +7,6 @@ const (
 	DocumentActionCreate      DocumentKindAction = "create"
 	DocumentActionRead        DocumentKindAction = "read"
 	DocumentActionUpdate      DocumentKindAction = "update"
-	DocumentActionDelete      DocumentKindAction = "delete"
 	DocumentActionAssign      DocumentKindAction = "assign"
 	DocumentActionAcknowledge DocumentKindAction = "acknowledge"
 	DocumentActionUpload      DocumentKindAction = "upload"
@@ -25,16 +24,15 @@ type DocumentKindSpec struct {
 }
 
 var documentKindSpecs = []DocumentKindSpec{
-		{
-			Code:                 DocumentKindIncomingLetter,
-			Name:                 "Входящее письмо",
-			RegistrationFormCode: "incoming_letter_form",
-			RegistryGroup:        "letters",
-			SupportedActions: []DocumentKindAction{
+	{
+		Code:                 DocumentKindIncomingLetter,
+		Name:                 "Входящее письмо",
+		RegistrationFormCode: "incoming_letter_form",
+		RegistryGroup:        "letters",
+		SupportedActions: []DocumentKindAction{
 			DocumentActionCreate,
 			DocumentActionRead,
 			DocumentActionUpdate,
-			DocumentActionDelete,
 			DocumentActionAssign,
 			DocumentActionAcknowledge,
 			DocumentActionUpload,
@@ -42,16 +40,15 @@ var documentKindSpecs = []DocumentKindSpec{
 			DocumentActionViewJournal,
 		},
 	},
-		{
-			Code:                 DocumentKindOutgoingLetter,
-			Name:                 "Исходящее письмо",
-			RegistrationFormCode: "outgoing_letter_form",
-			RegistryGroup:        "letters",
-			SupportedActions: []DocumentKindAction{
+	{
+		Code:                 DocumentKindOutgoingLetter,
+		Name:                 "Исходящее письмо",
+		RegistrationFormCode: "outgoing_letter_form",
+		RegistryGroup:        "letters",
+		SupportedActions: []DocumentKindAction{
 			DocumentActionCreate,
 			DocumentActionRead,
 			DocumentActionUpdate,
-			DocumentActionDelete,
 			DocumentActionAssign,
 			DocumentActionAcknowledge,
 			DocumentActionUpload,
@@ -77,6 +74,22 @@ func GetDocumentKindSpec(kind DocumentKind) (DocumentKindSpec, bool) {
 	}
 
 	return DocumentKindSpec{}, false
+}
+
+// SupportsAction проверяет, поддерживает ли вид документа указанное действие.
+func (k DocumentKind) SupportsAction(action string) bool {
+	spec, ok := GetDocumentKindSpec(k)
+	if !ok {
+		return false
+	}
+
+	for _, supportedAction := range spec.SupportedActions {
+		if string(supportedAction) == action {
+			return true
+		}
+	}
+
+	return false
 }
 
 // NormalizeDocumentKind приводит legacy- и системные коды к системному виду документа.

@@ -605,7 +605,6 @@ const UsersTab: React.FC = () => {
     { value: 'create', label: 'Регистрация' },
     { value: 'read', label: 'Просмотр всех' },
     { value: 'update', label: 'Редактирование' },
-    { value: 'delete', label: 'Удаление' },
     { value: 'assign', label: 'Поручения' },
     { value: 'acknowledge', label: 'Ознакомления' },
     { value: 'upload', label: 'Управление файлами' },

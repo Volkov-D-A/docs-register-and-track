@@ -14,7 +14,7 @@ func (s *roleMappedDocumentAccessStore) HasPermission(kindCode, action string, d
 	for _, role := range s.roles {
 		if role == "clerk" {
 			switch action {
-			case "create", "read", "update", "delete", "assign", "acknowledge", "upload", "link", "view_journal":
+			case "create", "read", "update", "assign", "acknowledge", "upload", "link", "view_journal":
 				return true, nil
 			}
 		}

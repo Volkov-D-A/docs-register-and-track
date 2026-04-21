@@ -32,7 +32,6 @@ type IncomingDocStore interface {
 	GetByID(id uuid.UUID) (*models.IncomingDocument, error)
 	Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error)
 	Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error)
-	Delete(id uuid.UUID) error
 	GetCount() (int, error)
 }
 
@@ -60,7 +59,6 @@ type OutgoingDocStore interface {
 	GetByID(id uuid.UUID) (*models.OutgoingDocument, error)
 	Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error)
 	Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error)
-	Delete(id uuid.UUID) error
 	GetCount() (int, error)
 }
 

@@ -321,12 +321,6 @@ func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest)
 	return r.GetByID(req.ID)
 }
 
-// Delete удаляет исходящий документ по его ID.
-func (r *OutgoingDocumentRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM documents WHERE id = $1 AND kind = $2`, id, models.DocumentKindOutgoingLetter)
-	return err
-}
-
 // GetCount возвращает общее количество исходящих документов (для дашборда).
 func (r *OutgoingDocumentRepository) GetCount() (int, error) {
 	var count int

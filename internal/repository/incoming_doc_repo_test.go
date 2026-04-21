@@ -87,22 +87,6 @@ func TestIncomingDocumentRepository_GetCount(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestIncomingDocumentRepository_Delete(t *testing.T) {
-	// Удаление входящего документа по ID
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
-	docID := uuid.New()
-
-	mock.ExpectExec(`DELETE FROM documents WHERE id = \$1 AND kind = \$2`).WithArgs(docID, models.DocumentKindIncomingLetter).WillReturnResult(sqlmock.NewResult(1, 1))
-
-	err = repo.Delete(docID)
-	require.NoError(t, err)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestIncomingDocumentRepository_Create(t *testing.T) {
 	// Регистрация нового входящего документа в БД
 	db, mock, err := sqlmock.New()

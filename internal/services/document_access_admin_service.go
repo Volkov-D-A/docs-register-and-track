@@ -53,5 +53,15 @@ func (s *DocumentAccessAdminService) UpdateUserAccessProfile(req models.UpdateUs
 		return fmt.Errorf("пользователь не найден")
 	}
 
+	for _, permission := range req.Permissions {
+		kind := models.NormalizeDocumentKind(permission.KindCode)
+		if _, ok := models.GetDocumentKindSpec(kind); !ok {
+			return fmt.Errorf("неизвестный вид документа: %s", permission.KindCode)
+		}
+		if !kind.SupportsAction(permission.Action) {
+			return fmt.Errorf("действие %q не поддерживается для вида документа %q", permission.Action, permission.KindCode)
+		}
+	}
+
 	return s.accessRepo.ReplaceUserAccessProfile(req.UserID, req.SystemPermissions, req.Permissions)
 }

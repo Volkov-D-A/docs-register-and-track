@@ -341,15 +341,6 @@ func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest)
 	return r.GetByID(req.ID)
 }
 
-// Delete удаляет входящий документ по его ID.
-func (r *IncomingDocumentRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM documents WHERE id = $1 AND kind = $2`, id, models.DocumentKindIncomingLetter)
-	if err != nil {
-		return fmt.Errorf("failed to delete incoming document: %w", err)
-	}
-	return nil
-}
-
 // GetCount — общее количество для дашборда
 func (r *IncomingDocumentRepository) GetCount() (int, error) {
 	var count int

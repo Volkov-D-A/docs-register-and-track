@@ -23,7 +23,7 @@ export const documentKindRegistry: Record<RegistrationKind, DocumentKindMeta> = 
         pageKey: 'incoming',
         registrationFormCode: 'incoming_letter_form',
         registryGroup: 'letters',
-        supportedActions: ['create', 'read', 'update', 'delete', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
+        supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
         color: 'blue',
     },
     [DOCUMENT_KIND_OUTGOING_LETTER]: {
@@ -33,7 +33,7 @@ export const documentKindRegistry: Record<RegistrationKind, DocumentKindMeta> = 
         pageKey: 'outgoing',
         registrationFormCode: 'outgoing_letter_form',
         registryGroup: 'letters',
-        supportedActions: ['create', 'read', 'update', 'delete', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
+        supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
         color: 'green',
     },
 };

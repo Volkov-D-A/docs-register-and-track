@@ -45,24 +45,6 @@ func (_m *IncomingDocStore) Create(req models.CreateIncomingDocRequest) (*models
 	return r0, r1
 }
 
-// Delete provides a mock function with given fields: id
-func (_m *IncomingDocStore) Delete(id uuid.UUID) error {
-	ret := _m.Called(id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Delete")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID) error); ok {
-		r0 = rf(id)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // GetByID provides a mock function with given fields: id
 func (_m *IncomingDocStore) GetByID(id uuid.UUID) (*models.IncomingDocument, error) {
 	ret := _m.Called(id)
