@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GetList } from '../../wailsjs/go/services/DocumentQueryService';
+import { useAuthStore } from '../store/useAuthStore';
 
 type BuildFilter<TFilter> = (params: {
     search: string;
@@ -23,6 +24,8 @@ export const useDocumentListPage = <TFilter,>({
     deps,
     onError,
 }: UseDocumentListPageOptions<TFilter>) => {
+    const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+    const userId = useAuthStore((state) => state.user?.id ?? null);
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [totalCount, setTotalCount] = useState(0);
@@ -34,6 +37,7 @@ export const useDocumentListPage = <TFilter,>({
     const filtersRef = useRef(filters);
     const buildFilterRef = useRef(buildFilter);
     const onErrorRef = useRef(onError);
+    const requestIdRef = useRef(0);
 
     filtersRef.current = filters;
     buildFilterRef.current = buildFilter;
@@ -49,6 +53,14 @@ export const useDocumentListPage = <TFilter,>({
     }, []);
 
     const load = useCallback(async () => {
+        if (!isAuthenticated) {
+            setData([]);
+            setTotalCount(0);
+            setLoading(false);
+            return;
+        }
+
+        const requestId = ++requestIdRef.current;
         setLoading(true);
         try {
             const result = await GetList(
@@ -60,18 +72,38 @@ export const useDocumentListPage = <TFilter,>({
                     filters: filtersRef.current,
                 }) as any,
             );
+            if (requestId !== requestIdRef.current) {
+                return;
+            }
             setData(result?.items || []);
             setTotalCount(result?.totalCount || 0);
         } catch (error) {
-            onErrorRef.current?.(error);
+            if (requestId === requestIdRef.current) {
+                onErrorRef.current?.(error);
+            }
         } finally {
-            setLoading(false);
+            if (requestId === requestIdRef.current) {
+                setLoading(false);
+            }
         }
-    }, [kindCode, page, pageSize, search]);
+    }, [isAuthenticated, kindCode, page, pageSize, search]);
 
     useEffect(() => {
         void load();
-    }, [load, ...deps]);
+    }, [load, userId, ...deps]);
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            requestIdRef.current += 1;
+            setData([]);
+            setTotalCount(0);
+            setViewDocId('');
+            setViewModalOpen(false);
+            setPage(1);
+            setSearch('');
+            setLoading(false);
+        }
+    }, [isAuthenticated]);
 
     return {
         data,

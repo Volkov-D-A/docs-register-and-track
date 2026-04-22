@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { Login, Logout, ChangePassword, UpdateProfile } from '../../wailsjs/go/services/AuthService';
 import { models } from '../../wailsjs/go/models';
 import { DocumentKindMeta } from '../constants/documentKinds';
+import { useDraftLinkStore } from './useDraftLinkStore';
+import { useRegisterDocumentStore } from './useRegisterDocumentStore';
 
 /**
  * Интерфейс, описывающий подразделение пользователя.
@@ -133,6 +135,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch (err) {
             console.error('Logout error:', err);
         }
+        useDraftLinkStore.getState().clearDraftLink();
+        useRegisterDocumentStore.getState().clearRequest();
         set({ user: null, isAuthenticated: false });
     },
 
