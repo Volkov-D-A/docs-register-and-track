@@ -4,3 +4,4 @@ frontend/dist
 /config
 .env
 .gocache
+*code_review.md

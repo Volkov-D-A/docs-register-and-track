@@ -9,8 +9,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-const migrationsPath = "internal/database/migrations"
-
 // SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {
 	db           *database.DB
@@ -62,7 +60,7 @@ func (s *SettingsService) RunMigrations() error {
 	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для управления миграциями")
 	}
-	if err := s.db.RunMigrations(migrationsPath); err != nil {
+	if err := s.db.RunMigrations(database.DefaultMigrationsPath); err != nil {
 		return err
 	}
 
@@ -76,7 +74,7 @@ func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error
 	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, models.NewForbidden("Недостаточно прав для просмотра статуса миграций")
 	}
-	return s.db.GetMigrationStatus(migrationsPath)
+	return s.db.GetMigrationStatus(database.DefaultMigrationsPath)
 }
 
 // RollbackMigration откатывает последнюю миграцию БД (только admin).
@@ -84,7 +82,7 @@ func (s *SettingsService) RollbackMigration() error {
 	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для отката миграций")
 	}
-	if err := s.db.RollbackMigration(migrationsPath); err != nil {
+	if err := s.db.RollbackMigration(database.DefaultMigrationsPath); err != nil {
 		return err
 	}
 

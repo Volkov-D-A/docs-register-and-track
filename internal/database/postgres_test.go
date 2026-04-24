@@ -55,10 +55,11 @@ func TestDB_RunMigrations(t *testing.T) {
 	dbMock, mock, db := setupMockDB(t)
 	defer dbMock.Close()
 
-	// Сценарий: директория с миграциями не найдена (не ошибка, а пропуск)
+	// Сценарий: директория с миграциями не найдена (должна быть явная ошибка)
 	t.Run("dir not found", func(t *testing.T) {
 		err := db.RunMigrations("non_existent_dir_123")
-		assert.NoError(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
 	})
 
 	// Сценарий: передан файл вместо директории (должна быть ошибка)
@@ -73,17 +74,17 @@ func TestDB_RunMigrations(t *testing.T) {
 	// Сценарий: ошибка в самом процессе инстанцирования драйвера миграций
 	t.Run("driver creation or migrate instance fails", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		// Since we don't mock the complex golang-migrate queries here, it will fail 
+		// Since we don't mock the complex golang-migrate queries here, it will fail
 		// during driver instantiation or migrations, which still gives coverage.
 		err := db.RunMigrations(tmpDir)
 		assert.Error(t, err)
 	})
-	
+
 	// Сценарий: успешное применение миграций (на уровне моков)
 	t.Run("success (mocked driver)", func(t *testing.T) {
-	    tmpDir := t.TempDir()
-	    os.WriteFile(filepath.Join(tmpDir, "000001_init.up.sql"), []byte("CREATE TABLE test (id int);"), 0644)
-		
+		tmpDir := t.TempDir()
+		os.WriteFile(filepath.Join(tmpDir, "000001_init.up.sql"), []byte("CREATE TABLE test (id int);"), 0644)
+
 		// Just provide a generic mock that allows some queries to pass. We don't care if it fully succeeds.
 		mock.ExpectQuery(`(?i)SELECT CURRENT_DATABASE\(\)`).WillReturnRows(sqlmock.NewRows([]string{"current_database"}).AddRow("testdb"))
 		err := db.RunMigrations(tmpDir)
@@ -97,8 +98,9 @@ func TestDB_GetMigrationStatus(t *testing.T) {
 		dbMock, _, db := setupMockDB(t)
 		defer dbMock.Close()
 		status, err := db.GetMigrationStatus("non_existent_dir_123")
-		require.NoError(t, err)
-		assert.Equal(t, 0, status.TotalAvailable)
+		require.Error(t, err)
+		require.Nil(t, status)
+		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -114,6 +116,12 @@ func TestDB_GetMigrationStatus(t *testing.T) {
 		require.Error(t, err) // Expected to fail due to partial mock
 		require.Nil(t, status)
 	})
+}
+
+func TestEmbeddedMigrationsAvailable(t *testing.T) {
+	total, err := countAvailableMigrations(DefaultMigrationsPath)
+	require.NoError(t, err)
+	assert.Equal(t, 7, total)
 }
 
 func TestDB_RollbackMigration(t *testing.T) {

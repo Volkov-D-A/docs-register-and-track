@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
@@ -44,31 +46,11 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 	return &DB{db}, nil
 }
 
-// RunMigrations применяет все доступные миграции из указанной директории к базе данных.
+// RunMigrations применяет все доступные миграции к базе данных.
+// Для DefaultMigrationsPath миграции берутся из embedded FS, чтобы собранное
+// приложение не зависело от наличия исходной директории рядом с бинарником.
 func (db *DB) RunMigrations(migrationsPath string) error {
-	// Проверка наличия директории миграций
-	info, err := os.Stat(migrationsPath)
-	if os.IsNotExist(err) {
-		fmt.Printf("Migration directory %s not found. Skipping migrations.\n", migrationsPath)
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("failed to check migration directory: %w", err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("migration path %s is not a directory", migrationsPath)
-	}
-
-	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
-	if err != nil {
-		return fmt.Errorf("failed to create migration driver: %w", err)
-	}
-
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://"+migrationsPath,
-		"postgres",
-		driver,
-	)
+	m, err := db.newMigrator(migrationsPath)
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
 	}
@@ -84,31 +66,14 @@ func (db *DB) RunMigrations(migrationsPath string) error {
 func (db *DB) GetMigrationStatus(migrationsPath string) (*MigrationStatus, error) {
 	status := &MigrationStatus{}
 
-	// Подсчёт доступных миграций (*.up.sql файлы)
-	entries, err := os.ReadDir(migrationsPath)
+	totalAvailable, err := countAvailableMigrations(migrationsPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return status, nil
-		}
-		return nil, fmt.Errorf("failed to read migration directory: %w", err)
+		return nil, err
 	}
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".up.sql") {
-			status.TotalAvailable++
-		}
-	}
+	status.TotalAvailable = totalAvailable
 
 	// Получение текущей версии из БД
-	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create migration driver: %w", err)
-	}
-
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://"+filepath.ToSlash(migrationsPath),
-		"postgres",
-		driver,
-	)
+	m, err := db.newMigrator(migrationsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create migration instance: %w", err)
 	}
@@ -127,16 +92,7 @@ func (db *DB) GetMigrationStatus(migrationsPath string) (*MigrationStatus, error
 
 // RollbackMigration откатывает последнюю применённую миграцию (на 1 шаг назад).
 func (db *DB) RollbackMigration(migrationsPath string) error {
-	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
-	if err != nil {
-		return fmt.Errorf("failed to create migration driver: %w", err)
-	}
-
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://"+filepath.ToSlash(migrationsPath),
-		"postgres",
-		driver,
-	)
+	m, err := db.newMigrator(migrationsPath)
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
 	}
@@ -146,4 +102,88 @@ func (db *DB) RollbackMigration(migrationsPath string) error {
 	}
 
 	return nil
+}
+
+func (db *DB) newMigrator(migrationsPath string) (*migrate.Migrate, error) {
+	if isDefaultMigrationsPath(migrationsPath) {
+		sourceDriver, err := iofs.New(embeddedMigrations, embeddedMigrationsPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create embedded migration source: %w", err)
+		}
+
+		driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create migration driver: %w", err)
+		}
+
+		return migrate.NewWithInstance("iofs", sourceDriver, "postgres", driver)
+	}
+
+	if err := validateMigrationDirectory(migrationsPath); err != nil {
+		return nil, err
+	}
+
+	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create migration driver: %w", err)
+	}
+
+	return migrate.NewWithDatabaseInstance(
+		"file://"+filepath.ToSlash(migrationsPath),
+		"postgres",
+		driver,
+	)
+}
+
+func countAvailableMigrations(migrationsPath string) (int, error) {
+	entries, err := readMigrationDir(migrationsPath)
+	if err != nil {
+		return 0, err
+	}
+
+	total := 0
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".up.sql") {
+			total++
+		}
+	}
+	return total, nil
+}
+
+func readMigrationDir(migrationsPath string) ([]fs.DirEntry, error) {
+	if isDefaultMigrationsPath(migrationsPath) {
+		entries, err := fs.ReadDir(embeddedMigrations, embeddedMigrationsPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read embedded migration directory: %w", err)
+		}
+		return entries, nil
+	}
+
+	if err := validateMigrationDirectory(migrationsPath); err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(migrationsPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read migration directory: %w", err)
+	}
+	return entries, nil
+}
+
+func validateMigrationDirectory(migrationsPath string) error {
+	info, err := os.Stat(migrationsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("migration directory %s not found", migrationsPath)
+		}
+		return fmt.Errorf("failed to check migration directory: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("migration path %s is not a directory", migrationsPath)
+	}
+	return nil
+}
+
+func isDefaultMigrationsPath(migrationsPath string) bool {
+	return filepath.ToSlash(migrationsPath) == DefaultMigrationsPath
 }

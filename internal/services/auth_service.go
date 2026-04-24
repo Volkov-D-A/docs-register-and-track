@@ -14,8 +14,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
-const migrationsPathAuth = "internal/database/migrations"
-
 var (
 	ErrInvalidCredentials = models.ErrInvalidCredentials
 	ErrUserNotActive      = models.ErrUserNotActive
@@ -315,7 +313,7 @@ func (s *AuthService) InitialSetup(password string) error {
 	_, err := s.userRepo.CountUsers()
 	if err != nil {
 		if isTableNotExistsError(err) {
-			if migErr := s.db.RunMigrations(migrationsPathAuth); migErr != nil {
+			if migErr := s.db.RunMigrations(database.DefaultMigrationsPath); migErr != nil {
 				return fmt.Errorf("ошибка применения миграций: %w", migErr)
 			}
 		} else {
