@@ -2,11 +2,13 @@ package repository
 
 import (
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 // AcknowledgmentRepository предоставляет методы для работы с задачами на ознакомление в БД.
@@ -221,6 +223,44 @@ func (r *AcknowledgmentRepository) HasDocumentAccess(userID, documentID uuid.UUI
 	}
 
 	return hasAccess, nil
+}
+
+// GetAccessibleDocumentIDs возвращает документы из набора, доступные пользователю через ознакомления.
+func (r *AcknowledgmentRepository) GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	result := make(map[uuid.UUID]struct{})
+	if len(documentIDs) == 0 {
+		return result, nil
+	}
+
+	idStrings := make([]string, 0, len(documentIDs))
+	for _, documentID := range documentIDs {
+		idStrings = append(idStrings, documentID.String())
+	}
+
+	rows, err := r.db.Query(`
+		SELECT DISTINCT a.document_id
+		FROM acknowledgment_users au
+		JOIN acknowledgments a ON au.acknowledgment_id = a.id
+		WHERE au.user_id = $1
+		  AND a.document_id = ANY($2::uuid[])
+	`, userID, pq.Array(idStrings))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get accessible documents by acknowledgment: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var documentID uuid.UUID
+		if err := rows.Scan(&documentID); err != nil {
+			return nil, err
+		}
+		result[documentID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // MarkViewed отмечает задачу как просмотренную пользователем.

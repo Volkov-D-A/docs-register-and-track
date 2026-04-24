@@ -40,6 +40,16 @@ type DocumentStore interface {
 	GetByID(id uuid.UUID) (*models.Document, error)
 }
 
+// DocumentBulkStore — опциональное расширение для пачечной загрузки документов.
+type DocumentBulkStore interface {
+	GetByIDs(ids []uuid.UUID) ([]models.Document, error)
+}
+
+// DocumentAccessByUserBulkStore — опциональное расширение для пачечной проверки доступа пользователя к документам.
+type DocumentAccessByUserBulkStore interface {
+	GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
+}
+
 // DocumentQueryReader — минимальный интерфейс для общего query-layer документов.
 type DocumentQueryReader interface {
 	GetByID(id string) (*dto.DocumentCard, error)

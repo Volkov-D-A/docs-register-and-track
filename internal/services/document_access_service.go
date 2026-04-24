@@ -128,6 +128,46 @@ func (s *DocumentAccessService) GetDocument(documentID uuid.UUID) (*models.Docum
 	return nil, nil
 }
 
+func (s *DocumentAccessService) getDocumentsByIDs(documentIDs []uuid.UUID) ([]models.Document, error) {
+	uniqueIDs := uniqueDocumentIDs(documentIDs)
+	if len(uniqueIDs) == 0 {
+		return []models.Document{}, nil
+	}
+
+	if bulkRepo, ok := s.documentRepo.(DocumentBulkStore); ok {
+		return bulkRepo.GetByIDs(uniqueIDs)
+	}
+
+	docs := make([]models.Document, 0, len(uniqueIDs))
+	for _, documentID := range uniqueIDs {
+		doc, err := s.GetDocument(documentID)
+		if err != nil {
+			return nil, err
+		}
+		if doc != nil {
+			docs = append(docs, *doc)
+		}
+	}
+
+	return docs, nil
+}
+
+func uniqueDocumentIDs(documentIDs []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(documentIDs))
+	result := make([]uuid.UUID, 0, len(documentIDs))
+	for _, documentID := range documentIDs {
+		if documentID == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[documentID]; ok {
+			continue
+		}
+		seen[documentID] = struct{}{}
+		result = append(result, documentID)
+	}
+	return result
+}
+
 // RequireExists проверяет существование документа.
 func (s *DocumentAccessService) RequireExists(documentID uuid.UUID) (*models.Document, error) {
 	doc, err := s.GetDocument(documentID)
@@ -394,6 +434,153 @@ func (s *DocumentAccessService) RequireReadResolved(doc *models.Document) error 
 		return models.ErrForbidden
 	}
 	return nil
+}
+
+// ResolveReadableDocuments возвращает документы из переданного набора, доступные текущему пользователю на чтение.
+func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID) (map[uuid.UUID]*models.Document, error) {
+	readable := make(map[uuid.UUID]*models.Document)
+	uniqueIDs := uniqueDocumentIDs(documentIDs)
+	if len(uniqueIDs) == 0 {
+		return readable, nil
+	}
+
+	if err := s.RequireDomainRead(); err != nil {
+		return nil, err
+	}
+
+	docs, err := s.getDocumentsByIDs(uniqueIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(docs) == 0 {
+		return readable, nil
+	}
+
+	user, err := s.auth.GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, models.ErrUnauthorized
+	}
+
+	userID := user.ID
+	departmentID := ""
+	if user.Department != nil {
+		departmentID = user.Department.ID
+	}
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	allowedNomenclatures := make(map[uuid.UUID]struct{})
+	if user.IsDocumentParticipant && s.depRepo != nil && user.Department != nil && user.Department.ID != "" {
+		departmentUUID, err := uuid.Parse(user.Department.ID)
+		if err == nil {
+			nomenclatureIDs, err := s.depRepo.GetNomenclatureIDs(departmentUUID)
+			if err != nil {
+				return nil, err
+			}
+			for _, nomenclatureID := range nomenclatureIDs {
+				parsedID, err := uuid.Parse(nomenclatureID)
+				if err == nil {
+					allowedNomenclatures[parsedID] = struct{}{}
+				}
+			}
+		}
+	}
+
+	assignmentAccessibleDocuments := make(map[uuid.UUID]struct{})
+	assignmentBulkAvailable := false
+	acknowledgmentAccessibleDocuments := make(map[uuid.UUID]struct{})
+	acknowledgmentBulkAvailable := false
+	if user.IsDocumentParticipant {
+		assignmentAccessibleDocuments, assignmentBulkAvailable, err = resolveBulkAccessibleDocumentIDs(s.assignmentRepo, userUUID, uniqueIDs)
+		if err != nil {
+			return nil, err
+		}
+		acknowledgmentAccessibleDocuments, acknowledgmentBulkAvailable, err = resolveBulkAccessibleDocumentIDs(s.acknowledgmentRepo, userUUID, uniqueIDs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	readPermissionByKind := make(map[models.DocumentKind]bool)
+	for i := range docs {
+		doc := &docs[i]
+
+		allowed, ok := readPermissionByKind[doc.Kind]
+		if !ok {
+			allowed, err = s.accessRepo.HasPermission(string(doc.Kind), "read", departmentID, userID)
+			if err != nil {
+				return nil, err
+			}
+			readPermissionByKind[doc.Kind] = allowed
+		}
+		if allowed {
+			readable[doc.ID] = doc
+			continue
+		}
+
+		if !user.IsDocumentParticipant {
+			continue
+		}
+
+		if _, ok := allowedNomenclatures[doc.NomenclatureID]; ok {
+			readable[doc.ID] = doc
+			continue
+		}
+
+		if s.assignmentRepo != nil {
+			if _, ok := assignmentAccessibleDocuments[doc.ID]; ok {
+				readable[doc.ID] = doc
+				continue
+			}
+			if !assignmentBulkAvailable {
+				allowed, err := s.assignmentRepo.HasDocumentAccess(userUUID, doc.ID)
+				if err != nil {
+					return nil, err
+				}
+				if allowed {
+					readable[doc.ID] = doc
+					continue
+				}
+			}
+		}
+
+		if s.acknowledgmentRepo != nil {
+			if _, ok := acknowledgmentAccessibleDocuments[doc.ID]; ok {
+				readable[doc.ID] = doc
+				continue
+			}
+			if !acknowledgmentBulkAvailable {
+				allowed, err := s.acknowledgmentRepo.HasDocumentAccess(userUUID, doc.ID)
+				if err != nil {
+					return nil, err
+				}
+				if allowed {
+					readable[doc.ID] = doc
+				}
+			}
+		}
+	}
+
+	return readable, nil
+}
+
+func resolveBulkAccessibleDocumentIDs(store interface{}, userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, bool, error) {
+	empty := make(map[uuid.UUID]struct{})
+	bulkStore, ok := store.(DocumentAccessByUserBulkStore)
+	if !ok {
+		return empty, false, nil
+	}
+
+	ids, err := bulkStore.GetAccessibleDocumentIDs(userID, documentIDs)
+	if err != nil {
+		return nil, true, err
+	}
+	return ids, true, nil
 }
 
 // RequireRead проверяет доступ к конкретному документу по его виду и ID.

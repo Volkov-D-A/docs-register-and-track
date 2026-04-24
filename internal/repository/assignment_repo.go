@@ -455,6 +455,50 @@ func (r *AssignmentRepository) HasDocumentAccess(userID, documentID uuid.UUID) (
 	return hasAccess, nil
 }
 
+// GetAccessibleDocumentIDs возвращает документы из набора, доступные пользователю через поручения.
+func (r *AssignmentRepository) GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	result := make(map[uuid.UUID]struct{})
+	if len(documentIDs) == 0 {
+		return result, nil
+	}
+
+	idStrings := make([]string, 0, len(documentIDs))
+	for _, documentID := range documentIDs {
+		idStrings = append(idStrings, documentID.String())
+	}
+
+	rows, err := r.db.Query(`
+		SELECT DISTINCT a.document_id
+		FROM assignments a
+		WHERE a.document_id = ANY($1::uuid[])
+		  AND (
+			a.executor_id = $2
+			OR EXISTS (
+				SELECT 1
+				FROM assignment_co_executors ce
+				WHERE ce.assignment_id = a.id AND ce.user_id = $2
+			)
+		  )
+	`, pq.Array(idStrings), userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get accessible documents by assignment: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var documentID uuid.UUID
+		if err := rows.Scan(&documentID); err != nil {
+			return nil, err
+		}
+		result[documentID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // GetCountByStatus — вспомогательный метод для дашборда
 func (r *AssignmentRepository) GetCountByStatus(status string, executorID uuid.UUID) (int, error) {
 	var count int

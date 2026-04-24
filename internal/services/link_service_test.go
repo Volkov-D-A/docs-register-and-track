@@ -17,6 +17,10 @@ import (
 )
 
 func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *AuthService) {
+	return setupLinkServiceWithAccessStore(t, role, newRoleMappedDocumentAccessStore(role))
+}
+
+func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore DocumentAccessStore) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *AuthService) {
 	t.Helper()
 	linkRepo := mocks.NewLinkStore(t)
 	incRepo := mocks.NewIncomingDocStore(t)
@@ -47,11 +51,32 @@ func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), nil, incRepo, outRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, nil, incRepo, outRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
 	svc := NewLinkService(linkRepo, incRepo, outRepo, accessSvc, auth, journalSvc)
 	return svc, linkRepo, incRepo, outRepo, auth
+}
+
+type kindActionDocumentAccessStore struct {
+	allowed map[models.DocumentKind]map[string]bool
+}
+
+func (s *kindActionDocumentAccessStore) HasPermission(kindCode, action string, departmentID, userID string) (bool, error) {
+	actions := s.allowed[models.NormalizeDocumentKind(kindCode)]
+	return actions[action], nil
+}
+
+func (s *kindActionDocumentAccessStore) HasSystemPermission(permission, userID string) (bool, error) {
+	return false, nil
+}
+
+func (s *kindActionDocumentAccessStore) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
+	return &models.UserDocumentAccessProfile{}, nil
+}
+
+func (s *kindActionDocumentAccessStore) ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error {
+	return nil
 }
 
 func TestLinkService_LinkDocuments(t *testing.T) {
@@ -172,9 +197,11 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 
 	t.Run("успех", func(t *testing.T) {
 		svc, repo, incRepo, _, _ := setupLinkService(t, "clerk")
-		incRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Once()
+		targetID := uuid.New()
+		incRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Maybe()
+		incRepo.On("GetByID", targetID).Return(&models.IncomingDocument{ID: targetID}, nil).Maybe()
 		mockValues := []models.DocumentLink{
-			{ID: uuid.New(), SourceID: docID, TargetID: uuid.New(), LinkType: "ответ"},
+			{ID: uuid.New(), SourceID: docID, TargetID: targetID, LinkType: "ответ"},
 		}
 		repo.On("GetByDocumentID", context.Background(), docID).Return(mockValues, nil).Once()
 
@@ -182,6 +209,37 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Equal(t, "ответ", result[0].LinkType)
+	})
+
+	t.Run("скрывает связи с недоступным документом", func(t *testing.T) {
+		accessStore := &kindActionDocumentAccessStore{
+			allowed: map[models.DocumentKind]map[string]bool{
+				models.DocumentKindIncomingLetter: map[string]bool{
+					"link": true,
+					"read": true,
+				},
+			},
+		}
+		svc, repo, incRepo, outRepo, _ := setupLinkServiceWithAccessStore(t, "clerk", accessStore)
+		targetID := uuid.New()
+		incRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Maybe()
+		incRepo.On("GetByID", targetID).Return((*models.IncomingDocument)(nil), nil).Maybe()
+		outRepo.On("GetByID", targetID).Return(&models.OutgoingDocument{ID: targetID}, nil).Maybe()
+		mockValues := []models.DocumentLink{
+			{
+				ID:         uuid.New(),
+				SourceID:   docID,
+				SourceKind: models.DocumentKindIncomingLetter,
+				TargetID:   targetID,
+				TargetKind: models.DocumentKindOutgoingLetter,
+				LinkType:   "ответ",
+			},
+		}
+		repo.On("GetByDocumentID", context.Background(), docID).Return(mockValues, nil).Once()
+
+		result, err := svc.GetDocumentLinks(docID.String())
+		require.NoError(t, err)
+		assert.Empty(t, result)
 	})
 
 	t.Run("невалидный ID", func(t *testing.T) {
@@ -218,14 +276,49 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		incDoc := &models.IncomingDocument{ID: rootID, IncomingNumber: "ВХ-1", Content: "Тест вх", IncomingDate: time.Now()}
 		outDoc := &models.OutgoingDocument{ID: targetID, OutgoingNumber: "ИСХ-2", Content: "Тест исх", OutgoingDate: time.Now()}
 
-		incRepo.On("GetByID", rootID).Return(incDoc, nil).Twice()
-		outRepo.On("GetByID", targetID).Return(outDoc, nil).Once()
+		incRepo.On("GetByID", rootID).Return(incDoc, nil).Maybe()
+		incRepo.On("GetByID", targetID).Return((*models.IncomingDocument)(nil), nil).Maybe()
+		outRepo.On("GetByID", targetID).Return(outDoc, nil).Maybe()
 
 		result, err := svc.GetDocumentFlow(rootID.String())
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Len(t, result.Nodes, 2)
 		assert.Len(t, result.Edges, 1)
+	})
+
+	t.Run("скрывает доступные узлы за недоступным мостом", func(t *testing.T) {
+		accessStore := &kindActionDocumentAccessStore{
+			allowed: map[models.DocumentKind]map[string]bool{
+				models.DocumentKindIncomingLetter: map[string]bool{
+					"link": true,
+					"read": true,
+				},
+			},
+		}
+		svc, repo, incRepo, outRepo, _ := setupLinkServiceWithAccessStore(t, "clerk", accessStore)
+		blockedID := uuid.New()
+		visibleID := uuid.New()
+		visibleChildID := uuid.New()
+
+		mockLinks := []models.DocumentLink{
+			{ID: uuid.New(), SourceID: rootID, SourceKind: models.DocumentKindIncomingLetter, TargetID: blockedID, TargetKind: models.DocumentKindOutgoingLetter, LinkType: "ответ"},
+			{ID: uuid.New(), SourceID: blockedID, SourceKind: models.DocumentKindOutgoingLetter, TargetID: visibleID, TargetKind: models.DocumentKindIncomingLetter, LinkType: "связано"},
+			{ID: uuid.New(), SourceID: visibleID, SourceKind: models.DocumentKindIncomingLetter, TargetID: visibleChildID, TargetKind: models.DocumentKindIncomingLetter, LinkType: "связано"},
+		}
+		repo.On("GetGraph", context.Background(), rootID).Return(mockLinks, nil).Once()
+
+		incRepo.On("GetByID", rootID).Return(&models.IncomingDocument{ID: rootID}, nil).Maybe()
+		incRepo.On("GetByID", blockedID).Return((*models.IncomingDocument)(nil), nil).Maybe()
+		outRepo.On("GetByID", blockedID).Return(&models.OutgoingDocument{ID: blockedID}, nil).Maybe()
+		incRepo.On("GetByID", visibleID).Return(&models.IncomingDocument{ID: visibleID}, nil).Maybe()
+		incRepo.On("GetByID", visibleChildID).Return(&models.IncomingDocument{ID: visibleChildID}, nil).Maybe()
+
+		result, err := svc.GetDocumentFlow(rootID.String())
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Empty(t, result.Nodes)
+		assert.Empty(t, result.Edges)
 	})
 
 	t.Run("пустой граф", func(t *testing.T) {

@@ -150,7 +150,31 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 		return nil, err
 	}
 	res, err := s.repo.GetByDocumentID(context.Background(), docID)
-	return dto.MapDocumentLinks(res), err
+	if err != nil {
+		return nil, err
+	}
+
+	docIDs := make([]uuid.UUID, 0, len(res)*2)
+	for _, link := range res {
+		docIDs = append(docIDs, link.SourceID, link.TargetID)
+	}
+	readableDocs, err := s.access.ResolveReadableDocuments(docIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]models.DocumentLink, 0, len(res))
+	for _, link := range res {
+		if _, ok := readableDocs[link.SourceID]; !ok {
+			continue
+		}
+		if _, ok := readableDocs[link.TargetID]; !ok {
+			continue
+		}
+		filtered = append(filtered, link)
+	}
+
+	return dto.MapDocumentLinks(filtered), nil
 }
 
 // GetDocumentFlow возвращает граф связей для документа, включая связанные узлы (документы) и ребра (связи) для визуализации.
@@ -176,6 +200,21 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 		return &models.GraphData{Nodes: []models.GraphNode{}, Edges: []models.GraphEdge{}}, nil
 	}
 
+	for _, l := range links {
+		docIDs[l.SourceID] = string(l.SourceKind)
+		docIDs[l.TargetID] = string(l.TargetKind)
+	}
+
+	readableDocs, err := s.access.ResolveReadableDocuments(mapKeys(docIDs))
+	if err != nil {
+		return nil, err
+	}
+	links = keepReadableGraphLinksReachableFromRoot(rootID, links, readableDocs)
+	if len(links) == 0 {
+		return &models.GraphData{Nodes: []models.GraphNode{}, Edges: []models.GraphEdge{}}, nil
+	}
+
+	docIDs = make(map[uuid.UUID]string)
 	for _, l := range links {
 		docIDs[l.SourceID] = string(l.SourceKind)
 		docIDs[l.TargetID] = string(l.TargetKind)
@@ -266,4 +305,58 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 	})
 
 	return &models.GraphData{Nodes: nodes, Edges: edges}, nil
+}
+
+func mapKeys(values map[uuid.UUID]string) []uuid.UUID {
+	keys := make([]uuid.UUID, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func keepReadableGraphLinksReachableFromRoot(rootID uuid.UUID, links []models.DocumentLink, readableDocs map[uuid.UUID]*models.Document) []models.DocumentLink {
+	filtered := make([]models.DocumentLink, 0, len(links))
+	for _, link := range links {
+		if _, ok := readableDocs[link.SourceID]; !ok {
+			continue
+		}
+		if _, ok := readableDocs[link.TargetID]; !ok {
+			continue
+		}
+		filtered = append(filtered, link)
+	}
+
+	reachable := map[uuid.UUID]struct{}{rootID: {}}
+	changed := true
+	for changed {
+		changed = false
+		for _, link := range filtered {
+			if _, ok := reachable[link.SourceID]; ok {
+				if _, targetReachable := reachable[link.TargetID]; !targetReachable {
+					reachable[link.TargetID] = struct{}{}
+					changed = true
+				}
+			}
+			if _, ok := reachable[link.TargetID]; ok {
+				if _, sourceReachable := reachable[link.SourceID]; !sourceReachable {
+					reachable[link.SourceID] = struct{}{}
+					changed = true
+				}
+			}
+		}
+	}
+
+	result := make([]models.DocumentLink, 0, len(filtered))
+	for _, link := range filtered {
+		if _, ok := reachable[link.SourceID]; !ok {
+			continue
+		}
+		if _, ok := reachable[link.TargetID]; !ok {
+			continue
+		}
+		result = append(result, link)
+	}
+
+	return result
 }
