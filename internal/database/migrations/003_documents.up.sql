@@ -20,27 +20,47 @@ CREATE UNIQUE INDEX idx_documents_kind_registration_number_year
     ON documents (kind, registration_number, EXTRACT(YEAR FROM registration_date));
 CREATE INDEX idx_documents_created_at ON documents (created_at);
 
--- 9. Incoming Document Details
+-- 9. Document Correspondent Registrations
+CREATE TABLE document_correspondent_registrations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    registration_number VARCHAR(100) NOT NULL,
+    registration_date DATE NOT NULL,
+    correspondent_org_id UUID NOT NULL REFERENCES organizations(id),
+    position INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_doc_corr_reg_document ON document_correspondent_registrations (document_id);
+CREATE INDEX idx_doc_corr_reg_number ON document_correspondent_registrations (registration_number);
+CREATE INDEX idx_doc_corr_reg_date ON document_correspondent_registrations (registration_date);
+CREATE INDEX idx_doc_corr_reg_org ON document_correspondent_registrations (correspondent_org_id);
+
+-- 10. Document Resolutions
+CREATE TABLE document_resolutions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL UNIQUE REFERENCES documents(id) ON DELETE CASCADE,
+    resolution TEXT,
+    resolution_author VARCHAR(255),
+    resolution_executors TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_document_resolutions_document ON document_resolutions (document_id);
+
+-- 11. Incoming Document Details
 CREATE TABLE incoming_document_details (
     document_id UUID PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
     incoming_number VARCHAR(50) NOT NULL,
     incoming_date DATE NOT NULL,
-    outgoing_number_sender VARCHAR(100) NOT NULL,
-    outgoing_date_sender DATE NOT NULL,
-    intermediate_number VARCHAR(100),
-    intermediate_date DATE,
-    sender_org_id UUID NOT NULL REFERENCES organizations(id),
-    sender_signatory VARCHAR(255) NOT NULL,
-    resolution TEXT,
-    resolution_author VARCHAR(255),
-    resolution_executors TEXT
+    sender_signatory VARCHAR(255) NOT NULL
 );
 
 CREATE INDEX idx_incoming_doc_details_number ON incoming_document_details (incoming_number);
 CREATE INDEX idx_incoming_doc_details_date ON incoming_document_details (incoming_date);
-CREATE INDEX idx_incoming_doc_details_sender ON incoming_document_details (sender_org_id);
 
--- 10. Outgoing Document Details
+-- 12. Outgoing Document Details
 CREATE TABLE outgoing_document_details (
     document_id UUID PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
     outgoing_number VARCHAR(50) NOT NULL,
@@ -55,7 +75,7 @@ CREATE INDEX idx_outgoing_doc_details_number ON outgoing_document_details (outgo
 CREATE INDEX idx_outgoing_doc_details_date ON outgoing_document_details (outgoing_date);
 CREATE INDEX idx_outgoing_doc_details_recipient ON outgoing_document_details (recipient_org_id);
 
--- 11. Document Links
+-- 13. Document Links
 CREATE TABLE document_links (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     source_document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,

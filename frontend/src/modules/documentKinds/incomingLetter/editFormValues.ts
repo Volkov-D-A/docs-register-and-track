@@ -2,14 +2,14 @@ import dayjs from 'dayjs';
 
 export const buildIncomingLetterEditFormValues = (record: any) => ({
     documentTypeId: record.documentTypeId,
-    senderOrgName: record.senderOrgName,
-    outgoingNumberSender: record.outgoingNumberSender,
-    outgoingDateSender: record.outgoingDateSender ? dayjs(record.outgoingDateSender) : null,
+    correspondents: (record.correspondents?.length ? record.correspondents : [{}]).map((item: any) => ({
+        registrationNumber: item.registrationNumber,
+        registrationDate: item.registrationDate ? dayjs(item.registrationDate) : null,
+        correspondentName: item.correspondentName,
+    })),
     content: record.content,
     pagesCount: record.pagesCount,
     senderSignatory: record.senderSignatory,
-    intermediateNumber: record.intermediateNumber || '',
-    intermediateDate: record.intermediateDate ? dayjs(record.intermediateDate) : null,
     resolution: record.resolution || '',
     resolutionAuthor: record.resolutionAuthor || '',
     resolutionExecutors: record.resolutionExecutors ? record.resolutionExecutors.split('; ').filter((s: string) => s) : [],

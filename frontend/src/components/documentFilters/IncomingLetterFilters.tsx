@@ -57,13 +57,13 @@ const IncomingLetterFilters: React.FC<IncomingLetterFiltersProps> = ({
             </Col>
             <Col span={6}>
                 <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Исх. номер</Text>
-                    <Input size="small" value={filterOutgoingNumber} onChange={e => onOutgoingNumberChange(e.target.value)} placeholder="Исх. номер" allowClear />
+                    <Text type="secondary" style={{ fontSize: 12 }}>Рег. № корреспондента</Text>
+                    <Input size="small" value={filterOutgoingNumber} onChange={e => onOutgoingNumberChange(e.target.value)} placeholder="Рег. номер" allowClear />
                 </div>
             </Col>
             <Col span={6}>
                 <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Отправитель</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Корреспондент</Text>
                     <Input size="small" value={filterSenderName} onChange={e => onSenderNameChange(e.target.value)} placeholder="Название организации" allowClear />
                 </div>
             </Col>
@@ -91,7 +91,7 @@ const IncomingLetterFilters: React.FC<IncomingLetterFiltersProps> = ({
             </Col>
             <Col span={12}>
                 <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Дата отправки (диапазон)</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Дата корреспондента (диапазон)</Text>
                     <RangePicker
                         size="small"
                         style={{ width: '100%' }}

@@ -14,38 +14,37 @@ import (
 
 // IncomingLetterRegisterRequest описывает команду регистрации входящего письма.
 type IncomingLetterRegisterRequest struct {
-	NomenclatureID       string
-	DocumentTypeID       string
-	SenderOrgName        string
-	IncomingDate         string
-	OutgoingDateSender   string
-	OutgoingNumberSender string
-	IntermediateNumber   string
-	IntermediateDate     string
-	Content              string
-	PagesCount           int
-	SenderSignatory      string
-	Resolution           string
-	ResolutionAuthor     string
-	ResolutionExecutors  string
-	RegistrationNumber   string
+	NomenclatureID      string
+	DocumentTypeID      string
+	IncomingDate        string
+	Correspondents      []IncomingLetterCorrespondentRequest
+	Content             string
+	PagesCount          int
+	SenderSignatory     string
+	Resolution          string
+	ResolutionAuthor    string
+	ResolutionExecutors string
+	RegistrationNumber  string
 }
 
 // IncomingLetterUpdateRequest описывает команду обновления входящего письма.
 type IncomingLetterUpdateRequest struct {
-	ID                   string
-	DocumentTypeID       string
-	SenderOrgName        string
-	OutgoingDateSender   string
-	OutgoingNumberSender string
-	IntermediateNumber   string
-	IntermediateDate     string
-	Content              string
-	PagesCount           int
-	SenderSignatory      string
-	Resolution           string
-	ResolutionAuthor     string
-	ResolutionExecutors  string
+	ID                  string
+	DocumentTypeID      string
+	Correspondents      []IncomingLetterCorrespondentRequest
+	Content             string
+	PagesCount          int
+	SenderSignatory     string
+	Resolution          string
+	ResolutionAuthor    string
+	ResolutionExecutors string
+}
+
+// IncomingLetterCorrespondentRequest описывает один набор реквизитов корреспондента.
+type IncomingLetterCorrespondentRequest struct {
+	RegistrationNumber string `json:"registrationNumber"`
+	RegistrationDate   string `json:"registrationDate"`
+	CorrespondentName  string `json:"correspondentName"`
 }
 
 // IncomingLetterCommandHandler инкапсулирует write-операции по входящим письмам.
@@ -97,11 +96,6 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 		return nil, fmt.Errorf("неверный ID типа документа: %w", err)
 	}
 
-	senderOrg, err := h.refRepo.FindOrCreateOrganization(req.SenderOrgName)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка организации отправителя: %w", err)
-	}
-
 	if req.ResolutionExecutors != "" {
 		for _, name := range strings.Split(req.ResolutionExecutors, "; ") {
 			name = strings.TrimSpace(name)
@@ -133,20 +127,9 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 	if err != nil {
 		return nil, fmt.Errorf("неверный формат даты поступления: %w", err)
 	}
-	outDate, err := time.Parse("2006-01-02", req.OutgoingDateSender)
+	correspondents, err := h.buildCorrespondents(req.Correspondents)
 	if err != nil {
-		return nil, fmt.Errorf("неверный формат даты исходящего документа отправителя: %w", err)
-	}
-
-	var intNumPtr *string
-	var intDatePtr *time.Time
-	if req.IntermediateNumber != "" {
-		intNumPtr = &req.IntermediateNumber
-	}
-	if req.IntermediateDate != "" {
-		if d, e := time.Parse("2006-01-02", req.IntermediateDate); e == nil {
-			intDatePtr = &d
-		}
+		return nil, err
 	}
 
 	var resPtr *string
@@ -169,22 +152,18 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 	}
 
 	res, err := h.repo.Create(models.CreateIncomingDocRequest{
-		NomenclatureID:       nomID,
-		DocumentTypeID:       docTypeID,
-		SenderOrgID:          senderOrg.ID,
-		CreatedBy:            createdBy,
-		IncomingNumber:       incomingNumberStr,
-		IncomingDate:         incDate,
-		OutgoingNumberSender: req.OutgoingNumberSender,
-		OutgoingDateSender:   outDate,
-		IntermediateNumber:   intNumPtr,
-		IntermediateDate:     intDatePtr,
-		Content:              req.Content,
-		PagesCount:           req.PagesCount,
-		SenderSignatory:      req.SenderSignatory,
-		Resolution:           resPtr,
-		ResolutionAuthor:     resAuthorPtr,
-		ResolutionExecutors:  resExecutorsPtr,
+		NomenclatureID:      nomID,
+		DocumentTypeID:      docTypeID,
+		CreatedBy:           createdBy,
+		IncomingNumber:      incomingNumberStr,
+		IncomingDate:        incDate,
+		Correspondents:      correspondents,
+		Content:             req.Content,
+		PagesCount:          req.PagesCount,
+		SenderSignatory:     req.SenderSignatory,
+		Resolution:          resPtr,
+		ResolutionAuthor:    resAuthorPtr,
+		ResolutionExecutors: resExecutorsPtr,
 	})
 	if err == nil {
 		h.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
@@ -221,11 +200,6 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 		return nil, fmt.Errorf("неверный ID типа документа: %w", err)
 	}
 
-	senderOrg, err := h.refRepo.FindOrCreateOrganization(req.SenderOrgName)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка организации отправителя: %w", err)
-	}
-
 	if req.ResolutionExecutors != "" {
 		for _, name := range strings.Split(req.ResolutionExecutors, "; ") {
 			name = strings.TrimSpace(name)
@@ -235,20 +209,9 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 		}
 	}
 
-	outDate, err := time.Parse("2006-01-02", req.OutgoingDateSender)
+	correspondents, err := h.buildCorrespondents(req.Correspondents)
 	if err != nil {
-		return nil, models.NewBadRequest("неверный формат даты исходящего документа отправителя")
-	}
-
-	var intNumPtr *string
-	var intDatePtr *time.Time
-	if req.IntermediateNumber != "" {
-		intNumPtr = &req.IntermediateNumber
-	}
-	if req.IntermediateDate != "" {
-		if d, e := time.Parse("2006-01-02", req.IntermediateDate); e == nil {
-			intDatePtr = &d
-		}
+		return nil, err
 	}
 
 	var resPtr *string
@@ -265,19 +228,15 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 	}
 
 	res, err := h.repo.Update(models.UpdateIncomingDocRequest{
-		ID:                   uid,
-		DocumentTypeID:       docTypeID,
-		SenderOrgID:          senderOrg.ID,
-		OutgoingNumberSender: req.OutgoingNumberSender,
-		OutgoingDateSender:   outDate,
-		IntermediateNumber:   intNumPtr,
-		IntermediateDate:     intDatePtr,
-		Content:              req.Content,
-		PagesCount:           req.PagesCount,
-		SenderSignatory:      req.SenderSignatory,
-		Resolution:           resPtr,
-		ResolutionAuthor:     resAuthorPtr,
-		ResolutionExecutors:  resExecutorsPtr,
+		ID:                  uid,
+		DocumentTypeID:      docTypeID,
+		Correspondents:      correspondents,
+		Content:             req.Content,
+		PagesCount:          req.PagesCount,
+		SenderSignatory:     req.SenderSignatory,
+		Resolution:          resPtr,
+		ResolutionAuthor:    resAuthorPtr,
+		ResolutionExecutors: resExecutorsPtr,
 	})
 	if err == nil {
 		currentUserID, _ := h.auth.GetCurrentUserUUID()
@@ -289,6 +248,56 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 		})
 	}
 	return dto.MapIncomingDocument(res), err
+}
+
+func (h *IncomingLetterCommandHandler) buildCorrespondents(reqs []IncomingLetterCorrespondentRequest) ([]models.DocumentCorrespondentRegistration, error) {
+	if len(reqs) == 0 {
+		return nil, models.NewBadRequest("укажите реквизиты корреспондента")
+	}
+
+	result := make([]models.DocumentCorrespondentRegistration, 0, len(reqs))
+	for i, req := range reqs {
+		number := strings.TrimSpace(req.RegistrationNumber)
+		dateStr := strings.TrimSpace(req.RegistrationDate)
+		name := strings.TrimSpace(req.CorrespondentName)
+
+		if number == "" && dateStr == "" && name == "" {
+			continue
+		}
+		if number == "" {
+			return nil, models.NewBadRequest("укажите регистрационный номер корреспондента")
+		}
+		if dateStr == "" {
+			return nil, models.NewBadRequest("укажите дату регистрации корреспондента")
+		}
+		if name == "" {
+			return nil, models.NewBadRequest("укажите корреспондента")
+		}
+
+		regDate, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			return nil, models.NewBadRequest("неверный формат даты регистрации корреспондента")
+		}
+
+		org, err := h.refRepo.FindOrCreateOrganization(name)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка корреспондента: %w", err)
+		}
+
+		result = append(result, models.DocumentCorrespondentRegistration{
+			RegistrationNumber: number,
+			RegistrationDate:   regDate,
+			CorrespondentOrgID: org.ID,
+			CorrespondentName:  org.Name,
+			Position:           i + 1,
+		})
+	}
+
+	if len(result) == 0 {
+		return nil, models.NewBadRequest("укажите реквизиты корреспондента")
+	}
+
+	return result, nil
 }
 
 // UpdateDocument реализует общий command-интерфейс по виду документа.

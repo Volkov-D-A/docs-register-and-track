@@ -78,30 +78,26 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
 
             <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
 
-            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Отправитель:</Text> {doc.senderOrgName}</Col></Row>
-            <Row gutter={16}>
-                <Col span={12}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Исх. №:</Text> {doc.outgoingNumberSender || '—'}
-                </Col>
-                <Col span={12}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Дата исх.:</Text> {doc.outgoingDateSender ? dayjs(doc.outgoingDateSender).format('DD.MM.YYYY') : '—'}
-                </Col>
-            </Row>
+            <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>Корреспонденты:</Text>
+                {(doc.correspondents || []).length > 0 ? (
+                    <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {doc.correspondents.map((item: any) => (
+                            <div key={item.id || `${item.registrationNumber}-${item.correspondentName}`} style={{ background: '#fafafa', padding: '4px 8px', borderRadius: 4 }}>
+                                <Text strong>{item.correspondentName}</Text>
+                                <span style={{ color: '#666' }}>
+                                    {' '}№ {item.registrationNumber} от {dayjs(item.registrationDate).format('DD.MM.YYYY')}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                ) : ' —'}
+            </div>
             <Row>
                 <Col span={24}>
                     <Text type="secondary" style={{ fontSize: 12 }}>Подписант:</Text> {doc.senderSignatory || '—'}
                 </Col>
             </Row>
-            {(doc.intermediateNumber || doc.intermediateDate) && (
-                <Row gutter={16}>
-                    <Col span={12}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>Промежуточный №:</Text> {doc.intermediateNumber || '—'}
-                    </Col>
-                    <Col span={12}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>Промежуточная дата:</Text> {doc.intermediateDate ? dayjs(doc.intermediateDate).format('DD.MM.YYYY') : '—'}
-                    </Col>
-                </Row>
-            )}
 
             <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
 

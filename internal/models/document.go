@@ -43,12 +43,8 @@ type IncomingDocument struct {
 	NomenclatureName string    `json:"nomenclatureName,omitempty"`
 
 	// Номера и даты
-	IncomingNumber       string     `json:"incomingNumber"`
-	IncomingDate         time.Time  `json:"incomingDate"`
-	OutgoingNumberSender string     `json:"outgoingNumberSender"`
-	OutgoingDateSender   time.Time  `json:"outgoingDateSender"`
-	IntermediateNumber   *string    `json:"intermediateNumber,omitempty"`
-	IntermediateDate     *time.Time `json:"intermediateDate,omitempty"`
+	IncomingNumber string    `json:"incomingNumber"`
+	IncomingDate   time.Time `json:"incomingDate"`
 
 	// О документе
 	DocumentTypeID   uuid.UUID `json:"-"`
@@ -56,10 +52,11 @@ type IncomingDocument struct {
 	Content          string    `json:"content"`
 	PagesCount       int       `json:"pagesCount"`
 
-	// Отправитель
-	SenderOrgID     uuid.UUID `json:"-"`
-	SenderOrgName   string    `json:"senderOrgName,omitempty"`
-	SenderSignatory string    `json:"senderSignatory"`
+	// Корреспондентские регистрации
+	Correspondents []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
+
+	// Подписант
+	SenderSignatory string `json:"senderSignatory"`
 
 	// Резолюция
 	Resolution          *string `json:"resolution,omitempty"`
@@ -75,6 +72,26 @@ type IncomingDocument struct {
 	// Связанные данные
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 	AssignmentsCount int `json:"assignmentsCount,omitempty"`
+}
+
+// DocumentCorrespondentRegistration — регистрационные реквизиты корреспондента документа.
+type DocumentCorrespondentRegistration struct {
+	ID                 uuid.UUID `json:"-"`
+	DocumentID         uuid.UUID `json:"-"`
+	RegistrationNumber string    `json:"registrationNumber"`
+	RegistrationDate   time.Time `json:"registrationDate"`
+	CorrespondentOrgID uuid.UUID `json:"-"`
+	CorrespondentName  string    `json:"correspondentName,omitempty"`
+	Position           int       `json:"position"`
+}
+
+// DocumentResolution — резолюция документа.
+type DocumentResolution struct {
+	ID                  uuid.UUID `json:"-"`
+	DocumentID          uuid.UUID `json:"-"`
+	Resolution          *string   `json:"resolution,omitempty"`
+	ResolutionAuthor    *string   `json:"resolutionAuthor,omitempty"`
+	ResolutionExecutors *string   `json:"resolutionExecutors,omitempty"`
 }
 
 // OutgoingDocument — исходящий документ
@@ -204,39 +221,31 @@ type GraphData struct {
 
 // CreateIncomingDocRequest — запрос на создание входящего документа (уровень репозитория).
 type CreateIncomingDocRequest struct {
-	NomenclatureID       uuid.UUID
-	DocumentTypeID       uuid.UUID
-	SenderOrgID          uuid.UUID
-	CreatedBy            uuid.UUID
-	IncomingNumber       string
-	IncomingDate         time.Time
-	OutgoingNumberSender string
-	OutgoingDateSender   time.Time
-	IntermediateNumber   *string
-	IntermediateDate     *time.Time
-	Content              string
-	PagesCount           int
-	SenderSignatory      string
-	Resolution           *string
-	ResolutionAuthor     *string
-	ResolutionExecutors  *string
+	NomenclatureID      uuid.UUID
+	DocumentTypeID      uuid.UUID
+	CreatedBy           uuid.UUID
+	IncomingNumber      string
+	IncomingDate        time.Time
+	Correspondents      []DocumentCorrespondentRegistration
+	Content             string
+	PagesCount          int
+	SenderSignatory     string
+	Resolution          *string
+	ResolutionAuthor    *string
+	ResolutionExecutors *string
 }
 
 // UpdateIncomingDocRequest — запрос на обновление входящего документа (уровень репозитория).
 type UpdateIncomingDocRequest struct {
-	ID                   uuid.UUID
-	DocumentTypeID       uuid.UUID
-	SenderOrgID          uuid.UUID
-	OutgoingNumberSender string
-	OutgoingDateSender   time.Time
-	IntermediateNumber   *string
-	IntermediateDate     *time.Time
-	Content              string
-	PagesCount           int
-	SenderSignatory      string
-	Resolution           *string
-	ResolutionAuthor     *string
-	ResolutionExecutors  *string
+	ID                  uuid.UUID
+	DocumentTypeID      uuid.UUID
+	Correspondents      []DocumentCorrespondentRegistration
+	Content             string
+	PagesCount          int
+	SenderSignatory     string
+	Resolution          *string
+	ResolutionAuthor    *string
+	ResolutionExecutors *string
 }
 
 // CreateOutgoingDocRequest — запрос на создание исходящего документа (уровень репозитория).

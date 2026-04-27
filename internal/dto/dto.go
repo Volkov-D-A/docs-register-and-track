@@ -80,20 +80,16 @@ type IncomingDocument struct {
 	NomenclatureID   string `json:"nomenclatureId"`
 	NomenclatureName string `json:"nomenclatureName,omitempty"`
 
-	IncomingNumber       string     `json:"incomingNumber"`
-	IncomingDate         time.Time  `json:"incomingDate"`
-	OutgoingNumberSender string     `json:"outgoingNumberSender"`
-	OutgoingDateSender   time.Time  `json:"outgoingDateSender"`
-	IntermediateNumber   *string    `json:"intermediateNumber,omitempty"`
-	IntermediateDate     *time.Time `json:"intermediateDate,omitempty"`
+	IncomingNumber string    `json:"incomingNumber"`
+	IncomingDate   time.Time `json:"incomingDate"`
 
 	DocumentTypeID   string `json:"documentTypeId"`
 	DocumentTypeName string `json:"documentTypeName,omitempty"`
 	Content          string `json:"content"`
 	PagesCount       int    `json:"pagesCount"`
 
-	SenderOrgID     string `json:"senderOrgId"`
-	SenderOrgName   string `json:"senderOrgName,omitempty"`
+	Correspondents []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
+
 	SenderSignatory string `json:"senderSignatory"`
 
 	Resolution          *string `json:"resolution,omitempty"`
@@ -107,6 +103,16 @@ type IncomingDocument struct {
 
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 	AssignmentsCount int `json:"assignmentsCount,omitempty"`
+}
+
+// DocumentCorrespondentRegistration описывает DTO регистрационных реквизитов корреспондента.
+type DocumentCorrespondentRegistration struct {
+	ID                 string    `json:"id"`
+	RegistrationNumber string    `json:"registrationNumber"`
+	RegistrationDate   time.Time `json:"registrationDate"`
+	CorrespondentOrgID string    `json:"correspondentOrgId"`
+	CorrespondentName  string    `json:"correspondentName,omitempty"`
+	Position           int       `json:"position"`
 }
 
 // OutgoingDocument описывает DTO исходящего документа.
@@ -176,22 +182,18 @@ type DocumentListItem struct {
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`
 
-	IncomingNumber       string     `json:"incomingNumber,omitempty"`
-	IncomingDate         *time.Time `json:"incomingDate,omitempty"`
-	OutgoingNumber       string     `json:"outgoingNumber,omitempty"`
-	OutgoingDate         *time.Time `json:"outgoingDate,omitempty"`
-	OutgoingNumberSender string     `json:"outgoingNumberSender,omitempty"`
-	OutgoingDateSender   *time.Time `json:"outgoingDateSender,omitempty"`
-	IntermediateNumber   *string    `json:"intermediateNumber,omitempty"`
-	IntermediateDate     *time.Time `json:"intermediateDate,omitempty"`
-	SenderOrgName        string     `json:"senderOrgName,omitempty"`
-	SenderSignatory      string     `json:"senderSignatory,omitempty"`
-	Resolution           *string    `json:"resolution,omitempty"`
-	ResolutionAuthor     *string    `json:"resolutionAuthor,omitempty"`
-	ResolutionExecutors  *string    `json:"resolutionExecutors,omitempty"`
-	RecipientOrgName     string     `json:"recipientOrgName,omitempty"`
-	Addressee            string     `json:"addressee,omitempty"`
-	SenderExecutor       string     `json:"senderExecutor,omitempty"`
+	IncomingNumber      string                              `json:"incomingNumber,omitempty"`
+	IncomingDate        *time.Time                          `json:"incomingDate,omitempty"`
+	OutgoingNumber      string                              `json:"outgoingNumber,omitempty"`
+	OutgoingDate        *time.Time                          `json:"outgoingDate,omitempty"`
+	Correspondents      []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
+	SenderSignatory     string                              `json:"senderSignatory,omitempty"`
+	Resolution          *string                             `json:"resolution,omitempty"`
+	ResolutionAuthor    *string                             `json:"resolutionAuthor,omitempty"`
+	ResolutionExecutors *string                             `json:"resolutionExecutors,omitempty"`
+	RecipientOrgName    string                              `json:"recipientOrgName,omitempty"`
+	Addressee           string                              `json:"addressee,omitempty"`
+	SenderExecutor      string                              `json:"senderExecutor,omitempty"`
 }
 
 // DocumentLink описывает DTO связи между документами.

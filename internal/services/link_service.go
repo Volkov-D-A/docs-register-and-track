@@ -235,7 +235,9 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 				label = doc.IncomingNumber
 				subject = doc.Content
 				dateStr = doc.IncomingDate.Format("02.01.2006")
-				sender = doc.SenderOrgName
+				if len(doc.Correspondents) > 0 {
+					sender = doc.Correspondents[0].CorrespondentName
+				}
 				if sender == "" {
 					sender = "Неизвестно"
 				}

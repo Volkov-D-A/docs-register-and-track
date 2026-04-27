@@ -16,7 +16,7 @@ export const incomingLetterPageConfig = {
     tableClassName: 'incoming-documents-table',
     registerModalTitle: 'Регистрация входящего документа',
     getEditModalTitle: (record: any) => `Редактирование: ${record?.incomingNumber || ''}`,
-    registerInitialValues: { incomingDate: dayjs(), pagesCount: 1 },
+    registerInitialValues: { incomingDate: dayjs(), pagesCount: 1, correspondents: [{}] },
     buildColumns: ({ isExecutorOnly, openViewModal, onEdit }: ColumnFactoryParams) => [
         {
             title: 'Номер / Дата',
@@ -32,19 +32,30 @@ export const incomingLetterPageConfig = {
             ),
         },
         {
-            title: 'Отправитель',
-            key: 'sender',
+            title: 'Корреспондент',
+            key: 'correspondent',
             width: '26%',
-            render: (_: any, record: any) => (
-                <div>
-                    <div style={{ fontWeight: 600 }}>{record.senderOrgName}</div>
-                    {(record.outgoingNumberSender || record.outgoingDateSender) && (
-                        <div style={{ fontSize: 13, color: '#666' }}>
-                            Исх: {record.outgoingNumberSender} {record.outgoingDateSender ? `от ${dayjs(record.outgoingDateSender).format('DD.MM.YYYY')}` : ''}
-                        </div>
-                    )}
-                </div>
-            ),
+            render: (_: any, record: any) => {
+                const correspondents = record.correspondents || [];
+                if (correspondents.length === 0) {
+                    return <span style={{ color: '#bbb' }}>—</span>;
+                }
+                return (
+                    <div>
+                        {correspondents.slice(0, 2).map((item: any) => (
+                            <div key={item.id || `${item.registrationNumber}-${item.correspondentName}`} style={{ marginBottom: 4 }}>
+                                <div style={{ fontWeight: 600 }}>{item.correspondentName}</div>
+                                <div style={{ fontSize: 13, color: '#666' }}>
+                                    № {item.registrationNumber} от {dayjs(item.registrationDate).format('DD.MM.YYYY')}
+                                </div>
+                            </div>
+                        ))}
+                        {correspondents.length > 2 && (
+                            <div style={{ fontSize: 12, color: '#888' }}>Еще: {correspondents.length - 2}</div>
+                        )}
+                    </div>
+                );
+            },
         },
         {
             title: 'Содержание',

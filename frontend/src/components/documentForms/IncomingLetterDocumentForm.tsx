@@ -1,5 +1,6 @@
 import React from 'react';
-import { Col, DatePicker, Form, Input, InputNumber, Row, Select } from 'antd';
+import { Button, Col, DatePicker, Form, Input, InputNumber, Row, Select } from 'antd';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 
 const { TextArea } = Input;
 
@@ -75,51 +76,81 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
                 </Select>
             </Form.Item>
         )}
+        <Form.List name="correspondents">
+            {(fields, { add, remove }) => (
+                <div style={{ marginBottom: 8 }}>
+                    {fields.map((field, index) => (
+                        <div
+                            key={field.key}
+                            style={{
+                                marginBottom: 12,
+                            }}
+                        >
+                            <Row gutter={12} align="top">
+                                <Col span={7}>
+                                    <Form.Item
+                                        {...field}
+                                        name={[field.name, 'registrationNumber']}
+                                        label="Рег. №"
+                                        rules={[{ required: true, message: 'Укажите номер' }]}
+                                    >
+                                        <Input />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={6}>
+                                    <Form.Item
+                                        {...field}
+                                        name={[field.name, 'registrationDate']}
+                                        label="Дата"
+                                        rules={[{ required: true, message: 'Укажите дату' }]}
+                                    >
+                                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={fields.length > 1 ? 9 : 11}>
+                                    <Form.Item
+                                        {...field}
+                                        name={[field.name, 'correspondentName']}
+                                        label="Корреспондент"
+                                        rules={[{ required: true, message: 'Укажите корреспондента' }]}
+                                    >
+                                        <Select
+                                            showSearch
+                                            filterOption={false}
+                                            onSearch={onSenderOrgSearch}
+                                            options={orgOptionsSender}
+                                            notFoundContent={null}
+                                            onInputKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}
+                                        />
+                                    </Form.Item>
+                                </Col>
+                                {fields.length > 1 && (
+                                    <Col span={2}>
+                                        <Form.Item label={index === 0 ? ' ' : ' '} colon={false}>
+                                            <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                        </Form.Item>
+                                    </Col>
+                                )}
+                            </Row>
+                        </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => add()} style={{ height: 24, paddingInline: 8, fontSize: 12 }}>
+                            Добавить
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </Form.List>
         <Row gutter={16}>
-            <Col span={8}>
-                <Form.Item name="outgoingNumberSender" label="Исх. № отправителя" rules={[{ required: true, message: 'Укажите исх. номер' }]}>
-                    <Input />
-                </Form.Item>
-            </Col>
-            <Col span={8}>
-                <Form.Item name="outgoingDateSender" label="Дата исходящего" rules={[{ required: true, message: 'Укажите дату' }]}>
-                    <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
-                </Form.Item>
-            </Col>
-            <Col span={8}>
-                <Form.Item name="pagesCount" label="Кол-во листов" rules={[{ required: true, message: 'Укажите кол-во' }]}>
-                    <InputNumber min={1} style={{ width: '100%' }} />
-                </Form.Item>
-            </Col>
-        </Row>
-        <Row gutter={16}>
-            <Col span={12}>
-                <Form.Item name="intermediateNumber" label="Промежуточный номер">
-                    <Input placeholder="Необязательно" />
-                </Form.Item>
-            </Col>
-            <Col span={12}>
-                <Form.Item name="intermediateDate" label="Промежуточная дата">
-                    <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
-                </Form.Item>
-            </Col>
-        </Row>
-        <Row gutter={16}>
-            <Col span={12}>
-                <Form.Item name="senderOrgName" label="Организация-отправитель" rules={[{ required: true }]}>
-                    <Select
-                        showSearch
-                        filterOption={false}
-                        onSearch={onSenderOrgSearch}
-                        options={orgOptionsSender}
-                        notFoundContent={null}
-                        onInputKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}
-                    />
-                </Form.Item>
-            </Col>
             <Col span={12}>
                 <Form.Item name="senderSignatory" label="Подписант" rules={[{ required: true, message: 'Укажите подписанта' }]}>
                     <Input />
+                </Form.Item>
+            </Col>
+            <Col span={12}>
+                <Form.Item name="pagesCount" label="Кол-во листов" rules={[{ required: true, message: 'Укажите кол-во' }]}>
+                    <InputNumber min={1} style={{ width: '100%' }} />
                 </Form.Item>
             </Col>
         </Row>

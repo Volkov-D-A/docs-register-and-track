@@ -95,6 +95,13 @@ const IncomingPage: React.FC = () => {
         } catch { setExecutorOptions([]); }
     };
 
+    const buildCorrespondentsPayload = (values: any) => (
+        (values.correspondents || []).map((item: any) => ({
+            registrationNumber: item?.registrationNumber || '',
+            registrationDate: item?.registrationDate?.format('YYYY-MM-DD') || '',
+            correspondentName: item?.correspondentName || '',
+        }))
+    );
 
     const {
         data,
@@ -179,12 +186,8 @@ const IncomingPage: React.FC = () => {
             const newDoc = await Register(DOCUMENT_KIND_INCOMING_LETTER, {
                 nomenclatureId: values.nomenclatureId,
                 documentTypeId: values.documentTypeId,
-                senderOrgName: values.senderOrgName,
                 incomingDate: values.incomingDate?.format('YYYY-MM-DD') || '',
-                outgoingDateSender: values.outgoingDateSender?.format('YYYY-MM-DD') || '',
-                outgoingNumberSender: values.outgoingNumberSender || '',
-                intermediateNumber: values.intermediateNumber || '',
-                intermediateDate: values.intermediateDate?.format('YYYY-MM-DD') || '',
+                correspondents: buildCorrespondentsPayload(values),
                 content: values.content || '',
                 pagesCount: values.pagesCount || 1,
                 senderSignatory: values.senderSignatory || '',
@@ -213,11 +216,7 @@ const IncomingPage: React.FC = () => {
             await Update(DOCUMENT_KIND_INCOMING_LETTER, {
                 id: editDoc.id,
                 documentTypeId: values.documentTypeId,
-                senderOrgName: values.senderOrgName,
-                outgoingDateSender: values.outgoingDateSender?.format('YYYY-MM-DD') || '',
-                outgoingNumberSender: values.outgoingNumberSender || '',
-                intermediateNumber: values.intermediateNumber || '',
-                intermediateDate: values.intermediateDate?.format('YYYY-MM-DD') || '',
+                correspondents: buildCorrespondentsPayload(values),
                 content: values.content || '',
                 pagesCount: values.pagesCount || 1,
                 senderSignatory: values.senderSignatory || '',

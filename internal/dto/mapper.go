@@ -99,32 +99,46 @@ func MapIncomingDocument(m *models.IncomingDocument) *IncomingDocument {
 		return nil
 	}
 	return &IncomingDocument{
-		ID:                   m.ID.String(),
-		NomenclatureID:       m.NomenclatureID.String(),
-		NomenclatureName:     m.NomenclatureName,
-		IncomingNumber:       m.IncomingNumber,
-		IncomingDate:         m.IncomingDate,
-		OutgoingNumberSender: m.OutgoingNumberSender,
-		OutgoingDateSender:   m.OutgoingDateSender,
-		IntermediateNumber:   m.IntermediateNumber,
-		IntermediateDate:     m.IntermediateDate,
-		DocumentTypeID:       m.DocumentTypeID.String(),
-		DocumentTypeName:     m.DocumentTypeName,
-		Content:              m.Content,
-		PagesCount:           m.PagesCount,
-		SenderOrgID:          m.SenderOrgID.String(),
-		SenderOrgName:        m.SenderOrgName,
-		SenderSignatory:      m.SenderSignatory,
-		Resolution:           m.Resolution,
-		ResolutionAuthor:     m.ResolutionAuthor,
-		ResolutionExecutors:  m.ResolutionExecutors,
-		CreatedBy:            m.CreatedBy.String(),
-		CreatedByName:        m.CreatedByName,
-		CreatedAt:            m.CreatedAt,
-		UpdatedAt:            m.UpdatedAt,
-		AttachmentsCount:     m.AttachmentsCount,
-		AssignmentsCount:     m.AssignmentsCount,
+		ID:                  m.ID.String(),
+		NomenclatureID:      m.NomenclatureID.String(),
+		NomenclatureName:    m.NomenclatureName,
+		IncomingNumber:      m.IncomingNumber,
+		IncomingDate:        m.IncomingDate,
+		DocumentTypeID:      m.DocumentTypeID.String(),
+		DocumentTypeName:    m.DocumentTypeName,
+		Content:             m.Content,
+		PagesCount:          m.PagesCount,
+		Correspondents:      MapDocumentCorrespondentRegistrations(m.Correspondents),
+		SenderSignatory:     m.SenderSignatory,
+		Resolution:          m.Resolution,
+		ResolutionAuthor:    m.ResolutionAuthor,
+		ResolutionExecutors: m.ResolutionExecutors,
+		CreatedBy:           m.CreatedBy.String(),
+		CreatedByName:       m.CreatedByName,
+		CreatedAt:           m.CreatedAt,
+		UpdatedAt:           m.UpdatedAt,
+		AttachmentsCount:    m.AttachmentsCount,
+		AssignmentsCount:    m.AssignmentsCount,
 	}
+}
+
+// MapDocumentCorrespondentRegistrations преобразует регистрационные реквизиты корреспондентов в DTO.
+func MapDocumentCorrespondentRegistrations(items []models.DocumentCorrespondentRegistration) []DocumentCorrespondentRegistration {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]DocumentCorrespondentRegistration, len(items))
+	for i, item := range items {
+		result[i] = DocumentCorrespondentRegistration{
+			ID:                 item.ID.String(),
+			RegistrationNumber: item.RegistrationNumber,
+			RegistrationDate:   item.RegistrationDate,
+			CorrespondentOrgID: item.CorrespondentOrgID.String(),
+			CorrespondentName:  item.CorrespondentName,
+			Position:           item.Position,
+		}
+	}
+	return result
 }
 
 // MapOutgoingDocument преобразует модель OutgoingDocument в DTO.
@@ -225,31 +239,27 @@ func MapIncomingDocumentListItem(m *models.IncomingDocument) *DocumentListItem {
 		return nil
 	}
 	return &DocumentListItem{
-		ID:                   m.ID.String(),
-		KindCode:             string(models.DocumentKindIncomingLetter),
-		KindName:             models.DocumentKindIncomingLetter.Label(),
-		RegistrationNumber:   m.IncomingNumber,
-		RegistrationDate:     m.IncomingDate,
-		NomenclatureID:       m.NomenclatureID.String(),
-		NomenclatureName:     m.NomenclatureName,
-		DocumentTypeID:       m.DocumentTypeID.String(),
-		DocumentTypeName:     m.DocumentTypeName,
-		Content:              m.Content,
-		CreatedBy:            m.CreatedBy.String(),
-		CreatedByName:        m.CreatedByName,
-		CreatedAt:            m.CreatedAt,
-		UpdatedAt:            m.UpdatedAt,
-		IncomingNumber:       m.IncomingNumber,
-		IncomingDate:         &m.IncomingDate,
-		OutgoingNumberSender: m.OutgoingNumberSender,
-		OutgoingDateSender:   &m.OutgoingDateSender,
-		IntermediateNumber:   m.IntermediateNumber,
-		IntermediateDate:     m.IntermediateDate,
-		SenderOrgName:        m.SenderOrgName,
-		SenderSignatory:      m.SenderSignatory,
-		Resolution:           m.Resolution,
-		ResolutionAuthor:     m.ResolutionAuthor,
-		ResolutionExecutors:  m.ResolutionExecutors,
+		ID:                  m.ID.String(),
+		KindCode:            string(models.DocumentKindIncomingLetter),
+		KindName:            models.DocumentKindIncomingLetter.Label(),
+		RegistrationNumber:  m.IncomingNumber,
+		RegistrationDate:    m.IncomingDate,
+		NomenclatureID:      m.NomenclatureID.String(),
+		NomenclatureName:    m.NomenclatureName,
+		DocumentTypeID:      m.DocumentTypeID.String(),
+		DocumentTypeName:    m.DocumentTypeName,
+		Content:             m.Content,
+		CreatedBy:           m.CreatedBy.String(),
+		CreatedByName:       m.CreatedByName,
+		CreatedAt:           m.CreatedAt,
+		UpdatedAt:           m.UpdatedAt,
+		IncomingNumber:      m.IncomingNumber,
+		IncomingDate:        &m.IncomingDate,
+		Correspondents:      MapDocumentCorrespondentRegistrations(m.Correspondents),
+		SenderSignatory:     m.SenderSignatory,
+		Resolution:          m.Resolution,
+		ResolutionAuthor:    m.ResolutionAuthor,
+		ResolutionExecutors: m.ResolutionExecutors,
 	}
 }
 
