@@ -85,7 +85,7 @@ const DashboardPage: React.FC = () => {
     // --- Подкомпоненты ---
 
     const ExpiringList = ({ list, title = 'Истекающий срок исполнения' }: any) => (
-        <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
             {(!list || list.length === 0) ? (
                 <Empty description="Нет поручений" image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
@@ -97,7 +97,7 @@ const DashboardPage: React.FC = () => {
                         else if (diff <= 3) color = 'orange';
 
                         return (
-                            <div key={item.id || Math.random()} style={{ display: 'flex', gap: 12, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                            <div key={item.id || Math.random()} style={{ display: 'flex', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--app-border)' }}>
                                 <div style={{ flexShrink: 0, marginTop: 2 }}>
                                     <Tag color={color} style={{ margin: 0 }}>
                                         {dayjs(item.deadline).format('DD.MM')}
@@ -120,7 +120,7 @@ const DashboardPage: React.FC = () => {
                                             </Tag>
                                         )}
                                     </div>
-                                    <div style={{ color: 'rgba(0, 0, 0, 0.45)' }}>
+                                    <div style={{ color: 'var(--app-text-secondary)' }}>
                                         {item.executorName && <span style={{ marginRight: 10 }}><UserOutlined /> {item.executorName}</span>}
                                         <span style={{ fontSize: 12 }}>{
                                             item.status === 'new' ? 'Новое' :
@@ -140,7 +140,7 @@ const DashboardPage: React.FC = () => {
         const hasItems = pendingAcks && pendingAcks.length > 0;
         const title = profile === 'clerk' || profile === 'mixed' ? "Все текущие ознакомления" : "Мои ознакомления";
         return (
-            <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
                 {!hasItems ? (
                     <Empty description="Нет документов" image={Empty.PRESENTED_IMAGE_SIMPLE} />
                 ) : (
@@ -151,7 +151,7 @@ const DashboardPage: React.FC = () => {
                                 const canSelfAcknowledge = !!currentAckUser && !currentAckUser.confirmedAt;
 
                                 return (
-                                    <div key={item.id} style={{ paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                                    <div key={item.id} style={{ paddingBottom: 12, borderBottom: '1px solid var(--app-border)' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                                             <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginRight: 8 }}>{item.content || 'Без описания'}</Text>
                                             <Tag
@@ -244,7 +244,7 @@ const DashboardPage: React.FC = () => {
     );
 
     const renderAdminView = () => (
-        <Card variant="borderless" style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <Card variant="borderless" style={{ borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
             <Empty description="Для администратора оперативная активность не отображается" />
         </Card>
     );

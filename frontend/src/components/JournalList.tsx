@@ -85,7 +85,7 @@ const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
             title: 'Детали',
             key: 'details',
             render: (record: JournalEntry) => {
-                const config = actionConfig[record.action] || { color: '#888', icon: <QuestionCircleOutlined />, tooltip: record.action };
+                const config = actionConfig[record.action] || { color: 'var(--app-text-muted)', icon: <QuestionCircleOutlined />, tooltip: record.action };
                 return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <Tooltip title={config.tooltip}>

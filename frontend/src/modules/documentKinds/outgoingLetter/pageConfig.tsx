@@ -25,7 +25,7 @@ export const outgoingLetterPageConfig = {
             render: (_: any, record: any) => (
                 <div>
                     <div style={{ fontWeight: 600 }}>{record.outgoingNumber}</div>
-                    <div style={{ fontSize: 12, color: '#888' }}>
+                    <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
                         от {dayjs(record.outgoingDate).format('DD.MM.YYYY')}
                     </div>
                 </div>
@@ -49,7 +49,7 @@ export const outgoingLetterPageConfig = {
             render: (_: any, record: any) => (
                 <div>
                     <div style={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>{record.content}</div>
-                    <div style={{ fontSize: 13, color: '#666' }}>{record.documentTypeName}</div>
+                    <div style={{ fontSize: 13, color: 'var(--app-text-muted)' }}>{record.documentTypeName}</div>
                 </div>
             ),
         },

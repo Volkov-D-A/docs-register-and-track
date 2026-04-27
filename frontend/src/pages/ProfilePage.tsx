@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Typography, Space, Divider, Descriptions, Tag, Row, Col, App } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { Card, Form, Input, Button, Typography, Space, Descriptions, Tag, Row, Col, App, Segmented } from 'antd';
+import { UserOutlined, LockOutlined, BgColorsOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
 import { documentKinds } from '../constants/documentKinds';
 import { useDocumentKinds } from '../hooks/useDocumentKinds';
+import { useAppTheme, type AppTheme } from '../theme/AppThemeProvider';
 const emptyKinds: typeof documentKinds = [];
 
 const { Title, Text } = Typography;
@@ -15,11 +16,13 @@ const { Title, Text } = Typography;
 const ProfilePage: React.FC = () => {
     const { user, changePassword, updateProfile, isLoading, error, clearError } = useAuthStore();
     const { message } = App.useApp();
+    const { theme, setTheme, isThemeLoading } = useAppTheme();
     const { kinds: readableKinds } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
     const [profileForm] = Form.useForm();
     const [passwordForm] = Form.useForm();
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [isSavingTheme, setIsSavingTheme] = useState(false);
 
     useEffect(() => {
         if (isEditingProfile && user) {
@@ -59,6 +62,18 @@ const ProfilePage: React.FC = () => {
             setIsChangingPassword(false);
         } catch (err) {
             // Ошибка уже обработана в store
+        }
+    };
+
+    const handleThemeChange = async (nextTheme: AppTheme) => {
+        setIsSavingTheme(true);
+        try {
+            await setTheme(nextTheme);
+            message.success('Тема интерфейса сохранена');
+        } catch (err: any) {
+            message.error(err?.message || String(err) || 'Ошибка сохранения темы');
+        } finally {
+            setIsSavingTheme(false);
         }
     };
 
@@ -153,69 +168,87 @@ const ProfilePage: React.FC = () => {
                 </Col>
 
                 <Col xs={24} md={12}>
-                    <Card title={<Space><LockOutlined /> Безопасность</Space>} variant="borderless">
-                        {!isChangingPassword ? (
-                            <Button onClick={() => setIsChangingPassword(true)}>
-                                Изменить пароль
-                            </Button>
-                        ) : (
-                            <Form
-                                form={passwordForm}
-                                layout="vertical"
-                                onFinish={handleChangePassword}
-                            >
-                                <Form.Item
-                                    name="oldPassword"
-                                    label="Текущий пароль"
-                                    rules={[{ required: true, message: 'Пожалуйста, введите текущий пароль' }]}
+                    <Space orientation="vertical" size={24} style={{ width: '100%' }}>
+                        <Card title={<Space><LockOutlined /> Безопасность</Space>} variant="borderless">
+                            {!isChangingPassword ? (
+                                <Button onClick={() => setIsChangingPassword(true)}>
+                                    Изменить пароль
+                                </Button>
+                            ) : (
+                                <Form
+                                    form={passwordForm}
+                                    layout="vertical"
+                                    onFinish={handleChangePassword}
                                 >
-                                    <Input.Password placeholder="Введите текущий пароль" />
-                                </Form.Item>
+                                    <Form.Item
+                                        name="oldPassword"
+                                        label="Текущий пароль"
+                                        rules={[{ required: true, message: 'Пожалуйста, введите текущий пароль' }]}
+                                    >
+                                        <Input.Password placeholder="Введите текущий пароль" />
+                                    </Form.Item>
 
-                                <Form.Item
-                                    name="newPassword"
-                                    label="Новый пароль"
-                                    rules={[
-                                        { required: true, message: 'Пожалуйста, введите новый пароль' },
-                                        { min: 6, message: 'Пароль должен содержать минимум 6 символов' }
+                                    <Form.Item
+                                        name="newPassword"
+                                        label="Новый пароль"
+                                        rules={[
+                                            { required: true, message: 'Пожалуйста, введите новый пароль' },
+                                            { min: 6, message: 'Пароль должен содержать минимум 6 символов' }
+                                        ]}
+                                    >
+                                        <Input.Password placeholder="Введите новый пароль" />
+                                    </Form.Item>
+
+                                    <Form.Item
+                                        name="confirmPassword"
+                                        label="Подтверждение пароля"
+                                        dependencies={['newPassword']}
+                                        rules={[
+                                            { required: true, message: 'Пожалуйста, подтвердите новый пароль' },
+                                            ({ getFieldValue }) => ({
+                                                validator(_, value) {
+                                                    if (!value || getFieldValue('newPassword') === value) {
+                                                        return Promise.resolve();
+                                                    }
+                                                    return Promise.reject(new Error('Пароли не совпадают!'));
+                                                },
+                                            }),
+                                        ]}
+                                    >
+                                        <Input.Password placeholder="Повторите новый пароль" />
+                                    </Form.Item>
+
+                                    <Space>
+                                        <Button type="primary" htmlType="submit" loading={isLoading}>
+                                            Обновить пароль
+                                        </Button>
+                                        <Button onClick={() => {
+                                            passwordForm.resetFields();
+                                            setIsChangingPassword(false);
+                                        }}>
+                                            Отмена
+                                        </Button>
+                                    </Space>
+                                </Form>
+                            )}
+                        </Card>
+
+                        <Card title={<Space><BgColorsOutlined /> Внешний вид</Space>} variant="borderless">
+                            <Space orientation="vertical" size="small" style={{ width: '100%' }}>
+                                <Text type="secondary">Тема интерфейса</Text>
+                                <Segmented
+                                    block
+                                    value={theme}
+                                    disabled={isThemeLoading || isSavingTheme}
+                                    onChange={(value) => void handleThemeChange(value as AppTheme)}
+                                    options={[
+                                        { value: 'light', label: <Space><SunOutlined /> Светлая</Space> },
+                                        { value: 'dark', label: <Space><MoonOutlined /> Темная</Space> },
                                     ]}
-                                >
-                                    <Input.Password placeholder="Введите новый пароль" />
-                                </Form.Item>
-
-                                <Form.Item
-                                    name="confirmPassword"
-                                    label="Подтверждение пароля"
-                                    dependencies={['newPassword']}
-                                    rules={[
-                                        { required: true, message: 'Пожалуйста, подтвердите новый пароль' },
-                                        ({ getFieldValue }) => ({
-                                            validator(_, value) {
-                                                if (!value || getFieldValue('newPassword') === value) {
-                                                    return Promise.resolve();
-                                                }
-                                                return Promise.reject(new Error('Пароли не совпадают!'));
-                                            },
-                                        }),
-                                    ]}
-                                >
-                                    <Input.Password placeholder="Повторите новый пароль" />
-                                </Form.Item>
-
-                                <Space>
-                                    <Button type="primary" htmlType="submit" loading={isLoading}>
-                                        Обновить пароль
-                                    </Button>
-                                    <Button onClick={() => {
-                                        passwordForm.resetFields();
-                                        setIsChangingPassword(false);
-                                    }}>
-                                        Отмена
-                                    </Button>
-                                </Space>
-                            </Form>
-                        )}
-                    </Card>
+                                />
+                            </Space>
+                        </Card>
+                    </Space>
                 </Col>
             </Row>
         </div>

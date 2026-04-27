@@ -1010,9 +1010,9 @@ const MigrationsTab: React.FC = () => {
     <div style={{ maxWidth: 600 }}>
       <div style={{
         padding: 24,
-        background: '#fafafa',
+        background: 'var(--app-subtle-surface)',
         borderRadius: 8,
-        border: '1px solid #f0f0f0',
+        border: '1px solid var(--app-border)',
         marginBottom: 16,
       }}>
         <Typography.Title level={5} style={{ marginTop: 0 }}>
@@ -1116,9 +1116,9 @@ const StorageTab: React.FC = () => {
     <div style={{ maxWidth: 600 }}>
       <div style={{
         padding: 24,
-        background: '#fffbe6',
+        background: 'var(--app-warning-bg)',
         borderRadius: 8,
-        border: '1px solid #ffe58f',
+        border: '1px solid var(--app-warning-border)',
         marginBottom: 16,
       }}>
         <Typography.Paragraph type="warning" strong style={{ marginBottom: 0 }}>

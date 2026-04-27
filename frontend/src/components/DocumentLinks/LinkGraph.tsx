@@ -184,7 +184,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                                     border: isRootNode ? `3px solid ${palette.accent}` : `1px solid ${palette.border}`,
                                     borderRadius: '10px',
                                     background: palette.background,
-                                    boxShadow: isRootNode ? `0 0 0 3px ${palette.accent}22` : '0 6px 18px rgba(0, 0, 0, 0.06)',
+                                    boxShadow: isRootNode ? `0 0 0 3px ${palette.accent}22` : '0 6px 18px var(--app-panel-shadow)',
                                     fontSize: '12px',
                                     minWidth: '240px',
                                 }}
@@ -263,15 +263,15 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
                 },
-                style: { stroke: '#555' },
+                style: { stroke: 'var(--app-text-muted)' },
                 labelStyle: {
                     fontSize: 12,
                     fontWeight: 600,
-                    fill: '#434343',
+                    fill: 'var(--app-text-muted)',
                 },
                 labelBgStyle: {
-                    fill: 'rgba(255, 255, 255, 0.96)',
-                    stroke: '#d9d9d9',
+                    fill: 'var(--app-surface)',
+                    stroke: 'var(--app-border)',
                 },
                 labelBgPadding: [8, 4],
                 labelBgBorderRadius: 6,
@@ -309,16 +309,16 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                         gap: 8,
                         padding: '8px 10px',
                         borderRadius: 10,
-                        background: 'rgba(255, 255, 255, 0.92)',
-                        border: '1px solid #f0f0f0',
-                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.06)',
+                        background: 'var(--app-surface)',
+                        border: '1px solid var(--app-border)',
+                        boxShadow: '0 4px 14px var(--app-panel-shadow)',
                     }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#595959' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--app-text-muted)' }}>
                         <span style={{ width: 10, height: 10, borderRadius: 999, background: getLinkedDocumentColor('incoming') }} />
                         {getLinkedDocumentLabel('incoming')}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#595959' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--app-text-muted)' }}>
                         <span style={{ width: 10, height: 10, borderRadius: 999, background: getLinkedDocumentColor('outgoing') }} />
                         {getLinkedDocumentLabel('outgoing')}
                     </div>

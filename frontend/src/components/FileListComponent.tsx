@@ -165,7 +165,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {files.map((item) => (
-                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, border: '1px solid #f0f0f0', borderRadius: 8 }}>
+                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, border: '1px solid var(--app-border)', borderRadius: 8 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     {getIcon(item.filename)}

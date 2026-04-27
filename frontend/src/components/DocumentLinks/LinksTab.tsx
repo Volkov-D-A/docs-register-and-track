@@ -179,7 +179,7 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
         const direction = isSource ? "->" : "<-";
 
         return (
-            <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderBottom: '1px solid #f0f0f0' }}>
+            <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderBottom: '1px solid var(--app-border)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flex: 1, minWidth: 0 }}>
                     <div style={{ marginTop: 4 }}>
                         <LinkOutlined style={{ fontSize: 18, color: '#1677ff' }} />
@@ -192,7 +192,7 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
                             </Tag>
                             {direction} № {otherNumber || '???'}
                         </div>
-                        <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 13, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                        <div style={{ color: 'var(--app-text-secondary)', fontSize: 13, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
                             {otherSubject}
                         </div>
                     </div>
@@ -282,7 +282,7 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
                                 checked={isLocked}
                                 onChange={setIsLocked}
                             />
-                            <span style={{ fontSize: '12px', color: '#888' }}>{isLocked ? 'Заблокировано' : 'Разблокировано'}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--app-text-muted)' }}>{isLocked ? 'Заблокировано' : 'Разблокировано'}</span>
                         </Space>
                     </div>
                 }

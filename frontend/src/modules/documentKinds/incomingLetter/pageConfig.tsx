@@ -26,7 +26,7 @@ export const incomingLetterPageConfig = {
             render: (_: any, record: any) => (
                 <div>
                     <div style={{ fontWeight: 600 }}>{record.incomingNumber}</div>
-                    <div style={{ fontSize: 12, color: '#888' }}>
+                    <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
                         от {dayjs(record.incomingDate).format('DD.MM.YYYY')}
                     </div>
                 </div>
@@ -39,20 +39,20 @@ export const incomingLetterPageConfig = {
             render: (_: any, record: any) => {
                 const correspondents = record.correspondents || [];
                 if (correspondents.length === 0) {
-                    return <span style={{ color: '#bbb' }}>—</span>;
+                    return <span style={{ color: 'var(--app-text-muted)' }}>—</span>;
                 }
                 return (
                     <div>
                         {correspondents.slice(0, 2).map((item: any) => (
                             <div key={item.id || `${item.registrationNumber}-${item.correspondentName}`} style={{ marginBottom: 4 }}>
                                 <div style={{ fontWeight: 600 }}>{item.correspondentName}</div>
-                                <div style={{ fontSize: 13, color: '#666' }}>
+                                <div style={{ fontSize: 13, color: 'var(--app-text-muted)' }}>
                                     № {item.registrationNumber} от {dayjs(item.registrationDate).format('DD.MM.YYYY')}
                                 </div>
                             </div>
                         ))}
                         {correspondents.length > 2 && (
-                            <div style={{ fontSize: 12, color: '#888' }}>Еще: {correspondents.length - 2}</div>
+                            <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>Еще: {correspondents.length - 2}</div>
                         )}
                     </div>
                 );
@@ -74,8 +74,8 @@ export const incomingLetterPageConfig = {
             width: '26%',
             render: (_: any, record: any) => (
                 <div style={{ fontSize: 13 }}>
-                    {record.resolution && <div style={{ fontStyle: 'italic', color: '#555' }}>{record.resolution}</div>}
-                    {!record.resolution && <span style={{ color: '#bbb' }}>—</span>}
+                    {record.resolution && <div style={{ fontStyle: 'italic', color: 'var(--app-text-muted)' }}>{record.resolution}</div>}
+                    {!record.resolution && <span style={{ color: 'var(--app-text-muted)' }}>—</span>}
                 </div>
             ),
         },

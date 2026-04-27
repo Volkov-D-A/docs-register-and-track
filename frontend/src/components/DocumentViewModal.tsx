@@ -76,16 +76,16 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             </Row>
             <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {doc.nomenclatureName}</Col></Row>
 
-            <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+            <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
             <div>
                 <Text type="secondary" style={{ fontSize: 12 }}>Корреспонденты:</Text>
                 {(doc.correspondents || []).length > 0 ? (
                     <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {doc.correspondents.map((item: any) => (
-                            <div key={item.id || `${item.registrationNumber}-${item.correspondentName}`} style={{ background: '#fafafa', padding: '4px 8px', borderRadius: 4 }}>
+                            <div key={item.id || `${item.registrationNumber}-${item.correspondentName}`} style={{ background: 'var(--app-subtle-surface)', padding: '4px 8px', borderRadius: 4 }}>
                                 <Text strong>{item.correspondentName}</Text>
-                                <span style={{ color: '#666' }}>
+                                <span style={{ color: 'var(--app-text-muted)' }}>
                                     {' '}№ {item.registrationNumber} от {dayjs(item.registrationDate).format('DD.MM.YYYY')}
                                 </span>
                             </div>
@@ -99,18 +99,18 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                 </Col>
             </Row>
 
-            <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+            <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
             <div>
                 <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
                 <div style={{ fontWeight: 500, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{doc.content}</div>
             </div>
 
-            <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+            <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
             <div>
                 <Text type="secondary" style={{ fontSize: 12 }}>Резолюция:</Text>
-                <div style={{ fontStyle: 'italic', background: '#fafafa', padding: '4px 8px', borderRadius: 4 }}>{doc.resolution || '—'}</div>
+                <div style={{ fontStyle: 'italic', background: 'var(--app-subtle-surface)', padding: '4px 8px', borderRadius: 4 }}>{doc.resolution || '—'}</div>
             </div>
             {(doc.resolutionAuthor || doc.resolutionExecutors) && (
                 <Row gutter={16}>
@@ -132,9 +132,9 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                 </Row>
             )}
 
-            <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+            <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
-            <Row gutter={16} style={{ fontSize: 12, color: '#888' }}>
+            <Row gutter={16} style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
                 <Col span={8}>Листов: {doc.pagesCount}</Col>
                 <Col span={16} style={{ textAlign: 'right' }}>
                     Зарегистрировал: {doc.createdByName} <br /> ({dayjs(doc.createdAt).format('DD.MM.YYYY HH:mm')})
@@ -155,12 +155,12 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             </Row>
             <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {doc.nomenclatureName}</Col></Row>
 
-            <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+            <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
             <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Получатель:</Text> {doc.recipientOrgName}</Col></Row>
             <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Адресат:</Text> {doc.addressee}</Col></Row>
 
-            <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+            <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
             <Row gutter={16}>
                 <Col span={12}>
@@ -171,12 +171,12 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                 </Col>
             </Row>
 
-            <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+            <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
             <div>
                 <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
                 <div>
-                    <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, maxHeight: 100, overflowY: 'auto', background: '#fafafa', padding: 8, borderRadius: 4 }}>{doc.content}</div>
+                    <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, maxHeight: 100, overflowY: 'auto', background: 'var(--app-subtle-surface)', padding: 8, borderRadius: 4 }}>{doc.content}</div>
                 </div>
             </div>
         </div>

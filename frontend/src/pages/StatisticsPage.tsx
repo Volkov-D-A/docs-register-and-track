@@ -48,7 +48,7 @@ const StatisticsPage: React.FC = () => {
   }, [dateRange]);
 
   const StatCard = ({ title, value, icon, color = '#1677ff', suffix = '' }: any) => (
-    <Card variant="borderless" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+    <Card variant="borderless" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
       <Statistic
         title={title}
         value={value}

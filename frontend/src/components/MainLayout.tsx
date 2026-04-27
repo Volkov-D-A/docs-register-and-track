@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Modal, Spin } from 'antd';
+import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Modal, Spin, theme as antdTheme } from 'antd';
 import {
     DashboardOutlined,
     BarChartOutlined,
@@ -19,6 +19,7 @@ import { models } from '../../wailsjs/go/models';
 import { documentKinds } from '../constants/documentKinds';
 import { useRegisterDocumentStore } from '../store/useRegisterDocumentStore';
 import { useDocumentKinds } from '../hooks/useDocumentKinds';
+import { useAppTheme } from '../theme/AppThemeProvider';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -54,6 +55,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     release,
 }) => {
     const { user, logout, hasSystemPermission } = useAuthStore();
+    const { theme: appTheme } = useAppTheme();
+    const { token } = antdTheme.useToken();
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
     const {
@@ -154,16 +157,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     };
 
     return (
-        <Layout style={{ height: '100vh' }}>
+        <Layout style={{ height: '100vh', background: token.colorBgLayout }}>
             <Sider
                 className={`app-sider ${isSidebarExpanded ? 'app-sider-expanded' : 'app-sider-collapsed'}`}
-                theme="light"
+                theme={appTheme}
                 width={220}
                 collapsedWidth={72}
                 collapsed={!isSidebarExpanded}
                 trigger={null}
                 style={{
-                    borderRight: '1px solid #f0f0f0',
+                    borderRight: `1px solid ${token.colorBorderSecondary}`,
+                    background: token.colorBgContainer,
                 }}
             >
                 <div className="app-sider-brand">
@@ -174,6 +178,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 </div>
                 <Menu
                     mode="inline"
+                    theme={appTheme}
                     selectedKeys={[currentPage]}
                     items={menuItems}
                     inlineCollapsed={!isSidebarExpanded}
@@ -193,14 +198,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 </Button>
             </Sider>
 
-            <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+            <Layout style={{ height: '100vh', overflow: 'hidden', background: token.colorBgLayout }}>
                 <Header style={{
-                    background: '#fff',
+                    background: token.colorBgContainer,
                     padding: '0 24px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'flex-end',
-                    borderBottom: '1px solid #f0f0f0',
+                    borderBottom: `1px solid ${token.colorBorderSecondary}`,
                 }}>
                     <Space size="middle">
                         <Button icon={<InfoCircleOutlined />} onClick={onAboutModalOpen}>
@@ -209,7 +214,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 
                         <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenu }} placement="bottomRight">
                             <Space style={{ cursor: 'pointer' }}>
-                                <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1677ff' }} />
+                                <Avatar icon={<UserOutlined />} style={{ backgroundColor: token.colorPrimary }} />
                                 <Text>{user?.fullName}</Text>
                             </Space>
                         </Dropdown>
@@ -217,7 +222,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 </Header>
 
                 <Content style={{ overflowY: 'auto', padding: 24, height: 'calc(100vh - 64px)' }}>
-                    <div style={{ background: '#fff', padding: 24, borderRadius: 8, minHeight: '100%' }}>
+                    <div style={{ background: token.colorBgContainer, padding: 24, borderRadius: token.borderRadiusLG, minHeight: '100%' }}>
                         {children}
                     </div>
                 </Content>

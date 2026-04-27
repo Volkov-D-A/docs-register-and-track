@@ -80,14 +80,14 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
                             {isCompleted ? <Tag color="green">Завершено</Tag> : <Tag color="orange">В процессе</Tag>}
                             <span style={{ fontSize: 12 }}>({confirmed} из {total})</span>
                         </div>
-                        <div style={{ fontSize: 11, color: '#666', maxHeight: 60, overflowY: 'auto' }}>
+                        <div style={{ fontSize: 11, color: 'var(--app-text-muted)', maxHeight: 60, overflowY: 'auto' }}>
                             {users.map((u: any) => {
                                 const isOk = !!u.confirmedAt;
                                 return (
                                     <div key={u.userId} style={{ marginBottom: 2 }}>
-                                        {isOk ? <CheckCircleOutlined style={{ color: 'green', marginRight: 4 }} /> : <EyeOutlined style={{ color: '#ccc', marginRight: 4 }} />}
+                                        {isOk ? <CheckCircleOutlined style={{ color: 'green', marginRight: 4 }} /> : <EyeOutlined style={{ color: 'var(--app-text-muted)', marginRight: 4 }} />}
                                         {u.userName}
-                                        {isOk && <span style={{ marginLeft: 4, color: '#999' }}>{dayjs(u.confirmedAt).format('DD.MM')}</span>}
+                                        {isOk && <span style={{ marginLeft: 4, color: 'var(--app-text-muted)' }}>{dayjs(u.confirmedAt).format('DD.MM')}</span>}
                                     </div>
                                 );
                             })}

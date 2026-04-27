@@ -140,6 +140,11 @@ func main() {
 		slog.Error("Critical: Failed to load embedded release notes", "error", err)
 		os.Exit(1)
 	}
+	themeService, err := services.NewThemeService()
+	if err != nil {
+		slog.Error("Critical: Failed to initialize theme service", "error", err)
+		os.Exit(1)
+	}
 
 	// Запуск приложения Wails
 	err = wails.Run(&options.App{
@@ -180,6 +185,7 @@ func main() {
 			acknowledgmentService,
 			systemService,
 			releaseNoteService,
+			themeService,
 			journalService,
 			adminAuditLogService,
 		},

@@ -98,7 +98,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
                 <div>
                     <div>{r.executorName}</div>
                     {r.coExecutors && r.coExecutors.length > 0 && (
-                        <div style={{ fontSize: '11px', color: '#888' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--app-text-muted)' }}>
                             + {r.coExecutors.map((u: any) => u.fullName).join(', ')}
                         </div>
                     )}
