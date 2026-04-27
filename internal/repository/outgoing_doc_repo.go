@@ -73,7 +73,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		argIdx++
 	}
 	if filter.DocumentTypeID != "" {
-		where = append(where, fmt.Sprintf("d.document_type_id = $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.document_type = $%d", argIdx))
 		args = append(args, filter.DocumentTypeID)
 		argIdx++
 	}
@@ -139,7 +139,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		SELECT 
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			out.outgoing_number, out.outgoing_date,
-			d.document_type_id, dt.name as document_type_name,
+			d.document_type, d.document_type as document_type_name,
 			d.content, d.pages_count,
 			out.sender_signatory, out.sender_executor,
 			out.recipient_org_id, ro.name as recipient_org_name, out.addressee,
@@ -148,7 +148,6 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		FROM documents d
 		JOIN outgoing_document_details out ON out.document_id = d.id
 		JOIN nomenclature n ON d.nomenclature_id = n.id
-		JOIN document_types dt ON d.document_type_id = dt.id
 		JOIN organizations ro ON out.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
 		WHERE %s
@@ -202,7 +201,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 		SELECT 
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			out.outgoing_number, out.outgoing_date,
-			d.document_type_id, dt.name as document_type_name,
+			d.document_type, d.document_type as document_type_name,
 			d.content, d.pages_count,
 			out.sender_signatory, out.sender_executor,
 			out.recipient_org_id, ro.name as recipient_org_name, out.addressee,
@@ -211,7 +210,6 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 		FROM documents d
 		JOIN outgoing_document_details out ON out.document_id = d.id
 		JOIN nomenclature n ON d.nomenclature_id = n.id
-		JOIN document_types dt ON d.document_type_id = dt.id
 		JOIN organizations ro ON out.recipient_org_id = ro.id
 		JOIN users u ON d.created_by = u.id
 		WHERE d.id = $1 AND d.kind = $2
@@ -238,6 +236,11 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 
 // Create создает новый исходящий документ в базе данных.
 func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error) {
+	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
+	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
+		return nil, models.NewBadRequest("неверный тип документа")
+	}
+
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -247,7 +250,7 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, registration_number, registration_date, document_type_id, content, pages_count, created_by
+			kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`,
@@ -280,6 +283,11 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 
 // Update обновляет данные существующего исходящего документа.
 func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error) {
+	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
+	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
+		return nil, models.NewBadRequest("неверный тип документа")
+	}
+
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -288,7 +296,7 @@ func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest)
 
 	if _, err = tx.Exec(`
 		UPDATE documents SET
-			document_type_id = $1,
+			document_type = $1,
 			content = $2,
 			pages_count = $3,
 			updated_at = CURRENT_TIMESTAMP

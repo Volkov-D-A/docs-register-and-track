@@ -3,7 +3,7 @@ import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Space,
   Typography, Popconfirm, Switch, Tag, App, DatePicker, Checkbox, Row, Col, Collapse
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, FileTextOutlined, BankOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined, SolutionOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, BankOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined, SolutionOutlined } from '@ant-design/icons';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindLabel, getDocumentKindMeta } from '../constants/documentKinds';
 import { useDocumentKinds } from '../hooks/useDocumentKinds';
 import { useAuthStore } from '../store/useAuthStore';
@@ -168,107 +168,6 @@ const NomenclatureTab: React.FC = () => {
               <Switch />
             </Form.Item>
           )}
-        </Form>
-      </Modal>
-    </div>
-  );
-};
-
-// === Типы документов ===
-/**
- * Вкладка управления справочником типов документов.
- */
-const DocumentTypesTab: React.FC = () => {
-  const { message } = App.useApp();
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editItem, setEditItem] = useState<any>(null);
-  const [form] = Form.useForm();
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const { GetDocumentTypes } = await import('../../wailsjs/go/services/ReferenceService');
-      const items = await GetDocumentTypes();
-      setData(items || []);
-    } catch (err: any) {
-      message.error(err?.message || String(err));
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const onSave = async (values: any) => {
-    try {
-      if (editItem) {
-        const { UpdateDocumentType } = await import('../../wailsjs/go/services/ReferenceService');
-        await UpdateDocumentType(editItem.id, values.name);
-      } else {
-        const { CreateDocumentType } = await import('../../wailsjs/go/services/ReferenceService');
-        await CreateDocumentType(values.name);
-      }
-      message.success(editItem ? 'Обновлено' : 'Создано');
-      setModalOpen(false);
-      form.resetFields();
-      setEditItem(null);
-      load();
-    } catch (err: any) {
-      message.error(err?.message || String(err));
-    }
-  };
-
-  const onDelete = async (id: string) => {
-    try {
-      const { DeleteDocumentType } = await import('../../wailsjs/go/services/ReferenceService');
-      await DeleteDocumentType(id);
-      message.success('Удалено');
-      load();
-    } catch (err: any) {
-      message.error(err?.message || String(err));
-    }
-  };
-
-  const columns = [
-    { title: 'Наименование', dataIndex: 'name', key: 'name' },
-    {
-      title: 'Действия', key: 'actions', width: 100,
-      render: (_: any, record: any) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => {
-            setEditItem(record);
-            form.setFieldsValue(record);
-            setModalOpen(true);
-          }} />
-          <Popconfirm title="Удалить?" onConfirm={() => onDelete(record.id)}>
-            <Button size="small" icon={<DeleteOutlined />} danger />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
-
-  return (
-    <div>
-      <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-        setEditItem(null);
-        form.resetFields();
-        setModalOpen(true);
-      }} style={{ marginBottom: 16 }}>Добавить тип</Button>
-
-      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} size="small" pagination={false} />
-
-      <Modal
-        title={editItem ? 'Редактировать тип' : 'Новый тип документа'}
-        open={modalOpen}
-        onCancel={() => { setModalOpen(false); setEditItem(null); }}
-        onOk={() => form.submit()}
-      >
-        <Form form={form} layout="vertical" onFinish={onSave}>
-          <Form.Item name="name" label="Наименование" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
         </Form>
       </Modal>
     </div>
@@ -1347,10 +1246,9 @@ const AuditLogTab: React.FC = () => {
 
 export const ReferenceDirectoriesTab: React.FC = () => (
   <Tabs
-    defaultActiveKey="documentTypes"
+    defaultActiveKey="organizations"
     destroyOnHidden
     items={[
-      { key: 'documentTypes', label: 'Типы документов', icon: <FileTextOutlined />, children: <DocumentTypesTab /> },
       { key: 'organizations', label: 'Организации', icon: <BankOutlined />, children: <OrganizationsTab /> },
       { key: 'resolutionExecutors', label: 'Исполнители', icon: <SolutionOutlined />, children: <ResolutionExecutorsTab /> },
     ]}

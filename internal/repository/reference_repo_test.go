@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -16,55 +17,37 @@ import (
 // === Document Types ===
 
 func TestReferenceRepository_GetAllDocumentTypes(t *testing.T) {
-	// Получение всех типов документов из справочника
+	// Получение всех типов документов из кода.
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	repo := NewReferenceRepository(&database.DB{DB: db})
-	now := time.Now()
-
-	query := `SELECT id, name, created_at FROM document_types ORDER BY name`
-	rows := sqlmock.NewRows([]string{"id", "name", "created_at"}).
-		AddRow(uuid.New(), "Приказ", now).
-		AddRow(uuid.New(), "Договор", now)
-
-	mock.ExpectQuery(query).WillReturnRows(rows)
 
 	types, err := repo.GetAllDocumentTypes()
 	require.NoError(t, err)
-	require.Len(t, types, 2)
-	assert.Equal(t, "Приказ", types[0].Name)
-	assert.Equal(t, "Договор", types[1].Name)
+	require.Len(t, types, len(models.AllowedDocumentTypes()))
+	assert.Equal(t, models.DocumentTypeLetter, types[0].Name)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestReferenceRepository_CreateDocumentType(t *testing.T) {
-	// Создание нового типа документа
+	// Типы документов заданы в коде и не редактируются.
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	repo := NewReferenceRepository(&database.DB{DB: db})
-	id := uuid.New()
-	now := time.Now()
-
-	mock.ExpectQuery(`INSERT INTO document_types \(name\) VALUES \(\$1\) RETURNING id`).
-		WithArgs("Справка").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(id))
-
-	mock.ExpectQuery(`SELECT id, name, created_at FROM document_types WHERE id = \$1`).
-		WithArgs(id).WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at"}).AddRow(id, "Справка", now))
 
 	item, err := repo.CreateDocumentType("Справка")
-	require.NoError(t, err)
-	require.NotNil(t, item)
-	assert.Equal(t, id, item.ID)
-	assert.Equal(t, "Справка", item.Name)
+	require.Error(t, err)
+	assert.Nil(t, item)
+	assert.Contains(t, err.Error(), "не редактируются")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestReferenceRepository_UpdateDocumentType(t *testing.T) {
-	// Обновление названия существующего типа документа
+	// Типы документов заданы в коде и не редактируются.
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -72,16 +55,14 @@ func TestReferenceRepository_UpdateDocumentType(t *testing.T) {
 	repo := NewReferenceRepository(&database.DB{DB: db})
 	id := uuid.New()
 
-	mock.ExpectExec(`UPDATE document_types SET name = \$1 WHERE id = \$2`).
-		WithArgs("Новое Имя", id).WillReturnResult(sqlmock.NewResult(1, 1))
-
 	err = repo.UpdateDocumentType(id, "Новое Имя")
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "не редактируются")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestReferenceRepository_DeleteDocumentType(t *testing.T) {
-	// Удаление типа документа из справочника
+	// Типы документов заданы в коде и не редактируются.
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -89,11 +70,9 @@ func TestReferenceRepository_DeleteDocumentType(t *testing.T) {
 	repo := NewReferenceRepository(&database.DB{DB: db})
 	id := uuid.New()
 
-	mock.ExpectExec(`DELETE FROM document_types WHERE id = \$1`).
-		WithArgs(id).WillReturnResult(sqlmock.NewResult(1, 1))
-
 	err = repo.DeleteDocumentType(id)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "не редактируются")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

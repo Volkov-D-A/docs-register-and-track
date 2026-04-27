@@ -838,6 +838,7 @@ export namespace dto {
 	    documentTypeId: string;
 	    documentTypeName?: string;
 	    content: string;
+	    pagesCount: number;
 	    createdBy: string;
 	    createdByName?: string;
 	    // Go type: time
@@ -875,6 +876,7 @@ export namespace dto {
 	        this.documentTypeId = source["documentTypeId"];
 	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
+	        this.pagesCount = source["pagesCount"];
 	        this.createdBy = source["createdBy"];
 	        this.createdByName = source["createdByName"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);

@@ -83,9 +83,9 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 	if err != nil {
 		return nil, fmt.Errorf("неверный ID номенклатуры: %w", err)
 	}
-	docTypeID, err := uuid.Parse(req.DocumentTypeID)
-	if err != nil {
-		return nil, fmt.Errorf("неверный ID типа документа: %w", err)
+	docTypeID := models.NormalizeDocumentType(req.DocumentTypeID)
+	if !models.IsAllowedDocumentType(docTypeID) {
+		return nil, models.NewBadRequest("неверный тип документа")
 	}
 
 	recipientOrg, err := h.refRepo.FindOrCreateOrganization(req.RecipientOrgName)
@@ -165,9 +165,9 @@ func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (
 	if err := h.access.RequireDocumentAction(uid, "update"); err != nil {
 		return nil, err
 	}
-	docTypeID, err := uuid.Parse(req.DocumentTypeID)
-	if err != nil {
-		return nil, fmt.Errorf("неверный ID типа документа: %w", err)
+	docTypeID := models.NormalizeDocumentType(req.DocumentTypeID)
+	if !models.IsAllowedDocumentType(docTypeID) {
+		return nil, models.NewBadRequest("неверный тип документа")
 	}
 
 	recipientOrg, err := h.refRepo.FindOrCreateOrganization(req.RecipientOrgName)

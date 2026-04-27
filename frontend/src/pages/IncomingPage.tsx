@@ -6,6 +6,7 @@ import DocumentKindPage from '../components/DocumentKindPage';
 import { useAuthStore } from '../store/useAuthStore';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel, isIncomingKind } from '../constants/documentKinds';
+import { DOCUMENT_TYPE_OPTIONS } from '../constants/documentTypes';
 import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
 import { useDocumentKinds } from '../hooks/useDocumentKinds';
@@ -51,7 +52,6 @@ const IncomingPage: React.FC = () => {
 
     // Справочники
     const [nomenclatures, setNomenclatures] = useState<any[]>([]);
-    const [docTypes, setDocTypes] = useState<any[]>([]);
     const [orgOptionsSender, setOrgOptionsSender] = useState<{ value: string; label: string }[]>([]);
     const [executorOptions, setExecutorOptions] = useState<{ value: string; label: string }[]>([]);
 
@@ -65,10 +65,6 @@ const IncomingPage: React.FC = () => {
             const { GetActiveForKind } = await import('../../wailsjs/go/services/NomenclatureService');
             const noms = await GetActiveForKind(DOCUMENT_KIND_INCOMING_LETTER);
             setNomenclatures(noms || []);
-
-            const { GetDocumentTypes } = await import('../../wailsjs/go/services/ReferenceService');
-            const types = await GetDocumentTypes();
-            setDocTypes(types || []);
         } catch (err) {
             console.error('Failed to load refs:', err);
         }
@@ -318,7 +314,7 @@ const IncomingPage: React.FC = () => {
                         isEdit={false}
                         onFinish={onRegister}
                         nomenclatures={nomenclatures}
-                        docTypes={docTypes}
+                        docTypes={DOCUMENT_TYPE_OPTIONS}
                         selectedRegisterNomenclature={selectedRegisterNomenclature}
                         orgOptionsSender={orgOptionsSender}
                         executorOptions={executorOptions}
@@ -340,7 +336,7 @@ const IncomingPage: React.FC = () => {
                         isEdit
                         onFinish={onEdit}
                         nomenclatures={nomenclatures}
-                        docTypes={docTypes}
+                        docTypes={DOCUMENT_TYPE_OPTIONS}
                         selectedRegisterNomenclature={selectedRegisterNomenclature}
                         orgOptionsSender={orgOptionsSender}
                         executorOptions={executorOptions}

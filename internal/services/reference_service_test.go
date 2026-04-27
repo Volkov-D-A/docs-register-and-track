@@ -1,7 +1,6 @@
 package services
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -66,29 +65,15 @@ func setupReferenceServiceWithRoles(t *testing.T, roles []string) (*ReferenceSer
 // === Типы документов ===
 
 func TestReferenceService_GetDocumentTypes(t *testing.T) {
-	// Получение списка всех типов документов из справочника
+	// Получение списка всех типов документов из кода.
 	t.Run("успех (авторизован)", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "clerk")
-		mockValues := []models.DocumentType{
-			{ID: uuid.New(), Name: "Приказ"},
-			{ID: uuid.New(), Name: "Письмо"},
-		}
-		repo.On("GetAllDocumentTypes").Return(mockValues, nil).Once()
+		svc, _, _, _ := setupReferenceService(t, "clerk")
 
 		result, err := svc.GetDocumentTypes()
 		require.NoError(t, err)
-		assert.Len(t, result, 2)
-		assert.Equal(t, "Приказ", result[0].Name)
-	})
-
-	t.Run("ошибка базы", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "clerk")
-		repo.On("GetAllDocumentTypes").Return(nil, errors.New("db error")).Once()
-
-		result, err := svc.GetDocumentTypes()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "db error")
-		assert.Nil(t, result)
+		assert.Len(t, result, len(models.AllowedDocumentTypes()))
+		assert.Equal(t, models.DocumentTypeLetter, result[0].Name)
+		assert.Equal(t, models.DocumentTypeLetter, result[0].ID)
 	})
 
 	t.Run("не авторизован", func(t *testing.T) {
@@ -101,85 +86,33 @@ func TestReferenceService_GetDocumentTypes(t *testing.T) {
 }
 
 func TestReferenceService_CreateDocumentType(t *testing.T) {
-	// Запись нового типа документа в справочник
-	t.Run("запрещено (не админ)", func(t *testing.T) {
+	// Типы документов заданы в коде и не редактируются через сервис.
+	t.Run("запрещено", func(t *testing.T) {
 		svc, _, _, _ := setupReferenceService(t, "clerk")
 		result, err := svc.CreateDocumentType("Test")
 		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		repo.On("CreateDocumentType", "Test").Return(&models.DocumentType{ID: uuid.New(), Name: "Test"}, nil).Once()
-
-		result, err := svc.CreateDocumentType("Test")
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-	})
-
-	t.Run("администратору без references запрещено", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionAdmin)
-
-		result, err := svc.CreateDocumentType("Test")
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
+		assert.Contains(t, err.Error(), "не редактируются")
 		assert.Nil(t, result)
 	})
 }
 
 func TestReferenceService_UpdateDocumentType(t *testing.T) {
-	// Переименование существующего типа документа
-	idStr := uuid.New().String()
-
-	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		err := svc.UpdateDocumentType("invalid-uuid", "Новое имя")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
-	})
-
-	t.Run("запрещено (не админ)", func(t *testing.T) {
+	// Типы документов заданы в коде и не редактируются через сервис.
+	t.Run("запрещено", func(t *testing.T) {
 		svc, _, _, _ := setupReferenceService(t, "clerk")
-		err := svc.UpdateDocumentType(idStr, "Test")
+		err := svc.UpdateDocumentType("Письмо", "Test")
 		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
-
-	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		repo.On("UpdateDocumentType", mock.AnythingOfType("uuid.UUID"), "Test").Return(nil).Once()
-
-		err := svc.UpdateDocumentType(idStr, "Test")
-		require.NoError(t, err)
+		assert.Contains(t, err.Error(), "не редактируются")
 	})
 }
 
 func TestReferenceService_DeleteDocumentType(t *testing.T) {
-	// Физическое удаление типа документа из справочника
-	idStr := uuid.New().String()
-
-	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		err := svc.DeleteDocumentType("invalid-uuid")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
-	})
-
-	t.Run("запрещено (не админ)", func(t *testing.T) {
+	// Типы документов заданы в коде и не редактируются через сервис.
+	t.Run("запрещено", func(t *testing.T) {
 		svc, _, _, _ := setupReferenceService(t, "clerk")
-		err := svc.DeleteDocumentType(idStr)
+		err := svc.DeleteDocumentType("Письмо")
 		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
-
-	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		repo.On("DeleteDocumentType", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
-
-		err := svc.DeleteDocumentType(idStr)
-		require.NoError(t, err)
+		assert.Contains(t, err.Error(), "не редактируются")
 	})
 }
 

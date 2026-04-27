@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,47 @@ const (
 	DocumentKindIncomingLetter DocumentKind = "incoming_letter"
 	DocumentKindOutgoingLetter DocumentKind = "outgoing_letter"
 )
+
+const (
+	DocumentTypeLetter       = "Письмо"
+	DocumentTypeContract     = "Договор"
+	DocumentTypeAct          = "Акт"
+	DocumentTypeInvoice      = "Счёт"
+	DocumentTypeRequest      = "Запрос"
+	DocumentTypeReply        = "Ответ"
+	DocumentTypeNotification = "Уведомление"
+)
+
+var documentTypeSet = map[string]struct{}{
+	DocumentTypeLetter:       {},
+	DocumentTypeContract:     {},
+	DocumentTypeAct:          {},
+	DocumentTypeInvoice:      {},
+	DocumentTypeRequest:      {},
+	DocumentTypeReply:        {},
+	DocumentTypeNotification: {},
+}
+
+func AllowedDocumentTypes() []string {
+	return []string{
+		DocumentTypeLetter,
+		DocumentTypeContract,
+		DocumentTypeAct,
+		DocumentTypeInvoice,
+		DocumentTypeRequest,
+		DocumentTypeReply,
+		DocumentTypeNotification,
+	}
+}
+
+func NormalizeDocumentType(value string) string {
+	return strings.TrimSpace(value)
+}
+
+func IsAllowedDocumentType(value string) bool {
+	_, ok := documentTypeSet[NormalizeDocumentType(value)]
+	return ok
+}
 
 func (k DocumentKind) IsIncoming() bool {
 	return k == DocumentKindIncomingLetter
@@ -28,7 +70,7 @@ type Document struct {
 	NomenclatureID     uuid.UUID    `json:"-"`
 	RegistrationNumber string       `json:"registrationNumber"`
 	RegistrationDate   time.Time    `json:"registrationDate"`
-	DocumentTypeID     uuid.UUID    `json:"-"`
+	DocumentTypeID     string       `json:"-"`
 	Content            string       `json:"content"`
 	PagesCount         int          `json:"pagesCount"`
 	CreatedBy          uuid.UUID    `json:"-"`
@@ -47,10 +89,10 @@ type IncomingDocument struct {
 	IncomingDate   time.Time `json:"incomingDate"`
 
 	// О документе
-	DocumentTypeID   uuid.UUID `json:"-"`
-	DocumentTypeName string    `json:"documentTypeName,omitempty"`
-	Content          string    `json:"content"`
-	PagesCount       int       `json:"pagesCount"`
+	DocumentTypeID   string `json:"-"`
+	DocumentTypeName string `json:"documentTypeName,omitempty"`
+	Content          string `json:"content"`
+	PagesCount       int    `json:"pagesCount"`
 
 	// Корреспондентские регистрации
 	Correspondents []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
@@ -105,10 +147,10 @@ type OutgoingDocument struct {
 	OutgoingDate   time.Time `json:"outgoingDate"`
 
 	// О документе
-	DocumentTypeID   uuid.UUID `json:"-"`
-	DocumentTypeName string    `json:"documentTypeName,omitempty"`
-	Content          string    `json:"content"`
-	PagesCount       int       `json:"pagesCount"`
+	DocumentTypeID   string `json:"-"`
+	DocumentTypeName string `json:"documentTypeName,omitempty"`
+	Content          string `json:"content"`
+	PagesCount       int    `json:"pagesCount"`
 
 	// Отправитель
 	SenderSignatory string `json:"senderSignatory"`
@@ -222,7 +264,7 @@ type GraphData struct {
 // CreateIncomingDocRequest — запрос на создание входящего документа (уровень репозитория).
 type CreateIncomingDocRequest struct {
 	NomenclatureID      uuid.UUID
-	DocumentTypeID      uuid.UUID
+	DocumentTypeID      string
 	CreatedBy           uuid.UUID
 	IncomingNumber      string
 	IncomingDate        time.Time
@@ -238,7 +280,7 @@ type CreateIncomingDocRequest struct {
 // UpdateIncomingDocRequest — запрос на обновление входящего документа (уровень репозитория).
 type UpdateIncomingDocRequest struct {
 	ID                  uuid.UUID
-	DocumentTypeID      uuid.UUID
+	DocumentTypeID      string
 	Correspondents      []DocumentCorrespondentRegistration
 	Content             string
 	PagesCount          int
@@ -251,7 +293,7 @@ type UpdateIncomingDocRequest struct {
 // CreateOutgoingDocRequest — запрос на создание исходящего документа (уровень репозитория).
 type CreateOutgoingDocRequest struct {
 	NomenclatureID  uuid.UUID
-	DocumentTypeID  uuid.UUID
+	DocumentTypeID  string
 	RecipientOrgID  uuid.UUID
 	CreatedBy       uuid.UUID
 	OutgoingNumber  string
@@ -266,7 +308,7 @@ type CreateOutgoingDocRequest struct {
 // UpdateOutgoingDocRequest — запрос на обновление исходящего документа (уровень репозитория).
 type UpdateOutgoingDocRequest struct {
 	ID              uuid.UUID
-	DocumentTypeID  uuid.UUID
+	DocumentTypeID  string
 	RecipientOrgID  uuid.UUID
 	OutgoingDate    time.Time
 	Content         string

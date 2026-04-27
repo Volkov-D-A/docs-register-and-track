@@ -3,6 +3,7 @@ import { Button, Space } from 'antd';
 import { EyeOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { DOCUMENT_KIND_INCOMING_LETTER } from '../../../constants/documentKinds';
+import { DEFAULT_DOCUMENT_TYPE } from '../../../constants/documentTypes';
 
 type ColumnFactoryParams = {
     isExecutorOnly: boolean;
@@ -16,7 +17,7 @@ export const incomingLetterPageConfig = {
     tableClassName: 'incoming-documents-table',
     registerModalTitle: 'Регистрация входящего документа',
     getEditModalTitle: (record: any) => `Редактирование: ${record?.incomingNumber || ''}`,
-    registerInitialValues: { incomingDate: dayjs(), pagesCount: 1, correspondents: [{}] },
+    registerInitialValues: { incomingDate: dayjs(), pagesCount: 1, documentTypeId: DEFAULT_DOCUMENT_TYPE, correspondents: [{}] },
     buildColumns: ({ isExecutorOnly, openViewModal, onEdit }: ColumnFactoryParams) => [
         {
             title: 'Номер / Дата',

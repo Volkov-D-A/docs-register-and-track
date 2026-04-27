@@ -26,7 +26,7 @@ func NewIncomingDocumentRepository(db *database.DB) *IncomingDocumentRepository 
 const incomingDocSelectBase = `
 	SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
 		inc.incoming_number, inc.incoming_date,
-		d.document_type_id, dt.name,
+		d.document_type, d.document_type,
 		d.content, d.pages_count,
 		inc.sender_signatory,
 		d.created_by, u.full_name,
@@ -34,7 +34,6 @@ const incomingDocSelectBase = `
 	FROM documents d
 	JOIN incoming_document_details inc ON inc.document_id = d.id
 	LEFT JOIN nomenclature n ON d.nomenclature_id = n.id
-	LEFT JOIN document_types dt ON d.document_type_id = dt.id
 	LEFT JOIN users u ON d.created_by = u.id`
 
 // scanIncomingDoc сканирует строку результата в структуру IncomingDocument.
@@ -209,7 +208,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		argIdx++
 	}
 	if filter.DocumentTypeID != "" {
-		where = append(where, fmt.Sprintf("d.document_type_id = $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.document_type = $%d", argIdx))
 		args = append(args, filter.DocumentTypeID)
 		argIdx++
 	}
@@ -402,6 +401,11 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 
 // Create создает новый входящий документ в базе данных.
 func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error) {
+	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
+	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
+		return nil, models.NewBadRequest("неверный тип документа")
+	}
+
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -411,7 +415,7 @@ func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest)
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, registration_number, registration_date, document_type_id, content, pages_count, created_by
+			kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`,
@@ -449,6 +453,11 @@ func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest)
 
 // Update обновляет данные существующего входящего документа.
 func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error) {
+	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
+	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
+		return nil, models.NewBadRequest("неверный тип документа")
+	}
+
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -457,7 +466,7 @@ func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest)
 
 	if _, err = tx.Exec(`
 		UPDATE documents SET
-			document_type_id = $1,
+			document_type = $1,
 			content = $2,
 			pages_count = $3,
 			updated_at = CURRENT_TIMESTAMP

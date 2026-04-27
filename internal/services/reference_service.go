@@ -32,60 +32,30 @@ func (s *ReferenceService) GetDocumentTypes() ([]dto.DocumentType, error) {
 	if !s.auth.IsAuthenticated() {
 		return nil, ErrNotAuthenticated
 	}
-	res, err := s.repo.GetAllDocumentTypes()
-	return dto.MapDocumentTypes(res), err
+
+	items := make([]dto.DocumentType, 0, len(models.AllowedDocumentTypes()))
+	for _, name := range models.AllowedDocumentTypes() {
+		items = append(items, dto.DocumentType{
+			ID:   name,
+			Name: name,
+		})
+	}
+	return items, nil
 }
 
 // CreateDocumentType создает новый тип документа для пользователей с доступом к справочникам.
 func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, error) {
-	if err := s.requireReferenceManagement(); err != nil {
-		return nil, err
-	}
-	res, err := s.repo.CreateDocumentType(name)
-	if err != nil {
-		return nil, err
-	}
-
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "DOCTYPE_CREATE", fmt.Sprintf("Создан тип документа «%s»", name))
-
-	return dto.MapDocumentType(res), nil
+	return nil, models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
 // UpdateDocumentType обновляет название типа документа для пользователей с доступом к справочникам.
 func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
-	if err := s.requireReferenceManagement(); err != nil {
-		return err
-	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
-	}
-	if err := s.repo.UpdateDocumentType(uid, name); err != nil {
-		return err
-	}
-
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "DOCTYPE_UPDATE", fmt.Sprintf("Обновлен тип документа «%s»", name))
-	return nil
+	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
 // DeleteDocumentType удаляет тип документа по его ID для пользователей с доступом к справочникам.
 func (s *ReferenceService) DeleteDocumentType(id string) error {
-	if err := s.requireReferenceManagement(); err != nil {
-		return err
-	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
-	}
-	if err := s.repo.DeleteDocumentType(uid); err != nil {
-		return err
-	}
-
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "DOCTYPE_DELETE", fmt.Sprintf("Удален тип документа (ID: %s)", id))
-	return nil
+	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
 // === Организации ===

@@ -70,7 +70,7 @@
 - системные виды документов пока захардкожены в коде: `incoming_letter`, `outgoing_letter`
 - backend-реестр видов документов хранится в `internal/models/document_kind.go`
 - frontend использует тот же системный словарь через `frontend/src/constants/documentKinds.ts` и `DocumentKindService`
-- `documents` — общий корень документа с полями `id`, `kind`, `nomenclature_id`, `registration_number`, `registration_date`, `document_type_id`, `content`, `pages_count`, `created_by`, `created_at`, `updated_at`
+- `documents` — общий корень документа с полями `id`, `kind`, `nomenclature_id`, `registration_number`, `registration_date`, `document_type`, `content`, `pages_count`, `created_by`, `created_at`, `updated_at`
 - `incoming_document_details` — типоспецифичные поля входящего документа
 - `outgoing_document_details` — типоспецифичные поля исходящего документа
 - `document_correspondent_registrations` — общие регистрационные реквизиты корреспондента документа: регистрационный номер, дата, организация-корреспондент и порядок отображения

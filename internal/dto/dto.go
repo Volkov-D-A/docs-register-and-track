@@ -177,6 +177,7 @@ type DocumentListItem struct {
 	DocumentTypeID     string    `json:"documentTypeId"`
 	DocumentTypeName   string    `json:"documentTypeName,omitempty"`
 	Content            string    `json:"content"`
+	PagesCount         int       `json:"pagesCount"`
 	CreatedBy          string    `json:"createdBy"`
 	CreatedByName      string    `json:"createdByName,omitempty"`
 	CreatedAt          time.Time `json:"createdAt"`

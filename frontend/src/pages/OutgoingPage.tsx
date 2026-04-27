@@ -6,6 +6,7 @@ import DocumentKindPage from '../components/DocumentKindPage';
 import { useAuthStore } from '../store/useAuthStore';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
 import { DOCUMENT_KIND_OUTGOING_LETTER, getDocumentKindShortLabel, isOutgoingKind } from '../constants/documentKinds';
+import { DOCUMENT_TYPE_OPTIONS } from '../constants/documentTypes';
 import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
 import { useDocumentKinds } from '../hooks/useDocumentKinds';
@@ -39,7 +40,6 @@ const OutgoingPage: React.FC = () => {
 
     // Справочники
     const [nomenclatures, setNomenclatures] = useState<any[]>([]);
-    const [docTypes, setDocTypes] = useState<any[]>([]);
     const [orgOptionsRecipient, setOrgOptionsRecipient] = useState<any[]>([]);
 
     // Фильтры
@@ -58,13 +58,9 @@ const OutgoingPage: React.FC = () => {
     const loadRefs = async () => {
         try {
             const { GetActiveForKind } = await import('../../wailsjs/go/services/NomenclatureService');
-            const { GetDocumentTypes } = await import('../../wailsjs/go/services/ReferenceService');
 
             const noms = await GetActiveForKind(DOCUMENT_KIND_OUTGOING_LETTER);
             setNomenclatures(noms || []);
-
-            const types = await GetDocumentTypes();
-            setDocTypes(types || []);
         } catch (e) {
             console.error(e);
         }
@@ -279,7 +275,7 @@ const OutgoingPage: React.FC = () => {
                         isEdit={false}
                         onFinish={onRegister}
                         nomenclatures={nomenclatures}
-                        docTypes={docTypes}
+                        docTypes={DOCUMENT_TYPE_OPTIONS}
                         orgOptionsRecipient={orgOptionsRecipient}
                         selectedRegisterNomenclature={selectedRegisterNomenclature}
                         onRecipientOrgSearch={onRecipientOrgSearch}
@@ -299,7 +295,7 @@ const OutgoingPage: React.FC = () => {
                         isEdit
                         onFinish={onUpdate}
                         nomenclatures={nomenclatures}
-                        docTypes={docTypes}
+                        docTypes={DOCUMENT_TYPE_OPTIONS}
                         orgOptionsRecipient={orgOptionsRecipient}
                         selectedRegisterNomenclature={selectedRegisterNomenclature}
                         onRecipientOrgSearch={onRecipientOrgSearch}

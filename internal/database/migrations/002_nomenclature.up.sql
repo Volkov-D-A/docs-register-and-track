@@ -65,23 +65,6 @@ CREATE TABLE organizations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 7. Document Types
-CREATE TABLE document_types (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
-    name VARCHAR(100) NOT NULL UNIQUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-INSERT INTO
-    document_types (name)
-VALUES ('Письмо'),
-    ('Договор'),
-    ('Акт'),
-    ('Счёт'),
-    ('Запрос'),
-    ('Ответ'),
-    ('Уведомление');
-
 -- 8. Resolution Executors (справочник исполнителей резолюции)
 CREATE TABLE resolution_executors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

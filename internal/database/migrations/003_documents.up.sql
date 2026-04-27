@@ -5,7 +5,17 @@ CREATE TABLE documents (
     nomenclature_id UUID NOT NULL REFERENCES nomenclature(id),
     registration_number VARCHAR(100) NOT NULL,
     registration_date DATE NOT NULL,
-    document_type_id UUID NOT NULL REFERENCES document_types(id),
+    document_type VARCHAR(100) NOT NULL CHECK (
+        document_type IN (
+            'Письмо',
+            'Договор',
+            'Акт',
+            'Счёт',
+            'Запрос',
+            'Ответ',
+            'Уведомление'
+        )
+    ),
     content TEXT NOT NULL,
     pages_count INT NOT NULL DEFAULT 1,
     created_by UUID NOT NULL REFERENCES users(id),

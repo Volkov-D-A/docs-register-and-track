@@ -24,66 +24,26 @@ func NewReferenceRepository(db *database.DB) *ReferenceRepository {
 
 // GetAllDocumentTypes возвращает все типы документов.
 func (r *ReferenceRepository) GetAllDocumentTypes() ([]models.DocumentType, error) {
-	rows, err := r.db.Query(`
-		SELECT id, name, created_at FROM document_types ORDER BY name
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get document types: %w", err)
-	}
-	defer rows.Close()
-
-	items := make([]models.DocumentType, 0)
-	for rows.Next() {
-		var item models.DocumentType
-		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
-			return nil, err
-		}
-
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	items := make([]models.DocumentType, 0, len(models.AllowedDocumentTypes()))
+	for _, name := range models.AllowedDocumentTypes() {
+		items = append(items, models.DocumentType{Name: name})
 	}
 	return items, nil
 }
 
 // CreateDocumentType создает новый тип документа.
 func (r *ReferenceRepository) CreateDocumentType(name string) (*models.DocumentType, error) {
-	var id uuid.UUID
-	err := r.db.QueryRow(`
-		INSERT INTO document_types (name) VALUES ($1) RETURNING id
-	`, name).Scan(&id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create document type: %w", err)
-	}
-
-	item := &models.DocumentType{}
-	err = r.db.QueryRow(`
-		SELECT id, name, created_at FROM document_types WHERE id = $1
-	`, id).Scan(&item.ID, &item.Name, &item.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-
-	return item, nil
+	return nil, models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
 // UpdateDocumentType обновляет тип документа.
 func (r *ReferenceRepository) UpdateDocumentType(id uuid.UUID, name string) error {
-	_, err := r.db.Exec(`UPDATE document_types SET name = $1 WHERE id = $2`, name, id)
-	if err != nil {
-		return fmt.Errorf("failed to update document type: %w", err)
-	}
-	return nil
+	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
 // DeleteDocumentType удаляет тип документа.
 func (r *ReferenceRepository) DeleteDocumentType(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM document_types WHERE id = $1`, id)
-	if err != nil {
-		return fmt.Errorf("failed to delete document type: %w", err)
-	}
-	return nil
+	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
 // === Организации ===

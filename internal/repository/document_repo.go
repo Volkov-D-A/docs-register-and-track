@@ -25,7 +25,7 @@ func NewDocumentRepository(db *database.DB) *DocumentRepository {
 func (r *DocumentRepository) GetByID(id uuid.UUID) (*models.Document, error) {
 	var doc models.Document
 	err := r.db.QueryRow(`
-		SELECT id, kind, nomenclature_id, registration_number, registration_date, document_type_id, content, pages_count, created_by, created_at, updated_at
+		SELECT id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by, created_at, updated_at
 		FROM documents
 		WHERE id = $1
 	`, id).Scan(
@@ -62,7 +62,7 @@ func (r *DocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Document, error
 	}
 
 	rows, err := r.db.Query(`
-		SELECT id, kind, nomenclature_id, registration_number, registration_date, document_type_id, content, pages_count, created_by, created_at, updated_at
+		SELECT id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by, created_at, updated_at
 		FROM documents
 		WHERE id = ANY($1::uuid[])
 	`, pq.Array(idStrings))

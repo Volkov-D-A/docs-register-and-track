@@ -220,6 +220,34 @@ func TestMapOutgoingDocument(t *testing.T) {
 	})
 }
 
+func TestMapDocumentListItemsPagesCount(t *testing.T) {
+	t.Run("incoming", func(t *testing.T) {
+		item := MapIncomingDocumentListItem(&models.IncomingDocument{
+			ID:             uuid.New(),
+			NomenclatureID: uuid.New(),
+			DocumentTypeID: models.DocumentTypeLetter,
+			CreatedBy:      uuid.New(),
+			PagesCount:     12,
+		})
+
+		require.NotNil(t, item)
+		assert.Equal(t, 12, item.PagesCount)
+	})
+
+	t.Run("outgoing", func(t *testing.T) {
+		item := MapOutgoingDocumentListItem(&models.OutgoingDocument{
+			ID:             uuid.New(),
+			NomenclatureID: uuid.New(),
+			DocumentTypeID: models.DocumentTypeLetter,
+			CreatedBy:      uuid.New(),
+			PagesCount:     7,
+		})
+
+		require.NotNil(t, item)
+		assert.Equal(t, 7, item.PagesCount)
+	})
+}
+
 func TestMapSlices(t *testing.T) {
 	// Тестирование групповых функций маппинга массивов (слайсов)
 	t.Run("MapUsers nil", func(t *testing.T) {
