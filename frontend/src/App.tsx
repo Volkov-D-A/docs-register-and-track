@@ -18,6 +18,7 @@ import { models } from '../wailsjs/go/models';
 import { documentKinds, getDocumentPageKey } from './constants/documentKinds';
 import { useDocumentKinds } from './hooks/useDocumentKinds';
 const emptyKinds: typeof documentKinds = [];
+const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'assignments']);
 
 // Заглушки для страниц
 
@@ -33,8 +34,8 @@ function App() {
     const [organizationSetupSaving, setOrganizationSetupSaving] = useState(false);
     const [organizationSetupLoading, setOrganizationSetupLoading] = useState(false);
     const [organizationSetupForm] = Form.useForm();
-    const { kinds: readableKinds, loading: readableKindsLoading } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
-    const { kinds: registrationKinds, loading: registrationKindsLoading } = useDocumentKinds({ mode: 'registration', fallbackKinds: emptyKinds });
+    const { kinds: readableKinds, loading: readableKindsLoading, ready: readableKindsReady } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
+    const { kinds: registrationKinds, loading: registrationKindsLoading, ready: registrationKindsReady } = useDocumentKinds({ mode: 'registration', fallbackKinds: emptyKinds });
     const requestedRegisterKind = useRegisterDocumentStore((state) => state.requestedKind);
     const accessByCode = new Map<string, { read: boolean; create: boolean; pageKey: string }>();
     [...readableKinds, ...registrationKinds].forEach((kind) => {
@@ -59,6 +60,7 @@ function App() {
         hasSystemPermission('stats_assignments') ||
         hasSystemPermission('stats_system');
     const documentKindsLoading = readableKindsLoading || registrationKindsLoading;
+    const documentKindsReady = readableKindsReady && registrationKindsReady;
     const getDefaultPage = () => {
         if (canAccessDocuments) {
             return 'dashboard';
@@ -74,6 +76,27 @@ function App() {
         }
         return 'profile';
     };
+    const canAccessPage = (page: string) => {
+        switch (page) {
+            case 'dashboard':
+            case 'assignments':
+                return canAccessDocuments;
+            case 'incoming':
+                return canAccessIncoming;
+            case 'outgoing':
+                return canAccessOutgoing;
+            case 'settings':
+                return canAccessSettings;
+            case 'references':
+                return canAccessReferences;
+            case 'statistics':
+                return canAccessStatistics;
+            case 'profile':
+                return true;
+            default:
+                return false;
+        }
+    };
 
     // При входе в приложение всегда перенаправляем на дашборд
     // Или на страницу создания документа, если есть draftLink
@@ -83,6 +106,9 @@ function App() {
         const currentUserId = user?.id || null;
 
         if (isAuthenticated) {
+            if (!documentKindsReady) {
+                return;
+            }
             if (initializedForUserRef.current === currentUserId) {
                 return;
             }
@@ -94,8 +120,29 @@ function App() {
             initializedForUserRef.current = currentUserId;
         } else {
             initializedForUserRef.current = null;
+            setCurrentPage('dashboard');
         }
-    }, [isAuthenticated, user?.id]);
+    }, [isAuthenticated, user?.id, documentKindsReady, canAccessDocuments, canAccessSettings, canAccessReferences, canAccessStatistics]);
+
+    useEffect(() => {
+        if (!isAuthenticated || !documentKindsReady) {
+            return;
+        }
+
+        if (!canAccessPage(currentPage)) {
+            setCurrentPage(getDefaultPage());
+        }
+    }, [
+        isAuthenticated,
+        documentKindsReady,
+        currentPage,
+        canAccessDocuments,
+        canAccessIncoming,
+        canAccessOutgoing,
+        canAccessSettings,
+        canAccessReferences,
+        canAccessStatistics,
+    ]);
 
     useEffect(() => {
         if (isAuthenticated && requestedRegisterKind) {
@@ -227,27 +274,16 @@ function App() {
     }
 
     const renderPage = () => {
-        const pendingRegisterPage = requestedRegisterKind ? getDocumentPageKey(requestedRegisterKind) : null;
         const fallbackPage = getDefaultPage();
-        const isDocumentPage = ['incoming', 'outgoing', 'assignments'].includes(currentPage);
+        const isDocumentPage = documentSectionPages.has(currentPage);
 
-        if (documentKindsLoading && isDocumentPage) {
+        if ((!documentKindsReady || documentKindsLoading) && isDocumentPage) {
             return <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}><Spin size="large" /></div>;
         }
 
-        if (!canAccessSettings && currentPage === 'settings') {
-            return fallbackPage === 'references' ? <ReferencesPage /> : fallbackPage === 'statistics' ? <StatisticsPage /> : fallbackPage === 'profile' ? <ProfilePage /> : <DashboardPage />;
-        }
+        const pageToRender = canAccessPage(currentPage) ? currentPage : fallbackPage;
 
-        if (!canAccessReferences && currentPage === 'references') {
-            return fallbackPage === 'settings' ? <SettingsPage /> : fallbackPage === 'statistics' ? <StatisticsPage /> : fallbackPage === 'profile' ? <ProfilePage /> : <DashboardPage />;
-        }
-
-        if (!canAccessStatistics && currentPage === 'statistics') {
-            return fallbackPage === 'settings' ? <SettingsPage /> : fallbackPage === 'references' ? <ReferencesPage /> : fallbackPage === 'profile' ? <ProfilePage /> : <DashboardPage />;
-        }
-
-        switch (currentPage) {
+        switch (pageToRender) {
             case 'dashboard':
                 return <DashboardPage />;
             case 'incoming':

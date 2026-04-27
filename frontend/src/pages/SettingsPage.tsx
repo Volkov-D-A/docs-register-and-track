@@ -799,13 +799,13 @@ const UsersTab: React.FC = () => {
               <Collapse
                 ghost
                 size="small"
-                destroyOnHidden
                 activeKey={documentAccessCollapseKeys}
                 onChange={(keys) => setDocumentAccessCollapseKeys(Array.isArray(keys) ? keys.map(String) : [String(keys)])}
                 style={{ marginTop: 0 }}
                 items={allDocumentKinds.map((kind) => ({
                   key: kind.code,
                   label: kind.label,
+                  forceRender: true,
                   children: (
                     <Form.Item
                       name={['documentAccess', kind.code, 'actions']}

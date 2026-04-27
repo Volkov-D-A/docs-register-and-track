@@ -17,18 +17,22 @@ export const useDocumentKinds = ({
     const userId = useAuthStore((state) => state.user?.id ?? null);
     const [kinds, setKinds] = useState<DocumentKindMeta[]>(fallbackKinds);
     const [loading, setLoading] = useState(false);
+    const [loadedForUserId, setLoadedForUserId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!enabled || !isAuthenticated) {
+        if (!enabled || !isAuthenticated || !userId) {
             setKinds(fallbackKinds);
             setLoading(false);
+            setLoadedForUserId(null);
             return;
         }
 
         let isActive = true;
 
         const loadKinds = async () => {
+            setKinds(fallbackKinds);
             setLoading(true);
+            setLoadedForUserId(null);
             try {
                 const service = await import('../../wailsjs/go/services/DocumentKindService');
                 const backendKinds = mode === 'registration'
@@ -53,6 +57,7 @@ export const useDocumentKinds = ({
                 setKinds(fallbackKinds);
             } finally {
                 if (isActive) {
+                    setLoadedForUserId(userId);
                     setLoading(false);
                 }
             }
@@ -68,5 +73,6 @@ export const useDocumentKinds = ({
     return {
         kinds,
         loading,
+        ready: !enabled || !isAuthenticated || (!!userId && loadedForUserId === userId),
     };
 };
