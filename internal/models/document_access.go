@@ -3,9 +3,7 @@ package models
 const (
 	SystemPermissionAdmin            = "admin"
 	SystemPermissionReferences       = "references"
-	SystemPermissionStatsIncoming    = "stats_incoming"
-	SystemPermissionStatsOutgoing    = "stats_outgoing"
-	SystemPermissionStatsAppeals     = "stats_citizen_appeals"
+	SystemPermissionStatsDocuments   = "stats_documents"
 	SystemPermissionStatsAssignments = "stats_assignments"
 	SystemPermissionStatsSystem      = "stats_system"
 )

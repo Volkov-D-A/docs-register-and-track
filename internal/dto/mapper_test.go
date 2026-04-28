@@ -349,30 +349,3 @@ func TestMapSlices(t *testing.T) {
 		assert.Equal(t, "A1", res[0].Content)
 	})
 }
-
-func TestMapDashboardStats(t *testing.T) {
-	// Тестирование маппинга агрегированной статистики для дашборда
-	t.Run("nil", func(t *testing.T) {
-		assert.Nil(t, MapDashboardStats(nil))
-	})
-
-	t.Run("success", func(t *testing.T) {
-		m := &models.DashboardStats{
-			UserCount:           5,
-			TotalDocuments:      100,
-			DBSize:              "10MB",
-			StorageObjects:      42,
-			StorageSize:         "25MB",
-			MyAssignmentsNew:    2,
-			ExpiringAssignments: []models.Assignment{{ID: uuid.New(), Status: "new"}},
-		}
-		d := MapDashboardStats(m)
-		assert.Equal(t, 5, d.UserCount)
-		assert.Equal(t, 100, d.TotalDocuments)
-		assert.Equal(t, "10MB", d.DBSize)
-		assert.Equal(t, 42, d.StorageObjects)
-		assert.Equal(t, "25MB", d.StorageSize)
-		assert.Equal(t, 2, d.MyAssignmentsNew)
-		require.Len(t, d.ExpiringAssignments, 1)
-	})
-}

@@ -127,7 +127,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             icon: <FileTextOutlined />,
             label: 'Справочники',
         }] : []),
-        ...((hasSystemPermission('stats_incoming') || hasSystemPermission('stats_outgoing') || hasSystemPermission('stats_citizen_appeals') || hasSystemPermission('stats_assignments') || hasSystemPermission('stats_system')) ? [{
+        ...((hasSystemPermission('stats_documents') || hasSystemPermission('stats_assignments') || hasSystemPermission('stats_system')) ? [{
             key: 'statistics',
             icon: <BarChartOutlined />,
             label: 'Статистика',

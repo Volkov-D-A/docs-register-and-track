@@ -788,32 +788,6 @@ func MapAcknowledgments(m []models.Acknowledgment) []Acknowledgment {
 	return res
 }
 
-// MapDashboardStats преобразует статистику дашборда в DTO.
-func MapDashboardStats(m *models.DashboardStats) *DashboardStats {
-	if m == nil {
-		return nil
-	}
-	return &DashboardStats{
-		MyAssignmentsNew:           m.MyAssignmentsNew,
-		MyAssignmentsInProgress:    m.MyAssignmentsInProgress,
-		MyAssignmentsOverdue:       m.MyAssignmentsOverdue,
-		MyAssignmentsFinished:      m.MyAssignmentsFinished,
-		MyAssignmentsFinishedLate:  m.MyAssignmentsFinishedLate,
-		IncomingCount:              m.IncomingCount,
-		OutgoingCount:              m.OutgoingCount,
-		CitizenAppealCount:         m.CitizenAppealCount,
-		AllAssignmentsOverdue:      m.AllAssignmentsOverdue,
-		AllAssignmentsFinished:     m.AllAssignmentsFinished,
-		AllAssignmentsFinishedLate: m.AllAssignmentsFinishedLate,
-		UserCount:                  m.UserCount,
-		TotalDocuments:             m.TotalDocuments,
-		DBSize:                     m.DBSize,
-		StorageObjects:             m.StorageObjects,
-		StorageSize:                m.StorageSize,
-		ExpiringAssignments:        MapAssignments(m.ExpiringAssignments),
-	}
-}
-
 // MapJournalEntry преобразует запись журнала в DTO.
 func MapJournalEntry(m *models.JournalEntry) *JournalEntry {
 	if m == nil {

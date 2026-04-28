@@ -662,9 +662,7 @@ const UsersTab: React.FC = () => {
   const systemPermissionLabels: Record<string, string> = {
     admin: 'Администратор',
     references: 'Справочники',
-    stats_incoming: 'Статистика: входящие письма',
-    stats_outgoing: 'Статистика: исходящие письма',
-    stats_citizen_appeals: 'Статистика: обращения граждан',
+    stats_documents: 'Статистика: документы',
     stats_assignments: 'Статистика: поручения',
     stats_system: 'Статистика: системная',
   };
@@ -790,9 +788,7 @@ const UsersTab: React.FC = () => {
               </Form.Item>
               <Form.Item name="statisticsPermissions" label="Статистика" style={{ marginBottom: 8 }}>
                 <Checkbox.Group options={[
-                  { label: 'Входящие письма', value: 'stats_incoming' },
-                  { label: 'Исходящие письма', value: 'stats_outgoing' },
-                  { label: 'Обращения граждан', value: 'stats_citizen_appeals' },
+                  { label: 'Документы', value: 'stats_documents' },
                   { label: 'Поручения', value: 'stats_assignments' },
                   { label: 'Системная', value: 'stats_system' },
                 ]} />

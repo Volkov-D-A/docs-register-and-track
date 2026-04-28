@@ -83,6 +83,7 @@ func main() {
 	linkRepo := repository.NewLinkRepository(db)
 	acknowledgmentRepo := repository.NewAcknowledgmentRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
+	statisticsRepo := repository.NewStatisticsRepository(db)
 	journalRepo := repository.NewJournalRepository(db)
 	adminAuditLogRepo := repository.NewAdminAuditLogRepository(db)
 
@@ -133,7 +134,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService, documentAccessService)
+	dashboardService := services.NewDashboardService(dashboardRepo, authService, documentAccessService)
+	statisticsService := services.NewStatisticsService(statisticsRepo, authService, minioService)
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService, documentAccessService)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, documentAccessService, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService)
@@ -181,6 +183,7 @@ func main() {
 			documentRegistrationService,
 			assignmentService,
 			dashboardService,
+			statisticsService,
 			departmentService,
 			settingsService,
 			attachmentService,

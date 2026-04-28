@@ -592,47 +592,15 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class DashboardStats {
-	    myAssignmentsNew?: number;
-	    myAssignmentsInProgress?: number;
-	    myAssignmentsOverdue?: number;
-	    myAssignmentsFinished?: number;
-	    myAssignmentsFinishedLate?: number;
-	    incomingCount?: number;
-	    outgoingCount?: number;
-	    citizenAppealCount?: number;
-	    allAssignmentsOverdue?: number;
-	    allAssignmentsFinished?: number;
-	    allAssignmentsFinishedLate?: number;
-	    userCount?: number;
-	    totalDocuments?: number;
-	    dbSize?: string;
-	    storageObjects?: number;
-	    storageSize?: string;
+	export class DashboardActivity {
 	    expiringAssignments?: Assignment[];
 	
 	    static createFrom(source: any = {}) {
-	        return new DashboardStats(source);
+	        return new DashboardActivity(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.myAssignmentsNew = source["myAssignmentsNew"];
-	        this.myAssignmentsInProgress = source["myAssignmentsInProgress"];
-	        this.myAssignmentsOverdue = source["myAssignmentsOverdue"];
-	        this.myAssignmentsFinished = source["myAssignmentsFinished"];
-	        this.myAssignmentsFinishedLate = source["myAssignmentsFinishedLate"];
-	        this.incomingCount = source["incomingCount"];
-	        this.outgoingCount = source["outgoingCount"];
-	        this.citizenAppealCount = source["citizenAppealCount"];
-	        this.allAssignmentsOverdue = source["allAssignmentsOverdue"];
-	        this.allAssignmentsFinished = source["allAssignmentsFinished"];
-	        this.allAssignmentsFinishedLate = source["allAssignmentsFinishedLate"];
-	        this.userCount = source["userCount"];
-	        this.totalDocuments = source["totalDocuments"];
-	        this.dbSize = source["dbSize"];
-	        this.storageObjects = source["storageObjects"];
-	        this.storageSize = source["storageSize"];
 	        this.expiringAssignments = this.convertValues(source["expiringAssignments"], Assignment);
 	    }
 	
@@ -1313,6 +1281,182 @@ export namespace models {
 	        this.pageSize = source["pageSize"];
 	    }
 	}
+	export class AssignmentMonthlyPoint {
+	    month: number;
+	    period: string;
+	    total: number;
+	    overdue: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentMonthlyPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.month = source["month"];
+	        this.period = source["period"];
+	        this.total = source["total"];
+	        this.overdue = source["overdue"];
+	    }
+	}
+	export class StatisticsReportRow {
+	    key: string;
+	    name: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StatisticsReportRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.count = source["count"];
+	    }
+	}
+	export class StatisticsSeriesPoint {
+	    month: number;
+	    period: string;
+	    categoryKey: string;
+	    categoryName: string;
+	    value: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StatisticsSeriesPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.month = source["month"];
+	        this.period = source["period"];
+	        this.categoryKey = source["categoryKey"];
+	        this.categoryName = source["categoryName"];
+	        this.value = source["value"];
+	    }
+	}
+	export class AssignmentStatistics {
+	    year: number;
+	    monthlyTotals: AssignmentMonthlyPoint[];
+	    monthlyByExecutor: StatisticsSeriesPoint[];
+	    overdueRating: StatisticsReportRow[];
+	    statusCounts: StatisticsReportRow[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentStatistics(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.year = source["year"];
+	        this.monthlyTotals = this.convertValues(source["monthlyTotals"], AssignmentMonthlyPoint);
+	        this.monthlyByExecutor = this.convertValues(source["monthlyByExecutor"], StatisticsSeriesPoint);
+	        this.overdueRating = this.convertValues(source["overdueRating"], StatisticsReportRow);
+	        this.statusCounts = this.convertValues(source["statusCounts"], StatisticsReportRow);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class StatisticsOption {
+	    value: string;
+	    label: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StatisticsOption(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.value = source["value"];
+	        this.label = source["label"];
+	    }
+	}
+	export class AssignmentStatisticsFilters {
+	    users: StatisticsOption[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentStatisticsFilters(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.users = this.convertValues(source["users"], StatisticsOption);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AssignmentStatisticsReport {
+	    startDate: string;
+	    endDate: string;
+	    onlyOverdue: boolean;
+	    userId?: string;
+	    total: number;
+	    rows: StatisticsReportRow[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentStatisticsReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.onlyOverdue = source["onlyOverdue"];
+	        this.userId = source["userId"];
+	        this.total = source["total"];
+	        this.rows = this.convertValues(source["rows"], StatisticsReportRow);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CreateJournalEntryRequest {
 	    DocumentID: number[];
 	    UserID: number[];
@@ -1406,6 +1550,114 @@ export namespace models {
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	    }
+	}
+	export class DocumentStatistics {
+	    year: number;
+	    totalYear: number;
+	    documentsByKindMonthly: StatisticsSeriesPoint[];
+	    documentsByRegistrarMonthly: StatisticsSeriesPoint[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentStatistics(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.year = source["year"];
+	        this.totalYear = source["totalYear"];
+	        this.documentsByKindMonthly = this.convertValues(source["documentsByKindMonthly"], StatisticsSeriesPoint);
+	        this.documentsByRegistrarMonthly = this.convertValues(source["documentsByRegistrarMonthly"], StatisticsSeriesPoint);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DocumentStatisticsFilters {
+	    kinds: StatisticsOption[];
+	    nomenclature: StatisticsOption[];
+	    users: StatisticsOption[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentStatisticsFilters(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kinds = this.convertValues(source["kinds"], StatisticsOption);
+	        this.nomenclature = this.convertValues(source["nomenclature"], StatisticsOption);
+	        this.users = this.convertValues(source["users"], StatisticsOption);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DocumentStatisticsReport {
+	    startDate: string;
+	    endDate: string;
+	    groupBy: string;
+	    total: number;
+	    rows: StatisticsReportRow[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentStatisticsReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.groupBy = source["groupBy"];
+	        this.total = source["total"];
+	        this.rows = this.convertValues(source["rows"], StatisticsReportRow);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class GraphEdge {
 	    id: string;
@@ -1548,6 +1800,9 @@ export namespace models {
 		}
 	}
 	
+	
+	
+	
 	export class SystemSetting {
 	    key: string;
 	    value: string;
@@ -1584,6 +1839,26 @@ export namespace models {
 		    }
 		    return a;
 		}
+	}
+	export class SystemStatistics {
+	    userCount: number;
+	    totalDocuments: number;
+	    dbSize: string;
+	    storageObjects: number;
+	    storageSize: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SystemStatistics(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.userCount = source["userCount"];
+	        this.totalDocuments = source["totalDocuments"];
+	        this.dbSize = source["dbSize"];
+	        this.storageObjects = source["storageObjects"];
+	        this.storageSize = source["storageSize"];
+	    }
 	}
 	export class UpdateProfileRequest {
 	    login: string;

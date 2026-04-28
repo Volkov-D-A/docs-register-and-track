@@ -188,15 +188,24 @@ type AcknowledgmentStore interface {
 
 // DashboardStore — интерфейс для получения аналитических данных дашборда из хранилища.
 type DashboardStore interface {
-	GetExecutorStatusCounts(userID uuid.UUID) (newCount, inProgressCount int, err error)
-	GetExecutorOverdueCount(userID uuid.UUID) (int, error)
-	GetExecutorFinishedCounts(userID uuid.UUID) (finished, finishedLate int, err error)
 	GetExpiringAssignments(userID *uuid.UUID, days int) ([]models.Assignment, error)
-	GetDocCountsByPeriod(startDate, endDate time.Time) (incoming, outgoing, citizenAppeals int, err error)
-	GetOverdueCountByPeriod(startDate, endDate time.Time) (int, error)
-	GetFinishedCountsByPeriod(startDate, endDate time.Time) (finished, finishedLate int, err error)
-	GetAdminUserCount() (int, error)
-	GetAdminDocCounts() (incoming, outgoing, citizenAppeals int, err error)
+}
+
+// StatisticsStore — интерфейс для получения аналитических данных раздела статистики.
+type StatisticsStore interface {
+	GetDocumentTotalByYear(yearStart, yearEnd time.Time) (int, error)
+	GetMonthlyDocumentCountsByKind(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error)
+	GetMonthlyDocumentCountsByRegistrar(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error)
+	GetDocumentReport(startDate, endDate time.Time, groupBy, kindCode, nomenclatureID, userID string) ([]models.StatisticsReportRow, error)
+	GetNomenclatureOptions() ([]models.StatisticsOption, error)
+	GetUserOptions() ([]models.StatisticsOption, error)
+	GetAssignmentMonthlyOverview(yearStart, yearEnd time.Time) ([]models.AssignmentMonthlyPoint, error)
+	GetAssignmentMonthlyByExecutor(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error)
+	GetAssignmentOverdueRating(yearStart, yearEnd time.Time) ([]models.StatisticsReportRow, error)
+	GetAssignmentStatusCounts() ([]models.StatisticsReportRow, error)
+	GetAssignmentReport(startDate, endDate time.Time, onlyOverdue bool, userID string) ([]models.StatisticsReportRow, error)
+	GetSystemUserCount() (int, error)
+	GetSystemDocumentCount() (int, error)
 	GetDBSize() string
 }
 

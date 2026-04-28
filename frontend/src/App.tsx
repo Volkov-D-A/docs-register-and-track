@@ -57,9 +57,7 @@ function App() {
     const canAccessSettings = hasSystemPermission('admin');
     const canAccessReferences = hasSystemPermission('references');
     const canAccessStatistics =
-        hasSystemPermission('stats_incoming') ||
-        hasSystemPermission('stats_outgoing') ||
-        hasSystemPermission('stats_citizen_appeals') ||
+        hasSystemPermission('stats_documents') ||
         hasSystemPermission('stats_assignments') ||
         hasSystemPermission('stats_system');
     const documentKindsLoading = readableKindsLoading || registrationKindsLoading;

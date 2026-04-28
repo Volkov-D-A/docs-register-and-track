@@ -80,9 +80,7 @@ const ProfilePage: React.FC = () => {
     const roleNameMap: Record<string, string> = {
         'admin': 'Администратор',
         'references': 'Справочники',
-        'stats_incoming': 'Статистика: входящие письма',
-        'stats_outgoing': 'Статистика: исходящие письма',
-        'stats_citizen_appeals': 'Статистика: обращения граждан',
+        'stats_documents': 'Статистика: документы',
         'stats_assignments': 'Статистика: поручения',
         'stats_system': 'Статистика: системная',
         'clerk': 'Делопроизводитель',

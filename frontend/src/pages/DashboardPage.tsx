@@ -38,8 +38,8 @@ const DashboardPage: React.FC = () => {
     const loadStats = async () => {
         setLoading(true);
         try {
-            const { GetStats } = await import('../../wailsjs/go/services/DashboardService');
-            const data = await GetStats('', '', '');
+            const { GetActivity } = await import('../../wailsjs/go/services/DashboardService');
+            const data = await GetActivity();
             setStats(data);
 
             // Загрузка ожидающих ознакомлений

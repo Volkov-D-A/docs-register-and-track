@@ -3,7 +3,6 @@ package repository
 import (
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -19,58 +18,6 @@ type DashboardRepository struct {
 // NewDashboardRepository создает новый экземпляр DashboardRepository.
 func NewDashboardRepository(db *database.DB) *DashboardRepository {
 	return &DashboardRepository{db: db}
-}
-
-// --- Executor stats ---
-
-// GetExecutorStatusCounts возвращает количество поручений по статусам new и in_progress для исполнителя.
-func (r *DashboardRepository) GetExecutorStatusCounts(userID uuid.UUID) (newCount, inProgressCount int, err error) {
-	err = r.db.QueryRow(`
-		SELECT 
-			COUNT(*) FILTER (WHERE status = 'new'),
-			COUNT(*) FILTER (WHERE status = 'in_progress')
-		FROM assignments a
-		WHERE executor_id = $1
-		OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1)
-	`, userID).Scan(&newCount, &inProgressCount)
-	if err != nil {
-		err = fmt.Errorf("failed to get executor status counts: %w", err)
-	}
-	return
-}
-
-// GetExecutorOverdueCount возвращает количество просроченных поручений для исполнителя.
-func (r *DashboardRepository) GetExecutorOverdueCount(userID uuid.UUID) (int, error) {
-	var count int
-	err := r.db.QueryRow(`
-		SELECT COUNT(*) 
-		FROM assignments a
-		WHERE (executor_id = $1 OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1))
-		  AND (
-		      (status IN ('new', 'in_progress') AND deadline < CURRENT_DATE)
-		      OR
-		      (status = 'completed' AND completed_at::date > deadline)
-		  )
-	`, userID).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get executor overdue count: %w", err)
-	}
-	return count, nil
-}
-
-// GetExecutorFinishedCounts возвращает количество завершённых поручений (всего и с опозданием) для исполнителя.
-func (r *DashboardRepository) GetExecutorFinishedCounts(userID uuid.UUID) (finished, finishedLate int, err error) {
-	err = r.db.QueryRow(`
-		SELECT 
-			COUNT(*) FILTER (WHERE status = 'finished'),
-			COUNT(*) FILTER (WHERE status = 'finished' AND completed_at::date > deadline)
-		FROM assignments a
-		WHERE (executor_id = $1 OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1))
-	`, userID).Scan(&finished, &finishedLate)
-	if err != nil {
-		err = fmt.Errorf("failed to get executor finished counts: %w", err)
-	}
-	return
 }
 
 // GetExpiringAssignments возвращает поручения, срок которых истекает в ближайшие N дней.
@@ -141,90 +88,4 @@ func (r *DashboardRepository) GetExpiringAssignments(userID *uuid.UUID, days int
 	}
 
 	return assignments, nil
-}
-
-// --- Clerk stats ---
-
-// GetDocCountsByPeriod возвращает количество документов по видам за период.
-func (r *DashboardRepository) GetDocCountsByPeriod(startDate, endDate time.Time) (incoming, outgoing, citizenAppeals int, err error) {
-	err = r.db.QueryRow(`
-		SELECT 
-			(SELECT COUNT(*) FROM documents WHERE kind = 'incoming_letter' AND created_at BETWEEN $1 AND $2),
-			(SELECT COUNT(*) FROM documents WHERE kind = 'outgoing_letter' AND created_at BETWEEN $1 AND $2),
-			(SELECT COUNT(*) FROM documents WHERE kind = 'citizen_appeal' AND created_at BETWEEN $1 AND $2)
-	`, startDate, endDate).Scan(&incoming, &outgoing, &citizenAppeals)
-	if err != nil {
-		err = fmt.Errorf("failed to get doc counts by period: %w", err)
-	}
-	return
-}
-
-// GetOverdueCountByPeriod возвращает количество просроченных поручений за период.
-func (r *DashboardRepository) GetOverdueCountByPeriod(startDate, endDate time.Time) (int, error) {
-	var count int
-	err := r.db.QueryRow(`
-		SELECT COUNT(*) 
-		FROM assignments 
-		WHERE deadline BETWEEN $1 AND $2 
-		  AND (
-		      (status IN ('new', 'in_progress') AND deadline < CURRENT_DATE)
-		      OR 
-		      (status = 'completed' AND completed_at::date > deadline)
-		  )
-	`, startDate, endDate).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get overdue count by period: %w", err)
-	}
-	return count, nil
-}
-
-// GetFinishedCountsByPeriod возвращает количество завершённых поручений за период (всего и с опозданием).
-func (r *DashboardRepository) GetFinishedCountsByPeriod(startDate, endDate time.Time) (finished, finishedLate int, err error) {
-	err = r.db.QueryRow(`
-		SELECT 
-			COUNT(*) FILTER (WHERE status = 'finished'),
-			COUNT(*) FILTER (WHERE status = 'finished' AND COALESCE(completed_at, updated_at)::date > deadline)
-		FROM assignments
-		WHERE status = 'finished' AND COALESCE(completed_at, updated_at) BETWEEN $1 AND $2
-	`, startDate, endDate).Scan(&finished, &finishedLate)
-	if err != nil {
-		err = fmt.Errorf("failed to get finished counts by period: %w", err)
-	}
-	return
-}
-
-// --- Admin stats ---
-
-// GetAdminUserCount возвращает общее количество пользователей.
-func (r *DashboardRepository) GetAdminUserCount() (int, error) {
-	var count int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get user count: %w", err)
-	}
-	return count, nil
-}
-
-// GetAdminDocCounts возвращает общее количество документов по видам.
-func (r *DashboardRepository) GetAdminDocCounts() (incoming, outgoing, citizenAppeals int, err error) {
-	err = r.db.QueryRow(`
-		SELECT
-			(SELECT COUNT(*) FROM documents WHERE kind = 'incoming_letter'),
-			(SELECT COUNT(*) FROM documents WHERE kind = 'outgoing_letter'),
-			(SELECT COUNT(*) FROM documents WHERE kind = 'citizen_appeal')
-	`).Scan(&incoming, &outgoing, &citizenAppeals)
-	if err != nil {
-		err = fmt.Errorf("failed to get admin doc counts: %w", err)
-	}
-	return
-}
-
-// GetDBSize возвращает размер базы данных в человекочитаемом формате.
-func (r *DashboardRepository) GetDBSize() string {
-	var size string
-	err := r.db.QueryRow("SELECT pg_size_pretty(pg_database_size(current_database()))").Scan(&size)
-	if err != nil {
-		return "N/A"
-	}
-	return size
 }
