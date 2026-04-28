@@ -12,26 +12,29 @@ type DocumentKind string
 const (
 	DocumentKindIncomingLetter DocumentKind = "incoming_letter"
 	DocumentKindOutgoingLetter DocumentKind = "outgoing_letter"
+	DocumentKindCitizenAppeal  DocumentKind = "citizen_appeal"
 )
 
 const (
-	DocumentTypeLetter       = "Письмо"
-	DocumentTypeContract     = "Договор"
-	DocumentTypeAct          = "Акт"
-	DocumentTypeInvoice      = "Счёт"
-	DocumentTypeRequest      = "Запрос"
-	DocumentTypeReply        = "Ответ"
-	DocumentTypeNotification = "Уведомление"
+	DocumentTypeLetter        = "Письмо"
+	DocumentTypeContract      = "Договор"
+	DocumentTypeAct           = "Акт"
+	DocumentTypeInvoice       = "Счёт"
+	DocumentTypeRequest       = "Запрос"
+	DocumentTypeReply         = "Ответ"
+	DocumentTypeNotification  = "Уведомление"
+	DocumentTypeCitizenAppeal = "Обращение"
 )
 
 var documentTypeSet = map[string]struct{}{
-	DocumentTypeLetter:       {},
-	DocumentTypeContract:     {},
-	DocumentTypeAct:          {},
-	DocumentTypeInvoice:      {},
-	DocumentTypeRequest:      {},
-	DocumentTypeReply:        {},
-	DocumentTypeNotification: {},
+	DocumentTypeLetter:        {},
+	DocumentTypeContract:      {},
+	DocumentTypeAct:           {},
+	DocumentTypeInvoice:       {},
+	DocumentTypeRequest:       {},
+	DocumentTypeReply:         {},
+	DocumentTypeNotification:  {},
+	DocumentTypeCitizenAppeal: {},
 }
 
 func AllowedDocumentTypes() []string {
@@ -43,6 +46,7 @@ func AllowedDocumentTypes() []string {
 		DocumentTypeRequest,
 		DocumentTypeReply,
 		DocumentTypeNotification,
+		DocumentTypeCitizenAppeal,
 	}
 }
 
@@ -61,6 +65,10 @@ func (k DocumentKind) IsIncoming() bool {
 
 func (k DocumentKind) IsOutgoing() bool {
 	return k == DocumentKindOutgoingLetter
+}
+
+func (k DocumentKind) IsCitizenAppeal() bool {
+	return k == DocumentKindCitizenAppeal
 }
 
 // Document — общая корневая сущность документа.
@@ -134,6 +142,43 @@ type DocumentResolution struct {
 	Resolution          *string   `json:"resolution,omitempty"`
 	ResolutionAuthor    *string   `json:"resolutionAuthor,omitempty"`
 	ResolutionExecutors *string   `json:"resolutionExecutors,omitempty"`
+	Position            int       `json:"position"`
+}
+
+// CitizenAppealDocument — обращения граждан.
+type CitizenAppealDocument struct {
+	ID               uuid.UUID `json:"-"`
+	NomenclatureID   uuid.UUID `json:"-"`
+	NomenclatureName string    `json:"nomenclatureName,omitempty"`
+
+	RegistrationNumber string    `json:"registrationNumber"`
+	RegistrationDate   time.Time `json:"registrationDate"`
+	AppealDate         time.Time `json:"appealDate"`
+
+	DocumentTypeID   string `json:"-"`
+	DocumentTypeName string `json:"documentTypeName,omitempty"`
+	Content          string `json:"content"`
+	PagesCount       int    `json:"pagesCount"`
+
+	ApplicantFullName    string `json:"applicantFullName"`
+	RegistrationAddress  string `json:"registrationAddress"`
+	AppealType           string `json:"appealType"`
+	ApplicantCategory    string `json:"applicantCategory"`
+	AppealPagesCount     int    `json:"appealPagesCount"`
+	AttachmentPagesCount int    `json:"attachmentPagesCount"`
+	HasEnvelope          bool   `json:"hasEnvelope"`
+	ReceivedFromPOS      bool   `json:"receivedFromPos"`
+
+	Correspondents []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
+	Resolutions    []DocumentResolution                `json:"resolutions,omitempty"`
+
+	CreatedBy     uuid.UUID `json:"-"`
+	CreatedByName string    `json:"createdByName,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+
+	AttachmentsCount int `json:"attachmentsCount,omitempty"`
+	AssignmentsCount int `json:"assignmentsCount,omitempty"`
 }
 
 // OutgoingDocument — исходящий документ
@@ -200,9 +245,14 @@ type DocumentFilter struct {
 	DateTo                 string   `json:"dateTo,omitempty"`
 	Search                 string   `json:"search,omitempty"`
 	IncomingNumber         string   `json:"incomingNumber,omitempty"`
+	RegistrationNumber     string   `json:"registrationNumber,omitempty"`
 	OutgoingNumber         string   `json:"outgoingNumber,omitempty"`
 	RecipientName          string   `json:"recipientName,omitempty"`
 	SenderName             string   `json:"senderName,omitempty"`
+	ApplicantName          string   `json:"applicantName,omitempty"`
+	AppealType             string   `json:"appealType,omitempty"`
+	AppealDateFrom         string   `json:"appealDateFrom,omitempty"`
+	AppealDateTo           string   `json:"appealDateTo,omitempty"`
 	OutgoingDateFrom       string   `json:"outgoingDateFrom,omitempty"`
 	OutgoingDateTo         string   `json:"outgoingDateTo,omitempty"`
 	Resolution             string   `json:"resolution,omitempty"`
@@ -316,4 +366,43 @@ type UpdateOutgoingDocRequest struct {
 	SenderSignatory string
 	SenderExecutor  string
 	Addressee       string
+}
+
+// CreateCitizenAppealDocRequest — запрос на создание обращения граждан.
+type CreateCitizenAppealDocRequest struct {
+	NomenclatureID       uuid.UUID
+	CreatedBy            uuid.UUID
+	RegistrationNumber   string
+	RegistrationDate     time.Time
+	AppealDate           time.Time
+	Content              string
+	ApplicantFullName    string
+	RegistrationAddress  string
+	AppealType           string
+	ApplicantCategory    string
+	AppealPagesCount     int
+	AttachmentPagesCount int
+	HasEnvelope          bool
+	ReceivedFromPOS      bool
+	Correspondents       []DocumentCorrespondentRegistration
+	Resolutions          []DocumentResolution
+}
+
+// UpdateCitizenAppealDocRequest — запрос на обновление обращения граждан.
+type UpdateCitizenAppealDocRequest struct {
+	ID                   uuid.UUID
+	RegistrationNumber   string
+	RegistrationDate     time.Time
+	AppealDate           time.Time
+	Content              string
+	ApplicantFullName    string
+	RegistrationAddress  string
+	AppealType           string
+	ApplicantCategory    string
+	AppealPagesCount     int
+	AttachmentPagesCount int
+	HasEnvelope          bool
+	ReceivedFromPOS      bool
+	Correspondents       []DocumentCorrespondentRegistration
+	Resolutions          []DocumentResolution
 }

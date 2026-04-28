@@ -81,6 +81,7 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 	role := s.determineDashboardProfile(user)
 	canViewIncomingStats := s.auth.HasSystemPermission(models.SystemPermissionStatsIncoming)
 	canViewOutgoingStats := s.auth.HasSystemPermission(models.SystemPermissionStatsOutgoing)
+	canViewCitizenAppealStats := s.auth.HasSystemPermission(models.SystemPermissionStatsAppeals)
 	canViewAssignmentsStats := s.auth.HasSystemPermission(models.SystemPermissionStatsAssignments)
 	canViewSystemStats := s.auth.HasSystemPermission(models.SystemPermissionStatsSystem)
 
@@ -130,7 +131,7 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 		return nil, err
 	}
 
-	if (canViewIncomingStats || canViewOutgoingStats || (canViewAssignmentsStats && role == "admin")) && role != "clerk" && role != "mixed" {
+	if (canViewIncomingStats || canViewOutgoingStats || canViewCitizenAppealStats || (canViewAssignmentsStats && role == "admin")) && role != "clerk" && role != "mixed" {
 		var startDate, endDate time.Time
 		if startDateStr == "" || endDateStr == "" {
 			now := time.Now()
@@ -154,6 +155,7 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 		}
 		result.IncomingCount = clerkSupplement.IncomingCount
 		result.OutgoingCount = clerkSupplement.OutgoingCount
+		result.CitizenAppealCount = clerkSupplement.CitizenAppealCount
 		if role == "admin" {
 			result.AllAssignmentsOverdue = clerkSupplement.AllAssignmentsOverdue
 			result.AllAssignmentsFinished = clerkSupplement.AllAssignmentsFinished
@@ -178,6 +180,9 @@ func (s *DashboardService) GetStats(requestedRole string, startDateStr, endDateS
 	}
 	if !canViewOutgoingStats {
 		result.OutgoingCount = 0
+	}
+	if !canViewCitizenAppealStats {
+		result.CitizenAppealCount = 0
 	}
 	if !canViewAssignmentsStats {
 		result.MyAssignmentsNew = 0
@@ -263,12 +268,13 @@ func (s *DashboardService) getExecutorStats(stats *models.DashboardStats, userID
 
 func (s *DashboardService) getClerkStats(stats *models.DashboardStats, startDate, endDate time.Time) (*models.DashboardStats, error) {
 	// 1. Количество документов за период
-	incoming, outgoing, err := s.repo.GetDocCountsByPeriod(startDate, endDate)
+	incoming, outgoing, citizenAppeals, err := s.repo.GetDocCountsByPeriod(startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 	stats.IncomingCount = incoming
 	stats.OutgoingCount = outgoing
+	stats.CitizenAppealCount = citizenAppeals
 
 	// 2. Просроченные поручения за период
 	stats.AllAssignmentsOverdue, err = s.repo.GetOverdueCountByPeriod(startDate, endDate)
@@ -303,11 +309,11 @@ func (s *DashboardService) getAdminStats(stats *models.DashboardStats) (*models.
 	stats.UserCount = userCount
 
 	// 2. Всего документов
-	inc, out, err := s.repo.GetAdminDocCounts()
+	inc, out, appeals, err := s.repo.GetAdminDocCounts()
 	if err != nil {
 		return nil, err
 	}
-	stats.TotalDocuments = inc + out
+	stats.TotalDocuments = inc + out + appeals
 
 	// 3. Размер БД (PostgreSQL)
 	stats.DBSize = s.repo.GetDBSize()

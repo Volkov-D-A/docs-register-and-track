@@ -85,12 +85,10 @@ func (r *DashboardRepository) GetExpiringAssignments(userID *uuid.UUID, days int
 				a.id, a.content, a.deadline, a.status,
 				a.document_id, d.kind,
 				u.full_name as executor_name,
-				COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
+				d.registration_number as doc_number
 			FROM assignments a
 			JOIN documents d ON d.id = a.document_id
 			LEFT JOIN users u ON a.executor_id = u.id
-			LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
-			LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 			WHERE (a.executor_id = $1 OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1))
 			  AND a.status IN ('new', 'in_progress')
 			  AND a.deadline BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '1 day' * $2)
@@ -102,12 +100,10 @@ func (r *DashboardRepository) GetExpiringAssignments(userID *uuid.UUID, days int
 				a.id, a.content, a.deadline, a.status,
 				a.document_id, d.kind,
 				u.full_name as executor_name,
-				COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
+				d.registration_number as doc_number
 			FROM assignments a
 			JOIN documents d ON d.id = a.document_id
 			LEFT JOIN users u ON a.executor_id = u.id
-			LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
-			LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 			WHERE a.status IN ('new', 'in_progress')
 			  AND a.deadline BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '1 day' * $1)
 			ORDER BY a.deadline ASC
@@ -149,13 +145,14 @@ func (r *DashboardRepository) GetExpiringAssignments(userID *uuid.UUID, days int
 
 // --- Clerk stats ---
 
-// GetDocCountsByPeriod возвращает количество входящих и исходящих документов за период.
-func (r *DashboardRepository) GetDocCountsByPeriod(startDate, endDate time.Time) (incoming, outgoing int, err error) {
+// GetDocCountsByPeriod возвращает количество документов по видам за период.
+func (r *DashboardRepository) GetDocCountsByPeriod(startDate, endDate time.Time) (incoming, outgoing, citizenAppeals int, err error) {
 	err = r.db.QueryRow(`
 		SELECT 
 			(SELECT COUNT(*) FROM documents WHERE kind = 'incoming_letter' AND created_at BETWEEN $1 AND $2),
-			(SELECT COUNT(*) FROM documents WHERE kind = 'outgoing_letter' AND created_at BETWEEN $1 AND $2)
-	`, startDate, endDate).Scan(&incoming, &outgoing)
+			(SELECT COUNT(*) FROM documents WHERE kind = 'outgoing_letter' AND created_at BETWEEN $1 AND $2),
+			(SELECT COUNT(*) FROM documents WHERE kind = 'citizen_appeal' AND created_at BETWEEN $1 AND $2)
+	`, startDate, endDate).Scan(&incoming, &outgoing, &citizenAppeals)
 	if err != nil {
 		err = fmt.Errorf("failed to get doc counts by period: %w", err)
 	}
@@ -208,9 +205,14 @@ func (r *DashboardRepository) GetAdminUserCount() (int, error) {
 	return count, nil
 }
 
-// GetAdminDocCounts возвращает общее количество входящих и исходящих документов.
-func (r *DashboardRepository) GetAdminDocCounts() (incoming, outgoing int, err error) {
-	err = r.db.QueryRow("SELECT (SELECT COUNT(*) FROM documents WHERE kind = 'incoming_letter'), (SELECT COUNT(*) FROM documents WHERE kind = 'outgoing_letter')").Scan(&incoming, &outgoing)
+// GetAdminDocCounts возвращает общее количество документов по видам.
+func (r *DashboardRepository) GetAdminDocCounts() (incoming, outgoing, citizenAppeals int, err error) {
+	err = r.db.QueryRow(`
+		SELECT
+			(SELECT COUNT(*) FROM documents WHERE kind = 'incoming_letter'),
+			(SELECT COUNT(*) FROM documents WHERE kind = 'outgoing_letter'),
+			(SELECT COUNT(*) FROM documents WHERE kind = 'citizen_appeal')
+	`).Scan(&incoming, &outgoing, &citizenAppeals)
 	if err != nil {
 		err = fmt.Errorf("failed to get admin doc counts: %w", err)
 	}

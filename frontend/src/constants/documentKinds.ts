@@ -1,8 +1,9 @@
 export const DOCUMENT_KIND_INCOMING_LETTER = 'incoming_letter';
 export const DOCUMENT_KIND_OUTGOING_LETTER = 'outgoing_letter';
+export const DOCUMENT_KIND_CITIZEN_APPEAL = 'citizen_appeal';
 
 export type RegistrationKind = string;
-export type DocumentPageKey = 'incoming' | 'outgoing';
+export type DocumentPageKey = 'incoming' | 'outgoing' | 'appeals';
 export type DocumentKindMeta = {
     code: RegistrationKind;
     label: string;
@@ -36,6 +37,16 @@ export const documentKindRegistry: Record<string, DocumentKindMeta> = {
         supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
         color: 'green',
     },
+    [DOCUMENT_KIND_CITIZEN_APPEAL]: {
+        code: DOCUMENT_KIND_CITIZEN_APPEAL,
+        label: 'Обращения граждан',
+        shortLabel: 'Обращение',
+        pageKey: 'appeals',
+        registrationFormCode: 'citizen_appeal_form',
+        registryGroup: 'appeals',
+        supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
+        color: 'orange',
+    },
 };
 
 export const documentKinds = Object.values(documentKindRegistry);
@@ -65,7 +76,11 @@ export const getDocumentPageKey = (kind: string): DocumentPageKey => (
 );
 
 export const pageToDocumentKind = (page: DocumentPageKey): RegistrationKind => (
-    page === 'outgoing' ? DOCUMENT_KIND_OUTGOING_LETTER : DOCUMENT_KIND_INCOMING_LETTER
+    page === 'outgoing'
+        ? DOCUMENT_KIND_OUTGOING_LETTER
+        : page === 'appeals'
+            ? DOCUMENT_KIND_CITIZEN_APPEAL
+            : DOCUMENT_KIND_INCOMING_LETTER
 );
 
 export const isIncomingKind = (kind: string): boolean => (
@@ -73,6 +88,9 @@ export const isIncomingKind = (kind: string): boolean => (
 );
 export const isOutgoingKind = (kind: string): boolean => (
     kind === DOCUMENT_KIND_OUTGOING_LETTER || kind === 'outgoing'
+);
+export const isCitizenAppealKind = (kind: string): boolean => (
+    kind === DOCUMENT_KIND_CITIZEN_APPEAL
 );
 
 export const toDocumentKindMeta = (kind: {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button, Col, DatePicker, Form, Input, InputNumber, Row, Select } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import locale from 'antd/es/date-picker/locale/ru_RU';
 
 const { TextArea } = Input;
 
@@ -38,7 +39,7 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
         {!isEdit && (
             <Row gutter={16}>
                 <Col span={8}>
-                    <Form.Item name="nomenclatureId" label="Дело (номенклатура)" rules={[{ required: true }]}>
+                    <Form.Item name="nomenclatureId" label="Дело" rules={[{ required: true }]}>
                         <Select placeholder="Выберите дело">
                             {nomenclatures.map((n: any) => (
                                 <Select.Option key={n.id} value={n.id}>{n.index} — {n.name}</Select.Option>
@@ -47,7 +48,7 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
                     </Form.Item>
                 </Col>
                 <Col span={8}>
-                    <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
+                    <Form.Item name="documentTypeId" label="Вид документа" rules={[{ required: true }]}>
                         <Select placeholder="Выберите тип">
                             {docTypes.map((t: any) => (
                                 <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
@@ -57,7 +58,7 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
                 </Col>
                 <Col span={8}>
                     <Form.Item name="incomingDate" label="Дата регистрации" rules={[{ required: true }]}>
-                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" locale={locale} />
                     </Form.Item>
                 </Col>
             </Row>
@@ -68,7 +69,7 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
             </Form.Item>
         )}
         {isEdit && (
-            <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
+            <Form.Item name="documentTypeId" label="Вид документа" rules={[{ required: true }]}>
                 <Select placeholder="Выберите тип">
                     {docTypes.map((t: any) => (
                         <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
@@ -104,7 +105,7 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
                                         label="Дата"
                                         rules={[{ required: true, message: 'Укажите дату' }]}
                                     >
-                                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+                                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" locale={locale} />
                                     </Form.Item>
                                 </Col>
                                 <Col span={fields.length > 1 ? 9 : 11}>

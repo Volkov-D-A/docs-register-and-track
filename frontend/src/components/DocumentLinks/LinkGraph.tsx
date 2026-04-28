@@ -17,7 +17,13 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { GetDocumentFlow, services } from '../../types/link';
-import { isIncomingKind } from '../../constants/documentKinds';
+import {
+    DOCUMENT_KIND_CITIZEN_APPEAL,
+    DOCUMENT_KIND_INCOMING_LETTER,
+    DOCUMENT_KIND_OUTGOING_LETTER,
+    isCitizenAppealKind,
+    isIncomingKind,
+} from '../../constants/documentKinds';
 import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentCounterpartyLabel, getLinkedDocumentLabel } from '../../config/documentLinkConfig';
 
 /**
@@ -43,9 +49,20 @@ const NODE_COLORS = {
         badgeBackground: '#52c41a',
         meta: '#389e0d',
     },
+    citizenAppeal: {
+        background: '#fff7e6',
+        border: '#ffd591',
+        accent: '#fa8c16',
+        badgeBackground: '#fa8c16',
+        meta: '#d46b08',
+    },
 } as const;
 
 const getNodePalette = (type: string) => {
+    if (isCitizenAppealKind(type)) {
+        return NODE_COLORS.citizenAppeal;
+    }
+
     return isIncomingKind(type) ? NODE_COLORS.incoming : NODE_COLORS.outgoing;
 };
 
@@ -170,6 +187,14 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
             const initialNodes: Node[] = data.nodes.map((n: services.GraphNode) => {
                 const palette = getNodePalette(n.kindCode);
                 const isRootNode = n.id === rootId;
+                const documentLabel = getLinkedDocumentLabel(n.kindCode);
+                const counterpartyLabel = getLinkedDocumentCounterpartyLabel(n.kindCode, n.sender, n.recipient);
+                const nodeTooltip = [
+                    `${documentLabel} № ${n.label}`,
+                    n.date ? `Дата: ${n.date}` : '',
+                    counterpartyLabel,
+                    n.subject ? `Содержание: ${n.subject}` : '',
+                ].filter(Boolean).join('\n');
 
                 return {
                     id: n.id,
@@ -179,8 +204,9 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                         kindCode: n.kindCode,
                         label: (
                             <div
+                                title={nodeTooltip}
                                 style={{
-                                padding: '12px',
+                                    padding: '12px',
                                     border: isRootNode ? `3px solid ${palette.accent}` : `1px solid ${palette.border}`,
                                     borderRadius: '10px',
                                     background: palette.background,
@@ -203,7 +229,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                                             letterSpacing: '0.04em',
                                         }}
                                     >
-                                        {getLinkedDocumentLabel(n.kindCode)}
+                                        {documentLabel}
                                     </span>
                                 </div>
                                 <div
@@ -215,7 +241,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                     }}
-                                    title={`${getLinkedDocumentLabel(n.kindCode)} № ${n.label}`}
+                                    title={`${documentLabel} № ${n.label}`}
                                 >
                                     № {n.label}
                                 </div>
@@ -230,7 +256,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                                         wordBreak: 'break-word',
                                     }}
                                 >
-                                    {getLinkedDocumentCounterpartyLabel(n.kindCode, n.sender, n.recipient)}
+                                    {counterpartyLabel}
                                 </div>
                                 <div
                                     style={{
@@ -314,14 +340,12 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                         boxShadow: '0 4px 14px var(--app-panel-shadow)',
                     }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--app-text-muted)' }}>
-                        <span style={{ width: 10, height: 10, borderRadius: 999, background: getLinkedDocumentColor('incoming') }} />
-                        {getLinkedDocumentLabel('incoming')}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--app-text-muted)' }}>
-                        <span style={{ width: 10, height: 10, borderRadius: 999, background: getLinkedDocumentColor('outgoing') }} />
-                        {getLinkedDocumentLabel('outgoing')}
-                    </div>
+                    {[DOCUMENT_KIND_INCOMING_LETTER, DOCUMENT_KIND_OUTGOING_LETTER, DOCUMENT_KIND_CITIZEN_APPEAL].map((kind) => (
+                        <div key={kind} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--app-text-muted)' }}>
+                            <span style={{ width: 10, height: 10, borderRadius: 999, background: getLinkedDocumentColor(kind) }} />
+                            {getLinkedDocumentLabel(kind)}
+                        </div>
+                    ))}
                 </div>
             </Panel>
             <Background gap={12} size={1} />

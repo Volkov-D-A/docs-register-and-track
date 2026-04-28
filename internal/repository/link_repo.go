@@ -66,17 +66,14 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 			l.id, ds.kind, l.source_document_id,
 			dt.kind, l.target_document_id,
 			l.link_type, l.created_by, l.created_at,
-			COALESCE(si.incoming_number, so.outgoing_number) as source_number,
-			COALESCE(ti.incoming_number, to2.outgoing_number) as target_number,
+			dsource.registration_number as source_number,
+			dtarget.registration_number as target_number,
 			dtarget.content as target_subject
 		FROM document_links l
 		JOIN documents ds ON ds.id = l.source_document_id
 		JOIN documents dt ON dt.id = l.target_document_id
+		JOIN documents dsource ON dsource.id = l.source_document_id
 		JOIN documents dtarget ON dtarget.id = l.target_document_id
-		LEFT JOIN incoming_document_details si ON si.document_id = l.source_document_id AND ds.kind = 'incoming_letter'
-		LEFT JOIN outgoing_document_details so ON so.document_id = l.source_document_id AND ds.kind = 'outgoing_letter'
-		LEFT JOIN incoming_document_details ti ON ti.document_id = l.target_document_id AND dt.kind = 'incoming_letter'
-		LEFT JOIN outgoing_document_details to2 ON to2.document_id = l.target_document_id AND dt.kind = 'outgoing_letter'
 		WHERE l.source_document_id = $1 OR l.target_document_id = $1
 		ORDER BY l.created_at DESC
 	`

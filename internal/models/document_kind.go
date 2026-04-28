@@ -56,6 +56,22 @@ var documentKindSpecs = []DocumentKindSpec{
 			DocumentActionViewJournal,
 		},
 	},
+	{
+		Code:                 DocumentKindCitizenAppeal,
+		Name:                 "Обращения граждан",
+		RegistrationFormCode: "citizen_appeal_form",
+		RegistryGroup:        "appeals",
+		SupportedActions: []DocumentKindAction{
+			DocumentActionCreate,
+			DocumentActionRead,
+			DocumentActionUpdate,
+			DocumentActionAssign,
+			DocumentActionAcknowledge,
+			DocumentActionUpload,
+			DocumentActionLink,
+			DocumentActionViewJournal,
+		},
+	},
 }
 
 // AllDocumentKindSpecs возвращает все системные виды документов.
@@ -99,6 +115,8 @@ func NormalizeDocumentKind(kind string) DocumentKind {
 		return DocumentKindIncomingLetter
 	case "outgoing", string(DocumentKindOutgoingLetter):
 		return DocumentKindOutgoingLetter
+	case string(DocumentKindCitizenAppeal):
+		return DocumentKindCitizenAppeal
 	default:
 		return DocumentKind(kind)
 	}

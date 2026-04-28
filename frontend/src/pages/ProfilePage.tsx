@@ -82,6 +82,7 @@ const ProfilePage: React.FC = () => {
         'references': 'Справочники',
         'stats_incoming': 'Статистика: входящие письма',
         'stats_outgoing': 'Статистика: исходящие письма',
+        'stats_citizen_appeals': 'Статистика: обращения граждан',
         'stats_assignments': 'Статистика: поручения',
         'stats_system': 'Статистика: системная',
         'clerk': 'Делопроизводитель',

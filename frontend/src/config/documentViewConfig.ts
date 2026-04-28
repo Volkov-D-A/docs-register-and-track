@@ -1,4 +1,5 @@
 import {
+    DOCUMENT_KIND_CITIZEN_APPEAL,
     DOCUMENT_KIND_INCOMING_LETTER,
     DOCUMENT_KIND_OUTGOING_LETTER,
 } from '../constants/documentKinds';
@@ -24,6 +25,7 @@ const defaultViewConfig: DocumentViewConfig = {
 const documentViewConfigs: Record<string, DocumentViewConfig> = {
     [DOCUMENT_KIND_INCOMING_LETTER]: defaultViewConfig,
     [DOCUMENT_KIND_OUTGOING_LETTER]: defaultViewConfig,
+    [DOCUMENT_KIND_CITIZEN_APPEAL]: defaultViewConfig,
 };
 
 export const getDocumentViewConfig = (kindCode: string): DocumentViewConfig => (

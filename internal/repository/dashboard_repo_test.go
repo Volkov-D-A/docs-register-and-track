@@ -87,7 +87,7 @@ func TestDashboardRepository_GetExpiringAssignments(t *testing.T) {
 	userID := uuid.New()
 	now := time.Now()
 
-	query := `SELECT a.id, a.content, a.deadline, a.status, a.document_id, d.kind, u.full_name as executor_name, COALESCE\(inc.incoming_number, out.outgoing_number\) as doc_number FROM assignments a JOIN documents d ON d.id = a.document_id LEFT JOIN users u ON a.executor_id = u.id LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter' LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter' WHERE \(a.executor_id = \$1 OR EXISTS \(SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = \$1\)\) AND a.status IN \('new', 'in_progress'\) AND a.deadline BETWEEN CURRENT_DATE AND \(CURRENT_DATE \+ INTERVAL '1 day' \* \$2\) ORDER BY a.deadline ASC`
+	query := `SELECT a.id, a.content, a.deadline, a.status, a.document_id, d.kind, u.full_name as executor_name, d.registration_number as doc_number FROM assignments a JOIN documents d ON d.id = a.document_id LEFT JOIN users u ON a.executor_id = u.id WHERE \(a.executor_id = \$1 OR EXISTS \(SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = \$1\)\) AND a.status IN \('new', 'in_progress'\) AND a.deadline BETWEEN CURRENT_DATE AND \(CURRENT_DATE \+ INTERVAL '1 day' \* \$2\) ORDER BY a.deadline ASC`
 
 	rows := sqlmock.NewRows([]string{
 		"id", "content", "deadline", "status", "document_id", "kind", "executor_name", "doc_number",
@@ -113,14 +113,16 @@ func TestDashboardRepository_GetDocCountsByPeriod(t *testing.T) {
 
 	query := `SELECT 
 		\(SELECT COUNT\(\*\) FROM documents WHERE kind = 'incoming_letter' AND created_at BETWEEN \$1 AND \$2\),
-		\(SELECT COUNT\(\*\) FROM documents WHERE kind = 'outgoing_letter' AND created_at BETWEEN \$1 AND \$2\)`
+		\(SELECT COUNT\(\*\) FROM documents WHERE kind = 'outgoing_letter' AND created_at BETWEEN \$1 AND \$2\),
+		\(SELECT COUNT\(\*\) FROM documents WHERE kind = 'citizen_appeal' AND created_at BETWEEN \$1 AND \$2\)`
 
-	mock.ExpectQuery(query).WithArgs(start, end).WillReturnRows(sqlmock.NewRows([]string{"incoming", "outgoing"}).AddRow(15, 7))
+	mock.ExpectQuery(query).WithArgs(start, end).WillReturnRows(sqlmock.NewRows([]string{"incoming", "outgoing", "citizen_appeals"}).AddRow(15, 7, 3))
 
-	inc, out, err := repo.GetDocCountsByPeriod(start, end)
+	inc, out, appeals, err := repo.GetDocCountsByPeriod(start, end)
 	require.NoError(t, err)
 	assert.Equal(t, 15, inc)
 	assert.Equal(t, 7, out)
+	assert.Equal(t, 3, appeals)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -193,14 +195,16 @@ func TestDashboardRepository_GetAdminDocCounts(t *testing.T) {
 
 	query := `SELECT 
 		\(SELECT COUNT\(\*\) FROM documents WHERE kind = 'incoming_letter'\),
-		\(SELECT COUNT\(\*\) FROM documents WHERE kind = 'outgoing_letter'\)`
+		\(SELECT COUNT\(\*\) FROM documents WHERE kind = 'outgoing_letter'\),
+		\(SELECT COUNT\(\*\) FROM documents WHERE kind = 'citizen_appeal'\)`
 
-	mock.ExpectQuery(query).WillReturnRows(sqlmock.NewRows([]string{"incoming", "outgoing"}).AddRow(100, 50))
+	mock.ExpectQuery(query).WillReturnRows(sqlmock.NewRows([]string{"incoming", "outgoing", "citizen_appeals"}).AddRow(100, 50, 25))
 
-	inc, out, err := repo.GetAdminDocCounts()
+	inc, out, appeals, err := repo.GetAdminDocCounts()
 	require.NoError(t, err)
 	assert.Equal(t, 100, inc)
 	assert.Equal(t, 50, out)
+	assert.Equal(t, 25, appeals)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -301,7 +301,7 @@ const IncomingPage: React.FC = () => {
                 open: registerModalOpen,
                 onCancel: () => { closeRegisterModal(); clearDraftLink(); },
                 onOk: () => registerForm.submit(),
-                width: 700,
+                width: 800,
                 okText: 'Зарегистрировать',
                 linkedBadge: sourceId && targetKind === DOCUMENT_KIND_INCOMING_LETTER ? (
                     <div style={{ marginBottom: 16 }}>
@@ -328,7 +328,7 @@ const IncomingPage: React.FC = () => {
                 open: editModalOpen,
                 onCancel: closeEditModal,
                 onOk: () => editForm.submit(),
-                width: 700,
+                width: 800,
                 okText: 'Сохранить',
                 content: (
                     <IncomingLetterDocumentForm

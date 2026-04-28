@@ -26,7 +26,7 @@ CREATE TABLE user_system_permissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     permission VARCHAR(50) NOT NULL CHECK (
-        permission IN ('admin', 'references', 'stats_incoming', 'stats_outgoing', 'stats_assignments', 'stats_system')
+        permission IN ('admin', 'references', 'stats_incoming', 'stats_outgoing', 'stats_citizen_appeals', 'stats_assignments', 'stats_system')
     ),
     is_allowed BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

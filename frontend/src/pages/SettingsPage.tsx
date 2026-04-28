@@ -664,6 +664,7 @@ const UsersTab: React.FC = () => {
     references: 'Справочники',
     stats_incoming: 'Статистика: входящие письма',
     stats_outgoing: 'Статистика: исходящие письма',
+    stats_citizen_appeals: 'Статистика: обращения граждан',
     stats_assignments: 'Статистика: поручения',
     stats_system: 'Статистика: системная',
   };
@@ -791,6 +792,7 @@ const UsersTab: React.FC = () => {
                 <Checkbox.Group options={[
                   { label: 'Входящие письма', value: 'stats_incoming' },
                   { label: 'Исходящие письма', value: 'stats_outgoing' },
+                  { label: 'Обращения граждан', value: 'stats_citizen_appeals' },
                   { label: 'Поручения', value: 'stats_assignments' },
                   { label: 'Системная', value: 'stats_system' },
                 ]} />

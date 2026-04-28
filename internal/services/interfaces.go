@@ -35,6 +35,15 @@ type IncomingDocStore interface {
 	GetCount() (int, error)
 }
 
+// CitizenAppealDocStore — интерфейс для работы с обращениями граждан в хранилище.
+type CitizenAppealDocStore interface {
+	GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error)
+	GetByID(id uuid.UUID) (*models.CitizenAppealDocument, error)
+	Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error)
+	Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error)
+	GetCount() (int, error)
+}
+
 // DocumentStore — интерфейс для общей корневой сущности документа.
 type DocumentStore interface {
 	GetByID(id uuid.UUID) (*models.Document, error)
@@ -183,11 +192,11 @@ type DashboardStore interface {
 	GetExecutorOverdueCount(userID uuid.UUID) (int, error)
 	GetExecutorFinishedCounts(userID uuid.UUID) (finished, finishedLate int, err error)
 	GetExpiringAssignments(userID *uuid.UUID, days int) ([]models.Assignment, error)
-	GetDocCountsByPeriod(startDate, endDate time.Time) (incoming, outgoing int, err error)
+	GetDocCountsByPeriod(startDate, endDate time.Time) (incoming, outgoing, citizenAppeals int, err error)
 	GetOverdueCountByPeriod(startDate, endDate time.Time) (int, error)
 	GetFinishedCountsByPeriod(startDate, endDate time.Time) (finished, finishedLate int, err error)
 	GetAdminUserCount() (int, error)
-	GetAdminDocCounts() (incoming, outgoing int, err error)
+	GetAdminDocCounts() (incoming, outgoing, citizenAppeals int, err error)
 	GetDBSize() string
 }
 

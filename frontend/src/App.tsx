@@ -10,6 +10,7 @@ import ReferencesPage from './pages/ReferencesPage';
 import StatisticsPage from './pages/StatisticsPage';
 import IncomingPage from './pages/IncomingPage';
 import OutgoingPage from './pages/OutgoingPage';
+import CitizenAppealsPage from './pages/CitizenAppealsPage';
 import AssignmentsPage from './pages/AssignmentsPage';
 import ProfilePage from './pages/ProfilePage';
 import MainLayout from './components/MainLayout';
@@ -18,7 +19,7 @@ import { models } from '../wailsjs/go/models';
 import { documentKinds, getDocumentPageKey } from './constants/documentKinds';
 import { useDocumentKinds } from './hooks/useDocumentKinds';
 const emptyKinds: typeof documentKinds = [];
-const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'assignments']);
+const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'appeals', 'assignments']);
 
 // Заглушки для страниц
 
@@ -52,11 +53,13 @@ function App() {
     const canAccessDocuments = !!user?.isDocumentParticipant || Array.from(accessByCode.values()).some((kind) => kind.read || kind.create);
     const canAccessIncoming = !!user?.isDocumentParticipant || canAccessKindPage('incoming');
     const canAccessOutgoing = !!user?.isDocumentParticipant || canAccessKindPage('outgoing');
+    const canAccessAppeals = !!user?.isDocumentParticipant || canAccessKindPage('appeals');
     const canAccessSettings = hasSystemPermission('admin');
     const canAccessReferences = hasSystemPermission('references');
     const canAccessStatistics =
         hasSystemPermission('stats_incoming') ||
         hasSystemPermission('stats_outgoing') ||
+        hasSystemPermission('stats_citizen_appeals') ||
         hasSystemPermission('stats_assignments') ||
         hasSystemPermission('stats_system');
     const documentKindsLoading = readableKindsLoading || registrationKindsLoading;
@@ -85,6 +88,8 @@ function App() {
                 return canAccessIncoming;
             case 'outgoing':
                 return canAccessOutgoing;
+            case 'appeals':
+                return canAccessAppeals;
             case 'settings':
                 return canAccessSettings;
             case 'references':
@@ -139,6 +144,7 @@ function App() {
         canAccessDocuments,
         canAccessIncoming,
         canAccessOutgoing,
+        canAccessAppeals,
         canAccessSettings,
         canAccessReferences,
         canAccessStatistics,
@@ -290,6 +296,8 @@ function App() {
                 return <IncomingPage />;
             case 'outgoing':
                 return <OutgoingPage />;
+            case 'appeals':
+                return <CitizenAppealsPage />;
             case 'assignments':
                 return <AssignmentsPage />;
             case 'settings':

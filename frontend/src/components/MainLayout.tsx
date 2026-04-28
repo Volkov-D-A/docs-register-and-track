@@ -5,6 +5,7 @@ import {
     BarChartOutlined,
     InboxOutlined,
     SendOutlined,
+    MessageOutlined,
     CheckSquareOutlined,
     SettingOutlined,
     FileTextOutlined,
@@ -88,6 +89,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     const canRegisterDocuments = availableRegistrationKinds.length > 0;
     const canAccessIncoming = !!user?.isDocumentParticipant || canAccessKindPage('incoming');
     const canAccessOutgoing = !!user?.isDocumentParticipant || canAccessKindPage('outgoing');
+    const canAccessAppeals = !!user?.isDocumentParticipant || canAccessKindPage('appeals');
 
     const menuItems = [
         ...(canAccessDocuments ? [{
@@ -109,6 +111,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 disabled: !canAccessOutgoing,
             },
             {
+                key: 'appeals',
+                icon: <MessageOutlined />,
+                label: 'Обращения',
+                disabled: !canAccessAppeals,
+            },
+            {
                 key: 'assignments',
                 icon: <CheckSquareOutlined />,
                 label: 'Поручения',
@@ -119,7 +127,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             icon: <FileTextOutlined />,
             label: 'Справочники',
         }] : []),
-        ...((hasSystemPermission('stats_incoming') || hasSystemPermission('stats_outgoing') || hasSystemPermission('stats_assignments') || hasSystemPermission('stats_system')) ? [{
+        ...((hasSystemPermission('stats_incoming') || hasSystemPermission('stats_outgoing') || hasSystemPermission('stats_citizen_appeals') || hasSystemPermission('stats_assignments') || hasSystemPermission('stats_system')) ? [{
             key: 'statistics',
             icon: <BarChartOutlined />,
             label: 'Статистика',

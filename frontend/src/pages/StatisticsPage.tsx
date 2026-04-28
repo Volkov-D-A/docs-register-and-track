@@ -3,6 +3,7 @@ import { App, Card, Col, DatePicker, Empty, Row, Spin, Statistic, Typography } f
 import {
   InboxOutlined,
   SendOutlined,
+  MessageOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   UserOutlined,
@@ -27,6 +28,7 @@ const StatisticsPage: React.FC = () => {
 
   const canViewIncoming = hasSystemPermission('stats_incoming');
   const canViewOutgoing = hasSystemPermission('stats_outgoing');
+  const canViewCitizenAppeals = hasSystemPermission('stats_citizen_appeals');
   const canViewAssignments = hasSystemPermission('stats_assignments');
   const canViewSystem = hasSystemPermission('stats_system');
 
@@ -59,7 +61,7 @@ const StatisticsPage: React.FC = () => {
   );
 
   const profile = resolveUserProfile(user?.systemPermissions, readableKinds, user?.isDocumentParticipant);
-  const hasAnySection = canViewIncoming || canViewOutgoing || canViewAssignments || canViewSystem;
+  const hasAnySection = canViewIncoming || canViewOutgoing || canViewCitizenAppeals || canViewAssignments || canViewSystem;
 
   return (
     <div style={{ padding: 24 }}>
@@ -82,7 +84,7 @@ const StatisticsPage: React.FC = () => {
         <Empty description="Нет доступа к статистике" />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {(canViewIncoming || canViewOutgoing) && (
+          {(canViewIncoming || canViewOutgoing || canViewCitizenAppeals) && (
             <div>
               <Title level={5}>Документы</Title>
               <Row gutter={[16, 16]}>
@@ -94,6 +96,11 @@ const StatisticsPage: React.FC = () => {
                 {canViewOutgoing && (
                   <Col xs={24} sm={12} lg={8}>
                     <StatCard title="Исходящие письма" value={stats?.outgoingCount || 0} icon={<SendOutlined />} color="#95de64" />
+                  </Col>
+                )}
+                {canViewCitizenAppeals && (
+                  <Col xs={24} sm={12} lg={8}>
+                    <StatCard title="Обращения граждан" value={stats?.citizenAppealCount || 0} icon={<MessageOutlined />} color="#fa8c16" />
                   </Col>
                 )}
               </Row>

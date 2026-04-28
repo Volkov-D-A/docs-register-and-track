@@ -5,6 +5,7 @@ const (
 	SystemPermissionReferences       = "references"
 	SystemPermissionStatsIncoming    = "stats_incoming"
 	SystemPermissionStatsOutgoing    = "stats_outgoing"
+	SystemPermissionStatsAppeals     = "stats_citizen_appeals"
 	SystemPermissionStatsAssignments = "stats_assignments"
 	SystemPermissionStatsSystem      = "stats_system"
 )

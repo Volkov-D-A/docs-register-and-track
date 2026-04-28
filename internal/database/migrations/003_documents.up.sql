@@ -1,7 +1,7 @@
 -- 8. Common Documents
 CREATE TABLE documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    kind VARCHAR(40) NOT NULL CHECK (kind IN ('incoming_letter', 'outgoing_letter')),
+    kind VARCHAR(40) NOT NULL CHECK (kind IN ('incoming_letter', 'outgoing_letter', 'citizen_appeal')),
     nomenclature_id UUID NOT NULL REFERENCES nomenclature(id),
     registration_number VARCHAR(100) NOT NULL,
     registration_date DATE NOT NULL,
@@ -13,7 +13,8 @@ CREATE TABLE documents (
             'Счёт',
             'Запрос',
             'Ответ',
-            'Уведомление'
+            'Уведомление',
+            'Обращение'
         )
     ),
     content TEXT NOT NULL,
@@ -49,15 +50,17 @@ CREATE INDEX idx_doc_corr_reg_org ON document_correspondent_registrations (corre
 -- 10. Document Resolutions
 CREATE TABLE document_resolutions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id UUID NOT NULL UNIQUE REFERENCES documents(id) ON DELETE CASCADE,
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     resolution TEXT,
     resolution_author VARCHAR(255),
     resolution_executors TEXT,
+    position INT NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_document_resolutions_document ON document_resolutions (document_id);
+CREATE INDEX idx_document_resolutions_document_position ON document_resolutions (document_id, position);
 
 -- 11. Incoming Document Details
 CREATE TABLE incoming_document_details (
@@ -85,7 +88,27 @@ CREATE INDEX idx_outgoing_doc_details_number ON outgoing_document_details (outgo
 CREATE INDEX idx_outgoing_doc_details_date ON outgoing_document_details (outgoing_date);
 CREATE INDEX idx_outgoing_doc_details_recipient ON outgoing_document_details (recipient_org_id);
 
--- 13. Document Links
+-- 13. Citizen Appeal Details
+CREATE TABLE citizen_appeal_details (
+    document_id UUID PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+    appeal_date DATE NOT NULL,
+    applicant_full_name VARCHAR(255) NOT NULL,
+    registration_address TEXT NOT NULL,
+    appeal_type VARCHAR(30) NOT NULL CHECK (
+        appeal_type IN ('предложение', 'заявление', 'жалоба')
+    ),
+    applicant_category VARCHAR(255) NOT NULL,
+    appeal_pages_count INT NOT NULL DEFAULT 1,
+    attachment_pages_count INT NOT NULL DEFAULT 0,
+    has_envelope BOOLEAN NOT NULL DEFAULT false,
+    received_from_pos BOOLEAN NOT NULL DEFAULT false
+);
+
+CREATE INDEX idx_citizen_appeal_details_appeal_date ON citizen_appeal_details (appeal_date);
+CREATE INDEX idx_citizen_appeal_details_applicant ON citizen_appeal_details (applicant_full_name);
+CREATE INDEX idx_citizen_appeal_details_type ON citizen_appeal_details (appeal_type);
+
+-- 14. Document Links
 CREATE TABLE document_links (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     source_document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,

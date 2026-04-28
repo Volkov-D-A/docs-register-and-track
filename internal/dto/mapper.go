@@ -141,6 +141,59 @@ func MapDocumentCorrespondentRegistrations(items []models.DocumentCorrespondentR
 	return result
 }
 
+// MapDocumentResolutions преобразует наборы резолюций документа в DTO.
+func MapDocumentResolutions(items []models.DocumentResolution) []DocumentResolution {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]DocumentResolution, len(items))
+	for i, item := range items {
+		result[i] = DocumentResolution{
+			ID:                  item.ID.String(),
+			Resolution:          item.Resolution,
+			ResolutionAuthor:    item.ResolutionAuthor,
+			ResolutionExecutors: item.ResolutionExecutors,
+			Position:            item.Position,
+		}
+	}
+	return result
+}
+
+// MapCitizenAppealDocument преобразует модель обращения граждан в DTO.
+func MapCitizenAppealDocument(m *models.CitizenAppealDocument) *CitizenAppealDocument {
+	if m == nil {
+		return nil
+	}
+	return &CitizenAppealDocument{
+		ID:                   m.ID.String(),
+		NomenclatureID:       m.NomenclatureID.String(),
+		NomenclatureName:     m.NomenclatureName,
+		RegistrationNumber:   m.RegistrationNumber,
+		RegistrationDate:     m.RegistrationDate,
+		AppealDate:           m.AppealDate,
+		DocumentTypeID:       m.DocumentTypeID,
+		DocumentTypeName:     m.DocumentTypeName,
+		Content:              m.Content,
+		PagesCount:           m.PagesCount,
+		ApplicantFullName:    m.ApplicantFullName,
+		RegistrationAddress:  m.RegistrationAddress,
+		AppealType:           m.AppealType,
+		ApplicantCategory:    m.ApplicantCategory,
+		AppealPagesCount:     m.AppealPagesCount,
+		AttachmentPagesCount: m.AttachmentPagesCount,
+		HasEnvelope:          m.HasEnvelope,
+		ReceivedFromPOS:      m.ReceivedFromPOS,
+		Correspondents:       MapDocumentCorrespondentRegistrations(m.Correspondents),
+		Resolutions:          MapDocumentResolutions(m.Resolutions),
+		CreatedBy:            m.CreatedBy.String(),
+		CreatedByName:        m.CreatedByName,
+		CreatedAt:            m.CreatedAt,
+		UpdatedAt:            m.UpdatedAt,
+		AttachmentsCount:     m.AttachmentsCount,
+		AssignmentsCount:     m.AssignmentsCount,
+	}
+}
+
 // MapOutgoingDocument преобразует модель OutgoingDocument в DTO.
 func MapOutgoingDocument(m *models.OutgoingDocument) *OutgoingDocument {
 	if m == nil {
@@ -233,6 +286,30 @@ func MapOutgoingDocumentCard(m *models.OutgoingDocument) *DocumentCard {
 	}
 }
 
+// MapCitizenAppealDocumentCard преобразует обращения граждан в общий DTO карточки документа.
+func MapCitizenAppealDocumentCard(m *models.CitizenAppealDocument) *DocumentCard {
+	if m == nil {
+		return nil
+	}
+	return &DocumentCard{
+		ID:                 m.ID.String(),
+		KindCode:           string(models.DocumentKindCitizenAppeal),
+		KindName:           models.DocumentKindCitizenAppeal.Label(),
+		RegistrationNumber: m.RegistrationNumber,
+		RegistrationDate:   m.RegistrationDate,
+		NomenclatureID:     m.NomenclatureID.String(),
+		NomenclatureName:   m.NomenclatureName,
+		DocumentTypeID:     m.DocumentTypeID,
+		DocumentTypeName:   m.DocumentTypeName,
+		Content:            m.Content,
+		CreatedBy:          m.CreatedBy.String(),
+		CreatedByName:      m.CreatedByName,
+		CreatedAt:          m.CreatedAt,
+		UpdatedAt:          m.UpdatedAt,
+		CitizenAppeal:      MapCitizenAppealDocument(m),
+	}
+}
+
 // MapIncomingDocumentListItem преобразует входящее письмо в общую строку списка документов.
 func MapIncomingDocumentListItem(m *models.IncomingDocument) *DocumentListItem {
 	if m == nil {
@@ -294,6 +371,51 @@ func MapOutgoingDocumentListItem(m *models.OutgoingDocument) *DocumentListItem {
 	}
 }
 
+// MapCitizenAppealDocumentListItem преобразует обращения граждан в общую строку списка документов.
+func MapCitizenAppealDocumentListItem(m *models.CitizenAppealDocument) *DocumentListItem {
+	if m == nil {
+		return nil
+	}
+	var firstResolution *models.DocumentResolution
+	if len(m.Resolutions) > 0 {
+		firstResolution = &m.Resolutions[0]
+	}
+	item := &DocumentListItem{
+		ID:                   m.ID.String(),
+		KindCode:             string(models.DocumentKindCitizenAppeal),
+		KindName:             models.DocumentKindCitizenAppeal.Label(),
+		RegistrationNumber:   m.RegistrationNumber,
+		RegistrationDate:     m.RegistrationDate,
+		NomenclatureID:       m.NomenclatureID.String(),
+		NomenclatureName:     m.NomenclatureName,
+		DocumentTypeID:       m.DocumentTypeID,
+		DocumentTypeName:     m.DocumentTypeName,
+		Content:              m.Content,
+		PagesCount:           m.PagesCount,
+		CreatedBy:            m.CreatedBy.String(),
+		CreatedByName:        m.CreatedByName,
+		CreatedAt:            m.CreatedAt,
+		UpdatedAt:            m.UpdatedAt,
+		AppealDate:           &m.AppealDate,
+		Correspondents:       MapDocumentCorrespondentRegistrations(m.Correspondents),
+		Resolutions:          MapDocumentResolutions(m.Resolutions),
+		ApplicantFullName:    m.ApplicantFullName,
+		RegistrationAddress:  m.RegistrationAddress,
+		AppealType:           m.AppealType,
+		ApplicantCategory:    m.ApplicantCategory,
+		AppealPagesCount:     m.AppealPagesCount,
+		AttachmentPagesCount: m.AttachmentPagesCount,
+		HasEnvelope:          m.HasEnvelope,
+		ReceivedFromPOS:      m.ReceivedFromPOS,
+	}
+	if firstResolution != nil {
+		item.Resolution = firstResolution.Resolution
+		item.ResolutionAuthor = firstResolution.ResolutionAuthor
+		item.ResolutionExecutors = firstResolution.ResolutionExecutors
+	}
+	return item
+}
+
 // MapDocumentListItemsFromIncoming преобразует список входящих документов в общий список документов.
 func MapDocumentListItemsFromIncoming(m []models.IncomingDocument) []DocumentListItem {
 	if m == nil {
@@ -317,6 +439,21 @@ func MapDocumentListItemsFromOutgoing(m []models.OutgoingDocument) []DocumentLis
 	res := make([]DocumentListItem, 0, len(m))
 	for _, item := range m {
 		mapped := MapOutgoingDocumentListItem(&item)
+		if mapped != nil {
+			res = append(res, *mapped)
+		}
+	}
+	return res
+}
+
+// MapDocumentListItemsFromCitizenAppeals преобразует список обращений граждан в общий список документов.
+func MapDocumentListItemsFromCitizenAppeals(m []models.CitizenAppealDocument) []DocumentListItem {
+	if m == nil {
+		return nil
+	}
+	res := make([]DocumentListItem, 0, len(m))
+	for _, item := range m {
+		mapped := MapCitizenAppealDocumentListItem(&item)
 		if mapped != nil {
 			res = append(res, *mapped)
 		}
@@ -576,6 +713,21 @@ func MapOutgoingDocuments(m []models.OutgoingDocument) []OutgoingDocument {
 	return res
 }
 
+// MapCitizenAppealDocuments преобразует список обращений граждан в DTO.
+func MapCitizenAppealDocuments(m []models.CitizenAppealDocument) []CitizenAppealDocument {
+	if m == nil {
+		return nil
+	}
+	res := make([]CitizenAppealDocument, len(m))
+	for i, v := range m {
+		mapped := MapCitizenAppealDocument(&v)
+		if mapped != nil {
+			res[i] = *mapped
+		}
+	}
+	return res
+}
+
 // MapDocumentLinks преобразует список связей документов в DTO.
 func MapDocumentLinks(m []models.DocumentLink) []DocumentLink {
 	if m == nil {
@@ -649,6 +801,7 @@ func MapDashboardStats(m *models.DashboardStats) *DashboardStats {
 		MyAssignmentsFinishedLate:  m.MyAssignmentsFinishedLate,
 		IncomingCount:              m.IncomingCount,
 		OutgoingCount:              m.OutgoingCount,
+		CitizenAppealCount:         m.CitizenAppealCount,
 		AllAssignmentsOverdue:      m.AllAssignmentsOverdue,
 		AllAssignmentsFinished:     m.AllAssignmentsFinished,
 		AllAssignmentsFinishedLate: m.AllAssignmentsFinishedLate,

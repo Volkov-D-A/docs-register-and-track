@@ -54,12 +54,44 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore Docu
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, nil, incRepo, outRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
-	svc := NewLinkService(linkRepo, incRepo, outRepo, accessSvc, auth, journalSvc)
+	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, accessSvc, auth, journalSvc)
 	return svc, linkRepo, incRepo, outRepo, auth
 }
 
 type kindActionDocumentAccessStore struct {
 	allowed map[models.DocumentKind]map[string]bool
+}
+
+type mapDocumentStore struct {
+	docs map[uuid.UUID]*models.Document
+}
+
+func (s *mapDocumentStore) GetByID(id uuid.UUID) (*models.Document, error) {
+	return s.docs[id], nil
+}
+
+type mapCitizenAppealDocStore struct {
+	docs map[uuid.UUID]*models.CitizenAppealDocument
+}
+
+func (s *mapCitizenAppealDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error) {
+	return nil, nil
+}
+
+func (s *mapCitizenAppealDocStore) GetByID(id uuid.UUID) (*models.CitizenAppealDocument, error) {
+	return s.docs[id], nil
+}
+
+func (s *mapCitizenAppealDocStore) Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
+	return nil, nil
+}
+
+func (s *mapCitizenAppealDocStore) Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
+	return nil, nil
+}
+
+func (s *mapCitizenAppealDocStore) GetCount() (int, error) {
+	return 0, nil
 }
 
 func (s *kindActionDocumentAccessStore) HasPermission(kindCode, action string, departmentID, userID string) (bool, error) {
@@ -285,6 +317,62 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Len(t, result.Nodes, 2)
 		assert.Len(t, result.Edges, 1)
+	})
+
+	t.Run("обращение отображает ФИО заявителя как отправителя", func(t *testing.T) {
+		svc, repo, incRepo, _, _ := setupLinkService(t, "clerk")
+		appealID := uuid.New()
+		registrationDate := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
+
+		svc.access.documentRepo = &mapDocumentStore{
+			docs: map[uuid.UUID]*models.Document{
+				rootID: {
+					ID:                 rootID,
+					Kind:               models.DocumentKindIncomingLetter,
+					RegistrationNumber: "ВХ-1",
+					RegistrationDate:   registrationDate,
+				},
+				appealID: {
+					ID:                 appealID,
+					Kind:               models.DocumentKindCitizenAppeal,
+					RegistrationNumber: "ОБ-7",
+					RegistrationDate:   registrationDate,
+					Content:            "Просьба заявителя",
+				},
+			},
+		}
+		svc.citizenAppealDocRepo = &mapCitizenAppealDocStore{
+			docs: map[uuid.UUID]*models.CitizenAppealDocument{
+				appealID: {
+					ID:                 appealID,
+					RegistrationNumber: "ОБ-7",
+					RegistrationDate:   registrationDate,
+					Content:            "Просьба заявителя",
+					ApplicantFullName:  "Иванов Иван Иванович",
+				},
+			},
+		}
+
+		mockLinks := []models.DocumentLink{
+			{ID: uuid.New(), SourceID: rootID, SourceKind: models.DocumentKindIncomingLetter, TargetID: appealID, TargetKind: models.DocumentKindCitizenAppeal, LinkType: "связано"},
+		}
+		repo.On("GetGraph", context.Background(), rootID).Return(mockLinks, nil).Once()
+		incRepo.On("GetByID", rootID).Return(&models.IncomingDocument{ID: rootID, IncomingNumber: "ВХ-1", IncomingDate: registrationDate}, nil).Maybe()
+
+		result, err := svc.GetDocumentFlow(rootID.String())
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		var appealNode *models.GraphNode
+		for i := range result.Nodes {
+			if result.Nodes[i].ID == appealID.String() {
+				appealNode = &result.Nodes[i]
+				break
+			}
+		}
+		require.NotNil(t, appealNode)
+		assert.Equal(t, string(models.DocumentKindCitizenAppeal), appealNode.KindCode)
+		assert.Equal(t, "Иванов Иван Иванович", appealNode.Sender)
 	})
 
 	t.Run("скрывает доступные узлы за недоступным мостом", func(t *testing.T) {

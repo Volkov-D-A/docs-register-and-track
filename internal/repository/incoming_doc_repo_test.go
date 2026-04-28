@@ -51,8 +51,8 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 			"id", "document_id", "registration_number", "registration_date", "correspondent_org_id", "name", "position",
 		}).AddRow(uuid.New(), docID, "ИСХ-123", now, uuid.New(), "Орг 1", 1))
 		mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnRows(sqlmock.NewRows([]string{
-			"id", "document_id", "resolution", "resolution_author", "resolution_executors",
-		}).AddRow(uuid.New(), docID, "В работу", "Директор", "Петров П.П."))
+			"id", "document_id", "resolution", "resolution_author", "resolution_executors", "position",
+		}).AddRow(uuid.New(), docID, "В работу", "Директор", "Петров П.П.", 1))
 
 		doc, err := repo.GetByID(docID)
 		require.NoError(t, err)

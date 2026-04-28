@@ -12,6 +12,7 @@ type DashboardStats struct {
 	// Статистика делопроизводителя
 	IncomingCount              int `json:"incomingCount,omitempty"`
 	OutgoingCount              int `json:"outgoingCount,omitempty"`
+	CitizenAppealCount         int `json:"citizenAppealCount,omitempty"`
 	AllAssignmentsOverdue      int `json:"allAssignmentsOverdue,omitempty"`
 	AllAssignmentsFinished     int `json:"allAssignmentsFinished,omitempty"`
 	AllAssignmentsFinishedLate int `json:"allAssignmentsFinishedLate,omitempty"`

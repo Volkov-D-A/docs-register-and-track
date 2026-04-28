@@ -54,12 +54,14 @@ func scanIncomingDoc(scanner interface{ Scan(...interface{}) error }) (*models.I
 func (r *IncomingDocumentRepository) loadResolution(documentID uuid.UUID) (*models.DocumentResolution, error) {
 	resolution := &models.DocumentResolution{}
 	err := r.db.QueryRow(`
-		SELECT id, document_id, resolution, resolution_author, resolution_executors
+		SELECT id, document_id, resolution, resolution_author, resolution_executors, position
 		FROM document_resolutions
 		WHERE document_id = $1
+		ORDER BY position, created_at, id
+		LIMIT 1
 	`, documentID).Scan(
 		&resolution.ID, &resolution.DocumentID, &resolution.Resolution,
-		&resolution.ResolutionAuthor, &resolution.ResolutionExecutors,
+		&resolution.ResolutionAuthor, &resolution.ResolutionExecutors, &resolution.Position,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -77,6 +79,42 @@ func applyResolution(doc *models.IncomingDocument, resolution *models.DocumentRe
 	doc.Resolution = resolution.Resolution
 	doc.ResolutionAuthor = resolution.ResolutionAuthor
 	doc.ResolutionExecutors = resolution.ResolutionExecutors
+}
+
+func (r *IncomingDocumentRepository) loadResolutions(documentID uuid.UUID) ([]models.DocumentResolution, error) {
+	return loadDocumentResolutions(r.db, documentID)
+}
+
+func loadDocumentResolutions(db interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}, documentID uuid.UUID) ([]models.DocumentResolution, error) {
+	rows, err := db.Query(`
+		SELECT id, document_id, resolution, resolution_author, resolution_executors, position
+		FROM document_resolutions
+		WHERE document_id = $1
+		ORDER BY position, created_at, id
+	`, documentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get document resolutions: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]models.DocumentResolution, 0)
+	for rows.Next() {
+		var item models.DocumentResolution
+		if err := rows.Scan(
+			&item.ID, &item.DocumentID, &item.Resolution,
+			&item.ResolutionAuthor, &item.ResolutionExecutors, &item.Position,
+		); err != nil {
+			return nil, fmt.Errorf("scan document resolution error: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("document resolutions rows error: %w", err)
+	}
+
+	return items, nil
 }
 
 func (r *IncomingDocumentRepository) loadCorrespondents(documentID uuid.UUID) ([]models.DocumentCorrespondentRegistration, error) {
@@ -134,20 +172,35 @@ func replaceCorrespondents(tx *sql.Tx, documentID uuid.UUID, items []models.Docu
 }
 
 func replaceResolution(tx *sql.Tx, documentID uuid.UUID, resolution, author, executors *string) error {
-	if _, err := tx.Exec(`DELETE FROM document_resolutions WHERE document_id = $1`, documentID); err != nil {
-		return fmt.Errorf("failed to clear document resolution: %w", err)
-	}
-
 	if resolution == nil && author == nil && executors == nil {
-		return nil
+		return replaceResolutions(tx, documentID, nil)
 	}
 
-	if _, err := tx.Exec(`
+	return replaceResolutions(tx, documentID, []models.DocumentResolution{{
+		Resolution:          resolution,
+		ResolutionAuthor:    author,
+		ResolutionExecutors: executors,
+		Position:            1,
+	}})
+}
+
+func replaceResolutions(tx *sql.Tx, documentID uuid.UUID, items []models.DocumentResolution) error {
+	if _, err := tx.Exec(`DELETE FROM document_resolutions WHERE document_id = $1`, documentID); err != nil {
+		return fmt.Errorf("failed to clear document resolutions: %w", err)
+	}
+
+	for i, item := range items {
+		position := item.Position
+		if position <= 0 {
+			position = i + 1
+		}
+		if _, err := tx.Exec(`
 		INSERT INTO document_resolutions (
-			document_id, resolution, resolution_author, resolution_executors
-		) VALUES ($1, $2, $3, $4)
-	`, documentID, resolution, author, executors); err != nil {
-		return fmt.Errorf("failed to save document resolution: %w", err)
+			document_id, resolution, resolution_author, resolution_executors, position
+		) VALUES ($1, $2, $3, $4, $5)
+	`, documentID, item.Resolution, item.ResolutionAuthor, item.ResolutionExecutors, position); err != nil {
+			return fmt.Errorf("failed to save document resolution: %w", err)
+		}
 	}
 
 	return nil

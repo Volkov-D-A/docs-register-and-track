@@ -14,12 +14,13 @@ import (
 
 // LinkService предоставляет бизнес-логику для управления связями между документами.
 type LinkService struct {
-	repo            LinkStore
-	incomingDocRepo IncomingDocStore
-	outgoingDocRepo OutgoingDocStore
-	access          *DocumentAccessService
-	authService     *AuthService
-	journal         *JournalService
+	repo                 LinkStore
+	incomingDocRepo      IncomingDocStore
+	outgoingDocRepo      OutgoingDocStore
+	citizenAppealDocRepo CitizenAppealDocStore
+	access               *DocumentAccessService
+	authService          *AuthService
+	journal              *JournalService
 }
 
 // NewLinkService создает новый экземпляр LinkService.
@@ -27,17 +28,19 @@ func NewLinkService(
 	repo LinkStore,
 	incomingDocRepo IncomingDocStore,
 	outgoingDocRepo OutgoingDocStore,
+	citizenAppealDocRepo CitizenAppealDocStore,
 	access *DocumentAccessService,
 	authService *AuthService,
 	journal *JournalService,
 ) *LinkService {
 	return &LinkService{
-		repo:            repo,
-		incomingDocRepo: incomingDocRepo,
-		outgoingDocRepo: outgoingDocRepo,
-		access:          access,
-		authService:     authService,
-		journal:         journal,
+		repo:                 repo,
+		incomingDocRepo:      incomingDocRepo,
+		outgoingDocRepo:      outgoingDocRepo,
+		citizenAppealDocRepo: citizenAppealDocRepo,
+		access:               access,
+		authService:          authService,
+		journal:              journal,
 	}
 }
 
@@ -227,6 +230,11 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 	// Создаёт N запросов; можно оптимизировать через WHERE IN, но граф обычно маленький (< 20 узлов)
 	for id, docType := range docIDs {
 		var label, subject, dateStr, sender, recipient string
+		if doc, ok := readableDocs[id]; ok && doc != nil {
+			label = doc.RegistrationNumber
+			subject = doc.Content
+			dateStr = doc.RegistrationDate.Format("02.01.2006")
+		}
 
 		switch models.NormalizeDocumentKind(docType) {
 		case models.DocumentKindIncomingLetter:
@@ -251,6 +259,19 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 				recipient = doc.RecipientOrgName
 				if recipient == "" {
 					recipient = "Неизвестно"
+				}
+			}
+		case models.DocumentKindCitizenAppeal:
+			if s.citizenAppealDocRepo != nil {
+				doc, err := s.citizenAppealDocRepo.GetByID(id)
+				if err == nil && doc != nil {
+					label = doc.RegistrationNumber
+					subject = doc.Content
+					dateStr = doc.RegistrationDate.Format("02.01.2006")
+					sender = doc.ApplicantFullName
+					if sender == "" {
+						sender = "Неизвестно"
+					}
 				}
 			}
 		}

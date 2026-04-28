@@ -75,6 +75,7 @@ func main() {
 	documentRepo := repository.NewDocumentRepository(db)
 	incomingDocRepo := repository.NewIncomingDocumentRepository(db)
 	outgoingDocRepo := repository.NewOutgoingDocumentRepository(db)
+	citizenAppealRepo := repository.NewCitizenAppealRepository(db)
 	assignmentRepo := repository.NewAssignmentRepository(db)
 	departmentRepo := repository.NewDepartmentRepository(db)
 	settingsRepo := repository.NewSettingsRepository(db)
@@ -114,11 +115,13 @@ func main() {
 	documentKindQueryRegistry := services.NewDocumentKindQueryRegistry(
 		services.NewIncomingLetterQueryHandler(incomingDocRepo),
 		services.NewOutgoingLetterQueryHandler(outgoingDocRepo),
+		services.NewCitizenAppealQueryHandler(citizenAppealRepo),
 	)
 	documentQueryService := services.NewDocumentQueryService(documentKindQueryRegistry, documentAccessService)
 	documentKindCommandRegistry := services.NewDocumentKindCommandRegistry(
 		services.NewIncomingLetterCommandHandler(incomingDocRepo, nomenclatureRepo, referenceRepo, authService, journalService, documentAccessService),
 		services.NewOutgoingLetterCommandHandler(outgoingDocRepo, referenceRepo, nomenclatureRepo, authService, journalService, documentAccessService),
+		services.NewCitizenAppealCommandHandler(citizenAppealRepo, nomenclatureRepo, referenceRepo, authService, journalService, documentAccessService),
 	)
 	documentRegistrationService := services.NewDocumentRegistrationService(documentKindCommandRegistry)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService, documentAccessService)
@@ -132,7 +135,7 @@ func main() {
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, minioService, documentAccessService)
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService, documentAccessService)
-	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, documentAccessService, authService, journalService)
+	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, documentAccessService, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService)
 	systemService := services.NewSystemService(db)
 	releaseNoteService, err := services.NewReleaseNoteService(releaseNotesSource)

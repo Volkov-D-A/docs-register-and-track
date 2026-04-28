@@ -18,7 +18,7 @@ type DashboardStore struct {
 }
 
 // GetAdminDocCounts provides a mock function with no fields
-func (_m *DashboardStore) GetAdminDocCounts() (int, int, error) {
+func (_m *DashboardStore) GetAdminDocCounts() (int, int, int, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
@@ -27,8 +27,9 @@ func (_m *DashboardStore) GetAdminDocCounts() (int, int, error) {
 
 	var r0 int
 	var r1 int
-	var r2 error
-	if rf, ok := ret.Get(0).(func() (int, int, error)); ok {
+	var r2 int
+	var r3 error
+	if rf, ok := ret.Get(0).(func() (int, int, int, error)); ok {
 		return rf()
 	}
 	if rf, ok := ret.Get(0).(func() int); ok {
@@ -43,13 +44,19 @@ func (_m *DashboardStore) GetAdminDocCounts() (int, int, error) {
 		r1 = ret.Get(1).(int)
 	}
 
-	if rf, ok := ret.Get(2).(func() error); ok {
+	if rf, ok := ret.Get(2).(func() int); ok {
 		r2 = rf()
 	} else {
-		r2 = ret.Error(2)
+		r2 = ret.Get(2).(int)
 	}
 
-	return r0, r1, r2
+	if rf, ok := ret.Get(3).(func() error); ok {
+		r3 = rf()
+	} else {
+		r3 = ret.Error(3)
+	}
+
+	return r0, r1, r2, r3
 }
 
 // GetAdminUserCount provides a mock function with no fields
@@ -99,7 +106,7 @@ func (_m *DashboardStore) GetDBSize() string {
 }
 
 // GetDocCountsByPeriod provides a mock function with given fields: startDate, endDate
-func (_m *DashboardStore) GetDocCountsByPeriod(startDate time.Time, endDate time.Time) (int, int, error) {
+func (_m *DashboardStore) GetDocCountsByPeriod(startDate time.Time, endDate time.Time) (int, int, int, error) {
 	ret := _m.Called(startDate, endDate)
 
 	if len(ret) == 0 {
@@ -108,8 +115,9 @@ func (_m *DashboardStore) GetDocCountsByPeriod(startDate time.Time, endDate time
 
 	var r0 int
 	var r1 int
-	var r2 error
-	if rf, ok := ret.Get(0).(func(time.Time, time.Time) (int, int, error)); ok {
+	var r2 int
+	var r3 error
+	if rf, ok := ret.Get(0).(func(time.Time, time.Time) (int, int, int, error)); ok {
 		return rf(startDate, endDate)
 	}
 	if rf, ok := ret.Get(0).(func(time.Time, time.Time) int); ok {
@@ -124,13 +132,19 @@ func (_m *DashboardStore) GetDocCountsByPeriod(startDate time.Time, endDate time
 		r1 = ret.Get(1).(int)
 	}
 
-	if rf, ok := ret.Get(2).(func(time.Time, time.Time) error); ok {
+	if rf, ok := ret.Get(2).(func(time.Time, time.Time) int); ok {
 		r2 = rf(startDate, endDate)
 	} else {
-		r2 = ret.Error(2)
+		r2 = ret.Get(2).(int)
 	}
 
-	return r0, r1, r2
+	if rf, ok := ret.Get(3).(func(time.Time, time.Time) error); ok {
+		r3 = rf(startDate, endDate)
+	} else {
+		r3 = ret.Error(3)
+	}
+
+	return r0, r1, r2, r3
 }
 
 // GetExecutorFinishedCounts provides a mock function with given fields: userID

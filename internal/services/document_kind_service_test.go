@@ -46,9 +46,10 @@ func TestDocumentKindService_GetAll(t *testing.T) {
 
 	items, err := service.GetAll()
 	require.NoError(t, err)
-	require.Len(t, items, 2)
+	require.Len(t, items, 3)
 	assert.Equal(t, "incoming_letter", items[0].Code)
 	assert.Equal(t, "outgoing_letter", items[1].Code)
+	assert.Equal(t, "citizen_appeal", items[2].Code)
 }
 
 func TestDocumentKindService_GetAvailableForRegistration(t *testing.T) {
@@ -60,7 +61,7 @@ func TestDocumentKindService_GetAvailableForRegistration(t *testing.T) {
 
 		items, err := service.GetAvailableForRegistration()
 		require.NoError(t, err)
-		require.Len(t, items, 2)
+		require.Len(t, items, 3)
 	})
 
 	t.Run("executor gets none", func(t *testing.T) {

@@ -35,7 +35,7 @@ const OutgoingLetterDocumentForm: React.FC<OutgoingLetterDocumentFormProps> = ({
             <>
                 <Row gutter={16}>
                     <Col span={12}>
-                        <Form.Item name="nomenclatureId" label="Номенклатура дел" rules={[{ required: true, message: 'Выберите дело' }]}>
+                        <Form.Item name="nomenclatureId" label="Дело" rules={[{ required: true, message: 'Выберите дело' }]}>
                             <Select options={nomenclatures.map((n: any) => ({ value: n.id, label: `${n.index} — ${n.name}` }))} placeholder="Выберите дело" />
                         </Form.Item>
                     </Col>

@@ -115,6 +115,51 @@ type DocumentCorrespondentRegistration struct {
 	Position           int       `json:"position"`
 }
 
+// DocumentResolution описывает DTO набора резолюции документа.
+type DocumentResolution struct {
+	ID                  string  `json:"id"`
+	Resolution          *string `json:"resolution,omitempty"`
+	ResolutionAuthor    *string `json:"resolutionAuthor,omitempty"`
+	ResolutionExecutors *string `json:"resolutionExecutors,omitempty"`
+	Position            int     `json:"position"`
+}
+
+// CitizenAppealDocument описывает DTO обращения граждан.
+type CitizenAppealDocument struct {
+	ID               string `json:"id"`
+	NomenclatureID   string `json:"nomenclatureId"`
+	NomenclatureName string `json:"nomenclatureName,omitempty"`
+
+	RegistrationNumber string    `json:"registrationNumber"`
+	RegistrationDate   time.Time `json:"registrationDate"`
+	AppealDate         time.Time `json:"appealDate"`
+
+	DocumentTypeID   string `json:"documentTypeId"`
+	DocumentTypeName string `json:"documentTypeName,omitempty"`
+	Content          string `json:"content"`
+	PagesCount       int    `json:"pagesCount"`
+
+	ApplicantFullName    string `json:"applicantFullName"`
+	RegistrationAddress  string `json:"registrationAddress"`
+	AppealType           string `json:"appealType"`
+	ApplicantCategory    string `json:"applicantCategory"`
+	AppealPagesCount     int    `json:"appealPagesCount"`
+	AttachmentPagesCount int    `json:"attachmentPagesCount"`
+	HasEnvelope          bool   `json:"hasEnvelope"`
+	ReceivedFromPOS      bool   `json:"receivedFromPos"`
+
+	Correspondents []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
+	Resolutions    []DocumentResolution                `json:"resolutions,omitempty"`
+
+	CreatedBy     string    `json:"createdBy"`
+	CreatedByName string    `json:"createdByName,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+
+	AttachmentsCount int `json:"attachmentsCount,omitempty"`
+	AssignmentsCount int `json:"assignmentsCount,omitempty"`
+}
+
 // OutgoingDocument описывает DTO исходящего документа.
 type OutgoingDocument struct {
 	ID               string `json:"id"`
@@ -161,8 +206,9 @@ type DocumentCard struct {
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`
 
-	IncomingLetter *IncomingDocument `json:"incomingLetter,omitempty"`
-	OutgoingLetter *OutgoingDocument `json:"outgoingLetter,omitempty"`
+	IncomingLetter *IncomingDocument      `json:"incomingLetter,omitempty"`
+	OutgoingLetter *OutgoingDocument      `json:"outgoingLetter,omitempty"`
+	CitizenAppeal  *CitizenAppealDocument `json:"citizenAppeal,omitempty"`
 }
 
 // DocumentListItem описывает общую строку списка документов с detail-полями для конкретного вида.
@@ -183,18 +229,28 @@ type DocumentListItem struct {
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`
 
-	IncomingNumber      string                              `json:"incomingNumber,omitempty"`
-	IncomingDate        *time.Time                          `json:"incomingDate,omitempty"`
-	OutgoingNumber      string                              `json:"outgoingNumber,omitempty"`
-	OutgoingDate        *time.Time                          `json:"outgoingDate,omitempty"`
-	Correspondents      []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
-	SenderSignatory     string                              `json:"senderSignatory,omitempty"`
-	Resolution          *string                             `json:"resolution,omitempty"`
-	ResolutionAuthor    *string                             `json:"resolutionAuthor,omitempty"`
-	ResolutionExecutors *string                             `json:"resolutionExecutors,omitempty"`
-	RecipientOrgName    string                              `json:"recipientOrgName,omitempty"`
-	Addressee           string                              `json:"addressee,omitempty"`
-	SenderExecutor      string                              `json:"senderExecutor,omitempty"`
+	IncomingNumber       string                              `json:"incomingNumber,omitempty"`
+	IncomingDate         *time.Time                          `json:"incomingDate,omitempty"`
+	AppealDate           *time.Time                          `json:"appealDate,omitempty"`
+	OutgoingNumber       string                              `json:"outgoingNumber,omitempty"`
+	OutgoingDate         *time.Time                          `json:"outgoingDate,omitempty"`
+	Correspondents       []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
+	SenderSignatory      string                              `json:"senderSignatory,omitempty"`
+	Resolution           *string                             `json:"resolution,omitempty"`
+	ResolutionAuthor     *string                             `json:"resolutionAuthor,omitempty"`
+	ResolutionExecutors  *string                             `json:"resolutionExecutors,omitempty"`
+	Resolutions          []DocumentResolution                `json:"resolutions,omitempty"`
+	RecipientOrgName     string                              `json:"recipientOrgName,omitempty"`
+	Addressee            string                              `json:"addressee,omitempty"`
+	SenderExecutor       string                              `json:"senderExecutor,omitempty"`
+	ApplicantFullName    string                              `json:"applicantFullName,omitempty"`
+	RegistrationAddress  string                              `json:"registrationAddress,omitempty"`
+	AppealType           string                              `json:"appealType,omitempty"`
+	ApplicantCategory    string                              `json:"applicantCategory,omitempty"`
+	AppealPagesCount     int                                 `json:"appealPagesCount,omitempty"`
+	AttachmentPagesCount int                                 `json:"attachmentPagesCount,omitempty"`
+	HasEnvelope          bool                                `json:"hasEnvelope,omitempty"`
+	ReceivedFromPOS      bool                                `json:"receivedFromPos,omitempty"`
 }
 
 // DocumentLink описывает DTO связи между документами.
@@ -305,6 +361,7 @@ type DashboardStats struct {
 	// Статистика делопроизводителя
 	IncomingCount              int `json:"incomingCount,omitempty"`
 	OutgoingCount              int `json:"outgoingCount,omitempty"`
+	CitizenAppealCount         int `json:"citizenAppealCount,omitempty"`
 	AllAssignmentsOverdue      int `json:"allAssignmentsOverdue,omitempty"`
 	AllAssignmentsFinished     int `json:"allAssignmentsFinished,omitempty"`
 	AllAssignmentsFinishedLate int `json:"allAssignmentsFinishedLate,omitempty"`

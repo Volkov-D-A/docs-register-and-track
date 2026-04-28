@@ -1,6 +1,7 @@
-import { DOCUMENT_KIND_INCOMING_LETTER, DOCUMENT_KIND_OUTGOING_LETTER } from '../constants/documentKinds';
+import { DOCUMENT_KIND_CITIZEN_APPEAL, DOCUMENT_KIND_INCOMING_LETTER, DOCUMENT_KIND_OUTGOING_LETTER } from '../constants/documentKinds';
 import { incomingLetterPageConfig } from '../modules/documentKinds/incomingLetter';
 import { outgoingLetterPageConfig } from '../modules/documentKinds/outgoingLetter';
+import { citizenAppealPageConfig } from '../modules/documentKinds/citizenAppeal';
 
 type DocumentPageConfig = {
     kindCode: string;
@@ -19,6 +20,7 @@ type DocumentPageConfig = {
 export const documentPageConfigs: Record<string, DocumentPageConfig> = {
     [DOCUMENT_KIND_INCOMING_LETTER]: incomingLetterPageConfig,
     [DOCUMENT_KIND_OUTGOING_LETTER]: outgoingLetterPageConfig,
+    [DOCUMENT_KIND_CITIZEN_APPEAL]: citizenAppealPageConfig,
 };
 
 export const getDocumentPageConfig = (kindCode: string): DocumentPageConfig => (

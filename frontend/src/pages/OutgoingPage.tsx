@@ -263,6 +263,7 @@ const OutgoingPage: React.FC = () => {
                 onCancel: () => { closeRegisterModal(); clearDraftLink(); },
                 onOk: () => registerForm.submit(),
                 width: 800,
+                okText: 'Зарегистрировать',
                 confirmLoading: loading,
                 linkedBadge: sourceId && targetKind === DOCUMENT_KIND_OUTGOING_LETTER ? (
                     <div style={{ marginBottom: 16 }}>
@@ -288,6 +289,7 @@ const OutgoingPage: React.FC = () => {
                 onCancel: closeEditModal,
                 onOk: () => editForm.submit(),
                 width: 800,
+                okText: 'Сохранить',
                 confirmLoading: loading,
                 content: (
                     <OutgoingLetterDocumentForm

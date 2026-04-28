@@ -76,12 +76,10 @@ func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]mode
 		SELECT 
 			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
 			u.full_name as creator_name,
-			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
+			d.registration_number as doc_number
 		FROM acknowledgments a
 		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 		WHERE a.document_id = $1
 		ORDER BY a.created_at DESC
 	`
@@ -161,13 +159,11 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 		SELECT 
 			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
 			u.full_name as creator_name,
-			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
+			d.registration_number as doc_number
 		FROM acknowledgment_users au
 		JOIN acknowledgments a ON au.acknowledgment_id = a.id
 		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 		WHERE au.user_id = $1 AND au.confirmed_at IS NULL
 		ORDER BY a.created_at DESC
 	`
@@ -329,12 +325,10 @@ func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, erro
 		SELECT 
 			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
 			u.full_name as creator_name,
-			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number
+			d.registration_number as doc_number
 		FROM acknowledgments a
 		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 		WHERE a.completed_at IS NULL
 		ORDER BY a.created_at DESC
 	`

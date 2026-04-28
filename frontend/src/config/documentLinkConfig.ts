@@ -3,6 +3,7 @@ import {
     DOCUMENT_KIND_OUTGOING_LETTER,
     getDocumentKindColor,
     getDocumentKindShortLabel,
+    isCitizenAppealKind,
     isIncomingKind,
     isOutgoingKind,
 } from '../constants/documentKinds';
@@ -25,12 +26,16 @@ export const getLinkedDocumentLabel = (kind: string): string => (
 );
 
 export const getLinkedDocumentColor = (kind: string): string => (
-    getDocumentKindColor(isIncomingKind(kind) ? 'incoming_letter' : 'outgoing_letter')
+    getDocumentKindColor(kind)
 );
 
-export const getLinkedDocumentCounterpartyLabel = (kind: string, sender: string, recipient: string): string => (
-    isIncomingKind(kind) ? `От: ${sender}` : `Кому: ${recipient}`
-);
+export const getLinkedDocumentCounterpartyLabel = (kind: string, sender: string, recipient: string): string => {
+    if (isIncomingKind(kind) || isCitizenAppealKind(kind)) {
+        return `От: ${sender || 'Неизвестно'}`;
+    }
+
+    return `Кому: ${recipient || 'Неизвестно'}`;
+};
 
 export const resolveLinkTypeForNewDocument = (sourceKind: string, targetKind: string): string => {
     if (isIncomingKind(sourceKind) && targetKind === DOCUMENT_KIND_OUTGOING_LETTER) {

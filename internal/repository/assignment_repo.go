@@ -159,13 +159,11 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 			a.executor_id, u_executor.full_name,
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
-			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
+			d.registration_number as doc_number,
 			d.content as doc_subject
 		FROM assignments a
 		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 		WHERE a.id = $1
 	`
 
@@ -249,13 +247,11 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 			a.executor_id, u_executor.full_name,
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.created_at, a.updated_at,
-			COALESCE(inc.incoming_number, out.outgoing_number) as doc_number,
+			d.registration_number as doc_number,
 			d.content as doc_subject
 		FROM assignments a
 		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
-		LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter'
-		LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter'
 	`
 
 	where := []string{"1=1"}
@@ -311,7 +307,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 
 	if filter.Search != "" {
 		search := "%" + strings.ToLower(filter.Search) + "%"
-		where = append(where, fmt.Sprintf("(LOWER(a.content) LIKE $%d OR LOWER(COALESCE(inc.incoming_number, out.outgoing_number, '')) LIKE $%d OR LOWER(d.content) LIKE $%d)", argIdx, argIdx, argIdx))
+		where = append(where, fmt.Sprintf("(LOWER(a.content) LIKE $%d OR LOWER(d.registration_number) LIKE $%d OR LOWER(d.content) LIKE $%d)", argIdx, argIdx, argIdx))
 		args = append(args, search, search, search)
 		argIdx++
 	}
@@ -319,7 +315,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	query += " WHERE " + strings.Join(where, " AND ")
 
 	// Запрос количества
-	countQuery := "SELECT COUNT(*) FROM assignments a JOIN documents d ON d.id = a.document_id LEFT JOIN incoming_document_details inc ON inc.document_id = d.id AND d.kind = 'incoming_letter' LEFT JOIN outgoing_document_details out ON out.document_id = d.id AND d.kind = 'outgoing_letter' WHERE " + strings.Join(where, " AND ")
+	countQuery := "SELECT COUNT(*) FROM assignments a JOIN documents d ON d.id = a.document_id WHERE " + strings.Join(where, " AND ")
 	var totalCount int
 	if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count assignments: %w", err)
