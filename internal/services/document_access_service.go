@@ -273,6 +273,20 @@ func (s *DocumentAccessService) HasAnyDocumentAction(action string) (bool, error
 	return false, nil
 }
 
+func (s *DocumentAccessService) GetDocumentKindsWithAction(action string) ([]models.DocumentKind, error) {
+	kinds := make([]models.DocumentKind, 0)
+	for _, spec := range models.AllDocumentKindSpecs() {
+		allowed, err := s.hasPermission(spec.Code, action)
+		if err != nil {
+			return nil, err
+		}
+		if allowed {
+			kinds = append(kinds, spec.Code)
+		}
+	}
+	return kinds, nil
+}
+
 func (s *DocumentAccessService) getDepartmentNomenclatureIDs() ([]string, error) {
 	user, err := s.auth.GetCurrentUser()
 	if err != nil {

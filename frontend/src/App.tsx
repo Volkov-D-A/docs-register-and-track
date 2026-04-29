@@ -170,6 +170,9 @@ function App() {
             setIsAboutModalOpen(false);
             return;
         }
+        if (!readableKindsReady) {
+            return;
+        }
 
         const profile = resolveUserProfile(user.systemPermissions, readableKinds, user.isDocumentParticipant);
 
@@ -201,7 +204,7 @@ function App() {
         return () => {
             isMounted = false;
         };
-    }, [isAuthenticated, readableKinds, user]);
+    }, [isAuthenticated, readableKinds, readableKindsReady, user]);
 
     useEffect(() => {
         if (!isAuthenticated || !user || !canAccessSettings) {

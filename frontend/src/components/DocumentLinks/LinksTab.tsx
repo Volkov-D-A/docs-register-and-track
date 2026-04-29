@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button, Popconfirm, Modal, Select, Tag, Switch, Space, Empty, Spin, App } from 'antd';
 import { LinkOutlined, DeleteOutlined, PlusOutlined, ApartmentOutlined, UnlockOutlined, LockOutlined } from '@ant-design/icons';
 import { LinkDocuments, UnlinkDocument, GetDocumentLinks, models } from '../../types/link';
 import { LinkGraph } from './LinkGraph';
 import dayjs from 'dayjs';
 import { GetList } from '../../../wailsjs/go/services/DocumentQueryService';
-import { documentKinds, DOCUMENT_KIND_OUTGOING_LETTER } from '../../constants/documentKinds';
+import { DOCUMENT_KIND_OUTGOING_LETTER } from '../../constants/documentKinds';
 import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentLabel } from '../../config/documentLinkConfig';
 import { useDocumentKindAccess } from '../../hooks/useDocumentKindAccess';
 
@@ -24,7 +24,7 @@ interface LinksTabProps {
  */
 export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabProps) => {
     const { message } = App.useApp();
-    const { hasAction, kinds } = useDocumentKindAccess();
+    const { hasAction, kinds, ready: accessReady } = useDocumentKindAccess();
     const [links, setLinks] = useState<models.DocumentLink[]>([]);
     const [loading, setLoading] = useState(false);
     const [isModalVisible, setIsModalVisible] = useState(false);
@@ -42,19 +42,38 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
     const [searchTerm, setSearchTerm] = useState('');
     const [searchLoading, setSearchLoading] = useState(false);
     const [targetOptions, setTargetOptions] = useState<{ value: string; label: string }[]>([]);
-    const canManageLinks = hasAction(documentKind, 'link');
-    const creatableKinds = kinds.filter((kind) => hasAction(kind.code, 'create'));
+    const canManageLinks = accessReady && hasAction(documentKind, 'link');
+    const creatableKinds = useMemo(
+        () => accessReady ? kinds.filter((kind) => hasAction(kind.code, 'create')) : [],
+        [accessReady, hasAction, kinds],
+    );
+    const selectableTargetKinds = useMemo(
+        () => accessReady ? (creatableKinds.length > 0 ? creatableKinds : kinds) : [],
+        [accessReady, creatableKinds, kinds],
+    );
 
     useEffect(() => {
         const timeoutId = setTimeout(() => {
-            if (searchTerm.length >= 2) {
+            if (accessReady && searchTerm.length >= 2 && targetKind) {
                 performSearch(searchTerm);
             } else {
                 setTargetOptions([]);
             }
         }, 500);
         return () => clearTimeout(timeoutId);
-    }, [searchTerm, targetKind]);
+    }, [accessReady, searchTerm, targetKind]);
+
+    useEffect(() => {
+        if (!accessReady || selectableTargetKinds.length === 0) {
+            return;
+        }
+        if (!selectableTargetKinds.some((kind) => kind.code === targetKind)) {
+            setTargetKind(selectableTargetKinds[0].code);
+            setTargetId('');
+            setSearchTerm('');
+            setTargetOptions([]);
+        }
+    }, [accessReady, selectableTargetKinds, targetKind]);
 
     const performSearch = async (query: string) => {
         setSearchLoading(true);
@@ -120,6 +139,9 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
     };
 
     const fetchLinks = async () => {
+        if (!documentId || !canManageLinks) {
+            return;
+        }
         setLoading(true);
         try {
             const data = await GetDocumentLinks(documentId);
@@ -133,10 +155,10 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
     };
 
     useEffect(() => {
-        if (documentId) {
+        if (documentId && canManageLinks) {
             fetchLinks();
         }
-    }, [documentId]);
+    }, [documentId, canManageLinks]);
 
     const handleLink = async () => {
         if (!targetId) {
@@ -246,8 +268,8 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
                         <Select.Option value="related">Связан с...</Select.Option>
                     </Select>
 
-                    <Select value={targetKind} onChange={(val) => { setTargetKind(val); setTargetId(''); setSearchTerm(''); setTargetOptions([]); }} style={{ width: '100%' }}>
-                        {(creatableKinds.length > 0 ? creatableKinds : documentKinds).map((kind) => (
+                    <Select value={targetKind || undefined} onChange={(val) => { setTargetKind(val); setTargetId(''); setSearchTerm(''); setTargetOptions([]); }} style={{ width: '100%' }}>
+                        {selectableTargetKinds.map((kind) => (
                             <Select.Option key={kind.code} value={kind.code}>
                                 {getLinkedDocumentLabel(kind.code)} документ
                             </Select.Option>

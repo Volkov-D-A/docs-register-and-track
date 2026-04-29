@@ -62,6 +62,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
     const {
         kinds: readableKinds,
+        ready: readableKindsReady,
     } = useDocumentKinds({
         mode: 'all',
         fallbackKinds: emptyKinds,
@@ -69,10 +70,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     const {
         kinds: availableRegistrationKinds,
         loading: registrationKindsLoading,
+        ready: registrationKindsReady,
     } = useDocumentKinds({
         mode: 'registration',
         fallbackKinds: emptyKinds,
     });
+    const documentAccessReady = readableKindsReady && registrationKindsReady;
     const accessByCode = new Map<string, { read: boolean; create: boolean; pageKey: string }>();
     [...readableKinds, ...availableRegistrationKinds].forEach((kind) => {
         const current = accessByCode.get(kind.code) || { read: false, create: false, pageKey: kind.pageKey };
@@ -85,8 +88,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     const canAccessKindPage = (pageKey: string) => Array.from(accessByCode.values()).some(
         (kind) => kind.pageKey === pageKey && (kind.read || kind.create),
     );
-    const canAccessDocuments = !!user?.isDocumentParticipant || Array.from(accessByCode.values()).some((kind) => kind.read || kind.create);
-    const canRegisterDocuments = availableRegistrationKinds.length > 0;
+    const canAccessDocuments = !!user?.isDocumentParticipant || (documentAccessReady && Array.from(accessByCode.values()).some((kind) => kind.read || kind.create));
+    const canRegisterDocuments = documentAccessReady && availableRegistrationKinds.length > 0;
     const canAccessIncoming = !!user?.isDocumentParticipant || canAccessKindPage('incoming');
     const canAccessOutgoing = !!user?.isDocumentParticipant || canAccessKindPage('outgoing');
     const canAccessAppeals = !!user?.isDocumentParticipant || canAccessKindPage('appeals');

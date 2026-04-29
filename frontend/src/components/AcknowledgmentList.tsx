@@ -24,11 +24,11 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
     const { user } = useAuthStore();
-    const { hasAction } = useDocumentKindAccess();
-    const canManageAcknowledgments = hasAction(documentKind, 'acknowledge');
+    const { hasAction, ready: accessReady } = useDocumentKindAccess();
+    const canManageAcknowledgments = accessReady && hasAction(documentKind, 'acknowledge');
 
     const load = async () => {
-        if (!documentId) return;
+        if (!documentId || !canManageAcknowledgments) return;
         setLoading(true);
         try {
             // @ts-ignore
@@ -42,7 +42,7 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
         }
     };
 
-    useEffect(() => { load(); }, [documentId]);
+    useEffect(() => { load(); }, [documentId, canManageAcknowledgments]);
 
     const onDelete = async (id: string) => {
         try {
@@ -130,7 +130,7 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
                 rowKey="id"
                 size="small"
                 pagination={false}
-                loading={loading}
+                loading={loading || !accessReady}
             />
 
             <AcknowledgmentModal

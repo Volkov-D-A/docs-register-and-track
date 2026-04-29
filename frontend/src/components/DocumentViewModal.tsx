@@ -34,7 +34,7 @@ interface DocumentViewModalProps {
  */
 const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, documentId, documentKind }) => {
     const { message } = App.useApp();
-    const { hasAction, kinds, loading: kindsLoading } = useDocumentKindAccess();
+    const { hasAction, kinds, loading: kindsLoading, ready: accessReady } = useDocumentKindAccess();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('info');
@@ -287,12 +287,13 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     const isCitizenAppealDocument = isCitizenAppealKind(resolvedKindCode);
     const details = isIncomingDocument ? data?.incomingLetter : isCitizenAppealDocument ? data?.citizenAppeal : data?.outgoingLetter;
     const viewConfig = getDocumentViewConfig(resolvedKindCode);
-    const canManageAssignments = hasAction(resolvedKindCode, 'assign');
-    const canManageLinks = hasAction(resolvedKindCode, 'link');
-    const canManageAcknowledgments = hasAction(resolvedKindCode, 'acknowledge');
-    const canViewJournal = hasAction(resolvedKindCode, 'view_journal');
+    const accessPending = !accessReady || kindsLoading;
+    const canManageAssignments = accessReady && hasAction(resolvedKindCode, 'assign');
+    const canManageLinks = accessReady && hasAction(resolvedKindCode, 'link');
+    const canManageAcknowledgments = accessReady && hasAction(resolvedKindCode, 'acknowledge');
+    const canViewJournal = accessReady && hasAction(resolvedKindCode, 'view_journal');
     const canViewFiles = !!data;
-    const creatableKinds = kinds.filter((kind) => hasAction(kind.code, 'create'));
+    const creatableKinds = accessReady ? kinds.filter((kind) => hasAction(kind.code, 'create')) : [];
 
     const getTabs = () => {
         const items = [
@@ -362,8 +363,8 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                     </div>
                 }
             >
-                {loading && <Spin />}
-                {!loading && data && details && (
+                {(loading || accessPending) && <Spin />}
+                {!loading && !accessPending && data && details && (
                     <Tabs
                         items={getTabs()}
                         activeKey={activeTab}

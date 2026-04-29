@@ -17,7 +17,7 @@ const ProfilePage: React.FC = () => {
     const { user, changePassword, updateProfile, isLoading, error, clearError } = useAuthStore();
     const { message } = App.useApp();
     const { theme, setTheme, isThemeLoading } = useAppTheme();
-    const { kinds: readableKinds } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
+    const { kinds: readableKinds, ready: readableKindsReady } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
     const [profileForm] = Form.useForm();
     const [passwordForm] = Form.useForm();
     const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -87,7 +87,9 @@ const ProfilePage: React.FC = () => {
         'executor': 'Исполнитель',
         'mixed': 'Смешанный профиль',
     };
-    const currentProfile = resolveUserProfile(user.systemPermissions, readableKinds, user.isDocumentParticipant);
+    const currentProfile = readableKindsReady
+        ? resolveUserProfile(user.systemPermissions, readableKinds, user.isDocumentParticipant)
+        : '';
 
     return (
         <div style={{ padding: '0 24px 24px' }}>
@@ -108,7 +110,7 @@ const ProfilePage: React.FC = () => {
                                         {user.isDocumentParticipant ? <Tag color="green">Да</Tag> : <Tag>Нет</Tag>}
                                     </Descriptions.Item>
                                     <Descriptions.Item label="Рабочий профиль">
-                                        <Tag color="blue">{roleNameMap[currentProfile] || currentProfile}</Tag>
+                                        <Tag color="blue">{currentProfile ? (roleNameMap[currentProfile] || currentProfile) : 'Загрузка...'}</Tag>
                                     </Descriptions.Item>
                                     <Descriptions.Item label="Системные права">
                                         <Space size={[0, 4]} wrap>

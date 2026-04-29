@@ -19,13 +19,13 @@ import {
 
 const CitizenAppealsPage: React.FC = () => {
     const { message } = App.useApp();
-    const { kinds: allKinds } = useDocumentKinds();
+    const { kinds: allKinds, ready: documentKindsReady } = useDocumentKinds();
     const currentKind = allKinds.find((kind) => kind.code === DOCUMENT_KIND_CITIZEN_APPEAL);
-    const canCreateCurrentKind = currentKind?.availableActions?.includes('create') ?? false;
-    const canUpdateCurrentKind = currentKind?.availableActions?.includes('update') ?? false;
-    const isExecutorOnly = !canUpdateCurrentKind;
+    const canCreateCurrentKind = documentKindsReady && (currentKind?.availableActions?.includes('create') ?? false);
+    const canUpdateCurrentKind = documentKindsReady && (currentKind?.availableActions?.includes('update') ?? false);
+    const isExecutorOnly = documentKindsReady ? !canUpdateCurrentKind : true;
     const pageConfig = getDocumentPageConfig(DOCUMENT_KIND_CITIZEN_APPEAL);
-    const filterDisabled = isExecutorOnly;
+    const filterDisabled = !documentKindsReady || isExecutorOnly;
 
     const { sourceId, sourceKind, sourceNumber, targetKind, clearDraftLink } = useDraftLinkStore();
 
@@ -135,6 +135,7 @@ const CitizenAppealsPage: React.FC = () => {
             filterNomenclatureIds,
         },
         buildFilter: buildCitizenAppealQueryFilter,
+        enabled: documentKindsReady,
         deps: [
             filterRegistrationNumber,
             filterApplicantName,
@@ -310,7 +311,7 @@ const CitizenAppealsPage: React.FC = () => {
             tableClassName={pageConfig.tableClassName}
             columns={columns}
             data={data}
-            loading={loading}
+            loading={loading || !documentKindsReady}
             page={page}
             pageSize={pageSize}
             totalCount={totalCount}

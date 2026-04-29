@@ -79,6 +79,37 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 	return svc, assignmentRepo
 }
 
+type kindActionAccessStore struct {
+	allowed map[string]map[string]bool
+}
+
+func newKindActionAccessStore(allowed map[string][]string) DocumentAccessStore {
+	store := &kindActionAccessStore{allowed: make(map[string]map[string]bool, len(allowed))}
+	for kindCode, actions := range allowed {
+		store.allowed[kindCode] = make(map[string]bool, len(actions))
+		for _, action := range actions {
+			store.allowed[kindCode][action] = true
+		}
+	}
+	return store
+}
+
+func (s *kindActionAccessStore) HasPermission(kindCode, action string, departmentID, userID string) (bool, error) {
+	return s.allowed[kindCode][action], nil
+}
+
+func (s *kindActionAccessStore) HasSystemPermission(permission, userID string) (bool, error) {
+	return false, nil
+}
+
+func (s *kindActionAccessStore) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
+	return &models.UserDocumentAccessProfile{}, nil
+}
+
+func (s *kindActionAccessStore) ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error {
+	return nil
+}
+
 // ---------- TestAssignmentService_Create ----------
 
 func TestAssignmentService_Create(t *testing.T) {
@@ -597,6 +628,42 @@ func TestAssignmentService_GetList(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
+	})
+
+	t.Run("partial assignment rights are scoped by document kind and own assignments", func(t *testing.T) {
+		svc, repo, _, auth, _ := setupAssignmentService(t, "executor")
+		svc.access = NewDocumentAccessService(
+			auth,
+			nil,
+			repo,
+			nil,
+			newKindActionAccessStore(map[string][]string{
+				string(models.DocumentKindIncomingLetter): {"assign"},
+			}),
+			nil,
+			nil,
+			nil,
+		)
+
+		filter := models.AssignmentFilter{Page: 1, PageSize: 20}
+		expectedFilter := models.AssignmentFilter{
+			Page:                 1,
+			PageSize:             20,
+			AllowedDocumentKinds: []string{string(models.DocumentKindIncomingLetter)},
+			AccessibleByUserID:   auth.GetCurrentUserID(),
+		}
+		repoResult := &models.PagedResult[models.Assignment]{
+			Items:      []models.Assignment{{ID: uuid.New(), Status: "new"}},
+			TotalCount: 1,
+			Page:       1,
+			PageSize:   20,
+		}
+		repo.On("GetList", expectedFilter).Return(repoResult, nil).Once()
+
+		result, err := svc.GetList(filter)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Len(t, result.Items, 1)
 	})
 }
 

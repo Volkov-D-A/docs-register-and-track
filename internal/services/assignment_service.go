@@ -262,13 +262,18 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 			return nil, err
 		}
 	}
-	canManageAnyAssignments, err := s.access.HasAnyDocumentAction("assign")
+
+	assignableKinds, err := s.access.GetDocumentKindsWithAction("assign")
 	if err != nil {
 		return nil, err
 	}
-	if !canManageAnyAssignments {
+	if len(assignableKinds) == 0 {
 		filter.ExecutorID = s.auth.GetCurrentUserID()
+	} else if len(assignableKinds) < len(models.AllDocumentKindSpecs()) {
+		filter.AllowedDocumentKinds = documentKindCodes(assignableKinds)
+		filter.AccessibleByUserID = s.auth.GetCurrentUserID()
 	}
+
 	res, err := s.repo.GetList(filter)
 	if err != nil {
 		return nil, err
@@ -279,6 +284,14 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 		Page:       res.Page,
 		PageSize:   res.PageSize,
 	}, nil
+}
+
+func documentKindCodes(kinds []models.DocumentKind) []string {
+	codes := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		codes = append(codes, string(kind))
+	}
+	return codes
 }
 
 // Delete удаляет поручение по его ID (только для незавершенных, если не админ).

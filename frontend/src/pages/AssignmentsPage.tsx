@@ -28,7 +28,7 @@ const { RangePicker } = DatePicker;
 const AssignmentsPage: React.FC = () => {
     const { message } = App.useApp();
     const { user } = useAuthStore();
-    const { hasAction, hasAnyAction } = useDocumentKindAccess();
+    const { hasAction, hasAnyAction, ready: accessReady } = useDocumentKindAccess();
     // const [activeTab, setActiveTab] = useState('inbox'); // Removed
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -70,6 +70,9 @@ const AssignmentsPage: React.FC = () => {
     };
 
     const load = async () => {
+        if (!accessReady) {
+            return;
+        }
         setLoading(true);
         try {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
@@ -103,9 +106,14 @@ const AssignmentsPage: React.FC = () => {
     };
 
     useEffect(() => {
-        load();
+        if (accessReady) {
+            load();
+        }
+    }, [accessReady, page, pageSize, search, filterStatus, filterDateFrom, filterDateTo, filterExecutorId, showFinished, filterOverdue, user?.id]);
+
+    useEffect(() => {
         loadUsers();
-    }, [page, pageSize, search, filterStatus, filterDateFrom, filterDateTo, filterExecutorId, showFinished, filterOverdue]);
+    }, []);
 
     const updateStatus = async (id: string, status: string, report: string = '') => {
         try {
@@ -376,7 +384,7 @@ const AssignmentsPage: React.FC = () => {
             <Table
                 className="assignments-table"
                 columns={columns} dataSource={data} rowKey="id"
-                loading={loading} size="small" tableLayout="fixed"
+                loading={loading || !accessReady} size="small" tableLayout="fixed"
                 rowClassName={(record) => {
                     const isOverdue = record.deadline && dayjs(record.deadline).isBefore(dayjs(), 'day') && !['completed', 'finished', 'cancelled'].includes(record.status);
                     return isOverdue ? 'assignment-overdue' : '';

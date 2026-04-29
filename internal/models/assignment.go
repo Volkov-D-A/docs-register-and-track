@@ -44,4 +44,8 @@ type AssignmentFilter struct {
 	ShowFinished bool   `json:"showFinished"`
 	Page         int    `json:"page"`
 	PageSize     int    `json:"pageSize"`
+
+	// Внутренний скоуп доступа: не принимается с клиента.
+	AllowedDocumentKinds []string `json:"-"`
+	AccessibleByUserID   string   `json:"-"`
 }

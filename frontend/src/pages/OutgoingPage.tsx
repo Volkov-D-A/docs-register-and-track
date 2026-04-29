@@ -27,14 +27,14 @@ import {
  */
 const OutgoingPage: React.FC = () => {
     const { message } = App.useApp();
-    const { kinds: allKinds } = useDocumentKinds();
+    const { kinds: allKinds, ready: documentKindsReady } = useDocumentKinds();
     const currentKind = allKinds.find((kind) => kind.code === DOCUMENT_KIND_OUTGOING_LETTER);
-    const canCreateCurrentKind = currentKind?.availableActions?.includes('create') ?? false;
-    const canUpdateCurrentKind = currentKind?.availableActions?.includes('update') ?? false;
-    const isExecutorOnly = !canUpdateCurrentKind;
+    const canCreateCurrentKind = documentKindsReady && (currentKind?.availableActions?.includes('create') ?? false);
+    const canUpdateCurrentKind = documentKindsReady && (currentKind?.availableActions?.includes('update') ?? false);
+    const isExecutorOnly = documentKindsReady ? !canUpdateCurrentKind : true;
     const pageConfig = getDocumentPageConfig(DOCUMENT_KIND_OUTGOING_LETTER);
     // Скрываем фильтр, если пользователь — исполнитель без админских прав
-    const filterDisabled = isExecutorOnly;
+    const filterDisabled = !documentKindsReady || isExecutorOnly;
 
     const { sourceId, sourceKind, sourceNumber, targetKind, clearDraftLink } = useDraftLinkStore();
 
@@ -106,6 +106,7 @@ const OutgoingPage: React.FC = () => {
             filterDateTo,
         },
         buildFilter: buildOutgoingLetterQueryFilter,
+        enabled: documentKindsReady,
         deps: [
             filterNomenclatureIds,
             filterOutgoingNumber,
@@ -248,7 +249,7 @@ const OutgoingPage: React.FC = () => {
             tableClassName={pageConfig.tableClassName}
             columns={columns}
             data={data}
-            loading={loading}
+            loading={loading || !documentKindsReady}
             page={page}
             pageSize={pageSize}
             totalCount={totalCount}

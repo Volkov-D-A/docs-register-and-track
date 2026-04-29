@@ -23,7 +23,7 @@ const emptyKinds: any[] = [];
 const DashboardPage: React.FC = () => {
     const { message } = App.useApp();
     const { user } = useAuthStore();
-    const { kinds: readableKinds } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
+    const { kinds: readableKinds, ready: readableKindsReady } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [pendingAcks, setPendingAcks] = useState<any[]>([]);
@@ -36,6 +36,9 @@ const DashboardPage: React.FC = () => {
     const profile = resolveUserProfile(user?.systemPermissions, readableKinds, user?.isDocumentParticipant);
 
     const loadStats = async () => {
+        if (!readableKindsReady) {
+            return;
+        }
         setLoading(true);
         try {
             const { GetActivity } = await import('../../wailsjs/go/services/DashboardService');
@@ -62,8 +65,10 @@ const DashboardPage: React.FC = () => {
     };
 
     useEffect(() => {
-        loadStats();
-    }, []);
+        if (readableKindsReady) {
+            loadStats();
+        }
+    }, [readableKindsReady, profile]);
 
     const onAcknowledge = async (id: string) => {
         try {
@@ -78,7 +83,7 @@ const DashboardPage: React.FC = () => {
     };
 
     // Определение отображения по текущей роли
-    if (loading && !stats) {
+    if (!readableKindsReady || (loading && !stats)) {
         return <div style={{ textAlign: 'center', marginTop: 50 }}><Spin size="large" /></div>;
     }
 
@@ -253,7 +258,7 @@ const DashboardPage: React.FC = () => {
         <div style={{ padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                 <Title level={4} style={{ margin: 0 }}>Текущая активность</Title>
-                <Button icon={<ReloadOutlined />} onClick={loadStats} disabled={loading}>Обновить</Button>
+                <Button icon={<ReloadOutlined />} onClick={loadStats} disabled={loading || !readableKindsReady}>Обновить</Button>
             </div>
 
             {profile === 'admin' && renderAdminView()}

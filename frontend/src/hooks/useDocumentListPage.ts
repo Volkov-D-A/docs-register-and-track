@@ -14,6 +14,7 @@ type UseDocumentListPageOptions<TFilter> = {
     filters: TFilter;
     buildFilter: BuildFilter<TFilter>;
     deps: readonly unknown[];
+    enabled?: boolean;
     onError?: (error: unknown) => void;
 };
 
@@ -22,6 +23,7 @@ export const useDocumentListPage = <TFilter,>({
     filters,
     buildFilter,
     deps,
+    enabled = true,
     onError,
 }: UseDocumentListPageOptions<TFilter>) => {
     const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -53,7 +55,7 @@ export const useDocumentListPage = <TFilter,>({
     }, []);
 
     const load = useCallback(async () => {
-        if (!isAuthenticated) {
+        if (!isAuthenticated || !enabled) {
             setData([]);
             setTotalCount(0);
             setLoading(false);
@@ -86,7 +88,7 @@ export const useDocumentListPage = <TFilter,>({
                 setLoading(false);
             }
         }
-    }, [isAuthenticated, kindCode, page, pageSize, search]);
+    }, [enabled, isAuthenticated, kindCode, page, pageSize, search]);
 
     useEffect(() => {
         void load();

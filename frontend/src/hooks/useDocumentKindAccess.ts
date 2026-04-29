@@ -4,7 +4,7 @@ import { useDocumentKinds } from './useDocumentKinds';
 const emptyKinds: typeof documentKinds = [];
 
 export const useDocumentKindAccess = () => {
-    const { kinds, loading } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
+    const { kinds, loading, ready } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
 
     const byCode = useMemo(() => (
         new Map<string, DocumentKindMeta>(kinds.map((kind) => [kind.code, kind]))
@@ -25,6 +25,7 @@ export const useDocumentKindAccess = () => {
     return {
         kinds,
         loading,
+        ready,
         getKind,
         hasAction,
         hasAnyAction,

@@ -23,8 +23,8 @@ interface FileListComponentProps {
  */
 const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, documentKind, readOnly }) => {
     const { message } = App.useApp();
-    const { hasAction } = useDocumentKindAccess();
-    const canEdit = !readOnly && hasAction(documentKind, 'upload');
+    const { hasAction, ready: accessReady } = useDocumentKindAccess();
+    const canEdit = accessReady && !readOnly && hasAction(documentKind, 'upload');
 
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -156,7 +156,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                 </div>
             )}
 
-            {loading ? (
+            {loading || !accessReady ? (
                 <div style={{ textAlign: 'center', padding: 20 }}>
                     <Spin />
                 </div>

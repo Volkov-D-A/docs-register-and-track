@@ -28,8 +28,8 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<any>(null);
     const { user } = useAuthStore();
-    const { hasAction } = useDocumentKindAccess();
-    const canManageAssignments = hasAction(documentKind, 'assign');
+    const { hasAction, ready: accessReady } = useDocumentKindAccess();
+    const canManageAssignments = accessReady && hasAction(documentKind, 'assign');
 
     // Report modal
     const [completionModalOpen, setCompletionModalOpen] = useState(false);
@@ -38,7 +38,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
     const [returnReasonText, setReturnReasonText] = useState('');
 
     const load = async () => {
-        if (!documentId) return;
+        if (!documentId || !canManageAssignments) return;
         setLoading(true);
         try {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
@@ -51,7 +51,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
         }
     };
 
-    useEffect(() => { load(); }, [documentId]);
+    useEffect(() => { load(); }, [documentId, canManageAssignments]);
 
     const onDelete = async (id: string) => {
         try {
@@ -207,7 +207,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
                 rowKey="id"
                 size="small"
                 pagination={false}
-                loading={loading}
+                loading={loading || !accessReady}
                 expandable={{
                     expandedRowRender: (record) => (
                         <div style={{ margin: 0 }}>
