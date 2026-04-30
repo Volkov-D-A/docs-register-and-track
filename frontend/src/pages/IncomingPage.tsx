@@ -3,13 +3,12 @@ import {
     Form, Tag, App,
 } from 'antd';
 import DocumentKindPage from '../components/DocumentKindPage';
-import { useAuthStore } from '../store/useAuthStore';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel, isIncomingKind } from '../constants/documentKinds';
 import { DOCUMENT_TYPE_OPTIONS } from '../constants/documentTypes';
 import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
-import { useDocumentKinds } from '../hooks/useDocumentKinds';
+import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { getDocumentPageConfig } from '../config/documentPageConfigs';
 import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
 import {
@@ -27,14 +26,14 @@ import {
  */
 const IncomingPage: React.FC = () => {
     const { message } = App.useApp();
-    const { kinds: allKinds, ready: documentKindsReady } = useDocumentKinds();
-    const currentKind = allKinds.find((kind) => kind.code === DOCUMENT_KIND_INCOMING_LETTER);
-    const canCreateCurrentKind = documentKindsReady && (currentKind?.availableActions?.includes('create') ?? false);
-    const canUpdateCurrentKind = documentKindsReady && (currentKind?.availableActions?.includes('update') ?? false);
-    const isExecutorOnly = documentKindsReady ? !canUpdateCurrentKind : true;
+    const { ready: accessReady, getKindAccess } = useCurrentAccessSummary();
+    const currentKind = getKindAccess(DOCUMENT_KIND_INCOMING_LETTER);
+    const canCreateCurrentKind = accessReady && (currentKind?.canRegister ?? false);
+    const canUpdateCurrentKind = accessReady && (currentKind?.availableActions?.includes('update') ?? false);
+    const isExecutorOnly = accessReady ? !canUpdateCurrentKind : true;
     const pageConfig = getDocumentPageConfig(DOCUMENT_KIND_INCOMING_LETTER);
     // Скрываем фильтр, если пользователь — исполнитель без админских прав
-    const filterDisabled = !documentKindsReady || isExecutorOnly;
+    const filterDisabled = !accessReady || isExecutorOnly;
 
     const { sourceId, sourceKind, sourceNumber, targetKind, clearDraftLink } = useDraftLinkStore();
 
@@ -129,7 +128,7 @@ const IncomingPage: React.FC = () => {
             filterNomenclatureIds,
         },
         buildFilter: buildIncomingLetterQueryFilter,
-        enabled: documentKindsReady,
+        enabled: accessReady,
         deps: [
             filterIncomingNumber,
             filterOutgoingNumber,
@@ -288,7 +287,7 @@ const IncomingPage: React.FC = () => {
             tableClassName={pageConfig.tableClassName}
             columns={columns}
             data={data}
-            loading={loading || !documentKindsReady}
+            loading={loading || !accessReady}
             page={page}
             pageSize={pageSize}
             totalCount={totalCount}

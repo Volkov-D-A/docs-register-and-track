@@ -16,16 +16,15 @@ import ProfilePage from './pages/ProfilePage';
 import MainLayout from './components/MainLayout';
 import { GetCurrent, MarkCurrentViewed } from '../wailsjs/go/services/ReleaseNoteService';
 import { models } from '../wailsjs/go/models';
-import { documentKinds, getDocumentPageKey } from './constants/documentKinds';
-import { useDocumentKinds } from './hooks/useDocumentKinds';
-const emptyKinds: typeof documentKinds = [];
+import { getDocumentPageKey } from './constants/documentKinds';
+import { useCurrentAccessSummary } from './hooks/useCurrentAccessSummary';
 const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'appeals', 'assignments']);
 
 // Заглушки для страниц
 
 function App() {
     const { message } = AntdApp.useApp();
-    const { isAuthenticated, hasSystemPermission, user } = useAuthStore();
+    const { isAuthenticated, user } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
     const initializedForUserRef = useRef<string | null>(null);
     const checkedOrgSetupForUserRef = useRef<string | null>(null);
@@ -35,71 +34,16 @@ function App() {
     const [organizationSetupSaving, setOrganizationSetupSaving] = useState(false);
     const [organizationSetupLoading, setOrganizationSetupLoading] = useState(false);
     const [organizationSetupForm] = Form.useForm();
-    const { kinds: readableKinds, loading: readableKindsLoading, ready: readableKindsReady } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
-    const { kinds: registrationKinds, loading: registrationKindsLoading, ready: registrationKindsReady } = useDocumentKinds({ mode: 'registration', fallbackKinds: emptyKinds });
+    const {
+        summary: accessSummary,
+        kinds: readableKinds,
+        loading: accessLoading,
+        ready: accessReady,
+        sections,
+        canAccessPage,
+        getDefaultPage,
+    } = useCurrentAccessSummary();
     const requestedRegisterKind = useRegisterDocumentStore((state) => state.requestedKind);
-    const accessByCode = new Map<string, { read: boolean; create: boolean; pageKey: string }>();
-    [...readableKinds, ...registrationKinds].forEach((kind) => {
-        const current = accessByCode.get(kind.code) || { read: false, create: false, pageKey: kind.pageKey };
-        accessByCode.set(kind.code, {
-            pageKey: kind.pageKey,
-            read: current.read || kind.availableActions?.includes('read') || false,
-            create: current.create || kind.availableActions?.includes('create') || registrationKinds.some((item) => item.code === kind.code),
-        });
-    });
-    const canAccessKindPage = (pageKey: string) => Array.from(accessByCode.values()).some(
-        (kind) => kind.pageKey === pageKey && (kind.read || kind.create),
-    );
-    const canAccessDocuments = !!user?.isDocumentParticipant || Array.from(accessByCode.values()).some((kind) => kind.read || kind.create);
-    const canAccessIncoming = !!user?.isDocumentParticipant || canAccessKindPage('incoming');
-    const canAccessOutgoing = !!user?.isDocumentParticipant || canAccessKindPage('outgoing');
-    const canAccessAppeals = !!user?.isDocumentParticipant || canAccessKindPage('appeals');
-    const canAccessSettings = hasSystemPermission('admin');
-    const canAccessReferences = hasSystemPermission('references');
-    const canAccessStatistics =
-        hasSystemPermission('stats_documents') ||
-        hasSystemPermission('stats_assignments') ||
-        hasSystemPermission('stats_system');
-    const documentKindsLoading = readableKindsLoading || registrationKindsLoading;
-    const documentKindsReady = readableKindsReady && registrationKindsReady;
-    const getDefaultPage = () => {
-        if (canAccessDocuments) {
-            return 'dashboard';
-        }
-        if (canAccessSettings) {
-            return 'settings';
-        }
-        if (canAccessReferences) {
-            return 'references';
-        }
-        if (canAccessStatistics) {
-            return 'statistics';
-        }
-        return 'profile';
-    };
-    const canAccessPage = (page: string) => {
-        switch (page) {
-            case 'dashboard':
-            case 'assignments':
-                return canAccessDocuments;
-            case 'incoming':
-                return canAccessIncoming;
-            case 'outgoing':
-                return canAccessOutgoing;
-            case 'appeals':
-                return canAccessAppeals;
-            case 'settings':
-                return canAccessSettings;
-            case 'references':
-                return canAccessReferences;
-            case 'statistics':
-                return canAccessStatistics;
-            case 'profile':
-                return true;
-            default:
-                return false;
-        }
-    };
 
     // При входе в приложение всегда перенаправляем на дашборд
     // Или на страницу создания документа, если есть draftLink
@@ -109,7 +53,7 @@ function App() {
         const currentUserId = user?.id || null;
 
         if (isAuthenticated) {
-            if (!documentKindsReady) {
+            if (!accessReady) {
                 return;
             }
             if (initializedForUserRef.current === currentUserId) {
@@ -125,10 +69,10 @@ function App() {
             initializedForUserRef.current = null;
             setCurrentPage('dashboard');
         }
-    }, [isAuthenticated, user?.id, documentKindsReady, canAccessDocuments, canAccessSettings, canAccessReferences, canAccessStatistics]);
+    }, [isAuthenticated, user?.id, accessReady, getDefaultPage]);
 
     useEffect(() => {
-        if (!isAuthenticated || !documentKindsReady) {
+        if (!isAuthenticated || !accessReady) {
             return;
         }
 
@@ -137,15 +81,10 @@ function App() {
         }
     }, [
         isAuthenticated,
-        documentKindsReady,
+        accessReady,
         currentPage,
-        canAccessDocuments,
-        canAccessIncoming,
-        canAccessOutgoing,
-        canAccessAppeals,
-        canAccessSettings,
-        canAccessReferences,
-        canAccessStatistics,
+        canAccessPage,
+        getDefaultPage,
     ]);
 
     useEffect(() => {
@@ -170,11 +109,11 @@ function App() {
             setIsAboutModalOpen(false);
             return;
         }
-        if (!readableKindsReady) {
+        if (!accessReady) {
             return;
         }
 
-        const profile = resolveUserProfile(user.systemPermissions, readableKinds, user.isDocumentParticipant);
+        const profile = resolveUserProfile(accessSummary?.systemPermissions || user.systemPermissions, readableKinds, user.isDocumentParticipant);
 
         let isMounted = true;
 
@@ -204,10 +143,10 @@ function App() {
         return () => {
             isMounted = false;
         };
-    }, [isAuthenticated, readableKinds, readableKindsReady, user]);
+    }, [isAuthenticated, accessSummary, readableKinds, accessReady, user]);
 
     useEffect(() => {
-        if (!isAuthenticated || !user || !canAccessSettings) {
+        if (!isAuthenticated || !user || !sections.settings) {
             setOrganizationSetupOpen(false);
             checkedOrgSetupForUserRef.current = null;
             return;
@@ -254,7 +193,7 @@ function App() {
         return () => {
             isMounted = false;
         };
-    }, [isAuthenticated, user?.id, canAccessSettings, organizationSetupForm]);
+    }, [isAuthenticated, user?.id, sections.settings, organizationSetupForm]);
 
     const handleAboutModalClose = () => {
         setIsAboutModalOpen(false);
@@ -284,7 +223,7 @@ function App() {
         const fallbackPage = getDefaultPage();
         const isDocumentPage = documentSectionPages.has(currentPage);
 
-        if ((!documentKindsReady || documentKindsLoading) && isDocumentPage) {
+        if ((!accessReady || accessLoading) && isDocumentPage) {
             return <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}><Spin size="large" /></div>;
         }
 

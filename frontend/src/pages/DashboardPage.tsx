@@ -9,12 +9,11 @@ import {
 import dayjs from 'dayjs';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel } from '../constants/documentKinds';
 import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
-import { useDocumentKinds } from '../hooks/useDocumentKinds';
+import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 
 import DocumentViewModal from '../components/DocumentViewModal';
 
 const { Title, Text } = Typography;
-const emptyKinds: any[] = [];
 
 /**
  * Главная страница дашборда (панель управления).
@@ -23,7 +22,7 @@ const emptyKinds: any[] = [];
 const DashboardPage: React.FC = () => {
     const { message } = App.useApp();
     const { user } = useAuthStore();
-    const { kinds: readableKinds, ready: readableKindsReady } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
+    const { summary: accessSummary, kinds: readableKinds, ready: accessReady } = useCurrentAccessSummary();
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [pendingAcks, setPendingAcks] = useState<any[]>([]);
@@ -33,10 +32,10 @@ const DashboardPage: React.FC = () => {
     const [viewDocKind, setViewDocKind] = useState(DOCUMENT_KIND_INCOMING_LETTER);
     const [viewModalOpen, setViewModalOpen] = useState(false);
 
-    const profile = resolveUserProfile(user?.systemPermissions, readableKinds, user?.isDocumentParticipant);
+    const profile = resolveUserProfile(accessSummary?.systemPermissions || user?.systemPermissions, readableKinds, user?.isDocumentParticipant);
 
     const loadStats = async () => {
-        if (!readableKindsReady) {
+        if (!accessReady) {
             return;
         }
         setLoading(true);
@@ -65,10 +64,10 @@ const DashboardPage: React.FC = () => {
     };
 
     useEffect(() => {
-        if (readableKindsReady) {
+        if (accessReady) {
             loadStats();
         }
-    }, [readableKindsReady, profile]);
+    }, [accessReady, profile]);
 
     const onAcknowledge = async (id: string) => {
         try {
@@ -83,7 +82,7 @@ const DashboardPage: React.FC = () => {
     };
 
     // Определение отображения по текущей роли
-    if (!readableKindsReady || (loading && !stats)) {
+    if (!accessReady || (loading && !stats)) {
         return <div style={{ textAlign: 'center', marginTop: 50 }}><Spin size="large" /></div>;
     }
 
@@ -258,7 +257,7 @@ const DashboardPage: React.FC = () => {
         <div style={{ padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                 <Title level={4} style={{ margin: 0 }}>Текущая активность</Title>
-                <Button icon={<ReloadOutlined />} onClick={loadStats} disabled={loading || !readableKindsReady}>Обновить</Button>
+                <Button icon={<ReloadOutlined />} onClick={loadStats} disabled={loading || !accessReady}>Обновить</Button>
             </div>
 
             {profile === 'admin' && renderAdminView()}

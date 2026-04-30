@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Modal, Spin, theme as antdTheme } from 'antd';
 import {
     DashboardOutlined,
@@ -17,14 +17,12 @@ import {
 import { useAuthStore } from '../store/useAuthStore';
 import AboutProgramModal from './AboutProgramModal';
 import { models } from '../../wailsjs/go/models';
-import { documentKinds } from '../constants/documentKinds';
 import { useRegisterDocumentStore } from '../store/useRegisterDocumentStore';
-import { useDocumentKinds } from '../hooks/useDocumentKinds';
+import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAppTheme } from '../theme/AppThemeProvider';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
-const emptyKinds: typeof documentKinds = [];
 
 /**
  * Свойства основного слоя (мэйкапа) приложения.
@@ -55,87 +53,58 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     onAboutModalClose,
     release,
 }) => {
-    const { user, logout, hasSystemPermission } = useAuthStore();
+    const { user, logout } = useAuthStore();
     const { theme: appTheme } = useAppTheme();
     const { token } = antdTheme.useToken();
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
     const {
-        kinds: readableKinds,
-        ready: readableKindsReady,
-    } = useDocumentKinds({
-        mode: 'all',
-        fallbackKinds: emptyKinds,
-    });
-    const {
-        kinds: availableRegistrationKinds,
+        sections,
+        registrationKinds: availableRegistrationKinds,
         loading: registrationKindsLoading,
-        ready: registrationKindsReady,
-    } = useDocumentKinds({
-        mode: 'registration',
-        fallbackKinds: emptyKinds,
-    });
-    const documentAccessReady = readableKindsReady && registrationKindsReady;
-    const accessByCode = new Map<string, { read: boolean; create: boolean; pageKey: string }>();
-    [...readableKinds, ...availableRegistrationKinds].forEach((kind) => {
-        const current = accessByCode.get(kind.code) || { read: false, create: false, pageKey: kind.pageKey };
-        accessByCode.set(kind.code, {
-            pageKey: kind.pageKey,
-            read: current.read || kind.availableActions?.includes('read') || false,
-            create: current.create || kind.availableActions?.includes('create') || availableRegistrationKinds.some((item) => item.code === kind.code),
-        });
-    });
-    const canAccessKindPage = (pageKey: string) => Array.from(accessByCode.values()).some(
-        (kind) => kind.pageKey === pageKey && (kind.read || kind.create),
-    );
-    const canAccessDocuments = !!user?.isDocumentParticipant || (documentAccessReady && Array.from(accessByCode.values()).some((kind) => kind.read || kind.create));
-    const canRegisterDocuments = documentAccessReady && availableRegistrationKinds.length > 0;
-    const canAccessIncoming = !!user?.isDocumentParticipant || canAccessKindPage('incoming');
-    const canAccessOutgoing = !!user?.isDocumentParticipant || canAccessKindPage('outgoing');
-    const canAccessAppeals = !!user?.isDocumentParticipant || canAccessKindPage('appeals');
+        ready: accessReady,
+    } = useCurrentAccessSummary();
+    const canRegisterDocuments = accessReady && availableRegistrationKinds.length > 0;
 
     const menuItems = [
-        ...(canAccessDocuments ? [{
+        ...(sections.dashboard ? [{
             key: 'dashboard',
             icon: <DashboardOutlined />,
             label: 'Дашборд',
         }] : []),
-        ...(canAccessDocuments ? [
-            {
+        ...[
+            ...(sections.incoming ? [{
                 key: 'incoming',
                 icon: <InboxOutlined />,
                 label: 'Входящие',
-                disabled: !canAccessIncoming,
-            },
-            {
+            }] : []),
+            ...(sections.outgoing ? [{
                 key: 'outgoing',
                 icon: <SendOutlined />,
                 label: 'Исходящие',
-                disabled: !canAccessOutgoing,
-            },
-            {
+            }] : []),
+            ...(sections.appeals ? [{
                 key: 'appeals',
                 icon: <MessageOutlined />,
                 label: 'Обращения',
-                disabled: !canAccessAppeals,
-            },
-            {
+            }] : []),
+            ...(sections.assignments ? [{
                 key: 'assignments',
                 icon: <CheckSquareOutlined />,
                 label: 'Поручения',
-            },
-        ] : []),
-        ...(hasSystemPermission('references') ? [{
+            }] : []),
+        ],
+        ...(sections.references ? [{
             key: 'references',
             icon: <FileTextOutlined />,
             label: 'Справочники',
         }] : []),
-        ...((hasSystemPermission('stats_documents') || hasSystemPermission('stats_assignments') || hasSystemPermission('stats_system')) ? [{
+        ...(sections.statistics ? [{
             key: 'statistics',
             icon: <BarChartOutlined />,
             label: 'Статистика',
         }] : []),
-        ...(hasSystemPermission('admin') ? [{
+        ...(sections.settings ? [{
             key: 'settings',
             icon: <SettingOutlined />,
             label: 'Настройки',

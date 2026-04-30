@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, BankOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined, SolutionOutlined } from '@ant-design/icons';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindLabel, getDocumentKindMeta } from '../constants/documentKinds';
-import { useDocumentKinds } from '../hooks/useDocumentKinds';
+import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAuthStore } from '../store/useAuthStore';
 import { models } from '../../wailsjs/go/models';
 
@@ -24,7 +24,7 @@ const NomenclatureTab: React.FC = () => {
   const [form] = Form.useForm();
   const currentYear = new Date().getFullYear();
   const [filterYear, setFilterYear] = useState(currentYear);
-  const { kinds: allDocumentKinds } = useDocumentKinds();
+  const { kinds: allDocumentKinds } = useCurrentAccessSummary();
 
   const load = async () => {
     setLoading(true);
@@ -498,7 +498,7 @@ const UsersTab: React.FC = () => {
   const [documentAccessCollapseKeys, setDocumentAccessCollapseKeys] = useState<string[]>([]);
   const [passwordForm] = Form.useForm();
   const [form] = Form.useForm();
-  const { kinds: allDocumentKinds } = useDocumentKinds();
+  const { kinds: allDocumentKinds } = useCurrentAccessSummary();
 
   const documentActionOptions = [
     { value: 'create', label: 'Регистрация' },

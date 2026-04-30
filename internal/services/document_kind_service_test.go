@@ -12,7 +12,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
-func setupDocumentKindService(t *testing.T, role string) (*DocumentKindService, *AuthService) {
+func setupDocumentKindService(t *testing.T, role string, isDocumentParticipant bool) (*DocumentKindService, *AuthService) {
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
@@ -24,12 +24,14 @@ func setupDocumentKindService(t *testing.T, role string) (*DocumentKindService, 
 	password := "Passw0rd!"
 	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:           uuid.New(),
-		Login:        role + "_kind",
-		PasswordHash: hash,
-		IsActive:     true,
+		ID:                    uuid.New(),
+		Login:                 role + "_kind",
+		PasswordHash:          hash,
+		IsActive:              true,
+		IsDocumentParticipant: isDocumentParticipant,
 	}
 
+	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 	_, err := auth.Login(user.Login, password)
 	require.NoError(t, err)
@@ -39,37 +41,55 @@ func setupDocumentKindService(t *testing.T, role string) (*DocumentKindService, 
 	return NewDocumentKindService(access), auth
 }
 
-func TestDocumentKindService_GetAll(t *testing.T) {
+func TestDocumentKindService_GetCurrentAccessSummary(t *testing.T) {
 	t.Parallel()
 
-	service, _ := setupDocumentKindService(t, "executor")
-
-	items, err := service.GetAll()
-	require.NoError(t, err)
-	require.Len(t, items, 3)
-	assert.Equal(t, "incoming_letter", items[0].Code)
-	assert.Equal(t, "outgoing_letter", items[1].Code)
-	assert.Equal(t, "citizen_appeal", items[2].Code)
-}
-
-func TestDocumentKindService_GetAvailableForRegistration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("clerk gets kinds", func(t *testing.T) {
-		service, auth := setupDocumentKindService(t, "clerk")
+	t.Run("clerk gets document sections and registration kinds", func(t *testing.T) {
+		service, auth := setupDocumentKindService(t, "clerk", false)
 		defer auth.Logout()
 
-		items, err := service.GetAvailableForRegistration()
+		summary, err := service.GetCurrentAccessSummary()
 		require.NoError(t, err)
-		require.Len(t, items, 3)
+		require.Len(t, summary.DocumentKinds, 3)
+		assert.True(t, summary.DocumentDomainAccess)
+		assert.True(t, summary.Sections.Dashboard)
+		assert.True(t, summary.Sections.Incoming)
+		assert.True(t, summary.Sections.Outgoing)
+		assert.True(t, summary.Sections.Appeals)
+		assert.True(t, summary.Sections.Assignments)
+		assert.ElementsMatch(t, []string{"incoming_letter", "outgoing_letter", "citizen_appeal"}, summary.RegistrationKinds)
+		assert.True(t, summary.DocumentKinds[0].CanRegister)
+		assert.True(t, summary.DocumentKinds[0].CanReadFull)
 	})
 
-	t.Run("executor gets none", func(t *testing.T) {
-		service, auth := setupDocumentKindService(t, "executor")
+	t.Run("participant opens document pages without full read", func(t *testing.T) {
+		service, auth := setupDocumentKindService(t, "", true)
 		defer auth.Logout()
 
-		items, err := service.GetAvailableForRegistration()
+		summary, err := service.GetCurrentAccessSummary()
 		require.NoError(t, err)
-		assert.Empty(t, items)
+		assert.True(t, summary.DocumentDomainAccess)
+		assert.True(t, summary.Sections.Dashboard)
+		assert.True(t, summary.Sections.Incoming)
+		assert.True(t, summary.Sections.Outgoing)
+		assert.True(t, summary.Sections.Appeals)
+		assert.True(t, summary.Sections.Assignments)
+		assert.Empty(t, summary.RegistrationKinds)
+		assert.False(t, summary.DocumentKinds[0].CanRegister)
+		assert.False(t, summary.DocumentKinds[0].CanReadFull)
+	})
+
+	t.Run("admin only gets settings section", func(t *testing.T) {
+		service, auth := setupDocumentKindService(t, "admin", false)
+		defer auth.Logout()
+
+		summary, err := service.GetCurrentAccessSummary()
+		require.NoError(t, err)
+		assert.False(t, summary.DocumentDomainAccess)
+		assert.False(t, summary.Sections.Dashboard)
+		assert.False(t, summary.Sections.Incoming)
+		assert.False(t, summary.Sections.Assignments)
+		assert.True(t, summary.Sections.Settings)
+		assert.ElementsMatch(t, []string{"admin"}, summary.SystemPermissions)
 	})
 }

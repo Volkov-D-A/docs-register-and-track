@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, Button, Typography, Space, Descriptions, Tag, Row, Col, App, Segmented } from 'antd';
 import { UserOutlined, LockOutlined, BgColorsOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
-import { documentKinds } from '../constants/documentKinds';
-import { useDocumentKinds } from '../hooks/useDocumentKinds';
+import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAppTheme, type AppTheme } from '../theme/AppThemeProvider';
-const emptyKinds: typeof documentKinds = [];
 
 const { Title, Text } = Typography;
 
@@ -17,7 +15,7 @@ const ProfilePage: React.FC = () => {
     const { user, changePassword, updateProfile, isLoading, error, clearError } = useAuthStore();
     const { message } = App.useApp();
     const { theme, setTheme, isThemeLoading } = useAppTheme();
-    const { kinds: readableKinds, ready: readableKindsReady } = useDocumentKinds({ mode: 'all', fallbackKinds: emptyKinds });
+    const { summary: accessSummary, kinds: readableKinds, ready: accessReady } = useCurrentAccessSummary();
     const [profileForm] = Form.useForm();
     const [passwordForm] = Form.useForm();
     const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -87,8 +85,8 @@ const ProfilePage: React.FC = () => {
         'executor': 'Исполнитель',
         'mixed': 'Смешанный профиль',
     };
-    const currentProfile = readableKindsReady
-        ? resolveUserProfile(user.systemPermissions, readableKinds, user.isDocumentParticipant)
+    const currentProfile = accessReady
+        ? resolveUserProfile(accessSummary?.systemPermissions || user.systemPermissions, readableKinds, user.isDocumentParticipant)
         : '';
 
     return (

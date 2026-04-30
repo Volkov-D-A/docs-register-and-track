@@ -65,6 +65,41 @@ type DocumentKind struct {
 	AvailableActions     []string `json:"availableActions"`
 }
 
+// CurrentAccessSummary описывает текущие права пользователя для навигации и UI.
+type CurrentAccessSummary struct {
+	IsDocumentParticipant bool                        `json:"isDocumentParticipant"`
+	DocumentDomainAccess  bool                        `json:"documentDomainAccess"`
+	Sections              AccessSections              `json:"sections"`
+	DocumentKinds         []DocumentKindAccessSummary `json:"documentKinds"`
+	RegistrationKinds     []string                    `json:"registrationKinds"`
+	SystemPermissions     []string                    `json:"systemPermissions"`
+}
+
+// AccessSections описывает доступность основных разделов приложения.
+type AccessSections struct {
+	Dashboard   bool `json:"dashboard"`
+	Incoming    bool `json:"incoming"`
+	Outgoing    bool `json:"outgoing"`
+	Appeals     bool `json:"appeals"`
+	Assignments bool `json:"assignments"`
+	References  bool `json:"references"`
+	Statistics  bool `json:"statistics"`
+	Settings    bool `json:"settings"`
+}
+
+// DocumentKindAccessSummary описывает доступность действий для конкретного вида документа.
+type DocumentKindAccessSummary struct {
+	Code                 string   `json:"code"`
+	Name                 string   `json:"name"`
+	RegistrationFormCode string   `json:"registrationFormCode"`
+	RegistryGroup        string   `json:"registryGroup"`
+	SupportedActions     []string `json:"supportedActions"`
+	AvailableActions     []string `json:"availableActions"`
+	CanOpenPage          bool     `json:"canOpenPage"`
+	CanRegister          bool     `json:"canRegister"`
+	CanReadFull          bool     `json:"canReadFull"`
+}
+
 // ResolutionExecutor описывает DTO исполнителя резолюции.
 type ResolutionExecutor struct {
 	ID        string    `json:"id"`
