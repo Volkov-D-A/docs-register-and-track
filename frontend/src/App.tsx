@@ -11,6 +11,7 @@ import StatisticsPage from './pages/StatisticsPage';
 import IncomingPage from './pages/IncomingPage';
 import OutgoingPage from './pages/OutgoingPage';
 import CitizenAppealsPage from './pages/CitizenAppealsPage';
+import OrdersPage from './pages/OrdersPage';
 import AssignmentsPage from './pages/AssignmentsPage';
 import ProfilePage from './pages/ProfilePage';
 import MainLayout from './components/MainLayout';
@@ -18,7 +19,7 @@ import { GetCurrent, MarkCurrentViewed } from '../wailsjs/go/services/ReleaseNot
 import { models } from '../wailsjs/go/models';
 import { getDocumentPageKey } from './constants/documentKinds';
 import { useCurrentAccessSummary } from './hooks/useCurrentAccessSummary';
-const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'appeals', 'assignments']);
+const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'appeals', 'orders', 'assignments']);
 
 // Заглушки для страниц
 
@@ -238,6 +239,8 @@ function App() {
                 return <OutgoingPage />;
             case 'appeals':
                 return <CitizenAppealsPage />;
+            case 'orders':
+                return <OrdersPage />;
             case 'assignments':
                 return <AssignmentsPage />;
             case 'settings':
@@ -292,7 +295,7 @@ function App() {
                 title="Первичная настройка организации"
                 open={organizationSetupOpen}
                 closable={false}
-                maskClosable={false}
+                mask={{ closable: false }}
                 keyboard={false}
                 cancelButtonProps={{ style: { display: 'none' } }}
                 okText="Сохранить"

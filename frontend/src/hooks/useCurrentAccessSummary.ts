@@ -21,6 +21,7 @@ const emptySections = dto.AccessSections.createFrom({
     incoming: false,
     outgoing: false,
     appeals: false,
+    orders: false,
     assignments: false,
     references: false,
     statistics: false,
@@ -157,6 +158,8 @@ export const useCurrentAccessSummary = () => {
                 return sections.outgoing;
             case 'appeals':
                 return sections.appeals;
+            case 'orders':
+                return sections.orders;
             case 'assignments':
                 return sections.assignments;
             case 'settings':

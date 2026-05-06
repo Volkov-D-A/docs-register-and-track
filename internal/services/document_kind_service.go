@@ -95,6 +95,7 @@ func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSumma
 			Incoming:    canOpenDocumentKindPage(documentKinds, string(models.DocumentKindIncomingLetter)),
 			Outgoing:    canOpenDocumentKindPage(documentKinds, string(models.DocumentKindOutgoingLetter)),
 			Appeals:     canOpenDocumentKindPage(documentKinds, string(models.DocumentKindCitizenAppeal)),
+			Orders:      canOpenDocumentKindPage(documentKinds, string(models.DocumentKindAdministrativeOrder)),
 			Assignments: user.IsDocumentParticipant || hasAnyAssign,
 			References:  containsAction(systemPermissions, models.SystemPermissionReferences),
 			Statistics:  containsAnyAction(systemPermissions, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem),

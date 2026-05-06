@@ -72,6 +72,22 @@ var documentKindSpecs = []DocumentKindSpec{
 			DocumentActionViewJournal,
 		},
 	},
+	{
+		Code:                 DocumentKindAdministrativeOrder,
+		Name:                 "Приказы",
+		RegistrationFormCode: "administrative_order_form",
+		RegistryGroup:        "orders",
+		SupportedActions: []DocumentKindAction{
+			DocumentActionCreate,
+			DocumentActionRead,
+			DocumentActionUpdate,
+			DocumentActionAssign,
+			DocumentActionAcknowledge,
+			DocumentActionUpload,
+			DocumentActionLink,
+			DocumentActionViewJournal,
+		},
+	},
 }
 
 // AllDocumentKindSpecs возвращает все системные виды документов.
@@ -117,6 +133,8 @@ func NormalizeDocumentKind(kind string) DocumentKind {
 		return DocumentKindOutgoingLetter
 	case string(DocumentKindCitizenAppeal):
 		return DocumentKindCitizenAppeal
+	case string(DocumentKindAdministrativeOrder):
+		return DocumentKindAdministrativeOrder
 	default:
 		return DocumentKind(kind)
 	}

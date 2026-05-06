@@ -1,7 +1,8 @@
-import { DOCUMENT_KIND_CITIZEN_APPEAL, DOCUMENT_KIND_INCOMING_LETTER, DOCUMENT_KIND_OUTGOING_LETTER } from '../constants/documentKinds';
+import { DOCUMENT_KIND_ADMINISTRATIVE_ORDER, DOCUMENT_KIND_CITIZEN_APPEAL, DOCUMENT_KIND_INCOMING_LETTER, DOCUMENT_KIND_OUTGOING_LETTER } from '../constants/documentKinds';
 import { incomingLetterPageConfig } from '../modules/documentKinds/incomingLetter';
 import { outgoingLetterPageConfig } from '../modules/documentKinds/outgoingLetter';
 import { citizenAppealPageConfig } from '../modules/documentKinds/citizenAppeal';
+import { administrativeOrderPageConfig } from '../modules/documentKinds/administrativeOrder';
 
 type DocumentPageConfig = {
     kindCode: string;
@@ -21,6 +22,7 @@ export const documentPageConfigs: Record<string, DocumentPageConfig> = {
     [DOCUMENT_KIND_INCOMING_LETTER]: incomingLetterPageConfig,
     [DOCUMENT_KIND_OUTGOING_LETTER]: outgoingLetterPageConfig,
     [DOCUMENT_KIND_CITIZEN_APPEAL]: citizenAppealPageConfig,
+    [DOCUMENT_KIND_ADMINISTRATIVE_ORDER]: administrativeOrderPageConfig,
 };
 
 export const getDocumentPageConfig = (kindCode: string): DocumentPageConfig => (

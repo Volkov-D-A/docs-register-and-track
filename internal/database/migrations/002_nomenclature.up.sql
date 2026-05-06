@@ -5,7 +5,7 @@ CREATE TABLE nomenclature (
     index VARCHAR(50) NOT NULL,
     year INT NOT NULL,
     kind_code VARCHAR(40) NOT NULL CHECK (
-        kind_code IN ('incoming_letter', 'outgoing_letter', 'citizen_appeal')
+        kind_code IN ('incoming_letter', 'outgoing_letter', 'citizen_appeal', 'administrative_order')
     ),
     separator VARCHAR(10) NOT NULL DEFAULT '/',
     numbering_mode VARCHAR(30) NOT NULL DEFAULT 'index_and_number' CHECK (
@@ -25,7 +25,7 @@ CREATE INDEX idx_nomenclature_kind_code ON nomenclature (kind_code);
 CREATE TABLE document_permissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     kind_code VARCHAR(40) NOT NULL CHECK (
-        kind_code IN ('incoming_letter', 'outgoing_letter', 'citizen_appeal')
+        kind_code IN ('incoming_letter', 'outgoing_letter', 'citizen_appeal', 'administrative_order')
     ),
     subject_type VARCHAR(20) NOT NULL CHECK (
         subject_type IN ('role', 'department', 'user')

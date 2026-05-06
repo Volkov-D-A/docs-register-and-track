@@ -222,6 +222,60 @@ func MapOutgoingDocument(m *models.OutgoingDocument) *OutgoingDocument {
 	}
 }
 
+// MapAdministrativeOrderAcknowledgmentPeople преобразует лист ознакомления приказа в DTO.
+func MapAdministrativeOrderAcknowledgmentPeople(items []models.AdministrativeOrderAcknowledgmentPerson) []AdministrativeOrderAcknowledgmentPerson {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]AdministrativeOrderAcknowledgmentPerson, len(items))
+	for i, item := range items {
+		ackBy := ""
+		if item.AcknowledgedBy != nil {
+			ackBy = item.AcknowledgedBy.String()
+		}
+		result[i] = AdministrativeOrderAcknowledgmentPerson{
+			ID:                 item.ID.String(),
+			FullName:           item.FullName,
+			AcknowledgedAt:     item.AcknowledgedAt,
+			AcknowledgedBy:     ackBy,
+			AcknowledgedByName: item.AcknowledgedByName,
+			Position:           item.Position,
+			CreatedAt:          item.CreatedAt,
+		}
+	}
+	return result
+}
+
+// MapAdministrativeOrderDocument преобразует модель приказа в DTO.
+func MapAdministrativeOrderDocument(m *models.AdministrativeOrderDocument) *AdministrativeOrderDocument {
+	if m == nil {
+		return nil
+	}
+	return &AdministrativeOrderDocument{
+		ID:                   m.ID.String(),
+		NomenclatureID:       m.NomenclatureID.String(),
+		NomenclatureName:     m.NomenclatureName,
+		OrderNumber:          m.OrderNumber,
+		OrderDate:            m.OrderDate,
+		Title:                m.Title,
+		DocumentTypeID:       models.DocumentTypeAdministrativeOrder,
+		DocumentTypeName:     models.DocumentTypeAdministrativeOrder,
+		Content:              m.Title,
+		PagesCount:           1,
+		ExecutionController:  m.ExecutionController,
+		ExecutionDeadline:    m.ExecutionDeadline,
+		IsActive:             m.IsActive,
+		CancelledAt:          m.CancelledAt,
+		AcknowledgmentPeople: MapAdministrativeOrderAcknowledgmentPeople(m.AcknowledgmentPeople),
+		CreatedBy:            m.CreatedBy.String(),
+		CreatedByName:        m.CreatedByName,
+		CreatedAt:            m.CreatedAt,
+		UpdatedAt:            m.UpdatedAt,
+		AttachmentsCount:     m.AttachmentsCount,
+		AssignmentsCount:     m.AssignmentsCount,
+	}
+}
+
 // MapDocumentKindSpec преобразует метаданные системного вида документа в DTO.
 func MapDocumentKindSpec(spec models.DocumentKindSpec) *DocumentKind {
 	actions := make([]string, len(spec.SupportedActions))
@@ -307,6 +361,30 @@ func MapCitizenAppealDocumentCard(m *models.CitizenAppealDocument) *DocumentCard
 		CreatedAt:          m.CreatedAt,
 		UpdatedAt:          m.UpdatedAt,
 		CitizenAppeal:      MapCitizenAppealDocument(m),
+	}
+}
+
+// MapAdministrativeOrderDocumentCard преобразует приказ в общий DTO карточки документа.
+func MapAdministrativeOrderDocumentCard(m *models.AdministrativeOrderDocument) *DocumentCard {
+	if m == nil {
+		return nil
+	}
+	return &DocumentCard{
+		ID:                  m.ID.String(),
+		KindCode:            string(models.DocumentKindAdministrativeOrder),
+		KindName:            models.DocumentKindAdministrativeOrder.Label(),
+		RegistrationNumber:  m.OrderNumber,
+		RegistrationDate:    m.OrderDate,
+		NomenclatureID:      m.NomenclatureID.String(),
+		NomenclatureName:    m.NomenclatureName,
+		DocumentTypeID:      models.DocumentTypeAdministrativeOrder,
+		DocumentTypeName:    models.DocumentTypeAdministrativeOrder,
+		Content:             m.Title,
+		CreatedBy:           m.CreatedBy.String(),
+		CreatedByName:       m.CreatedByName,
+		CreatedAt:           m.CreatedAt,
+		UpdatedAt:           m.UpdatedAt,
+		AdministrativeOrder: MapAdministrativeOrderDocument(m),
 	}
 }
 
@@ -416,6 +494,45 @@ func MapCitizenAppealDocumentListItem(m *models.CitizenAppealDocument) *Document
 	return item
 }
 
+// MapAdministrativeOrderDocumentListItem преобразует приказ в общую строку списка документов.
+func MapAdministrativeOrderDocumentListItem(m *models.AdministrativeOrderDocument) *DocumentListItem {
+	if m == nil {
+		return nil
+	}
+	pendingCount := 0
+	for _, person := range m.AcknowledgmentPeople {
+		if person.AcknowledgedAt == nil {
+			pendingCount++
+		}
+	}
+	return &DocumentListItem{
+		ID:                          m.ID.String(),
+		KindCode:                    string(models.DocumentKindAdministrativeOrder),
+		KindName:                    models.DocumentKindAdministrativeOrder.Label(),
+		RegistrationNumber:          m.OrderNumber,
+		RegistrationDate:            m.OrderDate,
+		NomenclatureID:              m.NomenclatureID.String(),
+		NomenclatureName:            m.NomenclatureName,
+		DocumentTypeID:              models.DocumentTypeAdministrativeOrder,
+		DocumentTypeName:            models.DocumentTypeAdministrativeOrder,
+		Content:                     m.Title,
+		PagesCount:                  1,
+		CreatedBy:                   m.CreatedBy.String(),
+		CreatedByName:               m.CreatedByName,
+		CreatedAt:                   m.CreatedAt,
+		UpdatedAt:                   m.UpdatedAt,
+		OrderNumber:                 m.OrderNumber,
+		OrderDate:                   &m.OrderDate,
+		Title:                       m.Title,
+		ExecutionController:         m.ExecutionController,
+		ExecutionDeadline:           m.ExecutionDeadline,
+		IsActive:                    m.IsActive,
+		CancelledAt:                 m.CancelledAt,
+		PendingAcknowledgmentsCount: pendingCount,
+		AcknowledgmentPeople:        MapAdministrativeOrderAcknowledgmentPeople(m.AcknowledgmentPeople),
+	}
+}
+
 // MapDocumentListItemsFromIncoming преобразует список входящих документов в общий список документов.
 func MapDocumentListItemsFromIncoming(m []models.IncomingDocument) []DocumentListItem {
 	if m == nil {
@@ -454,6 +571,21 @@ func MapDocumentListItemsFromCitizenAppeals(m []models.CitizenAppealDocument) []
 	res := make([]DocumentListItem, 0, len(m))
 	for _, item := range m {
 		mapped := MapCitizenAppealDocumentListItem(&item)
+		if mapped != nil {
+			res = append(res, *mapped)
+		}
+	}
+	return res
+}
+
+// MapDocumentListItemsFromAdministrativeOrders преобразует список приказов в общий список документов.
+func MapDocumentListItemsFromAdministrativeOrders(m []models.AdministrativeOrderDocument) []DocumentListItem {
+	if m == nil {
+		return nil
+	}
+	res := make([]DocumentListItem, 0, len(m))
+	for _, item := range m {
+		mapped := MapAdministrativeOrderDocumentListItem(&item)
 		if mapped != nil {
 			res = append(res, *mapped)
 		}

@@ -8,7 +8,7 @@ import { LinksTab } from './DocumentLinks/LinksTab';
 import JournalList from './JournalList';
 
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
-import { getDocumentKindLabel, isCitizenAppealKind, isIncomingKind } from '../constants/documentKinds';
+import { getDocumentKindLabel, isAdministrativeOrderKind, isCitizenAppealKind, isIncomingKind } from '../constants/documentKinds';
 import { getDocumentViewConfig } from '../config/documentViewConfig';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 
@@ -277,6 +277,95 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
         </div>
     );
 
+    const renderAdministrativeOrderInfo = (doc: any) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <Row gutter={16}>
+                <Col span={8}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Номер:</Text> <Text strong>{doc.orderNumber}</Text>
+                </Col>
+                <Col span={8}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Дата:</Text> <Text strong>{dayjs(doc.orderDate).format('DD.MM.YYYY')}</Text>
+                </Col>
+                <Col span={8}>
+                    <Tag color={doc.isActive === false ? 'default' : 'green'}>{doc.isActive === false ? 'Не действующий' : 'Действующий'}</Tag>
+                </Col>
+            </Row>
+            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {doc.nomenclatureName}</Col></Row>
+
+            <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
+
+            <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>Заголовок:</Text>
+                <div style={{ fontWeight: 500, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{doc.title}</div>
+            </div>
+
+            <Row gutter={16}>
+                <Col span={12}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Контроль:</Text> {doc.executionController || '—'}
+                </Col>
+                <Col span={12}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Срок выполнения:</Text>{' '}
+                    {doc.executionDeadline ? dayjs(doc.executionDeadline).format('DD.MM.YYYY') : '—'}
+                </Col>
+            </Row>
+            {doc.cancelledAt && (
+                <Row>
+                    <Col span={24}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>Дата отмены:</Text> {dayjs(doc.cancelledAt).format('DD.MM.YYYY')}
+                    </Col>
+                </Row>
+            )}
+
+            <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
+
+            <Row gutter={16} style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                <Col span={24} style={{ textAlign: 'right' }}>
+                    Зарегистрировал: {doc.createdByName} <br /> ({dayjs(doc.createdAt).format('DD.MM.YYYY HH:mm')})
+                </Col>
+            </Row>
+        </div>
+    );
+
+    const markOrderAcknowledged = async (personId: string) => {
+        try {
+            const { MarkAcknowledged } = await import('../../wailsjs/go/services/AdministrativeOrderService');
+            await MarkAcknowledged(personId);
+            await loadData();
+            message.success('Отметка проставлена');
+        } catch (err: any) {
+            message.error(err?.message || String(err));
+        }
+    };
+
+    const renderAdministrativeOrderAcknowledgments = (doc: any, canUpdate: boolean) => {
+        const people = doc.acknowledgmentPeople || [];
+        if (people.length === 0) {
+            return <div style={{ color: 'var(--app-text-muted)' }}>Лист ознакомления пуст</div>;
+        }
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {people.map((person: any) => (
+                    <div key={person.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '10px 0', borderBottom: '1px solid var(--app-border)' }}>
+                        <div>
+                            <div style={{ fontWeight: 500 }}>{person.fullName}</div>
+                            <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                                {person.acknowledgedAt
+                                    ? `Ознакомлен: ${dayjs(person.acknowledgedAt).format('DD.MM.YYYY HH:mm')}${person.acknowledgedByName ? `, ${person.acknowledgedByName}` : ''}`
+                                    : 'Ожидает ознакомления'}
+                            </div>
+                        </div>
+                        {!person.acknowledgedAt && canUpdate && (
+                            <Button size="small" type="primary" onClick={() => markOrderAcknowledged(person.id)}>
+                                Отметить
+                            </Button>
+                        )}
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     const getNumber = () => {
         if (!data) return '';
         return data.registrationNumber || '';
@@ -285,12 +374,20 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     const resolvedKindCode = data?.kindCode || documentKind;
     const isIncomingDocument = isIncomingKind(resolvedKindCode);
     const isCitizenAppealDocument = isCitizenAppealKind(resolvedKindCode);
-    const details = isIncomingDocument ? data?.incomingLetter : isCitizenAppealDocument ? data?.citizenAppeal : data?.outgoingLetter;
+    const isAdministrativeOrderDocument = isAdministrativeOrderKind(resolvedKindCode);
+    const details = isIncomingDocument
+        ? data?.incomingLetter
+        : isCitizenAppealDocument
+            ? data?.citizenAppeal
+            : isAdministrativeOrderDocument
+                ? data?.administrativeOrder
+                : data?.outgoingLetter;
     const viewConfig = getDocumentViewConfig(resolvedKindCode);
     const accessPending = !accessReady || kindsLoading;
     const canManageAssignments = accessReady && hasAction(resolvedKindCode, 'assign');
     const canManageLinks = accessReady && hasAction(resolvedKindCode, 'link');
     const canManageAcknowledgments = accessReady && hasAction(resolvedKindCode, 'acknowledge');
+    const canUpdateDocument = accessReady && hasAction(resolvedKindCode, 'update');
     const canViewJournal = accessReady && hasAction(resolvedKindCode, 'view_journal');
     const canViewFiles = !!data;
     const creatableKinds = accessReady ? kinds.filter((kind) => hasAction(kind.code, 'create')) : [];
@@ -299,7 +396,13 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
         const items = [
             {
                 key: 'info', label: 'Информация',
-                children: isIncomingDocument ? renderIncomingInfo(details) : isCitizenAppealDocument ? renderCitizenAppealInfo(details) : renderOutgoingInfo(details)
+                children: isIncomingDocument
+                    ? renderIncomingInfo(details)
+                    : isCitizenAppealDocument
+                        ? renderCitizenAppealInfo(details)
+                        : isAdministrativeOrderDocument
+                            ? renderAdministrativeOrderInfo(details)
+                            : renderOutgoingInfo(details)
             },
             {
                 key: 'assignments', label: 'Поручения',
@@ -315,7 +418,9 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             },
             {
                 key: 'acknowledgments', label: 'Ознакомление',
-                children: <AcknowledgmentList documentId={data.id} documentKind={resolvedKindCode} />
+                children: isAdministrativeOrderDocument
+                    ? renderAdministrativeOrderAcknowledgments(details, canUpdateDocument)
+                    : <AcknowledgmentList documentId={data.id} documentKind={resolvedKindCode} />
             },
             {
                 key: 'journal', label: 'Журнал',
@@ -330,7 +435,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                 case 'links':
                     return canManageLinks;
                 case 'acknowledgments':
-                    return canManageAcknowledgments;
+                    return isAdministrativeOrderDocument ? true : canManageAcknowledgments;
                 case 'journal':
                     return canViewJournal;
                 case 'files':

@@ -9,6 +9,7 @@ import {
     CheckSquareOutlined,
     SettingOutlined,
     FileTextOutlined,
+    FileDoneOutlined,
     UserOutlined,
     LogoutOutlined,
     InfoCircleOutlined,
@@ -87,6 +88,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 key: 'appeals',
                 icon: <MessageOutlined />,
                 label: 'Обращения',
+            }] : []),
+            ...(sections.orders ? [{
+                key: 'orders',
+                icon: <FileDoneOutlined />,
+                label: 'Приказы',
             }] : []),
             ...(sections.assignments ? [{
                 key: 'assignments',

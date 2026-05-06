@@ -14,13 +14,14 @@ import (
 
 // LinkService предоставляет бизнес-логику для управления связями между документами.
 type LinkService struct {
-	repo                 LinkStore
-	incomingDocRepo      IncomingDocStore
-	outgoingDocRepo      OutgoingDocStore
-	citizenAppealDocRepo CitizenAppealDocStore
-	access               *DocumentAccessService
-	authService          *AuthService
-	journal              *JournalService
+	repo                    LinkStore
+	incomingDocRepo         IncomingDocStore
+	outgoingDocRepo         OutgoingDocStore
+	citizenAppealDocRepo    CitizenAppealDocStore
+	administrativeOrderRepo AdministrativeOrderDocStore
+	access                  *DocumentAccessService
+	authService             *AuthService
+	journal                 *JournalService
 }
 
 // NewLinkService создает новый экземпляр LinkService.
@@ -29,18 +30,20 @@ func NewLinkService(
 	incomingDocRepo IncomingDocStore,
 	outgoingDocRepo OutgoingDocStore,
 	citizenAppealDocRepo CitizenAppealDocStore,
+	administrativeOrderRepo AdministrativeOrderDocStore,
 	access *DocumentAccessService,
 	authService *AuthService,
 	journal *JournalService,
 ) *LinkService {
 	return &LinkService{
-		repo:                 repo,
-		incomingDocRepo:      incomingDocRepo,
-		outgoingDocRepo:      outgoingDocRepo,
-		citizenAppealDocRepo: citizenAppealDocRepo,
-		access:               access,
-		authService:          authService,
-		journal:              journal,
+		repo:                    repo,
+		incomingDocRepo:         incomingDocRepo,
+		outgoingDocRepo:         outgoingDocRepo,
+		citizenAppealDocRepo:    citizenAppealDocRepo,
+		administrativeOrderRepo: administrativeOrderRepo,
+		access:                  access,
+		authService:             authService,
+		journal:                 journal,
 	}
 }
 
@@ -72,6 +75,9 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 	if err != nil {
 		return nil, err
 	}
+	if err := validateDocumentLinkType(sourceDoc.Kind, targetDoc.Kind, linkType); err != nil {
+		return nil, err
+	}
 	link := &models.DocumentLink{
 		SourceKind: sourceDoc.Kind,
 		SourceID:   sourceID,
@@ -84,6 +90,11 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 
 	if err := s.repo.Create(context.Background(), link); err != nil {
 		return nil, fmt.Errorf("failed to create link: %w", err)
+	}
+	if linkType == "order_cancels" && s.administrativeOrderRepo != nil {
+		if err := s.administrativeOrderRepo.CancelByLink(targetID, link.CreatedAt); err != nil {
+			return nil, err
+		}
 	}
 
 	// Логирование создания связи (для обоих документов)
@@ -274,6 +285,16 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 					}
 				}
 			}
+		case models.DocumentKindAdministrativeOrder:
+			if s.administrativeOrderRepo != nil {
+				doc, err := s.administrativeOrderRepo.GetByID(id)
+				if err == nil && doc != nil {
+					label = doc.OrderNumber
+					subject = doc.Title
+					dateStr = doc.OrderDate.Format("02.01.2006")
+					sender = doc.ExecutionController
+				}
+			}
 		}
 
 		if label == "" {
@@ -328,6 +349,18 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 	})
 
 	return &models.GraphData{Nodes: nodes, Edges: edges}, nil
+}
+
+func validateDocumentLinkType(sourceKind, targetKind models.DocumentKind, linkType string) error {
+	switch linkType {
+	case "order_amends", "order_cancels":
+		if sourceKind != models.DocumentKindAdministrativeOrder || targetKind != models.DocumentKindAdministrativeOrder {
+			return models.NewBadRequest("приказные связи доступны только между приказами")
+		}
+		return nil
+	default:
+		return nil
+	}
 }
 
 func mapKeys(values map[uuid.UUID]string) []uuid.UUID {

@@ -76,6 +76,7 @@ func main() {
 	incomingDocRepo := repository.NewIncomingDocumentRepository(db)
 	outgoingDocRepo := repository.NewOutgoingDocumentRepository(db)
 	citizenAppealRepo := repository.NewCitizenAppealRepository(db)
+	administrativeOrderRepo := repository.NewAdministrativeOrderRepository(db)
 	assignmentRepo := repository.NewAssignmentRepository(db)
 	departmentRepo := repository.NewDepartmentRepository(db)
 	settingsRepo := repository.NewSettingsRepository(db)
@@ -117,14 +118,17 @@ func main() {
 		services.NewIncomingLetterQueryHandler(incomingDocRepo),
 		services.NewOutgoingLetterQueryHandler(outgoingDocRepo),
 		services.NewCitizenAppealQueryHandler(citizenAppealRepo),
+		services.NewAdministrativeOrderQueryHandler(administrativeOrderRepo),
 	)
 	documentQueryService := services.NewDocumentQueryService(documentKindQueryRegistry, documentAccessService)
 	documentKindCommandRegistry := services.NewDocumentKindCommandRegistry(
 		services.NewIncomingLetterCommandHandler(incomingDocRepo, nomenclatureRepo, referenceRepo, authService, journalService, documentAccessService),
 		services.NewOutgoingLetterCommandHandler(outgoingDocRepo, referenceRepo, nomenclatureRepo, authService, journalService, documentAccessService),
 		services.NewCitizenAppealCommandHandler(citizenAppealRepo, nomenclatureRepo, referenceRepo, authService, journalService, documentAccessService),
+		services.NewAdministrativeOrderCommandHandler(administrativeOrderRepo, nomenclatureRepo, authService, journalService, documentAccessService),
 	)
 	documentRegistrationService := services.NewDocumentRegistrationService(documentKindCommandRegistry)
+	administrativeOrderService := services.NewAdministrativeOrderService(administrativeOrderRepo, authService, documentAccessService, journalService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService, documentAccessService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService, adminAuditLogService)
 
@@ -137,7 +141,7 @@ func main() {
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, documentAccessService)
 	statisticsService := services.NewStatisticsService(statisticsRepo, authService, minioService)
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService, documentAccessService)
-	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, documentAccessService, authService, journalService)
+	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, administrativeOrderRepo, documentAccessService, authService, journalService)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService)
 	systemService := services.NewSystemService(db)
 	releaseNoteService, err := services.NewReleaseNoteService(releaseNotesSource)
@@ -181,6 +185,7 @@ func main() {
 			documentKindService,
 			documentQueryService,
 			documentRegistrationService,
+			administrativeOrderService,
 			assignmentService,
 			dashboardService,
 			statisticsService,

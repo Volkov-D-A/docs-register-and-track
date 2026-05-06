@@ -44,6 +44,19 @@ type CitizenAppealDocStore interface {
 	GetCount() (int, error)
 }
 
+// AdministrativeOrderDocStore — интерфейс для работы с приказами в хранилище.
+type AdministrativeOrderDocStore interface {
+	GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error)
+	GetByID(id uuid.UUID) (*models.AdministrativeOrderDocument, error)
+	Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error)
+	Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error)
+	GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error)
+	GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error)
+	MarkAcknowledgmentPerson(id uuid.UUID, acknowledgedBy uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error)
+	CancelByLink(id uuid.UUID, cancelledAt time.Time) error
+	GetCount() (int, error)
+}
+
 // DocumentStore — интерфейс для общей корневой сущности документа.
 type DocumentStore interface {
 	GetByID(id uuid.UUID) (*models.Document, error)

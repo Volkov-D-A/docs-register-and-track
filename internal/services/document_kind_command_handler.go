@@ -119,6 +119,17 @@ func normalizeRegisterRequest(kind models.DocumentKind, req any) (any, error) {
 		}
 
 		return typedReq, nil
+	case models.DocumentKindAdministrativeOrder:
+		if typedReq, ok := req.(AdministrativeOrderRegisterRequest); ok {
+			return typedReq, nil
+		}
+
+		var typedReq AdministrativeOrderRegisterRequest
+		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
+			return nil, err
+		}
+
+		return typedReq, nil
 	default:
 		return nil, models.ErrForbidden
 	}
@@ -154,6 +165,17 @@ func normalizeUpdateRequest(kind models.DocumentKind, req any) (any, error) {
 		}
 
 		var typedReq CitizenAppealUpdateRequest
+		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
+			return nil, err
+		}
+
+		return typedReq, nil
+	case models.DocumentKindAdministrativeOrder:
+		if typedReq, ok := req.(AdministrativeOrderUpdateRequest); ok {
+			return typedReq, nil
+		}
+
+		var typedReq AdministrativeOrderUpdateRequest
 		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
 			return nil, err
 		}

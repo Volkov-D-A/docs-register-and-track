@@ -81,6 +81,7 @@ type AccessSections struct {
 	Incoming    bool `json:"incoming"`
 	Outgoing    bool `json:"outgoing"`
 	Appeals     bool `json:"appeals"`
+	Orders      bool `json:"orders"`
 	Assignments bool `json:"assignments"`
 	References  bool `json:"references"`
 	Statistics  bool `json:"statistics"`
@@ -224,6 +225,48 @@ type OutgoingDocument struct {
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
+// AdministrativeOrderDocument описывает DTO приказа.
+type AdministrativeOrderDocument struct {
+	ID               string `json:"id"`
+	NomenclatureID   string `json:"nomenclatureId"`
+	NomenclatureName string `json:"nomenclatureName,omitempty"`
+
+	OrderNumber string    `json:"orderNumber"`
+	OrderDate   time.Time `json:"orderDate"`
+	Title       string    `json:"title"`
+
+	DocumentTypeID   string `json:"documentTypeId"`
+	DocumentTypeName string `json:"documentTypeName,omitempty"`
+	Content          string `json:"content"`
+	PagesCount       int    `json:"pagesCount"`
+
+	ExecutionController string     `json:"executionController"`
+	ExecutionDeadline   *time.Time `json:"executionDeadline,omitempty"`
+	IsActive            bool       `json:"isActive"`
+	CancelledAt         *time.Time `json:"cancelledAt,omitempty"`
+
+	AcknowledgmentPeople []AdministrativeOrderAcknowledgmentPerson `json:"acknowledgmentPeople,omitempty"`
+
+	CreatedBy     string    `json:"createdBy"`
+	CreatedByName string    `json:"createdByName,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+
+	AttachmentsCount int `json:"attachmentsCount,omitempty"`
+	AssignmentsCount int `json:"assignmentsCount,omitempty"`
+}
+
+// AdministrativeOrderAcknowledgmentPerson описывает DTO строки листа ознакомления приказа.
+type AdministrativeOrderAcknowledgmentPerson struct {
+	ID                 string     `json:"id"`
+	FullName           string     `json:"fullName"`
+	AcknowledgedAt     *time.Time `json:"acknowledgedAt,omitempty"`
+	AcknowledgedBy     string     `json:"acknowledgedBy,omitempty"`
+	AcknowledgedByName string     `json:"acknowledgedByName,omitempty"`
+	Position           int        `json:"position"`
+	CreatedAt          time.Time  `json:"createdAt"`
+}
+
 // DocumentCard описывает общую оболочку документа с привязанными деталями конкретного вида.
 type DocumentCard struct {
 	ID                 string    `json:"id"`
@@ -241,9 +284,10 @@ type DocumentCard struct {
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`
 
-	IncomingLetter *IncomingDocument      `json:"incomingLetter,omitempty"`
-	OutgoingLetter *OutgoingDocument      `json:"outgoingLetter,omitempty"`
-	CitizenAppeal  *CitizenAppealDocument `json:"citizenAppeal,omitempty"`
+	IncomingLetter      *IncomingDocument            `json:"incomingLetter,omitempty"`
+	OutgoingLetter      *OutgoingDocument            `json:"outgoingLetter,omitempty"`
+	CitizenAppeal       *CitizenAppealDocument       `json:"citizenAppeal,omitempty"`
+	AdministrativeOrder *AdministrativeOrderDocument `json:"administrativeOrder,omitempty"`
 }
 
 // DocumentListItem описывает общую строку списка документов с detail-полями для конкретного вида.
@@ -264,28 +308,37 @@ type DocumentListItem struct {
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`
 
-	IncomingNumber       string                              `json:"incomingNumber,omitempty"`
-	IncomingDate         *time.Time                          `json:"incomingDate,omitempty"`
-	AppealDate           *time.Time                          `json:"appealDate,omitempty"`
-	OutgoingNumber       string                              `json:"outgoingNumber,omitempty"`
-	OutgoingDate         *time.Time                          `json:"outgoingDate,omitempty"`
-	Correspondents       []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
-	SenderSignatory      string                              `json:"senderSignatory,omitempty"`
-	Resolution           *string                             `json:"resolution,omitempty"`
-	ResolutionAuthor     *string                             `json:"resolutionAuthor,omitempty"`
-	ResolutionExecutors  *string                             `json:"resolutionExecutors,omitempty"`
-	Resolutions          []DocumentResolution                `json:"resolutions,omitempty"`
-	RecipientOrgName     string                              `json:"recipientOrgName,omitempty"`
-	Addressee            string                              `json:"addressee,omitempty"`
-	SenderExecutor       string                              `json:"senderExecutor,omitempty"`
-	ApplicantFullName    string                              `json:"applicantFullName,omitempty"`
-	RegistrationAddress  string                              `json:"registrationAddress,omitempty"`
-	AppealType           string                              `json:"appealType,omitempty"`
-	ApplicantCategory    string                              `json:"applicantCategory,omitempty"`
-	AppealPagesCount     int                                 `json:"appealPagesCount,omitempty"`
-	AttachmentPagesCount int                                 `json:"attachmentPagesCount,omitempty"`
-	HasEnvelope          bool                                `json:"hasEnvelope,omitempty"`
-	ReceivedFromPOS      bool                                `json:"receivedFromPos,omitempty"`
+	IncomingNumber              string                                    `json:"incomingNumber,omitempty"`
+	IncomingDate                *time.Time                                `json:"incomingDate,omitempty"`
+	AppealDate                  *time.Time                                `json:"appealDate,omitempty"`
+	OutgoingNumber              string                                    `json:"outgoingNumber,omitempty"`
+	OutgoingDate                *time.Time                                `json:"outgoingDate,omitempty"`
+	Correspondents              []DocumentCorrespondentRegistration       `json:"correspondents,omitempty"`
+	SenderSignatory             string                                    `json:"senderSignatory,omitempty"`
+	Resolution                  *string                                   `json:"resolution,omitempty"`
+	ResolutionAuthor            *string                                   `json:"resolutionAuthor,omitempty"`
+	ResolutionExecutors         *string                                   `json:"resolutionExecutors,omitempty"`
+	Resolutions                 []DocumentResolution                      `json:"resolutions,omitempty"`
+	RecipientOrgName            string                                    `json:"recipientOrgName,omitempty"`
+	Addressee                   string                                    `json:"addressee,omitempty"`
+	SenderExecutor              string                                    `json:"senderExecutor,omitempty"`
+	ApplicantFullName           string                                    `json:"applicantFullName,omitempty"`
+	RegistrationAddress         string                                    `json:"registrationAddress,omitempty"`
+	AppealType                  string                                    `json:"appealType,omitempty"`
+	ApplicantCategory           string                                    `json:"applicantCategory,omitempty"`
+	AppealPagesCount            int                                       `json:"appealPagesCount,omitempty"`
+	AttachmentPagesCount        int                                       `json:"attachmentPagesCount,omitempty"`
+	HasEnvelope                 bool                                      `json:"hasEnvelope,omitempty"`
+	ReceivedFromPOS             bool                                      `json:"receivedFromPos,omitempty"`
+	OrderNumber                 string                                    `json:"orderNumber,omitempty"`
+	OrderDate                   *time.Time                                `json:"orderDate,omitempty"`
+	Title                       string                                    `json:"title,omitempty"`
+	ExecutionController         string                                    `json:"executionController,omitempty"`
+	ExecutionDeadline           *time.Time                                `json:"executionDeadline,omitempty"`
+	IsActive                    bool                                      `json:"isActive"`
+	CancelledAt                 *time.Time                                `json:"cancelledAt,omitempty"`
+	PendingAcknowledgmentsCount int                                       `json:"pendingAcknowledgmentsCount,omitempty"`
+	AcknowledgmentPeople        []AdministrativeOrderAcknowledgmentPerson `json:"acknowledgmentPeople,omitempty"`
 }
 
 // DocumentLink описывает DTO связи между документами.

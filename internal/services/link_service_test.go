@@ -54,7 +54,7 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore Docu
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, nil, incRepo, outRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
-	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, accessSvc, auth, journalSvc)
+	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, nil, accessSvc, auth, journalSvc)
 	return svc, linkRepo, incRepo, outRepo, auth
 }
 

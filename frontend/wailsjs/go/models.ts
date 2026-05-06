@@ -28,6 +28,7 @@ export namespace dto {
 	    incoming: boolean;
 	    outgoing: boolean;
 	    appeals: boolean;
+	    orders: boolean;
 	    assignments: boolean;
 	    references: boolean;
 	    statistics: boolean;
@@ -43,6 +44,7 @@ export namespace dto {
 	        this.incoming = source["incoming"];
 	        this.outgoing = source["outgoing"];
 	        this.appeals = source["appeals"];
+	        this.orders = source["orders"];
 	        this.assignments = source["assignments"];
 	        this.references = source["references"];
 	        this.statistics = source["statistics"];
@@ -198,6 +200,125 @@ export namespace dto {
 	        this.items = this.convertValues(source["items"], AdminAuditLog);
 	        this.total = source["total"];
 	        this.page = source["page"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AdministrativeOrderAcknowledgmentPerson {
+	    id: string;
+	    fullName: string;
+	    // Go type: time
+	    acknowledgedAt?: any;
+	    acknowledgedBy?: string;
+	    acknowledgedByName?: string;
+	    position: number;
+	    // Go type: time
+	    createdAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new AdministrativeOrderAcknowledgmentPerson(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.fullName = source["fullName"];
+	        this.acknowledgedAt = this.convertValues(source["acknowledgedAt"], null);
+	        this.acknowledgedBy = source["acknowledgedBy"];
+	        this.acknowledgedByName = source["acknowledgedByName"];
+	        this.position = source["position"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AdministrativeOrderDocument {
+	    id: string;
+	    nomenclatureId: string;
+	    nomenclatureName?: string;
+	    orderNumber: string;
+	    // Go type: time
+	    orderDate: any;
+	    title: string;
+	    documentTypeId: string;
+	    documentTypeName?: string;
+	    content: string;
+	    pagesCount: number;
+	    executionController: string;
+	    // Go type: time
+	    executionDeadline?: any;
+	    isActive: boolean;
+	    // Go type: time
+	    cancelledAt?: any;
+	    acknowledgmentPeople?: AdministrativeOrderAcknowledgmentPerson[];
+	    createdBy: string;
+	    createdByName?: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    attachmentsCount?: number;
+	    assignmentsCount?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AdministrativeOrderDocument(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.nomenclatureId = source["nomenclatureId"];
+	        this.nomenclatureName = source["nomenclatureName"];
+	        this.orderNumber = source["orderNumber"];
+	        this.orderDate = this.convertValues(source["orderDate"], null);
+	        this.title = source["title"];
+	        this.documentTypeId = source["documentTypeId"];
+	        this.documentTypeName = source["documentTypeName"];
+	        this.content = source["content"];
+	        this.pagesCount = source["pagesCount"];
+	        this.executionController = source["executionController"];
+	        this.executionDeadline = this.convertValues(source["executionDeadline"], null);
+	        this.isActive = source["isActive"];
+	        this.cancelledAt = this.convertValues(source["cancelledAt"], null);
+	        this.acknowledgmentPeople = this.convertValues(source["acknowledgmentPeople"], AdministrativeOrderAcknowledgmentPerson);
+	        this.createdBy = source["createdBy"];
+	        this.createdByName = source["createdByName"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.attachmentsCount = source["attachmentsCount"];
+	        this.assignmentsCount = source["assignmentsCount"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -878,6 +999,7 @@ export namespace dto {
 	    incomingLetter?: IncomingDocument;
 	    outgoingLetter?: OutgoingDocument;
 	    citizenAppeal?: CitizenAppealDocument;
+	    administrativeOrder?: AdministrativeOrderDocument;
 	
 	    static createFrom(source: any = {}) {
 	        return new DocumentCard(source);
@@ -902,6 +1024,7 @@ export namespace dto {
 	        this.incomingLetter = this.convertValues(source["incomingLetter"], IncomingDocument);
 	        this.outgoingLetter = this.convertValues(source["outgoingLetter"], OutgoingDocument);
 	        this.citizenAppeal = this.convertValues(source["citizenAppeal"], CitizenAppealDocument);
+	        this.administrativeOrder = this.convertValues(source["administrativeOrder"], AdministrativeOrderDocument);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1019,6 +1142,18 @@ export namespace dto {
 	    attachmentPagesCount?: number;
 	    hasEnvelope?: boolean;
 	    receivedFromPos?: boolean;
+	    orderNumber?: string;
+	    // Go type: time
+	    orderDate?: any;
+	    title?: string;
+	    executionController?: string;
+	    // Go type: time
+	    executionDeadline?: any;
+	    isActive: boolean;
+	    // Go type: time
+	    cancelledAt?: any;
+	    pendingAcknowledgmentsCount?: number;
+	    acknowledgmentPeople?: AdministrativeOrderAcknowledgmentPerson[];
 	
 	    static createFrom(source: any = {}) {
 	        return new DocumentListItem(source);
@@ -1063,6 +1198,15 @@ export namespace dto {
 	        this.attachmentPagesCount = source["attachmentPagesCount"];
 	        this.hasEnvelope = source["hasEnvelope"];
 	        this.receivedFromPos = source["receivedFromPos"];
+	        this.orderNumber = source["orderNumber"];
+	        this.orderDate = this.convertValues(source["orderDate"], null);
+	        this.title = source["title"];
+	        this.executionController = source["executionController"];
+	        this.executionDeadline = this.convertValues(source["executionDeadline"], null);
+	        this.isActive = source["isActive"];
+	        this.cancelledAt = this.convertValues(source["cancelledAt"], null);
+	        this.pendingAcknowledgmentsCount = source["pendingAcknowledgmentsCount"];
+	        this.acknowledgmentPeople = this.convertValues(source["acknowledgmentPeople"], AdministrativeOrderAcknowledgmentPerson);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1590,6 +1734,12 @@ export namespace models {
 	    outgoingDateTo?: string;
 	    resolution?: string;
 	    noResolution?: boolean;
+	    orderNumber?: string;
+	    executionController?: string;
+	    onlyControlled?: boolean;
+	    onlyOverdue?: boolean;
+	    onlyPendingAcknowledgment?: boolean;
+	    orderActiveStatus?: string;
 	    page: number;
 	    pageSize: number;
 	
@@ -1620,6 +1770,12 @@ export namespace models {
 	        this.outgoingDateTo = source["outgoingDateTo"];
 	        this.resolution = source["resolution"];
 	        this.noResolution = source["noResolution"];
+	        this.orderNumber = source["orderNumber"];
+	        this.executionController = source["executionController"];
+	        this.onlyControlled = source["onlyControlled"];
+	        this.onlyOverdue = source["onlyOverdue"];
+	        this.onlyPendingAcknowledgment = source["onlyPendingAcknowledgment"];
+	        this.orderActiveStatus = source["orderActiveStatus"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	    }

@@ -1,9 +1,10 @@
 export const DOCUMENT_KIND_INCOMING_LETTER = 'incoming_letter';
 export const DOCUMENT_KIND_OUTGOING_LETTER = 'outgoing_letter';
 export const DOCUMENT_KIND_CITIZEN_APPEAL = 'citizen_appeal';
+export const DOCUMENT_KIND_ADMINISTRATIVE_ORDER = 'administrative_order';
 
 export type RegistrationKind = string;
-export type DocumentPageKey = 'incoming' | 'outgoing' | 'appeals';
+export type DocumentPageKey = 'incoming' | 'outgoing' | 'appeals' | 'orders';
 export type DocumentKindMeta = {
     code: RegistrationKind;
     label: string;
@@ -47,6 +48,16 @@ export const documentKindRegistry: Record<string, DocumentKindMeta> = {
         supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
         color: 'orange',
     },
+    [DOCUMENT_KIND_ADMINISTRATIVE_ORDER]: {
+        code: DOCUMENT_KIND_ADMINISTRATIVE_ORDER,
+        label: 'Приказы',
+        shortLabel: 'Приказ',
+        pageKey: 'orders',
+        registrationFormCode: 'administrative_order_form',
+        registryGroup: 'orders',
+        supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
+        color: 'purple',
+    },
 };
 
 export const documentKinds = Object.values(documentKindRegistry);
@@ -80,7 +91,9 @@ export const pageToDocumentKind = (page: DocumentPageKey): RegistrationKind => (
         ? DOCUMENT_KIND_OUTGOING_LETTER
         : page === 'appeals'
             ? DOCUMENT_KIND_CITIZEN_APPEAL
-            : DOCUMENT_KIND_INCOMING_LETTER
+            : page === 'orders'
+                ? DOCUMENT_KIND_ADMINISTRATIVE_ORDER
+                : DOCUMENT_KIND_INCOMING_LETTER
 );
 
 export const isIncomingKind = (kind: string): boolean => (
@@ -91,6 +104,9 @@ export const isOutgoingKind = (kind: string): boolean => (
 );
 export const isCitizenAppealKind = (kind: string): boolean => (
     kind === DOCUMENT_KIND_CITIZEN_APPEAL
+);
+export const isAdministrativeOrderKind = (kind: string): boolean => (
+    kind === DOCUMENT_KIND_ADMINISTRATIVE_ORDER
 );
 
 export const toDocumentKindMeta = (kind: {

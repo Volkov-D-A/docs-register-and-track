@@ -23,6 +23,7 @@ import {
   DatabaseOutlined,
   FileDoneOutlined,
   FileTextOutlined,
+  FileProtectOutlined,
   HddOutlined,
   InboxOutlined,
   MessageOutlined,
@@ -84,6 +85,7 @@ const documentKindVisuals: Record<string, { icon: React.ReactNode; color: string
   incoming_letter: { icon: <InboxOutlined />, color: '#1677ff' },
   outgoing_letter: { icon: <SendOutlined />, color: '#52c41a' },
   citizen_appeal: { icon: <MessageOutlined />, color: '#fa8c16' },
+  administrative_order: { icon: <FileProtectOutlined />, color: '#722ed1' },
 };
 
 const DocumentYearCard = ({ year, total, items }: any) => (

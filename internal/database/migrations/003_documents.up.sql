@@ -1,7 +1,7 @@
 -- 8. Common Documents
 CREATE TABLE documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    kind VARCHAR(40) NOT NULL CHECK (kind IN ('incoming_letter', 'outgoing_letter', 'citizen_appeal')),
+    kind VARCHAR(40) NOT NULL CHECK (kind IN ('incoming_letter', 'outgoing_letter', 'citizen_appeal', 'administrative_order')),
     nomenclature_id UUID NOT NULL REFERENCES nomenclature(id),
     registration_number VARCHAR(100) NOT NULL,
     registration_date DATE NOT NULL,
@@ -14,7 +14,8 @@ CREATE TABLE documents (
             'Запрос',
             'Ответ',
             'Уведомление',
-            'Обращение'
+            'Обращение',
+            'Приказ'
         )
     ),
     content TEXT NOT NULL,
@@ -108,6 +109,40 @@ CREATE INDEX idx_citizen_appeal_details_appeal_date ON citizen_appeal_details (a
 CREATE INDEX idx_citizen_appeal_details_applicant ON citizen_appeal_details (applicant_full_name);
 CREATE INDEX idx_citizen_appeal_details_type ON citizen_appeal_details (appeal_type);
 
+-- 14. Administrative Order Details
+CREATE TABLE administrative_order_details (
+    document_id UUID PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+    order_number VARCHAR(50) NOT NULL,
+    order_date DATE NOT NULL,
+    title TEXT NOT NULL,
+    execution_controller VARCHAR(255) NOT NULL DEFAULT '',
+    execution_deadline DATE,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    cancelled_at TIMESTAMP WITH TIME ZONE,
+    CHECK (
+        (is_active = true AND cancelled_at IS NULL)
+        OR (is_active = false AND cancelled_at IS NOT NULL)
+    )
+);
+
+CREATE INDEX idx_administrative_order_details_number ON administrative_order_details (order_number);
+CREATE INDEX idx_administrative_order_details_date ON administrative_order_details (order_date);
+CREATE INDEX idx_administrative_order_details_deadline ON administrative_order_details (execution_deadline);
+CREATE INDEX idx_administrative_order_details_active ON administrative_order_details (is_active);
+
+CREATE TABLE administrative_order_acknowledgment_people (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    full_name VARCHAR(255) NOT NULL,
+    acknowledged_at TIMESTAMP WITH TIME ZONE,
+    acknowledged_by UUID REFERENCES users(id),
+    position INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_admin_order_ack_people_document ON administrative_order_acknowledgment_people (document_id);
+CREATE INDEX idx_admin_order_ack_people_pending ON administrative_order_acknowledgment_people (document_id) WHERE acknowledged_at IS NULL;
+
 -- 14. Document Links
 CREATE TABLE document_links (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
@@ -118,7 +153,9 @@ CREATE TABLE document_links (
             'reply',
             'follow_up',
             'related',
-            'clarification'
+            'clarification',
+            'order_amends',
+            'order_cancels'
         )
     ),
     created_by UUID NOT NULL REFERENCES users (id),

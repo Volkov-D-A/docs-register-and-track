@@ -5,7 +5,7 @@ import { LinkDocuments, UnlinkDocument, GetDocumentLinks, models } from '../../t
 import { LinkGraph } from './LinkGraph';
 import dayjs from 'dayjs';
 import { GetList } from '../../../wailsjs/go/services/DocumentQueryService';
-import { DOCUMENT_KIND_OUTGOING_LETTER } from '../../constants/documentKinds';
+import { DOCUMENT_KIND_ADMINISTRATIVE_ORDER, DOCUMENT_KIND_OUTGOING_LETTER, isAdministrativeOrderKind } from '../../constants/documentKinds';
 import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentLabel } from '../../config/documentLinkConfig';
 import { useDocumentKindAccess } from '../../hooks/useDocumentKindAccess';
 
@@ -34,7 +34,9 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
     const [graphRenderKey, setGraphRenderKey] = useState(0);
 
     // Form state
-    const [targetKind, setTargetKind] = useState<string>(DOCUMENT_KIND_OUTGOING_LETTER);
+    const [targetKind, setTargetKind] = useState<string>(
+        isAdministrativeOrderKind(documentKind) ? DOCUMENT_KIND_ADMINISTRATIVE_ORDER : DOCUMENT_KIND_OUTGOING_LETTER,
+    );
     const [targetId, setTargetId] = useState('');
     const [linkType, setLinkType] = useState('related');
 
@@ -51,6 +53,20 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
         () => accessReady ? (creatableKinds.length > 0 ? creatableKinds : kinds) : [],
         [accessReady, creatableKinds, kinds],
     );
+    const availableLinkTypes = useMemo(() => {
+        if (isAdministrativeOrderKind(documentKind) && targetKind === DOCUMENT_KIND_ADMINISTRATIVE_ORDER) {
+            return [
+                { value: 'order_amends', label: 'Изменяет/дополняет приказ' },
+                { value: 'order_cancels', label: 'Отменяет приказ' },
+                { value: 'related', label: 'Связан с...' },
+            ];
+        }
+        return [
+            { value: 'reply', label: 'Ответ на...' },
+            { value: 'follow_up', label: 'Во исполнение...' },
+            { value: 'related', label: 'Связан с...' },
+        ];
+    }, [documentKind, targetKind]);
 
     useEffect(() => {
         const timeoutId = setTimeout(() => {
@@ -68,12 +84,22 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
             return;
         }
         if (!selectableTargetKinds.some((kind) => kind.code === targetKind)) {
-            setTargetKind(selectableTargetKinds[0].code);
+            const preferredKind = isAdministrativeOrderKind(documentKind)
+                && selectableTargetKinds.some((kind) => kind.code === DOCUMENT_KIND_ADMINISTRATIVE_ORDER)
+                ? DOCUMENT_KIND_ADMINISTRATIVE_ORDER
+                : selectableTargetKinds[0].code;
+            setTargetKind(preferredKind);
             setTargetId('');
             setSearchTerm('');
             setTargetOptions([]);
         }
-    }, [accessReady, selectableTargetKinds, targetKind]);
+    }, [accessReady, documentKind, selectableTargetKinds, targetKind]);
+
+    useEffect(() => {
+        if (!availableLinkTypes.some((item) => item.value === linkType)) {
+            setLinkType(availableLinkTypes[0]?.value || 'related');
+        }
+    }, [availableLinkTypes, linkType]);
 
     const performSearch = async (query: string) => {
         setSearchLoading(true);
@@ -262,11 +288,7 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
                 onCancel={() => setIsModalVisible(false)}
             >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <Select value={linkType} onChange={setLinkType} style={{ width: '100%' }}>
-                        <Select.Option value="reply">Ответ на...</Select.Option>
-                        <Select.Option value="follow_up">Во исполнение...</Select.Option>
-                        <Select.Option value="related">Связан с...</Select.Option>
-                    </Select>
+                    <Select value={linkType} onChange={setLinkType} style={{ width: '100%' }} options={availableLinkTypes} />
 
                     <Select value={targetKind || undefined} onChange={(val) => { setTargetKind(val); setTargetId(''); setSearchTerm(''); setTargetOptions([]); }} style={{ width: '100%' }}>
                         {selectableTargetKinds.map((kind) => (

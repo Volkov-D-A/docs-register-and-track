@@ -10,31 +10,34 @@ import (
 type DocumentKind string
 
 const (
-	DocumentKindIncomingLetter DocumentKind = "incoming_letter"
-	DocumentKindOutgoingLetter DocumentKind = "outgoing_letter"
-	DocumentKindCitizenAppeal  DocumentKind = "citizen_appeal"
+	DocumentKindIncomingLetter      DocumentKind = "incoming_letter"
+	DocumentKindOutgoingLetter      DocumentKind = "outgoing_letter"
+	DocumentKindCitizenAppeal       DocumentKind = "citizen_appeal"
+	DocumentKindAdministrativeOrder DocumentKind = "administrative_order"
 )
 
 const (
-	DocumentTypeLetter        = "Письмо"
-	DocumentTypeContract      = "Договор"
-	DocumentTypeAct           = "Акт"
-	DocumentTypeInvoice       = "Счёт"
-	DocumentTypeRequest       = "Запрос"
-	DocumentTypeReply         = "Ответ"
-	DocumentTypeNotification  = "Уведомление"
-	DocumentTypeCitizenAppeal = "Обращение"
+	DocumentTypeLetter              = "Письмо"
+	DocumentTypeContract            = "Договор"
+	DocumentTypeAct                 = "Акт"
+	DocumentTypeInvoice             = "Счёт"
+	DocumentTypeRequest             = "Запрос"
+	DocumentTypeReply               = "Ответ"
+	DocumentTypeNotification        = "Уведомление"
+	DocumentTypeCitizenAppeal       = "Обращение"
+	DocumentTypeAdministrativeOrder = "Приказ"
 )
 
 var documentTypeSet = map[string]struct{}{
-	DocumentTypeLetter:        {},
-	DocumentTypeContract:      {},
-	DocumentTypeAct:           {},
-	DocumentTypeInvoice:       {},
-	DocumentTypeRequest:       {},
-	DocumentTypeReply:         {},
-	DocumentTypeNotification:  {},
-	DocumentTypeCitizenAppeal: {},
+	DocumentTypeLetter:              {},
+	DocumentTypeContract:            {},
+	DocumentTypeAct:                 {},
+	DocumentTypeInvoice:             {},
+	DocumentTypeRequest:             {},
+	DocumentTypeReply:               {},
+	DocumentTypeNotification:        {},
+	DocumentTypeCitizenAppeal:       {},
+	DocumentTypeAdministrativeOrder: {},
 }
 
 func AllowedDocumentTypes() []string {
@@ -47,6 +50,7 @@ func AllowedDocumentTypes() []string {
 		DocumentTypeReply,
 		DocumentTypeNotification,
 		DocumentTypeCitizenAppeal,
+		DocumentTypeAdministrativeOrder,
 	}
 }
 
@@ -69,6 +73,10 @@ func (k DocumentKind) IsOutgoing() bool {
 
 func (k DocumentKind) IsCitizenAppeal() bool {
 	return k == DocumentKindCitizenAppeal
+}
+
+func (k DocumentKind) IsAdministrativeOrder() bool {
+	return k == DocumentKindAdministrativeOrder
 }
 
 // Document — общая корневая сущность документа.
@@ -216,6 +224,44 @@ type OutgoingDocument struct {
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
+// AdministrativeOrderDocument — приказ.
+type AdministrativeOrderDocument struct {
+	ID               uuid.UUID `json:"-"`
+	NomenclatureID   uuid.UUID `json:"-"`
+	NomenclatureName string    `json:"nomenclatureName,omitempty"`
+
+	OrderNumber string    `json:"orderNumber"`
+	OrderDate   time.Time `json:"orderDate"`
+	Title       string    `json:"title"`
+
+	ExecutionController string     `json:"executionController"`
+	ExecutionDeadline   *time.Time `json:"executionDeadline,omitempty"`
+	IsActive            bool       `json:"isActive"`
+	CancelledAt         *time.Time `json:"cancelledAt,omitempty"`
+
+	AcknowledgmentPeople []AdministrativeOrderAcknowledgmentPerson `json:"acknowledgmentPeople,omitempty"`
+
+	CreatedBy     uuid.UUID `json:"-"`
+	CreatedByName string    `json:"createdByName,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+
+	AttachmentsCount int `json:"attachmentsCount,omitempty"`
+	AssignmentsCount int `json:"assignmentsCount,omitempty"`
+}
+
+// AdministrativeOrderAcknowledgmentPerson описывает строку листа ознакомления приказа.
+type AdministrativeOrderAcknowledgmentPerson struct {
+	ID                 uuid.UUID  `json:"-"`
+	DocumentID         uuid.UUID  `json:"-"`
+	FullName           string     `json:"fullName"`
+	AcknowledgedAt     *time.Time `json:"acknowledgedAt,omitempty"`
+	AcknowledgedBy     *uuid.UUID `json:"-"`
+	AcknowledgedByName string     `json:"acknowledgedByName,omitempty"`
+	Position           int        `json:"position"`
+	CreatedAt          time.Time  `json:"createdAt"`
+}
+
 // DocumentLink — связь между документами
 type DocumentLink struct {
 	ID         uuid.UUID    `json:"-"`
@@ -234,31 +280,37 @@ type DocumentLink struct {
 
 // DocumentFilter — фильтры для журналов
 type DocumentFilter struct {
-	NomenclatureID         string   `json:"nomenclatureId,omitempty"`
-	NomenclatureIDs        []string `json:"nomenclatureIds,omitempty"`
-	AllowedNomenclatureIDs []string `json:"-"`
-	AccessibleByUserID     string   `json:"-"`
-	KindCode               string   `json:"kindCode,omitempty"`
-	DocumentTypeID         string   `json:"documentTypeId,omitempty"`
-	OrgID                  string   `json:"orgId,omitempty"`
-	DateFrom               string   `json:"dateFrom,omitempty"`
-	DateTo                 string   `json:"dateTo,omitempty"`
-	Search                 string   `json:"search,omitempty"`
-	IncomingNumber         string   `json:"incomingNumber,omitempty"`
-	RegistrationNumber     string   `json:"registrationNumber,omitempty"`
-	OutgoingNumber         string   `json:"outgoingNumber,omitempty"`
-	RecipientName          string   `json:"recipientName,omitempty"`
-	SenderName             string   `json:"senderName,omitempty"`
-	ApplicantName          string   `json:"applicantName,omitempty"`
-	AppealType             string   `json:"appealType,omitempty"`
-	AppealDateFrom         string   `json:"appealDateFrom,omitempty"`
-	AppealDateTo           string   `json:"appealDateTo,omitempty"`
-	OutgoingDateFrom       string   `json:"outgoingDateFrom,omitempty"`
-	OutgoingDateTo         string   `json:"outgoingDateTo,omitempty"`
-	Resolution             string   `json:"resolution,omitempty"`
-	NoResolution           bool     `json:"noResolution,omitempty"`
-	Page                   int      `json:"page"`
-	PageSize               int      `json:"pageSize"`
+	NomenclatureID            string   `json:"nomenclatureId,omitempty"`
+	NomenclatureIDs           []string `json:"nomenclatureIds,omitempty"`
+	AllowedNomenclatureIDs    []string `json:"-"`
+	AccessibleByUserID        string   `json:"-"`
+	KindCode                  string   `json:"kindCode,omitempty"`
+	DocumentTypeID            string   `json:"documentTypeId,omitempty"`
+	OrgID                     string   `json:"orgId,omitempty"`
+	DateFrom                  string   `json:"dateFrom,omitempty"`
+	DateTo                    string   `json:"dateTo,omitempty"`
+	Search                    string   `json:"search,omitempty"`
+	IncomingNumber            string   `json:"incomingNumber,omitempty"`
+	RegistrationNumber        string   `json:"registrationNumber,omitempty"`
+	OutgoingNumber            string   `json:"outgoingNumber,omitempty"`
+	RecipientName             string   `json:"recipientName,omitempty"`
+	SenderName                string   `json:"senderName,omitempty"`
+	ApplicantName             string   `json:"applicantName,omitempty"`
+	AppealType                string   `json:"appealType,omitempty"`
+	AppealDateFrom            string   `json:"appealDateFrom,omitempty"`
+	AppealDateTo              string   `json:"appealDateTo,omitempty"`
+	OutgoingDateFrom          string   `json:"outgoingDateFrom,omitempty"`
+	OutgoingDateTo            string   `json:"outgoingDateTo,omitempty"`
+	Resolution                string   `json:"resolution,omitempty"`
+	NoResolution              bool     `json:"noResolution,omitempty"`
+	OrderNumber               string   `json:"orderNumber,omitempty"`
+	ExecutionController       string   `json:"executionController,omitempty"`
+	OnlyControlled            bool     `json:"onlyControlled,omitempty"`
+	OnlyOverdue               bool     `json:"onlyOverdue,omitempty"`
+	OnlyPendingAcknowledgment bool     `json:"onlyPendingAcknowledgment,omitempty"`
+	OrderActiveStatus         string   `json:"orderActiveStatus,omitempty"`
+	Page                      int      `json:"page"`
+	PageSize                  int      `json:"pageSize"`
 }
 
 // OutgoingDocumentFilter описывает параметры фильтрации исходящих документов.
@@ -405,4 +457,30 @@ type UpdateCitizenAppealDocRequest struct {
 	ReceivedFromPOS      bool
 	Correspondents       []DocumentCorrespondentRegistration
 	Resolutions          []DocumentResolution
+}
+
+// CreateAdministrativeOrderDocRequest — запрос на создание приказа.
+type CreateAdministrativeOrderDocRequest struct {
+	NomenclatureID          uuid.UUID
+	CreatedBy               uuid.UUID
+	OrderNumber             string
+	OrderDate               time.Time
+	Title                   string
+	ExecutionController     string
+	ExecutionDeadline       *time.Time
+	IsActive                bool
+	CancelledAt             *time.Time
+	AcknowledgmentFullNames []string
+}
+
+// UpdateAdministrativeOrderDocRequest — запрос на обновление приказа.
+type UpdateAdministrativeOrderDocRequest struct {
+	ID                      uuid.UUID
+	OrderDate               time.Time
+	Title                   string
+	ExecutionController     string
+	ExecutionDeadline       *time.Time
+	IsActive                bool
+	CancelledAt             *time.Time
+	AcknowledgmentFullNames []string
 }
