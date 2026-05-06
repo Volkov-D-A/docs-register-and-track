@@ -8,7 +8,7 @@ import { LinksTab } from './DocumentLinks/LinksTab';
 import JournalList from './JournalList';
 
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
-import { getDocumentKindLabel, isAdministrativeOrderKind, isCitizenAppealKind, isIncomingKind } from '../constants/documentKinds';
+import { DOCUMENT_KIND_ADMINISTRATIVE_ORDER, getDocumentKindLabel, isAdministrativeOrderKind, isCitizenAppealKind, isIncomingKind } from '../constants/documentKinds';
 import { getDocumentViewConfig } from '../config/documentViewConfig';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 
@@ -277,6 +277,63 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
         </div>
     );
 
+    const markOrderAcknowledged = async (personId: string) => {
+        try {
+            const { MarkAcknowledged } = await import('../../wailsjs/go/services/AdministrativeOrderService');
+            await MarkAcknowledged(personId);
+            await loadData();
+            message.success('Отметка ознакомления проставлена');
+        } catch (err: any) {
+            message.error(err?.message || String(err));
+        }
+    };
+
+    const renderAdministrativeOrderExternalAcknowledgments = (people: any[] = []) => {
+        if (people.length === 0) {
+            return null;
+        }
+
+        return (
+            <>
+                <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
+
+                <div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Внешнее ознакомление:</Text>
+                    <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {people.map((person: any) => (
+                            <div
+                                key={person.id}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 12,
+                                    background: 'var(--app-subtle-surface)',
+                                    padding: '6px 8px',
+                                    borderRadius: 4,
+                                }}
+                            >
+                                <div>
+                                    <div style={{ fontWeight: 500 }}>{person.fullName}</div>
+                                    <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                                        {person.acknowledgedAt
+                                            ? `Ознакомлен: ${dayjs(person.acknowledgedAt).format('DD.MM.YYYY HH:mm')}${person.acknowledgedByName ? `, ${person.acknowledgedByName}` : ''}`
+                                            : 'Ожидает ознакомления'}
+                                    </div>
+                                </div>
+                                {!person.acknowledgedAt && canUpdateDocument && (
+                                    <Button size="small" type="primary" onClick={() => markOrderAcknowledged(person.id)}>
+                                        Отметить
+                                    </Button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </>
+        );
+    };
+
     const renderAdministrativeOrderInfo = (doc: any) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <Row gutter={16}>
@@ -316,6 +373,8 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                 </Row>
             )}
 
+            {renderAdministrativeOrderExternalAcknowledgments(doc.acknowledgmentPeople || [])}
+
             <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
             <Row gutter={16} style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
@@ -325,46 +384,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             </Row>
         </div>
     );
-
-    const markOrderAcknowledged = async (personId: string) => {
-        try {
-            const { MarkAcknowledged } = await import('../../wailsjs/go/services/AdministrativeOrderService');
-            await MarkAcknowledged(personId);
-            await loadData();
-            message.success('Отметка проставлена');
-        } catch (err: any) {
-            message.error(err?.message || String(err));
-        }
-    };
-
-    const renderAdministrativeOrderAcknowledgments = (doc: any, canUpdate: boolean) => {
-        const people = doc.acknowledgmentPeople || [];
-        if (people.length === 0) {
-            return <div style={{ color: 'var(--app-text-muted)' }}>Лист ознакомления пуст</div>;
-        }
-
-        return (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {people.map((person: any) => (
-                    <div key={person.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '10px 0', borderBottom: '1px solid var(--app-border)' }}>
-                        <div>
-                            <div style={{ fontWeight: 500 }}>{person.fullName}</div>
-                            <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
-                                {person.acknowledgedAt
-                                    ? `Ознакомлен: ${dayjs(person.acknowledgedAt).format('DD.MM.YYYY HH:mm')}${person.acknowledgedByName ? `, ${person.acknowledgedByName}` : ''}`
-                                    : 'Ожидает ознакомления'}
-                            </div>
-                        </div>
-                        {!person.acknowledgedAt && canUpdate && (
-                            <Button size="small" type="primary" onClick={() => markOrderAcknowledged(person.id)}>
-                                Отметить
-                            </Button>
-                        )}
-                    </div>
-                ))}
-            </div>
-        );
-    };
 
     const getNumber = () => {
         if (!data) return '';
@@ -391,6 +410,17 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     const canViewJournal = accessReady && hasAction(resolvedKindCode, 'view_journal');
     const canViewFiles = !!data;
     const creatableKinds = accessReady ? kinds.filter((kind) => hasAction(kind.code, 'create')) : [];
+    const createRelatedDocument = (targetKindCode: string, linkType = '') => {
+        useDraftLinkStore.getState().setDraftLink(
+            data.id,
+            data.kindCode,
+            getNumber(),
+            targetKindCode,
+            linkType
+        );
+        setCreateRelatedModalOpen(false);
+        onCancel();
+    };
 
     const getTabs = () => {
         const items = [
@@ -418,9 +448,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             },
             {
                 key: 'acknowledgments', label: 'Ознакомление',
-                children: isAdministrativeOrderDocument
-                    ? renderAdministrativeOrderAcknowledgments(details, canUpdateDocument)
-                    : <AcknowledgmentList documentId={data.id} documentKind={resolvedKindCode} />
+                children: <AcknowledgmentList documentId={data.id} documentKind={resolvedKindCode} />
             },
             {
                 key: 'journal', label: 'Журнал',
@@ -435,7 +463,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                 case 'links':
                     return canManageLinks;
                 case 'acknowledgments':
-                    return isAdministrativeOrderDocument ? true : canManageAcknowledgments;
+                    return canManageAcknowledgments;
                 case 'journal':
                     return canViewJournal;
                 case 'files':
@@ -492,25 +520,45 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                     </div>
                 ) : (
                     <Space direction="vertical" style={{ width: '100%' }}>
-                        {creatableKinds.map((kind) => (
-                            <Button
-                                key={kind.code}
-                                block
-                                size="large"
-                                onClick={() => {
-                                    useDraftLinkStore.getState().setDraftLink(
-                                        data.id,
-                                        data.kindCode,
-                                        getNumber(),
-                                        kind.code
-                                    );
-                                    setCreateRelatedModalOpen(false);
-                                    onCancel();
-                                }}
-                            >
-                                {kind.label}
-                            </Button>
-                        ))}
+                        {creatableKinds.map((kind) => {
+                            const isOrderToOrder = isAdministrativeOrderDocument
+                                && kind.code === DOCUMENT_KIND_ADMINISTRATIVE_ORDER;
+
+                            if (isOrderToOrder) {
+                                return (
+                                    <div
+                                        key={kind.code}
+                                        style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: 8,
+                                            padding: 12,
+                                            border: '1px solid var(--app-border)',
+                                            borderRadius: 6,
+                                        }}
+                                    >
+                                        <Text strong>{kind.label}</Text>
+                                        <Button block onClick={() => createRelatedDocument(kind.code, 'order_amends')}>
+                                            Изменяет/дополняет приказ
+                                        </Button>
+                                        <Button block danger onClick={() => createRelatedDocument(kind.code, 'order_cancels')}>
+                                            Отменяет приказ
+                                        </Button>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <Button
+                                    key={kind.code}
+                                    block
+                                    size="large"
+                                    onClick={() => createRelatedDocument(kind.code)}
+                                >
+                                    {kind.label}
+                                </Button>
+                            );
+                        })}
                     </Space>
                 )}
             </Modal>

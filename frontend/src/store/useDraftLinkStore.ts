@@ -6,7 +6,8 @@ interface DraftLinkState {
     sourceKind: string;
     sourceNumber: string;
     targetKind: string;
-    setDraftLink: (sourceId: string, sourceKind: string, sourceNumber: string, targetKind: string) => void;
+    linkType: string;
+    setDraftLink: (sourceId: string, sourceKind: string, sourceNumber: string, targetKind: string, linkType?: string) => void;
     clearDraftLink: () => void;
 }
 
@@ -15,18 +16,21 @@ export const useDraftLinkStore = create<DraftLinkState>((set) => ({
     sourceKind: DOCUMENT_KIND_INCOMING_LETTER,
     sourceNumber: '',
     targetKind: DOCUMENT_KIND_OUTGOING_LETTER,
+    linkType: '',
 
-    setDraftLink: (sourceId, sourceKind, sourceNumber, targetKind) => set({
+    setDraftLink: (sourceId, sourceKind, sourceNumber, targetKind, linkType = '') => set({
         sourceId,
         sourceKind,
         sourceNumber,
-        targetKind
+        targetKind,
+        linkType
     }),
 
     clearDraftLink: () => set({
         sourceId: '',
         sourceKind: DOCUMENT_KIND_INCOMING_LETTER,
         sourceNumber: '',
-        targetKind: DOCUMENT_KIND_OUTGOING_LETTER
+        targetKind: DOCUMENT_KIND_OUTGOING_LETTER,
+        linkType: ''
     })
 }));

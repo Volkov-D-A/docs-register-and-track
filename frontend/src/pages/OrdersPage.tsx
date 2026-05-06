@@ -7,7 +7,7 @@ import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { getDocumentPageConfig } from '../config/documentPageConfigs';
-import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
+import { getDocumentLinkTypeLabel, resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
 import {
     AdministrativeOrderDocumentForm,
     AdministrativeOrderFilters,
@@ -19,6 +19,12 @@ import {
 
 const dateValue = (value: any) => value?.format('YYYY-MM-DD') || '';
 
+const normalizeAcknowledgmentFullNames = (values: any[] = []) => (
+    values
+        .map((item: any) => (typeof item === 'string' ? item : item?.fullName))
+        .filter((value: any) => typeof value === 'string' && value.trim() !== '')
+);
+
 const OrdersPage: React.FC = () => {
     const { message } = App.useApp();
     const { ready: accessReady, getKindAccess } = useCurrentAccessSummary();
@@ -29,7 +35,7 @@ const OrdersPage: React.FC = () => {
     const pageConfig = getDocumentPageConfig(DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
     const filterDisabled = !accessReady || isExecutorOnly;
 
-    const { sourceId, sourceKind, sourceNumber, targetKind, clearDraftLink } = useDraftLinkStore();
+    const { sourceId, sourceKind, sourceNumber, targetKind, linkType: draftLinkType, clearDraftLink } = useDraftLinkStore();
 
     const [nomenclatures, setNomenclatures] = useState<any[]>([]);
     const [filterNomenclatureIds, setFilterNomenclatureIds] = useState<string[]>(defaultAdministrativeOrderFilters.filterNomenclatureIds);
@@ -138,7 +144,7 @@ const OrdersPage: React.FC = () => {
         executionDeadline: dateValue(values.executionDeadline),
         isActive: values.isActive !== false,
         cancelledAt: values.isActive === false ? dateValue(values.cancelledAt) : '',
-        acknowledgmentFullNames: values.acknowledgmentFullNames || [],
+        acknowledgmentFullNames: normalizeAcknowledgmentFullNames(values.acknowledgmentFullNames),
     });
 
     const onRegister = async (values: any) => {
@@ -152,8 +158,14 @@ const OrdersPage: React.FC = () => {
 
             if (sourceId && targetKind === DOCUMENT_KIND_ADMINISTRATIVE_ORDER) {
                 const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
-                const linkType = resolveLinkTypeForNewDocument(sourceKind, DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
-                await LinkDocuments(sourceId, newDoc.id, linkType);
+                const linkType = draftLinkType || resolveLinkTypeForNewDocument(sourceKind, DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
+                const sourceDocumentId = linkType === 'order_amends' || linkType === 'order_cancels'
+                    ? newDoc.id
+                    : sourceId;
+                const targetDocumentId = linkType === 'order_amends' || linkType === 'order_cancels'
+                    ? sourceId
+                    : newDoc.id;
+                await LinkDocuments(sourceDocumentId, targetDocumentId, linkType);
                 clearDraftLink();
             }
 
@@ -201,10 +213,20 @@ const OrdersPage: React.FC = () => {
         },
     });
 
+    const openEditModalWithFreshData = async (record: any) => {
+        try {
+            const { GetByID } = await import('../../wailsjs/go/services/DocumentQueryService');
+            const card = await GetByID(record.id);
+            openEditModal(card?.administrativeOrder || record);
+        } catch (err: any) {
+            message.error(err?.message || String(err));
+        }
+    };
+
     const columns = pageConfig.buildColumns({
         isExecutorOnly,
         openViewModal,
-        onEdit: openEditModal,
+        onEdit: openEditModalWithFreshData,
     });
 
     return (
@@ -249,18 +271,24 @@ const OrdersPage: React.FC = () => {
             totalCount={totalCount}
             onPageChange={(p, ps) => { setPage(p); setPageSize(ps); }}
             viewModalOpen={viewModalOpen}
-            onCloseViewModal={closeViewModal}
+            onCloseViewModal={() => {
+                closeViewModal();
+                load();
+            }}
             viewDocId={viewDocId}
             documentKind={DOCUMENT_KIND_ADMINISTRATIVE_ORDER}
             registerModal={{
                 title: pageConfig.registerModalTitle,
                 open: registerModalOpen,
-                onCancel: closeRegisterModal,
+                onCancel: () => { closeRegisterModal(); clearDraftLink(); },
                 onOk: () => registerForm.submit(),
                 width: 760,
                 okText: 'Зарегистрировать',
                 linkedBadge: sourceId && targetKind === DOCUMENT_KIND_ADMINISTRATIVE_ORDER ? (
-                    <Tag color="blue">Создание документа, связанного с: {getDocumentKindShortLabel(sourceKind)} №{sourceNumber}</Tag>
+                    <Tag color="blue">
+                        Создание документа, связанного с: {getDocumentKindShortLabel(sourceKind)} №{sourceNumber}
+                        {draftLinkType ? ` — ${getDocumentLinkTypeLabel(draftLinkType).toLowerCase()}` : ''}
+                    </Tag>
                 ) : null,
                 content: (
                     <AdministrativeOrderDocumentForm
@@ -285,6 +313,7 @@ const OrdersPage: React.FC = () => {
                         isEdit
                         onFinish={onUpdate}
                         nomenclatures={nomenclatures}
+                        acknowledgmentPeople={editDoc?.acknowledgmentPeople || []}
                     />
                 ),
             }}

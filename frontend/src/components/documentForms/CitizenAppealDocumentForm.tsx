@@ -135,41 +135,45 @@ const CitizenAppealDocumentForm: React.FC<CitizenAppealDocumentFormProps> = ({
         <Form.List name="correspondents">
             {(fields, { add, remove }) => (
                 <div style={{ marginBottom: 8 }}>
-                    {fields.map((field) => (
-                        <div key={field.key} style={{ marginBottom: 12 }}>
-                            <Row gutter={12} align="top">
-                                <Col span={7}>
-                                    <Form.Item {...field} name={[field.name, 'registrationNumber']} label="Рег. №" rules={[{ required: true, message: 'Укажите номер' }]}>
-                                        <Input />
-                                    </Form.Item>
-                                </Col>
-                                <Col span={6}>
-                                    <Form.Item {...field} name={[field.name, 'registrationDate']} label="Дата" rules={[{ required: true, message: 'Укажите дату' }]}>
-                                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" locale={locale} />
-                                    </Form.Item>
-                                </Col>
-                                <Col span={fields.length > 1 ? 9 : 11}>
-                                    <Form.Item {...field} name={[field.name, 'correspondentName']} label="Корреспондент" rules={[{ required: true, message: 'Укажите корреспондента' }]}>
-                                        <Select
-                                            showSearch
-                                            filterOption={false}
-                                            onSearch={onOrgSearch}
-                                            options={orgOptions}
-                                            notFoundContent={null}
-                                            onInputKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}
-                                        />
-                                    </Form.Item>
-                                </Col>
-                                {fields.length > 1 && (
-                                    <Col span={2}>
-                                        <Form.Item label=" " colon={false}>
-                                            <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                    {fields.map((field) => {
+                        const { key: fieldKey, ...restField } = field;
+
+                        return (
+                            <div key={fieldKey} style={{ marginBottom: 12 }}>
+                                <Row gutter={12} align="top">
+                                    <Col span={7}>
+                                        <Form.Item {...restField} name={[field.name, 'registrationNumber']} label="Рег. №" rules={[{ required: true, message: 'Укажите номер' }]}>
+                                            <Input />
                                         </Form.Item>
                                     </Col>
-                                )}
-                            </Row>
-                        </div>
-                    ))}
+                                    <Col span={6}>
+                                        <Form.Item {...restField} name={[field.name, 'registrationDate']} label="Дата" rules={[{ required: true, message: 'Укажите дату' }]}>
+                                            <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" locale={locale} />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col span={fields.length > 1 ? 9 : 11}>
+                                        <Form.Item {...restField} name={[field.name, 'correspondentName']} label="Корреспондент" rules={[{ required: true, message: 'Укажите корреспондента' }]}>
+                                            <Select
+                                                showSearch
+                                                filterOption={false}
+                                                onSearch={onOrgSearch}
+                                                options={orgOptions}
+                                                notFoundContent={null}
+                                                onInputKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}
+                                            />
+                                        </Form.Item>
+                                    </Col>
+                                    {fields.length > 1 && (
+                                        <Col span={2}>
+                                            <Form.Item label=" " colon={false}>
+                                                <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                            </Form.Item>
+                                        </Col>
+                                    )}
+                                </Row>
+                            </div>
+                        );
+                    })}
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => add()} style={smallAddButtonStyle}>
                             Добавить
@@ -182,39 +186,43 @@ const CitizenAppealDocumentForm: React.FC<CitizenAppealDocumentFormProps> = ({
         <Form.List name="resolutions">
             {(fields, { add, remove }) => (
                 <div>
-                    {fields.map((field, index) => (
-                        <div key={field.key} style={{ marginBottom: 12 }}>
-                            <Form.Item {...field} name={[field.name, 'resolution']} label={`Резолюция ${index + 1}`}>
-                                <TextArea rows={2} />
-                            </Form.Item>
-                            <Row gutter={12}>
-                                <Col span={11}>
-                                    <Form.Item {...field} name={[field.name, 'resolutionAuthor']} label="Автор резолюции">
-                                        <Input />
-                                    </Form.Item>
-                                </Col>
-                                <Col span={fields.length > 1 ? 11 : 13}>
-                                    <Form.Item {...field} name={[field.name, 'resolutionExecutors']} label="Исполнители резолюции">
-                                        <Select
-                                            mode="tags"
-                                            filterOption={false}
-                                            onSearch={onExecutorSearch}
-                                            options={executorOptions}
-                                            notFoundContent={null}
-                                            onInputKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}
-                                        />
-                                    </Form.Item>
-                                </Col>
-                                {fields.length > 1 && (
-                                    <Col span={2}>
-                                        <Form.Item label=" " colon={false}>
-                                            <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                    {fields.map((field, index) => {
+                        const { key: fieldKey, ...restField } = field;
+
+                        return (
+                            <div key={fieldKey} style={{ marginBottom: 12 }}>
+                                <Form.Item {...restField} name={[field.name, 'resolution']} label={`Резолюция ${index + 1}`}>
+                                    <TextArea rows={2} />
+                                </Form.Item>
+                                <Row gutter={12}>
+                                    <Col span={11}>
+                                        <Form.Item {...restField} name={[field.name, 'resolutionAuthor']} label="Автор резолюции">
+                                            <Input />
                                         </Form.Item>
                                     </Col>
-                                )}
-                            </Row>
-                        </div>
-                    ))}
+                                    <Col span={fields.length > 1 ? 11 : 13}>
+                                        <Form.Item {...restField} name={[field.name, 'resolutionExecutors']} label="Исполнители резолюции">
+                                            <Select
+                                                mode="tags"
+                                                filterOption={false}
+                                                onSearch={onExecutorSearch}
+                                                options={executorOptions}
+                                                notFoundContent={null}
+                                                onInputKeyDown={(e) => { if (e.key === ' ') e.stopPropagation(); }}
+                                            />
+                                        </Form.Item>
+                                    </Col>
+                                    {fields.length > 1 && (
+                                        <Col span={2}>
+                                            <Form.Item label=" " colon={false}>
+                                                <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                            </Form.Item>
+                                        </Col>
+                                    )}
+                                </Row>
+                            </div>
+                        );
+                    })}
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => add()} style={smallAddButtonStyle}>
                             Добавить резолюцию

@@ -43,7 +43,7 @@ export const administrativeOrderPageConfig = {
                             {record.isActive === false ? 'Не действующий' : 'Действующий'}
                         </Tag>
                         {record.pendingAcknowledgmentsCount > 0 && (
-                            <Tag color="gold">Ознакомление: {record.pendingAcknowledgmentsCount}</Tag>
+                            <Tag color="gold">Внешнее ознакомление: {record.pendingAcknowledgmentsCount}</Tag>
                         )}
                     </div>
                 </div>

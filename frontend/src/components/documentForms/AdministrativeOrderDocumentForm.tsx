@@ -1,7 +1,7 @@
 import React from 'react';
-import { Button, Col, DatePicker, Form, Input, Row, Select, Switch } from 'antd';
-import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
+import { Col, DatePicker, Form, Input, Row, Select, Switch, Tag } from 'antd';
 import locale from 'antd/es/date-picker/locale/ru_RU';
+import dayjs from 'dayjs';
 
 const { TextArea } = Input;
 
@@ -11,6 +11,7 @@ type AdministrativeOrderDocumentFormProps = {
     onFinish: (values: any) => void;
     nomenclatures: any[];
     selectedRegisterNomenclature?: any;
+    acknowledgmentPeople?: any[];
 };
 
 const AdministrativeOrderDocumentForm: React.FC<AdministrativeOrderDocumentFormProps> = ({
@@ -19,8 +20,26 @@ const AdministrativeOrderDocumentForm: React.FC<AdministrativeOrderDocumentFormP
     onFinish,
     nomenclatures,
     selectedRegisterNomenclature,
+    acknowledgmentPeople = [],
 }) => {
     const isActive = Form.useWatch('isActive', form);
+    const lockedAcknowledgmentPeople = acknowledgmentPeople.filter((person: any) => !!person.acknowledgedAt);
+    const lockedByName = new Map(
+        lockedAcknowledgmentPeople.map((person: any) => [person.fullName.trim().toLowerCase(), person])
+    );
+    const normalizeName = (value: string) => value.trim().toLowerCase();
+    const withLockedNames = (values: string[] = []) => {
+        const next = [...values];
+        const names = new Set(next.map(normalizeName));
+
+        lockedAcknowledgmentPeople.forEach((person: any) => {
+            if (!names.has(normalizeName(person.fullName))) {
+                next.push(person.fullName);
+            }
+        });
+
+        return next;
+    };
 
     return (
         <Form form={form} layout="vertical" onFinish={onFinish}>
@@ -83,28 +102,32 @@ const AdministrativeOrderDocumentForm: React.FC<AdministrativeOrderDocumentFormP
                 )}
             </Row>
 
-            <Form.List name="acknowledgmentFullNames">
-                {(fields, { add, remove }) => (
-                    <div>
-                        <div style={{ marginBottom: 8, fontWeight: 500 }}>Ознакомить</div>
-                        {fields.map((field) => (
-                            <Row key={field.key} gutter={8} align="middle">
-                                <Col flex="auto">
-                                    <Form.Item {...field} rules={[{ required: true, message: 'Введите ФИО' }]}>
-                                        <Input placeholder="ФИО" />
-                                    </Form.Item>
-                                </Col>
-                                <Col flex="32px">
-                                    <Button type="text" danger icon={<MinusCircleOutlined />} onClick={() => remove(field.name)} />
-                                </Col>
-                            </Row>
-                        ))}
-                        <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} block>
-                            Добавить ФИО
-                        </Button>
-                    </div>
-                )}
-            </Form.List>
+            <Form.Item name="acknowledgmentFullNames" label="Внешнее ознакомление" normalize={withLockedNames}>
+                <Select
+                    mode="tags"
+                    placeholder="Введите ФИО и нажмите Enter"
+                    options={acknowledgmentPeople.map((person: any) => ({ value: person.fullName, label: person.fullName }))}
+                    tagRender={({ label, value, closable, onClose }) => {
+                        const person = lockedByName.get(normalizeName(String(value)));
+                        const isLocked = !!person;
+                        const title = isLocked
+                            ? `Ознакомлен: ${dayjs(person.acknowledgedAt).format('DD.MM.YYYY HH:mm')}${person.acknowledgedByName ? `, ${person.acknowledgedByName}` : ''}`
+                            : undefined;
+
+                        return (
+                            <Tag
+                                color={isLocked ? 'green' : undefined}
+                                closable={!isLocked && closable}
+                                onClose={onClose}
+                                title={title}
+                                style={{ marginInlineEnd: 4 }}
+                            >
+                                {label}
+                            </Tag>
+                        );
+                    }}
+                />
+            </Form.Item>
         </Form>
     );
 };

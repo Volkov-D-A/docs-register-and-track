@@ -485,6 +485,25 @@ func replaceAdministrativeOrderAcknowledgmentPeopleTx(
 		preserved[key] = append(preserved[key], item)
 	}
 
+	nameCounts := make(map[string]int)
+	for _, rawName := range names {
+		name := strings.TrimSpace(rawName)
+		if name == "" {
+			continue
+		}
+		nameCounts[strings.ToLower(name)]++
+	}
+	for _, item := range existing {
+		if item.AcknowledgedAt == nil {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(item.FullName))
+		if nameCounts[key] == 0 {
+			return models.NewBadRequest(fmt.Sprintf("нельзя удалить ФИО уже ознакомленного: %s", item.FullName))
+		}
+		nameCounts[key]--
+	}
+
 	if _, err := tx.Exec(`DELETE FROM administrative_order_acknowledgment_people WHERE document_id = $1`, documentID); err != nil {
 		return fmt.Errorf("failed to clear administrative order acknowledgment people: %w", err)
 	}
@@ -501,6 +520,9 @@ func replaceAdministrativeOrderAcknowledgmentPeopleTx(
 		if items := preserved[key]; len(items) > 0 {
 			item := items[0]
 			preserved[key] = items[1:]
+			if item.AcknowledgedAt != nil {
+				name = item.FullName
+			}
 			acknowledgedAt = item.AcknowledgedAt
 			acknowledgedBy = item.AcknowledgedBy
 		}
