@@ -1914,6 +1914,7 @@ export namespace models {
 	    date: string;
 	    sender: string;
 	    recipient: string;
+	    isActive?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new GraphNode(source);
@@ -1928,6 +1929,7 @@ export namespace models {
 	        this.date = source["date"];
 	        this.sender = source["sender"];
 	        this.recipient = source["recipient"];
+	        this.isActive = source["isActive"];
 	    }
 	}
 	export class GraphData {

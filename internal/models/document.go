@@ -347,6 +347,7 @@ type GraphNode struct {
 	Date      string `json:"date"`
 	Sender    string `json:"sender"`
 	Recipient string `json:"recipient"`
+	IsActive  *bool  `json:"isActive,omitempty"`
 }
 
 // GraphEdge — ребро графа визуализации связей

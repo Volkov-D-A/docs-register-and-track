@@ -241,6 +241,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 	// Создаёт N запросов; можно оптимизировать через WHERE IN, но граф обычно маленький (< 20 узлов)
 	for id, docType := range docIDs {
 		var label, subject, dateStr, sender, recipient string
+		var isActive *bool
 		if doc, ok := readableDocs[id]; ok && doc != nil {
 			label = doc.RegistrationNumber
 			subject = doc.Content
@@ -293,6 +294,8 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 					subject = doc.Title
 					dateStr = doc.OrderDate.Format("02.01.2006")
 					sender = doc.ExecutionController
+					active := doc.IsActive
+					isActive = &active
 				}
 			}
 		}
@@ -309,6 +312,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 			Date:      dateStr,
 			Sender:    sender,
 			Recipient: recipient,
+			IsActive:  isActive,
 		})
 	}
 

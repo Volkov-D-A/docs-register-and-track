@@ -44,6 +44,7 @@ export namespace services {
         date: string;
         sender: string;
         recipient: string;
+        isActive?: boolean;
 
         constructor(source: any = {}) {
             if ('string' === typeof source) source = JSON.parse(source);
@@ -54,6 +55,7 @@ export namespace services {
             this.date = source["date"];
             this.sender = source["sender"];
             this.recipient = source["recipient"];
+            this.isActive = source["isActive"];
         }
     }
 

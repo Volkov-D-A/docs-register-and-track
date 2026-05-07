@@ -74,6 +74,10 @@ type mapCitizenAppealDocStore struct {
 	docs map[uuid.UUID]*models.CitizenAppealDocument
 }
 
+type mapAdministrativeOrderDocStore struct {
+	docs map[uuid.UUID]*models.AdministrativeOrderDocument
+}
+
 func (s *mapCitizenAppealDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error) {
 	return nil, nil
 }
@@ -91,6 +95,42 @@ func (s *mapCitizenAppealDocStore) Update(req models.UpdateCitizenAppealDocReque
 }
 
 func (s *mapCitizenAppealDocStore) GetCount() (int, error) {
+	return 0, nil
+}
+
+func (s *mapAdministrativeOrderDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error) {
+	return nil, nil
+}
+
+func (s *mapAdministrativeOrderDocStore) GetByID(id uuid.UUID) (*models.AdministrativeOrderDocument, error) {
+	return s.docs[id], nil
+}
+
+func (s *mapAdministrativeOrderDocStore) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
+	return nil, nil
+}
+
+func (s *mapAdministrativeOrderDocStore) Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
+	return nil, nil
+}
+
+func (s *mapAdministrativeOrderDocStore) GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
+	return nil, nil
+}
+
+func (s *mapAdministrativeOrderDocStore) GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error) {
+	return nil, nil
+}
+
+func (s *mapAdministrativeOrderDocStore) MarkAcknowledgmentPerson(id uuid.UUID, acknowledgedBy uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
+	return nil, nil
+}
+
+func (s *mapAdministrativeOrderDocStore) CancelByLink(id uuid.UUID, cancelledAt time.Time) error {
+	return nil
+}
+
+func (s *mapAdministrativeOrderDocStore) GetCount() (int, error) {
 	return 0, nil
 }
 
@@ -373,6 +413,67 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		require.NotNil(t, appealNode)
 		assert.Equal(t, string(models.DocumentKindCitizenAppeal), appealNode.KindCode)
 		assert.Equal(t, "Иванов Иван Иванович", appealNode.Sender)
+	})
+
+	t.Run("приказ передает статус активности в узел графа", func(t *testing.T) {
+		svc, repo, _, _, _ := setupLinkService(t, "clerk")
+		cancelledOrderID := uuid.New()
+		registrationDate := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
+
+		svc.access.documentRepo = &mapDocumentStore{
+			docs: map[uuid.UUID]*models.Document{
+				rootID: {
+					ID:                 rootID,
+					Kind:               models.DocumentKindAdministrativeOrder,
+					RegistrationNumber: "П-1",
+					RegistrationDate:   registrationDate,
+				},
+				cancelledOrderID: {
+					ID:                 cancelledOrderID,
+					Kind:               models.DocumentKindAdministrativeOrder,
+					RegistrationNumber: "П-2",
+					RegistrationDate:   registrationDate,
+				},
+			},
+		}
+		svc.administrativeOrderRepo = &mapAdministrativeOrderDocStore{
+			docs: map[uuid.UUID]*models.AdministrativeOrderDocument{
+				rootID: {
+					ID:          rootID,
+					OrderNumber: "П-1",
+					OrderDate:   registrationDate,
+					Title:       "Действующий приказ",
+					IsActive:    true,
+				},
+				cancelledOrderID: {
+					ID:          cancelledOrderID,
+					OrderNumber: "П-2",
+					OrderDate:   registrationDate,
+					Title:       "Недействующий приказ",
+					IsActive:    false,
+				},
+			},
+		}
+
+		mockLinks := []models.DocumentLink{
+			{ID: uuid.New(), SourceID: rootID, SourceKind: models.DocumentKindAdministrativeOrder, TargetID: cancelledOrderID, TargetKind: models.DocumentKindAdministrativeOrder, LinkType: "order_cancels"},
+		}
+		repo.On("GetGraph", context.Background(), rootID).Return(mockLinks, nil).Once()
+
+		result, err := svc.GetDocumentFlow(rootID.String())
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		var cancelledOrderNode *models.GraphNode
+		for i := range result.Nodes {
+			if result.Nodes[i].ID == cancelledOrderID.String() {
+				cancelledOrderNode = &result.Nodes[i]
+				break
+			}
+		}
+		require.NotNil(t, cancelledOrderNode)
+		require.NotNil(t, cancelledOrderNode.IsActive)
+		assert.False(t, *cancelledOrderNode.IsActive)
 	})
 
 	t.Run("скрывает доступные узлы за недоступным мостом", func(t *testing.T) {

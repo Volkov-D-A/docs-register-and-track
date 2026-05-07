@@ -294,6 +294,7 @@ function App() {
             <Modal
                 title="Первичная настройка организации"
                 open={organizationSetupOpen}
+                forceRender
                 closable={false}
                 mask={{ closable: false }}
                 keyboard={false}
@@ -303,11 +304,7 @@ function App() {
                 onOk={handleOrganizationSetupSave}
                 okButtonProps={{ disabled: organizationSetupLoading }}
             >
-                {organizationSetupLoading ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
-                        <Spin />
-                    </div>
-                ) : (
+                <Spin spinning={organizationSetupLoading}>
                     <Form form={organizationSetupForm} layout="vertical">
                         <Form.Item name="organization_name" label="Название организации" rules={[{ required: true, whitespace: true }]}>
                             <Input placeholder="Полное название организации" />
@@ -316,7 +313,7 @@ function App() {
                             <Input placeholder="Краткое название организации" />
                         </Form.Item>
                     </Form>
-                )}
+                </Spin>
             </Modal>
         </>
     );

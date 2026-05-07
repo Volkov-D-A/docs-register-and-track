@@ -30,7 +30,7 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 	argIdx := 2
 
 	if filter.AccessibleByUserID != "" {
-		accessClauses := make([]string, 0, 2)
+		accessClauses := make([]string, 0, 3)
 		if len(filter.AllowedNomenclatureIDs) > 0 {
 			accessClauses = append(accessClauses, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
 			args = append(args, pq.Array(filter.AllowedNomenclatureIDs))
@@ -50,6 +50,16 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 				)
 			  )
 		)`, argIdx, argIdx))
+		args = append(args, filter.AccessibleByUserID)
+		argIdx++
+
+		accessClauses = append(accessClauses, fmt.Sprintf(`EXISTS (
+			SELECT 1
+			FROM acknowledgment_users au
+			JOIN acknowledgments a ON au.acknowledgment_id = a.id
+			WHERE au.user_id = $%d
+			  AND a.document_id = d.id
+		)`, argIdx))
 		args = append(args, filter.AccessibleByUserID)
 		argIdx++
 

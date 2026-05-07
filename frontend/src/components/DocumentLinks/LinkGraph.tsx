@@ -18,9 +18,11 @@ import {
 import '@xyflow/react/dist/style.css';
 import { GetDocumentFlow, services } from '../../types/link';
 import {
+    DOCUMENT_KIND_ADMINISTRATIVE_ORDER,
     DOCUMENT_KIND_CITIZEN_APPEAL,
     DOCUMENT_KIND_INCOMING_LETTER,
     DOCUMENT_KIND_OUTGOING_LETTER,
+    isAdministrativeOrderKind,
     isCitizenAppealKind,
     isIncomingKind,
 } from '../../constants/documentKinds';
@@ -56,14 +58,47 @@ const NODE_COLORS = {
         badgeBackground: '#fa8c16',
         meta: '#d46b08',
     },
+    administrativeOrder: {
+        background: '#f9f0ff',
+        border: '#d3adf7',
+        accent: getLinkedDocumentColor(DOCUMENT_KIND_ADMINISTRATIVE_ORDER),
+        badgeBackground: getLinkedDocumentColor(DOCUMENT_KIND_ADMINISTRATIVE_ORDER),
+        meta: '#531dab',
+    },
 } as const;
 
 const getNodePalette = (type: string) => {
+    if (isAdministrativeOrderKind(type)) {
+        return NODE_COLORS.administrativeOrder;
+    }
+
     if (isCitizenAppealKind(type)) {
         return NODE_COLORS.citizenAppeal;
     }
 
     return isIncomingKind(type) ? NODE_COLORS.incoming : NODE_COLORS.outgoing;
+};
+
+const DOCUMENT_COLOR_LABELS: Record<string, string> = {
+    blue: 'синий',
+    green: 'зеленый',
+    orange: 'оранжевый',
+    purple: 'фиолетовый',
+};
+
+const getDocumentColorTooltip = (kind: string) => {
+    const color = getLinkedDocumentColor(kind);
+    const colorLabel = DOCUMENT_COLOR_LABELS[color] || color;
+
+    return colorLabel === color ? `Цвет: ${color}` : `Цвет: ${colorLabel} (${color})`;
+};
+
+const getOrderStatusLabel = (isActive?: boolean) => {
+    if (typeof isActive !== 'boolean') {
+        return '';
+    }
+
+    return isActive ? 'Действующий' : 'Не действующий';
 };
 
 const NODE_WIDTH = 265;
@@ -189,9 +224,14 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                 const isRootNode = n.id === rootId;
                 const documentLabel = getLinkedDocumentLabel(n.kindCode);
                 const counterpartyLabel = getLinkedDocumentCounterpartyLabel(n.kindCode, n.sender, n.recipient);
+                const isOrderNode = isAdministrativeOrderKind(n.kindCode);
+                const orderStatusLabel = isOrderNode ? getOrderStatusLabel(n.isActive) : '';
+                const colorTooltip = getDocumentColorTooltip(n.kindCode);
                 const nodeTooltip = [
                     `${documentLabel} № ${n.label}`,
                     n.date ? `Дата: ${n.date}` : '',
+                    colorTooltip,
+                    orderStatusLabel ? `Статус: ${orderStatusLabel}` : '',
                     counterpartyLabel,
                     n.subject ? `Содержание: ${n.subject}` : '',
                 ].filter(Boolean).join('\n');
@@ -226,12 +266,37 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                                             fontWeight: 700,
                                             lineHeight: 1.4,
                                             textTransform: 'uppercase',
-                                            letterSpacing: '0.04em',
+                                            letterSpacing: 0,
                                         }}
                                     >
                                         {documentLabel}
                                     </span>
                                 </div>
+                                {orderStatusLabel && (
+                                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
+                                        <span
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 5,
+                                                color: n.isActive === false ? 'var(--app-text-muted)' : '#237804',
+                                                fontSize: '10px',
+                                                fontWeight: 600,
+                                                lineHeight: 1.4,
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    width: 7,
+                                                    height: 7,
+                                                    borderRadius: 999,
+                                                    background: n.isActive === false ? 'var(--app-text-muted)' : '#52c41a',
+                                                }}
+                                            />
+                                            {orderStatusLabel}
+                                        </span>
+                                    </div>
+                                )}
                                 <div
                                     style={{
                                         fontWeight: 'bold',
@@ -340,8 +405,12 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                         boxShadow: '0 4px 14px var(--app-panel-shadow)',
                     }}
                 >
-                    {[DOCUMENT_KIND_INCOMING_LETTER, DOCUMENT_KIND_OUTGOING_LETTER, DOCUMENT_KIND_CITIZEN_APPEAL].map((kind) => (
-                        <div key={kind} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--app-text-muted)' }}>
+                    {[DOCUMENT_KIND_INCOMING_LETTER, DOCUMENT_KIND_OUTGOING_LETTER, DOCUMENT_KIND_CITIZEN_APPEAL, DOCUMENT_KIND_ADMINISTRATIVE_ORDER].map((kind) => (
+                        <div
+                            key={kind}
+                            title={`${getLinkedDocumentLabel(kind)}. ${getDocumentColorTooltip(kind)}`}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--app-text-muted)' }}
+                        >
                             <span style={{ width: 10, height: 10, borderRadius: 999, background: getLinkedDocumentColor(kind) }} />
                             {getLinkedDocumentLabel(kind)}
                         </div>
