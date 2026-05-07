@@ -96,12 +96,6 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 		args = append(args, "%"+filter.ExecutionController+"%")
 		argIdx++
 	}
-	if filter.OnlyControlled {
-		where = append(where, "NULLIF(BTRIM(ord.execution_controller), '') IS NOT NULL")
-	}
-	if filter.OnlyOverdue {
-		where = append(where, "ord.execution_deadline IS NOT NULL AND ord.execution_deadline < CURRENT_DATE AND ord.is_active = true")
-	}
 	if filter.OnlyPendingAcknowledgment {
 		where = append(where, `EXISTS (
 			SELECT 1

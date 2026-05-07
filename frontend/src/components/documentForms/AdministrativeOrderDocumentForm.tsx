@@ -76,12 +76,16 @@ const AdministrativeOrderDocumentForm: React.FC<AdministrativeOrderDocumentFormP
 
             <Row gutter={16}>
                 <Col span={12}>
-                    <Form.Item name="executionController" label="Контроль за выполнением">
+                    <Form.Item
+                        name="executionController"
+                        label="Контроль за выполнением"
+                        rules={[{ required: true, whitespace: true, message: 'Укажите контроль за выполнением' }]}
+                    >
                         <Input placeholder="ФИО контролирующего" />
                     </Form.Item>
                 </Col>
                 <Col span={12}>
-                    <Form.Item name="executionDeadline" label="Срок выполнения">
+                    <Form.Item name="executionDeadline" label="Срок выполнения (справочно)">
                         <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" locale={locale} />
                     </Form.Item>
                 </Col>

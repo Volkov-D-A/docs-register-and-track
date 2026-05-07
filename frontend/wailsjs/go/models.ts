@@ -1736,8 +1736,6 @@ export namespace models {
 	    noResolution?: boolean;
 	    orderNumber?: string;
 	    executionController?: string;
-	    onlyControlled?: boolean;
-	    onlyOverdue?: boolean;
 	    onlyPendingAcknowledgment?: boolean;
 	    orderActiveStatus?: string;
 	    page: number;
@@ -1772,8 +1770,6 @@ export namespace models {
 	        this.noResolution = source["noResolution"];
 	        this.orderNumber = source["orderNumber"];
 	        this.executionController = source["executionController"];
-	        this.onlyControlled = source["onlyControlled"];
-	        this.onlyOverdue = source["onlyOverdue"];
 	        this.onlyPendingAcknowledgment = source["onlyPendingAcknowledgment"];
 	        this.orderActiveStatus = source["orderActiveStatus"];
 	        this.page = source["page"];
@@ -2243,4 +2239,3 @@ export namespace services {
 	}
 
 }
-

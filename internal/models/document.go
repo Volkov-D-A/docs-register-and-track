@@ -305,8 +305,6 @@ type DocumentFilter struct {
 	NoResolution              bool     `json:"noResolution,omitempty"`
 	OrderNumber               string   `json:"orderNumber,omitempty"`
 	ExecutionController       string   `json:"executionController,omitempty"`
-	OnlyControlled            bool     `json:"onlyControlled,omitempty"`
-	OnlyOverdue               bool     `json:"onlyOverdue,omitempty"`
 	OnlyPendingAcknowledgment bool     `json:"onlyPendingAcknowledgment,omitempty"`
 	OrderActiveStatus         string   `json:"orderActiveStatus,omitempty"`
 	Page                      int      `json:"page"`

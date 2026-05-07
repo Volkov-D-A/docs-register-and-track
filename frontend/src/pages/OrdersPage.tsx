@@ -43,8 +43,6 @@ const OrdersPage: React.FC = () => {
     const [filterExecutionController, setFilterExecutionController] = useState(defaultAdministrativeOrderFilters.filterExecutionController);
     const [filterDateFrom, setFilterDateFrom] = useState(defaultAdministrativeOrderFilters.filterDateFrom);
     const [filterDateTo, setFilterDateTo] = useState(defaultAdministrativeOrderFilters.filterDateTo);
-    const [filterOnlyControlled, setFilterOnlyControlled] = useState(defaultAdministrativeOrderFilters.filterOnlyControlled);
-    const [filterOnlyOverdue, setFilterOnlyOverdue] = useState(defaultAdministrativeOrderFilters.filterOnlyOverdue);
     const [filterOnlyPendingAcknowledgment, setFilterOnlyPendingAcknowledgment] = useState(defaultAdministrativeOrderFilters.filterOnlyPendingAcknowledgment);
     const [filterOrderActiveStatus, setFilterOrderActiveStatus] = useState(defaultAdministrativeOrderFilters.filterOrderActiveStatus);
 
@@ -86,8 +84,6 @@ const OrdersPage: React.FC = () => {
             filterExecutionController,
             filterDateFrom,
             filterDateTo,
-            filterOnlyControlled,
-            filterOnlyOverdue,
             filterOnlyPendingAcknowledgment,
             filterOrderActiveStatus,
         },
@@ -99,8 +95,6 @@ const OrdersPage: React.FC = () => {
             filterExecutionController,
             filterDateFrom,
             filterDateTo,
-            filterOnlyControlled,
-            filterOnlyOverdue,
             filterOnlyPendingAcknowledgment,
             filterOrderActiveStatus,
         ],
@@ -118,8 +112,6 @@ const OrdersPage: React.FC = () => {
         setFilterExecutionController(defaultAdministrativeOrderFilters.filterExecutionController);
         setFilterDateFrom(defaultAdministrativeOrderFilters.filterDateFrom);
         setFilterDateTo(defaultAdministrativeOrderFilters.filterDateTo);
-        setFilterOnlyControlled(defaultAdministrativeOrderFilters.filterOnlyControlled);
-        setFilterOnlyOverdue(defaultAdministrativeOrderFilters.filterOnlyOverdue);
         setFilterOnlyPendingAcknowledgment(defaultAdministrativeOrderFilters.filterOnlyPendingAcknowledgment);
         setFilterOrderActiveStatus(defaultAdministrativeOrderFilters.filterOrderActiveStatus);
         setPage(1);
@@ -131,8 +123,6 @@ const OrdersPage: React.FC = () => {
         filterExecutionController,
         filterDateFrom,
         filterDateTo,
-        filterOnlyControlled,
-        filterOnlyOverdue,
         filterOnlyPendingAcknowledgment,
         filterOrderActiveStatus,
     });
@@ -140,7 +130,7 @@ const OrdersPage: React.FC = () => {
     const buildPayload = (values: any) => ({
         orderDate: dateValue(values.orderDate),
         title: values.title || '',
-        executionController: values.executionController || '',
+        executionController: String(values.executionController || '').trim(),
         executionDeadline: dateValue(values.executionDeadline),
         isActive: values.isActive !== false,
         cancelledAt: values.isActive === false ? dateValue(values.cancelledAt) : '',
@@ -248,15 +238,11 @@ const OrdersPage: React.FC = () => {
                     filterExecutionController={filterExecutionController}
                     filterDateFrom={filterDateFrom}
                     filterDateTo={filterDateTo}
-                    filterOnlyControlled={filterOnlyControlled}
-                    filterOnlyOverdue={filterOnlyOverdue}
                     filterOnlyPendingAcknowledgment={filterOnlyPendingAcknowledgment}
                     filterOrderActiveStatus={filterOrderActiveStatus}
                     onOrderNumberChange={(value) => { setFilterOrderNumber(value); setPage(1); }}
                     onExecutionControllerChange={(value) => { setFilterExecutionController(value); setPage(1); }}
                     onDateRangeChange={(from, to) => { setFilterDateFrom(from); setFilterDateTo(to); setPage(1); }}
-                    onOnlyControlledChange={(value) => { setFilterOnlyControlled(value); setPage(1); }}
-                    onOnlyOverdueChange={(value) => { setFilterOnlyOverdue(value); setPage(1); }}
                     onOnlyPendingAcknowledgmentChange={(value) => { setFilterOnlyPendingAcknowledgment(value); setPage(1); }}
                     onOrderActiveStatusChange={(value) => { setFilterOrderActiveStatus(value); setPage(1); }}
                     onClear={clearFilters}

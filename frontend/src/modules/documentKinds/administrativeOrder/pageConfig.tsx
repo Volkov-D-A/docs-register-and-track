@@ -57,7 +57,7 @@ export const administrativeOrderPageConfig = {
                 <div style={{ fontSize: 13 }}>
                     <div>{record.executionController || '—'}</div>
                     {record.executionDeadline && (
-                        <div style={{ color: dayjs(record.executionDeadline).isBefore(dayjs(), 'day') && record.isActive !== false ? '#cf1322' : 'var(--app-text-muted)' }}>
+                        <div style={{ color: 'var(--app-text-muted)' }}>
                             срок: {dayjs(record.executionDeadline).format('DD.MM.YYYY')}
                         </div>
                     )}

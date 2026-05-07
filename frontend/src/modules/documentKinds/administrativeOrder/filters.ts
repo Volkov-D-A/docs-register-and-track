@@ -4,8 +4,6 @@ export type AdministrativeOrderFiltersState = {
     filterExecutionController: string;
     filterDateFrom: string;
     filterDateTo: string;
-    filterOnlyControlled: boolean;
-    filterOnlyOverdue: boolean;
     filterOnlyPendingAcknowledgment: boolean;
     filterOrderActiveStatus: string;
 };
@@ -16,8 +14,6 @@ export const defaultAdministrativeOrderFilters: AdministrativeOrderFiltersState 
     filterExecutionController: '',
     filterDateFrom: '',
     filterDateTo: '',
-    filterOnlyControlled: false,
-    filterOnlyOverdue: false,
     filterOnlyPendingAcknowledgment: false,
     filterOrderActiveStatus: '',
 };
@@ -41,8 +37,6 @@ export const buildAdministrativeOrderQueryFilter = ({
     dateTo: filters.filterDateTo,
     orderNumber: filters.filterOrderNumber,
     executionController: filters.filterExecutionController,
-    onlyControlled: filters.filterOnlyControlled,
-    onlyOverdue: filters.filterOnlyOverdue,
     onlyPendingAcknowledgment: filters.filterOnlyPendingAcknowledgment,
     orderActiveStatus: filters.filterOrderActiveStatus,
 });
@@ -53,8 +47,6 @@ export const hasAdministrativeOrderFilters = (filters: AdministrativeOrderFilter
     || filters.filterExecutionController
     || filters.filterDateFrom
     || filters.filterDateTo
-    || filters.filterOnlyControlled
-    || filters.filterOnlyOverdue
     || filters.filterOnlyPendingAcknowledgment
     || filters.filterOrderActiveStatus
 );

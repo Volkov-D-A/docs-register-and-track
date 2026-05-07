@@ -87,6 +87,26 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 		return nil, models.NewBadRequest("выберите дело из номенклатуры приказов")
 	}
 
+	orderDate, err := time.Parse("2006-01-02", req.OrderDate)
+	if err != nil {
+		return nil, models.NewBadRequest("неверный формат даты приказа")
+	}
+	deadline, err := parseOptionalDate(req.ExecutionDeadline, "неверный формат срока выполнения")
+	if err != nil {
+		return nil, err
+	}
+	executionController := strings.TrimSpace(req.ExecutionController)
+	if executionController == "" {
+		return nil, models.NewBadRequest("укажите контроль за выполнением")
+	}
+	cancelledAt, err := parseOptionalDateTime(req.CancelledAt, "неверный формат даты отмены")
+	if err != nil {
+		return nil, err
+	}
+	if err := validateOrderActivity(req.IsActive, cancelledAt); err != nil {
+		return nil, err
+	}
+
 	orderNumber := strings.TrimSpace(req.RegistrationNumber)
 	if nom.NumberingMode == NumberingModeManualOnly {
 		if orderNumber == "" {
@@ -100,23 +120,6 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 		orderNumber = formatDocumentNumber(index, separator, numberingMode, nextNum)
 	}
 
-	orderDate, err := time.Parse("2006-01-02", req.OrderDate)
-	if err != nil {
-		return nil, models.NewBadRequest("неверный формат даты приказа")
-	}
-
-	deadline, err := parseOptionalDate(req.ExecutionDeadline, "неверный формат срока выполнения")
-	if err != nil {
-		return nil, err
-	}
-	cancelledAt, err := parseOptionalDateTime(req.CancelledAt, "неверный формат даты отмены")
-	if err != nil {
-		return nil, err
-	}
-	if err := validateOrderActivity(req.IsActive, cancelledAt); err != nil {
-		return nil, err
-	}
-
 	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
 		return nil, ErrNotAuthenticated
@@ -128,7 +131,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 		OrderNumber:             orderNumber,
 		OrderDate:               orderDate,
 		Title:                   strings.TrimSpace(req.Title),
-		ExecutionController:     strings.TrimSpace(req.ExecutionController),
+		ExecutionController:     executionController,
 		ExecutionDeadline:       deadline,
 		IsActive:                req.IsActive,
 		CancelledAt:             cancelledAt,
@@ -172,6 +175,10 @@ func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdate
 	if err != nil {
 		return nil, err
 	}
+	executionController := strings.TrimSpace(req.ExecutionController)
+	if executionController == "" {
+		return nil, models.NewBadRequest("укажите контроль за выполнением")
+	}
 	cancelledAt, err := parseOptionalDateTime(req.CancelledAt, "неверный формат даты отмены")
 	if err != nil {
 		return nil, err
@@ -184,7 +191,7 @@ func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdate
 		ID:                      uid,
 		OrderDate:               orderDate,
 		Title:                   strings.TrimSpace(req.Title),
-		ExecutionController:     strings.TrimSpace(req.ExecutionController),
+		ExecutionController:     executionController,
 		ExecutionDeadline:       deadline,
 		IsActive:                req.IsActive,
 		CancelledAt:             cancelledAt,

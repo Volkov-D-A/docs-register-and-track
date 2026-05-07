@@ -12,15 +12,11 @@ type AdministrativeOrderFiltersProps = {
     filterExecutionController: string;
     filterDateFrom: string;
     filterDateTo: string;
-    filterOnlyControlled: boolean;
-    filterOnlyOverdue: boolean;
     filterOnlyPendingAcknowledgment: boolean;
     filterOrderActiveStatus: string;
     onOrderNumberChange: (value: string) => void;
     onExecutionControllerChange: (value: string) => void;
     onDateRangeChange: (from: string, to: string) => void;
-    onOnlyControlledChange: (value: boolean) => void;
-    onOnlyOverdueChange: (value: boolean) => void;
     onOnlyPendingAcknowledgmentChange: (value: boolean) => void;
     onOrderActiveStatusChange: (value: string) => void;
     onClear: () => void;
@@ -32,15 +28,11 @@ const AdministrativeOrderFilters: React.FC<AdministrativeOrderFiltersProps> = ({
     filterExecutionController,
     filterDateFrom,
     filterDateTo,
-    filterOnlyControlled,
-    filterOnlyOverdue,
     filterOnlyPendingAcknowledgment,
     filterOrderActiveStatus,
     onOrderNumberChange,
     onExecutionControllerChange,
     onDateRangeChange,
-    onOnlyControlledChange,
-    onOnlyOverdueChange,
     onOnlyPendingAcknowledgmentChange,
     onOrderActiveStatusChange,
     onClear,
@@ -92,12 +84,6 @@ const AdministrativeOrderFilters: React.FC<AdministrativeOrderFiltersProps> = ({
             </Col>
         </Row>
         <Row gutter={16}>
-            <Col span={8}>
-                <Checkbox checked={filterOnlyControlled} onChange={e => onOnlyControlledChange(e.target.checked)}>На контроле</Checkbox>
-            </Col>
-            <Col span={8}>
-                <Checkbox checked={filterOnlyOverdue} onChange={e => onOnlyOverdueChange(e.target.checked)}>Просрочен срок</Checkbox>
-            </Col>
             <Col span={8}>
                 <Checkbox checked={filterOnlyPendingAcknowledgment} onChange={e => onOnlyPendingAcknowledgmentChange(e.target.checked)}>Незавершенное ознакомление</Checkbox>
             </Col>
