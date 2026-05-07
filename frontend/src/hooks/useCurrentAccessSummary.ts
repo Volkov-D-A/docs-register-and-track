@@ -4,6 +4,7 @@ import { documentKinds, DocumentKindMeta, toDocumentKindMeta } from '../constant
 import { useAuthStore } from '../store/useAuthStore';
 
 type AccessSummaryState = {
+    userId: string | null;
     summary: dto.CurrentAccessSummary | null;
     loading: boolean;
     ready: boolean;
@@ -79,38 +80,47 @@ export const resetCurrentAccessSummaryCache = () => {
 export const useCurrentAccessSummary = () => {
     const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
     const userId = useAuthStore((state) => state.user?.id ?? null);
+    const cachedSummaryForUser = cachedUserId === userId ? cachedSummary : null;
     const [state, setState] = useState<AccessSummaryState>({
-        summary: cachedUserId === userId ? cachedSummary : null,
+        userId: cachedSummaryForUser ? userId : null,
+        summary: cachedSummaryForUser,
         loading: false,
-        ready: false,
+        ready: !isAuthenticated || !!cachedSummaryForUser,
         error: null,
     });
 
     useEffect(() => {
         if (!isAuthenticated || !userId) {
             resetCurrentAccessSummaryCache();
-            setState({ summary: null, loading: false, ready: true, error: null });
+            setState({ userId: null, summary: null, loading: false, ready: true, error: null });
             return;
         }
 
         let isActive = true;
 
         if (cachedUserId === userId && cachedSummary) {
-            setState({ summary: cachedSummary, loading: false, ready: true, error: null });
+            setState({ userId, summary: cachedSummary, loading: false, ready: true, error: null });
             return;
         }
 
-        setState((prev) => ({ ...prev, loading: true, ready: false, error: null }));
+        setState((prev) => ({
+            ...prev,
+            userId,
+            summary: prev.userId === userId ? prev.summary : null,
+            loading: true,
+            ready: false,
+            error: null,
+        }));
         void loadAccessSummary(userId)
             .then((summary) => {
                 if (isActive) {
-                    setState({ summary, loading: false, ready: true, error: null });
+                    setState({ userId, summary, loading: false, ready: true, error: null });
                 }
             })
             .catch((error) => {
                 console.error('Failed to load current access summary:', error);
                 if (isActive) {
-                    setState({ summary: null, loading: false, ready: true, error });
+                    setState({ userId, summary: null, loading: false, ready: true, error });
                 }
             });
 
@@ -119,22 +129,24 @@ export const useCurrentAccessSummary = () => {
         };
     }, [isAuthenticated, userId]);
 
-    const sections = state.summary?.sections || emptySections;
+    const ready = !isAuthenticated || (!!userId && state.ready && state.userId === userId);
+    const currentSummary = ready ? state.summary : null;
+    const sections = currentSummary?.sections || emptySections;
 
     const kinds = useMemo(() => (
-        (state.summary?.documentKinds || [])
+        (currentSummary?.documentKinds || [])
             .map(mapAccessKindToMeta)
             .filter(Boolean) as DocumentKindMeta[]
-    ), [state.summary]);
+    ), [currentSummary]);
 
     const documentKindAccess = useMemo(() => (
-        new Map((state.summary?.documentKinds || []).map((kind) => [kind.code, kind]))
-    ), [state.summary]);
+        new Map((currentSummary?.documentKinds || []).map((kind) => [kind.code, kind]))
+    ), [currentSummary]);
 
     const registrationKinds = useMemo(() => {
-        const allowed = new Set(state.summary?.registrationKinds || []);
+        const allowed = new Set(currentSummary?.registrationKinds || []);
         return kinds.filter((kind) => allowed.has(kind.code) || kind.availableActions?.includes('create'));
-    }, [kinds, state.summary]);
+    }, [kinds, currentSummary]);
 
     const getKindAccess = useCallback((kindCode?: string) => (
         kindCode ? documentKindAccess.get(kindCode) : undefined
@@ -145,8 +157,8 @@ export const useCurrentAccessSummary = () => {
     ), [getKindAccess]);
 
     const hasAnyAction = useCallback((action: string) => (
-        (state.summary?.documentKinds || []).some((kind) => kind.availableActions?.includes(action))
-    ), [state.summary]);
+        (currentSummary?.documentKinds || []).some((kind) => kind.availableActions?.includes(action))
+    ), [currentSummary]);
 
     const canAccessPage = useCallback((page: string) => {
         switch (page) {
@@ -192,13 +204,13 @@ export const useCurrentAccessSummary = () => {
     }, [sections]);
 
     return {
-        summary: state.summary,
+        summary: currentSummary,
         sections,
         kinds: kinds.length > 0 ? kinds : documentKinds,
         documentKindAccess,
         registrationKinds,
         loading: state.loading,
-        ready: state.ready,
+        ready,
         error: state.error,
         getKindAccess,
         hasAction,

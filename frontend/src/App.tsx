@@ -46,8 +46,8 @@ function App() {
     } = useCurrentAccessSummary();
     const requestedRegisterKind = useRegisterDocumentStore((state) => state.requestedKind);
 
-    // При входе в приложение всегда перенаправляем на дашборд
-    // Или на страницу создания документа, если есть draftLink
+    // При входе выбираем первый доступный раздел по правам пользователя.
+    // Или страницу создания документа, если есть draftLink.
     useEffect(() => {
         const targetKind = useDraftLinkStore.getState().targetKind;
         const sourceId = useDraftLinkStore.getState().sourceId;
