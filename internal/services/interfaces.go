@@ -98,7 +98,7 @@ type OutgoingDocStore interface {
 type NomenclatureStore interface {
 	GetAll(year int, kindCode string) ([]models.Nomenclature, error)
 	GetByID(id uuid.UUID) (*models.Nomenclature, error)
-	Create(name, index string, year int, kindCode, separator, numberingMode string) (*models.Nomenclature, error)
+	Create(name, index string, year int, kindCode, separator, numberingMode string, startNumber int) (*models.Nomenclature, error)
 	Update(id uuid.UUID, name, index string, year int, kindCode, separator, numberingMode string, isActive bool) (*models.Nomenclature, error)
 	Delete(id uuid.UUID) error
 	GetNextNumber(id uuid.UUID) (int, string, string, string, error)

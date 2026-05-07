@@ -103,22 +103,23 @@ func TestNomenclatureRepository_Create(t *testing.T) {
 	id := uuid.New()
 	now := time.Now()
 
-	createQuery := `INSERT INTO nomenclature \(name, index, year, kind_code, separator, numbering_mode\)
-		VALUES \(\$1, \$2, \$3, \$4, \$5, \$6\)
+	createQuery := `INSERT INTO nomenclature \(name, index, year, kind_code, separator, numbering_mode, next_number\)
+		VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7\)
 		RETURNING id`
-	mock.ExpectQuery(createQuery).WithArgs("Тест", "02-12", 2025, "outgoing_letter", "-", "number_only").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(id))
+	mock.ExpectQuery(createQuery).WithArgs("Тест", "02-12", 2025, "outgoing_letter", "-", "number_only", 7).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(id))
 
 	getQuery := `SELECT id, name, index, year, kind_code, separator, numbering_mode, next_number, is_active, created_at, updated_at
 		FROM nomenclature WHERE id = \$1`
 	mock.ExpectQuery(getQuery).WithArgs(id).WillReturnRows(
 		sqlmock.NewRows([]string{"id", "name", "index", "year", "kind_code", "separator", "numbering_mode", "next_number", "is_active", "created_at", "updated_at"}).
-			AddRow(id, "Тест", "02-12", 2025, "outgoing_letter", "-", "number_only", 1, true, now, now),
+			AddRow(id, "Тест", "02-12", 2025, "outgoing_letter", "-", "number_only", 7, true, now, now),
 	)
 
-	item, err := repo.Create("Тест", "02-12", 2025, "outgoing_letter", "-", "number_only")
+	item, err := repo.Create("Тест", "02-12", 2025, "outgoing_letter", "-", "number_only", 7)
 	require.NoError(t, err)
 	require.NotNil(t, item)
 	assert.Equal(t, id, item.ID)
+	assert.Equal(t, 7, item.NextNumber)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

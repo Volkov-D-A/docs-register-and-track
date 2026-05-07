@@ -47,7 +47,8 @@ const NomenclatureTab: React.FC = () => {
         await Update(editItem.id, values.name, values.index, values.year, values.kindCode, values.separator, values.numberingMode, values.isActive);
       } else {
         const { Create } = await import('../../wailsjs/go/services/NomenclatureService');
-        await Create(values.name, values.index, values.year, values.kindCode, values.separator, values.numberingMode);
+        const startNumber = typeof values.nextNumber === 'number' ? values.nextNumber : 1;
+        await Create(values.name, values.index, values.year, values.kindCode, values.separator, values.numberingMode, startNumber);
       }
       message.success(editItem ? 'Обновлено' : 'Создано');
       setModalOpen(false);
@@ -123,7 +124,7 @@ const NomenclatureTab: React.FC = () => {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => {
           setEditItem(null);
           form.resetFields();
-          form.setFieldsValue({ year: currentYear, kindCode: DOCUMENT_KIND_INCOMING_LETTER, separator: '/', numberingMode: 'index_and_number' });
+          form.setFieldsValue({ year: currentYear, kindCode: DOCUMENT_KIND_INCOMING_LETTER, separator: '/', numberingMode: 'index_and_number', nextNumber: 1 });
           setModalOpen(true);
         }}>Добавить</Button>
       </Space>
@@ -163,6 +164,11 @@ const NomenclatureTab: React.FC = () => {
               <Select.Option value="manual_only">Номер вводится вручную</Select.Option>
             </Select>
           </Form.Item>
+          {!editItem && (
+            <Form.Item name="nextNumber" label="Начать нумерацию с номера" rules={[{ required: true }]}>
+              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+            </Form.Item>
+          )}
           {editItem && (
             <Form.Item name="isActive" label="Активно" valuePropName="checked">
               <Switch />

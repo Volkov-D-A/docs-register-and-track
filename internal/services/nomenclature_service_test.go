@@ -118,18 +118,19 @@ func TestNomenclatureService_Create(t *testing.T) {
 	t.Run("успех (админ)", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "admin")
 		name := "Новое дело"
-		expected := &models.Nomenclature{ID: uuid.New(), Name: name}
-		repo.On("Create", name, "01-03", 2024, "incoming_letter", "/", "index_and_number").Return(expected, nil).Once()
+		expected := &models.Nomenclature{ID: uuid.New(), Name: name, NextNumber: 12}
+		repo.On("Create", name, "01-03", 2024, "incoming_letter", "/", "index_and_number", 12).Return(expected, nil).Once()
 
-		result, err := svc.Create(name, "01-03", 2024, "incoming_letter", "/", "index_and_number")
+		result, err := svc.Create(name, "01-03", 2024, "incoming_letter", "/", "index_and_number", 12)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, name, result.Name)
+		assert.Equal(t, 12, result.NextNumber)
 	})
 
 	t.Run("запрещено (делопроизводитель)", func(t *testing.T) {
 		svc, _, _ := setupNomenclatureService(t, "clerk")
-		result, err := svc.Create("Новое дело clerk", "01-03", 2024, "incoming_letter", "/", "index_and_number")
+		result, err := svc.Create("Новое дело clerk", "01-03", 2024, "incoming_letter", "/", "index_and_number", 1)
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
@@ -137,7 +138,7 @@ func TestNomenclatureService_Create(t *testing.T) {
 
 	t.Run("запрещено (исполнитель)", func(t *testing.T) {
 		svc, _, _ := setupNomenclatureService(t, "executor")
-		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number")
+		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number", 1)
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
@@ -145,21 +146,35 @@ func TestNomenclatureService_Create(t *testing.T) {
 
 	t.Run("разрешено мульти-ролевому пользователю с ролью admin", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureServiceWithRoles(t, []string{"admin", "executor"})
-		repo.On("Create", "Test", "idx", 2024, "incoming_letter", "/", "index_and_number").Return(&models.Nomenclature{
+		repo.On("Create", "Test", "idx", 2024, "incoming_letter", "/", "index_and_number", 1).Return(&models.Nomenclature{
 			ID:   uuid.New(),
 			Name: "Test",
 		}, nil).Once()
 
-		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number")
+		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number", 1)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 	})
 
+	t.Run("номер меньше единицы заменяется дефолтом", func(t *testing.T) {
+		svc, repo, _ := setupNomenclatureService(t, "admin")
+		repo.On("Create", "Test", "idx", 2024, "incoming_letter", "/", "index_and_number", 1).Return(&models.Nomenclature{
+			ID:         uuid.New(),
+			Name:       "Test",
+			NextNumber: 1,
+		}, nil).Once()
+
+		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number", 0)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, 1, result.NextNumber)
+	})
+
 	t.Run("ошибка базы", func(t *testing.T) {
 		svc, repo, _ := setupNomenclatureService(t, "admin")
-		repo.On("Create", "Test", "idx", 2024, "incoming_letter", "/", "index_and_number").Return(nil, errors.New("db create error")).Once()
+		repo.On("Create", "Test", "idx", 2024, "incoming_letter", "/", "index_and_number", 1).Return(nil, errors.New("db create error")).Once()
 
-		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number")
+		result, err := svc.Create("Test", "idx", 2024, "incoming_letter", "/", "index_and_number", 1)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "db create error")
 		assert.Nil(t, result)

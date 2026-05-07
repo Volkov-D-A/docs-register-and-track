@@ -15,9 +15,9 @@ type NomenclatureStore struct {
 	mock.Mock
 }
 
-// Create provides a mock function with given fields: name, index, year, kindCode, separator, numberingMode
-func (_m *NomenclatureStore) Create(name string, index string, year int, kindCode string, separator string, numberingMode string) (*models.Nomenclature, error) {
-	ret := _m.Called(name, index, year, kindCode, separator, numberingMode)
+// Create provides a mock function with given fields: name, index, year, kindCode, separator, numberingMode, startNumber
+func (_m *NomenclatureStore) Create(name string, index string, year int, kindCode string, separator string, numberingMode string, startNumber int) (*models.Nomenclature, error) {
+	ret := _m.Called(name, index, year, kindCode, separator, numberingMode, startNumber)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -25,19 +25,19 @@ func (_m *NomenclatureStore) Create(name string, index string, year int, kindCod
 
 	var r0 *models.Nomenclature
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, int, string, string, string) (*models.Nomenclature, error)); ok {
-		return rf(name, index, year, kindCode, separator, numberingMode)
+	if rf, ok := ret.Get(0).(func(string, string, int, string, string, string, int) (*models.Nomenclature, error)); ok {
+		return rf(name, index, year, kindCode, separator, numberingMode, startNumber)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, int, string, string, string) *models.Nomenclature); ok {
-		r0 = rf(name, index, year, kindCode, separator, numberingMode)
+	if rf, ok := ret.Get(0).(func(string, string, int, string, string, string, int) *models.Nomenclature); ok {
+		r0 = rf(name, index, year, kindCode, separator, numberingMode, startNumber)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Nomenclature)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, int, string, string, string) error); ok {
-		r1 = rf(name, index, year, kindCode, separator, numberingMode)
+	if rf, ok := ret.Get(1).(func(string, string, int, string, string, string, int) error); ok {
+		r1 = rf(name, index, year, kindCode, separator, numberingMode, startNumber)
 	} else {
 		r1 = ret.Error(1)
 	}

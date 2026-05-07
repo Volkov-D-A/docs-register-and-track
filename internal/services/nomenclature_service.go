@@ -42,17 +42,21 @@ func (s *NomenclatureService) GetActiveForKind(kindCode string) ([]dto.Nomenclat
 }
 
 // Create создает новое дело номенклатуры (доступно только администраторам и делопроизводителям).
-func (s *NomenclatureService) Create(name, index string, year int, kindCode, separator, numberingMode string) (*dto.Nomenclature, error) {
+func (s *NomenclatureService) Create(name, index string, year int, kindCode, separator, numberingMode string, startNumber int) (*dto.Nomenclature, error) {
 	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
-	res, err := s.repo.Create(name, index, year, kindCode, separator, numberingMode)
+	if startNumber < 1 {
+		startNumber = 1
+	}
+
+	res, err := s.repo.Create(name, index, year, kindCode, separator, numberingMode, startNumber)
 	if err != nil {
 		return nil, err
 	}
 
 	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "NOMENCLATURE_CREATE", fmt.Sprintf("Создано дело «%s» (%s), вид: %s, год: %d", name, index, kindCode, year))
+	s.auditService.LogAction(userID, userName, "NOMENCLATURE_CREATE", fmt.Sprintf("Создано дело «%s» (%s), вид: %s, год: %d, стартовый номер: %d", name, index, kindCode, year, startNumber))
 
 	return dto.MapNomenclature(res), nil
 }

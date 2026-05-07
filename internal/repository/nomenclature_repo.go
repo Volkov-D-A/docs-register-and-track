@@ -88,13 +88,17 @@ func (r *NomenclatureRepository) GetByID(id uuid.UUID) (*models.Nomenclature, er
 }
 
 // Create создает новую запись в номенклатуре дел.
-func (r *NomenclatureRepository) Create(name, index string, year int, kindCode, separator, numberingMode string) (*models.Nomenclature, error) {
+func (r *NomenclatureRepository) Create(name, index string, year int, kindCode, separator, numberingMode string, startNumber int) (*models.Nomenclature, error) {
+	if startNumber < 1 {
+		startNumber = 1
+	}
+
 	var id uuid.UUID
 	err := r.db.QueryRow(`
-		INSERT INTO nomenclature (name, index, year, kind_code, separator, numbering_mode)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO nomenclature (name, index, year, kind_code, separator, numbering_mode, next_number)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
-	`, name, index, year, kindCode, separator, numberingMode).Scan(&id)
+	`, name, index, year, kindCode, separator, numberingMode, startNumber).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create nomenclature: %w", err)
 	}
