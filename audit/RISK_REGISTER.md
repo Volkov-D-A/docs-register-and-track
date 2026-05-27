@@ -6,11 +6,11 @@
 ## RISK-001
 
 Категория: Database
-Описание: Автоматическая нумерация документов (`nomenclature.next_number`) выполняется до транзакции создания документа. При ошибке после получения номера возможен пропуск номера. Также регистрация документов должна быть идемпотентной по backend `idempotency_key`, чтобы повторный submit не создавал дубль и не расходовал следующий номер.
+Описание: Автоматическая нумерация документов (`nomenclature.next_number`) выполняется до транзакции создания документа. Локальная проверка подтвердила: после autocommit-инкремента и ошибочного insert документа счетчик стал `next_number=2`, а документ с выданным номером не создан. Также регистрация документов должна быть идемпотентной по backend `idempotency_key`, чтобы повторный submit не создавал дубль и не расходовал следующий номер.
 Вероятность: high
 Влияние: high
-Митигирующее действие: На этапе B изменить/проверить транзакционную модель регистрации так, чтобы инкремент `next_number` происходил только вместе с успешным созданием документа, и добавить/проверить backend `idempotency_key` для повторных запросов регистрации.
-Ответственный этап: B
+Митигирующее действие: По `DECISION-004` добавить `documents.idempotency_key UUID NOT NULL`, unique `(created_by, kind, idempotency_key)` и перенести проверку idempotency key, выдачу номера и создание документа в одну DB transaction.
+Ответственный этап: C
 
 ## RISK-002
 
@@ -45,7 +45,7 @@
 Описание: UI позволяет пользователю с системным правом `admin` запускать и откатывать миграции. Откат production migrations может быть разрушительным, если down migration теряет данные.
 Вероятность: medium
 Влияние: high
-Митигирующее действие: Право запуска/rollback подтверждено только для `admin`; дополнительный confirmation/audit workflow не обязателен. На этапе B проверить все down migrations на сохранность production data.
+Митигирующее действие: По `DECISION-003` полный UI/runtime migration management сохраняется, включая rollback для `admin`; нужны destructive warning/confirmation, свежий backup PostgreSQL+MinIO перед rollback, audit entry и rollback-runbook.
 Ответственный этап: B, H
 
 ## RISK-006
@@ -78,8 +78,35 @@
 ## RISK-009
 
 Категория: Database
-Описание: `document_journal` и `admin_audit_log` должны храниться весь жизненный цикл проекта и не удаляться на уровне приложения. Экспорт и отдельная фильтрация не требуются; изменение возможно только прямым доступом к БД, которого в штатной эксплуатации нет. При росте объема данных это может повлиять на размер PostgreSQL, индексы, скорость фильтрации и длительность backup/restore; текущий baseline — до 1000 документов в год, до 20 пользователей и storage около 1 TB, поэтому storage thresholds 80%/90% в ближайшие годы математически маловероятны.
+Описание: `document_journal` и `admin_audit_log` должны храниться весь жизненный цикл проекта и не удаляться на уровне приложения. Локальная проверка показала, что текущие `ON DELETE CASCADE` FK удаляют journal/audit строки при delete user/document. При росте объема данных lifetime retention также может повлиять на размер PostgreSQL, индексы, скорость фильтрации и длительность backup/restore; текущий baseline — до 1000 документов в год, до 20 пользователей и storage около 1 TB, поэтому storage thresholds 80%/90% в ближайшие годы математически маловероятны.
 Вероятность: medium
 Влияние: medium
-Митигирующее действие: На этапе B проверить отсутствие application-level delete/update операций для журналов, индексы и планы запросов, а на этапах F/H оценить рост БД, backup window и необходимость архивирования без удаления из production history.
+Митигирующее действие: По `DECISION-005` не вводить application-level physical delete для users/documents и заменить cascade FK журналов на retention-safe strategy; на этапах F/H оценить рост БД, backup window и необходимость архивирования без удаления из production history.
 Ответственный этап: B, F, H
+
+## RISK-010
+
+Категория: Database/Migrations
+Описание: Destructive down migrations доступны через runtime rollback path для пользователя с `admin`, и по принятому требованию полный механизм управления миграциями сохраняется в production. Локальная проверка application migrator подтвердила: rollback version 7 -> 6 удаляет `admin_audit_log`. Ошибка эксплуатации может удалить production tables/data.
+Вероятность: medium
+Влияние: high
+Митигирующее действие: Сохранить rollback, но усилить guardrails: destructive warning/confirmation, свежий backup PostgreSQL+MinIO перед rollback, audit entry, rollback-runbook, review каждой новой down migration на data-loss impact.
+Ответственный этап: B, H
+
+## RISK-011
+
+Категория: Database/Performance
+Описание: Representative EXPLAIN ANALYZE на 1000 documents показал быстрые планы, но частые списки документов, поручений и ознакомлений используют сложные filters/access EXISTS, search и OFFSET pagination; возможна деградация при росте данных или отличии production dataset от synthetic baseline.
+Вероятность: medium
+Влияние: medium
+Митигирующее действие: Собрать representative data, выполнить EXPLAIN/EXPLAIN ANALYZE, добавить точечные composite/partial/trigram indexes, повторно проверить write latency.
+Ответственный этап: B, F
+
+## RISK-012
+
+Категория: Database/Restore
+Описание: Restore script продолжает работу после любого ненулевого `pg_restore`, поэтому может быть принят неполный restore.
+Вероятность: medium
+Влияние: high
+Митигирующее действие: По `DECISION-006` сделать restore fail-fast для fatal/unknown `pg_restore` errors, не запускать MinIO mirror до успешной DB validation, формировать restore report и выполнять mandatory smoke validation после test restore PostgreSQL+MinIO.
+Ответственный этап: B, H

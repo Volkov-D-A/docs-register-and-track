@@ -75,8 +75,73 @@ Severity: minor
 Severity: major
 Статус: open
 Место: `internal/repository/nomenclature_repo.go`, document command handlers
-Проблема: Бизнес-правило требует строгую нумерацию без пропусков, но `GetNextNumber` увеличивает `nomenclature.next_number` до транзакции создания документа. Пользователь также подтвердил, что регистрация должна быть идемпотентной по backend `idempotency_key`.
+Проблема: Бизнес-правило требует строгую нумерацию без пропусков, но `GetNextNumber` увеличивает `nomenclature.next_number` до транзакции создания документа. Пользователь также подтвердил, что регистрация должна быть идемпотентной по backend `idempotency_key`. Локальный failure test подтвердил gap: после отдельного инкремента номера последующий insert документа упал по FK, `next_number=2`, `docs=0` для выданного номера.
 Почему важно: Если после получения номера регистрация завершится ошибкой, номер будет потерян. Если повторный submit создаст второй документ, появится дубль и может быть израсходован следующий регистрационный номер. Это нарушает подтвержденные бизнес-инварианты.
-Рекомендация: На этапе B включить получение/инкремент номера в ту же транзакцию, что и создание документа и дочерних записей, или применить эквивалентный механизм без пропусков. Добавить backend `idempotency_key`: повторный запрос с тем же ключом должен возвращать уже созданный документ без повторного создания и инкремента номера.
+Рекомендация: По `DECISION-004` включить проверку `documents.idempotency_key`, получение/инкремент номера, создание документа и дочерних записей в одну DB transaction. Добавить backend `idempotency_key UUID`: повторный запрос с тем же `(created_by, kind, idempotency_key)` должен возвращать уже созданный документ без повторного создания и инкремента номера.
 Проверка после исправления: Смоделировать ошибку после получения номера и убедиться, что следующий успешный документ получает тот же номер, без пропуска. Повторить запрос регистрации с тем же `idempotency_key` и убедиться, что возвращается тот же документ без дубля.
 Связанные пункты: B.03, B.05, C.02
+
+## ISSUE-007
+
+Категория: Database/Migrations
+Пункт плана: B.01.027, B.02.039, B.06.075
+Severity: critical
+Статус: open
+Место: `internal/database/migrations/*.down.sql`, `internal/database/postgres.go`, `internal/services/settings.go`
+Проблема: `down`-миграции удаляют таблицы через `DROP TABLE IF EXISTS`, а rollback migration доступен через runtime service пользователю с системным правом `admin`. На локальном test contour runtime rollback через application migrator откатил `schema_migrations` с `7,false` на `6,false` и удалил таблицу `admin_audit_log`.
+Почему важно: В production rollback последней миграции может удалить документы, поручения, вложения, журналы или административный аудит. Это подтвержденный data-loss path.
+Рекомендация: По `DECISION-003` full production UI/runtime rollback сохраняется. Усилить guardrails: destructive warning, подтверждение, свежий backup PostgreSQL+MinIO перед rollback, обязательная запись в `admin_audit_log`, rollback-runbook и review `down`-миграций на data-loss impact.
+Проверка после исправления: На test DB выполнить rollback policy test и убедиться, что production data не удаляется случайным UI-действием.
+Связанные пункты: B.01.027, B.06.075, E.04, H.03
+
+## ISSUE-008
+
+Категория: Database/Retention
+Пункт плана: B.02.030, B.02.039
+Severity: major
+Статус: open
+Место: `internal/database/migrations/006_journal.up.sql`, `internal/database/migrations/007_admin_audit_log.up.sql`
+Проблема: `document_journal` и `admin_audit_log` используют `ON DELETE CASCADE` на данные, которые по подтвержденной policy должны храниться весь жизненный цикл проекта. Локальная проверка подтвердила: delete пользователя удалил связанную строку `admin_audit_log` (`admin_audit_remaining=0`), delete документа удалил связанную строку `document_journal` (`document_journal_remaining=0`).
+Почему важно: Физическое удаление пользователя или документа может удалить audit/history строки, нарушив retention invariant. Отсутствие штатного UI delete для users/documents снижает вероятность, но не защищает данные на уровне БД.
+Рекомендация: По `DECISION-005` не вводить physical delete для users/documents как штатную application-операцию; заменить FK журналов на retention-safe вариант (`RESTRICT`/эквивалент, либо `SET NULL` + immutable snapshots при появлении legal delete requirements).
+Проверка после исправления: Проверить delete/deactivate user/document scenarios и убедиться, что журналы сохраняются или delete блокируется.
+Связанные пункты: B.02.030, C.04, H.03
+
+## ISSUE-009
+
+Категория: Database/Performance
+Пункт плана: B.04.051-B.04.064
+Severity: minor
+Статус: open
+Место: document list/access queries, assignments, acknowledgments
+Проблема: Частые запросы списков, scope-доступа, поручений и ознакомлений используют комбинации `kind`, `nomenclature_id`, `created_at`, `executor_id`, `status`, `deadline`, `user_id`, `confirmed_at`; representative `EXPLAIN ANALYZE` на 1000 documents показал быстрые планы, но при росте данных access/search paths могут деградировать.
+Почему важно: Если production data существенно превысит baseline, `EXISTS`, OFFSET pagination и `ILIKE '%term%'` могут начать давать seq scan и задержки списков/дашборда.
+Рекомендация: Не добавлять индексы преждевременно; повторить планы на финальном production-like dataset и добавить только подтвержденные composite/partial/trigram indexes.
+Проверка после исправления: Сравнить EXPLAIN before/after и latency частых списков.
+Связанные пункты: D.07, F.06
+
+## ISSUE-010
+
+Категория: Database/Backup-Restore
+Пункт плана: B.06.075
+Severity: major
+Статус: open
+Место: `restore_smb_tar.sh`
+Проблема: Скрипт восстановления продолжает выполнение при любом ненулевом коде `pg_restore`, считая это обычно некритичными предупреждениями.
+Почему важно: Реальная ошибка восстановления БД может быть скрыта, после чего MinIO будет синхронизирован поверх неполной или некорректной БД.
+Рекомендация: Разделить ожидаемые warnings и fatal errors, fail fast для неизвестных ошибок, формировать restore report и выполнять smoke validation.
+Проверка после исправления: По `DECISION-006` запустить controlled restore с поврежденным/несовместимым dump и убедиться, что workflow останавливается до MinIO mirror; затем выполнить успешный test restore PostgreSQL+MinIO с restore report и smoke validation.
+Связанные пункты: B.06.074, H.03
+
+## ISSUE-011
+
+Категория: Database/Indexes
+Пункт плана: B.04.061
+Severity: minor
+Статус: open
+Место: `internal/database/migrations/001_core_users.up.sql`
+Проблема: `login VARCHAR(100) NOT NULL UNIQUE` уже создает unique index `users_login_key`, но миграция дополнительно создает `idx_users_login ON users(login)`.
+Почему важно: Дублирующий индекс не улучшает lookup по login, но добавляет место на диске и write overhead при изменении пользователей.
+Рекомендация: Удалить отдельный `idx_users_login`, оставив unique constraint/index.
+Проверка после исправления: Проверить login/auth lookup и `pg_indexes`, убедиться, что остался один индекс на `users(login)`.
+Связанные пункты: B.04.061, F.06

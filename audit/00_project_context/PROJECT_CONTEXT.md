@@ -82,23 +82,25 @@ Build/dev-зависимости:
 - Attachment recovery policy: при рассинхронизации PostgreSQL attachment metadata и MinIO objects восстанавливаются одновременно PostgreSQL и MinIO из согласованного backup-набора.
 - Seq обязателен в production как сервис логирования, но его данные не входят в backup-контур и не бэкапятся.
 - Network security policy: PostgreSQL, MinIO и Seq находятся в закрытом защищенном LAN-контуре; доступ к ним возможен только из LAN, по открытым каналам связи данные не передаются. TLS/SSL для внутренних соединений не является обязательным production-требованием при сохранении этих границ.
-- Migration management policy: запуск миграций и rollback в production через UI разрешен только пользователям с системным правом `admin`; дополнительный confirmation/audit workflow не обязателен.
+- Migration management policy: полный механизм управления миграциями через UI/runtime path сохраняется в production для пользователя с системным правом `admin`, включая status/up/rollback. Для destructive rollback нужны guardrails: явное предупреждение, подтверждение, свежий PostgreSQL+MinIO backup, запись в `admin_audit_log` и rollback-runbook.
 - Log retention/access policy: `document_journal` и `admin_audit_log` в PostgreSQL хранятся весь жизненный цикл проекта и не удаляются на уровне приложения; экспорт не предполагается, отдельная фильтрация не требуется, изменение возможно только прямым доступом к БД, которого в штатной эксплуатации нет; Seq logs не являются долговременным audit trail.
 - Service account policy: для PostgreSQL, MinIO и Seq допустим один общий технический аккаунт production-контура; отдельные service accounts по каждому сервису не обязательны.
 - Document type policy: document types остаются фиксированными в коде; расширение и перевод в справочник в ближайшее время не планируются.
 - Public app settings contract: `organization_short_name` для общего layout отдается через `GetPublicAppSettings()`, доступный всем авторизованным пользователям; настройки не считаются секретом для чтения, но изменение разрешено только пользователю с системным правом `admin`.
-- Document registration idempotency policy: регистрация документа должна поддерживать backend `idempotency_key`; повторный запрос с тем же ключом возвращает уже созданный документ и не создает дубль или повторный инкремент `nomenclature.next_number`.
+- Document registration idempotency policy: регистрация документа должна поддерживать backend `idempotency_key`; target schema после этапа B — `documents.idempotency_key UUID NOT NULL` и unique `(created_by, kind, idempotency_key)`. Повторный запрос с тем же ключом возвращает уже созданный документ и не создает дубль или повторный инкремент `nomenclature.next_number`.
+- Stage B database audit status: завершен 2026-05-27 на локальном test contour. Проверены fresh migrations, application migrator, runtime rollback, synthetic EXPLAIN ANALYZE dataset, no-gaps failure case, FK retention behavior и backup/restore scripts. Основные remediation work items переданы на C/E/F/H.
 
 Остается проверить на следующих этапах:
 
 - фактическое выполнение manual test restore PostgreSQL+MinIO перед релизом;
+- restore fail-fast contract: `pg_restore` fatal/unknown errors должны останавливать workflow до MinIO mirror; требуется restore report и smoke validation.
 - production-версию PostgreSQL по утвержденной production-документации;
 - фактический мониторинг заполнения MinIO/storage с warning 80% и critical 90%;
 - соответствие утвержденной production-документации подтвержденной backup policy.
 - подтверждение LAN-границ закрытого защищенного контура по утвержденной production-документации.
-- безопасность `down`-миграций.
-- backend `idempotency_key` для регистрации документов вместе с no-gaps нумерацией.
-- отсутствие application-level delete/update операций для `document_journal` и `admin_audit_log`.
+- rollback guardrails для `down`-миграций.
+- реализацию backend `idempotency_key` для регистрации документов вместе с no-gaps нумерацией.
+- retention-safe FK strategy для `document_journal` и `admin_audit_log`.
 - влияние пожизненного хранения журналов на индексы, размер БД и планы backup/restore.
 
 ## Контрольные Пункты
