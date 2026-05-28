@@ -104,7 +104,7 @@ func (s *AssignmentService) Update(
 		return nil, err
 	}
 	if existing == nil {
-		return nil, fmt.Errorf("поручение не найдено")
+		return nil, models.NewNotFound("поручение не найдено")
 	}
 	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
 		return nil, err
@@ -160,7 +160,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 		return nil, err
 	}
 	if existing == nil {
-		return nil, fmt.Errorf("поручение не найдено")
+		return nil, models.NewNotFound("поручение не найдено")
 	}
 
 	currentUserID := s.auth.GetCurrentUserID()
@@ -232,8 +232,11 @@ func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
 	res, err := s.repo.GetByID(uid)
-	if err != nil || res == nil {
-		return dto.MapAssignment(res), err
+	if err != nil {
+		return nil, err
+	}
+	if res == nil {
+		return nil, models.NewNotFound("поручение не найдено")
 	}
 	if err := s.access.RequireDocumentAction(res.DocumentID, "assign"); err != nil && !isAssignmentAccessibleToExecutor(s.auth.GetCurrentUserID(), res) {
 		return nil, models.ErrForbidden
@@ -306,7 +309,7 @@ func (s *AssignmentService) Delete(id string) error {
 		return err
 	}
 	if existing == nil {
-		return nil
+		return models.NewNotFound("поручение не найдено")
 	}
 	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
 		return err

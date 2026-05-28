@@ -37,6 +37,7 @@ import {
 import { Column, Line } from '@ant-design/plots';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
+import { formatAppError } from '../utils/appError';
 
 const { Title, Text } = Typography;
 
@@ -246,7 +247,7 @@ const StatisticsPage: React.FC = () => {
       setDocumentStats(stats);
       setDocumentFilters(filters || { kinds: [], nomenclature: [], users: [] });
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     } finally {
       setDocumentLoading(false);
     }
@@ -266,7 +267,7 @@ const StatisticsPage: React.FC = () => {
       );
       setDocumentReport(data);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     } finally {
       setDocumentReportLoading(false);
     }
@@ -280,7 +281,7 @@ const StatisticsPage: React.FC = () => {
       setAssignmentStats(stats);
       setAssignmentFilters(filters || { users: [] });
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     } finally {
       setAssignmentLoading(false);
     }
@@ -298,7 +299,7 @@ const StatisticsPage: React.FC = () => {
       );
       setAssignmentReport(data);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     } finally {
       setAssignmentReportLoading(false);
     }
@@ -310,7 +311,7 @@ const StatisticsPage: React.FC = () => {
       const { GetSystemStatistics } = await import('../../wailsjs/go/services/StatisticsService');
       setSystemStats(await GetSystemStatistics());
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     } finally {
       setSystemLoading(false);
     }

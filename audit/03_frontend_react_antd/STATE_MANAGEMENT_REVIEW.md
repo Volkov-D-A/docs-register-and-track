@@ -18,16 +18,16 @@
 
 ### Frontend error state depends on raw strings
 
-`useAuthStore.formatAuthError` ищет lockout по русскому тексту backend error. Остальные catch handlers в основном вызывают `message.error(err?.message || String(err))`. После backend structured errors frontend должен читать `code/message`, а не разбирать текст.
+Fixed after audit: `useAuthStore.formatAuthError` now reads structured code `USER_LOCKED` through `getAppErrorCode`, and frontend catch handlers use `formatAppError`/`normalizeAppError` for Wails `{code,message,status}` instead of raw string parsing.
 
-Связано: `ISSUE-019`, `DECISION-007`.
+Связано: fixed `ISSUE-019`, `DECISION-007`.
 
 ### Duplicate profile classification
 
-`resolveUserProfile` во frontend остается отдельной реализацией profile classification. Это уже зафиксировано как `ISSUE-003`: access/profile поведение должно приходить из backend access summary либо иметь явный contract test.
+`resolveUserProfile` во frontend остается UI-only profile classification. `ISSUE-003` fixed after audit: backend dashboard no longer duplicates UX profile labels and computes assignment scope directly.
 
 ## Рекомендации
 
-- Добавить единый `formatAppError(err)` или hook `useAppError()`.
-- Перевести auth lockout, forbidden, validation, not_found и conflict на `err.code`.
+- Keep new catch handlers on `formatAppError(err)`; do not reintroduce raw `err?.message || String(err)`.
+- Cover auth lockout, forbidden, validation, not_found and conflict in frontend smoke/e2e work.
 - Оставить Zustand stores небольшими; не переносить page-local form/filter state в global store без необходимости.

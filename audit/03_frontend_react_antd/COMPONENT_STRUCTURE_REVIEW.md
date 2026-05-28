@@ -24,4 +24,4 @@
 - Вынести service-call orchestration в hooks там, где уже есть repeating CRUD pattern.
 - Не делать большой рефактор отдельно от пользовательской задачи; фиксировать поведение тестами/smoke checklist.
 
-Связанные issues: `ISSUE-022`, `ISSUE-003`.
+Связанные issues: `ISSUE-022`; fixed: `ISSUE-003`.

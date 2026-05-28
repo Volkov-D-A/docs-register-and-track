@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Modal, Spin, theme as antdTheme } from 'antd';
 import {
     DashboardOutlined,
@@ -24,6 +24,7 @@ import { useAppTheme } from '../theme/AppThemeProvider';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
+const DEFAULT_BRAND_NAME = 'Система регистрации документов';
 
 /**
  * Свойства основного слоя (мэйкапа) приложения.
@@ -59,6 +60,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     const { token } = antdTheme.useToken();
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [registerModalOpen, setRegisterModalOpen] = useState(false);
+    const [brandName, setBrandName] = useState(DEFAULT_BRAND_NAME);
     const {
         sections,
         registrationKinds: availableRegistrationKinds,
@@ -66,6 +68,34 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         ready: accessReady,
     } = useCurrentAccessSummary();
     const canRegisterDocuments = accessReady && availableRegistrationKinds.length > 0;
+
+    useEffect(() => {
+        if (!user) {
+            setBrandName(DEFAULT_BRAND_NAME);
+            return;
+        }
+
+        let isMounted = true;
+
+        void import('../../wailsjs/go/services/SettingsService')
+            .then(({ GetOrganizationShortName }) => GetOrganizationShortName())
+            .then((value) => {
+                if (!isMounted) {
+                    return;
+                }
+                const nextBrandName = String(value || '').trim();
+                setBrandName(nextBrandName || DEFAULT_BRAND_NAME);
+            })
+            .catch(() => {
+                if (isMounted) {
+                    setBrandName(DEFAULT_BRAND_NAME);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [user?.id]);
 
     const menuItems = [
         ...(sections.dashboard ? [{
@@ -159,7 +189,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 <div className="app-sider-brand">
                     <span className="app-sider-brand-icon">📄</span>
                     <Text strong className="app-sider-brand-text">
-                        УСЗН Озерск
+                        {brandName}
                     </Text>
                 </div>
                 <Menu

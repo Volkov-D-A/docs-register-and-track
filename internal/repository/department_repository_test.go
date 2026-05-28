@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -176,7 +177,10 @@ func TestDepartmentRepository_Errors(t *testing.T) {
 
 		res, err := repo.Update(depID, "IT", nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "department not found")
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "NOT_FOUND", appErr.Kind)
+		assert.Equal(t, 404, appErr.Code)
 		assert.Nil(t, res)
 	})
 
@@ -185,6 +189,9 @@ func TestDepartmentRepository_Errors(t *testing.T) {
 
 		err = repo.Delete(depID)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "department not found")
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "NOT_FOUND", appErr.Kind)
+		assert.Equal(t, 404, appErr.Code)
 	})
 }

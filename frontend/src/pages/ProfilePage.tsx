@@ -4,6 +4,7 @@ import { UserOutlined, LockOutlined, BgColorsOutlined, SunOutlined, MoonOutlined
 import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAppTheme, type AppTheme } from '../theme/AppThemeProvider';
+import { formatAppError } from '../utils/appError';
 
 const { Title, Text } = Typography;
 
@@ -69,7 +70,7 @@ const ProfilePage: React.FC = () => {
             await setTheme(nextTheme);
             message.success('Тема интерфейса сохранена');
         } catch (err: any) {
-            message.error(err?.message || String(err) || 'Ошибка сохранения темы');
+            message.error(formatAppError(err, 'Ошибка сохранения темы'));
         } finally {
             setIsSavingTheme(false);
         }

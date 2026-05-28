@@ -41,4 +41,4 @@ No measured baseline was found for:
 - Wails binary size warning threshold: 100 MB;
 - frontend chunk size and load time trend.
 
-Связанные issues: `ISSUE-004`, `ISSUE-009`, `ISSUE-041`.
+Связанные issues: fixed `ISSUE-004`; open `ISSUE-009`, `ISSUE-041`.

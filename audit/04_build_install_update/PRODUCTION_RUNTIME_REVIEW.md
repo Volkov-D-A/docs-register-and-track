@@ -21,13 +21,13 @@ Runtime startup initializes config, logger, DB pool, repositories, services, Min
 - Startup config failure exits before UI.
 - MinIO init failure exits before UI.
 - DB ping failure is warning-only, but later DB operations may fail in UI.
-- Shutdown still closes DB/logger without active request coordination (`ISSUE-015`, `ISSUE-017`).
+- Shutdown still closes DB without active request coordination (`ISSUE-015`); logger close is now deterministic and idempotent.
 - Context propagation for MinIO/file/statistics/link operations remains open.
 
 ## Связанные Issues
 
 - `ISSUE-015`: context/shutdown lifecycle.
-- `ISSUE-017`: deterministic logger shutdown.
+- `ISSUE-017`: fixed deterministic logger shutdown.
 - `ISSUE-019`: frontend structured error handling.
 - `ISSUE-025`: cwd-relative config path.
 - `ISSUE-028`: startup/update failure UX.

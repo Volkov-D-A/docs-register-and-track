@@ -11,6 +11,7 @@ import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { getDocumentPageConfig } from '../config/documentPageConfigs';
 import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
+import { formatAppError } from '../utils/appError';
 import {
     OutgoingLetterDocumentForm,
     OutgoingLetterFilters,
@@ -115,7 +116,7 @@ const OutgoingPage: React.FC = () => {
             filterDateTo,
         ],
         onError: (err: any) => {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         },
     });
 
@@ -170,7 +171,7 @@ const OutgoingPage: React.FC = () => {
             registerForm.resetFields();
             load();
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         }
     };
 
@@ -194,7 +195,7 @@ const OutgoingPage: React.FC = () => {
             editForm.resetFields();
             load();
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         }
     };
 

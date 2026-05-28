@@ -24,19 +24,19 @@
 ## RISK-003
 
 Категория: Configuration
-Описание: Production network/security policy предполагает закрытый защищенный LAN-контур без передачи данных по открытым каналам; production guide базируется на утвержденной документации вне проекта, ссылку на нее нельзя добавить в audit context. Repo examples остаются local/dev и используют local endpoints, disabled SSL и слабые placeholder passwords, которые допустимы только в закрытом контуре разработки.
+Описание: Production network/security policy предполагает закрытый защищенный LAN-контур без передачи данных по открытым каналам; production guide базируется на утвержденной документации вне проекта, ссылку на нее нельзя добавить в audit context. Repo examples are explicitly marked local/dev after `ISSUE-001` remediation and use local endpoints, disabled SSL and weak placeholder passwords that are allowed only in the closed development contour.
 Вероятность: medium
 Влияние: high
-Митигирующее действие: Production разворачивается вручную через `config/config.json` по утвержденной документации. На этапах B/E/H вручную сверить production configuration guide с утвержденной документацией, проверить LAN-границы закрытого контура, runtime defaults и секреты перед release; не использовать local/dev example values как production defaults.
+Митигирующее действие: Production разворачивается вручную через `config/config.json` по утвержденной документации. Repo examples are marked local/dev only. На этапах B/E/H вручную сверить production configuration guide с утвержденной документацией, проверить LAN-границы закрытого контура, runtime defaults и секреты перед release; не использовать local/dev example values как production defaults.
 Ответственный этап: E
 
 ## RISK-004
 
 Категория: Operations
-Описание: Backup/restore PostgreSQL+MinIO реализован shell scripts с SMB mount и Docker commands. Абсолютный путь к `.env` подтвержден как допустимый для cron, но production cron/deployment path и обращение с SMB credentials должны быть проверены; production restore не подтвержден.
+Описание: Backup/restore PostgreSQL+MinIO реализован shell scripts с SMB mount и Docker commands. Абсолютный путь к `.env` подтвержден как допустимый для cron и описан в `docs/backup_restore_runbook.md`; scripts support CIFS credentials file instead of password in mount args. Production restore still needs target-contour confirmation.
 Вероятность: medium
 Влияние: high
-Митигирующее действие: Backup policy подтверждена: RPO 1 день, RTO 1-2 дня, retention 15 дней, проверка архивов через ручной test restore PostgreSQL+MinIO перед релизом, offsite copy на другой сервер, Seq не бэкапится. На этапе B/H выполнить отдельный backup/restore review, проверить production cron path к `.env`, handling SMB credentials и то, что скрипты реально выполняют подтвержденную процедуру.
+Митигирующее действие: Backup policy подтверждена: RPO 1 день, RTO 1-2 дня, retention 15 дней, проверка архивов через ручной test restore PostgreSQL+MinIO перед релизом, offsite copy на другой сервер, Seq не бэкапится. Runbook фиксирует production cron path к `.env`, `SMB_CREDENTIALS_FILE`, права файлов и release-gate проверки; перед релизом выполнить manual test restore.
 Ответственный этап: B, H
 
 ## RISK-005
@@ -114,10 +114,10 @@
 ## RISK-013
 
 Категория: Backend/Wails
-Описание: Frontend получает ошибки backend как plain strings. Из-за этого UI может зависеть от текстов Go/PostgreSQL/storage errors и не сможет стабильно обрабатывать validation, forbidden, not found, conflict и idempotency cases.
-Вероятность: high
-Влияние: high
-Митигирующее действие: По `DECISION-007` ввести structured error envelope со стабильными codes и safe user messages.
+Описание: Backend/Wails и frontend после remediation используют structured error envelope and frontend adapter for stable codes. Residual risk remains in end-to-end coverage: login/forbidden/validation/not_found/conflict/internal scenarios still need release smoke/e2e evidence.
+Вероятность: medium
+Влияние: medium
+Митигирующее действие: Structured backend envelope and frontend `formatAppError` adapter implemented; cover the main error families in `ISSUE-038`/`ISSUE-043` frontend/e2e smoke work.
 Ответственный этап: C, D
 
 ## RISK-014
@@ -150,10 +150,10 @@
 ## RISK-017
 
 Категория: Frontend/Error Handling
-Описание: Frontend продолжает показывать и местами разбирать raw error strings вместо stable structured error codes, несмотря на backend remediation. UI может неверно обработать forbidden/not_found/conflict/internal cases или показать пользователю небезопасный текст fallback-ошибки.
-Вероятность: high
+Описание: Frontend error adapter внедрен после audit, но остаётся риск непроверенных end-to-end сценариев: forbidden/not_found/conflict/internal cases могут регрессировать без UI/e2e smoke.
+Вероятность: medium
 Влияние: medium
-Митигирующее действие: По `DECISION-009` внедрить единый frontend error adapter для Wails errors, перевести auth/forms/tables/actions на `code/message`, добавить smoke cases.
+Митигирующее действие: `formatAppError`/`normalizeAppError` внедрены для Wails errors; добавить smoke cases в рамках `ISSUE-038`/`ISSUE-043`.
 Ответственный этап: D, F, H
 
 ## RISK-018
@@ -204,19 +204,19 @@
 ## RISK-023
 
 Категория: Filesystem/Secrets
-Описание: Backup/restore temp dirs и SMB mount arguments могут раскрывать database dumps, MinIO files или credentials при ошибке/прерывании процесса.
+Описание: Backup/restore temp dirs and SMB credential exposure were reduced through cleanup traps, `chmod 700` temp dirs and CIFS credentials file support. Residual risk remains until target-contour interruption/process-list smoke is executed.
 Вероятность: medium
 Влияние: medium
-Митигирующее действие: Cleanup traps для temp dirs, restrictive permissions, CIFS credentials file, process-list/log secret check.
+Митигирующее действие: Cleanup traps для temp dirs, restrictive permissions, CIFS credentials file, process-list/log secret check in release gate.
 Ответственный этап: E, H
 
 ## RISK-024
 
 Категория: Filesystem/User Data
-Описание: Attachment download writes to Downloads using sanitized original filename, but can overwrite existing local files without confirmation.
+Описание: Attachment download overwrite risk was reduced: downloads now use collision-safe names with `O_EXCL` and suffixes like `file (1).ext`.
 Вероятность: medium
-Влияние: medium
-Митигирующее действие: Collision-safe filenames or explicit overwrite confirmation; regression tests for duplicate names.
+Влияние: low
+Митигирующее действие: Regression test `TestWriteDownloadFileWithoutOverwrite`; manual Download/OpenFile/OpenFolder smoke on target OS.
 Ответственный этап: E, H
 
 ## RISK-025

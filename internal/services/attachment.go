@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -278,16 +279,56 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 		return "", fmt.Errorf("failed to create download directory: %v", err)
 	}
 
-	// Очистка имени файла для предотвращения обхода пути
-	cleanFilename := filepath.Base(attachment.Filename)
-	fullPath := filepath.Join(downloadDir, cleanFilename)
-
-	// Запись файла
-	if err := os.WriteFile(fullPath, content, 0644); err != nil {
+	fullPath, err := writeDownloadFileWithoutOverwrite(downloadDir, attachment.Filename, content)
+	if err != nil {
 		return "", fmt.Errorf("failed to write file: %v", err)
 	}
 
 	return fullPath, nil
+}
+
+func writeDownloadFileWithoutOverwrite(downloadDir, filename string, content []byte) (string, error) {
+	cleanFilename := safeDownloadFilename(filename)
+	ext := filepath.Ext(cleanFilename)
+	base := strings.TrimSuffix(cleanFilename, ext)
+
+	for i := 0; i < 1000; i++ {
+		candidate := cleanFilename
+		if i > 0 {
+			candidate = fmt.Sprintf("%s (%d)%s", base, i, ext)
+		}
+
+		fullPath := filepath.Join(downloadDir, candidate)
+		file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+
+		if _, err := file.Write(content); err != nil {
+			_ = file.Close()
+			_ = os.Remove(fullPath)
+			return "", err
+		}
+		if err := file.Close(); err != nil {
+			_ = os.Remove(fullPath)
+			return "", err
+		}
+
+		return fullPath, nil
+	}
+
+	return "", fmt.Errorf("failed to choose unique download filename for %q", cleanFilename)
+}
+
+func safeDownloadFilename(filename string) string {
+	cleanFilename := filepath.Base(strings.TrimSpace(filename))
+	if cleanFilename == "" || cleanFilename == "." || cleanFilename == string(filepath.Separator) {
+		return "attachment"
+	}
+	return cleanFilename
 }
 
 // getDownloadDir — получить путь к папке «Загрузки» текущего пользователя

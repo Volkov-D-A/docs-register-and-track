@@ -3,6 +3,7 @@ import { Button, Upload, Popconfirm, Typography, Tooltip, notification, Space, S
 import { UploadOutlined, DownloadOutlined, DeleteOutlined, FileOutlined, FilePdfOutlined, FileImageOutlined, FileWordOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
+import { formatAppError } from '../utils/appError';
 
 const { Text } = Typography;
 
@@ -37,9 +38,9 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
             const { GetList } = await import('../../wailsjs/go/services/AttachmentService');
             const list = await GetList(documentId);
             setFiles(list || []);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            message.error('Не удалось загрузить файлы');
+            message.error(formatAppError(err, 'Не удалось загрузить файлы'));
         }
         setLoading(false);
     };
@@ -62,8 +63,8 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                     await Upload(documentId, file.name, base64Content);
                     message.success('Файл загружен');
                     loadFiles();
-                } catch (err: any) {
-                    message.error(err?.message || 'Ошибка загрузки');
+                } catch (err: unknown) {
+                    message.error(formatAppError(err, 'Ошибка загрузки'));
                 } finally {
                     setUploading(false);
                 }
@@ -115,9 +116,9 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                 ),
             });
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            message.error({ content: err?.message || 'Ошибка скачивания', key: 'download' });
+            message.error({ content: formatAppError(err, 'Ошибка скачивания'), key: 'download' });
         }
     };
 
@@ -127,8 +128,8 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
             await Delete(id);
             message.success('Файл удален');
             loadFiles();
-        } catch (err: any) {
-            message.error(err?.message || 'Ошибка удаления');
+        } catch (err: unknown) {
+            message.error(formatAppError(err, 'Ошибка удаления'));
         }
     };
 

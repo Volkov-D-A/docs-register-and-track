@@ -175,7 +175,7 @@ func (s *DocumentAccessService) RequireExists(documentID uuid.UUID) (*models.Doc
 		return nil, err
 	}
 	if doc == nil {
-		return nil, models.NewBadRequest("документ не найден")
+		return nil, models.NewNotFound("документ не найден")
 	}
 	return doc, nil
 }
@@ -322,7 +322,7 @@ func (s *DocumentAccessService) hasDepartmentNomenclatureAccess(nomenclatureID u
 
 func (s *DocumentAccessService) hasImplicitReadAccess(doc *models.Document) (bool, error) {
 	if doc == nil {
-		return false, models.NewBadRequest("документ не найден")
+		return false, models.NewNotFound("документ не найден")
 	}
 
 	isParticipant, err := s.isCurrentUserDocumentParticipant()
@@ -368,7 +368,7 @@ func (s *DocumentAccessService) hasImplicitReadAccess(doc *models.Document) (boo
 
 func (s *DocumentAccessService) canReadResolved(doc *models.Document) (bool, error) {
 	if doc == nil {
-		return false, models.NewBadRequest("документ не найден")
+		return false, models.NewNotFound("документ не найден")
 	}
 
 	allowed, err := s.hasPermission(doc.Kind, "read")

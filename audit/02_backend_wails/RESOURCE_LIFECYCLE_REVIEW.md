@@ -20,17 +20,18 @@ MinIO upload/download/delete, journal writes, link graph, statistics storage inf
 ### ISSUE-017: Seq writer shutdown is timing-based
 
 Severity: minor
+Статус: fixed
 Пункты: C.05.095, C.05.097
 
-Seq writer запускает goroutine и при `Close` закрывает `done`, затем ждет `100ms`. Это не deterministic flush. Также `closeLogger` вызывается через `defer` и в `OnShutdown`; `Close` idempotent, но lifecycle стоит сделать единым.
+Было: Seq writer запускал goroutine и при `Close` закрывал `done`, затем ждал `100ms`. Это не deterministic flush. Также `closeLogger` вызывается через `defer` и в `OnShutdown`.
 
-Рекомендация: `sync.WaitGroup`/ack channel для graceful logger shutdown; один shutdown path.
+Исправлено: `SeqAsyncWriter` использует `sync.WaitGroup` для graceful shutdown, `Close` idempotent через `sync.Once`, repeated close safe. Общий active-request shutdown lifecycle остается в `ISSUE-015`.
 
 ## Point Status
 
 | Пункт | Статус | Severity | Вывод |
 | --- | --- | --- | --- |
 | C.05.094 | issue | major | Закрытие окна не отменяет операции, которые стартовали с `context.Background()`. |
-| C.05.095 | issue | minor | Явный goroutine leak не доказан, но Seq shutdown timing-based. |
+| C.05.095 | ok | none | Seq writer shutdown deterministic через `sync.WaitGroup`; flush буфера и repeated close покрыты тестом. |
 | C.05.096 | issue | major | DB закрывается, но MinIO/file/process operations не имеют lifecycle/cancel policy. |
 | C.05.097 | issue | major | Shutdown закрывает ресурсы частично, без active-request coordination. |

@@ -5,6 +5,8 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -301,6 +303,32 @@ func TestAttachmentService_Download(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid attachment ID")
 		assert.Nil(t, result)
 	})
+}
+
+func TestWriteDownloadFileWithoutOverwrite(t *testing.T) {
+	downloadDir := t.TempDir()
+	originalPath := filepath.Join(downloadDir, "report.pdf")
+	require.NoError(t, os.WriteFile(originalPath, []byte("original"), 0644))
+
+	firstPath, err := writeDownloadFileWithoutOverwrite(downloadDir, "../report.pdf", []byte("first"))
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(downloadDir, "report (1).pdf"), firstPath)
+
+	secondPath, err := writeDownloadFileWithoutOverwrite(downloadDir, "report.pdf", []byte("second"))
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(downloadDir, "report (2).pdf"), secondPath)
+
+	originalContent, err := os.ReadFile(originalPath)
+	require.NoError(t, err)
+	assert.Equal(t, "original", string(originalContent))
+
+	firstContent, err := os.ReadFile(firstPath)
+	require.NoError(t, err)
+	assert.Equal(t, "first", string(firstContent))
+
+	secondContent, err := os.ReadFile(secondPath)
+	require.NoError(t, err)
+	assert.Equal(t, "second", string(secondContent))
 }
 
 func TestAttachmentService_Delete(t *testing.T) {

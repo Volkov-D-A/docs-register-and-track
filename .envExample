@@ -1,4 +1,12 @@
 # ==========================================
+# LOCAL DEVELOPMENT EXAMPLE ONLY.
+# Не используйте значения из этого файла в production.
+# Production .env должен храниться вне Git, иметь права 600 и содержать
+# уникальные секреты. Для SMB предпочтительно задавать SMB_CREDENTIALS_FILE
+# с правами 600 вместо передачи SMB_PASSWORD.
+# ==========================================
+
+# ==========================================
 # Ключ шифрования конфигурации (AES-256, ровно 32 символа)
 # Передаётся в бинарник через ldflags при сборке.
 # ==========================================
@@ -41,3 +49,4 @@ SMB_USER=ivan
 SMB_PASSWORD=1234
 SMB_DOMAIN=WORKGROUP
 MOUNT_POINT=/mnt/smb_backup
+# SMB_CREDENTIALS_FILE=/etc/docflow/smb-backup.credentials

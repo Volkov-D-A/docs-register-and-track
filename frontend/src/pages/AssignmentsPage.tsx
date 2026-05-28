@@ -16,6 +16,7 @@ import AssignmentCompletionModal from '../components/AssignmentCompletionModal';
 
 import DocumentViewModal from '../components/DocumentViewModal';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
+import { formatAppError } from '../utils/appError';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -99,7 +100,7 @@ const AssignmentsPage: React.FC = () => {
             setData(result?.items || []);
             setTotalCount(result?.totalCount || 0);
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         } finally {
             setLoading(false);
         }
@@ -122,7 +123,7 @@ const AssignmentsPage: React.FC = () => {
             message.success('Статус обновлен');
             load();
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         }
     };
 
@@ -144,7 +145,7 @@ const AssignmentsPage: React.FC = () => {
             message.success('Удалено');
             load();
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         }
     };
 

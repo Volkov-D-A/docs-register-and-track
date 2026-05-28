@@ -8,6 +8,7 @@ import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { getDocumentPageConfig } from '../config/documentPageConfigs';
 import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
+import { formatAppError } from '../utils/appError';
 import {
     CitizenAppealDocumentForm,
     CitizenAppealFilters,
@@ -150,7 +151,7 @@ const CitizenAppealsPage: React.FC = () => {
             filterNomenclatureIds,
         ],
         onError: (err: any) => {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         },
     });
 
@@ -219,7 +220,7 @@ const CitizenAppealsPage: React.FC = () => {
             registerForm.resetFields();
             load();
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         }
     };
 
@@ -248,7 +249,7 @@ const CitizenAppealsPage: React.FC = () => {
             editForm.resetFields();
             load();
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         }
     };
 

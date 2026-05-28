@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import AcknowledgmentModal from './AcknowledgmentModal';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
+import { formatAppError } from '../utils/appError';
 
 /**
  * Свойства компонента AcknowledgmentList.
@@ -31,7 +32,6 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
         if (!documentId || !canManageAcknowledgments) return;
         setLoading(true);
         try {
-            // @ts-ignore
             const { GetList } = await import('../../wailsjs/go/services/AcknowledgmentService');
             const result = await GetList(documentId);
             setData(result || []);
@@ -46,13 +46,12 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
 
     const onDelete = async (id: string) => {
         try {
-            // @ts-ignore
             const { Delete } = await import('../../wailsjs/go/services/AcknowledgmentService');
             await Delete(id);
             message.success('Удалено');
             load();
-        } catch (err: any) {
-            message.error(err?.message || String(err));
+        } catch (err: unknown) {
+            message.error(formatAppError(err));
         }
     };
 

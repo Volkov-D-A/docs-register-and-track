@@ -11,6 +11,7 @@ import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { getDocumentPageConfig } from '../config/documentPageConfigs';
 import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
+import { formatAppError } from '../utils/appError';
 import {
     IncomingLetterDocumentForm,
     IncomingLetterFilters,
@@ -143,7 +144,7 @@ const IncomingPage: React.FC = () => {
             filterNomenclatureIds,
         ],
         onError: (err: any) => {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         },
     });
 
@@ -205,7 +206,7 @@ const IncomingPage: React.FC = () => {
             message.success('Документ зарегистрирован');
             setRegisterIdempotencyKey(crypto.randomUUID());
             closeRegisterModal(); registerForm.resetFields(); load();
-        } catch (err: any) { message.error(err?.message || String(err)); }
+        } catch (err: any) { message.error(formatAppError(err)); }
     };
 
     // Редактирование
@@ -225,7 +226,7 @@ const IncomingPage: React.FC = () => {
             });
             message.success('Документ обновлён');
             closeEditModal(); editForm.resetFields(); load();
-        } catch (err: any) { message.error(err?.message || String(err)); }
+        } catch (err: any) { message.error(formatAppError(err)); }
     };
 
     const {

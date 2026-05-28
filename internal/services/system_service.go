@@ -23,4 +23,3 @@ func NewSystemService(db *database.DB) *SystemService {
 func (s *SystemService) Startup(ctx context.Context) {
 	s.ctx = ctx
 }
-

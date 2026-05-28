@@ -21,10 +21,10 @@
 
 | Area | Issues |
 | --- | --- |
-| Production config and secrets | `ISSUE-001`, `ISSUE-002`, `ISSUE-025`, `ISSUE-028`, `ISSUE-029` |
-| Backup/restore and filesystem safety | `ISSUE-010`, `ISSUE-030`, `ISSUE-031` |
+| Production config and secrets | `ISSUE-025`, `ISSUE-028`, `ISSUE-029` |
+| Backup/restore and filesystem safety | none |
 | Backend lifecycle/logging | `ISSUE-015`, `ISSUE-016` |
-| Frontend safety and errors | `ISSUE-019`, `ISSUE-020`, `ISSUE-021`, `ISSUE-044`, `ISSUE-046` |
+| Frontend safety and errors | `ISSUE-020`, `ISSUE-021`, `ISSUE-044`, `ISSUE-046` |
 | Build/install/update | `ISSUE-023`, `ISSUE-024`, `ISSUE-026`, `ISSUE-027` |
 | Security/license/static analysis | `ISSUE-033`, `ISSUE-034`, `ISSUE-037` |
 | Test/performance evidence | `ISSUE-038`, `ISSUE-039`, `ISSUE-040`, `ISSUE-041`, `ISSUE-042`, `ISSUE-043` |
@@ -33,12 +33,12 @@
 
 ## Postponable Minor Issues
 
-`ISSUE-003`, `ISSUE-004`, `ISSUE-005`, `ISSUE-009`, `ISSUE-011`, `ISSUE-017`, `ISSUE-018`, `ISSUE-022`, `ISSUE-035`, `ISSUE-036`, `ISSUE-047`, `ISSUE-048`, `ISSUE-049`.
+`ISSUE-009`, `ISSUE-011`, `ISSUE-022`, `ISSUE-047`, `ISSUE-048`, `ISSUE-049`.
 
 These are not production blockers by themselves, but several are good follow-ups after critical/major remediation.
 
 ## Already Fixed During Audit
 
-`ISSUE-006`, `ISSUE-008`, `ISSUE-012`, `ISSUE-013`, `ISSUE-014`.
+`ISSUE-001`, `ISSUE-002`, `ISSUE-003`, `ISSUE-004`, `ISSUE-005`, `ISSUE-006`, `ISSUE-008`, `ISSUE-010`, `ISSUE-012`, `ISSUE-013`, `ISSUE-014`, `ISSUE-017`, `ISSUE-018`, `ISSUE-019`, `ISSUE-030`, `ISSUE-031`, `ISSUE-035`, `ISSUE-036`.
 
-Key fixed areas: no-gaps/idempotent document registration, retention-safe journal/audit FK strategy, structured backend/Wails error envelope, strict document command decoding.
+Key fixed areas: no-gaps/idempotent document registration, retention-safe journal/audit FK strategy, structured backend/Wails/frontend error handling, strict document command decoding and consistent backend `NOT_FOUND` responses.

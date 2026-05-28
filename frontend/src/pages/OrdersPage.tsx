@@ -8,6 +8,7 @@ import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { getDocumentPageConfig } from '../config/documentPageConfigs';
 import { getDocumentLinkTypeLabel, resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
+import { formatAppError } from '../utils/appError';
 import {
     AdministrativeOrderDocumentForm,
     AdministrativeOrderFilters,
@@ -100,7 +101,7 @@ const OrdersPage: React.FC = () => {
             filterOrderActiveStatus,
         ],
         onError: (err: any) => {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         },
     });
 
@@ -167,7 +168,7 @@ const OrdersPage: React.FC = () => {
             registerForm.resetFields();
             load();
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         }
     };
 
@@ -183,7 +184,7 @@ const OrdersPage: React.FC = () => {
             editForm.resetFields();
             load();
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         }
     };
 
@@ -212,7 +213,7 @@ const OrdersPage: React.FC = () => {
             const card = await GetByID(record.id);
             openEditModal(card?.administrativeOrder || record);
         } catch (err: any) {
-            message.error(err?.message || String(err));
+            message.error(formatAppError(err));
         }
     };
 

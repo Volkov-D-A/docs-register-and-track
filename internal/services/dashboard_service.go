@@ -14,14 +14,22 @@ type DashboardService struct {
 	access *DocumentAccessService
 }
 
+type dashboardAssignmentScope string
+
+const (
+	dashboardAssignmentScopeNone     dashboardAssignmentScope = "none"
+	dashboardAssignmentScopeGlobal   dashboardAssignmentScope = "global"
+	dashboardAssignmentScopePersonal dashboardAssignmentScope = "personal"
+)
+
 // NewDashboardService создает новый экземпляр DashboardService.
 func NewDashboardService(repo DashboardStore, auth *AuthService, access *DocumentAccessService) *DashboardService {
 	return &DashboardService{repo: repo, auth: auth, access: access}
 }
 
-func (s *DashboardService) determineDashboardProfile(user *dto.User) string {
+func (s *DashboardService) determineDashboardAssignmentScope(user *dto.User) dashboardAssignmentScope {
 	if user == nil {
-		return "executor"
+		return dashboardAssignmentScopePersonal
 	}
 
 	hasSystemPermission := func(expected string) bool {
@@ -41,21 +49,17 @@ func (s *DashboardService) determineDashboardProfile(user *dto.User) string {
 	}
 
 	hasClerkFlow := canCreate || canRead
-	hasExecutorFlow := user.IsDocumentParticipant
-
 	switch {
-	case hasSystemPermission(models.SystemPermissionAdmin) && !hasClerkFlow && !hasExecutorFlow:
-		return "admin"
-	case hasClerkFlow && hasExecutorFlow:
-		return "mixed"
+	case hasSystemPermission(models.SystemPermissionAdmin) && !hasClerkFlow && !user.IsDocumentParticipant:
+		return dashboardAssignmentScopeNone
+	case user.IsDocumentParticipant:
+		return dashboardAssignmentScopePersonal
 	case hasClerkFlow:
-		return "clerk"
-	case hasExecutorFlow:
-		return "executor"
+		return dashboardAssignmentScopeGlobal
 	case hasSystemPermission(models.SystemPermissionAdmin):
-		return "admin"
+		return dashboardAssignmentScopeNone
 	default:
-		return "executor"
+		return dashboardAssignmentScopePersonal
 	}
 }
 
@@ -74,10 +78,10 @@ func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
 		ExpiringAssignments: []dto.Assignment{},
 	}
 
-	switch s.determineDashboardProfile(user) {
-	case "admin":
+	switch s.determineDashboardAssignmentScope(user) {
+	case dashboardAssignmentScopeNone:
 		return activity, nil
-	case "clerk":
+	case dashboardAssignmentScopeGlobal:
 		assignments, err := s.repo.GetExpiringAssignments(nil, 7)
 		if err != nil {
 			return nil, err

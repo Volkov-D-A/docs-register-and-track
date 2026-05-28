@@ -15,6 +15,9 @@ type SeqAsyncWriter struct {
 	ch     chan []byte
 	done   chan struct{}
 	once   sync.Once
+	wg     sync.WaitGroup
+	mu     sync.RWMutex
+	closed bool
 }
 
 // NewSeqAsyncWriter создает новый Writer для Seq.
@@ -25,6 +28,7 @@ func NewSeqAsyncWriter(url string) *SeqAsyncWriter {
 		ch:     make(chan []byte, 1000), // Буфер на 1000 сообщений, чтобы не блокировать потоки
 		done:   make(chan struct{}),
 	}
+	w.wg.Add(1)
 	go w.start()
 	return w
 }
@@ -32,6 +36,13 @@ func NewSeqAsyncWriter(url string) *SeqAsyncWriter {
 // Write добавляет лог в буфер. Если буфер полон, сообщение отбрасывается
 // (или можно добавить небольшую блокировку по желанию, но для UI приложения лучше отбрасывать).
 func (w *SeqAsyncWriter) Write(p []byte) (n int, err error) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	if w.closed {
+		return len(p), nil
+	}
+
 	// Копируем срез, так как p может быть переиспользован slog-ом
 	msg := make([]byte, len(p))
 	copy(msg, p)
@@ -47,6 +58,8 @@ func (w *SeqAsyncWriter) Write(p []byte) (n int, err error) {
 
 // start обрабатывает фоновую отправку логов.
 func (w *SeqAsyncWriter) start() {
+	defer w.wg.Done()
+
 	for {
 		select {
 		case msg := <-w.ch:
@@ -79,10 +92,11 @@ func (w *SeqAsyncWriter) send(msg []byte) {
 // Close корректно завершает работу асинхронного Writer, ожидая отправки всех логов в буфере.
 func (w *SeqAsyncWriter) Close() error {
 	w.once.Do(func() {
+		w.mu.Lock()
+		w.closed = true
 		close(w.done)
-		// Дожидаемся небольшого таймаута на всякий случай или просто возвращаемся.
-		// Закрытие канала дает сигнал горутине завершиться. 
-		time.Sleep(100 * time.Millisecond) // Краткая пауза, чтобы start() успел доотправить остатки.
+		w.mu.Unlock()
+		w.wg.Wait()
 	})
 	return nil
 }

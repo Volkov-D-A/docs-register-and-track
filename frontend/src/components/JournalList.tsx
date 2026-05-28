@@ -7,6 +7,7 @@ import {
     QuestionCircleOutlined, FileAddOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { formatAppError } from '../utils/appError';
 
 const { Text } = Typography;
 
@@ -37,12 +38,11 @@ const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
     const loadJournal = async () => {
         setLoading(true);
         try {
-            // @ts-ignore
             const { GetByDocumentID } = await import('../../wailsjs/go/services/JournalService');
             const res = await GetByDocumentID(documentId);
             setEntries(res || []);
-        } catch (err: any) {
-            message.error('Ошибка загрузки журнала: ' + (err.message || String(err)));
+        } catch (err: unknown) {
+            message.error(formatAppError(err, 'Ошибка загрузки журнала'));
         } finally {
             setLoading(false);
         }

@@ -31,9 +31,11 @@ Severity: major
 Severity: minor
 Пункты: C.04.093
 
-Отсутствие сущности иногда возвращается как `nil,nil`, иногда как `models.NewBadRequest("документ не найден")`, иногда как plain `fmt.Errorf("... not found")`.
+Статус: fixed after audit.
 
-Рекомендация: единый `NOT_FOUND` code; для nullable read response явно решить, где допустим `null`.
+Отсутствие сущности больше не возвращается как validation/silent nil/plain not-found на исправленных production paths. Document access, assignment, admin access target user, administrative-order acknowledgment row, registration nomenclature and department update/delete paths return structured `NOT_FOUND`/404.
+
+Проверка: `go test ./internal/services`, `go test ./internal/repository`; search по services/repositories не находит production `fmt.Errorf("... not found")` или `NewBadRequest("...не найден")` paths.
 
 ## Error Families To Standardize
 

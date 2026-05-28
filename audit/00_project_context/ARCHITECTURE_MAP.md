@@ -87,7 +87,7 @@ Good boundaries:
 
 Boundary risks:
 
-- Frontend `resolveUserProfile` mirrors backend `DashboardService.determineDashboardProfile`. It affects UI/release-note behavior and can drift from backend profile classification.
+- Frontend `resolveUserProfile` remains the only UX profile classifier for UI/release-note behavior. Backend dashboard no longer uses UX profile labels; it computes dashboard assignment scope directly.
 - Frontend contains some workflow decisions such as organization setup sequence and navigation fallback. These do not directly write domain data except through services, but the first-run organization setup performs several service calls sequentially.
 - Registration numbering for creates was remediated after stages B/C: idempotency check, nomenclature row lock, number allocation and document create now run in one repository transaction.
 - Wails error boundary was remediated on backend side to structured `{code,message,status}`; frontend still needs centralized adapter usage instead of raw `err?.message || String(err)`.
@@ -126,7 +126,7 @@ Potential cleanup candidates for later stages:
 | --- | --- | --- | --- | --- |
 | A.03.011 | ok | `main.go`, `internal/*`, `frontend/src/*`, `frontend/wailsjs/*`. | Карта модулей Wails + React + AntD + PostgreSQL составлена. | На этапе B дать этот файл вместе с database migrations. |
 | A.03.012 | ok | React imports only Wails services; SQL only in repositories/database. | Границы frontend/backend/database в целом не размыты. | Проверить на этапе D, что новые UI changes не обходят сервисы. |
-| A.03.013 | issue | `frontend/src/store/useAuthStore.ts` `resolveUserProfile`; `internal/services/dashboard_service.go` `determineDashboardProfile`. | Есть дублирование классификации профиля пользователя. | Сделать backend access summary единственным источником профиля либо зафиксировать синхронизацию. |
+| A.03.013 | fixed | `frontend/src/store/useAuthStore.ts` `resolveUserProfile`; `internal/services/dashboard_service.go` `determineDashboardAssignmentScope`; `internal/services/dashboard_service_test.go`. | Backend no longer duplicates UX profile labels; dashboard uses operational assignment scope, with admin/clerk/executor/mixed behavior covered by tests. | Keep UX profile labels out of backend authorization decisions. |
 | A.03.014 | ok | Forms call backend command services; permissions and business validation есть в services. | UI не содержит прямой скрытой бизнес-логики, влияющей на PostgreSQL в обход backend. | Отдельно проверить sequential organization setup на атомарность, если это критично. |
 | A.03.015 | ok | Backend services use DTO/domain types, no Ant Design imports. | Backend не зависит от деталей Ant Design. | Нет. |
 | A.04.016 | ok | Каталоги `internal/{config,database,models,dto,repository,services,storage,logger}` и `frontend/src/{pages,components,modules,hooks,store}`. | Структура каталогов отражает назначение модулей. | Нет. |

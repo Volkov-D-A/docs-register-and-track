@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import AssignmentModal from './AssignmentModal';
 import AssignmentCompletionModal from './AssignmentCompletionModal';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
+import { formatAppError } from '../utils/appError';
 
 /**
  * Свойства компонента AssignmentList.
@@ -59,8 +60,8 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
             await Delete(id);
             message.success('Удалено');
             load();
-        } catch (err: any) {
-            message.error(err?.message || String(err));
+        } catch (err: unknown) {
+            message.error(formatAppError(err));
         }
     };
 
@@ -70,8 +71,8 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
             await UpdateStatus(id, status, report);
             message.success('Статус обновлен');
             load();
-        } catch (err: any) {
-            message.error(err?.message || String(err));
+        } catch (err: unknown) {
+            message.error(formatAppError(err));
         }
     };
 

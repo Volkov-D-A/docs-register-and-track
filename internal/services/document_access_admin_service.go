@@ -50,7 +50,7 @@ func (s *DocumentAccessAdminService) UpdateUserAccessProfile(req models.UpdateUs
 		return err
 	}
 	if user == nil {
-		return fmt.Errorf("пользователь не найден")
+		return models.NewNotFound("пользователь не найден")
 	}
 
 	for _, permission := range req.Permissions {

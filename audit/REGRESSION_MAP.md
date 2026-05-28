@@ -20,10 +20,10 @@
 
 ## CHANGE-003
 
-Что изменено: Возможное добавление индексов под document lists/access/acknowledgments/assignments и удаление дублирующего `idx_users_login`.
-Затронутые файлы: migrations.
+Что изменено: Добавлена миграция `010_drop_duplicate_users_login_index`: `up` удаляет дублирующий `idx_users_login`, `down` восстанавливает его при rollback. Conditional indexes for document lists/access/acknowledgments/assignments остаются отложенными до evidence на production-like dataset.
+Затронутые файлы: `internal/database/migrations/010_drop_duplicate_users_login_index.*.sql`.
 Затронутые пункты плана: B.04.053-B.04.064, F.06.
-Что перепроверить: EXPLAIN before/after; insert/update latency for document registration and assignments; login/auth lookup; migration time on production-like data; отсутствие structural duplicate indexes.
+Что перепроверить: login/auth lookup; `pg_indexes` после миграции; отсутствие structural duplicate indexes; rollback миграции `010` на disposable DB. EXPLAIN before/after for document list indexes остается актуальным только для будущих conditional indexes.
 Что не нужно перепроверять: UI copy.
 
 ## CHANGE-004
@@ -36,16 +36,16 @@
 
 ## CHANGE-005
 
-Что изменено: Планируется hardening `restore_smb_tar.sh` по `DECISION-006`: fail-fast PostgreSQL restore, restore report, preflight/smoke checks, запрет MinIO mirror до успешной DB validation.
-Затронутые файлы: `restore_smb_tar.sh`, `backup_smb_tar.sh`, release/ops docs.
+Что изменено: Выполнен hardening `restore_smb_tar.sh` по `DECISION-006`: fail-fast PostgreSQL restore через `pg_restore --exit-on-error`, restore report, preflight archive content checks, DB smoke validation, запрет MinIO mirror до успешной DB validation.
+Затронутые файлы: `restore_smb_tar.sh`, `audit/REVIEW_LOG.md`, `audit/01_database/DB_BACKUP_RESTORE_REVIEW.md`, `audit/08_docs_release/KNOWN_ISSUES.md`.
 Затронутые пункты плана: B.06.074, B.06.075, E.01, H.03.
-Что перепроверить: успешный restore PostgreSQL+MinIO из валидного архива; corrupted/incompatible dump останавливает workflow до MinIO; отсутствующий `minio_files/` или `database.dump` блокирует restore; cleanup временных файлов; отчет восстановления; RPO/RTO/retention.
+Что перепроверить: успешный restore PostgreSQL+MinIO из валидного архива; corrupted/incompatible dump останавливает workflow до MinIO; отсутствующий `minio_files/` или `database.dump` блокирует restore; cleanup временных файлов; отчет восстановления; RPO/RTO/retention. Статически проверено: `bash -n restore_smb_tar.sh`.
 Что не нужно перепроверять: UI migration management, кроме сценария fresh backup перед rollback.
 
 ## CHANGE-006
 
-Что изменено: Выполнен переход backend/Wails errors на structured envelope по `DECISION-007`.
-Затронутые файлы: `internal/models/errors.go`, `main.go`, service boundary helpers, frontend Wails error handling.
+Что изменено: Выполнен переход backend/Wails errors на structured envelope по `DECISION-007`, and frontend now consumes it through `formatAppError`/`normalizeAppError`.
+Затронутые файлы: `internal/models/errors.go`, `main.go`, service boundary helpers, `frontend/src/utils/appError.ts`, frontend Wails error handling.
 Затронутые пункты плана: C.01.079-C.01.081, C.03.090, C.04.091-C.04.093, D.05, D.06.
 Что перепроверить: login failure; unauthorized session; forbidden action; validation error; not found; duplicate/idempotency conflict; internal DB/storage failure; frontend notifications/forms/empty states; tests no longer compare raw strings.
 Что не нужно перепроверять: SQL query plans, except if repository error mapping changes queries.
@@ -108,10 +108,10 @@
 
 ## CHANGE-014
 
-Что изменено: Планируется hardening filesystem/secret handling for downloads and backup/restore temp files.
-Затронутые файлы: `internal/services/attachment.go`, `backup_smb_tar.sh`, `restore_smb_tar.sh`, ops docs.
+Что изменено: Выполнен hardening backup/restore temp cleanup, SMB credential handling and attachment download collision safety: temp dirs создаются через `mktemp -d`, ограничиваются `chmod 700`, удаляются общим cleanup trap при любом выходе; SMB mount uses CIFS credentials file support instead of password in mount args; `DownloadToDisk` uses `O_EXCL` and collision suffixes. Broader secret handling remains planned.
+Затронутые файлы: `backup_smb_tar.sh`, `restore_smb_tar.sh`, `.envExample`, `docs/backup_restore_runbook.md`, `internal/services/attachment.go`, `internal/services/attachment_test.go`, `audit/REVIEW_LOG.md`, `audit/04_build_install_update/FILESYSTEM_REVIEW.md`, `audit/08_docs_release/KNOWN_ISSUES.md`, `audit/08_docs_release/DOCUMENTATION_REVIEW.md`.
 Затронутые пункты плана: E.04.170-E.04.173, E.05.180, H.03.
-Что перепроверить: duplicate attachment filename download; OpenFile/OpenFolder path validation; backup interruption cleanup; restore interruption cleanup; process list/log secret exposure; temp dir permissions.
+Что перепроверить: backup interruption cleanup; restore interruption cleanup; temp dir permissions; duplicate attachment filename download; OpenFile/OpenFolder path validation; process list/log secret exposure. Duplicate filename helper covered by `TestWriteDownloadFileWithoutOverwrite`.
 Что не нужно перепроверять: Wails installer metadata unless packaging scripts change.
 
 ## CHANGE-015

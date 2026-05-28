@@ -10,7 +10,7 @@
 - document child indexes: correspondents, resolutions, incoming/outgoing/citizen/order details.
 - journal indexes: `document_journal(document_id)`, `document_journal(created_at DESC)`, `admin_audit_log(created_at DESC)`.
 
-Найден один structural duplicate: `users.login` имеет `UNIQUE`, который создает `users_login_key`, и отдельный `idx_users_login` на тот же столбец. Для lookup по login достаточно unique index; отдельный `idx_users_login` можно удалить миграцией после проверки зависимостей.
+Найденный structural duplicate исправлен 2026-05-28: `users.login` имеет `UNIQUE`, который создает `users_login_key`, а отдельный `idx_users_login` на тот же столбец удаляется forward-миграцией `010_drop_duplicate_users_login_index`. Для lookup по login остается unique index.
 
 ## Representative Plan Result
 
@@ -89,5 +89,5 @@ CREATE INDEX ... USING gin (content gin_trgm_ops);
 | B.04.056 | issue | minor | OFFSET pagination используется для списков. | Baseline допустим; при росте перейти на keyset. |
 | B.04.057 | issue | minor | Search uses `ILIKE '%term%'` and `LOWER(...) LIKE`. | При росте добавить trigram/FTS. |
 | B.04.058 | ok | none | Текущие планы не требуют новых составных индексов для SLO. | Вернуться при росте. |
-| B.04.061 | issue | minor | Structural duplicate: `users_login_key` и `idx_users_login` оба индексируют `users(login)`. | Удалить отдельный `idx_users_login`, оставив unique constraint index. |
+| B.04.061 | ok | none | Добавлена миграция `010_drop_duplicate_users_login_index`: `DROP INDEX IF EXISTS idx_users_login`; unique index `users_login_key` остается. | На production-like DB после миграций проверить `pg_indexes`, что на `users(login)` остался unique constraint index. |
 | B.04.062 | ok | none | `pg_stat_user_indexes` снят на synthetic DB; top scans ожидаемо на PK/login/nomenclature indexes. | Повторить после длительной нагрузки или финального production-like сценария. |

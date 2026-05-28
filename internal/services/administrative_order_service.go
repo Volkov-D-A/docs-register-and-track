@@ -45,7 +45,7 @@ func (s *AdministrativeOrderService) MarkAcknowledged(personIDStr string) (*dto.
 		return nil, err
 	}
 	if person == nil {
-		return nil, models.NewBadRequest("строка ознакомления не найдена")
+		return nil, models.NewNotFound("строка ознакомления не найдена")
 	}
 	if err := s.access.RequireDocumentAction(person.DocumentID, "update"); err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (s *AdministrativeOrderService) MarkAcknowledged(personIDStr string) (*dto.
 		return nil, err
 	}
 	if updated == nil {
-		return nil, models.NewBadRequest("строка ознакомления не найдена")
+		return nil, models.NewNotFound("строка ознакомления не найдена")
 	}
 
 	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{

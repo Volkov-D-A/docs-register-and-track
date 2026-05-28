@@ -259,7 +259,10 @@ func TestAssignmentService_Update(t *testing.T) {
 
 		result, err := svc.Update(assignmentID.String(), execID.String(), "Новое", "", nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "не найдено")
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "NOT_FOUND", appErr.Kind)
+		assert.Equal(t, 404, appErr.Code)
 		assert.Nil(t, result)
 	})
 
@@ -535,6 +538,19 @@ func TestAssignmentService_GetByID(t *testing.T) {
 		assert.Equal(t, models.ErrForbidden, err)
 		assert.Nil(t, result)
 	})
+
+	t.Run("not found", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		repo.On("GetByID", assignmentID).Return(nil, nil).Once()
+
+		result, err := svc.GetByID(assignmentID.String())
+		require.Error(t, err)
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "NOT_FOUND", appErr.Kind)
+		assert.Equal(t, 404, appErr.Code)
+		assert.Nil(t, result)
+	})
 }
 
 // ---------- TestAssignmentService_GetList ----------
@@ -717,5 +733,17 @@ func TestAssignmentService_Delete(t *testing.T) {
 		err := svc.Delete(assignmentID.String())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "завершённое")
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		repo.On("GetByID", assignmentID).Return(nil, nil).Once()
+
+		err := svc.Delete(assignmentID.String())
+		require.Error(t, err)
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "NOT_FOUND", appErr.Kind)
+		assert.Equal(t, 404, appErr.Code)
 	})
 }

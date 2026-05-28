@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, App } from 'antd';
+import { formatAppError } from '../utils/appError';
 
 /**
  * Свойства модального окна создания задачи на ознакомление.
@@ -46,15 +47,14 @@ const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCance
             const values = await form.validateFields();
             setLoading(true);
 
-            // @ts-ignore
             const { Create } = await import('../../wailsjs/go/services/AcknowledgmentService');
             await Create(documentId, values.content || '', values.userIds);
 
             message.success('Задача создана');
             onSuccess();
             onCancel();
-        } catch (err: any) {
-            message.error(err?.message || String(err));
+        } catch (err: unknown) {
+            message.error(formatAppError(err));
         } finally {
             setLoading(false);
         }

@@ -1,4 +1,5 @@
 {
+    "_comment": "LOCAL DEVELOPMENT EXAMPLE ONLY. Do not use these localhost endpoints, disabled TLS settings or example encrypted secrets as production defaults.",
     "database": {
         "host": "localhost",
         "port": 5432,

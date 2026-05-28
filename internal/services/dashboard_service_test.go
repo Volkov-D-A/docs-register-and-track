@@ -76,6 +76,28 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		require.NoError(t, auth.Logout())
 	})
 
+	t.Run("mixed user keeps personal expiring assignments scope", func(t *testing.T) {
+		user := &models.User{
+			ID:                    uuid.New(),
+			Login:                 "mixed",
+			PasswordHash:          hash,
+			IsDocumentParticipant: true,
+			IsActive:              true,
+		}
+		svc, repo, auth := makeService(t, user, "clerk", "executor")
+		assignments := []models.Assignment{{ID: uuid.New(), Status: "in_progress"}}
+
+		repo.On("GetExpiringAssignments", mock.MatchedBy(func(id *uuid.UUID) bool {
+			return id != nil && *id == user.ID
+		}), 3).Return(assignments, nil).Once()
+
+		activity, err := svc.GetActivity()
+		require.NoError(t, err)
+		require.Len(t, activity.ExpiringAssignments, 1)
+
+		require.NoError(t, auth.Logout())
+	})
+
 	t.Run("admin has no operational activity", func(t *testing.T) {
 		user := &models.User{
 			ID:                uuid.New(),

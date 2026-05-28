@@ -5,13 +5,13 @@
 
 ## Вывод
 
-Предыдущий `npm run build` прошел успешно, но Vite предупредил о большом основном чанке около 3001 kB, gzip около 872 kB. Для Wails desktop это не автоматически blocker, но уже связано с production SLO: старт до экрана входа до 5 секунд и память до 512 MB.
+Original audit `npm run build` passed but Vite warned about a large main chunk around 3001 kB, gzip around 872 kB. After `ISSUE-004`, page components are lazy-loaded and the main app chunk is around 34 kB. For Wails desktop this is still connected to production SLO: startup to login <= 5 seconds and memory <= 512 MB.
 
 ## Наблюдения
 
 - Route/page components импортируются статически в `App.tsx`.
-- Есть dynamic imports для generated Wails service modules внутри handlers/effects, но они не решают общий route-level chunk.
-- Большие страницы settings/statistics/document view увеличивают риск роста main bundle.
+- Page components are lazy-loaded after remediation of `ISSUE-004`; the main app chunk is no longer the 3 MB bundle.
+- The largest lazy chunk is `StatisticsPage` because it includes charting libraries; this is accepted under an explicit Wails desktop route-chunk warning budget, but still needs startup/memory baseline on target builds.
 
 ## Рекомендации
 
@@ -19,4 +19,4 @@
 - Если budget не выполняется, ввести route-level `React.lazy` для тяжелых страниц: settings, statistics, document view/link graph.
 - Проверить, что code splitting не ломает Wails embedded assets и first-run organization setup.
 
-Связанные issues: `ISSUE-004`, `RISK-007`.
+Связанные issues: fixed `ISSUE-004`, `RISK-007`.

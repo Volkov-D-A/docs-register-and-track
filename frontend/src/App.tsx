@@ -1,27 +1,33 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Spin, Modal, Form, Input, App as AntdApp } from 'antd';
 import { resolveUserProfile, useAuthStore } from './store/useAuthStore';
 import { useDraftLinkStore } from './store/useDraftLinkStore';
 import { useRegisterDocumentStore } from './store/useRegisterDocumentStore';
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import SettingsPage from './pages/SettingsPage';
-import ReferencesPage from './pages/ReferencesPage';
-import StatisticsPage from './pages/StatisticsPage';
-import IncomingPage from './pages/IncomingPage';
-import OutgoingPage from './pages/OutgoingPage';
-import CitizenAppealsPage from './pages/CitizenAppealsPage';
-import OrdersPage from './pages/OrdersPage';
-import AssignmentsPage from './pages/AssignmentsPage';
-import ProfilePage from './pages/ProfilePage';
 import MainLayout from './components/MainLayout';
 import { GetCurrent, MarkCurrentViewed } from '../wailsjs/go/services/ReleaseNoteService';
 import { models } from '../wailsjs/go/models';
 import { getDocumentPageKey } from './constants/documentKinds';
 import { useCurrentAccessSummary } from './hooks/useCurrentAccessSummary';
+import { formatAppError } from './utils/appError';
 const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'appeals', 'orders', 'assignments']);
 
-// Заглушки для страниц
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const ReferencesPage = lazy(() => import('./pages/ReferencesPage'));
+const StatisticsPage = lazy(() => import('./pages/StatisticsPage'));
+const IncomingPage = lazy(() => import('./pages/IncomingPage'));
+const OutgoingPage = lazy(() => import('./pages/OutgoingPage'));
+const CitizenAppealsPage = lazy(() => import('./pages/CitizenAppealsPage'));
+const OrdersPage = lazy(() => import('./pages/OrdersPage'));
+const AssignmentsPage = lazy(() => import('./pages/AssignmentsPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+
+const pageFallback = (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+        <Spin size="large" />
+    </div>
+);
 
 function App() {
     const { message } = AntdApp.useApp();
@@ -225,35 +231,49 @@ function App() {
         const isDocumentPage = documentSectionPages.has(currentPage);
 
         if ((!accessReady || accessLoading) && isDocumentPage) {
-            return <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}><Spin size="large" /></div>;
+            return pageFallback;
         }
 
         const pageToRender = canAccessPage(currentPage) ? currentPage : fallbackPage;
+        let page: React.ReactNode;
 
         switch (pageToRender) {
             case 'dashboard':
-                return <DashboardPage />;
+                page = <DashboardPage />;
+                break;
             case 'incoming':
-                return <IncomingPage />;
+                page = <IncomingPage />;
+                break;
             case 'outgoing':
-                return <OutgoingPage />;
+                page = <OutgoingPage />;
+                break;
             case 'appeals':
-                return <CitizenAppealsPage />;
+                page = <CitizenAppealsPage />;
+                break;
             case 'orders':
-                return <OrdersPage />;
+                page = <OrdersPage />;
+                break;
             case 'assignments':
-                return <AssignmentsPage />;
+                page = <AssignmentsPage />;
+                break;
             case 'settings':
-                return <SettingsPage />;
+                page = <SettingsPage />;
+                break;
             case 'references':
-                return <ReferencesPage />;
+                page = <ReferencesPage />;
+                break;
             case 'statistics':
-                return <StatisticsPage />;
+                page = <StatisticsPage />;
+                break;
             case 'profile':
-                return <ProfilePage />;
+                page = <ProfilePage />;
+                break;
             default:
-                return <DashboardPage />;
+                page = <DashboardPage />;
+                break;
         }
+
+        return <Suspense fallback={pageFallback}>{page}</Suspense>;
     };
 
     const handleOrganizationSetupSave = async () => {
@@ -269,11 +289,11 @@ function App() {
 
             setOrganizationSetupOpen(false);
             message.success('Настройки организации сохранены');
-        } catch (error: any) {
-            if (error?.errorFields) {
+        } catch (error: unknown) {
+            if (typeof error === 'object' && error !== null && 'errorFields' in error) {
                 return;
             }
-            message.error(error?.message || String(error));
+            message.error(formatAppError(error));
         } finally {
             setOrganizationSetupSaving(false);
         }

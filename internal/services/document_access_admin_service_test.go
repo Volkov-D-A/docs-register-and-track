@@ -60,3 +60,26 @@ func TestDocumentAccessAdminService_UpdateUserAccessProfile_RejectsUnsupportedDo
 	assert.Contains(t, err.Error(), `действие "delete" не поддерживается`)
 	assert.False(t, accessRepo.replaceCalled)
 }
+
+func TestDocumentAccessAdminService_UpdateUserAccessProfile_ReturnsNotFoundForMissingUser(t *testing.T) {
+	userRepo := mocks.NewUserStore(t)
+	accessRepo := &spyDocumentAccessStore{}
+	auth := NewAuthService(nil, userRepo)
+	auth.SetAccessStore(accessRepo)
+	auth.currentUserID = uuid.New()
+
+	targetUserID := uuid.New()
+	userRepo.On("GetByID", targetUserID).Return(nil, nil).Once()
+
+	svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
+	err := svc.UpdateUserAccessProfile(models.UpdateUserDocumentAccessRequest{
+		UserID: targetUserID.String(),
+	})
+
+	require.Error(t, err)
+	appErr, ok := models.AsAppError(err)
+	require.True(t, ok)
+	assert.Equal(t, "NOT_FOUND", appErr.Kind)
+	assert.Equal(t, 404, appErr.Code)
+	assert.False(t, accessRepo.replaceCalled)
+}

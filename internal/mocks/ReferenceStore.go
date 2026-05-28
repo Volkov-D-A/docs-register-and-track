@@ -376,4 +376,3 @@ func NewReferenceStore(t interface {
 
 	return mock
 }
-

@@ -1,4 +1,7 @@
-# docker-compose.yaml для базы данных разработки
+# LOCAL DEVELOPMENT EXAMPLE ONLY.
+# docker-compose.yaml поднимает PostgreSQL/MinIO/Seq для закрытого dev-контура.
+# Production topology, versions, secrets and network boundaries are defined by
+# approved external production documentation, not by this compose file.
 services:
   postgres:
     # Используем alpine-версию, так как она весит в разы меньше и быстрее скачивается

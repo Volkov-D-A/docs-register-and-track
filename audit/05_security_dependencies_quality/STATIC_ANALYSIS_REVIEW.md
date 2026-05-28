@@ -15,7 +15,9 @@
 
 ### Go
 
-`go vet` passed. `gofmt -l` reports formatting drift in:
+`go vet` passed. Formatting drift from the original audit was fixed after remediation; `gofmt -l main.go internal tools` now returns empty.
+
+Previously affected files were:
 
 - `internal/logger/seq_writer.go`
 - `internal/mocks/ReferenceStore.go`
@@ -24,11 +26,11 @@
 - `internal/repository/attachment.go`
 - `internal/services/system_service.go`
 
-`internal/mocks/*` are generated and should be regenerated/formatted through the mock generation path, not hand-edited.
+`internal/mocks/*` are generated and should normally be regenerated/formatted through the mock generation path; this remediation only applied gofmt-compatible formatting.
 
 ### TypeScript
 
-TypeScript strict mode is enabled and build passes, but multiple files use `// @ts-ignore` to call generated Wails services or handle model gaps:
+TypeScript strict mode is enabled and build passes. The `// @ts-ignore` comments found in the original audit were obsolete generated Wails service import suppressions and were removed after remediation:
 
 - `AcknowledgmentModal.tsx`
 - `DocumentViewModal.tsx`
@@ -36,10 +38,10 @@ TypeScript strict mode is enabled and build passes, but multiple files use `// @
 - `JournalList.tsx`
 - `DashboardPage.tsx`
 
-There is also broad `any` usage in frontend document forms, pages and generated-adjacent types.
+`rg -n '@ts-ignore|@ts-expect-error' frontend/src` now returns no matches. Broad `any` usage in frontend document forms, pages and generated-adjacent types remains a separate gradual typing concern.
 
 ### ESLint
 
 No ESLint config or lint script exists. Therefore F.02.188 cannot prove that disabled rules are controlled; linting is simply absent.
 
-Связанные issues: `ISSUE-034`, `ISSUE-035`, `ISSUE-036`.
+Связанные issues: `ISSUE-034`; fixed: `ISSUE-035`, `ISSUE-036`.

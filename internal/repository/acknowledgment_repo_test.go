@@ -24,11 +24,11 @@ func TestAcknowledgmentRepository_Create(t *testing.T) {
 
 	now := time.Now()
 	ack := &models.Acknowledgment{
-		ID:           uuid.New(),
-		DocumentID:   uuid.New(),
-		CreatorID:    uuid.New(),
-		Content:      "Тест",
-		CreatedAt:    now,
+		ID:         uuid.New(),
+		DocumentID: uuid.New(),
+		CreatorID:  uuid.New(),
+		Content:    "Тест",
+		CreatedAt:  now,
 		Users: []models.AcknowledgmentUser{
 			{ID: uuid.New(), UserID: uuid.New(), CreatedAt: now},
 		},

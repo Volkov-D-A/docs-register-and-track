@@ -8,12 +8,12 @@
 Категория: Configuration
 Пункт плана: A.05.021, A.05.022, A.05.023
 Severity: major
-Статус: open
+Статус: fixed
 Место: `config.example.json`, `.envExample`, `docker-compose.yaml`
 Проблема: В репозитории есть только local/dev-oriented configuration examples: `localhost`, `sslmode: disable`, MinIO `useSSL: false`, Seq по `http://localhost`, слабые примерные пароли в `.envExample`. Пользователь подтвердил, что weak example passwords допустимы для закрытого контура разработки, но production template/guide базируется на утвержденной документации за пределами проекта, ссылку на нее нельзя добавить в audit context.
 Почему важно: Текущие defaults безопасны только как local/dev шаблон в закрытом контуре разработки. Пользователь подтвердил, что production разворачивается вручную через `config/config.json` по утвержденной документации, поэтому production-конфигурацию, границы контура, секреты и runtime defaults нужно сверять вручную.
 Рекомендация: На этапах B/E/H сверить production config/ops с утвержденной документацией, явно пометить текущие examples как local-only и не использовать их как production defaults.
-Проверка после исправления: Проверить production config/ops по утвержденной документации и отсутствие слабых defaults в фактическом production path.
+Проверка после исправления: `.envExample`, `config.example.json` and `docker-compose.yaml` explicitly say they are local development examples only and must not be used as production defaults. `config.example.json` remains valid JSON and Go config loader ignores the top-level `_comment`. Проверено: `python3 -m json.tool config.example.json`, `GOCACHE=/tmp/go-build-cache go test ./internal/config`. `docker compose config` was not run because Docker CLI is not available in this WSL environment. Production config/ops validation remains covered by `ISSUE-025`, `ISSUE-028`, `ISSUE-029` and release-gate docs.
 Связанные пункты: B.06, E.01, E.02, H.02
 
 ## ISSUE-002
@@ -21,12 +21,12 @@ Severity: major
 Категория: Configuration
 Пункт плана: A.05.021, A.05.022
 Severity: major
-Статус: open
-Место: `backup_smb_tar.sh`, `restore_smb_tar.sh`
+Статус: fixed
+Место: `backup_smb_tar.sh`, `restore_smb_tar.sh`, `.envExample`, `docs/backup_restore_runbook.md`
 Проблема: Скрипты backup/restore читают `.env` по абсолютному пути `/home/dimas/projects/docs-register-and-track/.env` и передают SMB password в аргументах `mount`. Пользователь подтвердил, что абсолютный путь к `.env` нужен из-за особенностей запуска через cron. Backup policy подтверждена отдельно: RPO 1 день, RTO 1-2 дня, retention 15 дней, проверка архивов через ручной test restore PostgreSQL+MinIO перед релизом, offsite copy на другой сервер, Seq не бэкапится.
 Почему важно: Абсолютный env path допустим для cron, но должен совпадать с production cron/deployment path по утвержденной документации. Секреты могут попадать в process list/shell history/операционные логи в зависимости от окружения из-за передачи SMB password в аргументах `mount`.
 Рекомендация: Документировать production cron запуск и путь к `.env`, сверить его с утвержденной документацией, рассмотреть credentials file для CIFS и минимизацию exposure секретов.
-Проверка после исправления: Запустить manual test restore PostgreSQL+MinIO перед релизом из production cron/deployment path и сверить соблюдение RPO/RTO/retention.
+Проверка после исправления: Скрипты используют `mount -t cifs -o credentials=...` вместо передачи password в mount args; поддержан production `SMB_CREDENTIALS_FILE` and fallback temporary credentials file with cleanup trap. `.envExample` помечен как local-only and documents `SMB_CREDENTIALS_FILE`. Добавлен `docs/backup_restore_runbook.md` с cron/env path, правами `.env`/credentials file, RPO/RTO/retention and release-gate checks. Проверено статически: `bash -n backup_smb_tar.sh`, `bash -n restore_smb_tar.sh`. Manual test restore remains release-gate evidence.
 Связанные пункты: B.06, E.01, H.03
 
 ## ISSUE-003
@@ -34,12 +34,12 @@ Severity: major
 Категория: Architecture
 Пункт плана: A.03.013
 Severity: minor
-Статус: open
-Место: `frontend/src/store/useAuthStore.ts`, `internal/services/dashboard_service.go`
+Статус: fixed
+Место: `frontend/src/store/useAuthStore.ts`, `internal/services/dashboard_service.go`, `internal/services/dashboard_service_test.go`
 Проблема: UX-классификация профиля пользователя дублируется во frontend `resolveUserProfile` и backend `determineDashboardProfile`.
 Почему важно: `admin`/`clerk`/`executor`/`mixed` больше не являются бизнес-ролями и не должны становиться источником прав. При изменении permission model frontend и backend могут разойтись, что приведет к неверной навигации, release-note behavior или dashboard profile.
 Рекомендация: Сделать backend access summary единственным источником profile classification или добавить тест/контракт на синхронизацию.
-Проверка после исправления: Проверить одинаковые профили для admin/clerk/executor/mixed cases.
+Проверка после исправления: Backend dashboard no longer classifies users as UX profiles `admin/clerk/executor/mixed`; it now computes only operational assignment scope (`none/global/personal`) for dashboard data. Existing behavior is preserved: admin -> none, clerk -> global, executor -> personal, mixed -> personal. Added mixed-case coverage in `TestDashboardService_GetActivity`. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/services -run TestDashboardService_GetActivity`.
 Связанные пункты: C.01, D.03
 
 ## ISSUE-004
@@ -47,12 +47,12 @@ Severity: minor
 Категория: Build/Performance
 Пункт плана: A.01.007
 Severity: minor
-Статус: open
-Место: `frontend` production build
+Статус: fixed
+Место: `frontend` production build, `frontend/src/App.tsx`, `frontend/vite.config.ts`
 Проблема: `npm run build` проходит, но Vite предупреждает о большом основном чанке `index-HhgWsiDR.js` около 3000.72 kB, gzip около 872.68 kB.
 Почему важно: Для desktop Wails это не обязательно blocker, но влияет на старт frontend и будущий performance budget.
 Рекомендация: На frontend performance stage решить, нужен ли code splitting или увеличить budget осознанно.
-Проверка после исправления: Повторить `npm run build` и сравнить chunk report.
+Проверка после исправления: Page components are lazy-loaded with `React.lazy`/`Suspense`; main app chunk reduced from ~3000 kB to ~34 kB. `vite.config.ts` sets an explicit Wails desktop route-chunk warning budget of 1600 kB because the lazy `StatisticsPage` chunk includes charting libraries (~1470 kB). Проверено: `npm run build` passes without Vite chunk warning.
 Связанные пункты: D.07, F.06
 
 ## ISSUE-005
@@ -60,12 +60,12 @@ Severity: minor
 Категория: Frontend/Configuration
 Пункт плана: A.01.003, A.05.021
 Severity: minor
-Статус: open
+Статус: fixed
 Место: `frontend/src/components/MainLayout.tsx`
 Проблема: Название организации в сайдбаре захардкожено как "УСЗН Озерск".
 Почему важно: Для production-инсталляции название должно соответствовать системной настройке `organization_short_name`; иначе UI может показывать неверный бренд/организацию после первичной настройки.
-Рекомендация: Брать название сайдбара из `GetPublicAppSettings()`, доступного всем авторизованным пользователям; чтение настроек не считается секретным, но изменение настроек должно оставаться только для пользователя с системным правом `admin`. Использовать fallback на название продукта.
-Проверка после исправления: Изменить `organization_short_name` и убедиться, что сайдбар обновляет название после входа/перезапуска.
+Рекомендация: Брать название сайдбара из read-only settings contract, доступного всем авторизованным пользователям; чтение настроек не считается секретным, но изменение настроек должно оставаться только для пользователя с системным правом `admin`. Использовать fallback на название продукта.
+Проверка после исправления: `MainLayout` lazy-loads `SettingsService.GetOrganizationShortName()` after login and displays `organization_short_name` with fallback `Система регистрации документов`. Проверено: `npm run build`.
 Связанные пункты: D.01, D.03, H.01
 
 ## ISSUE-006
@@ -91,7 +91,7 @@ Severity: critical
 Проблема: `down`-миграции удаляют таблицы через `DROP TABLE IF EXISTS`, а rollback migration доступен через runtime service пользователю с системным правом `admin`. На локальном test contour runtime rollback через application migrator откатил `schema_migrations` с `7,false` на `6,false` и удалил таблицу `admin_audit_log`.
 Почему важно: В production rollback последней миграции может удалить документы, поручения, вложения, журналы или административный аудит. Это подтвержденный data-loss path.
 Рекомендация: По `DECISION-003` full production UI/runtime rollback сохраняется. Усилить guardrails: destructive warning, подтверждение, свежий backup PostgreSQL+MinIO перед rollback, обязательная запись в `admin_audit_log`, rollback-runbook и review `down`-миграций на data-loss impact.
-Проверка после исправления: `SettingsService.RollbackMigration` теперь принимает `RollbackMigrationRequest` and rejects rollback без backup confirmation, backup reference, data-loss acknowledgment and control phrase `ОТКАТ МИГРАЦИИ`; frontend migration tab требует те же подтверждения; audit entries `MIGRATION_ROLLBACK_REQUESTED` and `MIGRATION_ROLLBACK` include backup reference; добавлен `docs/migration_rollback_runbook.md`. Проверено: `go test ./...` passed with `GOCACHE=/tmp/go-build-cache`; `npm run build` passed with existing large chunk warning.
+Проверка после исправления: `SettingsService.RollbackMigration` теперь принимает `RollbackMigrationRequest` and rejects rollback без backup confirmation, backup reference, data-loss acknowledgment and control phrase `ОТКАТ МИГРАЦИИ`; frontend migration tab требует те же подтверждения; audit entries `MIGRATION_ROLLBACK_REQUESTED` and `MIGRATION_ROLLBACK` include backup reference; добавлен `docs/migration_rollback_runbook.md`. Проверено: `go test ./...` passed with `GOCACHE=/tmp/go-build-cache`; `npm run build`.
 Связанные пункты: B.01.027, B.06.075, E.04, H.03
 
 ## ISSUE-008
@@ -125,12 +125,12 @@ Severity: minor
 Категория: Database/Backup-Restore
 Пункт плана: B.06.075
 Severity: major
-Статус: open
+Статус: fixed
 Место: `restore_smb_tar.sh`
 Проблема: Скрипт восстановления продолжает выполнение при любом ненулевом коде `pg_restore`, считая это обычно некритичными предупреждениями.
 Почему важно: Реальная ошибка восстановления БД может быть скрыта, после чего MinIO будет синхронизирован поверх неполной или некорректной БД.
 Рекомендация: Разделить ожидаемые warnings и fatal errors, fail fast для неизвестных ошибок, формировать restore report и выполнять smoke validation.
-Проверка после исправления: По `DECISION-006` запустить controlled restore с поврежденным/несовместимым dump и убедиться, что workflow останавливается до MinIO mirror; затем выполнить успешный test restore PostgreSQL+MinIO с restore report и smoke validation.
+Проверка после исправления: `restore_smb_tar.sh` теперь работает с `set -euo pipefail`, проверяет наличие `database.dump` и `minio_files/`, запускает `pg_restore --exit-on-error`, пишет restore report, выполняет DB smoke validation через `psql -v ON_ERROR_STOP=1` и не переходит к MinIO mirror при ошибке PostgreSQL restore/validation. Проверено статически: `bash -n restore_smb_tar.sh`; manual successful restore на production-like контуре остается release-gate проверкой по B.06.074.
 Связанные пункты: B.06.074, H.03
 
 ## ISSUE-011
@@ -138,12 +138,12 @@ Severity: major
 Категория: Database/Indexes
 Пункт плана: B.04.061
 Severity: minor
-Статус: open
-Место: `internal/database/migrations/001_core_users.up.sql`
+Статус: fixed
+Место: `internal/database/migrations/001_core_users.up.sql`, `internal/database/migrations/010_drop_duplicate_users_login_index.*.sql`
 Проблема: `login VARCHAR(100) NOT NULL UNIQUE` уже создает unique index `users_login_key`, но миграция дополнительно создает `idx_users_login ON users(login)`.
 Почему важно: Дублирующий индекс не улучшает lookup по login, но добавляет место на диске и write overhead при изменении пользователей.
 Рекомендация: Удалить отдельный `idx_users_login`, оставив unique constraint/index.
-Проверка после исправления: Проверить login/auth lookup и `pg_indexes`, убедиться, что остался один индекс на `users(login)`.
+Проверка после исправления: Добавлена forward-миграция `010_drop_duplicate_users_login_index`: `up` удаляет `idx_users_login`, `down` восстанавливает его при rollback. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/database`.
 Связанные пункты: B.04.061, F.06
 
 ## ISSUE-012
@@ -216,12 +216,12 @@ Severity: major
 Категория: Backend/Logging Lifecycle
 Пункт плана: C.05.095, C.05.097
 Severity: minor
-Статус: open
+Статус: fixed
 Место: `internal/logger/seq_writer.go`, `main.go`
 Проблема: Seq writer shutdown сигналит goroutine через channel, но flush ожидается фиксированным `time.Sleep(100ms)`. `closeLogger` также вызывается через defer и из `OnShutdown`.
 Почему важно: При выходе последние логи могут быть потеряны, а lifecycle закрытия неочевиден.
 Рекомендация: Сделать deterministic shutdown через `sync.WaitGroup`/ack channel и единый shutdown path.
-Проверка после исправления: Unit/integration test закрытия writer с буфером логов; повторный close idempotent.
+Проверка после исправления: `SeqAsyncWriter` теперь закрывается через `sync.WaitGroup` без `time.Sleep`, `Close` idempotent через `sync.Once`, `Write` после close безопасно игнорируется. Добавлен `TestSeqAsyncWriterCloseFlushesBufferedLogs`, который проверяет flush буфера, повторный `Close` and write-after-close. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/logger`.
 Связанные пункты: C.05.095, E.05
 
 ## ISSUE-018
@@ -229,12 +229,12 @@ Severity: minor
 Категория: Backend/Errors
 Пункт плана: C.04.093
 Severity: minor
-Статус: open
-Место: services/repositories
+Статус: fixed
+Место: `internal/services/document_access_service.go`, `internal/services/assignment_service.go`, `internal/services/document_access_admin_service.go`, `internal/services/administrative_order_service.go`, `internal/repository/document_registration.go`, `internal/repository/department_repository.go`
 Проблема: Отсутствие сущности обрабатывается неодинаково: местами `nil,nil`, местами `models.NewBadRequest("документ не найден")`, местами plain `fmt.Errorf("... not found")`.
 Почему важно: Frontend и пользователь получают разные сценарии для одной категории ошибки; missing entity может выглядеть как validation или silent empty response.
 Рекомендация: Ввести единый `NOT_FOUND` code; явно определить, какие read methods могут возвращать `null`.
-Проверка после исправления: Проверить missing user/document/attachment/assignment/link paths и frontend empty/error states.
+Проверка после исправления: Missing document, assignment, acknowledgment row, user access target, registration nomenclature and department update/delete paths now return structured `models.NewNotFound(...)` with code `NOT_FOUND`/status 404 instead of validation, silent nil or plain `fmt.Errorf("... not found")`. Assignment and document-access-admin tests assert the stable code. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/services`, `GOCACHE=/tmp/go-build-cache go test ./internal/repository`; search for backend `fmt.Errorf("... not found")`/`NewBadRequest("...не найден")` in services/repositories returns no remaining production paths.
 Связанные пункты: D.06, H.03
 
 ## ISSUE-019
@@ -242,12 +242,12 @@ Severity: minor
 Категория: Frontend/Error Handling
 Пункт плана: D.02.108, D.05.134, D.06.142
 Severity: major
-Статус: open
-Место: `frontend/src/store/useAuthStore.ts`, pages/components catch handlers
+Статус: fixed
+Место: `frontend/src/utils/appError.ts`, `frontend/src/store/useAuthStore.ts`, pages/components catch handlers
 Проблема: Frontend еще не использует structured backend/Wails error envelope `{code,message,status}` как контракт. Большинство handlers показывает `message.error(err?.message || String(err))`, а auth lockout распознается через поиск текста в `formatAuthError`.
 Почему важно: UI остается зависимым от русских/Go/PostgreSQL/storage строк и не может стабильно отличать validation, forbidden, not_found, conflict/idempotency и internal errors.
 Рекомендация: Ввести единый frontend error adapter `formatAppError`/`useAppError`, читать stable `code`, а raw strings использовать только как fallback. Перевести login lockout, forbidden/not_found/conflict и validation behavior на коды.
-Проверка после исправления: UI smoke для login failure, locked account, forbidden action, validation error, missing document, duplicate/idempotency conflict и internal storage/DB error.
+Проверка после исправления: Added frontend error adapter `formatAppError`/`normalizeAppError` for Wails `{code,message,status}` envelope and code-based auth lockout handling via `USER_LOCKED`. Replaced raw `err?.message || String(err)` usage in auth, document pages, dashboard, settings, assignments, acknowledgments, files, journal and document modal flows. Проверено: `npm run build`; `rg` no longer finds `err?.message || String(err)` frontend patterns. Full UI smoke for login/forbidden/validation/not_found/conflict/internal remains covered by `ISSUE-038`/`ISSUE-043` release-gate test work.
 Связанные пункты: C.03.090, D.05, F.04, H.03
 
 ## ISSUE-020
@@ -374,9 +374,9 @@ Severity: major
 Severity: major
 Статус: open
 Место: `internal/config/crypto.go`, `Makefile`, `backup_smb_tar.sh`, `restore_smb_tar.sh`
-Проблема: Production secret policy неполная: plaintext config values are accepted for backward compatibility; encrypted config requires key embedded in binary or provided via env; SMB password передается в `mount` options.
+Проблема: Production secret policy неполная: plaintext config values are accepted for backward compatibility; encrypted config requires key embedded in binary or provided via env. SMB password exposure in `mount` args fixed via `ISSUE-002`, but release still needs process-list/log secret checks and a full secret delivery/rotation policy.
 Почему важно: Секреты могут оказаться в binary, process list, shell history или локальных файлах без единой ротации и контроля доступа.
-Рекомендация: Зафиксировать allowed secret delivery method, permissions для config, key rotation procedure, CIFS credentials file instead of password in mount args.
+Рекомендация: Зафиксировать allowed secret delivery method, permissions для config, key rotation procedure, release checks for process list/log artifacts and approved CIFS credentials file usage.
 Проверка после исправления: Проверить config permissions, process list during backup/restore, logs/artifacts на отсутствие passwords/tokens.
 Связанные пункты: A.05.021, E.04.172, F.01, H.02
 
@@ -385,12 +385,12 @@ Severity: major
 Категория: Filesystem/Downloads
 Пункт плана: E.05.180
 Severity: major
-Статус: open
+Статус: fixed
 Место: `internal/services/attachment.go` `DownloadToDisk`
 Проблема: При скачивании вложения filename очищается через `filepath.Base`, но файл сохраняется в Downloads под исходным именем и silently overwrites existing file.
 Почему важно: Пользователь может потерять локальный файл с тем же именем; повторное скачивание разных вложений с одинаковым названием перезапишет предыдущий файл.
 Рекомендация: Добавлять collision-safe suffix, сохранять в app-specific download directory или требовать explicit overwrite confirmation.
-Проверка после исправления: Скачать два разных вложения с одинаковым именем; скачать один файл повторно; проверить OpenFile/OpenFolder.
+Проверка после исправления: `DownloadToDisk` now writes with `os.O_EXCL` and collision-safe names: `file.ext`, `file (1).ext`, `file (2).ext`; original files are not overwritten. Added `TestWriteDownloadFileWithoutOverwrite`. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/services -run TestWriteDownloadFileWithoutOverwrite`, `GOCACHE=/tmp/go-build-cache go test ./internal/services`.
 Связанные пункты: E.05.180, H.03
 
 ## ISSUE-031
@@ -398,12 +398,12 @@ Severity: major
 Категория: Filesystem/Temp
 Пункт плана: E.04.170
 Severity: minor
-Статус: open
+Статус: fixed
 Место: `backup_smb_tar.sh`, `restore_smb_tar.sh`
 Проблема: Временные каталоги `/tmp/backup_stage_*` и `/tmp/restore_stage_*` удаляются в конце успешного workflow, но trap очищает только SMB mount. При ошибке/прерывании temp data может остаться на диске.
 Почему важно: Backup/restore temp directories могут содержать database dump и MinIO files, то есть чувствительные данные.
 Рекомендация: Добавить cleanup trap для temp dirs с осторожной проверкой переменных и прав; ограничить permissions temp dir.
-Проверка после исправления: Прервать backup/restore на каждом этапе и проверить отсутствие временных dump/files.
+Проверка после исправления: `backup_smb_tar.sh` и `restore_smb_tar.sh` создают temp dirs через `mktemp -d`, выставляют `chmod 700` и используют общий `cleanup` trap, который при любом выходе удаляет temp dir, временный CIFS credentials file и размонтирует SMB при необходимости. Проверено статически: `bash -n backup_smb_tar.sh`, `bash -n restore_smb_tar.sh`. Manual interruption smoke остается release-gate проверкой на целевом контуре.
 Связанные пункты: E.04.170, H.03
 
 ## ISSUE-032
@@ -450,12 +450,12 @@ Severity: major
 Категория: Static Analysis/TypeScript
 Пункт плана: F.02.187
 Severity: minor
-Статус: open
-Место: frontend source
+Статус: fixed
+Место: `frontend/src/components/AcknowledgmentModal.tsx`, `frontend/src/components/AcknowledgmentList.tsx`, `frontend/src/components/JournalList.tsx`, `frontend/src/components/DocumentViewModal.tsx`, `frontend/src/pages/DashboardPage.tsx`
 Проблема: Есть несколько `// @ts-ignore` around generated Wails service calls and model gaps, plus broad `any` usage in document pages/forms/statistics/settings.
 Почему важно: Suppressions and broad `any` reduce TypeScript's value exactly at frontend/backend contract boundaries.
 Рекомендация: Replace `@ts-ignore` with typed imports or `@ts-expect-error` with reason and issue reference; gradually type shared document/page DTOs.
-Проверка после исправления: `rg '@ts-ignore' frontend/src` returns none or only documented exceptions; `npm run build` passes.
+Проверка после исправления: Removed obsolete `@ts-ignore` comments around generated Wails service imports. `rg -n '@ts-ignore|@ts-expect-error' frontend/src` returns no matches. `npm run build` passes.
 Связанные пункты: C.03, D.03, F.02.187
 
 ## ISSUE-036
@@ -463,12 +463,12 @@ Severity: minor
 Категория: Code Quality/Formatting
 Пункт плана: F.02.189
 Severity: minor
-Статус: open
+Статус: fixed
 Место: Go source formatting
 Проблема: `gofmt -l main.go internal tools` reports formatting drift in several Go files: `internal/logger/seq_writer.go`, `internal/mocks/ReferenceStore.go`, `internal/models/journal.go`, `internal/repository/acknowledgment_repo_test.go`, `internal/repository/attachment.go`, `internal/services/system_service.go`.
 Почему важно: Formatting drift is low risk, but it indicates formatting is not enforced in release gate.
 Рекомендация: Run gofmt on non-generated files; regenerate/format mocks through generation path; add gofmt check to release gate.
-Проверка после исправления: `gofmt -l main.go internal tools` returns empty.
+Проверка после исправления: Ran gofmt on remaining drift files. `gofmt -l main.go internal tools` returns empty. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/models ./internal/repository ./internal/services`.
 Связанные пункты: F.02.189
 
 ## ISSUE-037
@@ -492,7 +492,7 @@ Severity: major
 Статус: open
 Место: frontend/e2e test infrastructure
 Проблема: В проекте нет frontend unit/component tests and e2e framework. `npm run build` проверяет TypeScript compile, но не покрывает формы, ошибки отправки, empty states, навигацию и основной пользовательский lifecycle на production build.
-Почему важно: Открытые frontend remediation tasks (`ISSUE-019`-`ISSUE-021`) затрагивают ошибки, submit guards and dirty forms; без UI/e2e тестов регрессии легко пропустить.
+Почему важно: Открытые frontend remediation tasks (`ISSUE-020`-`ISSUE-021`) затрагивают submit guards and dirty forms, а исправленный `ISSUE-019` требует smoke coverage; без UI/e2e тестов регрессии легко пропустить.
 Рекомендация: Добавить минимальный Vitest/React Testing Library слой для helpers/forms/error adapter and Playwright/Wails-compatible smoke for production build lifecycle.
 Проверка после исправления: Frontend test command and e2e smoke pass on clean test environment.
 Связанные пункты: D.04, D.05, G.02, H.03

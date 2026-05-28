@@ -9,7 +9,7 @@
 
 ## Замечания
 
-- Ошибки загрузки списков показываются через raw `message.error(err?.message || String(err))`, без code-specific UX.
+- Fixed after audit: list/page error handlers now use the shared `formatAppError` adapter for Wails `{code,message,status}`.
 - Search запускается через `Input.Search.onSearch`, то есть не делает запрос на каждый символ; это нормально для текущего объема.
 - Общий `DocumentListTable` типизирован через `any[]` и `any[] columns`; это acceptable для текущего AntD слоя, но снижает compile-time protection при изменении DTO.
 
@@ -19,4 +19,4 @@
 - На этапе F проверить latency списков на production-like данных с фильтрами и доступами.
 - Если DTO начнут часто меняться, типизировать columns/data по document-kind models.
 
-Связанные issues: `ISSUE-019`, `ISSUE-004`, `RISK-011`.
+Связанные issues: fixed `ISSUE-019`, fixed `ISSUE-004`, `RISK-011`.

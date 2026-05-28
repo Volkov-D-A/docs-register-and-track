@@ -54,7 +54,7 @@ func resolveRegistrationNumberTx(tx *sql.Tx, createdBy uuid.UUID, kind models.Do
 		FOR UPDATE
 	`, nomenclatureID).Scan(&index, &separator, &numberingMode, &nextNumber, &kindCode); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, models.NewBadRequest("номенклатура не найдена")
+			return nil, models.NewNotFound("номенклатура не найдена")
 		}
 		return nil, fmt.Errorf("failed to lock nomenclature: %w", err)
 	}

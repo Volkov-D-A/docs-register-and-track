@@ -3,6 +3,7 @@ import { Form, Input, Button, Card, Typography, Alert, Space } from 'antd';
 import { UserOutlined, LockOutlined, SettingOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../store/useAuthStore';
 import { NeedsInitialSetup, InitialSetup } from '../../wailsjs/go/services/AuthService';
+import { formatAppError } from '../utils/appError';
 
 const { Title, Text } = Typography;
 
@@ -48,8 +49,8 @@ const LoginPage: React.FC = () => {
                 setSetupMode(false);
                 setSetupSuccess(false);
             }, 1500);
-        } catch (err: any) {
-            setSetupError(err?.message || String(err) || 'Ошибка создания администратора');
+        } catch (err: unknown) {
+            setSetupError(formatAppError(err, 'Ошибка создания администратора'));
         } finally {
             setSetupLoading(false);
         }

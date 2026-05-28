@@ -4,6 +4,7 @@ import { models } from '../../wailsjs/go/models';
 import { DocumentKindMeta } from '../constants/documentKinds';
 import { useDraftLinkStore } from './useDraftLinkStore';
 import { useRegisterDocumentStore } from './useRegisterDocumentStore';
+import { formatAppError, getAppErrorCode } from '../utils/appError';
 
 /**
  * Интерфейс, описывающий подразделение пользователя.
@@ -64,14 +65,11 @@ export const resolveUserProfile = (systemPermissions?: string[], kinds?: Documen
     return 'executor';
 };
 
-const BRUTEFORCE_LOCK_MESSAGE = 'Учетная запись заблокирована после 5 неверных попыток входа. Обратитесь к администратору для повторной активации.';
-
-const formatAuthError = (err: any): string => {
-    const raw = err?.message || String(err) || 'Ошибка входа';
-    if (raw.includes('учетная запись заблокирована после 5 неверных попыток входа')) {
-        return BRUTEFORCE_LOCK_MESSAGE;
+const formatAuthError = (err: unknown): string => {
+    if (getAppErrorCode(err) === 'USER_LOCKED') {
+        return formatAppError(err);
     }
-    return raw;
+    return formatAppError(err, 'Ошибка входа');
 };
 
 /**
@@ -124,7 +122,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isAuthenticated: true,
                 isLoading: false,
             });
-        } catch (err: any) {
+        } catch (err: unknown) {
             set({ error: formatAuthError(err), isLoading: false });
         }
     },
@@ -145,8 +143,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         try {
             await ChangePassword(oldPassword, newPassword);
             set({ isLoading: false });
-        } catch (err: any) {
-            set({ error: err?.message || String(err) || 'Ошибка смены пароля', isLoading: false });
+        } catch (err: unknown) {
+            set({ error: formatAppError(err, 'Ошибка смены пароля'), isLoading: false });
             throw err;
         }
     },
@@ -167,8 +165,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             } else {
                 set({ isLoading: false });
             }
-        } catch (err: any) {
-            set({ error: err?.message || String(err) || 'Ошибка обновления профиля', isLoading: false });
+        } catch (err: unknown) {
+            set({ error: formatAppError(err, 'Ошибка обновления профиля'), isLoading: false });
             throw err;
         }
     },

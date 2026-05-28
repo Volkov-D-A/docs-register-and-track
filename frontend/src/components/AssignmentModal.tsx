@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, DatePicker, App } from 'antd';
 import dayjs from 'dayjs';
+import { formatAppError } from '../utils/appError';
 
 /**
  * Свойства модального окна создания/редактирования поручения.
@@ -85,8 +86,8 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
             }
             onSuccess();
             onCancel();
-        } catch (err: any) {
-            message.error(err?.message || String(err));
+        } catch (err: unknown) {
+            message.error(formatAppError(err));
         } finally {
             setLoading(false);
         }

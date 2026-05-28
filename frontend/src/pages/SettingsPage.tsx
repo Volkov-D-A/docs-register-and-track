@@ -8,6 +8,7 @@ import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindLabel, getDocumentKindMet
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAuthStore } from '../store/useAuthStore';
 import { models } from '../../wailsjs/go/models';
+import { formatAppError } from '../utils/appError';
 
 const { Title } = Typography;
 const ROLLBACK_MIGRATION_CONFIRMATION_PHRASE = 'ОТКАТ МИГРАЦИИ';
@@ -34,7 +35,7 @@ const NomenclatureTab: React.FC = () => {
       const items = await GetAll(filterYear, '');
       setData(items || []);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setLoading(false);
   };
@@ -57,7 +58,7 @@ const NomenclatureTab: React.FC = () => {
       setEditItem(null);
       load();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -68,7 +69,7 @@ const NomenclatureTab: React.FC = () => {
       message.success('Удалено');
       load();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -200,7 +201,7 @@ const OrganizationsTab: React.FC = () => {
       const items = await GetOrganizations();
       setData(items || []);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setLoading(false);
   };
@@ -219,7 +220,7 @@ const OrganizationsTab: React.FC = () => {
       setEditItem(null);
       load();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -230,7 +231,7 @@ const OrganizationsTab: React.FC = () => {
       message.success('Удалено');
       load();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -295,7 +296,7 @@ const ResolutionExecutorsTab: React.FC = () => {
       const items = await GetResolutionExecutors();
       setData(items || []);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setLoading(false);
   };
@@ -314,7 +315,7 @@ const ResolutionExecutorsTab: React.FC = () => {
       setEditItem(null);
       load();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -325,7 +326,7 @@ const ResolutionExecutorsTab: React.FC = () => {
       message.success('Удалено');
       load();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -399,7 +400,7 @@ const DepartmentsTab: React.FC = () => {
       setData(items || []);
       setNomenclatureList(nomenclature || []);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setLoading(false);
   };
@@ -421,7 +422,7 @@ const DepartmentsTab: React.FC = () => {
       setEditItem(null);
       load();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -432,7 +433,7 @@ const DepartmentsTab: React.FC = () => {
       message.success('Удалено');
       load();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -596,7 +597,7 @@ const UsersTab: React.FC = () => {
         documentAccess: buildDocumentAccessFormValue(profile),
       });
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -610,7 +611,7 @@ const UsersTab: React.FC = () => {
       setData(users || []);
       setDepartments(deps || []);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setLoading(false);
   };
@@ -649,7 +650,7 @@ const UsersTab: React.FC = () => {
       setEditItem(null);
       load();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -662,7 +663,7 @@ const UsersTab: React.FC = () => {
       passwordForm.resetFields();
       setEditItem(null);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
   };
 
@@ -876,7 +877,7 @@ const SystemSettingsTab: React.FC = () => {
         form.setFieldsValue(values);
       }
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setLoading(false);
   };
@@ -904,7 +905,7 @@ const SystemSettingsTab: React.FC = () => {
       }
       message.success('Настройки сохранены');
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setLoading(false);
   };
@@ -961,7 +962,7 @@ const MigrationsTab: React.FC = () => {
       const result = await GetMigrationStatus();
       setStatus(result);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setLoading(false);
   };
@@ -983,7 +984,7 @@ const MigrationsTab: React.FC = () => {
           message.success('Миграции успешно применены');
           await loadStatus();
         } catch (err: any) {
-          message.error(err?.message || String(err));
+          message.error(formatAppError(err));
         }
         setRunning(false);
       },
@@ -1010,7 +1011,7 @@ const MigrationsTab: React.FC = () => {
       setRollbackModalOpen(false);
       await loadStatus();
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setRollingBack(false);
   };
@@ -1170,7 +1171,7 @@ const StorageTab: React.FC = () => {
           const count = await BulkDeleteOlderThan(selectedDate.toISOString());
           message.success(`Успешно удалено файлов: ${count}`);
         } catch (err: any) {
-          message.error(err?.message || String(err));
+          message.error(formatAppError(err));
         }
         setLoading(false);
       },
@@ -1257,7 +1258,7 @@ const AuditLogTab: React.FC = () => {
       setData(result?.items || []);
       setTotal(result?.total || 0);
     } catch (err: any) {
-      message.error(err?.message || String(err));
+      message.error(formatAppError(err));
     }
     setLoading(false);
   };

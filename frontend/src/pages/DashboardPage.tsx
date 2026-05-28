@@ -12,6 +12,7 @@ import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 
 import DocumentViewModal from '../components/DocumentViewModal';
+import { formatAppError } from '../utils/appError';
 
 const { Title, Text } = Typography;
 
@@ -45,7 +46,6 @@ const DashboardPage: React.FC = () => {
             setStats(data);
 
             // Загрузка ожидающих ознакомлений
-            // @ts-ignore
             const { GetPendingForCurrentUser, GetAllActive } = await import('../../wailsjs/go/services/AcknowledgmentService');
 
             let acks: any[] = [];
@@ -55,9 +55,9 @@ const DashboardPage: React.FC = () => {
                 acks = await GetPendingForCurrentUser();
             }
             setPendingAcks(acks || []);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            message.error('Ошибка загрузки дашборда: ' + (err.message || String(err)));
+            message.error(formatAppError(err, 'Ошибка загрузки дашборда'));
         } finally {
             setLoading(false);
         }
@@ -71,13 +71,12 @@ const DashboardPage: React.FC = () => {
 
     const onAcknowledge = async (id: string) => {
         try {
-            // @ts-ignore
             const { MarkConfirmed } = await import('../../wailsjs/go/services/AcknowledgmentService');
             await MarkConfirmed(id);
             message.success('Ознакомлен');
             loadStats();
-        } catch (err: any) {
-            message.error(err?.message || String(err));
+        } catch (err: unknown) {
+            message.error(formatAppError(err));
         }
     };
 

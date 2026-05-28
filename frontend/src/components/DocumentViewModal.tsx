@@ -11,6 +11,7 @@ import { useDraftLinkStore } from '../store/useDraftLinkStore';
 import { DOCUMENT_KIND_ADMINISTRATIVE_ORDER, getDocumentKindLabel, isAdministrativeOrderKind, isCitizenAppealKind, isIncomingKind } from '../constants/documentKinds';
 import { getDocumentViewConfig } from '../config/documentViewConfig';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
+import { formatAppError } from '../utils/appError';
 
 const { Text } = Typography;
 
@@ -52,12 +53,11 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     const loadData = async () => {
         setLoading(true);
         try {
-            // @ts-ignore
             const { GetByID } = await import('../../wailsjs/go/services/DocumentQueryService');
             const res = await GetByID(documentId);
             setData(res);
-        } catch (err: any) {
-            message.error('Ошибка загрузки документа: ' + (err.message || String(err)));
+        } catch (err: unknown) {
+            message.error(formatAppError(err, 'Ошибка загрузки документа'));
             onCancel();
         } finally {
             setLoading(false);
@@ -283,8 +283,8 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             await MarkAcknowledged(personId);
             await loadData();
             message.success('Отметка ознакомления проставлена');
-        } catch (err: any) {
-            message.error(err?.message || String(err));
+        } catch (err: unknown) {
+            message.error(formatAppError(err));
         }
     };
 

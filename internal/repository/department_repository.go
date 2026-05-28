@@ -177,7 +177,7 @@ func (r *DepartmentRepository) Update(id uuid.UUID, name string, nomenclatureIDs
 	err = tx.QueryRow(query, id, name).Scan(&d.ID, &d.Name, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("department not found")
+			return nil, models.NewNotFound("подразделение не найдено")
 		}
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (r *DepartmentRepository) Delete(id uuid.UUID) error {
 		return err
 	}
 	if affected == 0 {
-		return fmt.Errorf("department not found")
+		return models.NewNotFound("подразделение не найдено")
 	}
 	return nil
 }

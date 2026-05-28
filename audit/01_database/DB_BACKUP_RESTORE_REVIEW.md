@@ -20,9 +20,12 @@ Backup policy из этапа A: RPO 1 день, RTO 1-2 дня, retention 15 д
 `restore_smb_tar.sh`:
 
 - распаковывает архив;
+- проверяет наличие `database.dump` и `minio_files/`;
 - копирует dump в PostgreSQL container;
-- запускает `pg_restore --clean --if-exists`;
-- зеркалит MinIO с `--overwrite --remove`.
+- запускает `pg_restore --clean --if-exists --exit-on-error`;
+- пишет restore report;
+- выполняет DB smoke validation через `psql -v ON_ERROR_STOP=1`;
+- зеркалит MinIO с `--overwrite --remove` только после успешного PostgreSQL restore и smoke validation.
 
 Целевой restore contract по `DECISION-006`:
 
@@ -41,32 +44,36 @@ Backup policy из этапа A: RPO 1 день, RTO 1-2 дня, retention 15 д
 ### ISSUE-010: restore continues after any pg_restore nonzero exit
 
 Severity: major
+Статус: fixed
 Пункты: B.06.075
 Место: `restore_smb_tar.sh`
 
-Скрипт временно делает `set +e`, сохраняет `RESTORE_CODE`, затем при любом ненулевом коде пишет, что это обычно некритичные предупреждения, и продолжает восстановление MinIO. Это может скрыть реальную ошибку восстановления БД.
+Было: скрипт временно делал `set +e`, сохранял `RESTORE_CODE`, затем при любом ненулевом коде писал, что это обычно некритичные предупреждения, и продолжал восстановление MinIO. Это могло скрыть реальную ошибку восстановления БД.
 
-Рекомендация:
+Исправлено 2026-05-28:
 
-- по `DECISION-006` сделать restore fail-fast для fatal/unknown ошибок;
-- отдельно классифицировать ожидаемые warnings, не считать любой nonzero безопасным;
-- писать restore report;
-- выполнять manual test restore и smoke validation до MinIO mirror и после полного восстановления.
+- включен `set -euo pipefail`;
+- добавлены preflight-проверки содержимого архива;
+- `pg_restore` запускается с `--exit-on-error`;
+- PostgreSQL restore и DB smoke validation выполняются до MinIO mirror;
+- при ошибке PostgreSQL restore/validation workflow останавливается, а MinIO не восстанавливается;
+- restore report пишется в `RESTORE_REPORT_DIR` или `./restore_reports`.
 
 ### SMB credentials exposure
 
 Severity: major
+Статус: fixed
 Пункты: B.06.074
 Место: `backup_smb_tar.sh`, `restore_smb_tar.sh`
 
-SMB password передается в аргументах `mount`. Это уже зафиксировано в A как ops/security risk.
+Было: SMB password передавался в аргументах `mount`. Это уже зафиксировано в A как ops/security risk.
 
-Рекомендация: credentials file с ограниченными правами или другой approved secret handling.
+Исправлено: scripts use CIFS `credentials=...`; production can provide `SMB_CREDENTIALS_FILE`, otherwise scripts create a temporary credentials file with `0600` permissions and remove it through cleanup trap. Runbook documents env path, credentials file permissions and process-list release check.
 
 ## Findings
 
 | Пункт | Статус | Severity | Вывод |
 | --- | --- | --- | --- |
 | B.06.074 | issue | major | Backup описан скриптом, но manual test restore должен быть подтвержден перед релизом. |
-| B.06.075 | issue | major | Restore script не отличает warnings от fatal errors; целевой fail-fast contract зафиксирован в `DECISION-006`. |
+| B.06.075 | ok | none | Restore script fail-fast: `pg_restore --exit-on-error`, DB smoke validation and restore report are in place; MinIO mirror starts only after successful DB restore/validation. |
 | B.06.076 | ok | none | Test seed в миграциях не найден; default settings являются production defaults. |

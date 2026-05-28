@@ -116,7 +116,7 @@ func (r *AttachmentRepository) DeleteMultiple(ids []uuid.UUID) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	
+
 	strIDs := make([]string, len(ids))
 	for i, id := range ids {
 		strIDs[i] = id.String()

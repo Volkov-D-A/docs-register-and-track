@@ -10,8 +10,8 @@ Backend tests and vet are healthy after the recent remediation. Frontend TypeScr
 - no ESLint/Prettier gate;
 - no license inventory gate;
 - no dependency/vulnerability gate in release checklist;
-- TypeScript `any` and `@ts-ignore` are common around Wails/generated models;
-- some Go files are not gofmt-clean.
+- broad TypeScript `any` remains around Wails/generated models; obsolete `@ts-ignore` suppressions were removed in `ISSUE-035`;
+- Go files are gofmt-clean after remediation of `ISSUE-036`.
 
 ## Production Relevance
 
@@ -20,8 +20,8 @@ These are not blockers like `govulncheck`, but they increase regression risk whe
 ## Recommendations
 
 - Add minimal ESLint config compatible with React/TypeScript, then enforce only high-signal rules first.
-- Replace `@ts-ignore` with typed Wails model/service imports or `@ts-expect-error` with a reason and issue reference.
-- Format Go files and add `gofmt -l`/`go vet` to release gate.
+- Keep generated Wails service imports typed; do not reintroduce `@ts-ignore`.
+- Keep `gofmt -l`/`go vet` in release gate.
 - Add dependency/security/license checks to release checklist.
 
-Связанные issues: `ISSUE-033`, `ISSUE-034`, `ISSUE-035`, `ISSUE-036`, `ISSUE-037`.
+Связанные issues: `ISSUE-033`, `ISSUE-034`, `ISSUE-037`; fixed: `ISSUE-035`, `ISSUE-036`.
