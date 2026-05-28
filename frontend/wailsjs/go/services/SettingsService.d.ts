@@ -17,7 +17,7 @@ export function GetOrganizationShortName():Promise<string>;
 
 export function IsAssignmentCompletionAttachmentsEnabled():Promise<boolean>;
 
-export function RollbackMigration():Promise<void>;
+export function RollbackMigration(arg1:models.RollbackMigrationRequest):Promise<void>;
 
 export function RunMigrations():Promise<void>;
 

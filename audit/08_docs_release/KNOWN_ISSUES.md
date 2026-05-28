@@ -7,10 +7,15 @@
 
 | Issue | Status | Why it blocks release | Required action |
 | --- | --- | --- | --- |
-| `ISSUE-007` | open | Runtime/admin rollback can execute destructive `down` migrations and delete production data. | Add rollback guardrails, backup requirement, audit entry, runbook and disposable DB rollback test. |
 | `ISSUE-032` | open | `govulncheck` reports reachable vulnerabilities in Go `1.26.2` and `golang.org/x/net v0.52.0`. | Upgrade Go to `1.26.3+`, `x/net` to `v0.53.0+`, repeat `govulncheck`. |
 | `ISSUE-050` | open | Final production candidate is missing release-grade README/runbooks for build, migrations, backup/restore and diagnostics. | Add and validate root release/ops documentation. |
 | `ISSUE-052` | open | Release evidence is not clean/reproducible: worktree has many uncommitted audit/remediation changes. | Review, test, commit/tag or exclude non-release changes; release from clean status. |
+
+## Fixed Critical Issues
+
+| Issue | Status | Evidence |
+| --- | --- | --- |
+| `ISSUE-007` | fixed | Runtime rollback now requires backend-enforced backup confirmation, backup reference, data-loss acknowledgment and control phrase; frontend uses the same guardrails; audit entries include backup reference; `docs/migration_rollback_runbook.md`, `go test ./...` and `npm run build` completed. |
 
 ## Major Issues To Fix Or Explicitly Accept
 
@@ -37,4 +42,3 @@ These are not production blockers by themselves, but several are good follow-ups
 `ISSUE-006`, `ISSUE-008`, `ISSUE-012`, `ISSUE-013`, `ISSUE-014`.
 
 Key fixed areas: no-gaps/idempotent document registration, retention-safe journal/audit FK strategy, structured backend/Wails error envelope, strict document command decoding.
-

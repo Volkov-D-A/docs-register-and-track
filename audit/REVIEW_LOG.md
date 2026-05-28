@@ -86,12 +86,12 @@ Severity: major
 Категория: Database/Migrations
 Пункт плана: B.01.027, B.02.039, B.06.075
 Severity: critical
-Статус: open
+Статус: fixed
 Место: `internal/database/migrations/*.down.sql`, `internal/database/postgres.go`, `internal/services/settings.go`
 Проблема: `down`-миграции удаляют таблицы через `DROP TABLE IF EXISTS`, а rollback migration доступен через runtime service пользователю с системным правом `admin`. На локальном test contour runtime rollback через application migrator откатил `schema_migrations` с `7,false` на `6,false` и удалил таблицу `admin_audit_log`.
 Почему важно: В production rollback последней миграции может удалить документы, поручения, вложения, журналы или административный аудит. Это подтвержденный data-loss path.
 Рекомендация: По `DECISION-003` full production UI/runtime rollback сохраняется. Усилить guardrails: destructive warning, подтверждение, свежий backup PostgreSQL+MinIO перед rollback, обязательная запись в `admin_audit_log`, rollback-runbook и review `down`-миграций на data-loss impact.
-Проверка после исправления: На test DB выполнить rollback policy test и убедиться, что production data не удаляется случайным UI-действием.
+Проверка после исправления: `SettingsService.RollbackMigration` теперь принимает `RollbackMigrationRequest` and rejects rollback без backup confirmation, backup reference, data-loss acknowledgment and control phrase `ОТКАТ МИГРАЦИИ`; frontend migration tab требует те же подтверждения; audit entries `MIGRATION_ROLLBACK_REQUESTED` and `MIGRATION_ROLLBACK` include backup reference; добавлен `docs/migration_rollback_runbook.md`. Проверено: `go test ./...` passed with `GOCACHE=/tmp/go-build-cache`; `npm run build` passed with existing large chunk warning.
 Связанные пункты: B.01.027, B.06.075, E.04, H.03
 
 ## ISSUE-008

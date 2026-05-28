@@ -9,3 +9,11 @@ type SystemSetting struct {
 	Description string    `json:"description"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
+
+// RollbackMigrationRequest подтверждает production guardrails перед откатом миграции.
+type RollbackMigrationRequest struct {
+	BackupCompleted      bool   `json:"backupCompleted"`
+	BackupReference      string `json:"backupReference"`
+	AcknowledgedDataLoss bool   `json:"acknowledgedDataLoss"`
+	Confirmation         string `json:"confirmation"`
+}

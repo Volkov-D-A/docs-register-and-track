@@ -7,7 +7,7 @@
 
 ## Summary
 
-Production-аудит A-I завершен. Система имеет рабочую основу, а несколько критичных инвариантов уже усилены: регистрация документов стала идемпотентной и без потери номера при ошибке, а журналы защищены от каскадного удаления на уровне FK. Тем не менее текущий production candidate не готов к релизу из-за открытых critical blockers and incomplete release evidence.
+Production-аудит A-I завершен. Система имеет рабочую основу, а несколько критичных инвариантов уже усилены: регистрация документов стала идемпотентной и без потери номера при ошибке, журналы защищены от каскадного удаления на уровне FK, runtime rollback миграций получил production guardrails. Тем не менее текущий production candidate не готов к релизу из-за оставшихся critical blockers and incomplete release evidence.
 
 ## Fixed During Audit
 
@@ -16,10 +16,10 @@ Production-аудит A-I завершен. Система имеет рабоч
 - `ISSUE-012`: backend/Wails structured error envelope fixed.
 - `ISSUE-013`: document registration idempotency key and transaction boundary fixed.
 - `ISSUE-014`: strict document command decode fixed.
+- `ISSUE-007`: destructive runtime rollback guardrails fixed.
 
 ## Critical Blockers
 
-- `ISSUE-007`: destructive runtime rollback guardrails missing.
 - `ISSUE-032`: reachable Go vulnerabilities reported by `govulncheck`.
 - `ISSUE-050`: release-grade root README/runbooks missing.
 - `ISSUE-052`: release candidate worktree is not clean.
@@ -49,5 +49,4 @@ Production-аудит A-I завершен. Система имеет рабоч
 
 `not_ready`
 
-Next recommended sequence: close critical security and rollback blockers, finish restore/docs/release gates, run clean-clone release checklist, then perform target OS install smoke and manual PostgreSQL+MinIO test restore.
-
+Next recommended sequence: close critical security/docs/reproducibility blockers, finish restore/docs/release gates, run clean-clone release checklist, then perform target OS install smoke and manual PostgreSQL+MinIO test restore.

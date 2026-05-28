@@ -9,6 +9,8 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
+const rollbackMigrationConfirmationPhrase = "ОТКАТ МИГРАЦИИ"
+
 // SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {
 	db           *database.DB
@@ -78,16 +80,27 @@ func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error
 }
 
 // RollbackMigration откатывает последнюю миграцию БД (только admin).
-func (s *SettingsService) RollbackMigration() error {
+func (s *SettingsService) RollbackMigration(req models.RollbackMigrationRequest) error {
 	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для отката миграций")
 	}
-	if err := s.db.RollbackMigration(database.DefaultMigrationsPath); err != nil {
+	if err := validateRollbackMigrationRequest(req); err != nil {
 		return err
 	}
 
 	userID, userName := s.authService.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "MIGRATION_ROLLBACK", "Откачена последняя миграция БД")
+	s.auditService.LogAction(
+		userID,
+		userName,
+		"MIGRATION_ROLLBACK_REQUESTED",
+		fmt.Sprintf("Запрошен откат последней миграции БД; backup: %s", strings.TrimSpace(req.BackupReference)),
+	)
+
+	if err := s.db.RollbackMigration(database.DefaultMigrationsPath); err != nil {
+		return err
+	}
+
+	s.auditService.LogAction(userID, userName, "MIGRATION_ROLLBACK", fmt.Sprintf("Откачена последняя миграция БД; backup: %s", strings.TrimSpace(req.BackupReference)))
 	return nil
 }
 
@@ -160,6 +173,22 @@ func (s *SettingsService) IsAssignmentCompletionAttachmentsEnabled() bool {
 	default:
 		return true
 	}
+}
+
+func validateRollbackMigrationRequest(req models.RollbackMigrationRequest) error {
+	if !req.BackupCompleted {
+		return models.NewBadRequest("Перед откатом миграции подтвердите свежую резервную копию PostgreSQL и MinIO")
+	}
+	if strings.TrimSpace(req.BackupReference) == "" {
+		return models.NewBadRequest("Укажите идентификатор или путь к резервной копии перед откатом миграции")
+	}
+	if !req.AcknowledgedDataLoss {
+		return models.NewBadRequest("Подтвердите, что откат миграции может удалить данные")
+	}
+	if strings.TrimSpace(req.Confirmation) != rollbackMigrationConfirmationPhrase {
+		return models.NewBadRequest("Введите контрольную фразу для отката миграции")
+	}
+	return nil
 }
 
 func (s *SettingsService) getSettingAuditLabel(key string, current *models.SystemSetting) string {

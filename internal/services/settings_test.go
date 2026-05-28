@@ -176,6 +176,64 @@ func TestSettingsService_Update(t *testing.T) {
 	})
 }
 
+func TestValidateRollbackMigrationRequest(t *testing.T) {
+	valid := models.RollbackMigrationRequest{
+		BackupCompleted:      true,
+		BackupReference:      "smb://backup/docflow/2026-05-28_120000.tar",
+		AcknowledgedDataLoss: true,
+		Confirmation:         rollbackMigrationConfirmationPhrase,
+	}
+
+	tests := []struct {
+		name    string
+		req     models.RollbackMigrationRequest
+		wantErr bool
+	}{
+		{name: "valid", req: valid, wantErr: false},
+		{name: "backup not confirmed", req: models.RollbackMigrationRequest{
+			BackupReference:      valid.BackupReference,
+			AcknowledgedDataLoss: true,
+			Confirmation:         valid.Confirmation,
+		}, wantErr: true},
+		{name: "empty backup reference", req: models.RollbackMigrationRequest{
+			BackupCompleted:      true,
+			AcknowledgedDataLoss: true,
+			Confirmation:         valid.Confirmation,
+		}, wantErr: true},
+		{name: "data loss not acknowledged", req: models.RollbackMigrationRequest{
+			BackupCompleted: true,
+			BackupReference: valid.BackupReference,
+			Confirmation:    valid.Confirmation,
+		}, wantErr: true},
+		{name: "wrong confirmation phrase", req: models.RollbackMigrationRequest{
+			BackupCompleted:      true,
+			BackupReference:      valid.BackupReference,
+			AcknowledgedDataLoss: true,
+			Confirmation:         "rollback",
+		}, wantErr: true},
+		{name: "trims confirmation phrase", req: models.RollbackMigrationRequest{
+			BackupCompleted:      true,
+			BackupReference:      "  " + valid.BackupReference + "  ",
+			AcknowledgedDataLoss: true,
+			Confirmation:         "  " + valid.Confirmation + "  ",
+		}, wantErr: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateRollbackMigrationRequest(tt.req)
+			if tt.wantErr {
+				require.Error(t, err)
+				appErr, ok := models.AsAppError(err)
+				require.True(t, ok)
+				assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestSettingsService_GetMaxFileSize(t *testing.T) {
 	// Получение максимально допустимого размера загружаемых файлов в байтах
 	t.Run("from settings", func(t *testing.T) {
@@ -344,17 +402,33 @@ func TestSettingsService_GetMigrationStatus(t *testing.T) {
 
 func TestSettingsService_RollbackMigration(t *testing.T) {
 	// Откат последней примененной миграции базы данных
+	validReq := models.RollbackMigrationRequest{
+		BackupCompleted:      true,
+		BackupReference:      "smb://backup/docflow/2026-05-28_120000.tar",
+		AcknowledgedDataLoss: true,
+		Confirmation:         rollbackMigrationConfirmationPhrase,
+	}
+
 	t.Run("forbidden non-admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "executor")
-		err := svc.RollbackMigration()
+		err := svc.RollbackMigration(validReq)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Недостаточно прав")
+	})
+
+	t.Run("admin requires rollback guardrails", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		err := svc.RollbackMigration(models.RollbackMigrationRequest{})
+		require.Error(t, err)
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
 	})
 
 	t.Run("allowed for user with admin role", func(t *testing.T) {
 		svc, _, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
 
-		err := svc.RollbackMigration()
+		err := svc.RollbackMigration(validReq)
 		if err != nil {
 			assert.NotContains(t, err.Error(), "Недостаточно прав")
 		}
@@ -362,7 +436,7 @@ func TestSettingsService_RollbackMigration(t *testing.T) {
 
 	t.Run("success admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
-		err := svc.RollbackMigration()
+		err := svc.RollbackMigration(validReq)
 		if err != nil {
 			assert.NotContains(t, err.Error(), "Недостаточно прав")
 		}

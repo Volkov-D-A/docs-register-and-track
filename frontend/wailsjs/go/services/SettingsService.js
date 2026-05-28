@@ -30,8 +30,8 @@ export function IsAssignmentCompletionAttachmentsEnabled() {
   return window['go']['services']['SettingsService']['IsAssignmentCompletionAttachmentsEnabled']();
 }
 
-export function RollbackMigration() {
-  return window['go']['services']['SettingsService']['RollbackMigration']();
+export function RollbackMigration(arg1) {
+  return window['go']['services']['SettingsService']['RollbackMigration'](arg1);
 }
 
 export function RunMigrations() {

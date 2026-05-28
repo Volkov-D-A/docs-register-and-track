@@ -2027,9 +2027,30 @@ export namespace models {
 		}
 	}
 	
-	
-	
-	
+
+
+
+	export class RollbackMigrationRequest {
+	    backupCompleted: boolean;
+	    backupReference: string;
+	    acknowledgedDataLoss: boolean;
+	    confirmation: string;
+
+	    static createFrom(source: any = {}) {
+	        return new RollbackMigrationRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.backupCompleted = source["backupCompleted"];
+	        this.backupReference = source["backupReference"];
+	        this.acknowledgedDataLoss = source["acknowledgedDataLoss"];
+	        this.confirmation = source["confirmation"];
+	    }
+	}
+
+
+
 	export class SystemSetting {
 	    key: string;
 	    value: string;
@@ -2239,4 +2260,3 @@ export namespace services {
 	}
 
 }
-

@@ -7,7 +7,7 @@
 
 ## 1. Stop Gates
 
-- [ ] `ISSUE-007` закрыт: rollback guardrails implemented and tested for destructive `down` migrations.
+- [x] `ISSUE-007` закрыт: rollback guardrails implemented and tested for destructive `down` migrations.
 - [ ] `ISSUE-032` закрыт: Go toolchain `1.26.3+`, `golang.org/x/net v0.53.0+`, `govulncheck ./...` clean.
 - [ ] `ISSUE-010` закрыт или формально принят: restore script fail-fast, report and smoke validation implemented.
 - [ ] Нет open `critical` issues in `audit/REVIEW_LOG.md`.
@@ -81,4 +81,3 @@
 - [ ] Performance baseline recorded: startup, login/dashboard, list/search, save, statistics, memory.
 - [ ] Artifacts checksums and version metadata recorded.
 - [ ] Release tag created from clean worktree.
-

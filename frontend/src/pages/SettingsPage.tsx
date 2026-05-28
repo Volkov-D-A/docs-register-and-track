@@ -10,6 +10,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { models } from '../../wailsjs/go/models';
 
 const { Title } = Typography;
+const ROLLBACK_MIGRATION_CONFIRMATION_PHRASE = 'ОТКАТ МИГРАЦИИ';
 
 // === Номенклатура ===
 /**
@@ -946,9 +947,11 @@ const SystemSettingsTab: React.FC = () => {
  */
 const MigrationsTab: React.FC = () => {
   const { message, modal } = App.useApp();
+  const [rollbackForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [rollingBack, setRollingBack] = useState(false);
+  const [rollbackModalOpen, setRollbackModalOpen] = useState(false);
   const [status, setStatus] = useState<any>(null);
 
   const loadStatus = async () => {
@@ -988,26 +991,28 @@ const MigrationsTab: React.FC = () => {
   };
 
   const onRollback = () => {
-    modal.confirm({
-      title: 'Откат миграции',
-      content: 'Вы уверены, что хотите откатить последнюю миграцию? Это может привести к потере данных, добавленных в новых таблицах/столбцах.',
-      okText: 'Откатить',
-      cancelText: 'Отмена',
-      okType: 'primary',
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        setRollingBack(true);
-        try {
-          const { RollbackMigration } = await import('../../wailsjs/go/services/SettingsService');
-          await RollbackMigration();
-          message.success('Миграция успешно откачена');
-          await loadStatus();
-        } catch (err: any) {
-          message.error(err?.message || String(err));
-        }
-        setRollingBack(false);
-      },
-    });
+    rollbackForm.resetFields();
+    setRollbackModalOpen(true);
+  };
+
+  const onConfirmRollback = async () => {
+    const values = await rollbackForm.validateFields();
+    setRollingBack(true);
+    try {
+      const { RollbackMigration } = await import('../../wailsjs/go/services/SettingsService');
+      await RollbackMigration({
+        backupCompleted: values.backupCompleted,
+        backupReference: values.backupReference,
+        acknowledgedDataLoss: values.acknowledgedDataLoss,
+        confirmation: values.confirmation,
+      });
+      message.success('Миграция успешно откачена');
+      setRollbackModalOpen(false);
+      await loadStatus();
+    } catch (err: any) {
+      message.error(err?.message || String(err));
+    }
+    setRollingBack(false);
   };
 
   return (
@@ -1074,9 +1079,65 @@ const MigrationsTab: React.FC = () => {
       </Space>
       <div>
         <Typography.Text type="secondary">
-          Перед запуском или откатом миграций убедитесь, что все пользователи завершили работу
+          Перед запуском миграций убедитесь, что все пользователи завершили работу. Перед откатом требуется свежая резервная копия PostgreSQL и MinIO.
         </Typography.Text>
       </div>
+
+      <Modal
+        title="Откат миграции"
+        open={rollbackModalOpen}
+        onCancel={() => setRollbackModalOpen(false)}
+        onOk={onConfirmRollback}
+        okText="Откатить"
+        cancelText="Отмена"
+        okButtonProps={{ danger: true, loading: rollingBack }}
+        confirmLoading={rollingBack}
+        destroyOnClose
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Typography.Text type="danger">
+            Откат последней миграции может удалить таблицы, столбцы и данные, созданные этой миграцией.
+          </Typography.Text>
+          <Form form={rollbackForm} layout="vertical" preserve={false}>
+            <Form.Item
+              name="backupCompleted"
+              valuePropName="checked"
+              rules={[{
+                validator: (_, checked) => checked ? Promise.resolve() : Promise.reject(new Error('Подтвердите наличие свежей резервной копии')),
+              }]}
+            >
+              <Checkbox>Свежая резервная копия PostgreSQL и MinIO создана и проверена</Checkbox>
+            </Form.Item>
+            <Form.Item
+              name="backupReference"
+              label="Идентификатор или путь к резервной копии"
+              rules={[{ required: true, whitespace: true, message: 'Укажите резервную копию' }]}
+            >
+              <Input placeholder="Например: smb://backup/docflow/2026-05-28_120000.tar" />
+            </Form.Item>
+            <Form.Item
+              name="acknowledgedDataLoss"
+              valuePropName="checked"
+              rules={[{
+                validator: (_, checked) => checked ? Promise.resolve() : Promise.reject(new Error('Подтвердите риск потери данных')),
+              }]}
+            >
+              <Checkbox>Я понимаю, что откат может удалить production-данные</Checkbox>
+            </Form.Item>
+            <Form.Item
+              name="confirmation"
+              label={`Введите: ${ROLLBACK_MIGRATION_CONFIRMATION_PHRASE}`}
+              rules={[{
+                validator: (_, value) => String(value || '').trim() === ROLLBACK_MIGRATION_CONFIRMATION_PHRASE
+                  ? Promise.resolve()
+                  : Promise.reject(new Error('Контрольная фраза не совпадает')),
+              }]}
+            >
+              <Input />
+            </Form.Item>
+          </Form>
+        </Space>
+      </Modal>
     </div>
   );
 };

@@ -201,3 +201,11 @@
 Затронутые пункты плана: I.01.258-I.02.270.
 Что перепроверить: clean clone build; non-author checklist execution; fresh DB setup; migration/rollback runbook; backup/restore smoke; target OS install; version metadata; clean git status at release tag.
 Что не нужно перепроверять: low-level SQL plans unless release scripts provision performance dataset.
+
+## CHANGE-026
+
+Что изменено: Закрыт `ISSUE-007`: runtime rollback миграций теперь требует backend-enforced подтверждений свежего PostgreSQL+MinIO backup, backup reference, acknowledgment риска потери данных and control phrase; frontend показывает отдельную форму подтверждения; rollback action writes admin audit entries; добавлен maintained rollback runbook.
+Затронутые файлы: `internal/models/settings.go`, `internal/services/settings.go`, `internal/services/settings_test.go`, `frontend/src/pages/SettingsPage.tsx`, `frontend/wailsjs/go/services/SettingsService.*`, `frontend/wailsjs/go/models.ts`, `docs/migration_rollback_runbook.md`, `audit/*`.
+Затронутые пункты плана: B.01.027, B.02.039, B.06.075, E.03.168, H.03.
+Что перепроверить: migration settings tab; rollback without each required confirmation; rollback with valid request on disposable DB; audit log entries; dirty schema handling; backup/restore runbook path.
+Что не нужно перепроверять: document registration idempotency and retention FK behavior unless migration sequence changes.
