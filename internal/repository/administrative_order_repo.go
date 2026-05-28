@@ -221,15 +221,28 @@ func (r *AdministrativeOrderRepository) Create(req models.CreateAdministrativeOr
 	}
 	defer tx.Rollback()
 
+	registration, err := resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindAdministrativeOrder, req.NomenclatureID, req.IdempotencyKey, req.OrderNumber)
+	if err != nil {
+		return nil, err
+	}
+	if registration.Existing != uuid.Nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
+		}
+		return r.GetByID(registration.Existing)
+	}
+	req.OrderNumber = registration.Number
+
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
+			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8)
 		RETURNING id
 	`,
 		models.DocumentKindAdministrativeOrder,
 		req.NomenclatureID,
+		req.IdempotencyKey,
 		req.OrderNumber,
 		req.OrderDate,
 		models.DocumentTypeAdministrativeOrder,
@@ -237,6 +250,17 @@ func (r *AdministrativeOrderRepository) Create(req models.CreateAdministrativeOr
 		req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
+		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
+			_ = tx.Rollback()
+			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindAdministrativeOrder, req.IdempotencyKey)
+			if lookupErr != nil {
+				return nil, fmt.Errorf("failed to resolve idempotent document: %w", lookupErr)
+			}
+			return r.GetByID(existingID)
+		}
+		if isUniqueViolation(err, "idx_documents_kind_registration_number_year") {
+			return nil, models.NewConflict("документ с таким регистрационным номером уже существует")
+		}
 		return nil, fmt.Errorf("failed to create administrative order root: %w", err)
 	}
 

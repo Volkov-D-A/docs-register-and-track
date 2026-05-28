@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -189,10 +190,12 @@ func normalizeUpdateRequest(kind models.DocumentKind, req any) (any, error) {
 func decodeDocumentCommandRequest(src any, dst any) error {
 	data, err := json.Marshal(src)
 	if err != nil {
-		return fmt.Errorf("failed to encode document command request: %w", err)
+		return models.NewBadRequest("неверный формат команды документа")
 	}
-	if err := json.Unmarshal(data, dst); err != nil {
-		return fmt.Errorf("failed to decode document command request: %w", err)
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		return models.NewBadRequest("неверные поля команды документа")
 	}
 
 	return nil

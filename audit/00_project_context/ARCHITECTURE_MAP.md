@@ -89,7 +89,14 @@ Boundary risks:
 
 - Frontend `resolveUserProfile` mirrors backend `DashboardService.determineDashboardProfile`. It affects UI/release-note behavior and can drift from backend profile classification.
 - Frontend contains some workflow decisions such as organization setup sequence and navigation fallback. These do not directly write domain data except through services, but the first-run organization setup performs several service calls sequentially.
-- Registration numbering is obtained through `NomenclatureRepository.GetNextNumber` before repository create transactions; this conflicts with the confirmed strict no-gaps numbering rule and must be reviewed on stage B.
+- Registration numbering for creates was remediated after stages B/C: idempotency check, nomenclature row lock, number allocation and document create now run in one repository transaction.
+- Wails error boundary was remediated on backend side to structured `{code,message,status}`; frontend still needs centralized adapter usage instead of raw `err?.message || String(err)`.
+- `DocumentRegistrationService.Register/Update` still has generic public shape, but strict decoding now rejects unknown fields and create DTOs require `idempotencyKey`.
+- Long-running backend operations currently use `context.Background()` in several service paths; target: app/request context propagation from Wails lifecycle.
+- Some frontend pages are large and mix service calls, forms, modal lifecycle and layout; stage D recommends gradual feature-level decomposition.
+- Runtime config currently sits outside embedded assets and is loaded as cwd-relative `config/config.json`; stage E requires an explicit production config placement policy.
+- Release/version information is split between embedded release notes and Wails/binary metadata; stage E requires a single version source for release artifacts.
+- Security/dependency checks are currently manual; stage F requires a release gate for `govulncheck`, npm audit, license inventory and static analysis.
 
 ## Structure and Cleanliness
 

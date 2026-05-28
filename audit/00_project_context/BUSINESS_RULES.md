@@ -15,6 +15,7 @@
 - Регистрационный номер уникален в пределах `(kind, registration_number, year(registration_date))`.
 - Автоматическая регистрационная нумерация должна быть строго без пропусков: `next_number` можно увеличивать только как часть успешно завершенной регистрации документа.
 - Регистрация документа должна быть идемпотентной по backend `idempotency_key`: target schema — `documents.idempotency_key UUID NOT NULL` и unique `(created_by, kind, idempotency_key)`. Повторный запрос с тем же ключом возвращает уже созданный документ, не создает дубль и не инкрементирует `nomenclature.next_number` повторно.
+- Backend validation, permission, not-found, conflict and internal errors must have stable machine-readable codes for frontend; PostgreSQL/storage/Go error text is not a business contract.
 - Номенклатурное дело уникально по `(index, year, kind_code)`.
 - Номенклатура поддерживает режимы нумерации `index_and_number`, `number_only`, `manual_only`; в автоматических режимах номер берется из `next_number`.
 - Документ создается пользователем и имеет общую строку в `documents` плюс таблицу деталей конкретного вида.
@@ -82,6 +83,13 @@
 - отметка релиза как просмотренного и сохранение темы;
 - повторное получение списков/карточек/статистики;
 - backup verification через ручной test restore PostgreSQL+MinIO перед релизом в production-процедуре с RPO 1 день, RTO 1-2 дня, retention 15 дней и offsite copy на другой сервер; Seq logs не входят в backup-контур.
+
+## Backend Contracts
+
+- Frontend must not depend on raw PostgreSQL, storage or Go error text; backend exposes safe messages and stable codes.
+- Repeated document registration with the same `(created_by, kind, idempotency_key)` returns the existing document.
+- Unknown fields in document command payloads should be rejected after strict DTO hardening.
+- Long-running file/storage/statistics operations should be cancelable when the application is shutting down.
 
 ## Контрольные Пункты
 

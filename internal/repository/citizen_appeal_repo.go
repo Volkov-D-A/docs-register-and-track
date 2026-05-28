@@ -337,6 +337,18 @@ func (r *CitizenAppealRepository) Create(req models.CreateCitizenAppealDocReques
 	}
 	defer tx.Rollback()
 
+	registration, err := resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindCitizenAppeal, req.NomenclatureID, req.IdempotencyKey, req.RegistrationNumber)
+	if err != nil {
+		return nil, err
+	}
+	if registration.Existing != uuid.Nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
+		}
+		return r.GetByID(registration.Existing)
+	}
+	req.RegistrationNumber = registration.Number
+
 	pagesCount := req.AppealPagesCount + req.AttachmentPagesCount
 	if pagesCount <= 0 {
 		pagesCount = 1
@@ -345,14 +357,25 @@ func (r *CitizenAppealRepository) Create(req models.CreateCitizenAppealDocReques
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id
 	`,
-		models.DocumentKindCitizenAppeal, req.NomenclatureID, req.RegistrationNumber, req.RegistrationDate,
+		models.DocumentKindCitizenAppeal, req.NomenclatureID, req.IdempotencyKey, req.RegistrationNumber, req.RegistrationDate,
 		models.DocumentTypeCitizenAppeal, req.Content, pagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
+		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
+			_ = tx.Rollback()
+			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindCitizenAppeal, req.IdempotencyKey)
+			if lookupErr != nil {
+				return nil, fmt.Errorf("failed to resolve idempotent document: %w", lookupErr)
+			}
+			return r.GetByID(existingID)
+		}
+		if isUniqueViolation(err, "idx_documents_kind_registration_number_year") {
+			return nil, models.NewConflict("документ с таким регистрационным номером уже существует")
+		}
 		return nil, fmt.Errorf("failed to create citizen appeal root: %w", err)
 	}
 

@@ -365,6 +365,7 @@ type GraphData struct {
 // CreateIncomingDocRequest — запрос на создание входящего документа (уровень репозитория).
 type CreateIncomingDocRequest struct {
 	NomenclatureID      uuid.UUID
+	IdempotencyKey      uuid.UUID
 	DocumentTypeID      string
 	CreatedBy           uuid.UUID
 	IncomingNumber      string
@@ -394,6 +395,7 @@ type UpdateIncomingDocRequest struct {
 // CreateOutgoingDocRequest — запрос на создание исходящего документа (уровень репозитория).
 type CreateOutgoingDocRequest struct {
 	NomenclatureID  uuid.UUID
+	IdempotencyKey  uuid.UUID
 	DocumentTypeID  string
 	RecipientOrgID  uuid.UUID
 	CreatedBy       uuid.UUID
@@ -422,6 +424,7 @@ type UpdateOutgoingDocRequest struct {
 // CreateCitizenAppealDocRequest — запрос на создание обращения граждан.
 type CreateCitizenAppealDocRequest struct {
 	NomenclatureID       uuid.UUID
+	IdempotencyKey       uuid.UUID
 	CreatedBy            uuid.UUID
 	RegistrationNumber   string
 	RegistrationDate     time.Time
@@ -461,6 +464,7 @@ type UpdateCitizenAppealDocRequest struct {
 // CreateAdministrativeOrderDocRequest — запрос на создание приказа.
 type CreateAdministrativeOrderDocRequest struct {
 	NomenclatureID          uuid.UUID
+	IdempotencyKey          uuid.UUID
 	CreatedBy               uuid.UUID
 	OrderNumber             string
 	OrderDate               time.Time

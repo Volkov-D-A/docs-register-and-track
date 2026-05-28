@@ -46,6 +46,7 @@ const CitizenAppealsPage: React.FC = () => {
 
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
+    const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
 
     const loadRefs = async () => {
         try {
@@ -188,6 +189,7 @@ const CitizenAppealsPage: React.FC = () => {
             const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
             const newDoc = await Register(DOCUMENT_KIND_CITIZEN_APPEAL, {
                 nomenclatureId: values.nomenclatureId,
+                idempotencyKey: registerIdempotencyKey,
                 registrationNumber: values.registrationNumber || '',
                 registrationDate: values.registrationDate?.format('YYYY-MM-DD') || '',
                 appealDate: values.appealDate?.format('YYYY-MM-DD') || '',
@@ -212,6 +214,7 @@ const CitizenAppealsPage: React.FC = () => {
             }
 
             message.success('Обращение зарегистрировано');
+            setRegisterIdempotencyKey(crypto.randomUUID());
             closeRegisterModal();
             registerForm.resetFields();
             load();

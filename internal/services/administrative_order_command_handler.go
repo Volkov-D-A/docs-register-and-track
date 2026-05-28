@@ -14,27 +14,28 @@ import (
 
 // AdministrativeOrderRegisterRequest описывает команду регистрации приказа.
 type AdministrativeOrderRegisterRequest struct {
-	NomenclatureID          string
-	OrderDate               string
-	Title                   string
-	ExecutionController     string
-	ExecutionDeadline       string
-	IsActive                bool
-	CancelledAt             string
-	AcknowledgmentFullNames []string
-	RegistrationNumber      string
+	NomenclatureID          string   `json:"nomenclatureId"`
+	IdempotencyKey          string   `json:"idempotencyKey"`
+	OrderDate               string   `json:"orderDate"`
+	Title                   string   `json:"title"`
+	ExecutionController     string   `json:"executionController"`
+	ExecutionDeadline       string   `json:"executionDeadline"`
+	IsActive                bool     `json:"isActive"`
+	CancelledAt             string   `json:"cancelledAt"`
+	AcknowledgmentFullNames []string `json:"acknowledgmentFullNames"`
+	RegistrationNumber      string   `json:"registrationNumber"`
 }
 
 // AdministrativeOrderUpdateRequest описывает команду обновления приказа.
 type AdministrativeOrderUpdateRequest struct {
-	ID                      string
-	OrderDate               string
-	Title                   string
-	ExecutionController     string
-	ExecutionDeadline       string
-	IsActive                bool
-	CancelledAt             string
-	AcknowledgmentFullNames []string
+	ID                      string   `json:"id"`
+	OrderDate               string   `json:"orderDate"`
+	Title                   string   `json:"title"`
+	ExecutionController     string   `json:"executionController"`
+	ExecutionDeadline       string   `json:"executionDeadline"`
+	IsActive                bool     `json:"isActive"`
+	CancelledAt             string   `json:"cancelledAt"`
+	AcknowledgmentFullNames []string `json:"acknowledgmentFullNames"`
 }
 
 // AdministrativeOrderCommandHandler инкапсулирует write-операции по приказам.
@@ -76,15 +77,11 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 
 	nomID, err := uuid.Parse(req.NomenclatureID)
 	if err != nil {
-		return nil, fmt.Errorf("неверный ID номенклатуры: %w", err)
+		return nil, models.NewBadRequest("неверный ID номенклатуры")
 	}
-
-	nom, err := h.nomRepo.GetByID(nomID)
-	if err != nil || nom == nil {
-		return nil, fmt.Errorf("ошибка получения номенклатуры: %w", err)
-	}
-	if nom.KindCode != string(models.DocumentKindAdministrativeOrder) {
-		return nil, models.NewBadRequest("выберите дело из номенклатуры приказов")
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
 
 	orderDate, err := time.Parse("2006-01-02", req.OrderDate)
@@ -108,18 +105,6 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 	}
 
 	orderNumber := strings.TrimSpace(req.RegistrationNumber)
-	if nom.NumberingMode == NumberingModeManualOnly {
-		if orderNumber == "" {
-			return nil, models.NewBadRequest("укажите регистрационный номер вручную")
-		}
-	} else {
-		nextNum, index, separator, numberingMode, err := h.nomRepo.GetNextNumber(nomID)
-		if err != nil {
-			return nil, fmt.Errorf("ошибка автонумерации: %w", err)
-		}
-		orderNumber = formatDocumentNumber(index, separator, numberingMode, nextNum)
-	}
-
 	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
 		return nil, ErrNotAuthenticated
@@ -127,6 +112,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 
 	res, err := h.repo.Create(models.CreateAdministrativeOrderDocRequest{
 		NomenclatureID:          nomID,
+		IdempotencyKey:          idempotencyKey,
 		CreatedBy:               createdBy,
 		OrderNumber:             orderNumber,
 		OrderDate:               orderDate,

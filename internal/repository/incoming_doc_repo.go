@@ -465,16 +465,39 @@ func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest)
 	}
 	defer tx.Rollback()
 
+	registration, err := resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber)
+	if err != nil {
+		return nil, err
+	}
+	if registration.Existing != uuid.Nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
+		}
+		return r.GetByID(registration.Existing)
+	}
+	req.IncomingNumber = registration.Number
+
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id
 	`,
-		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
+		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
+			_ = tx.Rollback()
+			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindIncomingLetter, req.IdempotencyKey)
+			if lookupErr != nil {
+				return nil, fmt.Errorf("failed to resolve idempotent document: %w", lookupErr)
+			}
+			return r.GetByID(existingID)
+		}
+		if isUniqueViolation(err, "idx_documents_kind_registration_number_year") {
+			return nil, models.NewConflict("документ с таким регистрационным номером уже существует")
+		}
 		return nil, fmt.Errorf("failed to create document root: %w", err)
 	}
 

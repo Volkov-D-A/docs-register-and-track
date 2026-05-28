@@ -14,30 +14,31 @@ import (
 
 // IncomingLetterRegisterRequest описывает команду регистрации входящего письма.
 type IncomingLetterRegisterRequest struct {
-	NomenclatureID      string
-	DocumentTypeID      string
-	IncomingDate        string
-	Correspondents      []IncomingLetterCorrespondentRequest
-	Content             string
-	PagesCount          int
-	SenderSignatory     string
-	Resolution          string
-	ResolutionAuthor    string
-	ResolutionExecutors string
-	RegistrationNumber  string
+	NomenclatureID      string                               `json:"nomenclatureId"`
+	IdempotencyKey      string                               `json:"idempotencyKey"`
+	DocumentTypeID      string                               `json:"documentTypeId"`
+	IncomingDate        string                               `json:"incomingDate"`
+	Correspondents      []IncomingLetterCorrespondentRequest `json:"correspondents"`
+	Content             string                               `json:"content"`
+	PagesCount          int                                  `json:"pagesCount"`
+	SenderSignatory     string                               `json:"senderSignatory"`
+	Resolution          string                               `json:"resolution"`
+	ResolutionAuthor    string                               `json:"resolutionAuthor"`
+	ResolutionExecutors string                               `json:"resolutionExecutors"`
+	RegistrationNumber  string                               `json:"registrationNumber"`
 }
 
 // IncomingLetterUpdateRequest описывает команду обновления входящего письма.
 type IncomingLetterUpdateRequest struct {
-	ID                  string
-	DocumentTypeID      string
-	Correspondents      []IncomingLetterCorrespondentRequest
-	Content             string
-	PagesCount          int
-	SenderSignatory     string
-	Resolution          string
-	ResolutionAuthor    string
-	ResolutionExecutors string
+	ID                  string                               `json:"id"`
+	DocumentTypeID      string                               `json:"documentTypeId"`
+	Correspondents      []IncomingLetterCorrespondentRequest `json:"correspondents"`
+	Content             string                               `json:"content"`
+	PagesCount          int                                  `json:"pagesCount"`
+	SenderSignatory     string                               `json:"senderSignatory"`
+	Resolution          string                               `json:"resolution"`
+	ResolutionAuthor    string                               `json:"resolutionAuthor"`
+	ResolutionExecutors string                               `json:"resolutionExecutors"`
 }
 
 // IncomingLetterCorrespondentRequest описывает один набор реквизитов корреспондента.
@@ -89,7 +90,11 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 
 	nomID, err := uuid.Parse(req.NomenclatureID)
 	if err != nil {
-		return nil, fmt.Errorf("неверный ID номенклатуры: %w", err)
+		return nil, models.NewBadRequest("неверный ID номенклатуры")
+	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
 	docTypeID := models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(docTypeID) {
@@ -105,27 +110,10 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 		}
 	}
 
-	nom, err := h.nomRepo.GetByID(nomID)
-	if err != nil || nom == nil {
-		return nil, fmt.Errorf("ошибка получения номенклатуры: %w", err)
-	}
-
 	incomingNumberStr := strings.TrimSpace(req.RegistrationNumber)
-	if nom.NumberingMode == NumberingModeManualOnly {
-		if incomingNumberStr == "" {
-			return nil, models.NewBadRequest("укажите регистрационный номер вручную")
-		}
-	} else {
-		nextNum, index, separator, numberingMode, err := h.nomRepo.GetNextNumber(nomID)
-		if err != nil {
-			return nil, fmt.Errorf("ошибка автонумерации: %w", err)
-		}
-		incomingNumberStr = formatDocumentNumber(index, separator, numberingMode, nextNum)
-	}
-
 	incDate, err := time.Parse("2006-01-02", req.IncomingDate)
 	if err != nil {
-		return nil, fmt.Errorf("неверный формат даты поступления: %w", err)
+		return nil, models.NewBadRequest("неверный формат даты поступления")
 	}
 	correspondents, err := h.buildCorrespondents(req.Correspondents)
 	if err != nil {
@@ -153,6 +141,7 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 
 	res, err := h.repo.Create(models.CreateIncomingDocRequest{
 		NomenclatureID:      nomID,
+		IdempotencyKey:      idempotencyKey,
 		DocumentTypeID:      docTypeID,
 		CreatedBy:           createdBy,
 		IncomingNumber:      incomingNumberStr,

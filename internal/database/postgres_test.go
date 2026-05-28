@@ -121,7 +121,7 @@ func TestDB_GetMigrationStatus(t *testing.T) {
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	total, err := countAvailableMigrations(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 7, total)
+	assert.Equal(t, 9, total)
 }
 
 func TestDB_RollbackMigration(t *testing.T) {

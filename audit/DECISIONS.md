@@ -61,3 +61,133 @@
 Альтернативы: Оставить текущую эвристику "любой nonzero = warning"; всегда восстанавливать MinIO независимо от результата БД. Эти варианты отклонены, потому что скрывают критические ошибки восстановления.
 Последствия: Нужно доработать `restore_smb_tar.sh` и runbook: проверять наличие `database.dump` и `minio_files/`, останавливать workflow при fatal/unknown `pg_restore`, логировать restore report, выполнять smoke queries (`schema_migrations`, ключевые таблицы, базовая целостность), отдельно проверять controlled failure на поврежденном или несовместимом dump.
 Какие этапы затрагивает: B, E, H
+
+## DECISION-007
+
+Дата: 2026-05-27
+Контекст: Этап C подтвердил, что Wails `ErrorFormatter` возвращает frontend plain string, а backend смешивает `models.AppError` и `fmt.Errorf`. Для production UI, тестов и будущей idempotency/conflict обработки frontend не должен зависеть от текстов PostgreSQL, storage или Go errors.
+Решение: Целевой backend/Wails error contract — structured envelope `{code, message, details?}`. `code` является стабильным domain code (`UNAUTHORIZED`, `FORBIDDEN`, `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `IDEMPOTENCY_CONFLICT`, `STORAGE_ERROR`, `INTERNAL_ERROR`), `message` безопасен для пользователя, `details` не содержит секретов/PII и по умолчанию не нужен production UI.
+Причина: Stable machine-readable codes нужны для frontend behavior, smoke tests и безопасного показа ошибок пользователю.
+Альтернативы: Оставить plain strings; использовать только integer HTTP-like code. Эти варианты недостаточны для desktop Wails contract и доменных конфликтов.
+Последствия: Нужно изменить `models.AppError`, Wails `ErrorFormatter`, service boundary mapping и frontend error handling. Existing UI messages нужно перепроверить на D/H.
+Какие этапы затрагивает: C, D, F, H
+
+## DECISION-008
+
+Дата: 2026-05-27
+Контекст: Этап C выявил широкое использование `context.Background()` в MinIO/file/link/journal/statistics paths. Wails shutdown закрывает DB/logger, но не отменяет активные операции и не координирует long-running requests.
+Решение: Целевая lifecycle model — app root context из Wails startup/shutdown, request-level context/timeout для долгих операций и проброс context через service/repository/storage interfaces там, где операция может блокироваться.
+Причина: Desktop-приложение должно предсказуемо завершать upload/download/list/query operations при закрытии окна или потере backend resource.
+Альтернативы: Оставить `context.Background()` и полагаться на быстрые операции; добавлять timeout только в MinIO client. Эти варианты не закрывают DB/journal/link/statistics paths.
+Последствия: Понадобится изменение интерфейсов, tests на cancellation и careful frontend smoke для file operations, statistics и document registration.
+Какие этапы затрагивает: C, E, F, G
+
+## DECISION-009
+
+Дата: 2026-05-28
+Контекст: Этап D подтвердил, что backend structured error envelope уже введен на C, но frontend по-прежнему использует `err?.message || String(err)` и auth lockout через поиск текста. Это сохраняет зависимость UI от raw strings.
+Решение: Целевой frontend error handling — единый adapter/hook для Wails errors. Он читает stable `code`, safe `message`, optional `status/details`, возвращает пользовательский текст и позволяет UI выбирать поведение для validation, forbidden, not_found, conflict/idempotency и internal errors. Raw string остается только fallback для unexpected client-side errors.
+Причина: Frontend должен быть устойчив к изменению текста backend errors и не показывать internal DB/storage details как контракт.
+Альтернативы: Оставить локальные `message.error(err?.message || String(err))` в каждом компоненте; разбирать русские тексты ошибок в конкретных flows. Эти варианты хрупкие и плохо тестируются.
+Последствия: Нужно обновить auth store, page/component catch handlers, form validation mapping и smoke tests для основных error classes.
+Какие этапы затрагивает: D, F, H
+
+## DECISION-010
+
+Дата: 2026-05-28
+Контекст: Этап E выявил разрыв между About/release notes version and Wails/binary/installer metadata. Также production build зависит от локального `.env` и не имеет единого release gate.
+Решение: Целевая release model — один version source для release notes, About UI, Wails product metadata, binary properties and installer DisplayVersion. Release build выполняется через единый script/target, который валидирует required secrets, использует deterministic dependency install, генерирует release assets, запускает tests/build and verifies artifact metadata.
+Причина: Production support and update diagnostics need one trustworthy version and reproducible artifact pipeline.
+Альтернативы: Оставить version in release notes only; вручную сверять installer/binary metadata. Эти варианты плохо масштабируются и создают риск неверной сборки.
+Последствия: Нужно выбрать source of truth, обновить Wails config/build scripts, добавить release checklist metadata check.
+Какие этапы затрагивает: E, H
+
+## DECISION-011
+
+Дата: 2026-05-28
+Контекст: Runtime config сейчас ищется как `config/config.json` относительно cwd, но production запускается через installer/shortcut/portable binary and config is managed manually.
+Решение: Требуется явно выбрать production config placement policy: executable-relative config for managed portable install, OS system config dir, or user config dir. Lookup order and failure UX must be documented and tested on target OS. До выбора политики current cwd-relative lookup remains a release blocker.
+Причина: Desktop app should start predictably regardless of shortcut working directory and should show actionable diagnostics when config is missing.
+Альтернативы: Оставить cwd-relative config and rely on operator discipline. Этот вариант хрупкий для стандартной установки.
+Последствия: После выбора политики нужно изменить startup lookup or installer/runbook, добавить smoke tests for missing/invalid/unreadable config.
+Какие этапы затрагивает: E, H
+
+## DECISION-012
+
+Дата: 2026-05-28
+Контекст: Этап E подтвердил отсутствие downgrade guard and unclear migration timing policy for updates. Runtime rollback remains required by `DECISION-003`.
+Решение: Target update policy must include schema compatibility guard: binary must refuse to run unsafe operations if DB schema version is newer than embedded migrations or dirty. Migration execution policy must be explicit: auto-migrate on startup or admin-run before use, with backup/runbook requirements.
+Причина: Running older code against newer schema is a high-risk update/downgrade failure mode.
+Альтернативы: Полагаться на operator discipline and migration status page. Это недостаточно для production crash/update safety.
+Последствия: Нужно добавить compatibility check, dirty-state UX/runbook and update/downgrade smoke tests.
+Какие этапы затрагивает: E, H
+
+## DECISION-013
+
+Дата: 2026-05-28
+Контекст: Этап F выявил reachable Go vulnerabilities through `govulncheck` and absence of automated security/license gates.
+Решение: Production release gate must include dependency vulnerability and license checks: `govulncheck ./...`, `npm audit --audit-level=critical`, Go/npm license inventory, plus existing `go test`, `go vet`, `npm run build`. A release with reachable critical/high dependency vulnerability is blocked unless a documented exception is approved.
+Причина: Manual one-off checks do not protect future releases; desktop distribution needs repeatable security and license evidence.
+Альтернативы: Проверять зависимости вручную перед релизом. Это оставляет высокий риск пропуска.
+Последствия: Нужно добавить scripts/checklist and define vulnerability/license exception process.
+Какие этапы затрагивает: F, H
+
+## DECISION-014
+
+Дата: 2026-05-28
+Контекст: Frontend TypeScript build passes, but ESLint/Prettier are absent and `@ts-ignore` is used around Wails/generated service boundaries.
+Решение: Adopt a minimal frontend static-analysis gate before broad frontend remediation: TypeScript build remains mandatory, ESLint starts with high-signal React/TypeScript rules, and suppressions must use `@ts-expect-error` with a reason when unavoidable.
+Причина: A noisy all-at-once lint migration would distract from production blockers, but no lint gate leaves contract and hooks regressions unguarded.
+Альтернативы: Add a strict full preset immediately; keep no lint. Strict immediate migration is likely noisy, no lint is too weak.
+Последствия: Need incremental lint config and cleanup plan for existing suppressions/`any` usage.
+Какие этапы затрагивает: F, H
+
+## DECISION-015
+
+Дата: 2026-05-28
+Контекст: Этап G подтвердил strong Go unit coverage and passing gated PostgreSQL integration tests, but frontend/e2e tests are absent and integration tests are skipped unless `DOCFLOW_INTEGRATION_DSN` is set.
+Решение: Production release test gate must include four layers: Go unit tests, safe disposable PostgreSQL integration tests, frontend component/type/lint checks, and production-build e2e smoke. Integration tests must refuse unsafe DSNs.
+Причина: Critical no-gaps/idempotency and retention invariants must run in release gate, while frontend remediation needs UI-level protection.
+Альтернативы: Keep manual testing only; rely on `go test ./...`. These miss gated DB tests and all frontend/e2e behavior.
+Последствия: Need release test script, safe test DB provisioning and minimal frontend/e2e tooling.
+Какие этапы затрагивает: G, H, I
+
+## DECISION-016
+
+Дата: 2026-05-28
+Контекст: Production SLO is documented, and DB synthetic EXPLAIN baseline exists, but no target Wails startup/UI/memory measurements exist.
+Решение: Establish performance baseline as release evidence: startup to login, login/dashboard, list open/search/filter, registration save, statistics/report open, memory after repeated usage, bundle/binary size.
+Причина: Without measured baseline, SLO remains aspirational and regressions from remediation cannot be evaluated.
+Альтернативы: Use DB EXPLAIN only or subjective manual checks. These do not cover desktop UI/runtime behavior.
+Последствия: Need manual or automated performance smoke on Linux/Windows production build with production-like data.
+Какие этапы затрагивает: G, I
+
+## DECISION-017
+
+Дата: 2026-05-28
+Контекст: Этап H выявил mixed terms: `вид документа`/`тип документа`, `дело`/`номенклатура`, multiple meanings of `исполнитель`, and abbreviations without explanation.
+Решение: Adopt UX terminology rules in `TERMS_GLOSSARY.md`: `вид документа` for document family, `тип документа` for document type value, `дело` as primary user-facing term for nomenclature item, qualified executor labels by context, and expanded abbreviations/tooltips for `ПОС`, `Рег. №`, `Проср.`.
+Причина: Consistent terminology reduces wrong data entry and support ambiguity.
+Альтернативы: Keep current mixed terms. This preserves existing habit but leaves confusion.
+Последствия: UI text changes need form/list/card smoke and business confirmation for `Дело` vs `Номенклатура`, `ПОС`, `Краткое содержание`.
+Какие этапы затрагивает: H, I
+
+## DECISION-018
+
+Дата: 2026-05-28
+Контекст: H confirmed that destructive actions and error messages need stronger, safer wording.
+Решение: User-facing destructive confirmations must name the entity and consequence; user-facing errors must be mapped from structured codes to safe copy with next steps. Raw backend/system text is not acceptable as user microcopy except as a fallback during development.
+Причина: Production desktop users need actionable, non-technical messages and clear consequences before destructive actions.
+Альтернативы: Continue showing backend messages and generic `Удалить?`. This is faster but unsafe.
+Последствия: Error adapter, destructive modals and smoke/e2e tests must be updated together.
+Какие этапы затрагивает: H, I
+
+## DECISION-019
+
+Дата: 2026-05-28
+Контекст: Этап I проверил документацию, release checklist, smoke-test, known issues and final production candidate readiness. Открыты critical issues: destructive rollback guardrails, reachable Go vulnerabilities, missing release-grade root docs/runbooks and dirty worktree.
+Решение: Финальный статус текущего production candidate — `not_ready`.
+Причина: Нельзя назвать candidate готовым при unresolved critical issues and missing reproducible release evidence.
+Альтернативы: `ready_with_risks` was rejected because it would require no open critical blockers and explicit acceptance for remaining major issues.
+Последствия: Следующий проход должен закрыть critical blockers, обновить release docs/process, выполнить clean-clone release gate, target OS smoke and manual PostgreSQL+MinIO test restore, затем переоценить candidate.
+Какие этапы затрагивает: I

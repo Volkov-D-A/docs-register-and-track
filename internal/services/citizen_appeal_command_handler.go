@@ -26,40 +26,41 @@ var allowedAppealTypes = map[string]struct{}{
 
 // CitizenAppealRegisterRequest описывает команду регистрации обращения граждан.
 type CitizenAppealRegisterRequest struct {
-	NomenclatureID       string
-	RegistrationDate     string
-	AppealDate           string
-	ApplicantFullName    string
-	RegistrationAddress  string
-	AppealType           string
-	ApplicantCategory    string
-	AppealPagesCount     int
-	AttachmentPagesCount int
-	HasEnvelope          bool
-	ReceivedFromPOS      bool
-	Content              string
-	RegistrationNumber   string
-	Correspondents       []CitizenAppealCorrespondentRequest
-	Resolutions          []CitizenAppealResolutionRequest
+	NomenclatureID       string                              `json:"nomenclatureId"`
+	IdempotencyKey       string                              `json:"idempotencyKey"`
+	RegistrationDate     string                              `json:"registrationDate"`
+	AppealDate           string                              `json:"appealDate"`
+	ApplicantFullName    string                              `json:"applicantFullName"`
+	RegistrationAddress  string                              `json:"registrationAddress"`
+	AppealType           string                              `json:"appealType"`
+	ApplicantCategory    string                              `json:"applicantCategory"`
+	AppealPagesCount     int                                 `json:"appealPagesCount"`
+	AttachmentPagesCount int                                 `json:"attachmentPagesCount"`
+	HasEnvelope          bool                                `json:"hasEnvelope"`
+	ReceivedFromPOS      bool                                `json:"receivedFromPos"`
+	Content              string                              `json:"content"`
+	RegistrationNumber   string                              `json:"registrationNumber"`
+	Correspondents       []CitizenAppealCorrespondentRequest `json:"correspondents"`
+	Resolutions          []CitizenAppealResolutionRequest    `json:"resolutions"`
 }
 
 // CitizenAppealUpdateRequest описывает команду обновления обращения граждан.
 type CitizenAppealUpdateRequest struct {
-	ID                   string
-	RegistrationNumber   string
-	RegistrationDate     string
-	AppealDate           string
-	ApplicantFullName    string
-	RegistrationAddress  string
-	AppealType           string
-	ApplicantCategory    string
-	AppealPagesCount     int
-	AttachmentPagesCount int
-	HasEnvelope          bool
-	ReceivedFromPOS      bool
-	Content              string
-	Correspondents       []CitizenAppealCorrespondentRequest
-	Resolutions          []CitizenAppealResolutionRequest
+	ID                   string                              `json:"id"`
+	RegistrationNumber   string                              `json:"registrationNumber"`
+	RegistrationDate     string                              `json:"registrationDate"`
+	AppealDate           string                              `json:"appealDate"`
+	ApplicantFullName    string                              `json:"applicantFullName"`
+	RegistrationAddress  string                              `json:"registrationAddress"`
+	AppealType           string                              `json:"appealType"`
+	ApplicantCategory    string                              `json:"applicantCategory"`
+	AppealPagesCount     int                                 `json:"appealPagesCount"`
+	AttachmentPagesCount int                                 `json:"attachmentPagesCount"`
+	HasEnvelope          bool                                `json:"hasEnvelope"`
+	ReceivedFromPOS      bool                                `json:"receivedFromPos"`
+	Content              string                              `json:"content"`
+	Correspondents       []CitizenAppealCorrespondentRequest `json:"correspondents"`
+	Resolutions          []CitizenAppealResolutionRequest    `json:"resolutions"`
 }
 
 // CitizenAppealCorrespondentRequest описывает один набор внешних регистрационных реквизитов.
@@ -118,26 +119,14 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 
 	nomID, err := uuid.Parse(req.NomenclatureID)
 	if err != nil {
-		return nil, fmt.Errorf("неверный ID номенклатуры: %w", err)
+		return nil, models.NewBadRequest("неверный ID номенклатуры")
 	}
-	nom, err := h.nomRepo.GetByID(nomID)
-	if err != nil || nom == nil {
-		return nil, fmt.Errorf("ошибка получения номенклатуры: %w", err)
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
 
 	registrationNumber := strings.TrimSpace(req.RegistrationNumber)
-	if nom.NumberingMode == NumberingModeManualOnly {
-		if registrationNumber == "" {
-			return nil, models.NewBadRequest("укажите номер документа")
-		}
-	} else {
-		nextNum, index, separator, numberingMode, err := h.nomRepo.GetNextNumber(nomID)
-		if err != nil {
-			return nil, fmt.Errorf("ошибка автонумерации: %w", err)
-		}
-		registrationNumber = formatDocumentNumber(index, separator, numberingMode, nextNum)
-	}
-
 	registrationDate, err := parseCommandDate(req.RegistrationDate, "даты регистрации")
 	if err != nil {
 		return nil, err
@@ -173,6 +162,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 
 	res, err := h.repo.Create(models.CreateCitizenAppealDocRequest{
 		NomenclatureID:       nomID,
+		IdempotencyKey:       idempotencyKey,
 		CreatedBy:            createdBy,
 		RegistrationNumber:   registrationNumber,
 		RegistrationDate:     registrationDate,

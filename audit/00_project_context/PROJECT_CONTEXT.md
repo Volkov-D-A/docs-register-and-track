@@ -89,6 +89,17 @@ Build/dev-зависимости:
 - Public app settings contract: `organization_short_name` для общего layout отдается через `GetPublicAppSettings()`, доступный всем авторизованным пользователям; настройки не считаются секретом для чтения, но изменение разрешено только пользователю с системным правом `admin`.
 - Document registration idempotency policy: регистрация документа должна поддерживать backend `idempotency_key`; target schema после этапа B — `documents.idempotency_key UUID NOT NULL` и unique `(created_by, kind, idempotency_key)`. Повторный запрос с тем же ключом возвращает уже созданный документ и не создает дубль или повторный инкремент `nomenclature.next_number`.
 - Stage B database audit status: завершен 2026-05-27 на локальном test contour. Проверены fresh migrations, application migrator, runtime rollback, synthetic EXPLAIN ANALYZE dataset, no-gaps failure case, FK retention behavior и backup/restore scripts. Основные remediation work items переданы на C/E/F/H.
+- Backend/Wails error contract target после этапа C: frontend должен получать structured error envelope `{code,message,details?}` со стабильными domain codes; plain `err.Error()` и тексты PostgreSQL/storage не являются frontend contract.
+- Backend lifecycle target после этапа C: долгие DB/MinIO/file/statistics operations должны получать request/app context с cancel/timeout; закрытие окна должно отменять активные операции предсказуемо.
+- Logging/privacy target после этапа C: technical Seq logs должны минимизировать ФИО и business identifiers; доменный audit trail (`document_journal`, `admin_audit_log`) остается местом для необходимых бизнес-деталей.
+- Stage C backend audit status: завершен 2026-05-27 статическим review Go backend/Wails bindings. SQL injection risk не подтвержден; основные remediation work items — structured errors, strict typed document command DTO, `idempotencyKey`, context propagation, logging PII minimization.
+- Stage B/C remediation status: backend `idempotencyKey` + no-gaps registration transaction реализованы и проверены integration tests; retention-safe FK для `document_journal`/`admin_audit_log` реализованы миграцией `009_retention_safe_journal_fks` и integration test.
+- Stage D frontend audit status: завершен 2026-05-28. Документные frontend forms отправляют `idempotencyKey`, но frontend еще не перешел на centralized structured error handling; submit guards/dirty confirmations и bundle/performance остаются открытыми frontend work items.
+- Stage E build/install/update audit status: завершен 2026-05-28 статическим review production build/install/runtime lifecycle. Основные release gates: единый version source, deterministic release build, production config lookup/startup diagnostics, installer privilege policy, downgrade/schema compatibility guard, backup/restore temp cleanup and download overwrite protection.
+- Stage F security/dependencies/quality audit status: завершен 2026-05-28. `go test ./...`, `go vet ./...`, `npm run build` прошли; `npm audit` clean; `govulncheck` нашел reachable Go vulnerabilities in `go1.26.2`/`x/net@v0.52.0`, requiring toolchain/module upgrade before production.
+- Stage G tests/performance audit status: завершен 2026-05-28. `go test ./...` прошел; отдельные PostgreSQL integration tests for idempotency/concurrency/retention FK passed against local test DB. Основные gaps: нет frontend/e2e tests, performance baseline for Wails/UI/memory missing, long-running/cancellation tests missing, integration tests need safe release gate.
+- Stage H UX/text audit status: завершен 2026-05-28. Основные gaps: raw backend/system errors in user UI, inconsistent terminology (`вид`/`тип`, `дело`/`номенклатура`, `исполнитель`), weak destructive confirmations, passive empty states, unexplained abbreviations and style inconsistency.
+- Stage I docs/release/final readiness audit status: завершен 2026-05-28. Созданы `audit/08_docs_release/*` and `audit/FINAL_SUMMARY.md`. Финальное решение для текущего production candidate: `not_ready` because critical blockers remain open (`ISSUE-007`, `ISSUE-032`, `ISSUE-050`, `ISSUE-052`).
 
 Остается проверить на следующих этапах:
 
@@ -99,9 +110,34 @@ Build/dev-зависимости:
 - соответствие утвержденной production-документации подтвержденной backup policy.
 - подтверждение LAN-границ закрытого защищенного контура по утвержденной production-документации.
 - rollback guardrails для `down`-миграций.
-- реализацию backend `idempotency_key` для регистрации документов вместе с no-gaps нумерацией.
-- retention-safe FK strategy для `document_journal` и `admin_audit_log`.
 - влияние пожизненного хранения журналов на индексы, размер БД и планы backup/restore.
+- frontend обработку structured error codes.
+- отдельный unit/smoke test strict DTO validation на unknown fields и missing `idempotencyKey`.
+- cancellation/shutdown behavior для upload/download/link graph/statistics.
+- redaction/minimization policy для Seq technical logs.
+- frontend submit/loading guards и dirty confirmation для длинных форм.
+- frontend bundle/startup performance на production-like данных.
+- единый source of truth для версии приложения: About, Wails metadata, binary properties and installer DisplayVersion.
+- deterministic release build на clean machine, включая required secret validation and generated release assets freshness.
+- production config path policy and startup diagnostics for missing/invalid config.
+- target OS install smoke: Program Files/portable path, path with spaces/Cyrillic, run without admin after install.
+- downgrade/newer-schema guard and dirty migration recovery UX/runbook.
+- backup/restore temp cleanup and secret exposure checks.
+- collision-safe attachment download behavior.
+- Go toolchain/module vulnerability remediation: upgrade to `go1.26.3+` and `golang.org/x/net@v0.53.0+`, then repeat `govulncheck`.
+- security/license/static-analysis release gates: `govulncheck`, `npm audit`, license reports, `go vet`, `go test`, `npm run build`, frontend lint.
+- resolve unknown npm license (`@antv/g2-extension-plot`) and generate Go transitive license inventory.
+- add minimal frontend ESLint/static-analysis gate and reduce `@ts-ignore`/broad `any` at Wails contract boundaries.
+- gofmt formatting drift cleanup.
+- release test gate: Go unit tests, safe disposable PostgreSQL integration tests, frontend component tests, production-build e2e smoke.
+- safe integration DSN guard/provisioning because DB integration tests reset `public` schema.
+- performance baseline on target OS/build: startup, lists/search, save, statistics, memory, bundle/binary size.
+- long-running smoke: repeated modals/views/files, DB/MinIO outages, close app during long operations.
+- apply UX terminology rules from `TERMS_GLOSSARY.md` and confirm business-sensitive terms: `Дело` vs `Номенклатура`, `ПОС`, `Краткое содержание`.
+- map structured errors to safe actionable user messages.
+- strengthen destructive confirmations and empty states; include them in smoke/e2e tests.
+- promote stage I release checklist/smoke/known issues into maintained project docs or scripts.
+- clean worktree, commit/tag release candidate and verify reproducible release evidence.
 
 ## Контрольные Пункты
 

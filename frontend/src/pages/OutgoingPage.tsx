@@ -50,6 +50,7 @@ const OutgoingPage: React.FC = () => {
 
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
+    const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
     const registerNomenclatureId = Form.useWatch('nomenclatureId', registerForm);
     const selectedRegisterNomenclature = nomenclatures.find((n: any) => n.id === registerNomenclatureId);
 
@@ -144,6 +145,7 @@ const OutgoingPage: React.FC = () => {
             const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
             const newDoc = await Register(DOCUMENT_KIND_OUTGOING_LETTER, {
                 nomenclatureId: values.nomenclatureId,
+                idempotencyKey: registerIdempotencyKey,
                 documentTypeId: values.documentTypeId,
                 recipientOrgName: values.recipientOrgName,
                 addressee: values.addressee,
@@ -163,6 +165,7 @@ const OutgoingPage: React.FC = () => {
             }
 
             message.success('Документ зарегистрирован');
+            setRegisterIdempotencyKey(crypto.randomUUID());
             closeRegisterModal();
             registerForm.resetFields();
             load();

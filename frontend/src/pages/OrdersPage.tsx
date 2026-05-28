@@ -48,6 +48,7 @@ const OrdersPage: React.FC = () => {
 
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
+    const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
     const registerNomenclatureId = Form.useWatch('nomenclatureId', registerForm);
     const selectedRegisterNomenclature = nomenclatures.find((n: any) => n.id === registerNomenclatureId);
 
@@ -142,6 +143,7 @@ const OrdersPage: React.FC = () => {
             const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
             const newDoc = await Register(DOCUMENT_KIND_ADMINISTRATIVE_ORDER, {
                 nomenclatureId: values.nomenclatureId,
+                idempotencyKey: registerIdempotencyKey,
                 registrationNumber: values.registrationNumber || '',
                 ...buildPayload(values),
             });
@@ -160,6 +162,7 @@ const OrdersPage: React.FC = () => {
             }
 
             message.success('Приказ зарегистрирован');
+            setRegisterIdempotencyKey(crypto.randomUUID());
             closeRegisterModal();
             registerForm.resetFields();
             load();

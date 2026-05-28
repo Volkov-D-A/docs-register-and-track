@@ -14,29 +14,30 @@ import (
 
 // OutgoingLetterRegisterRequest описывает команду регистрации исходящего письма.
 type OutgoingLetterRegisterRequest struct {
-	NomenclatureID     string
-	DocumentTypeID     string
-	RecipientOrgName   string
-	Addressee          string
-	OutgoingDate       string
-	Content            string
-	PagesCount         int
-	SenderSignatory    string
-	SenderExecutor     string
-	RegistrationNumber string
+	NomenclatureID     string `json:"nomenclatureId"`
+	IdempotencyKey     string `json:"idempotencyKey"`
+	DocumentTypeID     string `json:"documentTypeId"`
+	RecipientOrgName   string `json:"recipientOrgName"`
+	Addressee          string `json:"addressee"`
+	OutgoingDate       string `json:"outgoingDate"`
+	Content            string `json:"content"`
+	PagesCount         int    `json:"pagesCount"`
+	SenderSignatory    string `json:"senderSignatory"`
+	SenderExecutor     string `json:"senderExecutor"`
+	RegistrationNumber string `json:"registrationNumber"`
 }
 
 // OutgoingLetterUpdateRequest описывает команду обновления исходящего письма.
 type OutgoingLetterUpdateRequest struct {
-	ID               string
-	DocumentTypeID   string
-	RecipientOrgName string
-	Addressee        string
-	OutgoingDate     string
-	Content          string
-	PagesCount       int
-	SenderSignatory  string
-	SenderExecutor   string
+	ID               string `json:"id"`
+	DocumentTypeID   string `json:"documentTypeId"`
+	RecipientOrgName string `json:"recipientOrgName"`
+	Addressee        string `json:"addressee"`
+	OutgoingDate     string `json:"outgoingDate"`
+	Content          string `json:"content"`
+	PagesCount       int    `json:"pagesCount"`
+	SenderSignatory  string `json:"senderSignatory"`
+	SenderExecutor   string `json:"senderExecutor"`
 }
 
 // OutgoingLetterCommandHandler инкапсулирует write-операции по исходящим письмам.
@@ -81,7 +82,11 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 
 	nomID, err := uuid.Parse(req.NomenclatureID)
 	if err != nil {
-		return nil, fmt.Errorf("неверный ID номенклатуры: %w", err)
+		return nil, models.NewBadRequest("неверный ID номенклатуры")
+	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
 	docTypeID := models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(docTypeID) {
@@ -93,27 +98,10 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 		return nil, fmt.Errorf("ошибка организации получателя: %w", err)
 	}
 
-	nom, err := h.nomRepo.GetByID(nomID)
-	if err != nil || nom == nil {
-		return nil, fmt.Errorf("ошибка получения номенклатуры: %w", err)
-	}
-
 	outgoingNumber := strings.TrimSpace(req.RegistrationNumber)
-	if nom.NumberingMode == NumberingModeManualOnly {
-		if outgoingNumber == "" {
-			return nil, models.NewBadRequest("укажите регистрационный номер вручную")
-		}
-	} else {
-		nextNum, index, separator, numberingMode, err := h.nomRepo.GetNextNumber(nomID)
-		if err != nil {
-			return nil, fmt.Errorf("ошибка автонумерации: %w", err)
-		}
-		outgoingNumber = formatDocumentNumber(index, separator, numberingMode, nextNum)
-	}
-
 	outDate, err := time.Parse("2006-01-02", req.OutgoingDate)
 	if err != nil {
-		return nil, fmt.Errorf("неверный формат даты исходящего документа: %w", err)
+		return nil, models.NewBadRequest("неверный формат даты исходящего документа")
 	}
 
 	createdByStr := h.auth.GetCurrentUserID()
@@ -124,6 +112,7 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 
 	res, err := h.repo.Create(models.CreateOutgoingDocRequest{
 		NomenclatureID:  nomID,
+		IdempotencyKey:  idempotencyKey,
 		DocumentTypeID:  docTypeID,
 		RecipientOrgID:  recipientOrg.ID,
 		CreatedBy:       createdBy,

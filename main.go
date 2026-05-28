@@ -18,6 +18,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
@@ -167,8 +168,22 @@ func main() {
 		LogLevel: wailslogger.ERROR, // Пишем системные ошибки Wails
 		ErrorFormatter: func(err error) any {
 			// Перехватываем все ошибки, которые методы сервисов (Bindings) возвращают во фронтенд
-			slog.Error(err.Error(), "type", "backend_binding")
-			return err.Error()
+			if appErr, ok := models.AsAppError(err); ok {
+				if appErr.StatusCode() >= 500 {
+					slog.Error("Backend binding failed", "type", "backend_binding", "code", appErr.SafeKind(), "error", err)
+				}
+				return map[string]any{
+					"code":    appErr.SafeKind(),
+					"message": appErr.SafeMessage(),
+					"status":  appErr.StatusCode(),
+				}
+			}
+			slog.Error("Backend binding failed", "type", "backend_binding", "error", err)
+			return map[string]any{
+				"code":    "INTERNAL_ERROR",
+				"message": "произошла внутренняя ошибка",
+				"status":  500,
+			}
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {

@@ -1,0 +1,79 @@
+# Smoke Test
+
+Дата: 2026-05-28
+Цель: минимальная проверка установленного production artifact после сборки и перед передачей пользователям.
+
+## Preconditions
+
+- Используется release artifact from clean build.
+- PostgreSQL, MinIO and Seq are available in the approved closed LAN/test contour.
+- Test database and MinIO bucket are disposable or freshly restored from release test backup.
+- Operator has one admin user and at least one document participant user.
+
+## Startup
+
+- [ ] Start app from target install path.
+- [ ] Start app from shortcut/default working directory.
+- [ ] Login screen appears within performance budget.
+- [ ] Missing/invalid config scenario has been checked separately and gives actionable diagnostics.
+
+## Authentication And Settings
+
+- [ ] Login as admin.
+- [ ] Open settings.
+- [ ] Verify organization settings are visible.
+- [ ] Verify migration status screen opens without error.
+- [ ] Verify non-admin user cannot access admin-only settings.
+
+## Document Registration
+
+- [ ] Register one incoming letter.
+- [ ] Register one outgoing letter.
+- [ ] Register one citizen appeal.
+- [ ] Register one administrative order.
+- [ ] Repeat submit/double click is blocked or returns same document without number gap.
+- [ ] Verify registration numbers are contiguous for the used nomenclature.
+
+## Lists, Search And Access
+
+- [ ] Open each document registry.
+- [ ] Search/filter by number/date/text where available.
+- [ ] Open document card from list.
+- [ ] Login as limited user and verify access scope is not wider than expected.
+
+## Files
+
+- [ ] Upload allowed attachment under 15 MB.
+- [ ] Download attachment.
+- [ ] Try duplicate filename download and verify overwrite/collision behavior is acceptable.
+- [ ] Delete attachment only where user has permission.
+- [ ] Try forbidden file action and verify safe user error text.
+
+## Assignments And Acknowledgments
+
+- [ ] Create assignment for a document.
+- [ ] Complete or return assignment according to available role.
+- [ ] Create acknowledgment for administrative order.
+- [ ] Confirm acknowledgment as target user.
+
+## Errors And Safety
+
+- [ ] Trigger validation error and verify user-safe message.
+- [ ] Trigger forbidden action and verify user-safe message.
+- [ ] Trigger not-found/missing document scenario if possible.
+- [ ] Verify destructive confirmations name the affected entity and consequence.
+- [ ] Try closing dirty registration/edit modal and verify warning.
+
+## Backup/Restore Evidence
+
+- [ ] Backup archive exists for this test contour.
+- [ ] Manual test restore PostgreSQL+MinIO completed.
+- [ ] Restore report and smoke result saved with release evidence.
+
+## Final
+
+- [ ] App exits cleanly.
+- [ ] No unexpected panic/fatal exit.
+- [ ] Seq/technical logs do not expose secrets or unnecessary PII.
+- [ ] `document_journal` and `admin_audit_log` contain expected domain audit entries.
+

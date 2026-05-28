@@ -101,6 +101,8 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 
 	req := models.CreateIncomingDocRequest{
 		NomenclatureID: uuid.New(),
+		IdempotencyKey: uuid.New(),
+		CreatedBy:      uuid.New(),
 		IncomingNumber: "ВХ-001",
 		IncomingDate:   now,
 		DocumentTypeID: models.DocumentTypeLetter,
@@ -114,8 +116,15 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
+		WithArgs(req.CreatedBy, models.DocumentKindIncomingLetter, req.IdempotencyKey).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+		WithArgs(req.NomenclatureID).
+		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
+			AddRow("01-01", "/", "manual_only", 1, string(models.DocumentKindIncomingLetter)))
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
-		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 	mock.ExpectExec(`INSERT INTO incoming_document_details`).WithArgs(
 		docID, req.IncomingNumber, req.IncomingDate,
