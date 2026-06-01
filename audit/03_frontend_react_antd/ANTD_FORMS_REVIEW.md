@@ -5,15 +5,15 @@
 
 ## Вывод
 
-Основные формы построены на Ant Design `Form`, `DatePicker`, `Select`, `InputNumber`, `Switch`. Для документных форм есть required validation и numeric min constraints для количества листов. После исправления этапа C формы регистрации отправляют `idempotencyKey`.
+Основные формы построены на Ant Design `Form`, `DatePicker`, `Select`, `InputNumber`, `Switch`. Для документных форм есть required validation и numeric min constraints для количества листов. После исправления этапа C формы регистрации отправляют `idempotencyKey`; after remediation, critical submit/actions have local loading guards.
 
 ## Найденные Риски
 
 ### Повторный submit не везде заблокирован UI-состоянием
 
-Document registration теперь защищена backend idempotency, но UX guard неполный. Например, `IncomingPage` передает `onOk: () => registerForm.submit()` без `confirmLoading`; другие document pages местами используют `confirmLoading: loading`, который относится к загрузке списка, а не к конкретному submit. В settings/actions картина неоднородная.
+Fixed after audit: document registration/edit modals now use local register/edit submitting guards and `confirmLoading`; assignment/acknowledgment completion, file upload/delete, settings CRUD, migration and storage actions have repeat-click guards.
 
-Связано: `ISSUE-020`.
+Связано: `ISSUE-020` fixed; manual double-click smoke remains under `ISSUE-043`.
 
 ### Unsaved changes guard отсутствует
 

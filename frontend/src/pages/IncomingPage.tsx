@@ -58,6 +58,8 @@ const IncomingPage: React.FC = () => {
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
     const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
+    const [registerSubmitting, setRegisterSubmitting] = useState(false);
+    const [editSubmitting, setEditSubmitting] = useState(false);
     const registerNomenclatureId = Form.useWatch('nomenclatureId', registerForm);
     const selectedRegisterNomenclature = nomenclatures.find((n: any) => n.id === registerNomenclatureId);
 
@@ -179,6 +181,10 @@ const IncomingPage: React.FC = () => {
 
     // Регистрация
     const onRegister = async (values: any) => {
+        if (registerSubmitting) {
+            return;
+        }
+        setRegisterSubmitting(true);
         try {
             const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
             const newDoc = await Register(DOCUMENT_KIND_INCOMING_LETTER, {
@@ -206,11 +212,19 @@ const IncomingPage: React.FC = () => {
             message.success('Документ зарегистрирован');
             setRegisterIdempotencyKey(crypto.randomUUID());
             closeRegisterModal(); registerForm.resetFields(); load();
-        } catch (err: any) { message.error(formatAppError(err)); }
+        } catch (err: any) {
+            message.error(formatAppError(err));
+        } finally {
+            setRegisterSubmitting(false);
+        }
     };
 
     // Редактирование
     const onEdit = async (values: any) => {
+        if (editSubmitting) {
+            return;
+        }
+        setEditSubmitting(true);
         try {
             const { Update } = await import('../../wailsjs/go/services/DocumentRegistrationService');
             await Update(DOCUMENT_KIND_INCOMING_LETTER, {
@@ -226,7 +240,11 @@ const IncomingPage: React.FC = () => {
             });
             message.success('Документ обновлён');
             closeEditModal(); editForm.resetFields(); load();
-        } catch (err: any) { message.error(formatAppError(err)); }
+        } catch (err: any) {
+            message.error(formatAppError(err));
+        } finally {
+            setEditSubmitting(false);
+        }
     };
 
     const {
@@ -307,6 +325,7 @@ const IncomingPage: React.FC = () => {
                 onOk: () => registerForm.submit(),
                 width: 800,
                 okText: 'Зарегистрировать',
+                confirmLoading: registerSubmitting,
                 linkedBadge: sourceId && targetKind === DOCUMENT_KIND_INCOMING_LETTER ? (
                     <div style={{ marginBottom: 16 }}>
                         <Tag color="blue">Создание документа, связанного с: {getDocumentKindShortLabel(sourceKind)} №{sourceNumber}</Tag>
@@ -334,6 +353,7 @@ const IncomingPage: React.FC = () => {
                 onOk: () => editForm.submit(),
                 width: 800,
                 okText: 'Сохранить',
+                confirmLoading: editSubmitting,
                 content: (
                     <IncomingLetterDocumentForm
                         form={editForm}

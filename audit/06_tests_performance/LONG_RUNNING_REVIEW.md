@@ -30,4 +30,4 @@ No long-running/memory/cancellation test suite was found. This aligns with open 
 - Add context cancellation first; tests should assert cancellation behavior after implementation.
 - Track memory via OS tools on both target platforms.
 
-Связанные issues: `ISSUE-015`, `ISSUE-020`, `ISSUE-028`, `ISSUE-041`, `ISSUE-043`; fixed after audit: `ISSUE-017`.
+Связанные issues: `ISSUE-015`, `ISSUE-028`, `ISSUE-041`, `ISSUE-043`; fixed after audit: `ISSUE-017`, `ISSUE-020`.

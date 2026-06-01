@@ -1,4 +1,17 @@
 releases:
+  - version: 1.0.5
+    releasedAt: 2026-06-02
+    changes:
+      - title: Усилена надежность регистрации документов
+        description: Регистрация документов выполняется идемпотентно и без пропуска номера при ошибке; backend отклоняет лишние поля в командах регистрации.
+      - title: Улучшены журналы, ошибки и безопасность релиза
+        description: Журналы документов и действий администраторов защищены от каскадного удаления, технические логи используют идентификатор пользователя без ФИО, а ошибки Wails возвращаются структурированно.
+      - title: Обновлен release gate
+        description: Release build проверяет ключ шифрования, свежесть release assets, npm ci, Go/npm security checks, license inventory and frontend build before artifacts are produced.
+      - title: Обновлены UX-подтверждения и тексты
+        description: Деструктивные действия получили подробные подтверждения, пустые состояния стали action-aware, а сокращения и технические формулировки в интерфейсе уточнены.
+      - title: Добавлены release-facing документы
+        description: Поддерживаемые runbook и known issues фиксируют оставшиеся блокеры, необходимые проверки, mitigation and evidence для production candidate.
   - version: 1.0.4
     releasedAt: 2026-04-27
     changes:

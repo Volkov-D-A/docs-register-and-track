@@ -10,31 +10,32 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 )
 
-// GetAppUser — глобальная функция для получения текущего пользователя приложения.
+// GetAppUserID — глобальная функция для получения ID текущего пользователя приложения.
 // Должна быть инициализирована из authService.
-var GetAppUser func() string
+var GetAppUserID func() string
 
-// appUserHandler — обертка над slog.Handler, которая динамически добавляет поле app_user во все логи.
-type appUserHandler struct {
+// technicalContextHandler — обертка над slog.Handler, которая динамически добавляет
+// минимальный технический контекст во все логи.
+type technicalContextHandler struct {
 	slog.Handler
 }
 
-func (h *appUserHandler) Handle(ctx context.Context, r slog.Record) error {
-	if GetAppUser != nil {
-		user := GetAppUser()
-		if user != "" {
-			r.AddAttrs(slog.String("app_user", user))
+func (h *technicalContextHandler) Handle(ctx context.Context, r slog.Record) error {
+	if GetAppUserID != nil {
+		userID := GetAppUserID()
+		if userID != "" {
+			r.AddAttrs(slog.String("app_user_id", userID))
 		}
 	}
 	return h.Handler.Handle(ctx, r)
 }
 
-func (h *appUserHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &appUserHandler{Handler: h.Handler.WithAttrs(attrs)}
+func (h *technicalContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &technicalContextHandler{Handler: h.Handler.WithAttrs(attrs)}
 }
 
-func (h *appUserHandler) WithGroup(name string) slog.Handler {
-	return &appUserHandler{Handler: h.Handler.WithGroup(name)}
+func (h *technicalContextHandler) WithGroup(name string) slog.Handler {
+	return &technicalContextHandler{Handler: h.Handler.WithGroup(name)}
 }
 
 // Init инициализирует стандартный логгер slog.
@@ -60,13 +61,13 @@ func Init(cfg config.SeqConfig) (*slog.Logger, func()) {
 
 	if cfg.Enabled && cfg.URL != "" {
 		w := NewSeqAsyncWriter(cfg.URL)
-		handler = &appUserHandler{Handler: slog.NewJSONHandler(w, opts)}
+		handler = &technicalContextHandler{Handler: slog.NewJSONHandler(w, opts)}
 		closer = func() {
 			_ = w.Close()
 		}
 	} else {
 		// Обычный вывод в консоль, если Seq выключен (для fallback)
-		handler = &appUserHandler{Handler: slog.NewJSONHandler(os.Stdout, opts)}
+		handler = &technicalContextHandler{Handler: slog.NewJSONHandler(os.Stdout, opts)}
 		closer = func() {}
 	}
 

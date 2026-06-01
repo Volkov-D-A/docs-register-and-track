@@ -28,8 +28,8 @@ Runtime startup initializes config, logger, DB pool, repositories, services, Min
 
 - `ISSUE-015`: context/shutdown lifecycle.
 - `ISSUE-017`: fixed deterministic logger shutdown.
-- `ISSUE-019`: frontend structured error handling.
-- `ISSUE-025`: cwd-relative config path.
+- `ISSUE-019`: fixed frontend structured error handling.
+- `ISSUE-025`: fixed config lookup; target OS config smoke remains in release evidence.
 - `ISSUE-028`: startup/update failure UX.
 
 ## Smoke Tests To Add

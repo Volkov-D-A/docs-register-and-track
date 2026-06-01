@@ -6,7 +6,7 @@
 
 ## Контекст
 
-Проверены `docs/releases.yaml`, `build/README.md`, backup/restore scripts, maintained docs, audit artifacts, `git status --short` и поиск `TODO`/`FIXME`/temporary markers. После remediation `ISSUE-050` добавлены root `README.md`, `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; release checklist, smoke-test and known-issues remain audit artifacts until `ISSUE-053`.
+Проверены `docs/releases.yaml`, `build/README.md`, backup/restore scripts, maintained docs, audit artifacts, `git status --short` и поиск `TODO`/`FIXME`/temporary markers. После remediation `ISSUE-050` добавлены root `README.md`, `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; after `ISSUE-053`, release checklist, smoke-test and known issues are maintained project docs.
 
 ## I.01.257 TODO/FIXME/temporary
 
@@ -23,7 +23,7 @@ Release-риск: residual release evidence only; restore workflow no longer has
 
 Статус: ok
 Severity: none
-Release-риск: residual clean-clone execution evidence remains under `ISSUE-052`/`ISSUE-053`.
+Release-риск: residual clean-clone execution evidence remains under `ISSUE-052`.
 Доказательство: root `README.md` added with prerequisites, Docker/dev services, config path, frontend/go commands and first-run steps.
 Что нужно сделать до релиза: выполнить clean-clone walkthrough and attach evidence.
 Можно ли отложить: можно только если release выполняет автор проекта вручную; для production handover нельзя.
@@ -35,7 +35,7 @@ Release-риск: residual clean-clone execution evidence remains under `ISSUE-0
 Статус: ok
 Severity: none
 Release-риск: underlying build/version/security blockers remain tracked separately.
-Доказательство: `docs/release_runbook.md` added with deterministic build gate, required env/secret notes, release asset generation and artifact checks. `ISSUE-032` and `ISSUE-033` fixed after remediation; `ISSUE-023`, `ISSUE-024` remain open as implementation/process blockers.
+Доказательство: `docs/release_runbook.md` added with deterministic build gate, required env/secret notes, release asset generation and artifact checks. `ISSUE-032`, `ISSUE-033`, version-source `ISSUE-023` and release build contract `ISSUE-024` fixed after remediation.
 Что нужно сделать до релиза: execute the runbook from clean checkout after underlying blockers are closed.
 Можно ли отложить: нет для production candidate.
 Финальная проверка: clean-machine release build по инструкции с проходом всех gates.
@@ -68,7 +68,7 @@ Release-риск: manual restore evidence still required.
 Статус: ok
 Severity: none
 Release-риск: startup diagnostics UX implementation remains tracked separately.
-Доказательство: `docs/diagnostics_runbook.md` added with config lookup, DB/MinIO/Seq connectivity, migration dirty/newer-schema, restore failure and release diagnostics smoke sections. `ISSUE-025`, `ISSUE-028`, `ISSUE-044` remain open as product UX/runtime blockers.
+Доказательство: `docs/diagnostics_runbook.md` added with config lookup, DB/MinIO/Seq connectivity, migration dirty/newer-schema, restore failure and release diagnostics smoke sections. `ISSUE-025` fixed after remediation; `ISSUE-028`, `ISSUE-044` remain open as product UX/runtime blockers.
 Что нужно сделать до релиза: execute target OS diagnostics smoke and attach evidence.
 Можно ли отложить: нет для non-author operation.
 Финальная проверка: target OS smoke for missing config, invalid config, unavailable DB/MinIO/Seq.
@@ -79,8 +79,8 @@ Release-риск: startup diagnostics UX implementation remains tracked separate
 Статус: issue
 Severity: major
 Release-риск: пользователь About/release notes могут расходиться с фактическим production candidate and remediation.
-Доказательство: `docs/releases.yaml` latest version is `1.0.4` from 2026-04-27; текущие audit/remediation changes are 2026-05-27/2026-05-28 and not represented as production candidate release notes.
-Что нужно сделать до релиза: зафиксировать target version, update changelog/release notes/current release assets, verify About/binary/installer metadata.
+Доказательство: fixed after remediation: `docs/releases.yaml` includes version `1.0.5` dated 2026-06-02 with audit/remediation release notes; generated `current_release.yaml` and Wails `info.productVersion` show the same version.
+Что нужно сделать до релиза: verify About/binary/installer metadata on final target OS artifact.
 Можно ли отложить: нет для final artifact.
 Финальная проверка: About UI, binary metadata, installer DisplayVersion and release notes show same version.
 Связанные пункты: E.01.154-E.01.159, I.02.269
@@ -90,8 +90,8 @@ Release-риск: пользователь About/release notes могут рас
 Статус: issue
 Severity: major
 Release-риск: open critical/major issues were spread across audit logs and not packaged as release-facing known issues.
-Доказательство: no product-level known issues doc existed before this stage; created `audit/08_docs_release/KNOWN_ISSUES.md` as audit artifact.
-Что нужно сделать до релиза: turn accepted postponed issues into release notes/known issues with owner, mitigation and acceptance.
+Доказательство: fixed after remediation: maintained `docs/known_issues.md` lists open critical/major/minor issues with owner, mitigation and acceptance notes; README and release runbook link it.
+Что нужно сделать до релиза: keep `docs/known_issues.md` synchronized with `audit/REVIEW_LOG.md` at the release tag.
 Можно ли отложить: no for release decision; product-facing formatting can be refined after blockers are fixed.
 Финальная проверка: known issues match `REVIEW_LOG.md` open critical/major state.
 Связанные пункты: I.02.265, I.02.270
@@ -134,7 +134,7 @@ Release-риск: fresh install and migration policy are not documented end-to-e
 Статус: issue
 Severity: major
 Release-риск: installed artifact may pass build but fail login/document/file/migration/restore workflows.
-Доказательство: no root smoke-test doc existed before this stage; created `audit/08_docs_release/SMOKE_TEST.md`.
+Доказательство: fixed after remediation: maintained `docs/smoke_test.md` exists and is linked from `docs/release_runbook.md`.
 Что нужно сделать до релиза: run smoke on target OS/build with disposable production-like DB/MinIO/Seq.
 Можно ли отложить: нет.
 Финальная проверка: smoke checklist completed and attached to release evidence.
@@ -144,7 +144,7 @@ Release-риск: installed artifact may pass build but fail login/document/file
 
 Статус: ok
 Severity: none
-Release-риск: clean checkout release evidence remains under `ISSUE-052`/`ISSUE-053`, but reachable vulnerability blocker and maintained release gate are fixed.
+Release-риск: clean checkout release evidence remains under `ISSUE-052`, but reachable vulnerability blocker and maintained release gate/checklist/smoke docs are fixed.
 Доказательство: after remediation `go.mod` requires `go 1.26.3`, `golang.org/x/net@v0.53.0`; `make release-gate` runs `govulncheck`, `go test`, `go vet`, `npm run build`, `npm audit`, npm license check and dependency inventory generation.
 Что нужно сделать до релиза: run `make release-gate` from clean checkout and attach evidence.
 Можно ли отложить: clean release evidence cannot be skipped for production candidate.

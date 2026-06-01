@@ -25,10 +25,24 @@ func TestDatabaseConfigConnectionString(t *testing.T) {
 }
 
 func TestGetDefaultConfigPath(t *testing.T) {
-	// Проверка формирования пути к конфигурации по умолчанию
-	path := GetDefaultConfigPath()
-	expected := filepath.Join("config", "config.json")
-	assert.Equal(t, expected, path)
+	t.Run("env override", func(t *testing.T) {
+		configPath := filepath.Join(t.TempDir(), "production.json")
+		t.Setenv(ConfigPathEnv, configPath)
+
+		assert.Equal(t, configPath, GetDefaultConfigPath())
+	})
+
+	t.Run("executable relative before cwd", func(t *testing.T) {
+		executablePath := filepath.Join(string(filepath.Separator), "opt", "docflow", "docflow")
+		workingDir := filepath.Join(string(filepath.Separator), "tmp")
+
+		candidates := buildDefaultConfigPathCandidates(executablePath, workingDir)
+
+		require.Len(t, candidates, 3)
+		assert.Equal(t, filepath.Join(string(filepath.Separator), "opt", "docflow", "config", "config.json"), candidates[0])
+		assert.Equal(t, filepath.Join(string(filepath.Separator), "tmp", "config", "config.json"), candidates[1])
+		assert.Equal(t, filepath.Join("config", "config.json"), candidates[2])
+	})
 }
 
 func TestLoadConfig(t *testing.T) {

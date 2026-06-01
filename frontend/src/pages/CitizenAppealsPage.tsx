@@ -48,6 +48,8 @@ const CitizenAppealsPage: React.FC = () => {
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
     const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
+    const [registerSubmitting, setRegisterSubmitting] = useState(false);
+    const [editSubmitting, setEditSubmitting] = useState(false);
 
     const loadRefs = async () => {
         try {
@@ -186,6 +188,10 @@ const CitizenAppealsPage: React.FC = () => {
     });
 
     const onRegister = async (values: any) => {
+        if (registerSubmitting) {
+            return;
+        }
+        setRegisterSubmitting(true);
         try {
             const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
             const newDoc = await Register(DOCUMENT_KIND_CITIZEN_APPEAL, {
@@ -221,10 +227,16 @@ const CitizenAppealsPage: React.FC = () => {
             load();
         } catch (err: any) {
             message.error(formatAppError(err));
+        } finally {
+            setRegisterSubmitting(false);
         }
     };
 
     const onUpdate = async (values: any) => {
+        if (editSubmitting) {
+            return;
+        }
+        setEditSubmitting(true);
         try {
             const { Update } = await import('../../wailsjs/go/services/DocumentRegistrationService');
             await Update(DOCUMENT_KIND_CITIZEN_APPEAL, {
@@ -250,6 +262,8 @@ const CitizenAppealsPage: React.FC = () => {
             load();
         } catch (err: any) {
             message.error(formatAppError(err));
+        } finally {
+            setEditSubmitting(false);
         }
     };
 
@@ -331,7 +345,7 @@ const CitizenAppealsPage: React.FC = () => {
                 onOk: () => registerForm.submit(),
                 width: 800,
                 okText: 'Зарегистрировать',
-                confirmLoading: loading,
+                confirmLoading: registerSubmitting,
                 linkedBadge: sourceId && targetKind === DOCUMENT_KIND_CITIZEN_APPEAL ? (
                     <div style={{ marginBottom: 16 }}>
                         <Tag color="blue">Создание документа, связанного с: {getDocumentKindShortLabel(sourceKind)} №{sourceNumber}</Tag>
@@ -357,7 +371,7 @@ const CitizenAppealsPage: React.FC = () => {
                 onOk: () => editForm.submit(),
                 width: 800,
                 okText: 'Сохранить',
-                confirmLoading: loading,
+                confirmLoading: editSubmitting,
                 content: (
                     <CitizenAppealDocumentForm
                         form={editForm}

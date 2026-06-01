@@ -7,7 +7,7 @@
 ```text
 Wails desktop app
 ├── main.go
-│   ├── loads config/config.json
+│   ├── resolves config via DOCFLOW_CONFIG_PATH, executable dir, then cwd fallback
 │   ├── initializes slog/Seq
 │   ├── connects PostgreSQL
 │   ├── initializes repositories
@@ -94,8 +94,8 @@ Boundary risks:
 - `DocumentRegistrationService.Register/Update` still has generic public shape, but strict decoding now rejects unknown fields and create DTOs require `idempotencyKey`.
 - Long-running backend operations currently use `context.Background()` in several service paths; target: app/request context propagation from Wails lifecycle.
 - Some frontend pages are large and mix service calls, forms, modal lifecycle and layout; stage D recommends gradual feature-level decomposition.
-- Runtime config currently sits outside embedded assets and is loaded as cwd-relative `config/config.json`; stage E requires an explicit production config placement policy.
-- Release/version information is split between embedded release notes and Wails/binary metadata; stage E requires a single version source for release artifacts.
+- Runtime config sits outside embedded assets and is resolved through `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json`, then cwd fallback for local development.
+- Release/version information uses `docs/releases.yaml` as source for embedded release notes and Wails product metadata; target OS smoke must still verify binary properties and installer DisplayVersion.
 - Security/dependency checks are currently manual; stage F requires a release gate for `govulncheck`, npm audit, license inventory and static analysis.
 
 ## Structure and Cleanliness

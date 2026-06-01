@@ -57,13 +57,15 @@ npm run build
 
 ## Configuration
 
-The current application loads config from:
+The application loads config in this order:
 
 ```text
-config/config.json
+DOCFLOW_CONFIG_PATH
+<executable directory>/config/config.json
+<current working directory>/config/config.json
 ```
 
-relative to the current working directory. This is a known production risk tracked as `ISSUE-025`; target install smoke must verify launch from shortcut/default cwd, paths with spaces and Cyrillic characters, and missing/invalid config behavior.
+The current working directory fallback is for local development. Production installs should use `DOCFLOW_CONFIG_PATH` or place the approved config next to the executable under `config/config.json`. Target install smoke must still verify launch from shortcut/default cwd, paths with spaces and Cyrillic characters, and missing/invalid config behavior.
 
 Encrypted config values use `ENC:` and require `ENCRYPTION_KEY` to be supplied at build/runtime according to the approved release process. Do not commit production secrets.
 
@@ -72,15 +74,18 @@ Encrypted config values use `ENC:` and require `ENCRYPTION_KEY` to be supplied a
 Maintained runbooks:
 
 - [Release build runbook](docs/release_runbook.md)
+- [Release checklist](docs/release_checklist.md)
+- [Production smoke test](docs/smoke_test.md)
 - [Migration rollback runbook](docs/migration_rollback_runbook.md)
 - [Backup and restore runbook](docs/backup_restore_runbook.md)
 - [Diagnostics runbook](docs/diagnostics_runbook.md)
+- [Install policy](docs/install_policy.md)
+- [Secret policy](docs/secret_policy.md)
+- [Known issues for release candidate](docs/known_issues.md)
 
 Audit release artifacts:
 
 - [Known issues](audit/08_docs_release/KNOWN_ISSUES.md)
-- [Release checklist](audit/08_docs_release/RELEASE_CHECKLIST.md)
-- [Smoke test](audit/08_docs_release/SMOKE_TEST.md)
 - [Final summary](audit/FINAL_SUMMARY.md)
 
 Release must be performed from a clean worktree and must not rely on hidden local state except approved secret injection.
@@ -122,7 +127,7 @@ Windows build:
 make build-windows
 ```
 
-Before release, verify that About UI, release notes, binary metadata and installer metadata refer to the same target version. Version unification is tracked separately as `ISSUE-023`.
+Before release, verify that About UI, release notes, binary metadata and installer metadata refer to the same target version.
 
 ## Database And Migrations
 

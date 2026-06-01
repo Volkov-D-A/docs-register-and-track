@@ -43,6 +43,10 @@ const NomenclatureTab: React.FC = () => {
   useEffect(() => { load(); }, [filterYear]);
 
   const onSave = async (values: any) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       if (editItem) {
         const { Update } = await import('../../wailsjs/go/services/NomenclatureService');
@@ -56,20 +60,28 @@ const NomenclatureTab: React.FC = () => {
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
-      load();
+      await load();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
   const onDelete = async (id: string) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       const { Delete } = await import('../../wailsjs/go/services/NomenclatureService');
       await Delete(id);
       message.success('Правило нумерации удалено');
-      load();
+      await load();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -112,10 +124,10 @@ const NomenclatureTab: React.FC = () => {
             description="Это действие нельзя отменить. Новые документы больше не будут использовать это правило."
             okText="Удалить"
             cancelText="Отмена"
-            okButtonProps={{ danger: true }}
+            okButtonProps={{ danger: true, loading }}
             onConfirm={() => onDelete(record.id)}
           >
-            <Button size="small" title="Удалить правило нумерации" icon={<DeleteOutlined />} danger />
+            <Button size="small" title="Удалить правило нумерации" icon={<DeleteOutlined />} danger loading={loading} />
           </Popconfirm>
         </Space>
       ),
@@ -145,6 +157,7 @@ const NomenclatureTab: React.FC = () => {
         open={modalOpen}
         onCancel={() => { setModalOpen(false); setEditItem(null); }}
         onOk={() => form.submit()}
+        confirmLoading={loading}
       >
         <Form form={form} layout="vertical" onFinish={onSave}>
           <Form.Item name="index" label="Индекс" rules={[{ required: true }]}>
@@ -216,6 +229,10 @@ const OrganizationsTab: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const onSave = async (values: any) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       if (editItem) {
         const { UpdateOrganization } = await import('../../wailsjs/go/services/ReferenceService');
@@ -225,20 +242,28 @@ const OrganizationsTab: React.FC = () => {
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
-      load();
+      await load();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
   const onDelete = async (id: string) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       const { DeleteOrganization } = await import('../../wailsjs/go/services/ReferenceService');
       await DeleteOrganization(id);
       message.success('Организация удалена');
-      load();
+      await load();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -258,10 +283,10 @@ const OrganizationsTab: React.FC = () => {
             description="Это действие нельзя отменить. Организация исчезнет из справочника."
             okText="Удалить"
             cancelText="Отмена"
-            okButtonProps={{ danger: true }}
+            okButtonProps={{ danger: true, loading }}
             onConfirm={() => onDelete(record.id)}
           >
-            <Button size="small" title="Удалить организацию" icon={<DeleteOutlined />} danger />
+            <Button size="small" title="Удалить организацию" icon={<DeleteOutlined />} danger loading={loading} />
           </Popconfirm>
         </Space>
       ),
@@ -280,6 +305,7 @@ const OrganizationsTab: React.FC = () => {
         open={modalOpen}
         onCancel={() => { setModalOpen(false); setEditItem(null); }}
         onOk={() => form.submit()}
+        confirmLoading={loading}
       >
         <Form form={form} layout="vertical" onFinish={onSave}>
           <Form.Item name="name" label="Наименование" rules={[{ required: true }]}>
@@ -318,6 +344,10 @@ const ResolutionExecutorsTab: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const onSave = async (values: any) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       if (editItem) {
         const { UpdateResolutionExecutor } = await import('../../wailsjs/go/services/ReferenceService');
@@ -327,20 +357,28 @@ const ResolutionExecutorsTab: React.FC = () => {
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
-      load();
+      await load();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
   const onDelete = async (id: string) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       const { DeleteResolutionExecutor } = await import('../../wailsjs/go/services/ReferenceService');
       await DeleteResolutionExecutor(id);
       message.success('Исполнитель удалён');
-      load();
+      await load();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -360,10 +398,10 @@ const ResolutionExecutorsTab: React.FC = () => {
             description="Это действие нельзя отменить. Исполнитель исчезнет из справочника."
             okText="Удалить"
             cancelText="Отмена"
-            okButtonProps={{ danger: true }}
+            okButtonProps={{ danger: true, loading }}
             onConfirm={() => onDelete(record.id)}
           >
-            <Button size="small" title="Удалить исполнителя" icon={<DeleteOutlined />} danger />
+            <Button size="small" title="Удалить исполнителя" icon={<DeleteOutlined />} danger loading={loading} />
           </Popconfirm>
         </Space>
       ),
@@ -382,6 +420,7 @@ const ResolutionExecutorsTab: React.FC = () => {
         open={modalOpen}
         onCancel={() => { setModalOpen(false); setEditItem(null); }}
         onOk={() => form.submit()}
+        confirmLoading={loading}
       >
         <Form form={form} layout="vertical" onFinish={onSave}>
           <Form.Item name="name" label="ФИО" rules={[{ required: true }]}>
@@ -429,6 +468,10 @@ const DepartmentsTab: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const onSave = async (values: any) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       if (editItem) {
         const { UpdateDepartment } = await import('../../wailsjs/go/services/DepartmentService');
@@ -441,20 +484,28 @@ const DepartmentsTab: React.FC = () => {
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
-      load();
+      await load();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
   const onDelete = async (id: string) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       const { DeleteDepartment } = await import('../../wailsjs/go/services/DepartmentService');
       await DeleteDepartment(id);
       message.success('Подразделение удалено');
-      load();
+      await load();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -474,10 +525,10 @@ const DepartmentsTab: React.FC = () => {
             description="Это действие нельзя отменить. Подразделение исчезнет из справочника."
             okText="Удалить"
             cancelText="Отмена"
-            okButtonProps={{ danger: true }}
+            okButtonProps={{ danger: true, loading }}
             onConfirm={() => onDelete(record.id)}
           >
-            <Button size="small" title="Удалить подразделение" icon={<DeleteOutlined />} danger />
+            <Button size="small" title="Удалить подразделение" icon={<DeleteOutlined />} danger loading={loading} />
           </Popconfirm>
         </Space>
       ),
@@ -499,6 +550,7 @@ const DepartmentsTab: React.FC = () => {
         open={modalOpen}
         onCancel={() => { setModalOpen(false); setEditItem(null); }}
         onOk={() => form.submit()}
+        confirmLoading={loading}
       >
         <Form form={form} layout="vertical" onFinish={onSave}>
           <Form.Item name="name" label="Наименование" rules={[{ required: true }]}>
@@ -647,6 +699,10 @@ const UsersTab: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const onSave = async (values: any) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       const { UpdateUserAccessProfile } = await import('../../wailsjs/go/services/DocumentAccessAdminService');
 
@@ -676,13 +732,19 @@ const UsersTab: React.FC = () => {
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
-      load();
+      await load();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
   const onPasswordChange = async (values: any) => {
+    if (loading) {
+      return;
+    }
+    setLoading(true);
     try {
       const { ResetPassword } = await import('../../wailsjs/go/services/UserService');
       await ResetPassword(editItem.id, values.newPassword);
@@ -692,6 +754,8 @@ const UsersTab: React.FC = () => {
       setEditItem(null);
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -774,6 +838,7 @@ const UsersTab: React.FC = () => {
         }}
         onOk={() => form.submit()}
         width={1100}
+        confirmLoading={loading}
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto', overflowX: 'hidden' } }}
       >
         <Form form={form} layout="vertical" onFinish={onSave} style={{ overflowX: 'hidden' }}>
@@ -861,6 +926,7 @@ const UsersTab: React.FC = () => {
         onCancel={() => { setPasswordModalOpen(false); setEditItem(null); passwordForm.resetFields(); }}
         onOk={() => passwordForm.submit()}
         width={400}
+        confirmLoading={loading}
       >
         <Form form={passwordForm} layout="vertical" onFinish={onPasswordChange}>
           <Form.Item
@@ -998,6 +1064,9 @@ const MigrationsTab: React.FC = () => {
   useEffect(() => { loadStatus(); }, []);
 
   const onRunMigrations = () => {
+    if (running) {
+      return;
+    }
     modal.confirm({
       title: 'Запуск миграций',
       content: 'Вы уверены, что хотите применить миграции базы данных? Убедитесь, что все пользователи завершили работу в системе.',
@@ -1005,6 +1074,9 @@ const MigrationsTab: React.FC = () => {
       cancelText: 'Отмена',
       okType: 'primary',
       onOk: async () => {
+        if (running) {
+          return;
+        }
         setRunning(true);
         try {
           const { RunMigrations } = await import('../../wailsjs/go/services/SettingsService');
@@ -1013,8 +1085,9 @@ const MigrationsTab: React.FC = () => {
           await loadStatus();
         } catch (err: any) {
           message.error(formatAppError(err));
+        } finally {
+          setRunning(false);
         }
-        setRunning(false);
       },
     });
   };
@@ -1025,6 +1098,9 @@ const MigrationsTab: React.FC = () => {
   };
 
   const onConfirmRollback = async () => {
+    if (rollingBack) {
+      return;
+    }
     const values = await rollbackForm.validateFields();
     setRollingBack(true);
     try {
@@ -1040,8 +1116,9 @@ const MigrationsTab: React.FC = () => {
       await loadStatus();
     } catch (err: any) {
       message.error(formatAppError(err));
+    } finally {
+      setRollingBack(false);
     }
-    setRollingBack(false);
   };
 
   return (
@@ -1183,6 +1260,9 @@ const StorageTab: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<any>(null);
 
   const onBulkDelete = () => {
+    if (loading) {
+      return;
+    }
     if (!selectedDate) {
       message.warning('Пожалуйста, выберите дату');
       return;
@@ -1195,6 +1275,9 @@ const StorageTab: React.FC = () => {
       cancelText: 'Отмена',
       okType: 'danger',
       onOk: async () => {
+        if (loading) {
+          return;
+        }
         setLoading(true);
         try {
           const { BulkDeleteOlderThan } = await import('../../wailsjs/go/services/AttachmentService');
@@ -1202,8 +1285,9 @@ const StorageTab: React.FC = () => {
           message.success(`Удалено файлов: ${count}`);
         } catch (err: any) {
           message.error(formatAppError(err));
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       },
     });
   };

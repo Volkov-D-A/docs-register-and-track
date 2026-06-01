@@ -5,7 +5,7 @@
 
 ## Вывод
 
-Error copy remains the most important UX text risk. Many handlers still render `err?.message || String(err)`. This overlaps with `ISSUE-019`, but H adds the UX requirement: messages should say what happened, what the user can do, and avoid internal jargon/IDs.
+User-facing error copy is centralized in the shared frontend `appError` adapter. Structured backend/Wails error codes now map to safe UX copy that says what happened and gives the next step; unstructured raw `Error.message` / string errors are not displayed directly. Manual smoke for full failure paths remains tracked by `ISSUE-043`.
 
 ## Examples
 
@@ -15,7 +15,7 @@ Error copy remains the most important UX text risk. Many handlers still render `
 | `Ошибка загрузки журнала: ${err}` | Technical raw suffix. | `Не удалось загрузить журнал документа. Попробуйте обновить карточку.` |
 | `Ошибка миграции (dirty)` | English technical state. | `Миграция завершилась с ошибкой. Работа со схемой БД требует восстановления по инструкции.` |
 | `Не удалось получить статус` | No next step. | `Не удалось получить статус миграций. Проверьте подключение к БД и повторите запрос.` |
-| `err?.message || String(err)` | Leaks backend/internal messages. | Map structured `code` to safe copy and action. |
+| `err?.message || String(err)` | Leaks backend/internal messages. | Fixed in shared `appError` adapter: structured `code` maps to safe copy and action; unknown/raw errors use generic recovery text. |
 
 ## Error Copy Rules
 
@@ -25,4 +25,4 @@ Error copy remains the most important UX text risk. Many handlers still render `
 - Use neutral tone: "Не удалось..." instead of blame.
 - Keep details in technical logs and audit trail.
 
-Связанные issues: `ISSUE-019`, `ISSUE-044`, `ISSUE-028`.
+Связанные issues: `ISSUE-019`, `ISSUE-043`, `ISSUE-028`.

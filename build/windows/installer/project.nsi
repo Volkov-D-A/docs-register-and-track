@@ -28,7 +28,10 @@ Unicode true
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"
 ## !define UNINST_KEY_NAME     "UninstKeyInRegistry"  # Default "${INFO_COMPANYNAME}${INFO_PRODUCTNAME}"
 ####
-## !define REQUEST_EXECUTION_LEVEL "admin"            # Default "admin"  see also https://nsis.sourceforge.io/Docs/Chapter4.html
+## Production policy: per-machine install requires administrator rights, writes uninstall
+## metadata to HKLM and installs under Program Files. The installed application must
+## run for ordinary users without elevation after installation.
+!define REQUEST_EXECUTION_LEVEL "admin"              # see also https://nsis.sourceforge.io/Docs/Chapter4.html
 ####
 ## Include the wails tools
 ####

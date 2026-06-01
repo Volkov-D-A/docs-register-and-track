@@ -22,13 +22,10 @@
 | F.01.181 | ok | none | Go stdlib / Go modules | `go1.26.3`, `golang.org/x/net@v0.53.0`; `govulncheck` reports 0 reachable vulnerabilities. | Keep `govulncheck` in release gate. |
 | F.01.182 | ok | none | npm | `npm audit`: total 0 vulnerabilities across 224 dependencies. | npm advisory scan clean на момент проверки. |
 | F.01.183 | ok | none | lock files | `go.sum` и `frontend/package-lock.json` присутствуют. | Lock files зафиксированы. |
-| F.01.184 | issue | minor | dependency policy | `package.json` использует caret ranges; Go modules exact in `go.mod`; release build uses `npm install` in `wails.json`. | Lock file mitigates npm drift, но release gate должен использовать `npm ci` and dependency update policy. |
+| F.01.184 | ok | none | dependency policy | `package.json` uses caret ranges with lock file; Wails `frontend:install` and `make release-gate` now use `npm ci`. | Keep dependency update cadence and emergency security patch process documented outside release build mechanics. |
 
 ## Security Risks Already Tracked
 
-- `ISSUE-016`: logging PII minimization.
-- `ISSUE-024`: release build secret injection.
-- `ISSUE-029`: production secret policy.
 - `ISSUE-032`: Go reachable vulnerabilities fixed after remediation.
 
 ## Required Before Production

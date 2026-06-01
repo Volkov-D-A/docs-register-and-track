@@ -22,9 +22,19 @@ Production-аудит A-I завершен. Система имеет рабоч
 - `ISSUE-013`: document registration idempotency key and transaction boundary fixed.
 - `ISSUE-014`: strict document command decode fixed.
 - `ISSUE-007`: destructive runtime rollback guardrails fixed.
+- `ISSUE-016`: Seq/technical logs now use user ID context without full names.
 - `ISSUE-017`: deterministic Seq logger shutdown fixed.
 - `ISSUE-018`: backend missing-entity paths now return structured `NOT_FOUND`.
 - `ISSUE-019`: frontend now consumes structured Wails error envelope via a shared adapter.
+- `ISSUE-020`: critical frontend submit/actions now have local repeat-click guards.
+- `ISSUE-023`: release notes and Wails product metadata now use one generated version source.
+- `ISSUE-024`: release build gate now validates secrets, generated asset freshness and deterministic frontend install.
+- `ISSUE-025`: runtime config lookup no longer depends only on current working directory.
+- `ISSUE-026`: Windows per-machine admin install policy is explicit and release smoke covers ordinary-user launch.
+- `ISSUE-029`: production secret delivery, permissions and rotation policy is maintained.
+- `ISSUE-044`: frontend maps structured error codes to safe user-facing messages with recovery actions.
+- `ISSUE-051`: release notes and maintained known issues now describe the current production candidate.
+- `ISSUE-053`: maintained release checklist and smoke test are now project docs.
 - `ISSUE-030`: attachment downloads no longer overwrite existing local files.
 - `ISSUE-035`: obsolete frontend `@ts-ignore` suppressions removed.
 - `ISSUE-036`: Go formatting drift fixed.
@@ -36,11 +46,10 @@ Production-аудит A-I завершен. Система имеет рабоч
 ## Main Open Major Themes
 
 - Restore hardening and backup/restore runbook.
-- Production config lookup, diagnostics and secret policy.
+- Startup diagnostics.
 - Context/shutdown lifecycle for long operations.
-- Technical log PII minimization.
-- Frontend submit guards and dirty form warnings.
-- Release build reproducibility, version source and installer/update policy.
+- Frontend dirty form warnings.
+- Target OS install/update smoke evidence.
 - Release docs/runbooks now exist, but clean-clone execution evidence is still missing.
 - Remaining frontend lint warnings.
 - Frontend/e2e tests, safe integration test gate and performance baseline.

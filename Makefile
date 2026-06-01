@@ -1,8 +1,8 @@
-.PHONY: dev build-linux build-windows clean release-assets go-test go-vet govulncheck frontend-build frontend-lint npm-audit npm-license-check license-inventory security-gate release-gate
+.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test go-vet govulncheck frontend-ci frontend-build frontend-lint npm-audit npm-license-check license-inventory security-gate release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
-export
+export ENCRYPTION_KEY
 
 # Переменные
 TAGS = webkit2_41
@@ -16,7 +16,13 @@ GO_PACKAGES = $(shell go list ./... | grep -v '/frontend/node_modules/')
 LDFLAGS = -X 'github.com/Volkov-D-A/docs-register-and-track/internal/config.rawEncryptionKey=$(ENCRYPTION_KEY)'
 
 release-assets:
-	go generate ./internal/releaseassets
+	GOCACHE=$(GOCACHE) go generate ./internal/releaseassets
+
+release-assets-check:
+	GOCACHE=$(GOCACHE) go run ./tools/releasegen -source docs/releases.yaml -out internal/releaseassets/current_release.yaml -wails-config wails.json -check
+
+check-release-env:
+	@test -n "$(ENCRYPTION_KEY)" || (echo "ENCRYPTION_KEY is required for production build; provide it via approved release secret injection." >&2; exit 1)
 
 # Запуск режима разработки с правильным WebKit для Ubuntu 24.04
 dev:
@@ -25,11 +31,13 @@ dev:
 
 # Сборка готового бинарника для тестирования в Linux
 build-linux:
+	$(MAKE) check-release-env
 	$(MAKE) release-assets
 	wails build -tags $(TAGS) -platform linux/amd64 -ldflags "$(LDFLAGS)"
 
 # Кросс-компиляция готового .exe для Windows (для конечных пользователей)
 build-windows:
+	$(MAKE) check-release-env
 	$(MAKE) release-assets
 	wails build -platform windows/amd64 -ldflags "$(LDFLAGS)"
 
@@ -52,6 +60,9 @@ go-vet:
 govulncheck:
 	GOCACHE=$(GOCACHE) $(GOVULNCHECK) $(GO_PACKAGES)
 
+frontend-ci:
+	cd $(FRONTEND_DIR) && npm ci
+
 frontend-build:
 	cd $(FRONTEND_DIR) && npm run build
 
@@ -72,7 +83,7 @@ license-inventory:
 
 security-gate: govulncheck npm-audit npm-license-check
 
-release-gate: go-test go-vet govulncheck frontend-lint frontend-build npm-audit npm-license-check license-inventory
+release-gate: check-release-env release-assets-check go-test go-vet govulncheck frontend-ci frontend-lint frontend-build npm-audit npm-license-check license-inventory
 
 # ==========================================
 # УПРАВЛЕНИЕ БАЗОЙ ДАННЫХ (DOCKER)

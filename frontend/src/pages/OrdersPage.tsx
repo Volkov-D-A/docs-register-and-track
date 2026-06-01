@@ -50,6 +50,8 @@ const OrdersPage: React.FC = () => {
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
     const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
+    const [registerSubmitting, setRegisterSubmitting] = useState(false);
+    const [editSubmitting, setEditSubmitting] = useState(false);
     const registerNomenclatureId = Form.useWatch('nomenclatureId', registerForm);
     const selectedRegisterNomenclature = nomenclatures.find((n: any) => n.id === registerNomenclatureId);
 
@@ -140,6 +142,10 @@ const OrdersPage: React.FC = () => {
     });
 
     const onRegister = async (values: any) => {
+        if (registerSubmitting) {
+            return;
+        }
+        setRegisterSubmitting(true);
         try {
             const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
             const newDoc = await Register(DOCUMENT_KIND_ADMINISTRATIVE_ORDER, {
@@ -169,10 +175,16 @@ const OrdersPage: React.FC = () => {
             load();
         } catch (err: any) {
             message.error(formatAppError(err));
+        } finally {
+            setRegisterSubmitting(false);
         }
     };
 
     const onUpdate = async (values: any) => {
+        if (editSubmitting) {
+            return;
+        }
+        setEditSubmitting(true);
         try {
             const { Update } = await import('../../wailsjs/go/services/DocumentRegistrationService');
             await Update(DOCUMENT_KIND_ADMINISTRATIVE_ORDER, {
@@ -185,6 +197,8 @@ const OrdersPage: React.FC = () => {
             load();
         } catch (err: any) {
             message.error(formatAppError(err));
+        } finally {
+            setEditSubmitting(false);
         }
     };
 
@@ -274,6 +288,7 @@ const OrdersPage: React.FC = () => {
                 onOk: () => registerForm.submit(),
                 width: 760,
                 okText: 'Зарегистрировать',
+                confirmLoading: registerSubmitting,
                 linkedBadge: sourceId && targetKind === DOCUMENT_KIND_ADMINISTRATIVE_ORDER ? (
                     <Tag color="blue">
                         Создание документа, связанного с: {getDocumentKindShortLabel(sourceKind)} №{sourceNumber}
@@ -297,6 +312,7 @@ const OrdersPage: React.FC = () => {
                 onOk: () => editForm.submit(),
                 width: 760,
                 okText: 'Сохранить',
+                confirmLoading: editSubmitting,
                 content: (
                     <AdministrativeOrderDocumentForm
                         form={editForm}

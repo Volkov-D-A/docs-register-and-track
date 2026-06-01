@@ -43,6 +43,9 @@ const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCance
     };
 
     const handleOk = async () => {
+        if (loading) {
+            return;
+        }
         try {
             const values = await form.validateFields();
             setLoading(true);

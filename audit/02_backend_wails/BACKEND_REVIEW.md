@@ -13,8 +13,7 @@ Backend имеет понятную слоистую структуру: Wails b
 - часть ошибок backend/repository возвращается как `fmt.Errorf` с внутренним контекстом, английскими сообщениями и wrapped DB errors;
 - регистрация документов все еще не реализует backend `idempotency_key`, а `GetNextNumber` вызывается до создания документа;
 - публичный `DocumentRegistrationService.Register/Update` принимает `any` и нормализует payload через `json.Marshal`/`json.Unmarshal`, лишние поля silently ignored;
-- долгие операции используют `context.Background()` и не отменяются при закрытии окна;
-- production-логи добавляют `app_user` с ФИО во все события и могут содержать названия файлов, номера документов и имена пользователей.
+- долгие операции используют `context.Background()` и не отменяются при закрытии окна.
 
 ## Critical/Major Issues
 
@@ -24,7 +23,6 @@ Backend имеет понятную слоистую структуру: Wails b
 | ISSUE-013 | major | Регистрация документов не имеет backend `idempotency_key`; номер выдается до transaction create. | C/D/F |
 | ISSUE-014 | major | Document registration Wails API принимает `any`, неизвестные поля не отклоняются. | C/D |
 | ISSUE-015 | major | Операции MinIO/журналов/связей используют `context.Background()` и не отменяются при shutdown. | C/E/F |
-| ISSUE-016 | major | Production-логи содержат ФИО/имена пользователей и business identifiers без явной minimization policy. | C/F/H |
 
 ## Контрольные Пункты C
 
@@ -52,7 +50,7 @@ Backend имеет понятную слоистую структуру: Wails b
 | C.05.096 | issue | major | DB/MinIO/files/processes | DB закрывается; MinIO операций с cancel нет; `exec.Command(...).Start()` не отслеживает процесс. | Для долгих операций использовать context, timeout и явную lifecycle policy. |
 | C.05.097 | issue | major | `main.go` OnShutdown | `OnShutdown` закрывает DB/logger, но не отменяет операции; `closeLogger` вызывается и defer, и shutdown. | Ввести app context, единый shutdown coordinator, idempotent close. |
 | C.06.098 | ok | none | slog | `slog` поддерживает уровни; Wails logger настроен на ERROR, app logs через slog. | Уровни доступны. |
-| C.06.099 | issue | major | logger/audit | `app_user` добавляет ФИО ко всем логам; audit details содержат имена, файлы, номера. | Нужна PII/logging minimization policy и redaction для production logs. |
+| C.06.099 | ok | none | logger/audit | Technical logs добавляют `app_user_id`, а Wails binding error logs не пишут полный текст ошибки. | ФИО и business details остаются в `admin_audit_log`/`document_journal`, где это доменный audit trail. |
 | C.06.100 | issue | minor | services | Critical startup errors логируются; business critical actions в основном идут в journal/admin audit, но не всегда в slog с correlation/context. | Добавить request/action context для registration, migration, file ops. |
 
 ## Что Передать На D/F/E

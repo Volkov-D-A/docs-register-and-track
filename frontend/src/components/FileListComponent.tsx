@@ -30,6 +30,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
     const [api, contextHolder] = notification.useNotification();
 
     const loadFiles = async () => {
@@ -52,6 +53,9 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
     }, [documentId]);
 
     const handleUpload = async (file: File) => {
+        if (uploading) {
+            return Upload.LIST_IGNORE;
+        }
         setUploading(true);
         try {
             const reader = new FileReader();
@@ -123,6 +127,10 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
     };
 
     const handleDelete = async (id: string) => {
+        if (deletingIds.has(id)) {
+            return;
+        }
+        setDeletingIds((current) => new Set(current).add(id));
         try {
             const { Delete } = await import('../../wailsjs/go/services/AttachmentService');
             await Delete(id);
@@ -130,6 +138,12 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
             loadFiles();
         } catch (err: unknown) {
             message.error(formatAppError(err, 'Ошибка удаления'));
+        } finally {
+            setDeletingIds((current) => {
+                const next = new Set(current);
+                next.delete(id);
+                return next;
+            });
         }
     };
 
@@ -198,10 +212,16 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                                         description="Это действие нельзя отменить. Файл будет удалён из вложений документа."
                                         okText="Удалить"
                                         cancelText="Отмена"
-                                        okButtonProps={{ danger: true }}
+                                        okButtonProps={{ danger: true, loading: deletingIds.has(item.id) }}
                                         onConfirm={() => handleDelete(item.id)}
                                     >
-                                        <Button type="text" title="Удалить файл" danger icon={<DeleteOutlined />} />
+                                        <Button
+                                            type="text"
+                                            title="Удалить файл"
+                                            danger
+                                            icon={<DeleteOutlined />}
+                                            loading={deletingIds.has(item.id)}
+                                        />
                                     </Popconfirm>
                                 )}
                             </Space>

@@ -70,6 +70,9 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
     }, [open, initialReport]);
 
     const handleSubmit = async () => {
+        if (submitting) {
+            return;
+        }
         if (!reportText.trim()) {
             message.error('Введите отчет об исполнении');
             return;

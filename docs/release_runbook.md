@@ -40,14 +40,15 @@ If output is not empty, stop and either commit/tag approved changes or remove no
 
 ## Secrets
 
-Production secrets must not be committed. The current build reads `.env` through `Makefile` and passes `ENCRYPTION_KEY` into Go ldflags.
+Production secrets must not be committed. The build reads `ENCRYPTION_KEY` through the approved release environment or `.env` and passes it into Go ldflags. Build targets fail before Wails build if the key is missing.
 
 Before building:
 
 - confirm approved secret delivery path;
 - confirm `.env` permissions are limited to the release operator;
 - confirm `ENCRYPTION_KEY` is present;
-- record key rotation owner and procedure outside the repository.
+- confirm `config.json` and CIFS credentials file permissions follow `docs/secret_policy.md`;
+- record key rotation owner and procedure.
 
 ## Build Gate
 
@@ -57,7 +58,7 @@ Run the maintained release gate:
 make release-gate
 ```
 
-The gate runs Go tests, Go vet, `govulncheck`, frontend production build, `npm audit --audit-level=critical`, npm GPL-family license check and dependency inventory generation.
+The gate verifies `ENCRYPTION_KEY`, generated release asset freshness, Go tests, Go vet, `govulncheck`, `npm ci`, frontend lint/build, `npm audit --audit-level=critical`, npm GPL-family license check and dependency inventory generation.
 
 Expanded manual steps are listed below for troubleshooting.
 
@@ -75,6 +76,8 @@ Generate release assets:
 ```bash
 make release-assets
 ```
+
+`docs/releases.yaml` is the release version source. This target updates both `internal/releaseassets/current_release.yaml` for About/release notes and `wails.json` `info.productVersion` for Wails/binary metadata.
 
 Run Go checks:
 
@@ -119,7 +122,7 @@ make build-windows
 After build:
 
 - record artifact names and checksums;
-- verify version metadata;
+- verify About UI, `wails.json` `info.productVersion`, binary properties and installer metadata use the same release version;
 - verify generated `internal/releaseassets/current_release.yaml` freshness;
 - verify installer metadata if a Windows installer is produced.
 
@@ -128,7 +131,7 @@ After build:
 On a disposable database:
 
 1. Create a fresh PostgreSQL DB and MinIO bucket.
-2. Point `config/config.json` to the disposable services.
+2. Point `DOCFLOW_CONFIG_PATH` or executable-relative `config/config.json` to the disposable services.
 3. Start the app.
 4. Apply embedded migrations through `Settings -> Migrations` or first-run setup, according to the accepted release policy.
 5. Confirm migration status is not dirty.
@@ -155,26 +158,28 @@ Release evidence must include:
 - restore report;
 - controlled fatal PostgreSQL restore failure that stops before MinIO mirror;
 - confirmation that SMB password is not visible in process arguments.
+- confirmation that release evidence and technical logs do not contain passwords, tokens or full encrypted secret material.
 
 ## Target OS Install Smoke
 
 For every target OS/artifact:
 
-- install or unpack artifact using the approved install policy;
+- install or unpack artifact using the approved install policy in `docs/install_policy.md`;
+- on Windows, confirm installer elevation is required for the per-machine install and the installed app runs for an ordinary user without elevation;
 - launch from default shortcut/cwd;
 - launch from a path with spaces and Cyrillic characters;
 - verify missing/invalid config diagnostics;
 - verify DB/MinIO/Seq unavailable diagnostics;
-- complete the minimal smoke test in `audit/08_docs_release/SMOKE_TEST.md`.
+- complete the minimal smoke test in `docs/smoke_test.md`.
 
 ## Release Evidence
 
 Attach to the release:
 
-- completed checklist;
+- completed checklist from `docs/release_checklist.md`;
 - command output summaries;
 - artifact checksums;
 - target OS smoke result;
 - backup/restore smoke result;
-- known issues with mitigation/owner/acceptance;
+- [known issues](known_issues.md) with mitigation/owner/acceptance;
 - clean `git status --short` at tag.

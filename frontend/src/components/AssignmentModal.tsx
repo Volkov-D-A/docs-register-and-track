@@ -61,6 +61,9 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
     }, [open, isEdit, initialValues, form]);
 
     const handleSubmit = async (values: any) => {
+        if (loading) {
+            return;
+        }
         setLoading(true);
         try {
             if (isEdit) {

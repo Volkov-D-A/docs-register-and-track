@@ -141,10 +141,10 @@
 ## RISK-016
 
 Категория: Logging/Privacy
-Описание: Technical production logs могут содержать ФИО пользователя (`app_user`) и business identifiers, которые должны быть ограничены доменным audit trail или минимизированы.
-Вероятность: medium
+Описание: Technical production logs ранее могли содержать ФИО пользователя (`app_user`) и business identifiers, которые должны быть ограничены доменным audit trail или минимизированы.
+Вероятность: low
 Влияние: medium
-Митигирующее действие: Ввести PII minimization/redaction policy для Seq; в technical logs использовать user ID/correlation fields, а ФИО хранить только в PostgreSQL audit/journal, где это бизнес-требование.
+Митигирующее действие: Выполнено: technical logs используют `app_user_id` вместо ФИО, Wails binding error logs не пишут полный текст ошибки; ФИО и бизнес-детали остаются в PostgreSQL audit/journal.
 Ответственный этап: C, F, H
 
 ## RISK-017
@@ -177,19 +177,19 @@
 ## RISK-020
 
 Категория: Build/Release
-Описание: Версия приложения и release notes могут разойтись между About UI, binary metadata и installer metadata; production build зависит от локального `.env`/`ENCRYPTION_KEY` и не оформлен как deterministic release gate.
-Вероятность: medium
+Описание: Production build now has a deterministic release gate with required `ENCRYPTION_KEY`, generated asset freshness check and `npm ci`. Secret delivery, permissions and rotation are defined in `docs/secret_policy.md`. Remaining risk is target OS artifact metadata and evidence execution.
+Вероятность: low
 Влияние: high
-Митигирующее действие: Ввести единый version source, release build script, required env validation, `npm ci`, generated asset freshness check и artifact metadata verification.
+Митигирующее действие: Run `make release-gate` from clean checkout, build with approved secret injection, follow `docs/secret_policy.md`, then verify binary properties/installer metadata and secret exposure checks on target OS.
 Ответственный этап: E, H
 
 ## RISK-021
 
 Категория: Installation/Runtime Config
-Описание: Приложение ищет `config/config.json` относительно текущей рабочей директории; запуск из shortcut, standard install path или другого cwd может завершиться до UI.
-Вероятность: medium
+Описание: Runtime config lookup supports `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json` and cwd fallback for local development. Remaining risk is missing/invalid config diagnostics and target OS smoke.
+Вероятность: low
 Влияние: high
-Митигирующее действие: Зафиксировать production config location and lookup order; добавить startup diagnostics для missing/invalid config; включить target OS smoke.
+Митигирующее действие: Use `DOCFLOW_CONFIG_PATH` or executable-relative config for production; verify shortcut/default cwd/path with spaces/Cyrillic and missing/invalid config in target OS smoke.
 Ответственный этап: E, H
 
 ## RISK-022
@@ -330,8 +330,8 @@
 ## RISK-037
 
 Категория: Release/Process
-Описание: Release checklist, smoke-test and known issues existed only as audit findings before stage I and are not yet a maintained project release process.
-Вероятность: medium
+Описание: Release checklist, smoke-test and known issues are maintained project docs. Remaining risk is failure to execute and attach them from a clean checkout for each release.
+Вероятность: low
 Влияние: high
-Митигирующее действие: Promote `audit/08_docs_release` checklist/smoke/known issues into maintained release docs or script; require completed checklist for every release.
+Митигирующее действие: Complete `docs/release_checklist.md` and `docs/smoke_test.md` from clean checkout; attach completed evidence and keep `docs/known_issues.md` synchronized at release tag.
 Ответственный этап: I

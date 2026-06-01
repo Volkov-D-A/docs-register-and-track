@@ -29,6 +29,6 @@ These tests are not part of default `go test ./...` unless `DOCFLOW_INTEGRATION_
 - Startup failure behavior is not tested as a user-facing diagnostic flow.
 - Context cancellation/shutdown behavior is not tested.
 - Structured frontend/backend error behavior is not tested end-to-end.
-- Seq/log redaction is not test-covered.
+- Seq technical user context minimization is covered by `TestTechnicalContextHandlerAddsOnlyUserID`; end-to-end Seq smoke remains release-gate/manual.
 
-Связанные issues: `ISSUE-015`, `ISSUE-016`, `ISSUE-019`, `ISSUE-028`, `ISSUE-039`.
+Связанные issues: `ISSUE-015`, `ISSUE-019`, `ISSUE-028`, `ISSUE-039`.

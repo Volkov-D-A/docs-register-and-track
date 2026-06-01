@@ -13,7 +13,7 @@ Severity: major
 Проблема: В репозитории есть только local/dev-oriented configuration examples: `localhost`, `sslmode: disable`, MinIO `useSSL: false`, Seq по `http://localhost`, слабые примерные пароли в `.envExample`. Пользователь подтвердил, что weak example passwords допустимы для закрытого контура разработки, но production template/guide базируется на утвержденной документации за пределами проекта, ссылку на нее нельзя добавить в audit context.
 Почему важно: Текущие defaults безопасны только как local/dev шаблон в закрытом контуре разработки. Пользователь подтвердил, что production разворачивается вручную через `config/config.json` по утвержденной документации, поэтому production-конфигурацию, границы контура, секреты и runtime defaults нужно сверять вручную.
 Рекомендация: На этапах B/E/H сверить production config/ops с утвержденной документацией, явно пометить текущие examples как local-only и не использовать их как production defaults.
-Проверка после исправления: `.envExample`, `config.example.json` and `docker-compose.yaml` explicitly say they are local development examples only and must not be used as production defaults. `config.example.json` remains valid JSON and Go config loader ignores the top-level `_comment`. Проверено: `python3 -m json.tool config.example.json`, `GOCACHE=/tmp/go-build-cache go test ./internal/config`. `docker compose config` was not run because Docker CLI is not available in this WSL environment. Production config/ops validation remains covered by `ISSUE-025`, `ISSUE-028`, `ISSUE-029` and release-gate docs.
+Проверка после исправления: `.envExample`, `config.example.json` and `docker-compose.yaml` explicitly say they are local development examples only and must not be used as production defaults. `config.example.json` remains valid JSON and Go config loader ignores the top-level `_comment`. Проверено: `python3 -m json.tool config.example.json`, `GOCACHE=/tmp/go-build-cache go test ./internal/config`. `docker compose config` was not run because Docker CLI is not available in this WSL environment. Production diagnostics validation remains covered by `ISSUE-028`; secret policy is covered by `docs/secret_policy.md`.
 Связанные пункты: B.06, E.01, E.02, H.02
 
 ## ISSUE-002
@@ -203,12 +203,12 @@ Severity: major
 Категория: Backend/Logging
 Пункт плана: C.06.099
 Severity: major
-Статус: open
+Статус: fixed
 Место: `internal/logger/logger.go`, admin/document audit details
 Проблема: Technical production logs добавляют `app_user` с ФИО во все события; отдельные log/audit details содержат имена, названия файлов, номера документов и другие business identifiers.
 Почему важно: Для PostgreSQL `admin_audit_log`/`document_journal` такие данные являются доменным audit trail, но для Seq/technical logs нужна минимизация персональных данных и понятная retention/access policy.
 Рекомендация: Разделить technical logs и domain audit trail: в Seq логировать user ID/correlation fields, ФИО и business details оставлять в audit/journal там, где это необходимо.
-Проверка после исправления: Проверить startup, failed binding, file operations, registration и admin actions в Seq: нет лишних ФИО/base64/payload/secret values.
+Проверка после исправления: `logger.GetAppUser` заменен на `logger.GetAppUserID`, technical handler добавляет `app_user_id` вместо ФИО; Wails binding error logs больше не пишут полный `err.Error()`, а используют code/status или error type. Доменный `admin_audit_log`/`document_journal` не изменен. Добавлен `TestTechnicalContextHandlerAddsOnlyUserID`. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/logger`, `GOCACHE=/tmp/go-build-cache go test ./internal/services`.
 Связанные пункты: F.01, H.03
 
 ## ISSUE-017
@@ -255,12 +255,12 @@ Severity: major
 Категория: Frontend/Forms
 Пункт плана: D.02.110, D.02.111, D.04.123
 Severity: major
-Статус: open
+Статус: fixed
 Место: document registration/edit modals, settings/actions
 Проблема: Критичные submit/actions не везде имеют локальный `submitting`/`confirmLoading` guard. Для документов backend idempotency уже снижает риск дублей, но часть modal flows не блокирует повторный клик; в других местах loading привязан к загрузке списка, а не к конкретному submit.
 Почему важно: Повторные действия могут дать плохой UX, повторные запросы, конфликтные ошибки и риск побочных эффектов в недокументных операциях.
 Рекомендация: Для create/update/delete/rollback/upload/assignment actions использовать локальный submitting state, блокировать кнопку и повторный submit до завершения операции.
-Проверка после исправления: Double-click smoke для регистрации всех 4 видов документов, редактирования, settings CRUD, миграций, поручений и файлов.
+Проверка после исправления: Document registration/edit modals for incoming, outgoing, administrative orders and citizen appeals now use local register/edit submitting guards and `confirmLoading` independent of list loading. Assignment/acknowledgment completion modals guard repeated submit. File upload/delete and settings CRUD/migration/storage actions use local loading guards and button/modal loading states. Verified with `npm run build` and `git diff --check`; manual double-click smoke remains in release smoke and `ISSUE-043`.
 Связанные пункты: C.03.086, D.04, F.02
 
 ## ISSUE-021
@@ -294,12 +294,12 @@ Severity: minor
 Категория: Build/Versioning
 Пункт плана: E.01.155, E.01.156, E.01.159
 Severity: major
-Статус: open
+Статус: fixed
 Место: `docs/releases.yaml`, `internal/releaseassets/current_release.yaml`, `wails.json`, Wails metadata
 Проблема: Версия приложения не имеет единого источника истины. About modal показывает версию из embedded release notes (`1.0.4`), а binary/installer metadata использует Wails `{{.Info.ProductVersion}}`; в `wails.json` версия продукта явно не задана.
 Почему важно: Пользователь, installer, Windows properties и release notes могут показывать разные версии. Это ломает update/downgrade диагностику, поддержку и release traceability.
 Рекомендация: Ввести один version source и генерировать из него release notes current version, Wails product version, installer DisplayVersion и About UI.
-Проверка после исправления: Сравнить About, binary properties, installer DisplayVersion и generated `current_release.yaml` на одном release build.
+Проверка после исправления: `docs/releases.yaml` остается source of truth; `go generate ./internal/releaseassets` теперь генерирует `current_release.yaml` и синхронизирует `wails.json` `info.productVersion`. Добавлен `TestWailsProductVersionMatchesCurrentRelease`, который проверяет совпадение generated release asset и Wails metadata. Проверено: `GOCACHE=/tmp/go-build-cache go generate ./internal/releaseassets`, `GOCACHE=/tmp/go-build-cache go test ./internal/releaseassets ./tools/releasegen`.
 Связанные пункты: E.01.155, E.03.165, H.01
 
 ## ISSUE-024
@@ -307,12 +307,12 @@ Severity: major
 Категория: Build/Reproducibility
 Пункт плана: E.01.154, E.01.158
 Severity: major
-Статус: open
+Статус: fixed
 Место: `Makefile`, `.env`, `wails.json`
 Проблема: Production build зависит от untracked `.env`/`ENCRYPTION_KEY`, который встраивается в binary через `ldflags`; frontend install uses `npm install`, а не deterministic `npm ci`; единый release build script/gate не зафиксирован.
 Почему важно: Clean-machine сборка может не воспроизвестись или собрать binary с неправильным/пустым ключом. Встраивание ключа в binary требует явной release-secret policy и rotation procedure.
 Рекомендация: Описать release build contract: required env validation, `npm ci`, `go generate`, freshness check для generated release assets, tests, Wails build, artifact version check. Не хранить production key в repo; определить способ передачи и ротации.
-Проверка после исправления: Clean checkout build на release machine без ручных локальных файлов кроме approved secret injection; build fails fast при отсутствующем ключе.
+Проверка после исправления: `wails.json` uses `frontend:install: npm ci`; `Makefile` adds `check-release-env`, `release-assets-check`, `frontend-ci` and runs them in `release-gate`; `build-linux`/`build-windows` fail fast without `ENCRYPTION_KEY`; `release-assets-check` validates generated `current_release.yaml` and Wails `info.productVersion` freshness without rewriting files. Проверено: `make check-release-env`, `make check-release-env ENCRYPTION_KEY=` fails before build, `make release-assets-check`, `GOCACHE=/tmp/go-build-cache go test ./tools/releasegen`.
 Связанные пункты: E.01.154, E.04.172, H.02
 
 ## ISSUE-025
@@ -320,12 +320,12 @@ Severity: major
 Категория: Installation/Configuration
 Пункт плана: E.02.160, E.02.163, E.04.169
 Severity: major
-Статус: open
+Статус: fixed
 Место: `internal/config/config.go`, `main.go`
 Проблема: Runtime config ищется как относительный путь `config/config.json` от текущей рабочей директории. При запуске из shortcut, другого cwd, standard install path или каталога без доступа приложение завершится до UI через `log.Fatalf`.
 Почему важно: Production desktop app может не стартовать после установки, если cwd отличается от ожидаемого. Оператор не получит понятную диагностическую страницу, а config placement/update policy остается неявной.
 Рекомендация: Зафиксировать production config location: executable-relative read-only config, system config dir или user config dir. На startup показывать понятную ошибку/diagnostics вместо silent process exit.
-Проверка после исправления: Запуск из shortcut, из другой cwd, из пути с пробелами/кириллицей; missing/invalid/unreadable config scenarios.
+Проверка после исправления: Config lookup order зафиксирован: `DOCFLOW_CONFIG_PATH`, затем executable-relative `config/config.json`, затем cwd fallback для local development. Startup error теперь пишет фактический config path. README, diagnostics and release runbook updated. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/config`.
 Связанные пункты: E.02, E.04.169, H.02
 
 ## ISSUE-026
@@ -333,12 +333,12 @@ Severity: major
 Категория: Installation/Privileges
 Пункт плана: E.02.160, E.02.162
 Severity: major
-Статус: open
+Статус: fixed
 Место: `build/windows/installer/wails_tools.nsh`, `build/windows/installer/project.nsi`
 Проблема: Windows installer по умолчанию использует `RequestExecutionLevel admin`, ставит приложение в `$PROGRAMFILES64`, пишет uninstall registry в HKLM и shortcuts для all users. Per-user/non-admin install policy не определена.
 Почему важно: В целевой эксплуатации может не быть прав администратора на установку/обновление; также важно подтвердить, что само приложение после установки не требует elevated process.
 Рекомендация: Явно принять per-machine admin install или перейти на per-user install. Добавить target OS smoke: install/update/run without admin app process.
-Проверка после исправления: Установка под обычным пользователем или подтвержденный admin install; запуск приложения обычным пользователем после установки.
+Проверка после исправления: Per-machine Windows install policy explicitly accepted. `project.nsi` now defines `REQUEST_EXECUTION_LEVEL "admin"` with comments documenting Program Files/HKLM/all-users install semantics and ordinary-user runtime requirement. Added `docs/install_policy.md`; README and release runbook link it. Target OS smoke now requires Windows elevation check and ordinary-user app launch without elevation. Static verification: `rg` confirms policy references and explicit NSIS admin setting.
 Связанные пункты: E.02.162, H.02
 
 ## ISSUE-027
@@ -372,12 +372,12 @@ Severity: major
 Категория: Filesystem/Secrets
 Пункт плана: E.04.172, E.04.173
 Severity: major
-Статус: open
+Статус: fixed
 Место: `internal/config/crypto.go`, `Makefile`, `backup_smb_tar.sh`, `restore_smb_tar.sh`
 Проблема: Production secret policy неполная: plaintext config values are accepted for backward compatibility; encrypted config requires key embedded in binary or provided via env. SMB password exposure in `mount` args fixed via `ISSUE-002`, but release still needs process-list/log secret checks and a full secret delivery/rotation policy.
 Почему важно: Секреты могут оказаться в binary, process list, shell history или локальных файлах без единой ротации и контроля доступа.
 Рекомендация: Зафиксировать allowed secret delivery method, permissions для config, key rotation procedure, release checks for process list/log artifacts and approved CIFS credentials file usage.
-Проверка после исправления: Проверить config permissions, process list during backup/restore, logs/artifacts на отсутствие passwords/tokens.
+Проверка после исправления: Added maintained `docs/secret_policy.md` covering allowed secret delivery, `ENCRYPTION_KEY`, encrypted config values, plaintext break-glass acceptance, file permissions, SMB credentials, sensitive release artifacts and rotation. README, release runbook, diagnostics runbook and release checklist link/check the policy; `docs/known_issues.md` no longer lists `ISSUE-029`. Release checklist requires config/CIFS permission checks, process-list backup/restore check and logs/evidence secret scan.
 Связанные пункты: A.05.021, E.04.172, F.01, H.02
 
 ## ISSUE-030
@@ -492,7 +492,7 @@ Severity: major
 Статус: open
 Место: frontend/e2e test infrastructure
 Проблема: В проекте нет frontend unit/component tests and e2e framework. `npm run build` проверяет TypeScript compile, но не покрывает формы, ошибки отправки, empty states, навигацию и основной пользовательский lifecycle на production build.
-Почему важно: Открытые frontend remediation tasks (`ISSUE-020`-`ISSUE-021`) затрагивают submit guards and dirty forms, а исправленный `ISSUE-019` требует smoke coverage; без UI/e2e тестов регрессии легко пропустить.
+Почему важно: Открытый frontend remediation task `ISSUE-021` затрагивает dirty forms, а исправленные `ISSUE-019`/`ISSUE-020` требуют smoke coverage; без UI/e2e тестов регрессии легко пропустить.
 Рекомендация: Добавить минимальный Vitest/React Testing Library слой для helpers/forms/error adapter and Playwright/Wails-compatible smoke for production build lifecycle.
 Проверка после исправления: Frontend test command and e2e smoke pass on clean test environment.
 Связанные пункты: D.04, D.05, G.02, H.03
@@ -567,12 +567,12 @@ Severity: major
 Категория: UX/Error Messages
 Пункт плана: H.03.232, H.03.233, H.03.239, H.03.240
 Severity: major
-Статус: open
+Статус: fixed
 Место: frontend catch handlers, startup/migration/file errors
 Проблема: Пользовательские ошибки часто строятся из raw `err?.message || String(err)`, могут содержать технический текст, не всегда объясняют следующий шаг и местами закрывают контекст после ошибки.
 Почему важно: Пользователь может увидеть внутренние DB/storage/Go details, не понять, что делать дальше, или потерять контекст работы.
 Рекомендация: После `DECISION-009` завести UX copy map для structured error codes: что произошло, что можно сделать, когда обращаться к администратору.
-Проверка после исправления: Smoke for login, forbidden, validation, not found, conflict/idempotency, DB/MinIO failure, migration failure.
+Проверка после исправления: Shared frontend `appError` adapter maps structured codes to safe UX copy with next-step actions for login, forbidden, validation, not found, conflict/idempotency and internal/unknown errors. Unstructured raw `Error.message` / string errors are no longer displayed directly; validation/not-found/conflict preserve safe backend details and add recovery action. Verified with `npm run build` and `git diff --check`; manual smoke remains under `ISSUE-043`.
 Связанные пункты: D.05, E.04.174, H.03
 
 ## ISSUE-045
@@ -650,7 +650,7 @@ Severity: critical
 Проблема: В репозитории отсутствует корневой release-grade README/runbook, который описывает dev запуск, production build, миграции, backup/restore and diagnostics. `build/README.md` содержит только стандартное описание Wails build directory.
 Почему важно: Production handover, clean clone build and non-author release execution become dependent on unstated local knowledge. This is especially risky because rollback, restore, config lookup and startup diagnostics already have open blockers.
 Рекомендация: Добавить maintained root README/runbooks for dev setup, release build, DB migrations, backup/restore, diagnostics and target OS install smoke. Audit artifacts in `audit/08_docs_release` can be used as starting material.
-Проверка после исправления: Добавлен root `README.md` with dev setup, local config caveats, release/ops entry points, build commands, migration/backup/diagnostics links and critical gate notes. Добавлены maintained `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; existing backup/restore and rollback runbooks are linked from README. Audit docs updated so `ISSUE-050` no longer appears as a critical blocker. Проверено статически: `rg` consistency pass, `git diff --check`. Full non-author clean-clone execution remains release evidence under `ISSUE-052`/`ISSUE-053`.
+Проверка после исправления: Добавлен root `README.md` with dev setup, local config caveats, release/ops entry points, build commands, migration/backup/diagnostics links and critical gate notes. Добавлены maintained `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; existing backup/restore and rollback runbooks are linked from README. Audit docs updated so `ISSUE-050` no longer appears as a critical blocker. Проверено статически: `rg` consistency pass, `git diff --check`. Full non-author clean-clone execution remains release evidence under `ISSUE-052`.
 Связанные пункты: I.01.258-I.01.262, I.02.265-I.02.268
 
 ## ISSUE-051
@@ -658,12 +658,12 @@ Severity: critical
 Категория: Documentation/Changelog
 Пункт плана: I.02.263, I.02.264
 Severity: major
-Статус: open
+Статус: fixed
 Место: `docs/releases.yaml`, release notes/current release assets, known issues docs
 Проблема: `docs/releases.yaml` latest version is `1.0.4` from 2026-04-27 and does not reflect current production candidate audit/remediation. Known issues were not packaged as release-facing documentation before stage I.
 Почему важно: About UI/release notes, binary metadata and installer metadata can diverge from the artifact actually delivered. Operators and users will not see accepted known issues or remediation status.
 Рекомендация: Choose one target version source, update release notes/current release assets, verify About/binary/installer metadata and publish accepted known issues with owner/mitigation.
-Проверка после исправления: About UI, binary properties, installer DisplayVersion and release notes show same version; known issues match open accepted release state.
+Проверка после исправления: Added `docs/releases.yaml` version `1.0.5` dated 2026-06-02 with current audit/remediation release notes; generated `internal/releaseassets/current_release.yaml` and `wails.json` `info.productVersion` now show `1.0.5`. Added maintained `docs/known_issues.md` with open critical/major/minor issues, owners and mitigation/acceptance notes; README and release runbook link it. Проверено: `GOCACHE=/tmp/go-build-cache go generate ./internal/releaseassets`, `make release-assets-check`, `GOCACHE=/tmp/go-build-cache go test ./internal/releaseassets ./tools/releasegen`.
 Связанные пункты: E.01.154-E.01.159, I.02.263-I.02.264
 
 ## ISSUE-052
@@ -684,10 +684,10 @@ Severity: critical
 Категория: Release/Checklist
 Пункт плана: I.02.265, I.02.266, I.02.267, I.02.268, I.02.269
 Severity: major
-Статус: open
+Статус: fixed
 Место: release scripts/docs, `audit/08_docs_release/RELEASE_CHECKLIST.md`, `audit/08_docs_release/SMOKE_TEST.md`
 Проблема: До этапа I не было maintained release checklist and smoke-test, executable by a non-author. Stage I created audit artifacts, but they still need to become project release process and be validated on clean machine/target OS.
 Почему важно: Passing checks in current workspace is not enough for production release; clean clone, fresh DB, install smoke, backup/restore and security gates must be repeatable.
 Рекомендация: Promote checklist/smoke into maintained release docs or script, automate high-confidence gates and attach completed checklist to each release.
-Проверка после исправления: Non-author completes release checklist from clean checkout and target OS smoke; evidence is attached to release.
+Проверка после исправления: Added maintained `docs/release_checklist.md` and `docs/smoke_test.md`; README and `docs/release_runbook.md` link them. Checklist covers clean checkout, version/changelog, release gate, migrations, backup/restore, target OS install smoke, UX safety and final evidence. Smoke test covers startup, auth/settings, all document kinds, lists/access, files, assignments/acknowledgments, errors/safety and audit/log checks. Static verification: `rg` confirms maintained docs references; `git diff --check` passed.
 Связанные пункты: F.01, G.01-G.04, I.02.265-I.02.269

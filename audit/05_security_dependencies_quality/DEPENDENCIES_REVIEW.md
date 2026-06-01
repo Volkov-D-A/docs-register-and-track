@@ -26,12 +26,11 @@ Findings:
 
 - `package-lock.json` exists and `npm audit` returned 0 vulnerabilities.
 - `package.json` direct versions use caret ranges, acceptable only with lockfile and `npm ci` in release builds.
-- `frontend` package version is `0.0.0`; application version is handled elsewhere and already tracked by `ISSUE-023`.
+- `frontend` package version is `0.0.0`; application version is handled by `docs/releases.yaml` generated release assets and Wails metadata.
 
 ## Recommendations
 
-- Use maintained `make release-gate`, which runs `govulncheck`, `npm audit --audit-level=critical`, `go test`, `go vet`, `npm run build`, npm license check and dependency inventory generation.
-- Use `npm ci` in release build path.
+- Use maintained `make release-gate`, which runs `govulncheck`, `npm audit --audit-level=critical`, `go test`, `go vet`, `npm ci`, `npm run build`, npm license check and dependency inventory generation.
 - Define dependency update cadence and emergency security patch process.
 
-Связанные issues: fixed `ISSUE-032`, `ISSUE-033`; open `ISSUE-024`.
+Связанные issues: fixed `ISSUE-024`, `ISSUE-032`, `ISSUE-033`.

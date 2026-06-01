@@ -76,26 +76,26 @@
 
 ## CHANGE-010
 
-Что изменено: Планируется добавление frontend submitting guards и dirty confirmation для критичных форм/actions.
-Затронутые файлы: document pages/modals, `DocumentKindPage`, settings/actions, assignments/files where applicable.
+Что изменено: Добавлены frontend submitting guards for critical forms/actions under `ISSUE-020`; dirty confirmation remains open under `ISSUE-021`.
+Затронутые файлы: document pages/modals, settings/actions, assignments/files where applicable.
 Затронутые пункты плана: D.02.110, D.02.113, D.04.123-D.04.130.
-Что перепроверить: double-click submit; closing dirty registration/edit modal; settings CRUD; migration rollback/apply buttons; file upload/delete; assignments create/update/return/complete.
+Что перепроверить: double-click submit; settings CRUD; migration rollback/apply buttons; file upload/delete; assignments create/update/return/complete. Closing dirty registration/edit modal remains under `ISSUE-021`.
 Что не нужно перепроверять: backend no-gaps transaction except repeated registration smoke.
 
 ## CHANGE-011
 
-Что изменено: Планируется унификация version source and release build gate по `DECISION-010`.
-Затронутые файлы: `docs/releases.yaml`, `internal/releaseassets/current_release.yaml`, Wails config/build metadata, `Makefile`/release script, installer metadata.
+Что изменено: Version source унифицирован для release notes and Wails product metadata по `DECISION-010`; release gate validates required secret, generated asset freshness and deterministic frontend install.
+Затронутые файлы: `docs/releases.yaml`, `internal/releaseassets/current_release.yaml`, `internal/releaseassets/generate.go`, `wails.json`, `tools/releasegen`, `Makefile`.
 Затронутые пункты плана: E.01.154-E.01.159, H.01-H.03.
-Что перепроверить: clean-machine build; generated release assets freshness; About version; binary properties; installer DisplayVersion; Linux/Windows artifact names; frontend/go tests in release gate.
+Что перепроверить: `make release-assets`; generated release assets freshness; About version; Wails product metadata; binary properties; installer DisplayVersion; Linux/Windows artifact names; frontend/go tests in release gate.
 Что не нужно перепроверять: document access matrix unless generated Wails bindings change.
 
 ## CHANGE-012
 
-Что изменено: Планируется изменение production config lookup/startup diagnostics по `DECISION-011`.
+Что изменено: Production config lookup updated per `DECISION-011`: `DOCFLOW_CONFIG_PATH`, executable-relative config, cwd fallback for local development; startup log includes resolved path.
 Затронутые файлы: `internal/config/config.go`, `main.go`, installer/runbook/config docs.
 Затронутые пункты плана: E.02.160-E.02.163, E.04.169, E.04.174.
-Что перепроверить: launch from shortcut; launch from different cwd; path with spaces/Cyrillic; missing config; invalid JSON config; unreadable config; encrypted config with missing/wrong key; startup diagnostics content.
+Что перепроверить: launch from shortcut; launch from different cwd; path with spaces/Cyrillic; `DOCFLOW_CONFIG_PATH`; missing config; invalid JSON config; unreadable config; encrypted config with missing/wrong key; startup diagnostics content.
 Что не нужно перепроверять: SQL query plans.
 
 ## CHANGE-013
@@ -172,7 +172,7 @@
 
 ## CHANGE-022
 
-Что изменено: Закрыт `ISSUE-046`: destructive confirmations now name affected entity and consequence for reference deletes, file delete, document link delete, assignment delete, acknowledgment delete, migration rollback and bulk file delete. Safe UX error map remains under `ISSUE-044`.
+Что изменено: Закрыт `ISSUE-046`: destructive confirmations now name affected entity and consequence for reference deletes, file delete, document link delete, assignment delete, acknowledgment delete, migration rollback and bulk file delete.
 Затронутые файлы: frontend error adapter/catch handlers, Modal/Popconfirm destructive actions, Settings migration/storage actions, file/assignment/reference deletes.
 Затронутые пункты плана: H.03.232-H.03.240, G.04.218-G.04.220.
 Что перепроверить: login/locked account; validation errors; forbidden; not found; conflict/idempotency; DB/MinIO failures; file delete; assignment delete; reference delete; migration rollback; bulk file delete.
@@ -188,15 +188,15 @@
 
 ## CHANGE-024
 
-Что изменено: Созданы финальные audit release artifacts for stage I: documentation review, release checklist, smoke test, known issues, final production candidate review and final summary.
-Затронутые файлы: `audit/08_docs_release/*`, `audit/FINAL_SUMMARY.md`, `audit/REVIEW_LOG.md`, `audit/RISK_REGISTER.md`, `audit/REGRESSION_MAP.md`, `audit/DECISIONS.md`, `audit/00_project_context/PROJECT_CONTEXT.md`.
+Что изменено: Созданы финальные audit release artifacts for stage I and promoted maintained release checklist, smoke test and known issues into `docs/`.
+Затронутые файлы: `audit/08_docs_release/*`, `docs/release_checklist.md`, `docs/smoke_test.md`, `docs/known_issues.md`, `audit/FINAL_SUMMARY.md`, `audit/REVIEW_LOG.md`, `audit/RISK_REGISTER.md`, `audit/REGRESSION_MAP.md`, `audit/DECISIONS.md`, `audit/00_project_context/PROJECT_CONTEXT.md`.
 Затронутые пункты плана: I.01.257-I.02.270.
-Что перепроверить: consistency between `KNOWN_ISSUES.md`, `REVIEW_LOG.md`, `RISK_REGISTER.md` and final decision; no release checklist item claims readiness while critical issues remain open; generated docs are promoted into maintained project docs before release.
+Что перепроверить: consistency between `docs/known_issues.md`, audit `KNOWN_ISSUES.md`, `REVIEW_LOG.md`, `RISK_REGISTER.md` and final decision; no release checklist item claims readiness while critical issues remain open; maintained checklist/smoke docs are completed for each release.
 Что не нужно перепроверять: runtime document registration behavior unless release docs/scripts change build/test inputs.
 
 ## CHANGE-025
 
-Что изменено: Закрыт `ISSUE-050`: добавлены maintained root `README.md`, `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; root README links release, rollback, backup/restore and diagnostics runbooks. Clean release execution remains covered by `ISSUE-052`/`ISSUE-053`.
+Что изменено: Закрыт `ISSUE-050`: добавлены maintained root `README.md`, `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; root README links release, rollback, backup/restore and diagnostics runbooks. Clean release execution remains covered by `ISSUE-052`.
 Затронутые файлы: `README.md`, `docs/release_runbook.md`, `docs/diagnostics_runbook.md`, `docs/backup_restore_runbook.md`, `docs/migration_rollback_runbook.md`, audit release artifacts.
 Затронутые пункты плана: I.01.258-I.02.270.
 Что перепроверить: clean clone build; non-author checklist execution; fresh DB setup; migration/rollback runbook; backup/restore smoke; target OS install; version metadata; clean git status at release tag.
@@ -217,3 +217,11 @@
 Затронутые пункты плана: B.01.027, E.03.164-E.03.166, H.03.
 Что перепроверить: old binary against newer DB schema; current binary against old DB schema; dirty migration state; initial setup on empty DB; admin migration status tab; login error copy for incompatible schema; apply/rollback button disabled states.
 Что не нужно перепроверять: document registration numbering/idempotency and attachment storage behavior.
+
+## CHANGE-028
+
+Что изменено: Закрыт `ISSUE-044`: shared frontend `appError` adapter now maps structured error codes to safe UX copy with next-step actions and suppresses raw unstructured `Error.message` / string details.
+Затронутые файлы: `frontend/src/utils/appError.ts`, `audit/07_ux_texts/ERROR_MESSAGES_REVIEW.md`, `audit/REVIEW_LOG.md`, known issues docs.
+Затронутые пункты плана: H.03.232-H.03.240, D.05.
+Что перепроверить: login invalid/locked/inactive; forbidden action; validation error; not found; conflict/idempotency; internal backend failure; raw thrown frontend error; DB/MinIO failure copy.
+Что не нужно перепроверять: backend transaction invariants and SQL query plans.

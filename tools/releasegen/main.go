@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -28,6 +29,8 @@ type releaseItem struct {
 func main() {
 	sourcePath := flag.String("source", "", "Path to docs/releases.yaml")
 	outputPath := flag.String("out", "", "Path to generated current_release.yaml")
+	wailsConfigPath := flag.String("wails-config", "", "Optional path to wails.json to synchronize info.productVersion")
+	checkOnly := flag.Bool("check", false, "Verify generated files are fresh without writing them")
 	flag.Parse()
 
 	if *sourcePath == "" || *outputPath == "" {
@@ -58,8 +61,26 @@ func main() {
 		exitWithError(fmt.Sprintf("failed to encode current release: %v", err))
 	}
 
+	if *checkOnly {
+		if err := checkGeneratedReleaseAsset(*outputPath, payload); err != nil {
+			exitWithError(err.Error())
+		}
+		if *wailsConfigPath != "" {
+			if err := checkWailsProductVersion(*wailsConfigPath, current.Version); err != nil {
+				exitWithError(err.Error())
+			}
+		}
+		return
+	}
+
 	if err := os.WriteFile(*outputPath, payload, 0o644); err != nil {
 		exitWithError(fmt.Sprintf("failed to write generated file: %v", err))
+	}
+
+	if *wailsConfigPath != "" {
+		if err := syncWailsProductVersion(*wailsConfigPath, current.Version); err != nil {
+			exitWithError(err.Error())
+		}
 	}
 }
 
@@ -111,6 +132,91 @@ func validateRelease(release releaseEntry) error {
 	}
 
 	return nil
+}
+
+func syncWailsProductVersion(path, version string) error {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read Wails config: %w", err)
+	}
+
+	updated, err := updateWailsProductVersion(source, version)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(path, updated, 0o644); err != nil {
+		return fmt.Errorf("failed to write Wails config: %w", err)
+	}
+	return nil
+}
+
+func checkGeneratedReleaseAsset(path string, expected []byte) error {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read generated release asset: %w", err)
+	}
+	if string(source) != string(expected) {
+		return fmt.Errorf("generated release asset is stale; run make release-assets")
+	}
+	return nil
+}
+
+func checkWailsProductVersion(path, version string) error {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read Wails config: %w", err)
+	}
+
+	productVersion, err := readWailsProductVersion(source)
+	if err != nil {
+		return err
+	}
+	if productVersion != version {
+		return fmt.Errorf("Wails productVersion %q does not match current release version %q; run make release-assets", productVersion, version)
+	}
+	return nil
+}
+
+func updateWailsProductVersion(source []byte, version string) ([]byte, error) {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return nil, fmt.Errorf("Wails product version is required")
+	}
+
+	var config map[string]any
+	if err := json.Unmarshal(source, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse Wails config: %w", err)
+	}
+
+	info, ok := config["info"].(map[string]any)
+	if !ok {
+		info = map[string]any{}
+		config["info"] = info
+	}
+	info["productVersion"] = version
+
+	payload, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode Wails config: %w", err)
+	}
+	payload = append(payload, '\n')
+	return payload, nil
+}
+
+func readWailsProductVersion(source []byte) (string, error) {
+	var config struct {
+		Info struct {
+			ProductVersion string `json:"productVersion"`
+		} `json:"info"`
+	}
+	if err := json.Unmarshal(source, &config); err != nil {
+		return "", fmt.Errorf("failed to parse Wails config: %w", err)
+	}
+	if strings.TrimSpace(config.Info.ProductVersion) == "" {
+		return "", fmt.Errorf("Wails productVersion is required")
+	}
+	return strings.TrimSpace(config.Info.ProductVersion), nil
 }
 
 func exitWithError(message string) {

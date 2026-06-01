@@ -14,26 +14,30 @@ Collect:
 
 - application version and artifact name;
 - exact launch path and current working directory;
-- `config/config.json` path used for launch;
+- config path used for launch;
 - PostgreSQL, MinIO and Seq availability;
 - latest technical logs from Seq or console output;
 - current migration status if the app opens.
 
 Never paste production passwords, tokens or full encrypted secret material into tickets.
 
+Follow `docs/secret_policy.md` for secret delivery, config permissions and rotation.
+
 ## Config Failures
 
-Current default config path:
+Config lookup order:
 
 ```text
-config/config.json
+DOCFLOW_CONFIG_PATH
+<executable directory>/config/config.json
+<current working directory>/config/config.json
 ```
 
-relative to the current working directory.
+The current working directory fallback is intended for local development.
 
 Check:
 
-- file exists at the expected path;
+- file exists at the expected resolved path;
 - file is valid JSON;
 - operator account can read the file;
 - values are production-approved, not copied from local examples;
@@ -41,7 +45,7 @@ Check:
 
 Common actions:
 
-- launch from the documented install working directory;
+- set `DOCFLOW_CONFIG_PATH` to the approved production config or place it next to the executable under `config/config.json`;
 - restore the approved production config from secure storage;
 - check file permissions;
 - rebuild/redeploy only if the approved encryption key path changed.

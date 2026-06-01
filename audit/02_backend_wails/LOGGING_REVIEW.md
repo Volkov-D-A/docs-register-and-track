@@ -13,9 +13,9 @@
 Severity: major
 Пункты: C.06.099
 
-`logger.GetAppUser` добавляет `app_user` во все логи; значение обычно ФИО текущего пользователя. Admin audit/journal details содержат имена пользователей, названия файлов и номера документов. Для PostgreSQL audit trail это ожидаемо, но для Seq production logs нужна отдельная minimization policy.
+Статус: fixed.
 
-Рекомендация: для technical logs использовать user ID или псевдоним; ФИО и business details оставлять в `admin_audit_log`/`document_journal`, где это доменный audit trail.
+`logger.GetAppUser` заменен на `logger.GetAppUserID`: technical logs добавляют `app_user_id` и не получают ФИО пользователя. Wails binding error logs для `AppError` пишут только kind/status, а для остальных ошибок — тип ошибки без полного текста. Admin audit/journal details остаются в `admin_audit_log`/`document_journal`, где это доменный audit trail.
 
 ### Related ISSUE-016: insufficient critical-path logging context
 
@@ -31,5 +31,5 @@ Severity: minor
 | Пункт | Статус | Severity | Вывод |
 | --- | --- | --- | --- |
 | C.06.098 | ok | none | `slog` поддерживает уровни; Wails logs ограничены ERROR. |
-| C.06.099 | issue | major | Нужна PII minimization для Seq/technical logs. |
+| C.06.099 | ok | none | Seq/technical logs используют `app_user_id`; binding error logs не пишут полный текст ошибки; ФИО и business details остаются только в доменном audit trail. |
 | C.06.100 | issue | minor | Critical path logs требуют correlation context. |

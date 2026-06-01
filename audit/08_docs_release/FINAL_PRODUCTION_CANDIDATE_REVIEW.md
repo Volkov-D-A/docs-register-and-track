@@ -13,13 +13,14 @@
 
 ## Major Issues Requiring Acceptance Or Fix
 
-Major open issues remain in production config/secrets, restore hardening, context/shutdown lifecycle, logging PII minimization, frontend structured error handling, submit/dirty guards, build reproducibility, installer/update policy, full license review/static analysis, frontend/e2e coverage, performance baseline and UX safety.
+Major open issues remain in startup diagnostics, context/shutdown lifecycle, dirty form guards, target OS install/update smoke, frontend/e2e coverage, performance baseline and UX safety.
 
 ## What Is Ready
 
 - Backend idempotent/no-gaps document registration has been implemented and integration-tested.
 - Retention-safe journal/audit FK migration has been implemented and integration-tested.
 - Backend/Wails structured error envelope has been implemented.
+- Seq/technical logs now use `app_user_id` instead of full names, and Wails binding error logs no longer include full error text.
 - Runtime rollback now requires backend-enforced backup confirmation, backup reference, data-loss acknowledgment and control phrase, with audit entries and a maintained rollback runbook.
 - Root `README.md`, release build runbook and diagnostics runbook are now maintained project docs.
 - Go toolchain/module vulnerability blocker fixed: `go1.26.3`, `x/net v0.53.0`, `govulncheck ./...` clean.

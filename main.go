@@ -52,9 +52,10 @@ func main() {
 	}
 
 	// Загрузка конфигурации
-	cfg, err := config.Load(config.GetDefaultConfigPath())
+	configPath := config.GetDefaultConfigPath()
+	cfg, err := config.Load(configPath)
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		log.Fatalf("Failed to load config %q: %v", configPath, err)
 	}
 
 	// Инициализация логгера
@@ -93,16 +94,13 @@ func main() {
 	authService := services.NewAuthService(db, userRepo)
 	authService.SetAccessStore(documentAccessRepo)
 
-	// Подключаем информацию о пользователе к логгеру
-	logger.GetAppUser = func() string {
-		uid, name := authService.GetCurrentAuditInfo()
-		if uid == uuid.Nil || name == "system" {
-			return "unauthenticated" // Для случаев, когда пользователь еще не вошел (например, неверный пароль)
+	// Подключаем к техническим логам только идентификатор пользователя.
+	logger.GetAppUserID = func() string {
+		uid, _ := authService.GetCurrentAuditInfo()
+		if uid == uuid.Nil {
+			return ""
 		}
-		if name == "" {
-			return uid.String() // Если имя пустое в таблице, возвращаем ID
-		}
-		return name
+		return uid.String()
 	}
 
 	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
@@ -170,7 +168,7 @@ func main() {
 			// Перехватываем все ошибки, которые методы сервисов (Bindings) возвращают во фронтенд
 			if appErr, ok := models.AsAppError(err); ok {
 				if appErr.StatusCode() >= 500 {
-					slog.Error("Backend binding failed", "type", "backend_binding", "code", appErr.SafeKind(), "error", err)
+					slog.Error("Backend binding failed", "type", "backend_binding", "code", appErr.SafeKind(), "status", appErr.StatusCode())
 				}
 				return map[string]any{
 					"code":    appErr.SafeKind(),
@@ -178,7 +176,7 @@ func main() {
 					"status":  appErr.StatusCode(),
 				}
 			}
-			slog.Error("Backend binding failed", "type", "backend_binding", "error", err)
+			slog.Error("Backend binding failed", "type", "backend_binding", "error_type", fmt.Sprintf("%T", err))
 			return map[string]any{
 				"code":    "INTERNAL_ERROR",
 				"message": "произошла внутренняя ошибка",

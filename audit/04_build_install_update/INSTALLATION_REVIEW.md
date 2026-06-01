@@ -7,7 +7,7 @@
 
 Для Windows есть NSIS installer template. По умолчанию он запрашивает admin privileges, ставит приложение в `$PROGRAMFILES64`, пишет uninstall info в HKLM и создает shortcuts для всех пользователей. Для Linux есть portable binary в `build/bin`, отдельного installer/service package не найдено.
 
-Главный installation риск: runtime config ищется как относительный путь `config/config.json`. Это связывает запуск с текущей рабочей директорией и вручную подготовленным каталогом рядом с приложением.
+Главный installation риск после remediation: target OS smoke. Runtime config lookup now supports `DOCFLOW_CONFIG_PATH`, executable-relative config and local cwd fallback; Windows per-machine admin install policy is documented.
 
 ## Контрольные Пункты
 
@@ -15,12 +15,12 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | E.02.160 | needs_info | major | install/first run | Windows/Linux target OS | Локального installer smoke на целевых ОС в этом проходе не было. | Выполнить запуск после установки в Program Files/portable path и проверить config resolution. |
 | E.02.161 | needs_info | major | install/runtime | target OS paths | Код использует `filepath`, но запуск из пути с пробелами/кириллицей не проверен. | Добавить smoke: `C:\Program Files\...`, каталог с кириллицей, Linux path с пробелом. |
-| E.02.162 | issue | major | install | `build/windows/installer/wails_tools.nsh` | Default `REQUEST_EXECUTION_LEVEL` = `admin`; installer пишет HKLM и Program Files. | Нужна явная production policy: per-machine admin install или per-user install. App после установки должен работать без admin. |
-| E.02.163 | issue | major | first run/runtime | `config.GetDefaultConfigPath()` | Config path — `filepath.Join("config","config.json")` относительно cwd. Ошибка загрузки вызывает `log.Fatalf`. | При отсутствии доступа/файла приложение аварийно завершится до UI. Нужен predictable config lookup и user-facing startup error. |
+| E.02.162 | ok | none | install | `build/windows/installer/project.nsi`, `docs/install_policy.md` | Per-machine Windows install policy accepted: installer requires admin, installs under Program Files, writes HKLM uninstall metadata and creates all-user shortcuts. | Target OS smoke must verify the installed app runs for ordinary users without elevation. |
+| E.02.163 | ok | none | first run/runtime | `config.GetDefaultConfigPath()` | Config lookup order: `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json`, cwd fallback for local development. Startup log includes resolved path. | In-app startup diagnostics remain tracked by `ISSUE-028`; target OS smoke must verify missing/invalid config. |
 
 ## Issues
 
-Связанные новые issues: `ISSUE-025`, `ISSUE-026`.
+Связанные новые issues: none; fixed: `ISSUE-025`, `ISSUE-026`.
 
 ## Проверки После Исправлений
 
