@@ -1046,6 +1046,8 @@ const MigrationsTab: React.FC = () => {
               <Typography.Text strong>Статус: </Typography.Text>
               {status.upToDate ? (
                 <Tag icon={<CheckCircleOutlined />} color="success">Актуальна</Tag>
+              ) : status.schemaTooNew ? (
+                <Tag icon={<WarningOutlined />} color="error">Схема новее приложения</Tag>
               ) : status.dirty ? (
                 <Tag icon={<WarningOutlined />} color="error">Ошибка миграции (dirty)</Tag>
               ) : (
@@ -1064,7 +1066,7 @@ const MigrationsTab: React.FC = () => {
           icon={<DatabaseOutlined />}
           onClick={onRunMigrations}
           loading={running}
-          disabled={status?.upToDate}
+          disabled={status?.upToDate || status?.schemaTooNew || status?.dirty}
         >
           Применить миграции
         </Button>
@@ -1073,7 +1075,7 @@ const MigrationsTab: React.FC = () => {
           icon={<DeleteOutlined />}
           onClick={onRollback}
           loading={rollingBack}
-          disabled={!status?.currentVersion}
+          disabled={!status?.currentVersion || status?.schemaTooNew}
         >
           Откатить последнюю
         </Button>

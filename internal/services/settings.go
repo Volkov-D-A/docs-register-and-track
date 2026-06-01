@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -63,7 +64,7 @@ func (s *SettingsService) RunMigrations() error {
 		return models.NewForbidden("Недостаточно прав для управления миграциями")
 	}
 	if err := s.db.RunMigrations(database.DefaultMigrationsPath); err != nil {
-		return err
+		return migrationCompatibilityAppError(err)
 	}
 
 	userID, userName := s.authService.GetCurrentAuditInfo()
@@ -97,7 +98,7 @@ func (s *SettingsService) RollbackMigration(req models.RollbackMigrationRequest)
 	)
 
 	if err := s.db.RollbackMigration(database.DefaultMigrationsPath); err != nil {
-		return err
+		return migrationCompatibilityAppError(err)
 	}
 
 	s.auditService.LogAction(userID, userName, "MIGRATION_ROLLBACK", fmt.Sprintf("Откачена последняя миграция БД; backup: %s", strings.TrimSpace(req.BackupReference)))
@@ -189,6 +190,29 @@ func validateRollbackMigrationRequest(req models.RollbackMigrationRequest) error
 		return models.NewBadRequest("Введите контрольную фразу для отката миграции")
 	}
 	return nil
+}
+
+func migrationCompatibilityAppError(err error) error {
+	var compatibilityErr *database.MigrationCompatibilityError
+	if !errors.As(err, &compatibilityErr) {
+		return err
+	}
+
+	if compatibilityErr.SchemaTooNew {
+		return models.NewConflict(fmt.Sprintf(
+			"Версия схемы БД (%d) новее миграций, встроенных в приложение (%d). Запустите совместимую версию приложения или выполните утвержденную процедуру обновления.",
+			compatibilityErr.CurrentVersion,
+			compatibilityErr.TotalAvailable,
+		))
+	}
+	if compatibilityErr.Dirty {
+		return models.NewConflict(fmt.Sprintf(
+			"Миграция БД версии %d завершилась с ошибкой. Работа заблокирована до восстановления схемы по регламенту.",
+			compatibilityErr.CurrentVersion,
+		))
+	}
+
+	return models.NewConflict("Схема БД несовместима с текущей версией приложения")
 }
 
 func (s *SettingsService) getSettingAuditLabel(key string, current *models.SystemSetting) string {

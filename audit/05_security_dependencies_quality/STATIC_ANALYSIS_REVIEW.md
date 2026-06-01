@@ -9,7 +9,7 @@
 - `go test ./...`: passed.
 - `npm run build`: TypeScript compile + Vite production build passed.
 - Search for suppressions found several `// @ts-ignore` comments in frontend code.
-- No ESLint or Prettier config/script found.
+- After remediation `ISSUE-034`, ESLint flat config and `npm run lint` exist.
 
 ## Findings
 
@@ -42,6 +42,6 @@ TypeScript strict mode is enabled and build passes. The `// @ts-ignore` comments
 
 ### ESLint
 
-No ESLint config or lint script exists. Therefore F.02.188 cannot prove that disabled rules are controlled; linting is simply absent.
+ESLint flat config exists and is included in `make release-gate`. Initial scope is intentionally high-signal: hooks correctness as error, exhaustive-deps/unused-vars as warnings, and basic JS/TS rules. `npm run lint` currently passes with warnings that should be reduced gradually during frontend remediation.
 
-Связанные issues: `ISSUE-034`; fixed: `ISSUE-035`, `ISSUE-036`.
+Связанные issues: fixed `ISSUE-034`, `ISSUE-035`, `ISSUE-036`.

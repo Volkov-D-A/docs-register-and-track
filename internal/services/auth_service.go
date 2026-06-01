@@ -61,6 +61,10 @@ func isTableNotExistsError(err error) bool {
 
 // Login — вход пользователя (Wails binding)
 func (s *AuthService) Login(login, password string) (*dto.User, error) {
+	if err := s.ensureCompatibleSchema(); err != nil {
+		return nil, err
+	}
+
 	user, err := s.userRepo.GetByLogin(login)
 	if err != nil {
 		return nil, err
@@ -103,6 +107,16 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 	s.mu.Unlock()
 
 	return dto.MapUser(user), nil
+}
+
+func (s *AuthService) ensureCompatibleSchema() error {
+	if s.db == nil {
+		return nil
+	}
+	if err := s.db.CheckMigrationCompatibility(database.DefaultMigrationsPath); err != nil {
+		return migrationCompatibilityAppError(err)
+	}
+	return nil
 }
 
 func (s *AuthService) logUserLock(user *models.User) {

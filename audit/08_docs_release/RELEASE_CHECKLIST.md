@@ -8,8 +8,9 @@
 ## 1. Stop Gates
 
 - [x] `ISSUE-007` закрыт: rollback guardrails implemented and tested for destructive `down` migrations.
-- [ ] `ISSUE-032` закрыт: Go toolchain `1.26.3+`, `golang.org/x/net v0.53.0+`, `govulncheck ./...` clean.
-- [ ] `ISSUE-010` закрыт или формально принят: restore script fail-fast, report and smoke validation implemented.
+- [x] `ISSUE-032` закрыт: Go toolchain `1.26.3+`, `golang.org/x/net v0.53.0+`, `govulncheck ./...` clean.
+- [x] `ISSUE-010` закрыт: restore script fail-fast, report and smoke validation implemented.
+- [x] `ISSUE-050` закрыт: maintained root README and release/diagnostics runbooks added.
 - [ ] Нет open `critical` issues in `audit/REVIEW_LOG.md`.
 - [ ] Release candidate worktree clean: `git status --short` has no output.
 
@@ -36,8 +37,9 @@
 - [ ] `go vet ./...`.
 - [ ] `govulncheck ./...`.
 - [ ] `npm audit --audit-level=critical`.
-- [ ] License inventory checked for Go and npm dependencies.
-- [ ] Frontend lint/static analysis gate, once introduced, passes.
+- [ ] `make release-gate`.
+- [ ] License inventory generated for Go and npm dependencies.
+- [x] Frontend lint/static analysis gate introduced and passes.
 
 ## 5. Database And Migrations
 

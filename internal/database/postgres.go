@@ -28,6 +28,27 @@ type MigrationStatus struct {
 	Dirty          bool `json:"dirty"`
 	TotalAvailable int  `json:"totalAvailable"`
 	UpToDate       bool `json:"upToDate"`
+	SchemaTooNew   bool `json:"schemaTooNew"`
+	Compatible     bool `json:"compatible"`
+}
+
+// MigrationCompatibilityError reports a schema state that the current binary
+// must not operate against.
+type MigrationCompatibilityError struct {
+	CurrentVersion uint
+	TotalAvailable int
+	Dirty          bool
+	SchemaTooNew   bool
+}
+
+func (e *MigrationCompatibilityError) Error() string {
+	if e.SchemaTooNew {
+		return fmt.Sprintf("database schema version %d is newer than embedded migrations %d", e.CurrentVersion, e.TotalAvailable)
+	}
+	if e.Dirty {
+		return fmt.Sprintf("database schema version %d is dirty", e.CurrentVersion)
+	}
+	return "database schema is incompatible with this binary"
 }
 
 // Connect устанавливает подключение к базе данных PostgreSQL и возвращает обертку DB.
@@ -50,6 +71,10 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 // Для DefaultMigrationsPath миграции берутся из embedded FS, чтобы собранное
 // приложение не зависело от наличия исходной директории рядом с бинарником.
 func (db *DB) RunMigrations(migrationsPath string) error {
+	if err := db.CheckMigrationCompatibility(migrationsPath); err != nil {
+		return err
+	}
+
 	m, err := db.newMigrator(migrationsPath)
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
@@ -85,13 +110,38 @@ func (db *DB) GetMigrationStatus(migrationsPath string) (*MigrationStatus, error
 
 	status.CurrentVersion = version
 	status.Dirty = dirty
-	status.UpToDate = int(version) >= status.TotalAvailable && !dirty
+	status.applyCompatibility()
 
 	return status, nil
 }
 
+// CheckMigrationCompatibility blocks startup/runtime operations for schema
+// states that the current binary cannot safely understand.
+func (db *DB) CheckMigrationCompatibility(migrationsPath string) error {
+	status, err := db.GetMigrationStatus(migrationsPath)
+	if err != nil {
+		return err
+	}
+	if status.Compatible {
+		return nil
+	}
+	if status.SchemaTooNew || status.Dirty {
+		return &MigrationCompatibilityError{
+			CurrentVersion: status.CurrentVersion,
+			TotalAvailable: status.TotalAvailable,
+			Dirty:          status.Dirty,
+			SchemaTooNew:   status.SchemaTooNew,
+		}
+	}
+	return nil
+}
+
 // RollbackMigration откатывает последнюю применённую миграцию (на 1 шаг назад).
 func (db *DB) RollbackMigration(migrationsPath string) error {
+	if err := db.CheckMigrationCompatibility(migrationsPath); err != nil {
+		return err
+	}
+
 	m, err := db.newMigrator(migrationsPath)
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
@@ -186,4 +236,10 @@ func validateMigrationDirectory(migrationsPath string) error {
 
 func isDefaultMigrationsPath(migrationsPath string) bool {
 	return filepath.ToSlash(migrationsPath) == DefaultMigrationsPath
+}
+
+func (s *MigrationStatus) applyCompatibility() {
+	s.SchemaTooNew = int(s.CurrentVersion) > s.TotalAvailable
+	s.UpToDate = int(s.CurrentVersion) == s.TotalAvailable && !s.Dirty
+	s.Compatible = !s.Dirty && !s.SchemaTooNew
 }

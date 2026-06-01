@@ -195,10 +195,10 @@
 ## RISK-022
 
 Категория: Update/Migrations
-Описание: Нет явного downgrade/schema compatibility guard; older binary может быть запущен против newer DB schema, а dirty migration recovery/runbook не оформлен.
+Описание: Downgrade/schema compatibility guard добавлен после remediation `ISSUE-027`: newer/dirty DB schema blocks login and migration operations through structured `CONFLICT`, and migration UI distinguishes `schemaTooNew`. Residual risk remains for target-contour smoke and dirty migration recovery/runbook.
 Вероятность: medium
 Влияние: high
-Митигирующее действие: Блокировать incompatible schema versions, определить auto/explicit migration policy, добавить dirty-state runbook and smoke tests.
+Митигирующее действие: Выполнено: incompatible newer/dirty schema versions блокируются backend guard. Далее определить auto/explicit migration policy, добавить dirty-state runbook and target OS smoke tests.
 Ответственный этап: E, H
 
 ## RISK-023
@@ -222,28 +222,28 @@
 ## RISK-025
 
 Категория: Security/Dependencies
-Описание: Current Go release environment (`go1.26.2`) and `golang.org/x/net@v0.52.0` have reachable vulnerabilities reported by `govulncheck`.
-Вероятность: high
+Описание: Go reachable vulnerability blocker fixed after `ISSUE-032`: `go.mod` requires `go1.26.3`, `golang.org/x/net@v0.53.0`, and `govulncheck` reports 0 reachable vulnerabilities. Residual risk remains if release is built with a different toolchain or without the security gate.
+Вероятность: low
 Влияние: high
-Митигирующее действие: Upgrade Go toolchain to `go1.26.3+`, upgrade `x/net` to `v0.53.0+`, repeat `govulncheck`, include it in release gate.
+Митигирующее действие: Keep Go toolchain at `go1.26.3+`, keep `x/net` at `v0.53.0+`, run `govulncheck` in release gate from clean checkout.
 Ответственный этап: F, H
 
 ## RISK-026
 
 Категория: Release/Security Gates
-Описание: Vulnerability and license checks are manual and not part of a repeatable release gate; future dependency updates can introduce critical advisories or license blockers.
-Вероятность: medium
+Описание: Repeatable security/dependency release gate added after `ISSUE-033`: `make release-gate` runs `govulncheck`, `npm audit`, `go vet`, `go test`, `npm run build`, npm GPL-family license check and dependency inventory generation. Residual license-policy risk remains until `ISSUE-037` resolves unknown/full license review.
+Вероятность: low
 Влияние: high
-Митигирующее действие: Add release script/checklist for `govulncheck`, `npm audit`, license reports, `go vet`, `go test`, `npm run build`.
+Митигирующее действие: Run `make release-gate` from clean checkout; resolve full license inventory/policy under `ISSUE-037`.
 Ответственный этап: F, H
 
 ## RISK-027
 
 Категория: Static Analysis/Frontend
-Описание: Frontend has no ESLint/Prettier gate and uses `@ts-ignore`/broad `any` around Wails contract boundaries.
-Вероятность: medium
+Описание: Frontend ESLint gate added after `ISSUE-034`; `npm run lint` and `make release-gate` pass with warnings. Residual risk remains from existing warnings and broad `any` around Wails contract boundaries.
+Вероятность: low
 Влияние: medium
-Митигирующее действие: Add minimal lint gate and gradually remove suppressions while typing Wails/document DTO boundaries.
+Митигирующее действие: Keep `npm run lint` in release gate; reduce warnings gradually during frontend remediation; replace broad `any` with typed contracts where practical.
 Ответственный этап: F, H
 
 ## RISK-028
@@ -312,10 +312,10 @@
 ## RISK-035
 
 Категория: Documentation/Operations
-Описание: Release-grade root README/runbooks are missing for dev setup, production build, migrations, backup/restore and diagnostics. Production operation can depend on author memory or external undocumented steps.
-Вероятность: high
-Влияние: high
-Митигирующее действие: Add maintained root docs/runbooks and validate them by clean-clone build, fresh DB setup, target OS install smoke and manual test restore.
+Описание: Release-grade root README/runbooks for dev setup, production build, migrations, backup/restore and diagnostics were added after remediation `ISSUE-050`. Residual risk remains until non-author clean-clone execution, target OS smoke and manual restore evidence are completed.
+Вероятность: medium
+Влияние: medium
+Митигирующее действие: Maintain `README.md`, `docs/release_runbook.md`, `docs/diagnostics_runbook.md`, backup/restore and rollback runbooks; validate them by clean-clone build, fresh DB setup, target OS install smoke and manual test restore.
 Ответственный этап: I
 
 ## RISK-036

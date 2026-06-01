@@ -5,24 +5,24 @@
 
 ## Общий Вывод
 
-Миграции embedded в binary и запускаются через `SettingsService.RunMigrations()` вручную из admin UI. Это делает установленный binary самодостаточным относительно migration files. Но lifecycle обновления приложения не закрыт: нет явного startup/update gate, downgrade guard и пользовательского сценария несовместимой версии схемы.
+Миграции embedded в binary и запускаются через `SettingsService.RunMigrations()` вручную из admin UI. Это делает установленный binary самодостаточным относительно migration files. Downgrade/newer-schema guard добавлен после remediation `ISSUE-027`, но lifecycle обновления приложения еще не полностью закрыт: startup/admin migration policy, dirty-state runbook и target-contour smoke остаются обязательными перед релизом.
 
-Runtime rollback по решению `DECISION-003` остается production feature, но guardrails еще открыты как `ISSUE-007`/`ISSUE-010`.
+Runtime rollback по решению `DECISION-003` остается production feature; guardrails for rollback and fatal restore handling are fixed as `ISSUE-007`/`ISSUE-010`.
 
 ## Контрольные Пункты
 
 | Код | Статус | Severity | Lifecycle | Место | Доказательство | Проблема / рекомендация |
 | --- | --- | --- | --- | --- | --- | --- |
 | E.03.164 | issue | major | update | installer/runtime config | Update process не описан; config рядом с install/cwd может быть перезаписан или потерян в зависимости от install procedure. | Зафиксировать, где живет production `config.json`, и проверить update без потери config/local state. |
-| E.03.165 | issue | major | update | `database.GetMigrationStatus` | `UpToDate` считается `version >= totalAvailable && !dirty`; нет запрета запуска older binary against newer schema. | Добавить explicit incompatible schema/downgrade guard и понятную ошибку. |
+| E.03.165 | ok | none | update | `database.GetMigrationStatus`, `AuthService.Login`, migration UI | `MigrationStatus` distinguishes `schemaTooNew`; login and migration operations block newer/dirty schema with structured `CONFLICT`; UI shows `Схема новее приложения`. | Target-contour downgrade smoke remains a release check. |
 | E.03.166 | issue | major | update | `SettingsService.RunMigrations` | Миграции запускаются вручную admin action; fresh/update startup gate не определен. | Нужна policy: auto-migrate on startup или explicit admin run before use, плюс backup/runbook. |
 | E.03.167 | issue | major | update/runtime | frontend settings migration UI, `ErrorFormatter` | Backend теперь safe-maps errors, но startup config/DB failures still exit before UI. Migration failure UX требует smoke. | Проверить понятность ошибки migration failure и dirty DB state. |
 | E.03.168 | issue | major | crash/update | migrations, registration, restore | Document registration transaction hardened; migration crash safety relies on golang-migrate dirty flag. Dirty handling/runbook не оформлены. | Добавить dirty migration recovery runbook and smoke; не продолжать работу при dirty schema. |
 
 ## Issues
 
-Связанные новые issues: `ISSUE-027`, `ISSUE-028`.
-Связанные ранее открытые: `ISSUE-007`, `ISSUE-010`, `ISSUE-015`; fixed after audit: `ISSUE-017`.
+Связанные новые issues: `ISSUE-028`.
+Связанные ранее открытые: `ISSUE-015`; fixed after audit: `ISSUE-007`, `ISSUE-010`, `ISSUE-017`, `ISSUE-027`.
 
 ## Проверки После Исправлений
 

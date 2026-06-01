@@ -5,6 +5,8 @@ export namespace database {
 	    dirty: boolean;
 	    totalAvailable: number;
 	    upToDate: boolean;
+	    schemaTooNew: boolean;
+	    compatible: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new MigrationStatus(source);
@@ -16,6 +18,8 @@ export namespace database {
 	        this.dirty = source["dirty"];
 	        this.totalAvailable = source["totalAvailable"];
 	        this.upToDate = source["upToDate"];
+	        this.schemaTooNew = source["schemaTooNew"];
+	        this.compatible = source["compatible"];
 	    }
 	}
 

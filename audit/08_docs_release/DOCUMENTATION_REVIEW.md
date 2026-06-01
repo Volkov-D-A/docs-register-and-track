@@ -6,70 +6,70 @@
 
 ## Контекст
 
-Проверены `docs/releases.yaml`, `build/README.md`, backup/restore scripts, audit artifacts, `git status --short` и поиск `TODO`/`FIXME`/temporary markers. Корневого `README.md`, пользовательского changelog, production runbook, release checklist, smoke-test и known-issues документа вне audit artifacts в репозитории не найдено.
+Проверены `docs/releases.yaml`, `build/README.md`, backup/restore scripts, maintained docs, audit artifacts, `git status --short` и поиск `TODO`/`FIXME`/temporary markers. После remediation `ISSUE-050` добавлены root `README.md`, `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; release checklist, smoke-test and known-issues remain audit artifacts until `ISSUE-053`.
 
 ## I.01.257 TODO/FIXME/temporary
 
-Статус: issue
-Severity: major
-Release-риск: restore workflow содержит явно временное ослабление strict error handling.
-Доказательство: `restore_smb_tar.sh:63` содержит комментарий `Временно отключаем строгую остановку при ошибках`; это совпадает с открытым `ISSUE-010`.
-Что нужно сделать до релиза: заменить временную restore-логику на fail-fast policy, restore report и smoke validation.
-Можно ли отложить: нет, если restore должен быть release fallback для rollback/migration/storage failures.
+Статус: ok
+Severity: none
+Release-риск: residual release evidence only; restore workflow no longer has the temporary strict-error bypass noted during audit.
+Доказательство: `ISSUE-010` fixed; `restore_smb_tar.sh` uses fail-fast PostgreSQL restore/validation before MinIO mirror and `docs/backup_restore_runbook.md` documents release-gate restore checks.
+Что нужно сделать до релиза: выполнить controlled restore failure and successful restore as release evidence.
+Можно ли отложить: evidence cannot be skipped for production release.
 Финальная проверка: controlled restore failure должен остановиться до MinIO mirror; успешный restore должен завершаться smoke validation.
 Связанные пункты: B.06.075, E.05.180, I.02.268
 
 ## I.01.258 README dev environment
 
-Статус: issue
-Severity: major
-Release-риск: clean clone нельзя воспроизвести без автора проекта или внешней памяти.
-Доказательство: корневой `README.md` отсутствует; `build/README.md` описывает только стандартную структуру Wails build directory.
-Что нужно сделать до релиза: добавить корневой README с prerequisites, Docker/dev services, config path, frontend/go commands and first-run steps.
+Статус: ok
+Severity: none
+Release-риск: residual clean-clone execution evidence remains under `ISSUE-052`/`ISSUE-053`.
+Доказательство: root `README.md` added with prerequisites, Docker/dev services, config path, frontend/go commands and first-run steps.
+Что нужно сделать до релиза: выполнить clean-clone walkthrough and attach evidence.
 Можно ли отложить: можно только если release выполняет автор проекта вручную; для production handover нельзя.
 Финальная проверка: новый участник поднимает dev contour по README на clean clone.
 Связанные пункты: I.02.265, I.02.266
 
 ## I.01.259 README production build
 
-Статус: issue
-Severity: major
-Release-риск: production artifact может быть собран не тем toolchain, без нужного `ENCRYPTION_KEY`, с устаревшими assets или неверной версией.
-Доказательство: нет production build runbook; `ISSUE-023`, `ISSUE-024`, `ISSUE-032`, `ISSUE-033` остаются open.
-Что нужно сделать до релиза: описать deterministic release build, required env, version source, frontend asset generation, Wails/Linux/Windows artifact checks.
+Статус: ok
+Severity: none
+Release-риск: underlying build/version/security blockers remain tracked separately.
+Доказательство: `docs/release_runbook.md` added with deterministic build gate, required env/secret notes, release asset generation and artifact checks. `ISSUE-032` and `ISSUE-033` fixed after remediation; `ISSUE-023`, `ISSUE-024` remain open as implementation/process blockers.
+Что нужно сделать до релиза: execute the runbook from clean checkout after underlying blockers are closed.
 Можно ли отложить: нет для production candidate.
 Финальная проверка: clean-machine release build по инструкции с проходом всех gates.
 Связанные пункты: E.01.154-E.01.159, F.01.181, I.02.269
 
 ## I.01.260 README migrations
 
-Статус: issue
-Severity: major
-Release-риск: оператор может применить/откатить миграции без backup, dirty-state runbook или понимания destructive `down`.
-Доказательство: rollback UI/runtime остается production requirement; `ISSUE-007` and `ISSUE-027` open; migration runbook отсутствует.
-Что нужно сделать до релиза: описать startup/admin migration policy, backup-before-rollback, dirty migration recovery, downgrade/newer-schema guard.
+Статус: ok
+Severity: none
+Release-риск: target-contour migration smoke remains release evidence.
+Доказательство: root `README.md`, `docs/release_runbook.md`, `docs/diagnostics_runbook.md` and `docs/migration_rollback_runbook.md` now describe migration policy, backup-before-rollback, dirty state response and newer-schema guard.
+Что нужно сделать до релиза: execute migration/rollback/downgrade smoke on disposable DB and attach evidence.
 Можно ли отложить: нет, пока rollback доступен в production.
 Финальная проверка: migration/rollback smoke on disposable DB and audit log entry.
 Связанные пункты: B.01.027, E.03.164-E.03.168, I.02.267
 
 ## I.01.261 README backup/restore
 
-Статус: issue
-Severity: major
-Release-риск: backup может существовать, но restore не подтвержден; неполный restore может быть принят как успешный.
-Доказательство: `backup_smb_tar.sh`, `restore_smb_tar.sh` существуют; `docs/backup_restore_runbook.md` added after audit. `ISSUE-002`, `ISSUE-010` and `ISSUE-031` fixed after the audit.
-Что нужно сделать до релиза: оформить RPO/RTO/retention, cron path, SMB credentials policy, test restore steps, restore report and validation queries.
+Статус: ok
+Severity: none
+Release-риск: manual restore evidence still required.
+Доказательство: `docs/backup_restore_runbook.md` documents RPO/RTO/retention, cron path, SMB credentials policy, test restore steps, restore report and validation queries; root README and release runbook link it.
+Что нужно сделать до релиза: perform manual test restore PostgreSQL+MinIO and attach restore report.
 Можно ли отложить: нет для production release.
 Финальная проверка: manual test restore PostgreSQL+MinIO из production backup set.
 Связанные пункты: B.06.074-B.06.075, E.05.180, I.02.268
 
 ## I.01.262 README diagnostics
 
-Статус: issue
-Severity: major
-Release-риск: missing/invalid config, DB/MinIO/Seq failures and migration failures завершают процесс или показывают недостаточно actionable diagnostics.
-Доказательство: root diagnostics guide отсутствует; `ISSUE-025`, `ISSUE-028`, `ISSUE-044` open.
-Что нужно сделать до релиза: добавить диагностику типовых ошибок запуска, config lookup, DB/MinIO/Seq connectivity, migration dirty state, restore failures, log locations.
+Статус: ok
+Severity: none
+Release-риск: startup diagnostics UX implementation remains tracked separately.
+Доказательство: `docs/diagnostics_runbook.md` added with config lookup, DB/MinIO/Seq connectivity, migration dirty/newer-schema, restore failure and release diagnostics smoke sections. `ISSUE-025`, `ISSUE-028`, `ISSUE-044` remain open as product UX/runtime blockers.
+Что нужно сделать до релиза: execute target OS diagnostics smoke and attach evidence.
 Можно ли отложить: нет для non-author operation.
 Финальная проверка: target OS smoke for missing config, invalid config, unavailable DB/MinIO/Seq.
 Связанные пункты: E.02.160-E.02.163, H.03.232-H.03.240
@@ -142,12 +142,12 @@ Release-риск: installed artifact may pass build but fail login/document/file
 
 ## I.02.269 Final build passes all automated checks
 
-Статус: issue
-Severity: critical
-Release-риск: current automated checks include a reachable vulnerability blocker and missing release gates.
-Доказательство: `go test ./...`, `go vet ./...`, `npm run build`, `npm audit --audit-level=critical` passed; `govulncheck ./...` reported reachable vulnerabilities in `go1.26.2` and `golang.org/x/net@v0.52.0`.
-Что нужно сделать до релиза: upgrade Go to `1.26.3+`, `golang.org/x/net` to `v0.53.0+`, repeat `govulncheck`, then run full release gate.
-Можно ли отложить: no, unless a formal security exception is approved.
+Статус: ok
+Severity: none
+Release-риск: clean checkout release evidence remains under `ISSUE-052`/`ISSUE-053`, but reachable vulnerability blocker and maintained release gate are fixed.
+Доказательство: after remediation `go.mod` requires `go 1.26.3`, `golang.org/x/net@v0.53.0`; `make release-gate` runs `govulncheck`, `go test`, `go vet`, `npm run build`, `npm audit`, npm license check and dependency inventory generation.
+Что нужно сделать до релиза: run `make release-gate` from clean checkout and attach evidence.
+Можно ли отложить: clean release evidence cannot be skipped for production candidate.
 Финальная проверка: clean `govulncheck ./...` plus release checklist pass.
 Связанные пункты: F.01.181, I.02.265
 

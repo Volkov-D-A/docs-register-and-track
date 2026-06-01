@@ -5,3 +5,4 @@ frontend/dist
 .env
 .gocache
 *code_review.md
+/build/release-evidence/

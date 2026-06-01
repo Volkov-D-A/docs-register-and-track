@@ -39,7 +39,7 @@ Backend/database unit coverage is reasonably strong: `go test ./...` passes and 
 
 ## Обязательные Перед Release
 
-- Backend/security blocker from F (`ISSUE-032`) remains before production.
+- Backend/security blocker from F (`ISSUE-032`) is fixed; keep `govulncheck` in release gate.
 - Add release test gate for Go unit tests and gated PostgreSQL integration tests.
 - Add minimum e2e smoke for production Wails build.
 - Measure performance baseline on target OS/build.

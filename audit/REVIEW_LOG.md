@@ -346,12 +346,12 @@ Severity: major
 Категория: Update/Migrations
 Пункт плана: E.03.164, E.03.165, E.03.166
 Severity: major
-Статус: open
-Место: `internal/database/postgres.go`, `internal/services/settings.go`
+Статус: fixed
+Место: `internal/database/postgres.go`, `internal/services/auth_service.go`, `internal/services/settings.go`, `frontend/src/pages/SettingsPage.tsx`, `frontend/wailsjs/go/models.ts`
 Проблема: Нет явного update/downgrade guard. Older binary может быть запущен против newer DB schema; `GetMigrationStatus` считает `version >= totalAvailable` up-to-date, а startup/update policy для миграций не определена.
 Почему важно: Несовместимый binary может работать с неизвестной схемой и давать runtime ошибки или повреждать данные. Оператор не получит четкий запрет downgrade.
 Рекомендация: Добавить schema compatibility check: если DB version больше embedded migrations version, блокировать работу с понятной ошибкой. Зафиксировать policy auto-migrate vs explicit admin migration before use.
-Проверка после исправления: Запуск older binary на DB текущей версии; запуск current binary на старой DB; dirty migration state.
+Проверка после исправления: `MigrationStatus` теперь различает `upToDate`, `schemaTooNew` and `compatible`; версия БД выше встроенных миграций больше не считается актуальной. `RunMigrations`, `RollbackMigration` and `AuthService.Login` block incompatible newer/dirty schema through a structured `CONFLICT` error. Migration UI shows `Схема новее приложения` and disables apply/rollback for newer schema. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/database`, `GOCACHE=/tmp/go-build-cache go test ./internal/services -run 'TestMigrationCompatibilityAppError|TestSettingsService_GetMigrationStatus|TestSettingsService_RunMigrations|TestSettingsService_RollbackMigration|TestAuthService_Login'`, `GOCACHE=/tmp/go-build-cache go test ./...`, `npm run build`.
 Связанные пункты: B.01.027, E.03, H.03
 
 ## ISSUE-028
@@ -411,12 +411,12 @@ Severity: minor
 Категория: Security/Go Vulnerabilities
 Пункт плана: F.01.181
 Severity: critical
-Статус: open
-Место: Go toolchain `go1.26.2`, `golang.org/x/net@v0.52.0`
+Статус: fixed
+Место: `go.mod`, `go.sum`
 Проблема: `govulncheck ./...` нашел достижимые уязвимости: `GO-2026-4971` в стандартной библиотеке `net@go1.26.2`, fixed in `go1.26.3`; `GO-2026-4918` в `net/http@go1.26.2` and `golang.org/x/net@v0.52.0`, fixed in `go1.26.3` and `x/net@v0.53.0`.
 Почему важно: Уязвимости достижимы из кода приложения через DB/network paths, Seq HTTP client and MinIO client traces. Это production security gate.
 Рекомендация: Обновить Go toolchain до `go1.26.3` или новее в утвержденном release окружении; обновить `golang.org/x/net` минимум до `v0.53.0`; повторить `govulncheck`.
-Проверка после исправления: `govulncheck ./...` возвращает 0 reachable vulnerabilities; `go test ./...`, `go vet ./...`, `npm run build`, integration smoke.
+Проверка после исправления: `go.mod` now requires `go 1.26.3`; `golang.org/x/net` upgraded to `v0.53.0`, with compatible `x/crypto v0.50.0` and `x/text v0.36.0`. Проверено: `go version` reports `go1.26.3`; `GOCACHE=/tmp/go-build-cache /home/dimas/go/bin/govulncheck ./...` reports "No vulnerabilities found" and "Your code is affected by 0 vulnerabilities"; `GOCACHE=/tmp/go-build-cache go test ./...`; `GOCACHE=/tmp/go-build-cache go vet ./...`; `npm run build`.
 Связанные пункты: F.01.181, H.02
 
 ## ISSUE-033
@@ -424,12 +424,12 @@ Severity: critical
 Категория: Security/Release Gates
 Пункт плана: F.01.181, F.01.182, F.02.185, F.02.186
 Severity: major
-Статус: open
-Место: release scripts/checklist
+Статус: fixed
+Место: `Makefile`, `.gitignore`, `README.md`, `docs/release_runbook.md`
 Проблема: В репозитории нет закрепленного security/dependency/license gate. `npm audit` and `govulncheck` выполнялись вручную; Go/npm license inventory не включен в release process.
 Почему важно: Уязвимости и license blockers могут попасть в production artifact незамеченными при следующем обновлении зависимостей.
 Рекомендация: Добавить release gate: `govulncheck ./...`, `npm audit --audit-level=critical`, Go/npm license report, `go vet`, `go test`, `npm run build`.
-Проверка после исправления: Release checklist/script fails on vulnerable dependencies or disallowed licenses.
+Проверка после исправления: Added maintained `make release-gate` target that runs `go test`, `go vet`, `govulncheck`, `npm run build`, `npm audit --audit-level=critical`, npm GPL-family license check and dependency inventory generation under ignored `build/release-evidence/`. Added `make security-gate` for vulnerability/security subset. README and release runbook now point to the gate. Проверено: `make release-gate` passed. Full unknown-license resolution remains tracked by `ISSUE-037`; frontend lint/static analysis is fixed by `ISSUE-034`.
 Связанные пункты: E.01.154, F.01, F.02.185, H.02
 
 ## ISSUE-034
@@ -437,12 +437,12 @@ Severity: major
 Категория: Static Analysis/Frontend
 Пункт плана: F.02.188, F.02.189
 Severity: major
-Статус: open
-Место: `frontend/package.json`, frontend config
+Статус: fixed
+Место: `frontend/package.json`, `frontend/package-lock.json`, `frontend/eslint.config.js`, `Makefile`
 Проблема: ESLint/Prettier config and lint scripts are absent. TypeScript build passes, but no automated frontend lint gate catches hooks issues, unsafe patterns, unused code, accessibility-adjacent problems or formatting drift.
 Почему важно: Upcoming remediation touches frontend error handling, forms and state. Without lint, regressions are easier to miss.
 Рекомендация: Add minimal ESLint config for React/TypeScript and a `lint` script; optionally add Prettier or formatting check. Start with high-signal rules to avoid noisy migration.
-Проверка после исправления: `npm run lint` passes; CI/release gate includes lint.
+Проверка после исправления: Added ESLint flat config for TypeScript/React with high-signal rules: `rules-of-hooks` as error, `exhaustive-deps` and unused vars as warnings, basic JS/TS rules, and React Refresh warning. Added `npm run lint`; `make release-gate` now runs `frontend-lint`. Проверено: `npm run lint` exits 0 with 44 warnings and 0 errors; `make release-gate` passed. Existing warnings are tracked as technical debt, not blockers for the initial gate.
 Связанные пункты: F.02.188, F.02.189, D.01, D.05
 
 ## ISSUE-035
@@ -645,12 +645,12 @@ Severity: minor
 Категория: Documentation/Release
 Пункт плана: I.01.258, I.01.259, I.01.260, I.01.261, I.01.262
 Severity: critical
-Статус: open
-Место: root project docs, `build/README.md`, backup/restore scripts
+Статус: fixed
+Место: `README.md`, `docs/release_runbook.md`, `docs/diagnostics_runbook.md`, `docs/backup_restore_runbook.md`, `docs/migration_rollback_runbook.md`
 Проблема: В репозитории отсутствует корневой release-grade README/runbook, который описывает dev запуск, production build, миграции, backup/restore and diagnostics. `build/README.md` содержит только стандартное описание Wails build directory.
 Почему важно: Production handover, clean clone build and non-author release execution become dependent on unstated local knowledge. This is especially risky because rollback, restore, config lookup and startup diagnostics already have open blockers.
 Рекомендация: Добавить maintained root README/runbooks for dev setup, release build, DB migrations, backup/restore, diagnostics and target OS install smoke. Audit artifacts in `audit/08_docs_release` can be used as starting material.
-Проверка после исправления: Non-author follows docs from clean clone, builds artifact, creates fresh DB, runs migrations, performs smoke and test restore.
+Проверка после исправления: Добавлен root `README.md` with dev setup, local config caveats, release/ops entry points, build commands, migration/backup/diagnostics links and critical gate notes. Добавлены maintained `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; existing backup/restore and rollback runbooks are linked from README. Audit docs updated so `ISSUE-050` no longer appears as a critical blocker. Проверено статически: `rg` consistency pass, `git diff --check`. Full non-author clean-clone execution remains release evidence under `ISSUE-052`/`ISSUE-053`.
 Связанные пункты: I.01.258-I.01.262, I.02.265-I.02.268
 
 ## ISSUE-051

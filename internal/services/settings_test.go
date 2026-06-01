@@ -234,6 +234,47 @@ func TestValidateRollbackMigrationRequest(t *testing.T) {
 	}
 }
 
+func TestMigrationCompatibilityAppError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		msg  string
+	}{
+		{
+			name: "schema too new",
+			err: &database.MigrationCompatibilityError{
+				CurrentVersion: 11,
+				TotalAvailable: 10,
+				SchemaTooNew:   true,
+			},
+			msg: "Версия схемы БД (11) новее миграций",
+		},
+		{
+			name: "dirty schema",
+			err: &database.MigrationCompatibilityError{
+				CurrentVersion: 10,
+				TotalAvailable: 10,
+				Dirty:          true,
+			},
+			msg: "Миграция БД версии 10 завершилась с ошибкой",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := migrationCompatibilityAppError(tt.err)
+			appErr, ok := models.AsAppError(err)
+			require.True(t, ok)
+			assert.Equal(t, "CONFLICT", appErr.Kind)
+			assert.Equal(t, 409, appErr.Code)
+			assert.Contains(t, appErr.Message, tt.msg)
+		})
+	}
+
+	err := migrationCompatibilityAppError(assert.AnError)
+	assert.ErrorIs(t, err, assert.AnError)
+}
+
 func TestSettingsService_GetMaxFileSize(t *testing.T) {
 	// Получение максимально допустимого размера загружаемых файлов в байтах
 	t.Run("from settings", func(t *testing.T) {

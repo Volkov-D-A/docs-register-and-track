@@ -116,26 +116,26 @@
 
 ## CHANGE-015
 
-Что изменено: Планируется обновление Go toolchain and vulnerable Go modules after `govulncheck` findings.
-Затронутые файлы: release toolchain, `go.mod`, `go.sum`, build docs/scripts.
+Что изменено: Закрыт `ISSUE-032`: `go.mod` now requires `go 1.26.3`; `golang.org/x/net` upgraded to `v0.53.0` with compatible `x/crypto v0.50.0` and `x/text v0.36.0`.
+Затронутые файлы: `go.mod`, `go.sum`, release/security audit docs.
 Затронутые пункты плана: F.01.181, H.02.
 Что перепроверить: `govulncheck ./...`; `go test ./...`; `go vet ./...`; integration registration tests; MinIO upload/download; Seq logging; Wails build on Linux/Windows.
 Что не нужно перепроверять: frontend visual layout unless Wails/generated bindings change.
 
 ## CHANGE-016
 
-Что изменено: Планируется добавление security/license/static-analysis release gates.
-Затронутые файлы: Makefile/release scripts, frontend lint config, license report tooling, release checklist.
+Что изменено: Закрыт `ISSUE-033`: добавлены Makefile targets `release-gate`, `security-gate`, `govulncheck`, `npm-audit`, `npm-license-check`, `license-inventory`; release docs point to `make release-gate`.
+Затронутые файлы: `Makefile`, `.gitignore`, `README.md`, `docs/release_runbook.md`, audit release/security docs.
 Затронутые пункты плана: F.01.181-F.02.189, H.02.
-Что перепроверить: release gate succeeds on clean machine; fails on known vulnerable dependency; npm audit; license report; gofmt/go vet; npm lint/build.
+Что перепроверить: release gate succeeds on clean machine; fails on known vulnerable dependency; npm audit; npm GPL-family license check; dependency inventories; go vet; npm lint/build. Full unknown-license policy remains under `ISSUE-037`.
 Что не нужно перепроверять: database migration semantics unless Go module updates affect runtime behavior.
 
 ## CHANGE-017
 
-Что изменено: Планируется cleanup TypeScript suppressions and typing of Wails/document DTO boundaries.
-Затронутые файлы: frontend pages/components/hooks, generated Wails types usage, document modules.
-Затронутые пункты плана: F.02.187, D.03, D.05.
-Что перепроверить: all document list/register/edit flows; assignment and acknowledgment flows; dashboard/statistics; `npm run build`; lint.
+Что изменено: Закрыт `ISSUE-034`: добавлены frontend ESLint flat config, `npm run lint`, dev dependencies and release-gate integration. Existing lint warnings are accepted as technical debt for the initial gate.
+Затронутые файлы: `frontend/eslint.config.js`, `frontend/package.json`, `frontend/package-lock.json`, `Makefile`, frontend pages/components/hooks identified by lint warnings.
+Затронутые пункты плана: F.02.188-F.02.189, D.01, D.05.
+Что перепроверить: `npm run lint`; `make release-gate`; all document list/register/edit flows if future lint warning fixes touch behavior; assignment and acknowledgment flows; dashboard/statistics; `npm run build`.
 Что не нужно перепроверять: backup/restore scripts.
 
 ## CHANGE-018
@@ -196,8 +196,8 @@
 
 ## CHANGE-025
 
-Что изменено: Планируется добавление maintained release documentation/runbooks and clean release process based on stage I audit artifacts.
-Затронутые файлы: root `README.md`, release docs/scripts, changelog/release assets, build scripts, backup/restore runbooks.
+Что изменено: Закрыт `ISSUE-050`: добавлены maintained root `README.md`, `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; root README links release, rollback, backup/restore and diagnostics runbooks. Clean release execution remains covered by `ISSUE-052`/`ISSUE-053`.
+Затронутые файлы: `README.md`, `docs/release_runbook.md`, `docs/diagnostics_runbook.md`, `docs/backup_restore_runbook.md`, `docs/migration_rollback_runbook.md`, audit release artifacts.
 Затронутые пункты плана: I.01.258-I.02.270.
 Что перепроверить: clean clone build; non-author checklist execution; fresh DB setup; migration/rollback runbook; backup/restore smoke; target OS install; version metadata; clean git status at release tag.
 Что не нужно перепроверять: low-level SQL plans unless release scripts provision performance dataset.
@@ -209,3 +209,11 @@
 Затронутые пункты плана: B.01.027, B.02.039, B.06.075, E.03.168, H.03.
 Что перепроверить: migration settings tab; rollback without each required confirmation; rollback with valid request on disposable DB; audit log entries; dirty schema handling; backup/restore runbook path.
 Что не нужно перепроверять: document registration idempotency and retention FK behavior unless migration sequence changes.
+
+## CHANGE-027
+
+Что изменено: Закрыт `ISSUE-027`: добавлен schema compatibility guard для embedded migrations. `GetMigrationStatus` больше не считает DB schema version выше embedded migrations актуальной; `RunMigrations`, `RollbackMigration` and login блокируют newer/dirty schema через structured `CONFLICT`; migration UI показывает состояние `Схема новее приложения` and disables unsafe actions.
+Затронутые файлы: `internal/database/postgres.go`, `internal/database/postgres_test.go`, `internal/services/auth_service.go`, `internal/services/settings.go`, `internal/services/settings_test.go`, `frontend/src/pages/SettingsPage.tsx`, `frontend/wailsjs/go/models.ts`, `audit/REVIEW_LOG.md`, `audit/08_docs_release/KNOWN_ISSUES.md`.
+Затронутые пункты плана: B.01.027, E.03.164-E.03.166, H.03.
+Что перепроверить: old binary against newer DB schema; current binary against old DB schema; dirty migration state; initial setup on empty DB; admin migration status tab; login error copy for incompatible schema; apply/rollback button disabled states.
+Что не нужно перепроверять: document registration numbering/idempotency and attachment storage behavior.

@@ -124,6 +124,46 @@ func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	assert.Equal(t, 10, total)
 }
 
+func TestMigrationStatus_applyCompatibility(t *testing.T) {
+	tests := []struct {
+		name         string
+		status       MigrationStatus
+		upToDate     bool
+		schemaTooNew bool
+		compatible   bool
+	}{
+		{
+			name:       "current schema matches embedded migrations",
+			status:     MigrationStatus{CurrentVersion: 10, TotalAvailable: 10},
+			upToDate:   true,
+			compatible: true,
+		},
+		{
+			name:       "old schema can be migrated by current binary",
+			status:     MigrationStatus{CurrentVersion: 8, TotalAvailable: 10},
+			compatible: true,
+		},
+		{
+			name:         "newer schema is not up to date for old binary",
+			status:       MigrationStatus{CurrentVersion: 11, TotalAvailable: 10},
+			schemaTooNew: true,
+		},
+		{
+			name:   "dirty schema is not compatible",
+			status: MigrationStatus{CurrentVersion: 10, TotalAvailable: 10, Dirty: true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.status.applyCompatibility()
+			assert.Equal(t, tt.upToDate, tt.status.UpToDate)
+			assert.Equal(t, tt.schemaTooNew, tt.status.SchemaTooNew)
+			assert.Equal(t, tt.compatible, tt.status.Compatible)
+		})
+	}
+}
+
 func TestDB_RollbackMigration(t *testing.T) {
 	// Тестирование функции отката последней миграции
 	t.Run("driver creation fails", func(t *testing.T) {

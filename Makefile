@@ -1,4 +1,4 @@
-.PHONY: dev build-linux build-windows clean release-assets
+.PHONY: dev build-linux build-windows clean release-assets go-test go-vet govulncheck frontend-build frontend-lint npm-audit npm-license-check license-inventory security-gate release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
@@ -6,6 +6,11 @@ export
 
 # Переменные
 TAGS = webkit2_41
+FRONTEND_DIR = frontend
+RELEASE_EVIDENCE_DIR = build/release-evidence
+GOCACHE ?= /tmp/go-build-cache
+GOVULNCHECK ?= $(shell command -v govulncheck 2>/dev/null || echo "go run golang.org/x/vuln/cmd/govulncheck@latest")
+GO_PACKAGES = $(shell go list ./... | grep -v '/frontend/node_modules/')
 
 # Ключ шифрования конфигурации (из .env → ENCRYPTION_KEY)
 LDFLAGS = -X 'github.com/Volkov-D-A/docs-register-and-track/internal/config.rawEncryptionKey=$(ENCRYPTION_KEY)'
@@ -35,7 +40,38 @@ clean:
 # Запуск тестов
 test:
 	$(MAKE) release-assets
-	go test ./...
+	GOCACHE=$(GOCACHE) go test $(GO_PACKAGES)
+
+go-test:
+	$(MAKE) release-assets
+	GOCACHE=$(GOCACHE) go test $(GO_PACKAGES)
+
+go-vet:
+	GOCACHE=$(GOCACHE) go vet $(GO_PACKAGES)
+
+govulncheck:
+	GOCACHE=$(GOCACHE) $(GOVULNCHECK) $(GO_PACKAGES)
+
+frontend-build:
+	cd $(FRONTEND_DIR) && npm run build
+
+frontend-lint:
+	cd $(FRONTEND_DIR) && npm run lint
+
+npm-audit:
+	cd $(FRONTEND_DIR) && npm audit --audit-level=critical
+
+npm-license-check:
+	cd $(FRONTEND_DIR) && node -e 'const fs=require("fs"); const lock=JSON.parse(fs.readFileSync("package-lock.json","utf8")); const bad=[]; for (const [path,pkg] of Object.entries(lock.packages||{})) { if (!path) continue; const license=String(pkg.license||""); if (/(^|[^A-Z])(AGPL|GPL|LGPL)([^A-Z]|$$)/i.test(license)) bad.push(path+": "+license); } if (bad.length) { console.error("Disallowed npm licenses found:\n"+bad.join("\n")); process.exit(1); }'
+
+license-inventory:
+	mkdir -p $(RELEASE_EVIDENCE_DIR)
+	go list -m -json all > $(RELEASE_EVIDENCE_DIR)/go-modules.json
+	cd $(FRONTEND_DIR) && npm ls --all --json > ../$(RELEASE_EVIDENCE_DIR)/npm-dependencies.json
+
+security-gate: govulncheck npm-audit npm-license-check
+
+release-gate: go-test go-vet govulncheck frontend-lint frontend-build npm-audit npm-license-check license-inventory
 
 # ==========================================
 # УПРАВЛЕНИЕ БАЗОЙ ДАННЫХ (DOCKER)

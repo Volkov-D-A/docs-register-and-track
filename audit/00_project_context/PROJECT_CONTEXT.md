@@ -34,7 +34,7 @@
 ## Технологический стек
 
 - Desktop shell: Wails v2.12.0.
-- Backend: Go module `github.com/Volkov-D-A/docs-register-and-track`, `go.mod` указывает `go 1.25.0`; локально проверено Go `go1.26.2 linux/amd64`.
+- Backend: Go module `github.com/Volkov-D-A/docs-register-and-track`, `go.mod` указывает `go 1.26.3`; локально проверено Go `go1.26.3 linux/amd64`.
 - Frontend: React 18, TypeScript 6, Vite 8, Ant Design 6, Zustand, dayjs, `@xyflow/react`, `@ant-design/plots`.
 - Database: PostgreSQL через `database/sql`, `lib/pq`, `golang-migrate`.
 - Object storage: MinIO.
@@ -96,10 +96,10 @@ Build/dev-зависимости:
 - Stage B/C remediation status: backend `idempotencyKey` + no-gaps registration transaction реализованы и проверены integration tests; retention-safe FK для `document_journal`/`admin_audit_log` реализованы миграцией `009_retention_safe_journal_fks` и integration test.
 - Stage D frontend audit status: завершен 2026-05-28. Документные frontend forms отправляют `idempotencyKey`, но frontend еще не перешел на centralized structured error handling; submit guards/dirty confirmations и bundle/performance остаются открытыми frontend work items.
 - Stage E build/install/update audit status: завершен 2026-05-28 статическим review production build/install/runtime lifecycle. Основные release gates: единый version source, deterministic release build, production config lookup/startup diagnostics, installer privilege policy, downgrade/schema compatibility guard, backup/restore temp cleanup and download overwrite protection.
-- Stage F security/dependencies/quality audit status: завершен 2026-05-28. `go test ./...`, `go vet ./...`, `npm run build` прошли; `npm audit` clean; `govulncheck` нашел reachable Go vulnerabilities in `go1.26.2`/`x/net@v0.52.0`, requiring toolchain/module upgrade before production.
+- Stage F security/dependencies/quality audit status: завершен 2026-05-28. After remediation `ISSUE-032`, `go test ./...`, `go vet ./...`, `npm run build` прошли; `npm audit` clean; `govulncheck` reports 0 reachable vulnerabilities with `go1.26.3`/`x/net@v0.53.0`.
 - Stage G tests/performance audit status: завершен 2026-05-28. `go test ./...` прошел; отдельные PostgreSQL integration tests for idempotency/concurrency/retention FK passed against local test DB. Основные gaps: нет frontend/e2e tests, performance baseline for Wails/UI/memory missing, long-running/cancellation tests missing, integration tests need safe release gate.
 - Stage H UX/text audit status: завершен 2026-05-28. Основные gaps: raw backend/system errors in user UI, inconsistent terminology (`вид`/`тип`, `дело`/`номенклатура`, `исполнитель`), weak destructive confirmations, passive empty states, unexplained abbreviations and style inconsistency.
-- Stage I docs/release/final readiness audit status: завершен 2026-05-28. Созданы `audit/08_docs_release/*` and `audit/FINAL_SUMMARY.md`. Финальное решение для текущего production candidate: `not_ready` because critical blockers remain open (`ISSUE-007`, `ISSUE-032`, `ISSUE-050`, `ISSUE-052`).
+- Stage I docs/release/final readiness audit status: завершен 2026-05-28. Созданы `audit/08_docs_release/*` and `audit/FINAL_SUMMARY.md`. После remediation fixed: `ISSUE-007`, `ISSUE-027`, `ISSUE-032`, `ISSUE-050`. Финальное решение для текущего production candidate remains `not_ready` because release candidate worktree is not clean (`ISSUE-052`) and release evidence is incomplete.
 
 Остается проверить на следующих этапах:
 
@@ -124,10 +124,10 @@ Build/dev-зависимости:
 - downgrade/newer-schema guard and dirty migration recovery UX/runbook.
 - backup/restore temp cleanup and secret exposure checks.
 - collision-safe attachment download behavior.
-- Go toolchain/module vulnerability remediation: upgrade to `go1.26.3+` and `golang.org/x/net@v0.53.0+`, then repeat `govulncheck`.
-- security/license/static-analysis release gates: `govulncheck`, `npm audit`, license reports, `go vet`, `go test`, `npm run build`, frontend lint.
-- resolve unknown npm license (`@antv/g2-extension-plot`) and generate Go transitive license inventory.
-- add minimal frontend ESLint/static-analysis gate and reduce `@ts-ignore`/broad `any` at Wails contract boundaries.
+- Go toolchain/module vulnerability remediation is fixed: keep `go1.26.3+` and `golang.org/x/net@v0.53.0+`, repeat `govulncheck` in release gate.
+- release gate remediation: `make release-gate` now runs `govulncheck`, `npm audit`, npm GPL-family license check, dependency inventories, `go vet`, `go test`, `npm run lint`, `npm run build`; full unknown-license review remains open.
+- resolve unknown npm license (`@antv/g2-extension-plot`) and complete full Go/npm license policy review.
+- frontend ESLint/static-analysis gate is added; reduce lint warnings and broad `any` at Wails contract boundaries gradually.
 - gofmt formatting drift cleanup.
 - release test gate: Go unit tests, safe disposable PostgreSQL integration tests, frontend component tests, production-build e2e smoke.
 - safe integration DSN guard/provisioning because DB integration tests reset `public` schema.

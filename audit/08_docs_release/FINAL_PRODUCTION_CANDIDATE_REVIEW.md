@@ -5,17 +5,15 @@
 
 ## Итог
 
-Текущий candidate нельзя выпускать в production. Аудит A-I завершен, часть критичных backend/database remediation уже реализована and verified, including runtime rollback guardrails, but release readiness is still blocked by open critical issues and missing release evidence.
+Текущий candidate нельзя выпускать в production. Аудит A-I завершен, часть критичных backend/database/security/docs remediation уже реализована and verified, including runtime rollback guardrails, Go vulnerability remediation and maintained root release docs, but release readiness is still blocked by open critical issues and missing release evidence.
 
 ## Release Blockers
 
-1. `ISSUE-032`: reachable Go vulnerabilities remain in the current toolchain/module set.
-2. `ISSUE-050`: release-grade root README/runbooks are missing for build, migrations, backup/restore and diagnostics.
-3. `ISSUE-052`: worktree is dirty; current candidate is not a clean reproducible release state.
+1. `ISSUE-052`: worktree is dirty; current candidate is not a clean reproducible release state.
 
 ## Major Issues Requiring Acceptance Or Fix
 
-Major open issues remain in production config/secrets, restore hardening, context/shutdown lifecycle, logging PII minimization, frontend structured error handling, submit/dirty guards, build reproducibility, installer/update policy, release security/license gates, frontend/e2e coverage, performance baseline and UX safety.
+Major open issues remain in production config/secrets, restore hardening, context/shutdown lifecycle, logging PII minimization, frontend structured error handling, submit/dirty guards, build reproducibility, installer/update policy, full license review/static analysis, frontend/e2e coverage, performance baseline and UX safety.
 
 ## What Is Ready
 
@@ -23,13 +21,15 @@ Major open issues remain in production config/secrets, restore hardening, contex
 - Retention-safe journal/audit FK migration has been implemented and integration-tested.
 - Backend/Wails structured error envelope has been implemented.
 - Runtime rollback now requires backend-enforced backup confirmation, backup reference, data-loss acknowledgment and control phrase, with audit entries and a maintained rollback runbook.
+- Root `README.md`, release build runbook and diagnostics runbook are now maintained project docs.
+- Go toolchain/module vulnerability blocker fixed: `go1.26.3`, `x/net v0.53.0`, `govulncheck ./...` clean.
 - `go test ./...`, `go vet ./...`, `npm run build`, `npm audit --audit-level=critical` passed in current workspace.
 - PostgreSQL integration tests for registration idempotency/concurrency and journal retention passed against local test DB.
 
 ## What Must Happen Before Re-review
 
 - Close critical blockers.
-- Promote release docs/checklists from audit artifacts into maintained project documentation.
+- Validate maintained release docs/checklists from clean clone.
 - Run full release checklist from clean clone.
 - Run target OS install smoke and manual PostgreSQL+MinIO test restore.
 - Commit/tag a clean release candidate.

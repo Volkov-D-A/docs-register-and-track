@@ -31,8 +31,6 @@ Production-аудит A-I завершен. Система имеет рабоч
 
 ## Critical Blockers
 
-- `ISSUE-032`: reachable Go vulnerabilities reported by `govulncheck`.
-- `ISSUE-050`: release-grade root README/runbooks missing.
 - `ISSUE-052`: release candidate worktree is not clean.
 
 ## Main Open Major Themes
@@ -43,7 +41,8 @@ Production-аудит A-I завершен. Система имеет рабоч
 - Technical log PII minimization.
 - Frontend submit guards and dirty form warnings.
 - Release build reproducibility, version source and installer/update policy.
-- Security/license/static-analysis release gates.
+- Release docs/runbooks now exist, but clean-clone execution evidence is still missing.
+- Full license review and remaining frontend lint warnings.
 - Frontend/e2e tests, safe integration test gate and performance baseline.
 - UX terminology and destructive confirmation safety.
 
@@ -53,7 +52,7 @@ Production-аудит A-I завершен. Система имеет рабоч
 - `go vet ./...` passed.
 - `npm run build` passed after lazy page loading and explicit Wails route-chunk budget.
 - `npm audit --audit-level=critical` passed with 0 vulnerabilities.
-- `govulncheck ./...` failed because of reachable Go vulnerabilities.
+- `govulncheck ./...` passed after Go/toolchain remediation.
 - PostgreSQL integration tests for document registration and retention FK passed against local disposable DB.
 
 ## Final Decision

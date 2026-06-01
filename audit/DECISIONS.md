@@ -185,7 +185,7 @@
 ## DECISION-019
 
 Дата: 2026-05-28
-Контекст: Этап I проверил документацию, release checklist, smoke-test, known issues and final production candidate readiness. Открыты critical issues: destructive rollback guardrails, reachable Go vulnerabilities, missing release-grade root docs/runbooks and dirty worktree.
+Контекст: Этап I проверил документацию, release checklist, smoke-test, known issues and final production candidate readiness. На момент решения были открыты critical issues: destructive rollback guardrails, reachable Go vulnerabilities, missing release-grade root docs/runbooks and dirty worktree. После remediation fixed: rollback guardrails and release-grade root docs/runbooks.
 Решение: Финальный статус текущего production candidate — `not_ready`.
 Причина: Нельзя назвать candidate готовым при unresolved critical issues and missing reproducible release evidence.
 Альтернативы: `ready_with_risks` was rejected because it would require no open critical blockers and explicit acceptance for remaining major issues.

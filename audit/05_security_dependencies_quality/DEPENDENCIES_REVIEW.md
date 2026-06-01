@@ -9,7 +9,7 @@
 
 Findings:
 
-- `govulncheck` reports reachable vulnerabilities through the current Go standard library and `x/net`.
+- After remediation `ISSUE-032`, `govulncheck` reports 0 reachable vulnerabilities with `go1.26.3` and `x/net@v0.53.0`.
 - `go list -m -json all` without network failed in sandbox because module metadata lookup tried to reach `proxy.golang.org`; this is not a code failure, but release dependency checks need network/proxy access.
 - `go test ./...` and `go vet ./...` passed locally.
 
@@ -30,8 +30,8 @@ Findings:
 
 ## Recommendations
 
-- Add release gate commands: `govulncheck ./...`, `npm audit --audit-level=critical`, `go test ./...`, `go vet ./...`, `npm run build`.
+- Use maintained `make release-gate`, which runs `govulncheck`, `npm audit --audit-level=critical`, `go test`, `go vet`, `npm run build`, npm license check and dependency inventory generation.
 - Use `npm ci` in release build path.
 - Define dependency update cadence and emergency security patch process.
 
-Связанные issues: `ISSUE-032`, `ISSUE-033`, `ISSUE-024`.
+Связанные issues: fixed `ISSUE-032`, `ISSUE-033`; open `ISSUE-024`.
