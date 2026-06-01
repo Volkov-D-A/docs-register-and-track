@@ -98,7 +98,7 @@ Build/dev-зависимости:
 - Stage E build/install/update audit status: завершен 2026-05-28 статическим review production build/install/runtime lifecycle. Основные release gates: единый version source, deterministic release build, production config lookup/startup diagnostics, installer privilege policy, downgrade/schema compatibility guard, backup/restore temp cleanup and download overwrite protection.
 - Stage F security/dependencies/quality audit status: завершен 2026-05-28. After remediation `ISSUE-032`, `go test ./...`, `go vet ./...`, `npm run build` прошли; `npm audit` clean; `govulncheck` reports 0 reachable vulnerabilities with `go1.26.3`/`x/net@v0.53.0`.
 - Stage G tests/performance audit status: завершен 2026-05-28. `go test ./...` прошел; отдельные PostgreSQL integration tests for idempotency/concurrency/retention FK passed against local test DB. Основные gaps: нет frontend/e2e tests, performance baseline for Wails/UI/memory missing, long-running/cancellation tests missing, integration tests need safe release gate.
-- Stage H UX/text audit status: завершен 2026-05-28. Основные gaps: raw backend/system errors in user UI, inconsistent terminology (`вид`/`тип`, `дело`/`номенклатура`, `исполнитель`), weak destructive confirmations, passive empty states, unexplained abbreviations and style inconsistency.
+- Stage H UX/text audit status: завершен 2026-05-28. Основные remaining gaps: raw backend/system errors in user UI and inconsistent terminology (`вид`/`тип`, `дело`/`номенклатура`, `исполнитель`). Weak destructive confirmations are fixed by `ISSUE-046`; passive empty states are fixed by `ISSUE-047`; unclear abbreviations/placeholders are fixed by `ISSUE-048`; microcopy style examples are fixed by `ISSUE-049`.
 - Stage I docs/release/final readiness audit status: завершен 2026-05-28. Созданы `audit/08_docs_release/*` and `audit/FINAL_SUMMARY.md`. После remediation fixed: `ISSUE-007`, `ISSUE-027`, `ISSUE-032`, `ISSUE-050`. Финальное решение для текущего production candidate remains `not_ready` because release candidate worktree is not clean (`ISSUE-052`) and release evidence is incomplete.
 
 Остается проверить на следующих этапах:
@@ -125,17 +125,17 @@ Build/dev-зависимости:
 - backup/restore temp cleanup and secret exposure checks.
 - collision-safe attachment download behavior.
 - Go toolchain/module vulnerability remediation is fixed: keep `go1.26.3+` and `golang.org/x/net@v0.53.0+`, repeat `govulncheck` in release gate.
-- release gate remediation: `make release-gate` now runs `govulncheck`, `npm audit`, npm GPL-family license check, dependency inventories, `go vet`, `go test`, `npm run lint`, `npm run build`; full unknown-license review remains open.
-- resolve unknown npm license (`@antv/g2-extension-plot`) and complete full Go/npm license policy review.
+- release gate remediation: `make release-gate` now runs `govulncheck`, `npm audit`, npm/Go license report with unknown-license and GPL-family blocking, dependency inventories, `go vet`, `go test`, `npm run lint`, `npm run build`.
+- license review is fixed: `@antv/g2-extension-plot` is resolved as MIT via package `LICENSE`; latest report has 0 unknown and 0 disallowed licenses.
 - frontend ESLint/static-analysis gate is added; reduce lint warnings and broad `any` at Wails contract boundaries gradually.
 - gofmt formatting drift cleanup.
 - release test gate: Go unit tests, safe disposable PostgreSQL integration tests, frontend component tests, production-build e2e smoke.
 - safe integration DSN guard/provisioning because DB integration tests reset `public` schema.
 - performance baseline on target OS/build: startup, lists/search, save, statistics, memory, bundle/binary size.
 - long-running smoke: repeated modals/views/files, DB/MinIO outages, close app during long operations.
-- apply UX terminology rules from `TERMS_GLOSSARY.md` and confirm business-sensitive terms: `Дело` vs `Номенклатура`, `ПОС`, `Краткое содержание`.
+- apply UX terminology rules from `TERMS_GLOSSARY.md` and confirm business-sensitive terms: `Дело` vs `Номенклатура`, `Краткое содержание`.
 - map structured errors to safe actionable user messages.
-- strengthen destructive confirmations and empty states; include them in smoke/e2e tests.
+- destructive confirmations and empty states are strengthened; smoke/e2e coverage remains open.
 - promote stage I release checklist/smoke/known issues into maintained project docs or scripts.
 - clean worktree, commit/tag release candidate and verify reproducible release evidence.
 

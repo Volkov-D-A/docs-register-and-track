@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Col, DatePicker, Form, Input, InputNumber, Row, Select, Switch } from 'antd';
+import { Button, Col, DatePicker, Form, Input, InputNumber, Row, Select, Switch, Tooltip } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import locale from 'antd/es/date-picker/locale/ru_RU';
 
@@ -61,7 +61,12 @@ const CitizenAppealDocumentForm: React.FC<CitizenAppealDocumentFormProps> = ({
                     </Form.Item>
                 </Col>
                 <Col span={6}>
-                    <Form.Item name="receivedFromPos" label="ПОС" valuePropName="checked">
+                    <Form.Item
+                        name="receivedFromPos"
+                        label="Платформа обратной связи"
+                        tooltip="Обращение поступило через платформу обратной связи"
+                        valuePropName="checked"
+                    >
                         <Switch checkedChildren="Да" unCheckedChildren="Нет" />
                     </Form.Item>
                 </Col>
@@ -81,7 +86,12 @@ const CitizenAppealDocumentForm: React.FC<CitizenAppealDocumentFormProps> = ({
                     </Form.Item>
                 </Col>
                 <Col span={8}>
-                    <Form.Item name="receivedFromPos" label="ПОС" valuePropName="checked">
+                    <Form.Item
+                        name="receivedFromPos"
+                        label="Платформа обратной связи"
+                        tooltip="Обращение поступило через платформу обратной связи"
+                        valuePropName="checked"
+                    >
                         <Switch checkedChildren="Да" unCheckedChildren="Нет" />
                     </Form.Item>
                 </Col>
@@ -142,7 +152,7 @@ const CitizenAppealDocumentForm: React.FC<CitizenAppealDocumentFormProps> = ({
                             <div key={fieldKey} style={{ marginBottom: 12 }}>
                                 <Row gutter={12} align="top">
                                     <Col span={7}>
-                                        <Form.Item {...restField} name={[field.name, 'registrationNumber']} label="Рег. №" rules={[{ required: true, message: 'Укажите номер' }]}>
+                                        <Form.Item {...restField} name={[field.name, 'registrationNumber']} label="Регистрационный номер" rules={[{ required: true, message: 'Укажите номер' }]}>
                                             <Input />
                                         </Form.Item>
                                     </Col>
@@ -166,7 +176,9 @@ const CitizenAppealDocumentForm: React.FC<CitizenAppealDocumentFormProps> = ({
                                     {fields.length > 1 && (
                                         <Col span={2}>
                                             <Form.Item label=" " colon={false}>
-                                                <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                                <Tooltip title="Удалить корреспондента">
+                                                    <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                                </Tooltip>
                                             </Form.Item>
                                         </Col>
                                     )}
@@ -215,7 +227,9 @@ const CitizenAppealDocumentForm: React.FC<CitizenAppealDocumentFormProps> = ({
                                     {fields.length > 1 && (
                                         <Col span={2}>
                                             <Form.Item label=" " colon={false}>
-                                                <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                                <Tooltip title="Удалить резолюцию">
+                                                    <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                                </Tooltip>
                                             </Form.Item>
                                         </Col>
                                     )}

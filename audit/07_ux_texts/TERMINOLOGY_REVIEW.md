@@ -28,7 +28,7 @@
 ## Needs Business Agreement
 
 - Whether public UI should say `Дело` or official `Номенклатура`.
-- Meaning and expansion of `ПОС`.
+- Business confirmation for broader terminology; `ПОС` expansion is fixed in UI by `ISSUE-048`.
 - Whether `Краткое содержание` is still a valid business field after backend/frontend consolidation to `content`.
 
-Связанные issues: `ISSUE-045`, `ISSUE-048`.
+Связанные issues: open `ISSUE-045`; fixed `ISSUE-048`.

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Col, DatePicker, Form, Input, InputNumber, Row, Select } from 'antd';
+import { Button, Col, DatePicker, Form, Input, InputNumber, Row, Select, Tooltip } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import locale from 'antd/es/date-picker/locale/ru_RU';
 
@@ -95,7 +95,7 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
                                         <Form.Item
                                             {...restField}
                                             name={[field.name, 'registrationNumber']}
-                                            label="Рег. №"
+                                            label="Регистрационный номер"
                                             rules={[{ required: true, message: 'Укажите номер' }]}
                                         >
                                             <Input />
@@ -131,7 +131,9 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
                                     {fields.length > 1 && (
                                         <Col span={2}>
                                             <Form.Item label={index === 0 ? ' ' : ' '} colon={false}>
-                                                <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                                <Tooltip title="Удалить корреспондента">
+                                                    <Button icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                                </Tooltip>
                                             </Form.Item>
                                         </Col>
                                     )}

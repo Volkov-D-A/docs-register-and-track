@@ -42,9 +42,9 @@ Production-аудит A-I завершен. Система имеет рабоч
 - Frontend submit guards and dirty form warnings.
 - Release build reproducibility, version source and installer/update policy.
 - Release docs/runbooks now exist, but clean-clone execution evidence is still missing.
-- Full license review and remaining frontend lint warnings.
+- Remaining frontend lint warnings.
 - Frontend/e2e tests, safe integration test gate and performance baseline.
-- UX terminology and destructive confirmation safety.
+- UX terminology and UX smoke coverage for destructive/empty-state/microcopy paths.
 
 ## Verified Commands In Current Workspace
 

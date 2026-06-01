@@ -52,7 +52,7 @@ const NomenclatureTab: React.FC = () => {
         const startNumber = typeof values.nextNumber === 'number' ? values.nextNumber : 1;
         await Create(values.name, values.index, values.year, values.kindCode, values.separator, values.numberingMode, startNumber);
       }
-      message.success(editItem ? 'Обновлено' : 'Создано');
+      message.success(editItem ? 'Правило нумерации обновлено' : 'Правило нумерации создано');
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
@@ -66,7 +66,7 @@ const NomenclatureTab: React.FC = () => {
     try {
       const { Delete } = await import('../../wailsjs/go/services/NomenclatureService');
       await Delete(id);
-      message.success('Удалено');
+      message.success('Правило нумерации удалено');
       load();
     } catch (err: any) {
       message.error(formatAppError(err));
@@ -102,13 +102,20 @@ const NomenclatureTab: React.FC = () => {
       title: 'Действия', key: 'actions', width: 100,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => {
+          <Button size="small" title="Редактировать правило нумерации" icon={<EditOutlined />} onClick={() => {
             setEditItem(record);
             form.setFieldsValue(record);
             setModalOpen(true);
           }} />
-          <Popconfirm title="Удалить?" onConfirm={() => onDelete(record.id)}>
-            <Button size="small" icon={<DeleteOutlined />} danger />
+          <Popconfirm
+            title={`Удалить правило нумерации для ${getDocumentKindLabel(record.kindCode)} за ${record.year} год?`}
+            description="Это действие нельзя отменить. Новые документы больше не будут использовать это правило."
+            okText="Удалить"
+            cancelText="Отмена"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => onDelete(record.id)}
+          >
+            <Button size="small" title="Удалить правило нумерации" icon={<DeleteOutlined />} danger />
           </Popconfirm>
         </Space>
       ),
@@ -214,7 +221,7 @@ const OrganizationsTab: React.FC = () => {
         const { UpdateOrganization } = await import('../../wailsjs/go/services/ReferenceService');
         await UpdateOrganization(editItem.id, values.name);
       }
-      message.success('Обновлено');
+      message.success('Организация обновлена');
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
@@ -228,7 +235,7 @@ const OrganizationsTab: React.FC = () => {
     try {
       const { DeleteOrganization } = await import('../../wailsjs/go/services/ReferenceService');
       await DeleteOrganization(id);
-      message.success('Удалено');
+      message.success('Организация удалена');
       load();
     } catch (err: any) {
       message.error(formatAppError(err));
@@ -241,13 +248,20 @@ const OrganizationsTab: React.FC = () => {
       title: 'Действия', key: 'actions', width: 100,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => {
+          <Button size="small" title="Редактировать организацию" icon={<EditOutlined />} onClick={() => {
             setEditItem(record);
             form.setFieldsValue(record);
             setModalOpen(true);
           }} />
-          <Popconfirm title="Удалить?" onConfirm={() => onDelete(record.id)}>
-            <Button size="small" icon={<DeleteOutlined />} danger />
+          <Popconfirm
+            title={`Удалить организацию "${record.name}"?`}
+            description="Это действие нельзя отменить. Организация исчезнет из справочника."
+            okText="Удалить"
+            cancelText="Отмена"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => onDelete(record.id)}
+          >
+            <Button size="small" title="Удалить организацию" icon={<DeleteOutlined />} danger />
           </Popconfirm>
         </Space>
       ),
@@ -309,7 +323,7 @@ const ResolutionExecutorsTab: React.FC = () => {
         const { UpdateResolutionExecutor } = await import('../../wailsjs/go/services/ReferenceService');
         await UpdateResolutionExecutor(editItem.id, values.name);
       }
-      message.success('Обновлено');
+      message.success('Исполнитель обновлён');
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
@@ -323,7 +337,7 @@ const ResolutionExecutorsTab: React.FC = () => {
     try {
       const { DeleteResolutionExecutor } = await import('../../wailsjs/go/services/ReferenceService');
       await DeleteResolutionExecutor(id);
-      message.success('Удалено');
+      message.success('Исполнитель удалён');
       load();
     } catch (err: any) {
       message.error(formatAppError(err));
@@ -336,13 +350,20 @@ const ResolutionExecutorsTab: React.FC = () => {
       title: 'Действия', key: 'actions', width: 100,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => {
+          <Button size="small" title="Редактировать исполнителя" icon={<EditOutlined />} onClick={() => {
             setEditItem(record);
             form.setFieldsValue(record);
             setModalOpen(true);
           }} />
-          <Popconfirm title="Удалить?" onConfirm={() => onDelete(record.id)}>
-            <Button size="small" icon={<DeleteOutlined />} danger />
+          <Popconfirm
+            title={`Удалить исполнителя "${record.name}"?`}
+            description="Это действие нельзя отменить. Исполнитель исчезнет из справочника."
+            okText="Удалить"
+            cancelText="Отмена"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => onDelete(record.id)}
+          >
+            <Button size="small" title="Удалить исполнителя" icon={<DeleteOutlined />} danger />
           </Popconfirm>
         </Space>
       ),
@@ -416,7 +437,7 @@ const DepartmentsTab: React.FC = () => {
         const { CreateDepartment } = await import('../../wailsjs/go/services/DepartmentService');
         await CreateDepartment(values.name, values.nomenclatureIds);
       }
-      message.success(editItem ? 'Обновлено' : 'Создано');
+      message.success(editItem ? 'Подразделение обновлено' : 'Подразделение создано');
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
@@ -430,7 +451,7 @@ const DepartmentsTab: React.FC = () => {
     try {
       const { DeleteDepartment } = await import('../../wailsjs/go/services/DepartmentService');
       await DeleteDepartment(id);
-      message.success('Удалено');
+      message.success('Подразделение удалено');
       load();
     } catch (err: any) {
       message.error(formatAppError(err));
@@ -443,13 +464,20 @@ const DepartmentsTab: React.FC = () => {
       title: 'Действия', key: 'actions', width: 100,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => {
+          <Button size="small" title="Редактировать подразделение" icon={<EditOutlined />} onClick={() => {
             setEditItem(record);
             form.setFieldsValue(record);
             setModalOpen(true);
           }} />
-          <Popconfirm title="Удалить?" onConfirm={() => onDelete(record.id)}>
-            <Button size="small" icon={<DeleteOutlined />} danger />
+          <Popconfirm
+            title={`Удалить подразделение "${record.name}"?`}
+            description="Это действие нельзя отменить. Подразделение исчезнет из справочника."
+            okText="Удалить"
+            cancelText="Отмена"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => onDelete(record.id)}
+          >
+            <Button size="small" title="Удалить подразделение" icon={<DeleteOutlined />} danger />
           </Popconfirm>
         </Space>
       ),
@@ -644,7 +672,7 @@ const UsersTab: React.FC = () => {
         });
         await UpdateUserAccessProfile(buildAccessRequest(createdUser.id, values));
       }
-      message.success(editItem ? 'Обновлено' : 'Создано');
+      message.success(editItem ? 'Пользователь обновлён' : 'Пользователь создан');
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
@@ -658,7 +686,7 @@ const UsersTab: React.FC = () => {
     try {
       const { ResetPassword } = await import('../../wailsjs/go/services/UserService');
       await ResetPassword(editItem.id, values.newPassword);
-      message.success('Пароль успешно изменен');
+      message.success('Пароль успешно изменён');
       setPasswordModalOpen(false);
       passwordForm.resetFields();
       setEditItem(null);
@@ -715,11 +743,11 @@ const UsersTab: React.FC = () => {
       title: 'Действия', key: 'actions', width: 120,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => { void openEditModal(record); }} />
-          <Button size="small" icon={<KeyOutlined />} onClick={() => {
+          <Button size="small" title="Редактировать пользователя" icon={<EditOutlined />} onClick={() => { void openEditModal(record); }} />
+          <Button size="small" title="Сменить пароль пользователя" icon={<KeyOutlined />} onClick={() => {
             setEditItem(record);
             setPasswordModalOpen(true);
-          }} title="Сменить пароль" />
+          }} />
         </Space>
       ),
     },
@@ -1007,7 +1035,7 @@ const MigrationsTab: React.FC = () => {
         acknowledgedDataLoss: values.acknowledgedDataLoss,
         confirmation: values.confirmation,
       });
-      message.success('Миграция успешно откачена');
+      message.success('Откат миграции выполнен');
       setRollbackModalOpen(false);
       await loadStatus();
     } catch (err: any) {
@@ -1049,7 +1077,7 @@ const MigrationsTab: React.FC = () => {
               ) : status.schemaTooNew ? (
                 <Tag icon={<WarningOutlined />} color="error">Схема новее приложения</Tag>
               ) : status.dirty ? (
-                <Tag icon={<WarningOutlined />} color="error">Ошибка миграции (dirty)</Tag>
+                <Tag icon={<WarningOutlined />} color="error">Миграция завершилась с ошибкой</Tag>
               ) : (
                 <Tag icon={<WarningOutlined />} color="warning">Требуется обновление</Tag>
               )}
@@ -1077,7 +1105,7 @@ const MigrationsTab: React.FC = () => {
           loading={rollingBack}
           disabled={!status?.currentVersion || status?.schemaTooNew}
         >
-          Откатить последнюю
+          Откатить последнюю миграцию
         </Button>
       </Space>
       <div>
@@ -1087,11 +1115,11 @@ const MigrationsTab: React.FC = () => {
       </div>
 
       <Modal
-        title="Откат миграции"
+        title="Откатить последнюю миграцию?"
         open={rollbackModalOpen}
         onCancel={() => setRollbackModalOpen(false)}
         onOk={onConfirmRollback}
-        okText="Откатить"
+        okText="Откатить миграцию"
         cancelText="Отмена"
         okButtonProps={{ danger: true, loading: rollingBack }}
         confirmLoading={rollingBack}
@@ -1162,8 +1190,8 @@ const StorageTab: React.FC = () => {
 
     modal.confirm({
       title: 'Массовое удаление файлов',
-      content: `Внимание! Это действие безвозвратно удалит все файлы, загруженные до ${selectedDate.format('DD.MM.YYYY')}. Продолжить?`,
-      okText: 'Да, удалить',
+      content: `Это действие безвозвратно удалит все файлы, загруженные до ${selectedDate.format('DD.MM.YYYY')}. Убедитесь, что нужные вложения сохранены в резервной копии.`,
+      okText: 'Удалить файлы',
       cancelText: 'Отмена',
       okType: 'danger',
       onOk: async () => {
@@ -1171,7 +1199,7 @@ const StorageTab: React.FC = () => {
         try {
           const { BulkDeleteOlderThan } = await import('../../wailsjs/go/services/AttachmentService');
           const count = await BulkDeleteOlderThan(selectedDate.toISOString());
-          message.success(`Успешно удалено файлов: ${count}`);
+          message.success(`Удалено файлов: ${count}`);
         } catch (err: any) {
           message.error(formatAppError(err));
         }
@@ -1191,7 +1219,7 @@ const StorageTab: React.FC = () => {
       }}>
         <Typography.Paragraph type="warning" strong style={{ marginBottom: 0 }}>
           <WarningOutlined style={{ marginRight: 8 }} />
-          Осторожно: удаленные файлы невозможно восстановить средствами системы.
+          Осторожно: удалённые файлы невозможно восстановить средствами системы.
         </Typography.Paragraph>
       </div>
       <Form layout="vertical">
@@ -1291,7 +1319,7 @@ const AuditLogTab: React.FC = () => {
   return (
     <div>
       <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ReloadOutlined />} onClick={() => load(page)}>Обновить</Button>
+        <Button title="Обновить журнал администрирования" icon={<ReloadOutlined />} onClick={() => load(page)}>Обновить</Button>
       </Space>
       <Table
         columns={columns}

@@ -24,16 +24,16 @@
 | Production config and secrets | `ISSUE-025`, `ISSUE-028`, `ISSUE-029` |
 | Backup/restore and filesystem safety | none |
 | Backend lifecycle/logging | `ISSUE-015`, `ISSUE-016` |
-| Frontend safety and errors | `ISSUE-020`, `ISSUE-021`, `ISSUE-044`, `ISSUE-046` |
+| Frontend safety and errors | `ISSUE-020`, `ISSUE-021`, `ISSUE-044` |
 | Build/install/update | `ISSUE-023`, `ISSUE-024`, `ISSUE-026` |
-| Security/license/static analysis | `ISSUE-037` |
+| Security/license/static analysis | none |
 | Test/performance evidence | `ISSUE-038`, `ISSUE-039`, `ISSUE-040`, `ISSUE-041`, `ISSUE-042`, `ISSUE-043` |
 | UX terminology | `ISSUE-045` |
 | Documentation/release readiness | `ISSUE-051`, `ISSUE-053` |
 
 ## Postponable Minor Issues
 
-`ISSUE-009`, `ISSUE-011`, `ISSUE-022`, `ISSUE-047`, `ISSUE-048`, `ISSUE-049`.
+`ISSUE-009`, `ISSUE-011`, `ISSUE-022`.
 
 These are not production blockers by themselves, but several are good follow-ups after critical/major remediation.
 

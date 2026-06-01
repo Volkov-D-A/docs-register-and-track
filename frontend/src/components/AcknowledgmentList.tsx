@@ -48,7 +48,7 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
         try {
             const { Delete } = await import('../../wailsjs/go/services/AcknowledgmentService');
             await Delete(id);
-            message.success('Удалено');
+            message.success('Задача ознакомления удалена');
             load();
         } catch (err: unknown) {
             message.error(formatAppError(err));
@@ -103,8 +103,15 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
                 return (
                     <Space size={2}>
                         {canDelete && (
-                            <Popconfirm title="Удалить задачу ознакомления?" onConfirm={() => onDelete(r.id)}>
-                                <Button size="small" icon={<DeleteOutlined />} danger />
+                            <Popconfirm
+                                title="Удалить задачу ознакомления?"
+                                description="Это действие нельзя отменить. Сотрудник больше не увидит эту задачу в списке ознакомления."
+                                okText="Удалить"
+                                cancelText="Отмена"
+                                okButtonProps={{ danger: true }}
+                                onConfirm={() => onDelete(r.id)}
+                            >
+                                <Button size="small" title="Удалить задачу ознакомления" icon={<DeleteOutlined />} danger />
                             </Popconfirm>
                         )}
                     </Space>

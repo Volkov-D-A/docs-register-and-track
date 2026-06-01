@@ -30,7 +30,7 @@
 
 ### Сокращения
 
-Examples:
+Original examples before remediation:
 
 - `ПОС`;
 - `Рег. №`;
@@ -43,6 +43,8 @@ Examples:
 - `Регистрационный №`;
 - `Просроченные`;
 - `Ближайшие 3 дня`.
+
+Current status: fixed in `ISSUE-048` for known UI occurrences. `ПОС` is expanded to `Платформа обратной связи`, `Рег. №` labels are replaced with `Регистрационный номер`, assignment quick filters now use `Просроченные` and `До 3 дней`, and generic search placeholders are more specific.
 
 ### Placeholders
 
@@ -71,4 +73,4 @@ Examples:
 | `Не действующий` | `Недействующий` |
 | `Контролер` | `Контролёр` or `Контролирующий` |
 
-Связанные issues: `ISSUE-045`, `ISSUE-048`.
+Связанные issues: open `ISSUE-045`; fixed `ISSUE-048`.

@@ -179,7 +179,7 @@ const OrdersPage: React.FC = () => {
                 id: editDoc.id,
                 ...buildPayload(values),
             });
-            message.success('Приказ обновлен');
+            message.success('Приказ обновлён');
             closeEditModal();
             editForm.resetFields();
             load();

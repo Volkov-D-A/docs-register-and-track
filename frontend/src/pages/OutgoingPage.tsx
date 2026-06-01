@@ -190,7 +190,7 @@ const OutgoingPage: React.FC = () => {
                 senderSignatory: values.senderSignatory,
                 senderExecutor: values.senderExecutor,
             });
-            message.success('Документ обновлен');
+            message.success('Документ обновлён');
             closeEditModal();
             editForm.resetFields();
             load();

@@ -127,7 +127,7 @@
 Что изменено: Закрыт `ISSUE-033`: добавлены Makefile targets `release-gate`, `security-gate`, `govulncheck`, `npm-audit`, `npm-license-check`, `license-inventory`; release docs point to `make release-gate`.
 Затронутые файлы: `Makefile`, `.gitignore`, `README.md`, `docs/release_runbook.md`, audit release/security docs.
 Затронутые пункты плана: F.01.181-F.02.189, H.02.
-Что перепроверить: release gate succeeds on clean machine; fails on known vulnerable dependency; npm audit; npm GPL-family license check; dependency inventories; go vet; npm lint/build. Full unknown-license policy remains under `ISSUE-037`.
+Что перепроверить: release gate succeeds on clean machine; fails on known vulnerable dependency; npm audit; unknown/disallowed license check; dependency inventories; go vet; npm lint/build.
 Что не нужно перепроверять: database migration semantics unless Go module updates affect runtime behavior.
 
 ## CHANGE-017
@@ -172,7 +172,7 @@
 
 ## CHANGE-022
 
-Что изменено: Планируется безопасная UX-карта ошибок and stronger destructive confirmations по `DECISION-018`.
+Что изменено: Закрыт `ISSUE-046`: destructive confirmations now name affected entity and consequence for reference deletes, file delete, document link delete, assignment delete, acknowledgment delete, migration rollback and bulk file delete. Safe UX error map remains under `ISSUE-044`.
 Затронутые файлы: frontend error adapter/catch handlers, Modal/Popconfirm destructive actions, Settings migration/storage actions, file/assignment/reference deletes.
 Затронутые пункты плана: H.03.232-H.03.240, G.04.218-G.04.220.
 Что перепроверить: login/locked account; validation errors; forbidden; not found; conflict/idempotency; DB/MinIO failures; file delete; assignment delete; reference delete; migration rollback; bulk file delete.
@@ -180,7 +180,7 @@
 
 ## CHANGE-023
 
-Что изменено: Планируется улучшение empty states, placeholders, tooltips and style consistency.
+Что изменено: Закрыты `ISSUE-047`, `ISSUE-048` and `ISSUE-049`: empty states now include next steps; known unclear abbreviations/placeholders and key icon-only actions now have expanded labels or title/tooltip hints; audited microcopy/style strings now use action-specific Russian copy and avoid visible `dirty`/`N/A`.
 Затронутые файлы: frontend list/table/chart/file components, filters, visible text constants.
 Затронутые пункты плана: H.02.228-H.02.231, H.03.238, H.04.241-H.04.245.
 Что перепроверить: empty document lists; empty assignments; empty statistics charts; files tab with/without upload permission; keyboard/tooltip accessibility; mobile/narrow layouts for longer labels.

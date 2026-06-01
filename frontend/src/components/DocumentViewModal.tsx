@@ -211,7 +211,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             <Row gutter={16}>
                 <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>Вид:</Text> <Tag>{doc.appealType}</Tag></Col>
                 <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>Конверт:</Text> {doc.hasEnvelope ? 'Да' : 'Нет'}</Col>
-                <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>ПОС:</Text> {doc.receivedFromPos ? 'Да' : 'Нет'}</Col>
+                <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>Платформа обратной связи:</Text> {doc.receivedFromPos ? 'Да' : 'Нет'}</Col>
             </Row>
 
             <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
@@ -317,13 +317,13 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                                     <div style={{ fontWeight: 500 }}>{person.fullName}</div>
                                     <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
                                         {person.acknowledgedAt
-                                            ? `Ознакомлен: ${dayjs(person.acknowledgedAt).format('DD.MM.YYYY HH:mm')}${person.acknowledgedByName ? `, ${person.acknowledgedByName}` : ''}`
+                                            ? `Ознакомлён: ${dayjs(person.acknowledgedAt).format('DD.MM.YYYY HH:mm')}${person.acknowledgedByName ? `, ${person.acknowledgedByName}` : ''}`
                                             : 'Ожидает ознакомления'}
                                     </div>
                                 </div>
                                 {!person.acknowledgedAt && canUpdateDocument && (
                                     <Button size="small" type="primary" onClick={() => markOrderAcknowledged(person.id)}>
-                                        Отметить
+                                        Отметить ознакомление
                                     </Button>
                                 )}
                             </div>

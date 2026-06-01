@@ -231,10 +231,10 @@
 ## RISK-026
 
 Категория: Release/Security Gates
-Описание: Repeatable security/dependency release gate added after `ISSUE-033`: `make release-gate` runs `govulncheck`, `npm audit`, `go vet`, `go test`, `npm run build`, npm GPL-family license check and dependency inventory generation. Residual license-policy risk remains until `ISSUE-037` resolves unknown/full license review.
+Описание: Repeatable security/dependency release gate added after `ISSUE-033` and license policy completed after `ISSUE-037`: `make release-gate` runs `govulncheck`, `npm audit`, `go vet`, `go test`, `npm run lint`, `npm run build`, npm/Go license report generation, unknown-license blocking and GPL/LGPL/AGPL-family blocking.
 Вероятность: low
 Влияние: high
-Митигирующее действие: Run `make release-gate` from clean checkout; resolve full license inventory/policy under `ISSUE-037`.
+Митигирующее действие: Run `make release-gate` from clean checkout; archive `build/release-evidence/LICENSE_REPORT.md` with release evidence and notices.
 Ответственный этап: F, H
 
 ## RISK-027
@@ -303,10 +303,10 @@
 ## RISK-034
 
 Категория: UX/Safety
-Описание: Destructive confirmations do not always name the affected entity or consequence, increasing operator error risk.
-Вероятность: medium
+Описание: Destructive confirmations now name the affected entity and consequence after `ISSUE-046`; remaining residual risk is lack of automated e2e/smoke coverage for these paths.
+Вероятность: low
 Влияние: high
-Митигирующее действие: Strengthen destructive copy and include these paths in smoke/e2e tests.
+Митигирующее действие: Keep strengthened destructive copy; include file delete, assignment delete, reference delete, migration rollback and bulk file delete in smoke/e2e tests under `ISSUE-043`.
 Ответственный этап: H, I
 
 ## RISK-035

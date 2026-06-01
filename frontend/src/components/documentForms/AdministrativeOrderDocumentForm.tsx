@@ -115,7 +115,7 @@ const AdministrativeOrderDocumentForm: React.FC<AdministrativeOrderDocumentFormP
                         const person = lockedByName.get(normalizeName(String(value)));
                         const isLocked = !!person;
                         const title = isLocked
-                            ? `Ознакомлен: ${dayjs(person.acknowledgedAt).format('DD.MM.YYYY HH:mm')}${person.acknowledgedByName ? `, ${person.acknowledgedByName}` : ''}`
+                            ? `Ознакомлён: ${dayjs(person.acknowledgedAt).format('DD.MM.YYYY HH:mm')}${person.acknowledgedByName ? `, ${person.acknowledgedByName}` : ''}`
                             : undefined;
 
                         return (

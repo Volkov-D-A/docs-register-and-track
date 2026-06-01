@@ -85,7 +85,7 @@ const AdministrativeOrderFilters: React.FC<AdministrativeOrderFiltersProps> = ({
         </Row>
         <Row gutter={16}>
             <Col span={8}>
-                <Checkbox checked={filterOnlyPendingAcknowledgment} onChange={e => onOnlyPendingAcknowledgmentChange(e.target.checked)}>Незавершенное ознакомление</Checkbox>
+                <Checkbox checked={filterOnlyPendingAcknowledgment} onChange={e => onOnlyPendingAcknowledgmentChange(e.target.checked)}>Незавершённое ознакомление</Checkbox>
             </Col>
         </Row>
         {hasFilters && (

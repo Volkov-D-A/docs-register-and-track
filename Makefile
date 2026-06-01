@@ -62,12 +62,13 @@ npm-audit:
 	cd $(FRONTEND_DIR) && npm audit --audit-level=critical
 
 npm-license-check:
-	cd $(FRONTEND_DIR) && node -e 'const fs=require("fs"); const lock=JSON.parse(fs.readFileSync("package-lock.json","utf8")); const bad=[]; for (const [path,pkg] of Object.entries(lock.packages||{})) { if (!path) continue; const license=String(pkg.license||""); if (/(^|[^A-Z])(AGPL|GPL|LGPL)([^A-Z]|$$)/i.test(license)) bad.push(path+": "+license); } if (bad.length) { console.error("Disallowed npm licenses found:\n"+bad.join("\n")); process.exit(1); }'
+	node tools/license-report.js
 
 license-inventory:
 	mkdir -p $(RELEASE_EVIDENCE_DIR)
 	go list -m -json all > $(RELEASE_EVIDENCE_DIR)/go-modules.json
 	cd $(FRONTEND_DIR) && npm ls --all --json > ../$(RELEASE_EVIDENCE_DIR)/npm-dependencies.json
+	node tools/license-report.js
 
 security-gate: govulncheck npm-audit npm-license-check
 

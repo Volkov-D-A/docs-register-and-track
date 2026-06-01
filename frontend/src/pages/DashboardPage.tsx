@@ -73,7 +73,7 @@ const DashboardPage: React.FC = () => {
         try {
             const { MarkConfirmed } = await import('../../wailsjs/go/services/AcknowledgmentService');
             await MarkConfirmed(id);
-            message.success('Ознакомлен');
+            message.success('Ознакомление подтверждено');
             loadStats();
         } catch (err: unknown) {
             message.error(formatAppError(err));
@@ -90,7 +90,14 @@ const DashboardPage: React.FC = () => {
     const ExpiringList = ({ list, title = 'Истекающий срок исполнения' }: any) => (
         <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
             {(!list || list.length === 0) ? (
-                <Empty description="Нет поручений" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                <Empty
+                    description={
+                        <span>
+                            Срочных поручений нет. Проверьте этот блок позже или обновите дашборд.
+                        </span>
+                    }
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {list.map((item: any) => {
@@ -145,7 +152,14 @@ const DashboardPage: React.FC = () => {
         return (
             <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
                 {!hasItems ? (
-                    <Empty description="Нет документов" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                    <Empty
+                        description={
+                            <span>
+                                Документов для ознакомления нет. Новые задачи появятся здесь после назначения.
+                            </span>
+                        }
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {pendingAcks.map((item: any) => (
@@ -248,7 +262,7 @@ const DashboardPage: React.FC = () => {
 
     const renderAdminView = () => (
         <Card variant="borderless" style={{ borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
-            <Empty description="Для администратора оперативная активность не отображается" />
+            <Empty description="Оперативная активность администратора не отображается. Используйте раздел статистики или журнал администрирования для контроля системы." />
         </Card>
     );
 

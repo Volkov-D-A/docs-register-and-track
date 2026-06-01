@@ -46,7 +46,7 @@ const ProfilePage: React.FC = () => {
     const handleUpdateProfile = async (values: { login: string; fullName: string }) => {
         try {
             await updateProfile(values.login, values.fullName);
-            message.success('Профиль успешно обновлен');
+            message.success('Профиль успешно обновлён');
             setIsEditingProfile(false);
         } catch (err) {
             // Ошибка уже обработана в store
@@ -56,7 +56,7 @@ const ProfilePage: React.FC = () => {
     const handleChangePassword = async (values: any) => {
         try {
             await changePassword(values.oldPassword, values.newPassword);
-            message.success('Пароль успешно изменен');
+            message.success('Пароль успешно изменён');
             passwordForm.resetFields();
             setIsChangingPassword(false);
         } catch (err) {

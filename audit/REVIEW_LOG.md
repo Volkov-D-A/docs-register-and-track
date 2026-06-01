@@ -429,7 +429,7 @@ Severity: major
 Проблема: В репозитории нет закрепленного security/dependency/license gate. `npm audit` and `govulncheck` выполнялись вручную; Go/npm license inventory не включен в release process.
 Почему важно: Уязвимости и license blockers могут попасть в production artifact незамеченными при следующем обновлении зависимостей.
 Рекомендация: Добавить release gate: `govulncheck ./...`, `npm audit --audit-level=critical`, Go/npm license report, `go vet`, `go test`, `npm run build`.
-Проверка после исправления: Added maintained `make release-gate` target that runs `go test`, `go vet`, `govulncheck`, `npm run build`, `npm audit --audit-level=critical`, npm GPL-family license check and dependency inventory generation under ignored `build/release-evidence/`. Added `make security-gate` for vulnerability/security subset. README and release runbook now point to the gate. Проверено: `make release-gate` passed. Full unknown-license resolution remains tracked by `ISSUE-037`; frontend lint/static analysis is fixed by `ISSUE-034`.
+Проверка после исправления: Added maintained `make release-gate` target that runs `go test`, `go vet`, `govulncheck`, `npm run build`, `npm audit --audit-level=critical`, license checks and dependency inventory generation under ignored `build/release-evidence/`. Added `make security-gate` for vulnerability/security subset. README and release runbook now point to the gate. Проверено: `make release-gate` passed. Full unknown-license resolution is fixed by `ISSUE-037`; frontend lint/static analysis is fixed by `ISSUE-034`.
 Связанные пункты: E.01.154, F.01, F.02.185, H.02
 
 ## ISSUE-034
@@ -476,12 +476,12 @@ Severity: minor
 Категория: Licenses
 Пункт плана: F.02.185
 Severity: major
-Статус: open
+Статус: fixed
 Место: npm/go dependency license inventory
 Проблема: npm lockfile scan found one unknown license package (`@antv/g2-extension-plot@0.2.2`); no Go transitive license inventory tool/report is configured.
 Почему важно: Production desktop redistribution needs license compatibility and notices. Unknown license or unreviewed Go transitive licenses can block release late.
 Рекомендация: Generate npm and Go license reports, resolve unknown package license from upstream package metadata/source, define allowed/blocked license policy.
-Проверка после исправления: License report has no unknown/disallowed licenses; required notices included in release artifact or docs.
+Проверка после исправления: Added `tools/license-report.js` and wired it into `npm-license-check`/`license-inventory`. The report scans npm lockfile and Go modules, resolves `@antv/g2-extension-plot@0.2.2` as MIT via package `LICENSE`, blocks unknown licenses and GPL/LGPL/AGPL family licenses, and writes `build/release-evidence/LICENSE_REPORT.md`. Проверено: `node tools/license-report.js` completed with 349 npm packages, 316 Go modules, 0 unknown licenses and 0 disallowed licenses.
 Связанные пункты: F.02.185, H.02
 
 ## ISSUE-038
@@ -584,7 +584,7 @@ Severity: major
 Место: document forms, document view, settings, glossary
 Проблема: Термины используются неодинаково: `вид документа` используется там, где по glossary нужен `тип документа`; `дело` и `номенклатура` обозначают одну сущность; `исполнитель` используется для разных ролей; `содержание` and `краткое содержание` смешиваются.
 Почему важно: Ошибка терминологии может привести к неверному заполнению документов и неправильному пониманию прав/обязанностей.
-Рекомендация: Принять UX-терминологию из `TERMS_GLOSSARY.md` and apply consistently. Согласовать спорные термины с бизнесом: `Дело` vs `Номенклатура`, `Краткое содержание`, `ПОС`.
+Рекомендация: Принять UX-терминологию из `TERMS_GLOSSARY.md` and apply consistently. Согласовать спорные термины с бизнесом: `Дело` vs `Номенклатура`, `Краткое содержание`. `ПОС` expansion is fixed under `ISSUE-048`.
 Проверка после исправления: Review all document forms/views/settings and smoke document registration/edit flows.
 Связанные пункты: H.02, H.04, I.01
 
@@ -593,12 +593,12 @@ Severity: major
 Категория: UX/Destructive Actions
 Пункт плана: H.03.236, H.03.237, H.05.249
 Severity: major
-Статус: open
+Статус: fixed
 Место: Popconfirm/Modal confirmations
 Проблема: Destructive confirmations часто слишком короткие: `Удалить?`, `Удалить файл?`, `Откатить последнюю`. Они не всегда называют сущность and consequence.
 Почему важно: Пользователь может подтвердить destructive action без понимания, что именно будет удалено/откачено and whether it can be undone.
 Рекомендация: Confirmation copy must name entity and consequence: `Удалить поручение? Это действие нельзя отменить.` For migration rollback include backup requirement.
-Проверка после исправления: Smoke destructive actions: file delete, assignment delete, reference delete, migration rollback, bulk file delete.
+Проверка после исправления: Strengthened destructive confirmation copy for reference deletes, file delete, document link delete, assignment delete, acknowledgment delete, migration rollback and bulk file delete. Confirmations now name affected entity and consequence; rollback button/modal explicitly says `Откатить последнюю миграцию` and keeps backup/data-loss requirements. Проверено: `rg` found no old `Удалить?`/`Удалить файл?`/`Удалить связь?` copy in `frontend/src`; `npm run build` passed; `npm run lint` passed with existing warnings only.
 Связанные пункты: B.06, E.03, G.04.218, H.03
 
 ## ISSUE-047
@@ -606,12 +606,12 @@ Severity: major
 Категория: UX/Empty States
 Пункт плана: H.03.238
 Severity: minor
-Статус: open
+Статус: fixed
 Место: tables, files, statistics charts
 Проблема: Empty states mostly only say there is no data: `Нет прикрепленных файлов`, default AntD Empty, `Нет доступа к статистике`. They rarely explain next action.
 Почему важно: Empty screen can feel like dead end, especially for first-run/new users.
 Рекомендация: Add action-aware empty states based on permissions: how to add data, change filters, or request access.
-Проверка после исправления: Empty document lists, files tab, statistics charts, assignments list, no-access states.
+Проверка после исправления: Added action-aware empty states for dashboard assignment/acknowledgment cards, admin dashboard placeholder, file attachments, document links, statistics charts, statistics no-access state and statistics report/rating tables. Copy now explains whether to upload/add, wait for assignment, change period/filter or request access. Проверено: `rg` found no old passive empty strings in `frontend/src`; `npm run build` passed; `npm run lint` passed with existing warnings only.
 Связанные пункты: H.03.238, G.02.198
 
 ## ISSUE-048
@@ -619,12 +619,12 @@ Severity: minor
 Категория: UX/Labels
 Пункт плана: H.02.228, H.02.230, H.04.245, H.05.249
 Severity: minor
-Статус: open
+Статус: fixed
 Место: filters/forms/icon buttons
 Проблема: Some labels/placeholders use unclear abbreviations: `ПОС`, `Рег. №`, `Проср.`, `< 3 дней`, generic `Поиск...`; some icon buttons lack consistent tooltips.
 Почему важно: Users may not understand filters/actions without prior knowledge; accessibility and learnability suffer.
 Рекомендация: Expand abbreviations or add tooltip/help; make placeholders specific; add consistent tooltips for icon-only actions.
-Проверка после исправления: Forms/filters/tooltips in documents, assignments, statistics.
+Проверка после исправления: Expanded `ПОС` to `Платформа обратной связи`, replaced `Рег. №` labels with `Регистрационный номер`, changed generic assignment/document search placeholders and date quick filters (`Проср.`/`< 3 дней`) to explicit copy, and added title/tooltip hints for key icon-only view/edit/delete/clear actions in document lists, assignments, settings, files and links. Проверено: `rg` found no old `ПОС`/`Рег. №`/`Проср.`/`< 3 дней`/`Поиск...` strings in `frontend/src`; `npm run build` passed; `npm run lint` passed with existing warnings only.
 Связанные пункты: H.02, H.04.245
 
 ## ISSUE-049
@@ -632,12 +632,12 @@ Severity: minor
 Категория: UX/Microcopy Style
 Пункт плана: H.03.235, H.04.241, H.04.243, H.04.244
 Severity: minor
-Статус: open
+Статус: fixed
 Место: success messages, statuses, table/tooltips
 Проблема: Microcopy is inconsistent: `Удалено`, `Статус обновлен`, `Документ обновлён`, `завершен`, `dirty`, `N/A`. There is mixed `е/ё` and occasional English technical terms.
 Почему важно: Not a blocker, but reduces polish and can confuse non-technical users.
 Рекомендация: Adopt style guide: neutral Russian, consistent `ё`, no English technical statuses in user UI, specific success messages.
-Проверка после исправления: Visual pass through all main flows; H smoke list.
+Проверка после исправления: Replaced generic success messages with action-specific copy for settings CRUD, assignments, acknowledgments, files and profile actions; normalized visible `ё` in updated/deleted/finished/status strings; replaced migration `dirty` UI text with safe Russian copy; replaced statistics `N/A` with `Нет данных`; changed short action `Исполнено`/`Отметить` buttons to verb-first labels. Проверено: `npm run build` passed; `npm run lint` passed with existing warnings only; exact search found no old `Статус обновлен`, `Документ обновлен`, `Приказ обновлен`, `Файл удален`, `Файл сохранен`, `N/A`, `Ошибка миграции (dirty)` or `okText="Исполнено"` strings in `frontend/src`.
 Связанные пункты: H.04, H.05
 
 ## ISSUE-050

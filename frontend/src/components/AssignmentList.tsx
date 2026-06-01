@@ -58,7 +58,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
         try {
             const { Delete } = await import('../../wailsjs/go/services/AssignmentService');
             await Delete(id);
-            message.success('Удалено');
+            message.success('Поручение удалено');
             load();
         } catch (err: unknown) {
             message.error(formatAppError(err));
@@ -69,7 +69,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
         try {
             const { UpdateStatus } = await import('../../wailsjs/go/services/AssignmentService');
             await UpdateStatus(id, status, report);
-            message.success('Статус обновлен');
+            message.success('Статус поручения обновлён');
             load();
         } catch (err: unknown) {
             message.error(formatAppError(err));
@@ -133,7 +133,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
                             text = 'Исполнено';
                         }
                         break;
-                    case 'finished': color = 'geekblue'; text = 'Завершен'; break;
+                    case 'finished': color = 'geekblue'; text = 'Завершён'; break;
                     case 'cancelled': color = 'red'; text = 'Отменено'; break;
                     case 'returned': color = 'volcano'; text = 'Возврат'; break;
                 }
@@ -150,9 +150,16 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
                     <Space size={2}>
                         {canEdit && (
                             <>
-                                <Button size="small" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />
-                                <Popconfirm title="Удалить поручение?" onConfirm={() => onDelete(r.id)}>
-                                    <Button size="small" icon={<DeleteOutlined />} danger />
+                                <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />
+                                <Popconfirm
+                                    title="Удалить поручение?"
+                                    description="Это действие нельзя отменить. Поручение исчезнет из документа и списка исполнителя."
+                                    okText="Удалить"
+                                    cancelText="Отмена"
+                                    okButtonProps={{ danger: true }}
+                                    onConfirm={() => onDelete(r.id)}
+                                >
+                                    <Button size="small" title="Удалить поручение" icon={<DeleteOutlined />} danger />
                                 </Popconfirm>
                             </>
                         )}

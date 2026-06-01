@@ -120,7 +120,7 @@ const AssignmentsPage: React.FC = () => {
         try {
             const { UpdateStatus } = await import('../../wailsjs/go/services/AssignmentService');
             await UpdateStatus(id, status, report);
-            message.success('Статус обновлен');
+            message.success('Статус поручения обновлён');
             load();
         } catch (err: any) {
             message.error(formatAppError(err));
@@ -142,7 +142,7 @@ const AssignmentsPage: React.FC = () => {
         try {
             const { Delete } = await import('../../wailsjs/go/services/AssignmentService');
             await Delete(id);
-            message.success('Удалено');
+            message.success('Поручение удалено');
             load();
         } catch (err: any) {
             message.error(formatAppError(err));
@@ -249,7 +249,7 @@ const AssignmentsPage: React.FC = () => {
                             text = 'Исполнено';
                         }
                         break;
-                    case 'finished': color = 'geekblue'; text = 'Завершен'; break;
+                    case 'finished': color = 'geekblue'; text = 'Завершён'; break;
                     case 'cancelled': color = 'red'; text = 'Отменено'; break;
                     case 'returned': color = 'volcano'; text = 'Возврат'; break;
                 }
@@ -270,9 +270,16 @@ const AssignmentsPage: React.FC = () => {
                         </Tooltip>
                         {canEdit && (
                             <>
-                                <Button size="small" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />
-                                <Popconfirm title="Удалить?" onConfirm={() => onDelete(r.id)}>
-                                    <Button size="small" icon={<DeleteOutlined />} danger />
+                                <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />
+                                <Popconfirm
+                                    title="Удалить поручение?"
+                                    description="Это действие нельзя отменить. Поручение исчезнет из документа и списка исполнителя."
+                                    okText="Удалить"
+                                    cancelText="Отмена"
+                                    okButtonProps={{ danger: true }}
+                                    onConfirm={() => onDelete(r.id)}
+                                >
+                                    <Button size="small" title="Удалить поручение" icon={<DeleteOutlined />} danger />
                                 </Popconfirm>
                             </>
                         )}
@@ -319,7 +326,7 @@ const AssignmentsPage: React.FC = () => {
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Title level={4} style={{ margin: 0 }}>Поручения</Title>
-                <Input.Search placeholder="Поиск..." allowClear onSearch={setSearch} style={{ width: 250 }} prefix={<SearchOutlined />} />
+                <Input.Search placeholder="Поиск по тексту поручения или документу" allowClear onSearch={setSearch} style={{ width: 320 }} prefix={<SearchOutlined />} />
             </div>
 
 
@@ -332,16 +339,16 @@ const AssignmentsPage: React.FC = () => {
                             <Select.Option value="new">Новое</Select.Option>
                             <Select.Option value="in_progress">В работе</Select.Option>
                             <Select.Option value="completed">Исполнено</Select.Option>
-                            {showFinished && <Select.Option value="finished">Завершен</Select.Option>}
+                            {showFinished && <Select.Option value="finished">Завершён</Select.Option>}
                             <Select.Option value="returned">Возврат</Select.Option>
                         </Select>
                     </Col>
                     <Col span={10}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                             <Space size="small" style={{ marginRight: 8, flexShrink: 0 }}>
-                                <Button size="small" type={filterOverdue ? 'primary' : 'link'} onClick={setDateFilterOverdue} style={filterOverdue ? {} : { padding: 0 }}>Проср.</Button>
+                                <Button size="small" type={filterOverdue ? 'primary' : 'link'} onClick={setDateFilterOverdue} style={filterOverdue ? {} : { padding: 0 }}>Просроченные</Button>
                                 <Button size="small" type="link" onClick={setDateFilterToday} style={{ padding: 0 }}>Сегодня</Button>
-                                <Button size="small" type="link" onClick={setDateFilterLess3Days} style={{ padding: 0 }}>&lt; 3 дней</Button>
+                                <Button size="small" type="link" onClick={setDateFilterLess3Days} style={{ padding: 0 }}>До 3 дней</Button>
                             </Space>
                             <RangePicker style={{ flex: 1 }} format="DD.MM.YYYY"
                                 value={filterDateFrom && filterDateTo ? [dayjs(filterDateFrom), dayjs(filterDateTo)] : null}
@@ -371,12 +378,14 @@ const AssignmentsPage: React.FC = () => {
                                     setFilterStatus('');
                                 }
                             }} />
-                            <Text style={{ fontSize: 12 }}>Показать<br />завершенные</Text>
+                            <Text style={{ fontSize: 12 }}>Показать<br />завершённые</Text>
                         </Space>
                     </Col>
                     <Col span={2} style={{ textAlign: 'right' }}>
                         {hasFilters && (
-                            <Button icon={<ClearOutlined />} onClick={clearFilters} />
+                            <Tooltip title="Сбросить фильтры">
+                                <Button icon={<ClearOutlined />} onClick={clearFilters} />
+                            </Tooltip>
                         )}
                     </Col>
                 </Row>

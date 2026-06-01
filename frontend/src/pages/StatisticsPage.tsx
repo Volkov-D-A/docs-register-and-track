@@ -66,9 +66,9 @@ const StatCard = ({ title, value, icon, color = '#1677ff', suffix = '' }: any) =
   </Card>
 );
 
-const ChartCard = ({ title, children, isEmpty = false }: any) => (
+const ChartCard = ({ title, children, isEmpty = false, emptyDescription = 'Нет данных за выбранный период. Измените фильтры или обновите отчет.' }: any) => (
   <Card title={title} variant="borderless" style={{ borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
-    {isEmpty ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} /> : children}
+    {isEmpty ? <Empty description={emptyDescription} image={Empty.PRESENTED_IMAGE_SIMPLE} /> : children}
   </Card>
 );
 
@@ -190,6 +190,7 @@ const AssignmentRatingTable = ({ items }: any) => (
       dataSource={items || []}
       pagination={false}
       scroll={{ y: 250 }}
+      locale={{ emptyText: 'Нет нарушений сроков за выбранный период.' }}
     />
   </Card>
 );
@@ -410,12 +411,20 @@ const StatisticsPage: React.FC = () => {
 
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={12}>
-            <ChartCard title="Ежемесячно по видам документов" isEmpty={!documentStats?.documentsByKindMonthly?.length}>
+            <ChartCard
+              title="Ежемесячно по видам документов"
+              isEmpty={!documentStats?.documentsByKindMonthly?.length}
+              emptyDescription="Документы за выбранный год не найдены. Измените период или зарегистрируйте документы."
+            >
               <Column {...documentKindChartConfig} />
             </ChartCard>
           </Col>
           <Col xs={24} xl={12}>
-            <ChartCard title="Ежемесячно по зарегистрировавшему пользователю" isEmpty={!documentStats?.documentsByRegistrarMonthly?.length}>
+            <ChartCard
+              title="Ежемесячно по зарегистрировавшему пользователю"
+              isEmpty={!documentStats?.documentsByRegistrarMonthly?.length}
+              emptyDescription="Нет регистраций для выбранного года. Проверьте период или фильтры отчета."
+            >
               <Line {...documentRegistrarChartConfig} />
             </ChartCard>
           </Col>
@@ -479,6 +488,7 @@ const StatisticsPage: React.FC = () => {
                 columns={reportColumns}
                 dataSource={documentReport?.rows || []}
                 pagination={false}
+                locale={{ emptyText: 'Нет строк за выбранный период. Измените период, группировку или фильтры.' }}
               />
             </Col>
           </Row>
@@ -498,12 +508,20 @@ const StatisticsPage: React.FC = () => {
 
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={10}>
-            <ChartCard title={`Поручения по месяцам, ${assignmentStats?.year || dayjs().year()} год`} isEmpty={!assignmentMonthlyChartData.length}>
+            <ChartCard
+              title={`Поручения по месяцам, ${assignmentStats?.year || dayjs().year()} год`}
+              isEmpty={!assignmentMonthlyChartData.length}
+              emptyDescription="Поручения за выбранный год не найдены. Измените период или создайте поручения."
+            >
               <Column {...assignmentMonthlyChartConfig} />
             </ChartCard>
           </Col>
           <Col xs={24} xl={10}>
-            <ChartCard title="Ежемесячно по основным исполнителям" isEmpty={!assignmentStats?.monthlyByExecutor?.length}>
+            <ChartCard
+              title="Ежемесячно по основным исполнителям"
+              isEmpty={!assignmentStats?.monthlyByExecutor?.length}
+              emptyDescription="Нет данных по исполнителям за выбранный год. Проверьте период или фильтр пользователя."
+            >
               <Line {...assignmentExecutorChartConfig} />
             </ChartCard>
           </Col>
@@ -563,6 +581,7 @@ const StatisticsPage: React.FC = () => {
                 columns={reportColumns}
                 dataSource={assignmentReport?.rows || []}
                 pagination={false}
+                locale={{ emptyText: 'Нет строк за выбранный период. Измените период, показатель или пользователя.' }}
               />
             </Col>
           </Row>
@@ -581,13 +600,13 @@ const StatisticsPage: React.FC = () => {
           <StatCard title="Всего документов" value={systemStats?.totalDocuments || 0} icon={<DatabaseOutlined />} color="#52c41a" />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard title="База данных" value={systemStats?.dbSize || 'N/A'} icon={<DatabaseOutlined />} color="#13c2c2" />
+          <StatCard title="База данных" value={systemStats?.dbSize || 'Нет данных'} icon={<DatabaseOutlined />} color="#13c2c2" />
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <StatCard title="Файлы в хранилище" value={systemStats?.storageObjects || 0} icon={<CloudOutlined />} color="#722ed1" />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard title="Размер хранилища" value={systemStats?.storageSize || 'N/A'} icon={<HddOutlined />} color="#fa8c16" />
+          <StatCard title="Размер хранилища" value={systemStats?.storageSize || 'Нет данных'} icon={<HddOutlined />} color="#fa8c16" />
         </Col>
       </Row>
     </Spin>
@@ -597,7 +616,7 @@ const StatisticsPage: React.FC = () => {
     return (
       <div style={{ padding: 24 }}>
         <Title level={3}>Статистика</Title>
-        <Empty description="Нет доступа к статистике" />
+        <Empty description="Статистика недоступна для вашей роли. Обратитесь к администратору, если доступ нужен для работы." />
       </div>
     );
   }

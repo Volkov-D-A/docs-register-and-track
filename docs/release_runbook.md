@@ -97,9 +97,10 @@ cd ..
 ```text
 build/release-evidence/go-modules.json
 build/release-evidence/npm-dependencies.json
+build/release-evidence/LICENSE_REPORT.md
 ```
 
-These files are local release evidence and are ignored by Git. Full unknown-license resolution remains tracked by `ISSUE-037`. Frontend lint/static-analysis is part of `make release-gate`.
+These files are local release evidence and are ignored by Git. `LICENSE_REPORT.md` must be archived with release evidence and included with release notices/artifacts as applicable. Frontend lint/static-analysis is part of `make release-gate`.
 
 ## Build Artifacts
 

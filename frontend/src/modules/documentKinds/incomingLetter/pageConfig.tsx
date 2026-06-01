@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Space } from 'antd';
+import { Button, Space, Tooltip } from 'antd';
 import { EyeOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { DOCUMENT_KIND_INCOMING_LETTER } from '../../../constants/documentKinds';
@@ -85,9 +85,13 @@ export const incomingLetterPageConfig = {
             width: 120,
             render: (_: any, record: any) => (
                 <Space>
-                    <Button size="small" icon={<EyeOutlined />} onClick={() => openViewModal(record.id)} />
+                    <Tooltip title="Просмотреть карточку документа">
+                        <Button size="small" icon={<EyeOutlined />} onClick={() => openViewModal(record.id)} />
+                    </Tooltip>
                     {!isExecutorOnly && (
-                        <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(record)} />
+                        <Tooltip title="Редактировать документ">
+                            <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(record)} />
+                        </Tooltip>
                     )}
                 </Space>
             ),

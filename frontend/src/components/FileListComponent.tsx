@@ -88,13 +88,13 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
 
             const savedPath = await DownloadToDisk(file.id);
 
-            message.success({ content: 'Файл скачан', key: 'download' });
+            message.success({ content: 'Файл сохранён', key: 'download' });
 
             // Show notification with actions
             const key = `open${Date.now()}`;
             api.open({
                 title: 'Скачивание завершено',
-                description: `Файл сохранен: ${savedPath}`,
+                description: `Файл сохранён: ${savedPath}`,
                 icon: <FileOutlined style={{ color: '#108ee9' }} />,
                 key,
                 duration: 0, // Keep open until user interacts
@@ -126,7 +126,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
         try {
             const { Delete } = await import('../../wailsjs/go/services/AttachmentService');
             await Delete(id);
-            message.success('Файл удален');
+            message.success('Файл удалён');
             loadFiles();
         } catch (err: unknown) {
             message.error(formatAppError(err, 'Ошибка удаления'));
@@ -162,7 +162,13 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                     <Spin />
                 </div>
             ) : files.length === 0 ? (
-                <Empty description="Нет прикрепленных файлов" />
+                <Empty
+                    description={
+                        <span>
+                            Файлы не прикреплены. {canEdit ? 'Нажмите "Загрузить файл", чтобы добавить вложение.' : 'Обратитесь к пользователю с правом редактирования, если вложение нужно добавить.'}
+                        </span>
+                    }
+                />
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {files.map((item) => (
@@ -187,8 +193,15 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                                     <Button type="text" icon={<DownloadOutlined />} onClick={() => handleDownload(item)} />
                                 </Tooltip>
                                 {canEdit && (
-                                    <Popconfirm title="Удалить файл?" onConfirm={() => handleDelete(item.id)}>
-                                        <Button type="text" danger icon={<DeleteOutlined />} />
+                                    <Popconfirm
+                                        title={`Удалить файл "${item.filename}"?`}
+                                        description="Это действие нельзя отменить. Файл будет удалён из вложений документа."
+                                        okText="Удалить"
+                                        cancelText="Отмена"
+                                        okButtonProps={{ danger: true }}
+                                        onConfirm={() => handleDelete(item.id)}
+                                    >
+                                        <Button type="text" title="Удалить файл" danger icon={<DeleteOutlined />} />
                                     </Popconfirm>
                                 )}
                             </Space>

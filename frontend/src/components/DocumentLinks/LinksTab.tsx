@@ -247,8 +247,15 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
                 </div>
                 <div style={{ flexShrink: 0, marginLeft: 16 }}>
                     {canManageLinks && (
-                        <Popconfirm title="Удалить связь?" onConfirm={() => handleUnlink(item.id)}>
-                            <Button type="text" danger icon={<DeleteOutlined />} />
+                        <Popconfirm
+                            title={`Удалить связь с документом № ${otherNumber || 'без номера'}?`}
+                            description="Это действие нельзя отменить. Документы останутся в системе, но связь между ними будет удалена."
+                            okText="Удалить связь"
+                            cancelText="Отмена"
+                            okButtonProps={{ danger: true }}
+                            onConfirm={() => handleUnlink(item.id)}
+                        >
+                            <Button type="text" title="Удалить связь" danger icon={<DeleteOutlined />} />
                         </Popconfirm>
                     )}
                 </div>
@@ -274,7 +281,14 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
                     <Spin />
                 </div>
             ) : links.length === 0 ? (
-                <Empty description="Нет связанных документов" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                <Empty
+                    description={
+                        <span>
+                            Связанных документов нет. {canManageLinks ? 'Нажмите "Добавить связь", чтобы связать документ с другим документом.' : 'Связи появятся здесь после добавления пользователем с нужными правами.'}
+                        </span>
+                    }
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {links.map(renderLinkItem)}

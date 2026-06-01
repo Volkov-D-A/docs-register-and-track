@@ -3,30 +3,28 @@
 Дата аудита: 2026-05-28
 Этап: F.02.185
 
-## npm License Snapshot
+## License Gate Status
 
-Local package-lock scan:
+After remediation, `make release-gate` runs `node tools/license-report.js` through `npm-license-check` and `license-inventory`.
 
-- MIT: 176 packages.
-- ISC: 27 packages.
-- MIT AND ISC: 1 package.
-- BSD-3-Clause: 4 packages.
-- Apache-2.0: 2 packages.
-- MPL-2.0: 12 packages.
-- 0BSD: 1 package.
-- UNKNOWN: 1 package: `node_modules/@antv/g2-extension-plot` `0.2.2`.
-- No GPL/AGPL/LGPL license strings found in `package-lock.json`.
+The tool:
 
-## Go License Status
+- scans `frontend/package-lock.json`;
+- resolves the `@antv/g2-extension-plot@0.2.2` missing metadata through an explicit MIT override backed by the package `LICENSE` file;
+- downloads and scans all Go modules from `go list -m all`;
+- blocks unknown licenses unless explicitly overridden with evidence;
+- blocks GPL/LGPL/AGPL family licenses unless a documented exception is approved;
+- writes the release notice/inventory to `build/release-evidence/LICENSE_REPORT.md`.
 
-No Go license inventory tool is configured in the repository. `go.mod` includes common permissive ecosystem dependencies, but a formal license report for all direct and transitive Go modules has not been generated.
+Latest local result:
+
+- npm packages checked: 349.
+- Go modules checked: 316.
+- Unknown licenses: 0.
+- Disallowed licenses: 0.
 
 ## Вывод
 
-No obvious copyleft blocker was found in npm lockfile, but production redistribution is not fully cleared until:
+No unknown or disallowed dependency licenses remain in the current inventory. The generated `build/release-evidence/LICENSE_REPORT.md` must be archived with release evidence and included with release notices/artifacts as applicable.
 
-- unknown npm license is resolved;
-- Go transitive license report is generated;
-- release artifact includes required notices if applicable.
-
-Связанные issues: `ISSUE-037`.
+Связанные issues: fixed `ISSUE-037`.

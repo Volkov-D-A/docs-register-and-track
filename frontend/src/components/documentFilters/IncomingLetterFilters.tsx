@@ -57,8 +57,8 @@ const IncomingLetterFilters: React.FC<IncomingLetterFiltersProps> = ({
             </Col>
             <Col span={6}>
                 <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Рег. № корреспондента</Text>
-                    <Input size="small" value={filterOutgoingNumber} onChange={e => onOutgoingNumberChange(e.target.value)} placeholder="Рег. номер" allowClear />
+                    <Text type="secondary" style={{ fontSize: 12 }}>Регистрационный номер корреспондента</Text>
+                    <Input size="small" value={filterOutgoingNumber} onChange={e => onOutgoingNumberChange(e.target.value)} placeholder="Номер у корреспондента" allowClear />
                 </div>
             </Col>
             <Col span={6}>

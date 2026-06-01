@@ -24,10 +24,10 @@ const DocumentListPageHeader: React.FC<DocumentListPageHeaderProps> = ({
         <Space>
             {nomenclatureFilter}
             <Input.Search
-                placeholder="Поиск по содержанию..."
+                placeholder="Поиск по номеру, содержанию или корреспонденту"
                 allowClear
                 onSearch={onSearch}
-                style={{ width: 250 }}
+                style={{ width: 340 }}
                 prefix={<SearchOutlined />}
             />
             {canRegister && (

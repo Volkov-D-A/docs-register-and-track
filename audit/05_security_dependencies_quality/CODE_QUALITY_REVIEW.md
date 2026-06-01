@@ -8,8 +8,8 @@
 Backend tests and vet are healthy after the recent remediation. Frontend TypeScript build passes. The remaining quality concerns are tooling gaps rather than immediate runtime failures:
 
 - frontend ESLint gate now exists after `ISSUE-034`, with warnings accepted as initial technical debt;
-- no license inventory gate;
-- no dependency/vulnerability gate in release checklist;
+- license inventory gate now exists after `ISSUE-037`;
+- dependency/vulnerability gate now exists after `ISSUE-033`;
 - broad TypeScript `any` remains around Wails/generated models; obsolete `@ts-ignore` suppressions were removed in `ISSUE-035`;
 - Go files are gofmt-clean after remediation of `ISSUE-036`.
 
@@ -24,4 +24,4 @@ These are not blockers like `govulncheck`, but they increase regression risk whe
 - Keep `gofmt -l`/`go vet` in release gate.
 - Use maintained `make release-gate` for dependency/security/license inventory checks.
 
-Связанные issues: fixed `ISSUE-033`, `ISSUE-034`, `ISSUE-035`, `ISSUE-036`; open `ISSUE-037`.
+Связанные issues: fixed `ISSUE-033`, `ISSUE-034`, `ISSUE-035`, `ISSUE-036`, `ISSUE-037`.

@@ -119,7 +119,7 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
             open={open}
             onCancel={onCancel}
             onOk={handleSubmit}
-            okText="Исполнено"
+            okText="Отметить исполненным"
             confirmLoading={submitting}
             destroyOnHidden
         >
