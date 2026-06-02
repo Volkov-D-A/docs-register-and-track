@@ -20,6 +20,7 @@ CREATE TABLE documents (
     ),
     content TEXT NOT NULL,
     pages_count INT NOT NULL DEFAULT 1,
+    idempotency_key UUID NOT NULL DEFAULT gen_random_uuid(),
     created_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -31,6 +32,8 @@ CREATE INDEX idx_documents_registration_date ON documents (registration_date);
 CREATE UNIQUE INDEX idx_documents_kind_registration_number_year
     ON documents (kind, registration_number, EXTRACT(YEAR FROM registration_date));
 CREATE INDEX idx_documents_created_at ON documents (created_at);
+CREATE UNIQUE INDEX idx_documents_created_by_kind_idempotency
+    ON documents (created_by, kind, idempotency_key);
 
 -- 9. Document Correspondent Registrations
 CREATE TABLE document_correspondent_registrations (

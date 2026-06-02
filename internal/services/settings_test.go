@@ -243,20 +243,20 @@ func TestMigrationCompatibilityAppError(t *testing.T) {
 		{
 			name: "schema too new",
 			err: &database.MigrationCompatibilityError{
-				CurrentVersion: 11,
-				TotalAvailable: 10,
+				CurrentVersion: 8,
+				TotalAvailable: 7,
 				SchemaTooNew:   true,
 			},
-			msg: "Версия схемы БД (11) новее миграций",
+			msg: "Версия схемы БД (8) новее миграций",
 		},
 		{
 			name: "dirty schema",
 			err: &database.MigrationCompatibilityError{
-				CurrentVersion: 10,
-				TotalAvailable: 10,
+				CurrentVersion: 7,
+				TotalAvailable: 7,
 				Dirty:          true,
 			},
-			msg: "Миграция БД версии 10 завершилась с ошибкой",
+			msg: "Миграция БД версии 7 завершилась с ошибкой",
 		},
 	}
 

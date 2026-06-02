@@ -119,7 +119,7 @@ func TestDB_GetMigrationStatus(t *testing.T) {
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	total, err := countAvailableMigrations(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 10, total)
+	assert.Equal(t, 7, total)
 }
 
 func TestMigrationStatus_applyCompatibility(t *testing.T) {
@@ -132,23 +132,23 @@ func TestMigrationStatus_applyCompatibility(t *testing.T) {
 	}{
 		{
 			name:       "current schema matches embedded migrations",
-			status:     MigrationStatus{CurrentVersion: 10, TotalAvailable: 10},
+			status:     MigrationStatus{CurrentVersion: 7, TotalAvailable: 7},
 			upToDate:   true,
 			compatible: true,
 		},
 		{
 			name:       "old schema can be migrated by current binary",
-			status:     MigrationStatus{CurrentVersion: 8, TotalAvailable: 10},
+			status:     MigrationStatus{CurrentVersion: 5, TotalAvailable: 7},
 			compatible: true,
 		},
 		{
 			name:         "newer schema is not up to date for old binary",
-			status:       MigrationStatus{CurrentVersion: 11, TotalAvailable: 10},
+			status:       MigrationStatus{CurrentVersion: 8, TotalAvailable: 7},
 			schemaTooNew: true,
 		},
 		{
 			name:   "dirty schema is not compatible",
-			status: MigrationStatus{CurrentVersion: 10, TotalAvailable: 10, Dirty: true},
+			status: MigrationStatus{CurrentVersion: 7, TotalAvailable: 7, Dirty: true},
 		},
 	}
 
