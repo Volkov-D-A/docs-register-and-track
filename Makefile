@@ -46,10 +46,6 @@ clean:
 	rm -rf build/bin/*
 
 # Запуск тестов
-test:
-	$(MAKE) release-assets
-	GOCACHE=$(GOCACHE) go test $(GO_PACKAGES)
-
 go-test:
 	$(MAKE) release-assets
 	GOCACHE=$(GOCACHE) go test $(GO_PACKAGES)
@@ -83,8 +79,6 @@ license-inventory:
 	go list -m -json all > $(RELEASE_EVIDENCE_DIR)/go-modules.json
 	cd $(FRONTEND_DIR) && npm ls --all --json > ../$(RELEASE_EVIDENCE_DIR)/npm-dependencies.json
 	node tools/license-report.js
-
-security-gate: govulncheck npm-audit npm-license-check
 
 release-gate:
 	@./tools/release-gate.sh
