@@ -86,7 +86,8 @@ license-inventory:
 
 security-gate: govulncheck npm-audit npm-license-check
 
-release-gate: check-release-env release-assets-check go-test go-vet govulncheck frontend-ci frontend-lint frontend-test frontend-build npm-audit npm-license-check license-inventory
+release-gate:
+	@./tools/release-gate.sh
 
 # ==========================================
 # УПРАВЛЕНИЕ БАЗОЙ ДАННЫХ (DOCKER)
