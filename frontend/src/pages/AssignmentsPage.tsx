@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    Typography, Table, Button, Modal, Form, Input, Select, DatePicker,
+    Typography, Table, Button, Modal, Input, Select, DatePicker,
     Space, Row, Col, Tag, Popconfirm, Tooltip, Switch, App
 } from 'antd';
 import {
-    PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined,
-    CheckCircleOutlined, PlayCircleOutlined, CloseCircleOutlined, UndoOutlined,
+    SearchOutlined, EditOutlined, DeleteOutlined,
+    CheckCircleOutlined, PlayCircleOutlined, UndoOutlined,
     ClearOutlined, EyeOutlined, FileDoneOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -70,7 +70,7 @@ const AssignmentsPage: React.FC = () => {
         } catch (e) { console.error(e); }
     };
 
-    const load = async () => {
+    const load = useCallback(async () => {
         if (!accessReady) {
             return;
         }
@@ -104,13 +104,27 @@ const AssignmentsPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [
+        accessReady,
+        filterDateFrom,
+        filterDateTo,
+        filterExecutorId,
+        filterOverdue,
+        filterStatus,
+        hasAnyAction,
+        message,
+        page,
+        pageSize,
+        search,
+        showFinished,
+        user?.id,
+    ]);
 
     useEffect(() => {
         if (accessReady) {
             load();
         }
-    }, [accessReady, page, pageSize, search, filterStatus, filterDateFrom, filterDateTo, filterExecutorId, showFinished, filterOverdue, user?.id]);
+    }, [accessReady, load]);
 
     useEffect(() => {
         loadUsers();

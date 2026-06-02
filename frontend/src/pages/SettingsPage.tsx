@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Space,
   Typography, Popconfirm, Switch, Tag, App, DatePicker, Checkbox, Row, Col, Collapse
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, DatabaseOutlined, CheckCircleOutlined, WarningOutlined, FileSearchOutlined, ReloadOutlined, BookOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined } from '@ant-design/icons';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindLabel, getDocumentKindMeta } from '../constants/documentKinds';
-import { ReferenceDirectoriesTab } from '../features/settings/ReferenceDirectoriesTab';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAuthStore } from '../store/useAuthStore';
 import { models } from '../../wailsjs/go/models';
@@ -30,7 +29,7 @@ const NomenclatureTab: React.FC = () => {
   const [filterYear, setFilterYear] = useState(currentYear);
   const { kinds: allDocumentKinds } = useCurrentAccessSummary();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { GetAll } = await import('../../wailsjs/go/services/NomenclatureService');
@@ -40,9 +39,9 @@ const NomenclatureTab: React.FC = () => {
       message.error(formatAppError(err));
     }
     setLoading(false);
-  };
+  }, [filterYear, message]);
 
-  useEffect(() => { load(); }, [filterYear]);
+  useEffect(() => { load(); }, [load]);
 
   const onSave = async (values: any) => {
     if (loading) {
@@ -222,7 +221,7 @@ const DepartmentsTab: React.FC = () => {
 
   const [nomenclatureList, setNomenclatureList] = useState<any[]>([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { GetAllDepartments } = await import('../../wailsjs/go/services/DepartmentService');
@@ -239,9 +238,9 @@ const DepartmentsTab: React.FC = () => {
       message.error(formatAppError(err));
     }
     setLoading(false);
-  };
+  }, [message]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const onSave = async (values: any) => {
     if (loading) {
@@ -461,7 +460,7 @@ const UsersTab: React.FC = () => {
     }
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { GetAllUsers } = await import('../../wailsjs/go/services/UserService');
@@ -474,9 +473,9 @@ const UsersTab: React.FC = () => {
       message.error(formatAppError(err));
     }
     setLoading(false);
-  };
+  }, [message]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const onSave = async (values: any) => {
     if (loading) {
@@ -736,7 +735,7 @@ const SystemSettingsTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { GetAll } = await import('../../wailsjs/go/services/SettingsService');
@@ -759,9 +758,9 @@ const SystemSettingsTab: React.FC = () => {
       message.error(formatAppError(err));
     }
     setLoading(false);
-  };
+  }, [form, message]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const onSave = async (values: any) => {
     setLoading(true);
@@ -834,7 +833,7 @@ const MigrationsTab: React.FC = () => {
   const [rollbackModalOpen, setRollbackModalOpen] = useState(false);
   const [status, setStatus] = useState<any>(null);
 
-  const loadStatus = async () => {
+  const loadStatus = useCallback(async () => {
     setLoading(true);
     try {
       const { GetMigrationStatus } = await import('../../wailsjs/go/services/SettingsService');
@@ -844,9 +843,9 @@ const MigrationsTab: React.FC = () => {
       message.error(formatAppError(err));
     }
     setLoading(false);
-  };
+  }, [message]);
 
-  useEffect(() => { loadStatus(); }, []);
+  useEffect(() => { loadStatus(); }, [loadStatus]);
 
   const onRunMigrations = () => {
     if (running) {
@@ -1149,7 +1148,7 @@ const AuditLogTab: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
-  const load = async (p: number) => {
+  const load = useCallback(async (p: number) => {
     setLoading(true);
     try {
       const { GetAll } = await import('../../wailsjs/go/services/AdminAuditLogService');
@@ -1160,9 +1159,9 @@ const AuditLogTab: React.FC = () => {
       message.error(formatAppError(err));
     }
     setLoading(false);
-  };
+  }, [message, pageSize]);
 
-  useEffect(() => { load(page); }, [page]);
+  useEffect(() => { load(page); }, [load, page]);
 
   const columns = [
     {

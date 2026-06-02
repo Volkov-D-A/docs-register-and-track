@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Button, Tag, Space, Popconfirm, Tooltip, App } from 'antd';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Table, Button, Tag, Space, Popconfirm, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EyeOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
@@ -28,7 +28,7 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
     const { hasAction, ready: accessReady } = useDocumentKindAccess();
     const canManageAcknowledgments = accessReady && hasAction(documentKind, 'acknowledge');
 
-    const load = async () => {
+    const load = useCallback(async () => {
         if (!documentId || !canManageAcknowledgments) return;
         setLoading(true);
         try {
@@ -40,9 +40,9 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
         } finally {
             setLoading(false);
         }
-    };
+    }, [canManageAcknowledgments, documentId]);
 
-    useEffect(() => { load(); }, [documentId, canManageAcknowledgments]);
+    useEffect(() => { load(); }, [load]);
 
     const onDelete = async (id: string) => {
         try {

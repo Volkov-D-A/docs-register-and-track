@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   App,
   Button,
@@ -240,7 +240,7 @@ const StatisticsPage: React.FC = () => {
     }
   }, [activeTab, tabItems]);
 
-  const loadDocumentOverview = async () => {
+  const loadDocumentOverview = useCallback(async () => {
     setDocumentLoading(true);
     try {
       const { GetDocumentStatistics, GetDocumentFilterOptions } = await import('../../wailsjs/go/services/StatisticsService');
@@ -252,9 +252,9 @@ const StatisticsPage: React.FC = () => {
     } finally {
       setDocumentLoading(false);
     }
-  };
+  }, [message]);
 
-  const loadDocumentReport = async () => {
+  const loadDocumentReport = useCallback(async () => {
     setDocumentReportLoading(true);
     try {
       const { GetDocumentReport } = await import('../../wailsjs/go/services/StatisticsService');
@@ -272,9 +272,9 @@ const StatisticsPage: React.FC = () => {
     } finally {
       setDocumentReportLoading(false);
     }
-  };
+  }, [documentGroupBy, documentKind, documentNomenclature, documentRange, documentUser, message]);
 
-  const loadAssignmentOverview = async () => {
+  const loadAssignmentOverview = useCallback(async () => {
     setAssignmentLoading(true);
     try {
       const { GetAssignmentStatistics, GetAssignmentFilterOptions } = await import('../../wailsjs/go/services/StatisticsService');
@@ -286,9 +286,9 @@ const StatisticsPage: React.FC = () => {
     } finally {
       setAssignmentLoading(false);
     }
-  };
+  }, [message]);
 
-  const loadAssignmentReport = async () => {
+  const loadAssignmentReport = useCallback(async () => {
     setAssignmentReportLoading(true);
     try {
       const { GetAssignmentReport } = await import('../../wailsjs/go/services/StatisticsService');
@@ -304,9 +304,9 @@ const StatisticsPage: React.FC = () => {
     } finally {
       setAssignmentReportLoading(false);
     }
-  };
+  }, [assignmentOnlyOverdue, assignmentRange, assignmentUser, message]);
 
-  const loadSystemStats = async () => {
+  const loadSystemStats = useCallback(async () => {
     setSystemLoading(true);
     try {
       const { GetSystemStatistics } = await import('../../wailsjs/go/services/StatisticsService');
@@ -316,7 +316,7 @@ const StatisticsPage: React.FC = () => {
     } finally {
       setSystemLoading(false);
     }
-  };
+  }, [message]);
 
   useEffect(() => {
     if (activeTab === 'documents' && canViewDocuments && !documentStats) {
@@ -328,19 +328,30 @@ const StatisticsPage: React.FC = () => {
     if (activeTab === 'system' && canViewSystem && !systemStats) {
       void loadSystemStats();
     }
-  }, [activeTab, canViewDocuments, canViewAssignments, canViewSystem]);
+  }, [
+    activeTab,
+    assignmentStats,
+    canViewAssignments,
+    canViewDocuments,
+    canViewSystem,
+    documentStats,
+    loadAssignmentOverview,
+    loadDocumentOverview,
+    loadSystemStats,
+    systemStats,
+  ]);
 
   useEffect(() => {
     if (canViewDocuments) {
       void loadDocumentReport();
     }
-  }, [canViewDocuments, documentRange, documentGroupBy, documentKind, documentNomenclature, documentUser]);
+  }, [canViewDocuments, loadDocumentReport]);
 
   useEffect(() => {
     if (canViewAssignments) {
       void loadAssignmentReport();
     }
-  }, [canViewAssignments, assignmentRange, assignmentOnlyOverdue, assignmentUser]);
+  }, [canViewAssignments, loadAssignmentReport]);
 
   const documentKindChartConfig: any = {
     data: documentStats?.documentsByKindMonthly || [],

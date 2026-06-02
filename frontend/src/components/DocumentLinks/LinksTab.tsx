@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Button, Popconfirm, Modal, Select, Tag, Switch, Space, Empty, Spin, App } from 'antd';
 import { LinkOutlined, DeleteOutlined, PlusOutlined, ApartmentOutlined, UnlockOutlined, LockOutlined } from '@ant-design/icons';
 import { LinkDocuments, UnlinkDocument, GetDocumentLinks, models } from '../../types/link';
@@ -14,7 +14,6 @@ import { useDocumentKindAccess } from '../../hooks/useDocumentKindAccess';
  */
 interface LinksTabProps {
     documentId: string;
-    documentNumber: string; // Passed for context
     documentKind: string;
 }
 
@@ -22,7 +21,7 @@ interface LinksTabProps {
  * Вкладка для отображения и управления связями документа.
  * Позволяет добавлять новые связи между документами и просматривать граф связей.
  */
-export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabProps) => {
+export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
     const { message } = App.useApp();
     const { hasAction, kinds, ready: accessReady } = useDocumentKindAccess();
     const [links, setLinks] = useState<models.DocumentLink[]>([]);
@@ -69,17 +68,6 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
     }, [documentKind, targetKind]);
 
     useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            if (accessReady && searchTerm.length >= 2 && targetKind) {
-                performSearch(searchTerm);
-            } else {
-                setTargetOptions([]);
-            }
-        }, 500);
-        return () => clearTimeout(timeoutId);
-    }, [accessReady, searchTerm, targetKind]);
-
-    useEffect(() => {
         if (!accessReady || selectableTargetKinds.length === 0) {
             return;
         }
@@ -101,7 +89,7 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
         }
     }, [availableLinkTypes, linkType]);
 
-    const performSearch = async (query: string) => {
+    const performSearch = useCallback(async (query: string) => {
         setSearchLoading(true);
         try {
             const res = await GetList(targetKind, {
@@ -140,7 +128,18 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
         } finally {
             setSearchLoading(false);
         }
-    };
+    }, [message, targetKind]);
+
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            if (accessReady && searchTerm.length >= 2 && targetKind) {
+                performSearch(searchTerm);
+            } else {
+                setTargetOptions([]);
+            }
+        }, 500);
+        return () => clearTimeout(timeoutId);
+    }, [accessReady, performSearch, searchTerm, targetKind]);
 
     const handleSearch = (val: string) => {
         setSearchTerm(val);
@@ -164,7 +163,7 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
         setIsGraphMounted(false);
     };
 
-    const fetchLinks = async () => {
+    const fetchLinks = useCallback(async () => {
         if (!documentId || !canManageLinks) {
             return;
         }
@@ -178,13 +177,13 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
         } finally {
             setLoading(false);
         }
-    };
+    }, [canManageLinks, documentId, message]);
 
     useEffect(() => {
         if (documentId && canManageLinks) {
             fetchLinks();
         }
-    }, [documentId, canManageLinks]);
+    }, [canManageLinks, documentId, fetchLinks]);
 
     const handleLink = async () => {
         if (!targetId) {
@@ -217,7 +216,6 @@ export const LinksTab = ({ documentId, documentNumber, documentKind }: LinksTabP
     // Determine the "other" document in the link to display
     const renderLinkItem = (item: models.DocumentLink) => {
         const isSource = item.sourceId === documentId;
-        const otherId = isSource ? item.targetId : item.sourceId;
         const otherType = isSource ? item.targetKind : item.sourceKind;
         const otherNumber = isSource ? item.targetNumber : item.sourceNumber;
         const otherSubject = item.targetSubject || ""; // We might only have target subject in my repo query

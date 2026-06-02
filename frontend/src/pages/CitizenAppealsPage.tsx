@@ -116,7 +116,6 @@ const CitizenAppealsPage: React.FC = () => {
         totalCount,
         page,
         pageSize,
-        search,
         setPage,
         setPageSize,
         setSearch,

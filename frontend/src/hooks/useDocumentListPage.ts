@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GetList } from '../../wailsjs/go/services/DocumentQueryService';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -40,6 +40,7 @@ export const useDocumentListPage = <TFilter,>({
     const buildFilterRef = useRef(buildFilter);
     const onErrorRef = useRef(onError);
     const requestIdRef = useRef(0);
+    const depsKey = useMemo(() => JSON.stringify(deps), [deps]);
 
     filtersRef.current = filters;
     buildFilterRef.current = buildFilter;
@@ -92,7 +93,7 @@ export const useDocumentListPage = <TFilter,>({
 
     useEffect(() => {
         void load();
-    }, [load, userId, ...deps]);
+    }, [depsKey, load, userId]);
 
     useEffect(() => {
         if (!isAuthenticated) {

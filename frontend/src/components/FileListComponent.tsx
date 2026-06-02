@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Upload, Popconfirm, Typography, Tooltip, notification, Space, Spin, Empty, App } from 'antd';
 import { UploadOutlined, DownloadOutlined, DeleteOutlined, FileOutlined, FilePdfOutlined, FileImageOutlined, FileWordOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
@@ -33,7 +33,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
     const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
     const [api, contextHolder] = notification.useNotification();
 
-    const loadFiles = async () => {
+    const loadFiles = useCallback(async () => {
         setLoading(true);
         try {
             const { GetList } = await import('../../wailsjs/go/services/AttachmentService');
@@ -44,13 +44,13 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
             message.error(formatAppError(err, 'Не удалось загрузить файлы'));
         }
         setLoading(false);
-    };
+    }, [documentId, message]);
 
     useEffect(() => {
         if (documentId) {
             loadFiles();
         }
-    }, [documentId]);
+    }, [documentId, loadFiles]);
 
     const handleUpload = async (file: File) => {
         if (uploading) {
@@ -77,7 +77,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                 message.error('Ошибка чтения файла');
                 setUploading(false);
             };
-        } catch (err) {
+        } catch {
             setUploading(false);
         }
         return false; // Prevent default upload

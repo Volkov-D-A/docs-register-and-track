@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { App, Button, Form, Input, Modal, Popconfirm, Space, Table, Tabs, Typography } from 'antd';
 import { BankOutlined, DeleteOutlined, EditOutlined, SolutionOutlined } from '@ant-design/icons';
 
@@ -13,7 +13,7 @@ const OrganizationsTab: React.FC = () => {
   const [editItem, setEditItem] = useState<any>(null);
   const [form] = Form.useForm();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { GetOrganizations } = await import('../../../wailsjs/go/services/ReferenceService');
@@ -23,9 +23,9 @@ const OrganizationsTab: React.FC = () => {
       message.error(formatAppError(err));
     }
     setLoading(false);
-  };
+  }, [message]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const onSave = async (values: any) => {
     if (loading) {
@@ -128,7 +128,7 @@ const ResolutionExecutorsTab: React.FC = () => {
   const [editItem, setEditItem] = useState<any>(null);
   const [form] = Form.useForm();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { GetResolutionExecutors } = await import('../../../wailsjs/go/services/ReferenceService');
@@ -138,9 +138,9 @@ const ResolutionExecutorsTab: React.FC = () => {
       message.error(formatAppError(err));
     }
     setLoading(false);
-  };
+  }, [message]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const onSave = async (values: any) => {
     if (loading) {

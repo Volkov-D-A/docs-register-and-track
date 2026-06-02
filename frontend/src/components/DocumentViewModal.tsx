@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Tabs, Row, Col, Typography, Tag, Button, Spin, App, Space } from 'antd';
 import dayjs from 'dayjs';
 import AssignmentList from './AssignmentList';
@@ -41,16 +41,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     const [activeTab, setActiveTab] = useState('info');
     const [createRelatedModalOpen, setCreateRelatedModalOpen] = useState(false);
 
-    useEffect(() => {
-        if (open && documentId) {
-            setActiveTab('info');
-            loadData();
-        } else {
-            setData(null);
-        }
-    }, [open, documentId, documentKind]);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
         try {
             const { GetByID } = await import('../../wailsjs/go/services/DocumentQueryService');
@@ -62,7 +53,16 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
         } finally {
             setLoading(false);
         }
-    };
+    }, [documentId, message, onCancel]);
+
+    useEffect(() => {
+        if (open && documentId) {
+            setActiveTab('info');
+            loadData();
+        } else {
+            setData(null);
+        }
+    }, [documentId, documentKind, loadData, open]);
 
     const renderIncomingInfo = (doc: any) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -444,7 +444,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             },
             {
                 key: 'links', label: 'Связи',
-                children: <LinksTab documentId={data.id} documentNumber={getNumber()} documentKind={resolvedKindCode} />
+                children: <LinksTab documentId={data.id} documentKind={resolvedKindCode} />
             },
             {
                 key: 'acknowledgments', label: 'Ознакомление',

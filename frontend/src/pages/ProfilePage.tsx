@@ -3,7 +3,8 @@ import { Card, Form, Input, Button, Typography, Space, Descriptions, Tag, Row, C
 import { UserOutlined, LockOutlined, BgColorsOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
-import { useAppTheme, type AppTheme } from '../theme/AppThemeProvider';
+import type { AppTheme } from '../theme/AppThemeContext';
+import { useAppTheme } from '../theme/useAppTheme';
 import { formatAppError } from '../utils/appError';
 
 const { Title, Text } = Typography;
@@ -37,7 +38,7 @@ const ProfilePage: React.FC = () => {
             message.error(error);
             clearError();
         }
-    }, [error, clearError]);
+    }, [clearError, error, message]);
 
     if (!user) {
         return <div style={{ padding: 24 }}><Text>Загрузка профиля...</Text></div>;
@@ -48,7 +49,7 @@ const ProfilePage: React.FC = () => {
             await updateProfile(values.login, values.fullName);
             message.success('Профиль успешно обновлён');
             setIsEditingProfile(false);
-        } catch (err) {
+        } catch {
             // Ошибка уже обработана в store
         }
     };
@@ -59,7 +60,7 @@ const ProfilePage: React.FC = () => {
             message.success('Пароль успешно изменён');
             passwordForm.resetFields();
             setIsChangingPassword(false);
-        } catch (err) {
+        } catch {
             // Ошибка уже обработана в store
         }
     };

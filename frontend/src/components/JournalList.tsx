@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Table, Spin, App, Tooltip, Typography } from 'antd';
 import {
     PlusCircleOutlined, EditOutlined, DeleteOutlined,
@@ -29,13 +29,7 @@ const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
 
-    useEffect(() => {
-        if (documentId) {
-            loadJournal();
-        }
-    }, [documentId]);
-
-    const loadJournal = async () => {
+    const loadJournal = useCallback(async () => {
         setLoading(true);
         try {
             const { GetByDocumentID } = await import('../../wailsjs/go/services/JournalService');
@@ -46,7 +40,13 @@ const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [documentId, message]);
+
+    useEffect(() => {
+        if (documentId) {
+            loadJournal();
+        }
+    }, [documentId, loadJournal]);
 
     const actionConfig: Record<string, { color: string; icon: React.ReactNode; tooltip: string }> = {
         'CREATE': { color: 'green', icon: <PlusCircleOutlined />, tooltip: 'Документ создан' },

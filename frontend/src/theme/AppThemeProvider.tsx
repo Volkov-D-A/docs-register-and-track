@@ -1,7 +1,5 @@
 import {
-    createContext,
     useCallback,
-    useContext,
     useEffect,
     useMemo,
     useState,
@@ -15,16 +13,7 @@ import {
     WindowSetDarkTheme,
     WindowSetLightTheme,
 } from '../../wailsjs/runtime/runtime';
-
-export type AppTheme = 'light' | 'dark';
-
-interface AppThemeContextValue {
-    theme: AppTheme;
-    isThemeLoading: boolean;
-    setTheme: (theme: AppTheme) => Promise<void>;
-}
-
-const AppThemeContext = createContext<AppThemeContextValue | null>(null);
+import { AppThemeContext, type AppTheme, type AppThemeContextValue } from './AppThemeContext';
 
 const isAppTheme = (theme: string): theme is AppTheme => theme === 'light' || theme === 'dark';
 
@@ -151,14 +140,4 @@ export const AppThemeProvider = ({ children }: { children: ReactNode }) => {
             </ConfigProvider>
         </AppThemeContext.Provider>
     );
-};
-
-export const useAppTheme = () => {
-    const context = useContext(AppThemeContext);
-
-    if (!context) {
-        throw new Error('useAppTheme must be used inside AppThemeProvider');
-    }
-
-    return context;
 };

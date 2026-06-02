@@ -20,7 +20,7 @@ import AboutProgramModal from './AboutProgramModal';
 import { models } from '../../wailsjs/go/models';
 import { useRegisterDocumentStore } from '../store/useRegisterDocumentStore';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
-import { useAppTheme } from '../theme/AppThemeProvider';
+import { useAppTheme } from '../theme/useAppTheme';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -95,7 +95,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         return () => {
             isMounted = false;
         };
-    }, [user?.id]);
+    }, [user]);
 
     const menuItems = [
         ...(sections.dashboard ? [{

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Select, Tag } from 'antd';
+import { Modal, Select } from 'antd';
 import DocumentListPage from './DocumentListPage';
 
 type DocumentKindPageProps = {

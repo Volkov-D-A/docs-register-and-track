@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Table, Button, Tag, Space, Popconfirm, Modal, Input, Tooltip, App } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, PlayCircleOutlined, CloseCircleOutlined, UndoOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, PlayCircleOutlined, UndoOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import AssignmentModal from './AssignmentModal';
@@ -38,7 +38,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
     const [returnModalOpen, setReturnModalOpen] = useState(false);
     const [returnReasonText, setReturnReasonText] = useState('');
 
-    const load = async () => {
+    const load = useCallback(async () => {
         if (!documentId || !canManageAssignments) return;
         setLoading(true);
         try {
@@ -50,9 +50,9 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
         } finally {
             setLoading(false);
         }
-    };
+    }, [canManageAssignments, documentId]);
 
-    useEffect(() => { load(); }, [documentId, canManageAssignments]);
+    useEffect(() => { load(); }, [load]);
 
     const onDelete = async (id: string) => {
         try {

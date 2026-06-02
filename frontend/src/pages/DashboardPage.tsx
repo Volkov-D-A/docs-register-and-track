@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     Typography, Card, Row, Col, Tag, Spin, App,
     Button, Empty
 } from 'antd';
 import {
-    ClockCircleOutlined, UserOutlined, ReloadOutlined
+    UserOutlined, ReloadOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel } from '../constants/documentKinds';
@@ -35,7 +35,7 @@ const DashboardPage: React.FC = () => {
 
     const profile = resolveUserProfile(accessSummary?.systemPermissions || user?.systemPermissions, readableKinds, user?.isDocumentParticipant);
 
-    const loadStats = async () => {
+    const loadStats = useCallback(async () => {
         if (!accessReady) {
             return;
         }
@@ -61,13 +61,13 @@ const DashboardPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [accessReady, message, profile]);
 
     useEffect(() => {
         if (accessReady) {
             loadStats();
         }
-    }, [accessReady, profile]);
+    }, [accessReady, loadStats]);
 
     const onAcknowledge = async (id: string) => {
         try {

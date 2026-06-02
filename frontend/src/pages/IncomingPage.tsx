@@ -4,7 +4,7 @@ import {
 } from 'antd';
 import DocumentKindPage from '../components/DocumentKindPage';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
-import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel, isIncomingKind } from '../constants/documentKinds';
+import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel } from '../constants/documentKinds';
 import { DOCUMENT_TYPE_OPTIONS } from '../constants/documentTypes';
 import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
@@ -109,7 +109,6 @@ const IncomingPage: React.FC = () => {
         totalCount,
         page,
         pageSize,
-        search,
         setPage,
         setPageSize,
         setSearch,

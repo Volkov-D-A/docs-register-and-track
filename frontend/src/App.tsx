@@ -200,7 +200,7 @@ function App() {
         return () => {
             isMounted = false;
         };
-    }, [isAuthenticated, user?.id, sections.settings, organizationSetupForm]);
+    }, [isAuthenticated, user, sections.settings, organizationSetupForm]);
 
     const handleAboutModalClose = () => {
         setIsAboutModalOpen(false);

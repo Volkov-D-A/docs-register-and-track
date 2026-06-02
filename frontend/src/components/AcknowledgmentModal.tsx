@@ -30,7 +30,7 @@ const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCance
             loadUsers();
             form.resetFields();
         }
-    }, [open]);
+    }, [form, open]);
 
     const loadUsers = async () => {
         try {

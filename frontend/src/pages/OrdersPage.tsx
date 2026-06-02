@@ -72,7 +72,6 @@ const OrdersPage: React.FC = () => {
         totalCount,
         page,
         pageSize,
-        search,
         setPage,
         setPageSize,
         setSearch,
