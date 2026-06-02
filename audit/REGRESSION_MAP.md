@@ -196,7 +196,7 @@
 
 ## CHANGE-025
 
-Что изменено: Закрыт `ISSUE-050`: добавлены maintained root `README.md`, `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; root README links release, rollback, backup/restore and diagnostics runbooks. Clean release execution remains covered by `ISSUE-052`.
+Что изменено: Закрыт `ISSUE-050`: добавлены maintained root `README.md`, `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; root README links release, rollback, backup/restore and diagnostics runbooks. Clean release execution remains a release checklist requirement.
 Затронутые файлы: `README.md`, `docs/release_runbook.md`, `docs/diagnostics_runbook.md`, `docs/backup_restore_runbook.md`, `docs/migration_rollback_runbook.md`, audit release artifacts.
 Затронутые пункты плана: I.01.258-I.02.270.
 Что перепроверить: clean clone build; non-author checklist execution; fresh DB setup; migration/rollback runbook; backup/restore smoke; target OS install; version metadata; clean git status at release tag.

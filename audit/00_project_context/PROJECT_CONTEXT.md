@@ -99,7 +99,7 @@ Build/dev-зависимости:
 - Stage F security/dependencies/quality audit status: завершен 2026-05-28. After remediation `ISSUE-032`, `go test ./...`, `go vet ./...`, `npm run build` прошли; `npm audit` clean; `govulncheck` reports 0 reachable vulnerabilities with `go1.26.3`/`x/net@v0.53.0`.
 - Stage G tests/performance audit status: завершен 2026-05-28. `go test ./...` прошел; отдельные PostgreSQL integration tests for idempotency/concurrency/retention FK passed against local test DB. Основные gaps: нет frontend/e2e tests, performance baseline for Wails/UI/memory missing, long-running/cancellation tests missing, integration tests need safe release gate.
 - Stage H UX/text audit status: завершен 2026-05-28. Основной remaining gap: inconsistent terminology (`вид`/`тип`, `дело`/`номенклатура`, `исполнитель`). Safe error copy is fixed by `ISSUE-044`; weak destructive confirmations are fixed by `ISSUE-046`; passive empty states are fixed by `ISSUE-047`; unclear abbreviations/placeholders are fixed by `ISSUE-048`; microcopy style examples are fixed by `ISSUE-049`.
-- Stage I docs/release/final readiness audit status: завершен 2026-05-28. Созданы `audit/08_docs_release/*` and `audit/FINAL_SUMMARY.md`. После remediation fixed: `ISSUE-007`, `ISSUE-027`, `ISSUE-032`, `ISSUE-050`. Финальное решение для текущего production candidate remains `not_ready` because release candidate worktree is not clean (`ISSUE-052`) and release evidence is incomplete.
+- Stage I docs/release/final readiness audit status: завершен 2026-05-28. Созданы `audit/08_docs_release/*` and `audit/FINAL_SUMMARY.md`. После remediation fixed: `ISSUE-007`, `ISSUE-027`, `ISSUE-032`, `ISSUE-050`, `ISSUE-052`. Финальное решение для текущего production candidate remains `not_ready` because release evidence and remaining major blockers are incomplete.
 
 Остается проверить на следующих этапах:
 
@@ -134,7 +134,7 @@ Build/dev-зависимости:
 - map structured errors to safe actionable user messages.
 - destructive confirmations and empty states are strengthened; smoke/e2e coverage remains open.
 - complete and attach `docs/release_checklist.md` and `docs/smoke_test.md` evidence from clean checkout.
-- clean worktree, commit/tag release candidate and verify reproducible release evidence.
+- tag release candidate from clean checkout and verify reproducible release evidence.
 
 ## Контрольные Пункты
 

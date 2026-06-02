@@ -650,7 +650,7 @@ Severity: critical
 Проблема: В репозитории отсутствует корневой release-grade README/runbook, который описывает dev запуск, production build, миграции, backup/restore and diagnostics. `build/README.md` содержит только стандартное описание Wails build directory.
 Почему важно: Production handover, clean clone build and non-author release execution become dependent on unstated local knowledge. This is especially risky because rollback, restore, config lookup and startup diagnostics already have open blockers.
 Рекомендация: Добавить maintained root README/runbooks for dev setup, release build, DB migrations, backup/restore, diagnostics and target OS install smoke. Audit artifacts in `audit/08_docs_release` can be used as starting material.
-Проверка после исправления: Добавлен root `README.md` with dev setup, local config caveats, release/ops entry points, build commands, migration/backup/diagnostics links and critical gate notes. Добавлены maintained `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; existing backup/restore and rollback runbooks are linked from README. Audit docs updated so `ISSUE-050` no longer appears as a critical blocker. Проверено статически: `rg` consistency pass, `git diff --check`. Full non-author clean-clone execution remains release evidence under `ISSUE-052`.
+Проверка после исправления: Добавлен root `README.md` with dev setup, local config caveats, release/ops entry points, build commands, migration/backup/diagnostics links and critical gate notes. Добавлены maintained `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; existing backup/restore and rollback runbooks are linked from README. Audit docs updated so `ISSUE-050` no longer appears as a critical blocker. Проверено статически: `rg` consistency pass, `git diff --check`. Full non-author clean-clone execution remains a release checklist evidence step.
 Связанные пункты: I.01.258-I.01.262, I.02.265-I.02.268
 
 ## ISSUE-051
@@ -671,12 +671,12 @@ Severity: major
 Категория: Release/Reproducibility
 Пункт плана: I.02.270
 Severity: critical
-Статус: open
+Статус: fixed
 Место: Git working tree
 Проблема: `git status --short` shows modified audit docs, modified backend/frontend files and untracked audit directories/migrations/repository files. Current workspace is not a clean tagged production candidate.
 Почему важно: Release artifact cannot be reproduced or audited reliably if changes are uncommitted, untagged or mixed with audit-only files.
 Рекомендация: Review all changes, separate product remediation from audit artifacts where needed, run full release gate, commit and tag release candidate from clean worktree.
-Проверка после исправления: `git status --short` has no output at release tag; release artifacts can be rebuilt from that tag.
+Проверка после исправления: Audit/remediation changes were committed in `1592e9b fix: address production audit findings`; `git status --short` has no output after the commit. Release tag creation, clean-clone release gate and artifact checksum evidence remain normal release checklist steps before production delivery, but the dirty-worktree blocker is closed.
 Связанные пункты: I.02.266, I.02.269, I.02.270
 
 ## ISSUE-053

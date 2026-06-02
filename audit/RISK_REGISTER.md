@@ -321,10 +321,10 @@
 ## RISK-036
 
 Категория: Release/Reproducibility
-Описание: Current production candidate worktree contains many modified and untracked files, including audit artifacts and product remediation. Without clean commit/tag, release artifact is not reproducible.
-Вероятность: high
+Описание: Audit/remediation changes were committed in `1592e9b`, and `git status --short` is clean after the commit. Residual reproducibility risk remains until the final release tag is created from a clean checkout and release evidence is attached.
+Вероятность: medium
 Влияние: high
-Митигирующее действие: Review changes, run full release gate, commit/tag candidate from clean status and store release evidence.
+Митигирующее действие: Build from clean committed/tagged checkout, run full release gate and store release evidence/checksums for the final production delivery.
 Ответственный этап: I
 
 ## RISK-037

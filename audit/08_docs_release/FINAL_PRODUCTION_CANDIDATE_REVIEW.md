@@ -9,7 +9,7 @@
 
 ## Release Blockers
 
-1. `ISSUE-052`: worktree is dirty; current candidate is not a clean reproducible release state.
+No critical release blockers are currently tracked. Production approval still requires clean-clone release gate execution, target OS smoke and release evidence.
 
 ## Major Issues Requiring Acceptance Or Fix
 
@@ -29,11 +29,10 @@ Major open issues remain in startup diagnostics, context/shutdown lifecycle, dir
 
 ## What Must Happen Before Re-review
 
-- Close critical blockers.
 - Validate maintained release docs/checklists from clean clone.
 - Run full release checklist from clean clone.
 - Run target OS install smoke and manual PostgreSQL+MinIO test restore.
-- Commit/tag a clean release candidate.
+- Tag a clean release candidate after remaining blockers are resolved.
 
 ## Final Decision
 

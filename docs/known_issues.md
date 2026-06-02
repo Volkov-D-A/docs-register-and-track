@@ -7,9 +7,7 @@ This document summarizes open blockers and accepted follow-up work for the curre
 
 ## Critical Blockers
 
-| Issue | Owner | Mitigation / required action |
-| --- | --- | --- |
-| `ISSUE-052` Release reproducibility | Release owner | Build only from a clean committed/tagged worktree. Attach clean `git status --short`, release gate output summaries and artifact checksums to release evidence. |
+None currently tracked. Release must still be built from a clean committed/tagged checkout with release gate output summaries and artifact checksums attached as evidence.
 
 ## Major Issues Requiring Fix Or Explicit Acceptance
 

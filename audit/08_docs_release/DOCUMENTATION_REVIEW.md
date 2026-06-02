@@ -23,7 +23,7 @@ Release-риск: residual release evidence only; restore workflow no longer has
 
 Статус: ok
 Severity: none
-Release-риск: residual clean-clone execution evidence remains under `ISSUE-052`.
+Release-риск: residual clean-clone execution evidence remains a release checklist requirement.
 Доказательство: root `README.md` added with prerequisites, Docker/dev services, config path, frontend/go commands and first-run steps.
 Что нужно сделать до релиза: выполнить clean-clone walkthrough and attach evidence.
 Можно ли отложить: можно только если release выполняет автор проекта вручную; для production handover нельзя.
@@ -112,7 +112,7 @@ Release-риск: release can depend on tribal knowledge.
 Статус: needs_info
 Severity: major
 Release-риск: clean clone build may fail due missing env/toolchain/generated assets or undocumented order.
-Доказательство: current repo has dirty worktree and no clean-clone build instruction; earlier gates passed in existing workspace only.
+Доказательство: the dirty worktree blocker was closed after commit `1592e9b`, and clean-clone build instructions now exist; earlier gates were still executed in the existing workspace.
 Что нужно сделать до релиза: run clean clone build with documented prerequisites and no hidden local state except approved secrets.
 Можно ли отложить: нет for production candidate.
 Финальная проверка: `npm ci`, `npm run build`, `go test ./...`, `go vet ./...`, release build on clean checkout.
@@ -144,7 +144,7 @@ Release-риск: installed artifact may pass build but fail login/document/file
 
 Статус: ok
 Severity: none
-Release-риск: clean checkout release evidence remains under `ISSUE-052`, but reachable vulnerability blocker and maintained release gate/checklist/smoke docs are fixed.
+Release-риск: clean checkout release evidence remains a release checklist requirement, but reachable vulnerability blocker and maintained release gate/checklist/smoke docs are fixed.
 Доказательство: after remediation `go.mod` requires `go 1.26.3`, `golang.org/x/net@v0.53.0`; `make release-gate` runs `govulncheck`, `go test`, `go vet`, `npm run build`, `npm audit`, npm license check and dependency inventory generation.
 Что нужно сделать до релиза: run `make release-gate` from clean checkout and attach evidence.
 Можно ли отложить: clean release evidence cannot be skipped for production candidate.

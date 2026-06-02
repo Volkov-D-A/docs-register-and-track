@@ -7,7 +7,7 @@
 
 ## Summary
 
-Production-аудит A-I завершен. Система имеет рабочую основу, а несколько критичных инвариантов уже усилены: регистрация документов стала идемпотентной и без потери номера при ошибке, журналы защищены от каскадного удаления на уровне FK, runtime rollback миграций получил production guardrails. Тем не менее текущий production candidate не готов к релизу из-за оставшихся critical blockers and incomplete release evidence.
+Production-аудит A-I завершен. Система имеет рабочую основу, а несколько критичных инвариантов уже усилены: регистрация документов стала идемпотентной и без потери номера при ошибке, журналы защищены от каскадного удаления на уровне FK, runtime rollback миграций получил production guardrails. Тем не менее текущий production candidate не готов к релизу из-за remaining major blockers and incomplete release evidence.
 
 ## Fixed During Audit
 
@@ -34,6 +34,7 @@ Production-аудит A-I завершен. Система имеет рабоч
 - `ISSUE-029`: production secret delivery, permissions and rotation policy is maintained.
 - `ISSUE-044`: frontend maps structured error codes to safe user-facing messages with recovery actions.
 - `ISSUE-051`: release notes and maintained known issues now describe the current production candidate.
+- `ISSUE-052`: audit/remediation worktree changes were committed and current status is clean.
 - `ISSUE-053`: maintained release checklist and smoke test are now project docs.
 - `ISSUE-030`: attachment downloads no longer overwrite existing local files.
 - `ISSUE-035`: obsolete frontend `@ts-ignore` suppressions removed.
@@ -41,7 +42,7 @@ Production-аудит A-I завершен. Система имеет рабоч
 
 ## Critical Blockers
 
-- `ISSUE-052`: release candidate worktree is not clean.
+None currently tracked. The candidate still requires clean-clone release gate execution, target OS smoke and release evidence before production approval.
 
 ## Main Open Major Themes
 
@@ -50,7 +51,7 @@ Production-аудит A-I завершен. Система имеет рабоч
 - Context/shutdown lifecycle for long operations.
 - Frontend dirty form warnings.
 - Target OS install/update smoke evidence.
-- Release docs/runbooks now exist, but clean-clone execution evidence is still missing.
+- Release docs/runbooks now exist, but clean-clone execution evidence is still a required release checklist step.
 - Remaining frontend lint warnings.
 - Frontend/e2e tests, safe integration test gate and performance baseline.
 - UX terminology and UX smoke coverage for destructive/empty-state/microcopy paths.
@@ -68,4 +69,4 @@ Production-аудит A-I завершен. Система имеет рабоч
 
 `not_ready`
 
-Next recommended sequence: close critical security/docs/reproducibility blockers, finish restore/docs/release gates, run clean-clone release checklist, then perform target OS install smoke and manual PostgreSQL+MinIO test restore.
+Next recommended sequence: finish remaining major blockers, run clean-clone release checklist, then perform target OS install smoke and manual PostgreSQL+MinIO test restore.
