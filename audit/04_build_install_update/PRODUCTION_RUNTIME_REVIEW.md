@@ -21,12 +21,12 @@ After `ISSUE-028`, failures before UI exists (`config.Load`, DB/MinIO/release/th
 - Startup config failure exits before UI but now includes actionable diagnostics.
 - MinIO init failure exits before UI but now includes actionable diagnostics.
 - DB ping failure now stops startup with PostgreSQL diagnostics.
-- Shutdown still closes DB without active request coordination (`ISSUE-015`); logger close is now deterministic and idempotent.
+- Shutdown now cancels/waits active lifecycle-aware backend operations before closing DB/logger after `ISSUE-015`; logger close is deterministic and idempotent.
 - Context propagation for MinIO/file/statistics/link operations remains open.
 
 ## Связанные Issues
 
-- `ISSUE-015`: context/shutdown lifecycle.
+- `ISSUE-015`: fixed context/shutdown lifecycle; long-running smoke remains under `ISSUE-042`.
 - `ISSUE-017`: fixed deterministic logger shutdown.
 - `ISSUE-019`: fixed frontend structured error handling.
 - `ISSUE-025`: fixed config lookup; target OS config smoke remains in release evidence.

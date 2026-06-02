@@ -28,7 +28,8 @@ This checklist must be completed from a clean checkout for every production cand
 - [ ] Disposable PostgreSQL integration tests completed through `make integration-test`.
 - [ ] Go vet completed.
 - [ ] `govulncheck` completed with no reachable vulnerabilities.
-- [ ] `npm ci`, frontend lint, frontend tests, frontend build, production build smoke and `npm audit --audit-level=critical` completed.
+- [ ] `npm ci`, frontend lint, frontend tests, frontend build, production build smoke, UX safety smoke checklist validation, long-running smoke checklist validation, DB performance evidence checklist validation and `npm audit --audit-level=critical` completed.
+- [ ] `build/release-evidence/PERFORMANCE_BASELINE.md` generated and target OS manual timings filled or explicitly accepted.
 - [ ] License report and dependency inventories generated under `build/release-evidence/`.
 
 ## Build Artifacts
@@ -45,6 +46,8 @@ This checklist must be completed from a clean checkout for every production cand
 - [ ] Dirty migration state runbook tested on disposable DB.
 - [ ] Newer-schema/downgrade guard tested.
 - [ ] Rollback smoke follows `docs/migration_rollback_runbook.md`.
+- [ ] `make db-performance-check` completed.
+- [ ] Production-like DB query plans from `docs/db_performance_evidence.md` attached or explicitly accepted.
 
 ## Backup And Restore
 
@@ -67,17 +70,24 @@ This checklist must be completed from a clean checkout for every production cand
 
 ## UX And Safety Acceptance
 
+- [ ] `make ux-smoke-check` completed.
+- [ ] Dedicated UX safety smoke in `docs/ux_safety_smoke.md` completed on target OS artifact or accepted in `docs/known_issues.md`.
 - [ ] Structured error behavior smoke completed for validation/forbidden/not found/conflict/internal cases.
-- [ ] Critical submit actions checked for repeat click behavior.
-- [ ] Dirty document/settings forms checked where implemented or accepted in `docs/known_issues.md`.
-- [ ] Destructive confirmations name entity and consequence.
-- [ ] Terminology rules applied or accepted in `docs/known_issues.md`.
+- [ ] Dirty forms, destructive confirmations, repeat submit guards, empty states and terminology smoke completed.
+
+## Long Running Acceptance
+
+- [ ] `make long-running-smoke-check` completed.
+- [ ] Dedicated long-running smoke in `docs/long_running_smoke.md` completed on target OS artifact or accepted in `docs/known_issues.md`.
+- [ ] Memory checkpoints, shutdown cancellation and DB/MinIO outage recovery evidence attached.
 
 ## Final Evidence
 
 - [ ] Completed checklist attached to release evidence.
 - [ ] Command output summaries attached.
 - [ ] Target OS smoke result attached.
+- [ ] Long-running smoke result attached.
 - [ ] Backup/restore smoke result attached.
 - [ ] Performance baseline attached or accepted in `docs/known_issues.md`.
+- [ ] DB performance evidence attached or accepted in `docs/known_issues.md`.
 - [ ] Clean `git status --short` at tag attached.

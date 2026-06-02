@@ -145,21 +145,21 @@
 ## DECISION-015
 
 Дата: 2026-05-28
-Контекст: Этап G подтвердил strong Go unit coverage and passing PostgreSQL integration tests. After `ISSUE-039`, integration tests are run through `make integration-test` with disposable DB provisioning. After `ISSUE-038`, frontend helper tests and production build asset smoke are release-gated.
-Решение: Production release test gate must include four layers: Go unit tests, safe disposable PostgreSQL integration tests, frontend type/lint/helper checks, and production-build smoke. Integration tests must refuse unsafe DSNs. Full browser/Wails UX lifecycle smoke remains release evidence under `ISSUE-043`.
+Контекст: Этап G подтвердил strong Go unit coverage and passing PostgreSQL integration tests. After `ISSUE-039`, integration tests are run through `make integration-test` with disposable DB provisioning. After `ISSUE-038`, frontend helper tests and production build asset smoke are release-gated. After `ISSUE-043`, browser/Wails UX safety checklist coverage is release-gated by `make ux-smoke-check`.
+Решение: Production release test gate must include Go unit tests, safe disposable PostgreSQL integration tests, frontend type/lint/helper checks, production-build smoke and UX safety checklist validation. Integration tests must refuse unsafe DSNs. Completed target OS browser/Wails UX lifecycle smoke remains release evidence.
 Причина: Critical no-gaps/idempotency and retention invariants must run in release gate, while frontend remediation needs UI-level protection.
 Альтернативы: Keep manual testing only; rely on `go test ./...`. These miss gated DB tests and all frontend/e2e behavior.
-Последствия: Need release test script, safe test DB provisioning, frontend helper/build smoke tooling and manual target OS UX smoke evidence.
+Последствия: Need release test script, safe test DB provisioning, frontend helper/build smoke tooling, maintained UX safety checklist and manual target OS UX smoke evidence.
 Какие этапы затрагивает: G, H, I
 
 ## DECISION-016
 
 Дата: 2026-05-28
-Контекст: Production SLO is documented, and DB synthetic EXPLAIN baseline exists, but no target Wails startup/UI/memory measurements exist.
+Контекст: Production SLO is documented, and DB synthetic EXPLAIN baseline exists. After `ISSUE-041`, static bundle/binary baseline generation is release-gated; target Wails startup/UI/memory measurements are captured as manual release evidence fields.
 Решение: Establish performance baseline as release evidence: startup to login, login/dashboard, list open/search/filter, registration save, statistics/report open, memory after repeated usage, bundle/binary size.
 Причина: Without measured baseline, SLO remains aspirational and regressions from remediation cannot be evaluated.
 Альтернативы: Use DB EXPLAIN only or subjective manual checks. These do not cover desktop UI/runtime behavior.
-Последствия: Need manual or automated performance smoke on Linux/Windows production build with production-like data.
+Последствия: Keep `make performance-baseline` in release gate and fill Linux/Windows timing fields on production build with production-like data.
 Какие этапы затрагивает: G, I
 
 ## DECISION-017

@@ -13,13 +13,13 @@
 
 Fixed after audit: document registration/edit modals now use local register/edit submitting guards and `confirmLoading`; assignment/acknowledgment completion, file upload/delete, settings CRUD, migration and storage actions have repeat-click guards.
 
-Связано: `ISSUE-020` fixed; manual double-click smoke remains under `ISSUE-043`.
+Связано: `ISSUE-020` fixed; manual double-click smoke is covered by `docs/ux_safety_smoke.md`.
 
 ### Unsaved changes guard
 
 Fixed after audit: document registration/edit and important settings modals use shared dirty-form confirmation before discarding touched fields.
 
-Связано: `ISSUE-021` fixed; manual dirty modal smoke remains under `ISSUE-043`.
+Связано: `ISSUE-021` fixed; manual dirty modal smoke is covered by `docs/ux_safety_smoke.md`.
 
 ### Валидация неодинакова
 

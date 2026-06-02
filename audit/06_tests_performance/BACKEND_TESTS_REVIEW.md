@@ -27,8 +27,8 @@ These tests are part of `make integration-test` after `ISSUE-039`; the runner cr
 ## Gaps
 
 - Startup failure behavior is not tested as a user-facing diagnostic flow.
-- Context cancellation/shutdown behavior is not tested.
+- Context cancellation/shutdown lifecycle has unit coverage after `ISSUE-015`; long-running end-to-end cancellation smoke is maintained after `ISSUE-042`.
 - Structured frontend/backend error behavior is not tested end-to-end.
 - Seq technical user context minimization is covered by `TestTechnicalContextHandlerAddsOnlyUserID`; end-to-end Seq smoke remains release-gate/manual.
 
-Связанные issues: `ISSUE-015`, `ISSUE-019`, `ISSUE-028`; fixed: `ISSUE-039`.
+Связанные issues: fixed: `ISSUE-015`, `ISSUE-019`, `ISSUE-028`, `ISSUE-039`, `ISSUE-042`.

@@ -92,12 +92,12 @@ Build/dev-зависимости:
 - Backend/Wails error contract target после этапа C: frontend должен получать structured error envelope `{code,message,details?}` со стабильными domain codes; plain `err.Error()` и тексты PostgreSQL/storage не являются frontend contract.
 - Backend lifecycle target после этапа C: долгие DB/MinIO/file/statistics operations должны получать request/app context с cancel/timeout; закрытие окна должно отменять активные операции предсказуемо.
 - Logging/privacy target после этапа C: technical Seq logs минимизируют ФИО и business identifiers; доменный audit trail (`document_journal`, `admin_audit_log`) остается местом для необходимых бизнес-деталей.
-- Stage C backend audit status: завершен 2026-05-27 статическим review Go backend/Wails bindings. SQL injection risk не подтвержден; реализованы structured errors, backend `idempotencyKey` и logging PII minimization; открыты strict typed document command DTO и context propagation.
+- Stage C backend audit status: завершен 2026-05-27 статическим review Go backend/Wails bindings. SQL injection risk не подтвержден; реализованы structured errors, backend `idempotencyKey`, logging PII minimization and operation lifecycle context propagation.
 - Stage B/C remediation status: backend `idempotencyKey` + no-gaps registration transaction реализованы и проверены integration tests; retention-safe FK для `document_journal`/`admin_audit_log` реализованы миграцией `009_retention_safe_journal_fks` и integration test.
 - Stage D frontend audit status: завершен 2026-05-28. Документные frontend forms отправляют `idempotencyKey`; frontend uses centralized structured error handling and critical submit/action guards. Dirty confirmations and bundle/performance evidence remain frontend work items.
 - Stage E build/install/update audit status: завершен 2026-05-28 статическим review production build/install/runtime lifecycle. Единый version source реализован через `docs/releases.yaml` -> generated release assets/Wails metadata; release gate validates required `ENCRYPTION_KEY`, generated asset freshness and `npm ci`; config lookup supports `DOCFLOW_CONFIG_PATH`, executable-relative config and local cwd fallback; startup diagnostics are implemented for fatal pre-UI failures; Windows per-machine admin install policy and production secret policy are documented. Основные оставшиеся gates: target OS install/update smoke, downgrade/schema compatibility guard, backup/restore temp cleanup and release evidence execution.
 - Stage F security/dependencies/quality audit status: завершен 2026-05-28. After remediation `ISSUE-032`, `go test ./...`, `go vet ./...`, `npm run build` прошли; `npm audit` clean; `govulncheck` reports 0 reachable vulnerabilities with `go1.26.3`/`x/net@v0.53.0`.
-- Stage G tests/performance audit status: завершен 2026-05-28. `go test ./...` прошел; отдельные PostgreSQL integration tests for idempotency/concurrency/retention FK passed against local test DB. After `ISSUE-039`, release gate includes safe disposable PostgreSQL integration DB provisioning. After `ISSUE-040`, critical database unique/FK/not-null/dirty migration constraints are integration-tested. After `ISSUE-038`, frontend helper tests and production build smoke are release-gated. Основные gaps: full browser/Wails UX smoke, performance baseline for Wails/UI/memory, long-running/cancellation tests.
+- Stage G tests/performance audit status: завершен 2026-05-28. `go test ./...` прошел; отдельные PostgreSQL integration tests for idempotency/concurrency/retention FK passed against local test DB. After `ISSUE-039`, release gate includes safe disposable PostgreSQL integration DB provisioning. After `ISSUE-040`, critical database unique/FK/not-null/dirty migration constraints are integration-tested. After `ISSUE-038`, frontend helper tests and production build smoke are release-gated. After `ISSUE-041`, performance baseline report generation is release-gated. After `ISSUE-042`, maintained long-running smoke checklist coverage is release-gated. After `ISSUE-043`, maintained UX safety smoke checklist coverage is release-gated. Основной gap: target OS execution evidence.
 - Stage H UX/text audit status: завершен 2026-05-28. Safe error copy is fixed by `ISSUE-044`; UX terminology is fixed by `ISSUE-045`; weak destructive confirmations are fixed by `ISSUE-046`; passive empty states are fixed by `ISSUE-047`; unclear abbreviations/placeholders are fixed by `ISSUE-048`; microcopy style examples are fixed by `ISSUE-049`.
 - Stage I docs/release/final readiness audit status: завершен 2026-05-28. Созданы `audit/08_docs_release/*` and `audit/FINAL_SUMMARY.md`. После remediation fixed: `ISSUE-007`, `ISSUE-027`, `ISSUE-032`, `ISSUE-050`, `ISSUE-052`. Финальное решение для текущего production candidate remains `not_ready` because release evidence and remaining major blockers are incomplete.
 
@@ -113,9 +113,9 @@ Build/dev-зависимости:
 - влияние пожизненного хранения журналов на индексы, размер БД и планы backup/restore.
 - frontend обработку structured error codes.
 - отдельный unit/smoke test strict DTO validation на unknown fields и missing `idempotencyKey`.
-- cancellation/shutdown behavior для upload/download/link graph/statistics.
+- execute maintained long-running cancellation/shutdown smoke for upload/download/link graph/statistics.
 - frontend submit/loading guards and dirty confirmation are fixed; keep repeat-submit/dirty-close smoke in release evidence.
-- frontend bundle/startup performance на production-like данных.
+- fill generated performance baseline target OS timings on production-like data.
 - target OS evidence for production config path policy and startup diagnostics.
 - target OS install smoke: Program Files/portable path, path with spaces/Cyrillic, run without admin after install.
 - downgrade/newer-schema guard and dirty migration recovery UX/runbook.
@@ -126,12 +126,12 @@ Build/dev-зависимости:
 - license review is fixed: `@antv/g2-extension-plot` is resolved as MIT via package `LICENSE`; latest report has 0 unknown and 0 disallowed licenses.
 - frontend ESLint/static-analysis gate is added; reduce lint warnings and broad `any` at Wails contract boundaries gradually.
 - gofmt formatting drift cleanup.
-- release test gate: Go unit tests, safe disposable PostgreSQL integration tests, frontend helper tests and production build smoke are gated; full browser/Wails UX smoke remains open.
-- performance baseline on target OS/build: startup, lists/search, save, statistics, memory, bundle/binary size.
-- long-running smoke: repeated modals/views/files, DB/MinIO outages, close app during long operations.
+- release test gate: Go unit tests, safe disposable PostgreSQL integration tests, frontend helper tests, production build smoke and UX safety checklist validation are gated.
+- generated performance baseline report target OS timings: startup, lists/search, save, statistics, memory.
+- attach long-running smoke evidence: repeated modals/views/files, DB/MinIO outages, close app during long operations.
 - keep UX terminology smoke against `TERMS_GLOSSARY.md` for future UI changes.
 - map structured errors to safe actionable user messages.
-- destructive confirmations and empty states are strengthened; smoke/e2e coverage remains open.
+- destructive confirmations and empty states are strengthened; execute maintained UX safety smoke on target OS as release evidence.
 - complete and attach `docs/release_checklist.md` and `docs/smoke_test.md` evidence from clean checkout.
 - tag release candidate from clean checkout and verify reproducible release evidence.
 

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -28,6 +27,7 @@ type AttachmentService struct {
 	auditService    *AdminAuditLogService
 	fileStorage     FileStorage
 	access          *DocumentAccessService
+	lifecycle       *OperationLifecycle
 }
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
@@ -43,8 +43,15 @@ func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService
 	}
 }
 
+func (s *AttachmentService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
+	s.lifecycle = lifecycle
+}
+
 // Upload — загрузка файла
 func (s *AttachmentService) Upload(documentIDStr string, filename string, contentBase64 string) (*dto.Attachment, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	currentUser, err := s.authService.GetCurrentUser()
 	if err != nil {
 		return nil, models.ErrUnauthorized
@@ -110,7 +117,7 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 	}
 
 	objectName := uuid.New().String() + ext
-	if err := s.fileStorage.UploadFile(context.Background(), objectName, data, contentType); err != nil {
+	if err := s.fileStorage.UploadFile(ctx, objectName, data, contentType); err != nil {
 		return nil, fmt.Errorf("failed to upload file to storage: %v", err)
 	}
 
@@ -131,11 +138,11 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 
 	if err := s.repo.Create(attachment); err != nil {
 		// Попытка откатить (удалить) файл из хранилища, если сохранение в БД не удалось
-		_ = s.fileStorage.DeleteFile(context.Background(), objectName)
+		_ = s.fileStorage.DeleteFile(ctx, objectName)
 		return nil, err
 	}
 
-	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+	s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
 		DocumentID: documentID,
 		UserID:     userID,
 		Action:     "FILE_UPLOAD",
@@ -162,6 +169,9 @@ func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, err
 
 // Download — получить содержимое файла в формате base64
 func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
@@ -184,7 +194,7 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 	}
 
 	// Получение содержимого из файлового хранилища
-	content, err := s.fileStorage.DownloadFile(context.Background(), attachment.StoragePath)
+	content, err := s.fileStorage.DownloadFile(ctx, attachment.StoragePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file content: %v", err)
 	}
@@ -197,6 +207,9 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 
 // Delete — удалить вложение
 func (s *AttachmentService) Delete(idStr string) error {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	// Проверка прав доступа
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -216,7 +229,7 @@ func (s *AttachmentService) Delete(idStr string) error {
 	}
 
 	// Удаление из файлового хранилища
-	if err := s.fileStorage.DeleteFile(context.Background(), attachment.StoragePath); err != nil {
+	if err := s.fileStorage.DeleteFile(ctx, attachment.StoragePath); err != nil {
 		return fmt.Errorf("failed to delete file from storage: %v", err)
 	}
 
@@ -226,7 +239,7 @@ func (s *AttachmentService) Delete(idStr string) error {
 	}
 
 	currentUserID, _ := s.authService.GetCurrentUserUUID()
-	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+	s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
 		DocumentID: attachment.DocumentID,
 		UserID:     currentUserID,
 		Action:     "FILE_DELETE",
@@ -238,6 +251,9 @@ func (s *AttachmentService) Delete(idStr string) error {
 
 // DownloadToDisk — сохранить файл в папку «Загрузки» пользователя и вернуть полный путь
 func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	if err := s.access.RequireDomainRead(); err != nil {
 		return "", err
 	}
@@ -260,7 +276,7 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	}
 
 	// Получение содержимого
-	content, err := s.fileStorage.DownloadFile(context.Background(), attachment.StoragePath)
+	content, err := s.fileStorage.DownloadFile(ctx, attachment.StoragePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to get file content: %v", err)
 	}
@@ -425,6 +441,9 @@ func (s *AttachmentService) OpenFolder(path string) error {
 
 // BulkDeleteOlderThan — массовое удаление файлов, загруженных до указанной даты
 func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	// Проверка прав доступа
 	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return 0, err
@@ -448,7 +467,10 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	deletedCount := 0
 
 	for _, att := range attachments {
-		if err := s.fileStorage.DeleteFile(context.Background(), att.StoragePath); err != nil {
+		if err := ctx.Err(); err != nil {
+			return deletedCount, err
+		}
+		if err := s.fileStorage.DeleteFile(ctx, att.StoragePath); err != nil {
 			// Логируем ошибку, но продолжаем удаление других файлов
 			fmt.Printf("Failed to delete file %s from MinIO: %v\n", att.StoragePath, err)
 			continue

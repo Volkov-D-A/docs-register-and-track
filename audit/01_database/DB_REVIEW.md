@@ -24,7 +24,7 @@
 | ISSUE-006 | major | `nomenclature.next_number` инкрементируется отдельно от транзакции создания документа; нет backend/DB `idempotency_key`. | B/C |
 | ISSUE-007 | critical | `down`-миграции удаляют production tables/data; UI rollback разрешен для `admin`. | B/H |
 | ISSUE-008 | major | Lifetime journals используют `ON DELETE CASCADE` на `documents`/`users`. | B/C |
-| ISSUE-009 | minor | Representative plans быстрые на 1000 docs, но access/list/search queries требуют повторной проверки на фактическом dataset и при росте данных. | B/F |
+| ISSUE-009 | fixed | Representative plans быстрые на 1000 docs; production-like DB performance evidence checklist and release-gate validation added. | B/F |
 | ISSUE-010 | major | Restore script игнорирует ненулевой `pg_restore` и продолжает MinIO restore. | B/H |
 
 ## Что Передать На Этап C
@@ -74,13 +74,13 @@
 | B.03.050 | ok | none | SQL | Частые writes: document create/update, assignments, acknowledgments, attachments, settings. | См. `DB_TRANSACTIONS_REVIEW.md`. |
 | B.04.051 | ok | none | EXPLAIN | Representative plans собраны для document list/access, assignments, acknowledgments, journal, admin audit, search. | См. `DB_QUERY_PLANS.md`. |
 | B.04.052 | ok | none | EXPLAIN ANALYZE | На 1000 docs планы выполняются примерно за 0.05-2.9 ms. | Повторить на финальном dataset. |
-| B.04.053 | issue | minor | indexes | Текущие планы быстрые, но access/search paths частично используют seq/hash scans; при подтвержденном объеме это допустимо. | Не добавлять индексы без роста данных или ухудшения plan evidence. |
+| B.04.053 | fixed | none | indexes | Текущие планы быстрые, но access/search paths частично используют seq/hash scans; при подтвержденном объеме это допустимо. | `docs/db_performance_evidence.md` keeps no-premature-index decision evidence-gated. |
 | B.04.054 | ok | none | indexes | FK joins на representative data быстрые; journal/admin audit используют индексы. | Повторить при росте данных. |
 | B.04.055 | ok | none | indexes | Sort operations top-N и быстрые на baseline. | Composite sort indexes условны. |
 | B.04.056 | issue | minor | pagination | Используется OFFSET pagination. | При baseline 1000/year допустимо; при росте перейти на keyset. |
-| B.04.057 | issue | minor | search | `ILIKE '%term%'`/`LOWER(...) LIKE` без trigram indexes. | При росте данных добавить pg_trgm или FTS. |
+| B.04.057 | fixed | none | search | `ILIKE '%term%'`/`LOWER(...) LIKE` без trigram indexes. | Trigram/FTS remains conditional on production-like `EXPLAIN` evidence. |
 | B.04.058 | ok | none | indexes | На текущем representative dataset составные индексы не являются обязательными для SLO. | Вернуться при росте данных. |
-| B.04.059 | issue | minor | indexes | Частичные индексы есть только для pending order acknowledgment people. | Рассмотреть partial indexes для active/pending assignments/acknowledgments. |
+| B.04.059 | fixed | none | indexes | Частичные индексы есть только для pending order acknowledgment people. | Partial indexes remain conditional on production-like `EXPLAIN` evidence. |
 | B.04.060 | issue | major | unique indexes | Нет unique для idempotency key. | Добавить unique index `(created_by, kind, idempotency_key)`. |
 | B.04.061 | issue | minor | indexes | Structural duplicate: `users_login_key` и `idx_users_login` оба индексируют `users(login)`. | Удалить отдельный `idx_users_login`, оставив unique constraint index. |
 | B.04.062 | ok | none | indexes | `pg_stat_user_indexes` снят на synthetic DB; top scans ожидаемо на PK/login/nomenclature indexes. | Повторить после длительной нагрузки или финального production-like сценария. |

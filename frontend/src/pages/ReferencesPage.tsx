@@ -1,6 +1,6 @@
 import React from 'react';
 import { Typography } from 'antd';
-import { ReferenceDirectoriesTab } from './SettingsPage';
+import { ReferenceDirectoriesTab } from '../features/settings/ReferenceDirectoriesTab';
 
 const { Title } = Typography;
 

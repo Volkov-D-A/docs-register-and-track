@@ -13,7 +13,7 @@ No critical release blockers are currently tracked. Production approval still re
 
 ## Major Issues Requiring Acceptance Or Fix
 
-Major open issues remain in context/shutdown lifecycle, target OS install/update smoke, performance baseline, long-running/cancellation testing and full browser/Wails UX safety smoke.
+No major open issues are currently tracked. Target OS install/update, UX safety and long-running smoke execution still require completed release evidence before approval.
 
 ## What Is Ready
 

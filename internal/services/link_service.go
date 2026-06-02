@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -22,6 +21,7 @@ type LinkService struct {
 	access                  *DocumentAccessService
 	authService             *AuthService
 	journal                 *JournalService
+	lifecycle               *OperationLifecycle
 }
 
 // NewLinkService создает новый экземпляр LinkService.
@@ -47,8 +47,15 @@ func NewLinkService(
 	}
 }
 
+func (s *LinkService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
+	s.lifecycle = lifecycle
+}
+
 // LinkDocuments создает связь указанного типа между двумя документами.
 func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (*dto.DocumentLink, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	if !s.authService.IsAuthenticated() {
 		return nil, models.ErrUnauthorized
 	}
@@ -88,7 +95,7 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 		CreatedAt:  time.Now(),
 	}
 
-	if err := s.repo.Create(context.Background(), link); err != nil {
+	if err := s.repo.Create(ctx, link); err != nil {
 		return nil, fmt.Errorf("failed to create link: %w", err)
 	}
 	if linkType == "order_cancels" && s.administrativeOrderRepo != nil {
@@ -101,13 +108,13 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 	// Логирование создания связи (для обоих документов)
 	// Упрощенный лог (без номеров, просто факт)
 	// Упрощенный лог (без номеров, просто факт)
-	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+	s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
 		DocumentID: sourceID,
 		UserID:     userID,
 		Action:     "LINK_CREATE",
 		Details:    "Создана связь с другим документом",
 	})
-	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+	s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
 		DocumentID: targetID,
 		UserID:     userID,
 		Action:     "LINK_CREATE",
@@ -119,12 +126,15 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 
 // UnlinkDocument удаляет связь между документами по её ID.
 func (s *LinkService) UnlinkDocument(idStr string) error {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return fmt.Errorf("invalid ID: %w", err)
 	}
 
-	link, err := s.repo.GetByID(context.Background(), id)
+	link, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -135,16 +145,16 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 		return err
 	}
 
-	err = s.repo.Delete(context.Background(), id)
+	err = s.repo.Delete(ctx, id)
 	if err == nil {
 		currentUserID, _ := s.authService.GetCurrentUserUUID()
-		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
 			DocumentID: link.SourceID,
 			UserID:     currentUserID,
 			Action:     "LINK_DELETE",
 			Details:    "Удалена связь с документом",
 		})
-		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
 			DocumentID: link.TargetID,
 			UserID:     currentUserID,
 			Action:     "LINK_DELETE",
@@ -156,6 +166,9 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 
 // GetDocumentLinks возвращает список всех прямых связей для указанного документа.
 func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	docID, err := uuid.Parse(docIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
@@ -163,7 +176,7 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 	if err := s.access.RequireDocumentAction(docID, "link"); err != nil {
 		return nil, err
 	}
-	res, err := s.repo.GetByDocumentID(context.Background(), docID)
+	res, err := s.repo.GetByDocumentID(ctx, docID)
 	if err != nil {
 		return nil, err
 	}
@@ -193,6 +206,9 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 
 // GetDocumentFlow возвращает граф связей для документа, включая связанные узлы (документы) и ребра (связи) для визуализации.
 func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	rootID, err := uuid.Parse(rootIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid document ID: %w", err)
@@ -201,7 +217,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 		return nil, err
 	}
 
-	links, err := s.repo.GetGraph(context.Background(), rootID)
+	links, err := s.repo.GetGraph(ctx, rootID)
 	if err != nil {
 		return nil, err
 	}

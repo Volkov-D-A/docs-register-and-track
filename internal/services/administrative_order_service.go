@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -64,7 +63,7 @@ func (s *AdministrativeOrderService) MarkAcknowledged(personIDStr string) (*dto.
 		return nil, models.NewNotFound("строка ознакомления не найдена")
 	}
 
-	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+	s.journal.LogAction(nil, models.CreateJournalEntryRequest{
 		DocumentID: updated.DocumentID,
 		UserID:     userID,
 		Action:     "ORDER_ACKNOWLEDGE",

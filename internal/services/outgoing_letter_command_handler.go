@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -125,7 +124,7 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 		Addressee:       req.Addressee,
 	})
 	if err == nil {
-		h.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
 			DocumentID: res.ID,
 			UserID:     createdBy,
 			Action:     "CREATE",
@@ -182,7 +181,7 @@ func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (
 	})
 	if err == nil {
 		currentUserID, _ := h.auth.GetCurrentUserUUID()
-		h.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
 			DocumentID: uid,
 			UserID:     currentUserID,
 			Action:     "UPDATE",

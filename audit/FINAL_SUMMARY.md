@@ -18,9 +18,11 @@ Production-аудит A-I завершен. Система имеет рабоч
 - `ISSUE-005`: sidebar organization name now uses `organization_short_name`.
 - `ISSUE-006`: no-gaps/idempotent registration fixed.
 - `ISSUE-008`: retention-safe FK for `document_journal` and `admin_audit_log` fixed.
+- `ISSUE-009`: DB performance evidence checklist is maintained and validated in the release gate.
 - `ISSUE-012`: backend/Wails structured error envelope fixed.
 - `ISSUE-013`: document registration idempotency key and transaction boundary fixed.
 - `ISSUE-014`: strict document command decode fixed.
+- `ISSUE-015`: backend operation lifecycle cancellation and shutdown coordination fixed.
 - `ISSUE-007`: destructive runtime rollback guardrails fixed.
 - `ISSUE-016`: Seq/technical logs now use user ID context without full names.
 - `ISSUE-017`: deterministic Seq logger shutdown fixed.
@@ -28,6 +30,7 @@ Production-аудит A-I завершен. Система имеет рабоч
 - `ISSUE-019`: frontend now consumes structured Wails error envelope via a shared adapter.
 - `ISSUE-020`: critical frontend submit/actions now have local repeat-click guards.
 - `ISSUE-021`: long document/settings forms now confirm before discarding unsaved changes.
+- `ISSUE-022`: reference directory tabs extracted from the large settings page.
 - `ISSUE-023`: release notes and Wails product metadata now use one generated version source.
 - `ISSUE-024`: release build gate now validates secrets, generated asset freshness and deterministic frontend install.
 - `ISSUE-025`: runtime config lookup no longer depends only on current working directory.
@@ -45,6 +48,9 @@ Production-аудит A-I завершен. Система имеет рабоч
 - `ISSUE-039`: release integration test gate now provisions disposable PostgreSQL DBs and refuses unsafe DSNs.
 - `ISSUE-040`: critical database unique/FK/not-null/dirty migration constraints are covered by release-gated integration tests.
 - `ISSUE-038`: frontend helper tests and production build smoke are included in the release gate.
+- `ISSUE-041`: performance baseline report generation is included in the release gate.
+- `ISSUE-042`: long-running/cancellation smoke checklist is maintained and validated in the release gate.
+- `ISSUE-043`: UX safety smoke checklist is maintained and validated in the release gate.
 
 ## Critical Blockers
 
@@ -53,12 +59,11 @@ None currently tracked. The candidate still requires clean-clone release gate ex
 ## Main Open Major Themes
 
 - Restore hardening and backup/restore runbook.
-- Context/shutdown lifecycle for long operations.
 - Target OS install/update smoke evidence.
 - Release docs/runbooks now exist, but clean-clone execution evidence is still a required release checklist step.
 - Remaining frontend lint warnings.
-- Full browser/Wails UX smoke and performance baseline.
-- UX smoke coverage for destructive/empty-state/microcopy paths.
+- Target OS execution evidence for the maintained long-running/cancellation smoke checklist.
+- Target OS execution evidence for the maintained UX safety smoke checklist.
 
 ## Verified Commands In Current Workspace
 

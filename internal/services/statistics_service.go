@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -14,14 +13,19 @@ import (
 
 // StatisticsService предоставляет бизнес-логику раздела статистики.
 type StatisticsService struct {
-	repo    StatisticsStore
-	auth    *AuthService
-	storage StorageInfoProvider
+	repo      StatisticsStore
+	auth      *AuthService
+	storage   StorageInfoProvider
+	lifecycle *OperationLifecycle
 }
 
 // NewStatisticsService создает новый экземпляр StatisticsService.
 func NewStatisticsService(repo StatisticsStore, auth *AuthService, storage StorageInfoProvider) *StatisticsService {
 	return &StatisticsService{repo: repo, auth: auth, storage: storage}
+}
+
+func (s *StatisticsService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
+	s.lifecycle = lifecycle
 }
 
 // GetDocumentStatistics возвращает обзорную статистику по всем документам за текущий год.
@@ -211,6 +215,9 @@ func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStat
 
 // GetSystemStatistics возвращает системную статистику.
 func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
 		return nil, err
 	}
@@ -232,7 +239,7 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 	}
 
 	if s.storage != nil {
-		objectCount, totalSize, err := s.storage.GetStorageInfo(context.Background())
+		objectCount, totalSize, err := s.storage.GetStorageInfo(ctx)
 		if err != nil {
 			slog.Warn("failed to get storage statistics", "error", err)
 		} else {

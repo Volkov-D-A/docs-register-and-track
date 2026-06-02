@@ -10,9 +10,10 @@ import (
 )
 
 type JournalService struct {
-	repo   JournalStore
-	auth   *AuthService
-	access *DocumentAccessService
+	repo      JournalStore
+	auth      *AuthService
+	access    *DocumentAccessService
+	lifecycle *OperationLifecycle
 }
 
 func NewJournalService(repo JournalStore, auth *AuthService, access *DocumentAccessService) *JournalService {
@@ -23,9 +24,16 @@ func NewJournalService(repo JournalStore, auth *AuthService, access *DocumentAcc
 	}
 }
 
+func (s *JournalService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
+	s.lifecycle = lifecycle
+}
+
 // GetByDocumentID возвращает список записей журнала для заданного документа.
 // Этот метод предназначен для вызова из фронтенда Wails.
 func (s *JournalService) GetByDocumentID(documentIDStr string) ([]dto.JournalEntry, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
 	docID, err := uuid.Parse(documentIDStr)
 	if err != nil {
 		return nil, err
@@ -42,7 +50,7 @@ func (s *JournalService) GetByDocumentID(documentIDStr string) ([]dto.JournalEnt
 		}
 	}
 
-	entries, err := s.repo.GetByDocumentID(context.Background(), docID)
+	entries, err := s.repo.GetByDocumentID(ctx, docID)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +60,14 @@ func (s *JournalService) GetByDocumentID(documentIDStr string) ([]dto.JournalEnt
 
 // LogAction — это внутренний вспомогательный метод для других сервисов, чтобы логировать действия (создать запись в журнале).
 func (s *JournalService) LogAction(ctx context.Context, req models.CreateJournalEntryRequest) error {
+	if ctx == nil && s.lifecycle != nil {
+		opCtx, release := s.lifecycle.OperationContext()
+		defer release()
+		ctx = opCtx
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	_, err := s.repo.Create(ctx, req)
 	return err
 }

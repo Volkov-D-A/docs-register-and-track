@@ -5,7 +5,7 @@
 
 ## Вывод
 
-After `ISSUE-038`, `npm run smoke:prod` verifies the Vite production build output and referenced assets. A full browser/Wails desktop lifecycle smoke is still manual/release-evidence work under `ISSUE-043`.
+After `ISSUE-038`, `npm run smoke:prod` verifies the Vite production build output and referenced assets. After `ISSUE-043`, the full browser/Wails UX safety scenarios are maintained in `docs/ux_safety_smoke.md` and validated by `make ux-smoke-check`; completed target OS execution remains release evidence.
 
 ## Required E2E Scenarios Before Release
 
@@ -24,4 +24,4 @@ After `ISSUE-038`, `npm run smoke:prod` verifies the Vite production build outpu
 
 E2E must run against disposable PostgreSQL/MinIO buckets, never production config. Existing integration tests reset schema; e2e should have explicit env/config isolation and visible safeguards.
 
-Связанные issues: `ISSUE-041`, `ISSUE-043`; fixed: `ISSUE-038`, `ISSUE-039`.
+Связанные issues: fixed `ISSUE-038`, `ISSUE-039`, `ISSUE-041`, `ISSUE-043`.

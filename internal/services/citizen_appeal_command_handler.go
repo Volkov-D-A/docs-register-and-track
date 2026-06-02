@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -180,7 +179,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 		Resolutions:          resolutions,
 	})
 	if err == nil {
-		h.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
 			DocumentID: res.ID,
 			UserID:     createdBy,
 			Action:     "CREATE",
@@ -261,7 +260,7 @@ func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*d
 	})
 	if err == nil {
 		currentUserID, _ := h.auth.GetCurrentUserUUID()
-		h.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
 			DocumentID: uid,
 			UserID:     currentUserID,
 			Action:     "UPDATE",

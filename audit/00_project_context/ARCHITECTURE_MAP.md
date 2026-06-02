@@ -92,7 +92,7 @@ Boundary risks:
 - Registration numbering for creates was remediated after stages B/C: idempotency check, nomenclature row lock, number allocation and document create now run in one repository transaction.
 - Wails error boundary was remediated on backend side to structured `{code,message,status}`; frontend still needs centralized adapter usage instead of raw `err?.message || String(err)`.
 - `DocumentRegistrationService.Register/Update` still has generic public shape, but strict decoding now rejects unknown fields and create DTOs require `idempotencyKey`.
-- Long-running backend operations currently use `context.Background()` in several service paths; target: app/request context propagation from Wails lifecycle.
+- Long-running backend operations use shared app operation lifecycle after `ISSUE-015`; target OS long-running smoke remains release evidence.
 - Some frontend pages are large and mix service calls, forms, modal lifecycle and layout; stage D recommends gradual feature-level decomposition.
 - Runtime config sits outside embedded assets and is resolved through `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json`, then cwd fallback for local development.
 - Release/version information uses `docs/releases.yaml` as source for embedded release notes and Wails product metadata; target OS smoke must still verify binary properties and installer DisplayVersion.

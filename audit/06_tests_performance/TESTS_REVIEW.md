@@ -11,10 +11,10 @@ After `ISSUE-039`, `make integration-test` provisions a disposable `docflow_test
 Главные gaps G:
 
 - minimal frontend helper tests are present after `ISSUE-038`;
-- full browser/Wails lifecycle smoke remains manual/release-evidence work;
+- full browser/Wails UX safety checklist is maintained and release-gated after `ISSUE-043`; target OS execution remains release evidence;
 - production build smoke on installed Wails app is not automated;
-- performance baseline exists only for PostgreSQL synthetic EXPLAIN, not for Wails startup, React heavy screens, backend operations or memory;
-- long-running/cancellation/progress scenarios are not covered by tests.
+- performance baseline report generation exists after `ISSUE-041`; target OS timing values must be filled as release evidence;
+- long-running/cancellation/progress scenarios are maintained as release smoke after `ISSUE-042`; completed target OS evidence remains required.
 
 ## Выполненные Проверки
 
@@ -35,16 +35,16 @@ After `ISSUE-039`, `make integration-test` provisions a disposable `docflow_test
 | G.01.194 | ok | none | database | Retention FK integration exists; after `ISSUE-040`, critical unique/required/FK/dirty-state constraints are covered by `TestDatabaseConstraintsIntegration`. | Keep this test in `make integration-test`. |
 | G.01.195 | ok | none | database | Embedded migrations availability tested; fresh migration application covered by integration helper and `make integration-test` release gate. | Keep disposable admin DSN evidence in release artifacts. |
 | G.02.196-G.02.199 | partial | minor | frontend | `npm test` covers frontend error adapter and dirty-form helpers without new dependencies. | Broader component tests can be added when a browser/jsdom runner is introduced. |
-| G.02.200-G.02.203 | partial | minor | e2e | `npm run smoke:prod` checks production build index/assets; full Wails/browser lifecycle remains manual under `ISSUE-043`. | Keep release smoke evidence for login/navigation/document flows. |
-| G.03.204 | partial | minor | performance/db | Synthetic EXPLAIN baseline exists for 1000 docs and fast plans. | Repeat on final production-like dataset. |
-| G.03.205-G.03.210 | issue | major | performance | No backend/React/startup/save/search timing harness. | Define performance baseline and measure in Wails build. |
-| G.04.211-G.04.220 | issue | major | long-running | No memory/leak/cancel/progress tests; lifecycle issue open. | Add long-running smoke suite. |
+| G.02.200-G.02.203 | partial | minor | e2e | `npm run smoke:prod` checks production build index/assets; `make ux-smoke-check` validates maintained browser/Wails UX safety scenarios in `docs/ux_safety_smoke.md`. | Keep target OS release smoke evidence for login/navigation/document flows. |
+| G.03.204 | fixed | none | performance/db | Synthetic EXPLAIN baseline exists for 1000 docs and fast plans; `make db-performance-check` validates maintained production-like plan evidence checklist. | Attach final production-like DB performance evidence. |
+| G.03.205-G.03.210 | ok | none | performance | `make performance-baseline` generates static metrics and target OS manual timing table for startup/save/search/statistics/memory. | Fill Linux/Windows timings in release evidence. |
+| G.04.211-G.04.220 | fixed | none | long-running | `make long-running-smoke-check` validates maintained release smoke scenarios for memory, repeated workflows, shutdown cancellation and DB/MinIO outages. | Execute target OS long-running smoke and attach evidence. |
 
 ## Обязательные Перед Release
 
 - Backend/security blocker from F (`ISSUE-032`) is fixed; keep `govulncheck` in release gate.
 - Keep Go unit tests and disposable PostgreSQL integration tests in release gate.
 - Add minimum e2e smoke for production Wails build.
-- Measure performance baseline on target OS/build.
+- Fill generated performance baseline report with target OS/build timings.
 
-Связанные issues: `ISSUE-041`-`ISSUE-043`; fixed: `ISSUE-038`, `ISSUE-039`, `ISSUE-040`.
+Связанные issues: fixed: `ISSUE-038`, `ISSUE-039`, `ISSUE-040`, `ISSUE-041`, `ISSUE-042`, `ISSUE-043`.

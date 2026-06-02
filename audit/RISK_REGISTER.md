@@ -97,9 +97,9 @@
 
 Категория: Database/Performance
 Описание: Representative EXPLAIN ANALYZE на 1000 documents показал быстрые планы, но частые списки документов, поручений и ознакомлений используют сложные filters/access EXISTS, search и OFFSET pagination; возможна деградация при росте данных или отличии production dataset от synthetic baseline.
-Вероятность: medium
+Вероятность: low
 Влияние: medium
-Митигирующее действие: Собрать representative data, выполнить EXPLAIN/EXPLAIN ANALYZE, добавить точечные composite/partial/trigram indexes, повторно проверить write latency.
+Митигирующее действие: Выполнено после `ISSUE-009`: maintained `docs/db_performance_evidence.md` and `make db-performance-check` require production-like row counts, `ANALYZE`, required `EXPLAIN (ANALYZE, BUFFERS)` set and before/after evidence before any index is added.
 Ответственный этап: B, F
 
 ## RISK-012
@@ -117,7 +117,7 @@
 Описание: Backend/Wails и frontend после remediation используют structured error envelope and frontend adapter for stable codes. Residual risk remains in end-to-end coverage: login/forbidden/validation/not_found/conflict/internal scenarios still need release smoke/e2e evidence.
 Вероятность: medium
 Влияние: medium
-Митигирующее действие: Structured backend envelope and frontend `formatAppError` adapter implemented; helper-level frontend coverage fixed by `ISSUE-038`; cover the main error families in full UI smoke under `ISSUE-043`.
+Митигирующее действие: Structured backend envelope and frontend `formatAppError` adapter implemented; helper-level frontend coverage fixed by `ISSUE-038`; main error families are included in the maintained UX safety smoke checklist after `ISSUE-043`.
 Ответственный этап: C, D
 
 ## RISK-014
@@ -132,10 +132,10 @@
 ## RISK-015
 
 Категория: Backend/Resource Lifecycle
-Описание: Долгие операции используют `context.Background()` и не отменяются при закрытии окна; shutdown закрывает DB/logger без coordination active requests.
-Вероятность: medium
-Влияние: high
-Митигирующее действие: По `DECISION-008` пробросить app/request context и timeout/cancel policy для MinIO/DB-heavy operations.
+Описание: Долгие операции ранее использовали `context.Background()` и не отменялись при закрытии окна. После remediation `ISSUE-015` file/link/journal/statistics/document-registration operations use shared app operation lifecycle with timeout and shutdown cancel/wait coordination.
+Вероятность: low
+Влияние: medium
+Митигирующее действие: Keep `OperationLifecycle` wired in Wails startup/shutdown and execute maintained long-running smoke checklist added after `ISSUE-042`.
 Ответственный этап: C, E, F, G
 
 ## RISK-016
@@ -153,13 +153,13 @@
 Описание: Frontend error adapter внедрен после audit, но остаётся риск непроверенных end-to-end сценариев: forbidden/not_found/conflict/internal cases могут регрессировать без UI/e2e smoke.
 Вероятность: medium
 Влияние: medium
-Митигирующее действие: `formatAppError`/`normalizeAppError` внедрены для Wails errors and covered by `npm test` after `ISSUE-038`; add full UI smoke cases under `ISSUE-043`.
+Митигирующее действие: `formatAppError`/`normalizeAppError` внедрены для Wails errors and covered by `npm test` after `ISSUE-038`; full UI error smoke cases are maintained in `docs/ux_safety_smoke.md` after `ISSUE-043`.
 Ответственный этап: D, F, H
 
 ## RISK-018
 
 Категория: Frontend/UX
-Описание: Критичные frontend actions now have local submitting/loading guards, and long document/settings modals ask before discarding touched forms. Residual risk remains until manual/e2e UX safety smoke is executed.
+Описание: Критичные frontend actions now have local submitting/loading guards, and long document/settings modals ask before discarding touched forms. UX safety smoke scenarios are maintained and release-gated after `ISSUE-043`; residual risk remains until target OS execution evidence is attached.
 Вероятность: medium
 Влияние: medium
 Митигирующее действие: Выполнено: local submit locks and unsaved changes confirmation added. Execute release smoke for repeat submit, destructive actions and dirty modal close paths.
@@ -168,10 +168,10 @@
 ## RISK-019
 
 Категория: Frontend/Maintainability
-Описание: Крупные страницы settings/statistics/document view смешивают UI, data loading, mutations и modal lifecycle, что повышает риск регрессий при дальнейших исправлениях.
-Вероятность: medium
+Описание: Крупные страницы settings/statistics/document view смешивают UI, data loading, mutations и modal lifecycle, что повышает риск регрессий при дальнейших исправлениях. После `ISSUE-022` reference directories are extracted from SettingsPage into a feature component, reducing the highest-risk settings page surface.
+Вероятность: low
 Влияние: medium
-Митигирующее действие: Декомпозировать эти зоны постепенно при функциональных изменениях; использовать hooks/subcomponents и smoke checklist.
+Митигирующее действие: Continue decomposing large zones gradually during functional changes; use hooks/subcomponents and smoke checklist after each extraction.
 Ответственный этап: D, F
 
 ## RISK-020
@@ -249,10 +249,10 @@
 ## RISK-028
 
 Категория: Testing/Frontend-E2E
-Описание: After `ISSUE-038`, frontend error adapter and dirty-form helpers are covered by `npm test`, and production build assets are checked by `npm run smoke:prod`. Full browser/Wails navigation and user lifecycle smoke remains manual/release evidence under `ISSUE-043`.
+Описание: After `ISSUE-038`, frontend error adapter and dirty-form helpers are covered by `npm test`, and production build assets are checked by `npm run smoke:prod`. After `ISSUE-043`, browser/Wails UX safety scenarios are maintained in `docs/ux_safety_smoke.md` and validated by `make ux-smoke-check`; target OS execution remains release evidence.
 Вероятность: medium
 Влияние: high
-Митигирующее действие: Keep `frontend-test` and `frontend-smoke` in release gate; execute manual/target OS UX smoke for login, navigation, document flows, destructive actions and permissions under `ISSUE-043`.
+Митигирующее действие: Keep `frontend-test`, `frontend-smoke` and `ux-smoke-check` in release gate; execute target OS UX smoke for login, navigation, document flows, destructive actions and permissions as release evidence.
 Ответственный этап: G, H
 
 ## RISK-029
@@ -267,19 +267,19 @@
 ## RISK-030
 
 Категория: Performance
-Описание: Production SLO exists, but startup/list/save/statistics/memory metrics are not measured on target Wails build and OS.
-Вероятность: medium
+Описание: Production SLO exists, and after `ISSUE-041` the release gate generates `build/release-evidence/PERFORMANCE_BASELINE.md` with static bundle/binary metrics and target OS manual timing fields. Residual risk is failing to fill Linux/Windows timing evidence before release.
+Вероятность: low
 Влияние: high
-Митигирующее действие: Establish performance baseline on target OS/build with production-like data and repeat after major DB/backend/frontend changes.
+Митигирующее действие: Keep `make performance-baseline` in release gate; fill Linux/Windows startup/list/save/statistics/memory timings on production-like data before release.
 Ответственный этап: G, H
 
 ## RISK-031
 
 Категория: Long Running
-Описание: Long desktop sessions, repeated modals, repeated file operations, network outages and app shutdown during operations are not tested; cancellation lifecycle remains open.
+Описание: Long desktop sessions, repeated modals, repeated file operations, network outages and app shutdown during operations are maintained as target OS release smoke after `ISSUE-042`; lifecycle context propagation is fixed after `ISSUE-015`.
 Вероятность: medium
 Влияние: high
-Митигирующее действие: Add long-running smoke and automated cancellation tests after context propagation remediation.
+Митигирующее действие: Execute `docs/long_running_smoke.md` during release and gradually automate highest-risk outage/shutdown scenarios.
 Ответственный этап: G, H
 
 ## RISK-032
@@ -303,10 +303,10 @@
 ## RISK-034
 
 Категория: UX/Safety
-Описание: Destructive confirmations now name the affected entity and consequence after `ISSUE-046`; remaining residual risk is lack of automated e2e/smoke coverage for these paths.
+Описание: Destructive confirmations now name the affected entity and consequence after `ISSUE-046`; after `ISSUE-043`, required destructive-action smoke scenarios are maintained and release-gated as checklist coverage.
 Вероятность: low
 Влияние: high
-Митигирующее действие: Keep strengthened destructive copy; include file delete, assignment delete, reference delete, migration rollback and bulk file delete in smoke/e2e tests under `ISSUE-043`.
+Митигирующее действие: Keep strengthened destructive copy; keep file delete, assignment delete, reference delete, migration rollback and bulk file delete in `docs/ux_safety_smoke.md` and execute it during target OS release smoke.
 Ответственный этап: H, I
 
 ## RISK-035

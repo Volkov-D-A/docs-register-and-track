@@ -8,6 +8,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2"
@@ -113,6 +114,8 @@ func main() {
 	adminAuditLogRepo := repository.NewAdminAuditLogRepository(db)
 
 	// Создание сервисов
+	operationLifecycle := services.NewOperationLifecycle(5 * time.Minute)
+
 	authService := services.NewAuthService(db, userRepo)
 	authService.SetAccessStore(documentAccessRepo)
 
@@ -135,6 +138,7 @@ func main() {
 	documentAccessAdminService := services.NewDocumentAccessAdminService(authService, documentAccessRepo, userRepo)
 	documentKindService := services.NewDocumentKindService(documentAccessService)
 	journalService := services.NewJournalService(journalRepo, authService, documentAccessService)
+	journalService.SetOperationLifecycle(operationLifecycle)
 	documentKindQueryRegistry := services.NewDocumentKindQueryRegistry(
 		services.NewIncomingLetterQueryHandler(incomingDocRepo),
 		services.NewOutgoingLetterQueryHandler(outgoingDocRepo),
@@ -149,6 +153,7 @@ func main() {
 		services.NewAdministrativeOrderCommandHandler(administrativeOrderRepo, nomenclatureRepo, authService, journalService, documentAccessService),
 	)
 	documentRegistrationService := services.NewDocumentRegistrationService(documentKindCommandRegistry)
+	documentRegistrationService.SetOperationLifecycle(operationLifecycle)
 	administrativeOrderService := services.NewAdministrativeOrderService(administrativeOrderRepo, authService, documentAccessService, journalService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService, documentAccessService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService, adminAuditLogService)
@@ -166,8 +171,11 @@ func main() {
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, documentAccessService)
 	statisticsService := services.NewStatisticsService(statisticsRepo, authService, minioService)
+	statisticsService.SetOperationLifecycle(operationLifecycle)
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, journalService, adminAuditLogService, minioService, documentAccessService)
+	attachmentService.SetOperationLifecycle(operationLifecycle)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, administrativeOrderRepo, documentAccessService, authService, journalService)
+	linkService.SetOperationLifecycle(operationLifecycle)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService)
 	systemService := services.NewSystemService(db)
 	releaseNoteService, err := services.NewReleaseNoteService(releaseNotesSource)
@@ -222,6 +230,11 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := operationLifecycle.Shutdown(shutdownCtx); err != nil {
+				slog.Warn("shutdown continued before all backend operations finished", "error", err)
+			}
 			db.Close()
 			closeLogger()
 		},

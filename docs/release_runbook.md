@@ -58,7 +58,7 @@ Run the maintained release gate:
 make release-gate
 ```
 
-The gate verifies `ENCRYPTION_KEY`, generated release asset freshness, Go tests, Go vet, disposable PostgreSQL integration tests, `govulncheck`, `npm ci`, frontend lint/test/build, production build smoke, `npm audit --audit-level=critical`, npm GPL-family license check and dependency inventory generation.
+The gate verifies `ENCRYPTION_KEY`, generated release asset freshness, Go tests, Go vet, disposable PostgreSQL integration tests, `govulncheck`, `npm ci`, frontend lint/test/build, production build smoke, UX safety smoke checklist coverage, long-running smoke checklist coverage, DB performance evidence checklist coverage, performance baseline report generation, `npm audit --audit-level=critical`, npm GPL-family license check and dependency inventory generation.
 
 Expanded manual steps are listed below for troubleshooting.
 
@@ -102,6 +102,12 @@ cd frontend
 npm test
 npm run build
 npm run smoke:prod
+cd ..
+make ux-smoke-check
+make long-running-smoke-check
+make db-performance-check
+make performance-baseline
+cd frontend
 npm audit --audit-level=critical
 cd ..
 ```
@@ -149,6 +155,10 @@ On a disposable database:
 6. Create initial admin if needed.
 7. Log in and open dashboard, document lists, settings and files.
 
+## Database Performance Evidence
+
+Follow `docs/db_performance_evidence.md` on the disposable production-like PostgreSQL dataset. Attach row counts, `ANALYZE` confirmation, required `EXPLAIN (ANALYZE, BUFFERS)` plans and index/no-index decision notes to release evidence. Do not add performance indexes without before/after plan evidence and write-latency notes.
+
 ## Migration Compatibility Smoke
 
 On disposable DB only:
@@ -182,6 +192,8 @@ For every target OS/artifact:
 - verify missing/invalid config diagnostics;
 - verify DB/MinIO/Seq unavailable diagnostics;
 - complete the minimal smoke test in `docs/smoke_test.md`.
+- complete the dedicated UX safety smoke checklist in `docs/ux_safety_smoke.md`.
+- complete the dedicated long-running smoke checklist in `docs/long_running_smoke.md`.
 
 ## Release Evidence
 
@@ -191,6 +203,9 @@ Attach to the release:
 - command output summaries;
 - artifact checksums;
 - target OS smoke result;
+- UX safety smoke result;
+- long-running smoke result;
+- DB performance evidence;
 - backup/restore smoke result;
 - [known issues](known_issues.md) with mitigation/owner/acceptance;
 - clean `git status --short` at tag.

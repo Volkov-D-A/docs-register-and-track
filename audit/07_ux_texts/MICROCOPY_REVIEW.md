@@ -22,7 +22,7 @@ Recommendations:
 | Rollback confirmation | Add: `Перед откатом должен быть свежий backup PostgreSQL и MinIO.` |
 | Bulk delete confirmation | Keep strong warning, include count preview if available. |
 
-Current status: destructive confirmation wording is fixed for file delete, document link delete, assignment delete, acknowledgment delete, reference deletes, migration rollback and bulk file delete. Generic success-message/style consistency is fixed under `ISSUE-049`; remaining work is smoke coverage under `ISSUE-043`.
+Current status: destructive confirmation wording is fixed for file delete, document link delete, assignment delete, acknowledgment delete, reference deletes, migration rollback and bulk file delete. Generic success-message/style consistency is fixed under `ISSUE-049`; smoke coverage is maintained in `docs/ux_safety_smoke.md` after `ISSUE-043`.
 
 ## Success Messages
 
@@ -51,4 +51,4 @@ Recommended verb-first/action-specific labels:
 - `Создать поручение` instead of generic `Создать` where space allows;
 - `Вернуть на доработку` instead of `Вернуть` in modal action.
 
-Связанные issues: fixed `ISSUE-046`, `ISSUE-049`; open `ISSUE-043`.
+Связанные issues: fixed `ISSUE-046`, `ISSUE-049`, `ISSUE-043`.

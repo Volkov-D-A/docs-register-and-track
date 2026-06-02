@@ -45,7 +45,8 @@ func (r *DocumentKindCommandRegistry) Get(kind models.DocumentKind) (DocumentKin
 
 // DocumentRegistrationService предоставляет общий command API для регистрации и обновления документов.
 type DocumentRegistrationService struct {
-	registry *DocumentKindCommandRegistry
+	registry  *DocumentKindCommandRegistry
+	lifecycle *OperationLifecycle
 }
 
 // NewDocumentRegistrationService создает новый экземпляр DocumentRegistrationService.
@@ -53,8 +54,18 @@ func NewDocumentRegistrationService(registry *DocumentKindCommandRegistry) *Docu
 	return &DocumentRegistrationService{registry: registry}
 }
 
+func (s *DocumentRegistrationService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
+	s.lifecycle = lifecycle
+}
+
 // Register делегирует регистрацию документа обработчику по kindCode.
 func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	kind := models.DocumentKind(kindCode)
 	handler, err := s.registry.Get(kind)
 	if err != nil {
@@ -66,11 +77,24 @@ func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, e
 		return nil, err
 	}
 
-	return handler.RegisterDocument(normalizedReq)
+	result, err := handler.RegisterDocument(normalizedReq)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // Update делегирует обновление документа обработчику по kindCode.
 func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	kind := models.DocumentKind(kindCode)
 	handler, err := s.registry.Get(kind)
 	if err != nil {
@@ -82,7 +106,14 @@ func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, err
 		return nil, err
 	}
 
-	return handler.UpdateDocument(normalizedReq)
+	result, err := handler.UpdateDocument(normalizedReq)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func normalizeRegisterRequest(kind models.DocumentKind, req any) (any, error) {

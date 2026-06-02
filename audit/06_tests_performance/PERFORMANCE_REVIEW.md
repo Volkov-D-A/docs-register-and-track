@@ -17,19 +17,20 @@ Database stage B created synthetic dataset:
 
 Representative `EXPLAIN ANALYZE` showed fast plans on this dataset, e.g. document list/search and assignment/acknowledgment paths within milliseconds.
 
-## Missing Baseline
+## Baseline Evidence After Remediation
 
-No measured baseline was found for:
+`ISSUE-041` fixed after audit by adding `make performance-baseline` and `tools/performance-report.js`.
+The generated report is written to `build/release-evidence/PERFORMANCE_BASELINE.md`.
+It records automated static metrics and a required target OS manual timings table.
 
-- Wails app startup to login screen;
-- login to dashboard;
-- opening main document lists;
-- opening document view with files/journal/links;
-- saving registration form;
-- search/filter latency from UI perspective;
-- statistics/report screens;
-- frontend render cost of large tables/graphs;
-- memory usage under normal work.
+Current generated static baseline:
+
+- frontend dist total: 3.05 MiB;
+- largest JS asset: `StatisticsPage-4iz6lzg0.js`, 1.40 MiB, below 1.6 MiB route chunk budget;
+- Linux binary: 17.48 MiB, below 100 MiB warning threshold;
+- Windows binary: 18.66 MiB, below 100 MiB warning threshold.
+
+Target OS manual timing rows remain required release evidence for startup, login/dashboard, lists/search, registration save, statistics and memory.
 
 ## Performance Metrics To Add
 
@@ -41,4 +42,4 @@ No measured baseline was found for:
 - Wails binary size warning threshold: 100 MB;
 - frontend chunk size and load time trend.
 
-Связанные issues: fixed `ISSUE-004`; open `ISSUE-009`, `ISSUE-041`.
+Связанные issues: fixed `ISSUE-004`, `ISSUE-009`, `ISSUE-041`.

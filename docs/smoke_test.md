@@ -65,7 +65,8 @@ Run this smoke test against the release artifact produced from a clean checkout.
 - [ ] Trigger forbidden action and verify user-safe message.
 - [ ] Trigger not-found/missing document scenario if possible.
 - [ ] Verify destructive confirmations name affected entity and consequence.
-- [ ] Try closing dirty registration/edit modal and verify warning or accepted known issue.
+- [ ] Complete the dedicated UX safety smoke checklist in `docs/ux_safety_smoke.md`.
+- [ ] Complete the dedicated long-running smoke checklist in `docs/long_running_smoke.md`.
 
 ## Backup/Restore Evidence
 
@@ -79,4 +80,3 @@ Run this smoke test against the release artifact produced from a clean checkout.
 - [ ] No unexpected panic/fatal exit.
 - [ ] Seq/technical logs do not expose secrets or unnecessary PII.
 - [ ] `document_journal` and `admin_audit_log` contain expected domain audit entries.
-

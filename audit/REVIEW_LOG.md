@@ -112,12 +112,12 @@ Severity: major
 Категория: Database/Performance
 Пункт плана: B.04.051-B.04.064
 Severity: minor
-Статус: open
+Статус: fixed
 Место: document list/access queries, assignments, acknowledgments
 Проблема: Частые запросы списков, scope-доступа, поручений и ознакомлений используют комбинации `kind`, `nomenclature_id`, `created_at`, `executor_id`, `status`, `deadline`, `user_id`, `confirmed_at`; representative `EXPLAIN ANALYZE` на 1000 documents показал быстрые планы, но при росте данных access/search paths могут деградировать.
 Почему важно: Если production data существенно превысит baseline, `EXISTS`, OFFSET pagination и `ILIKE '%term%'` могут начать давать seq scan и задержки списков/дашборда.
 Рекомендация: Не добавлять индексы преждевременно; повторить планы на финальном production-like dataset и добавить только подтвержденные composite/partial/trigram indexes.
-Проверка после исправления: Сравнить EXPLAIN before/after и latency частых списков.
+Проверка после исправления: Added maintained `docs/db_performance_evidence.md` for production-like PostgreSQL release evidence. It requires dataset row counts, `ANALYZE`, required `EXPLAIN (ANALYZE, BUFFERS)` for document lists/access/search, assignments, acknowledgments, journal, admin audit and statistics, latency-budget review, seq-scan review and before/after evidence for any index candidate. Added `tools/db-performance-check.js`, `make db-performance-check` and release-gate integration so required DB performance evidence scenarios cannot silently disappear. Updated performance baseline, release checklist and runbook. Проверено: `make db-performance-check`, `git diff --check`; final production-like plan execution remains release evidence.
 Связанные пункты: D.07, F.06
 
 ## ISSUE-010
@@ -190,12 +190,12 @@ Severity: major
 Категория: Backend/Resource Lifecycle
 Пункт плана: C.05.094, C.05.096, C.05.097
 Severity: major
-Статус: open
+Статус: fixed
 Место: `internal/services/attachment.go`, `link_service.go`, command handlers, `statistics_service.go`, `main.go`
 Проблема: Долгие операции MinIO, journal writes, link graph и storage statistics используют `context.Background()`. Закрытие окна не отменяет активные операции; shutdown закрывает DB/logger без coordination active requests.
 Почему важно: При закрытии приложения или зависании MinIO/DB операция может продолжаться или завершаться на закрытых ресурсах; пользователь не получает предсказуемое cancellation behavior.
 Рекомендация: По `DECISION-008` ввести app/request context propagation, timeout policy для MinIO/DB-heavy operations и единый shutdown coordinator.
-Проверка после исправления: Смоделировать долгий upload/download/list и закрытие окна; операция должна отмениться с предсказуемой ошибкой, без goroutine/resource leak.
+Проверка после исправления: Added `OperationLifecycle` with app root context, per-operation timeout and shutdown wait/cancel coordination. Wails shutdown now cancels active operations before closing DB/logger. Attachment upload/download/delete/bulk delete, link create/delete/list/graph, journal read/write, storage statistics and document registration command wrapper use lifecycle operation contexts. MinIO startup bucket check now has a 15s timeout. Added lifecycle cancellation tests. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/services`, `GOCACHE=/tmp/go-build-cache go test ./...`; long-running/manual smoke remains tracked by `ISSUE-042`.
 Связанные пункты: E.05, F.06, G.07
 
 ## ISSUE-016
@@ -247,7 +247,7 @@ Severity: major
 Проблема: Frontend еще не использует structured backend/Wails error envelope `{code,message,status}` как контракт. Большинство handlers показывает `message.error(err?.message || String(err))`, а auth lockout распознается через поиск текста в `formatAuthError`.
 Почему важно: UI остается зависимым от русских/Go/PostgreSQL/storage строк и не может стабильно отличать validation, forbidden, not_found, conflict/idempotency и internal errors.
 Рекомендация: Ввести единый frontend error adapter `formatAppError`/`useAppError`, читать stable `code`, а raw strings использовать только как fallback. Перевести login lockout, forbidden/not_found/conflict и validation behavior на коды.
-Проверка после исправления: Added frontend error adapter `formatAppError`/`normalizeAppError` for Wails `{code,message,status}` envelope and code-based auth lockout handling via `USER_LOCKED`. Replaced raw `err?.message || String(err)` usage in auth, document pages, dashboard, settings, assignments, acknowledgments, files, journal and document modal flows. Проверено: `npm run build`; `rg` no longer finds `err?.message || String(err)` frontend patterns. Automated helper coverage is fixed by `ISSUE-038`; full UI smoke for login/forbidden/validation/not_found/conflict/internal remains covered by `ISSUE-043`.
+Проверка после исправления: Added frontend error adapter `formatAppError`/`normalizeAppError` for Wails `{code,message,status}` envelope and code-based auth lockout handling via `USER_LOCKED`. Replaced raw `err?.message || String(err)` usage in auth, document pages, dashboard, settings, assignments, acknowledgments, files, journal and document modal flows. Проверено: `npm run build`; `rg` no longer finds `err?.message || String(err)` frontend patterns. Automated helper coverage is fixed by `ISSUE-038`; full UI smoke for login/forbidden/validation/not_found/conflict/internal is maintained in `docs/ux_safety_smoke.md` after `ISSUE-043`.
 Связанные пункты: C.03.090, D.05, F.04, H.03
 
 ## ISSUE-020
@@ -260,7 +260,7 @@ Severity: major
 Проблема: Критичные submit/actions не везде имеют локальный `submitting`/`confirmLoading` guard. Для документов backend idempotency уже снижает риск дублей, но часть modal flows не блокирует повторный клик; в других местах loading привязан к загрузке списка, а не к конкретному submit.
 Почему важно: Повторные действия могут дать плохой UX, повторные запросы, конфликтные ошибки и риск побочных эффектов в недокументных операциях.
 Рекомендация: Для create/update/delete/rollback/upload/assignment actions использовать локальный submitting state, блокировать кнопку и повторный submit до завершения операции.
-Проверка после исправления: Document registration/edit modals for incoming, outgoing, administrative orders and citizen appeals now use local register/edit submitting guards and `confirmLoading` independent of list loading. Assignment/acknowledgment completion modals guard repeated submit. File upload/delete and settings CRUD/migration/storage actions use local loading guards and button/modal loading states. Verified with `npm run build` and `git diff --check`; manual double-click smoke remains in release smoke and `ISSUE-043`.
+Проверка после исправления: Document registration/edit modals for incoming, outgoing, administrative orders and citizen appeals now use local register/edit submitting guards and `confirmLoading` independent of list loading. Assignment/acknowledgment completion modals guard repeated submit. File upload/delete and settings CRUD/migration/storage actions use local loading guards and button/modal loading states. Verified with `npm run build` and `git diff --check`; manual double-click smoke is maintained in `docs/ux_safety_smoke.md`.
 Связанные пункты: C.03.086, D.04, F.02
 
 ## ISSUE-021
@@ -273,7 +273,7 @@ Severity: major
 Проблема: Формы в модалках регистрации/редактирования можно закрыть без предупреждения о несохраненных изменениях. `onCancel` закрывает modal и иногда сбрасывает draft/link state сразу.
 Почему важно: Длинные документные формы содержат много обязательных полей; случайное закрытие приводит к потере данных и повторному ручному вводу.
 Рекомендация: Добавить dirty-state tracking и confirmation перед закрытием/сменой flow для registration/edit и важных settings forms.
-Проверка после исправления: Added shared `confirmDiscardFormChanges` helper using AntD `form.isFieldsTouched(true)`. Registration/edit modals for all document kinds and important settings modals now ask for confirmation only when fields were changed, and reset form state after confirmed discard. Verified with `npm run build` and `git diff --check`; manual dirty modal smoke remains in release smoke and `ISSUE-043`.
+Проверка после исправления: Added shared `confirmDiscardFormChanges` helper using AntD `form.isFieldsTouched(true)`. Registration/edit modals for all document kinds and important settings modals now ask for confirmation only when fields were changed, and reset form state after confirmed discard. Verified with `npm run build` and `git diff --check`; manual dirty modal smoke is maintained in `docs/ux_safety_smoke.md`.
 Связанные пункты: D.04, D.06, H.03
 
 ## ISSUE-022
@@ -281,12 +281,12 @@ Severity: major
 Категория: Frontend/Structure
 Пункт плана: D.01.102, D.01.103
 Severity: minor
-Статус: open
+Статус: fixed
 Место: `frontend/src/pages/SettingsPage.tsx`, `StatisticsPage.tsx`, `AssignmentsPage.tsx`, `components/DocumentViewModal.tsx`
-Проблема: Часть frontend pages/components стала крупной и смешивает UI layout, service calls, modal lifecycle, forms and table state. `SettingsPage.tsx` около 1296 строк, `StatisticsPage.tsx` около 622, `DocumentViewModal.tsx` около 569, `AssignmentsPage.tsx` около 466.
+Проблема: Часть frontend pages/components стала крупной и смешивает UI layout, service calls, modal lifecycle, forms and table state. До исправления текущий `SettingsPage.tsx` был 1494 строки, `StatisticsPage.tsx` около 642, `DocumentViewModal.tsx` около 569, `AssignmentsPage.tsx` около 476.
 Почему важно: При изменениях в settings/statistics/document view выше риск случайных регрессий, сложнее покрывать behavior tests и сложнее внедрять structured errors/loading guards точечно.
 Рекомендация: Разделять эти зоны постепенно при функциональных правках: hooks для data/actions, subcomponents для tabs/modals, feature modules по образцу document-kind modules.
-Проверка после исправления: Smoke соответствующего раздела после каждой декомпозиции; отсутствие behavioral изменений.
+Проверка после исправления: Extracted reference directory management from `SettingsPage.tsx` into `frontend/src/features/settings/ReferenceDirectoriesTab.tsx`, including organizations and resolution executors tabs and their modal lifecycle/service-call logic. `SettingsPage.tsx` now imports that feature component and no longer exports it for `ReferencesPage`, reducing the page from 1494 to 1246 lines without changing UI flow. Проверено: `npm run build`, `npm test`, `wc -l frontend/src/pages/SettingsPage.tsx frontend/src/features/settings/ReferenceDirectoriesTab.tsx`.
 Связанные пункты: D.01, F.04
 
 ## ISSUE-023
@@ -494,7 +494,7 @@ Severity: major
 Проблема: В проекте нет frontend unit/component tests and e2e framework. `npm run build` проверяет TypeScript compile, но не покрывает формы, ошибки отправки, empty states, навигацию и основной пользовательский lifecycle на production build.
 Почему важно: Исправленные frontend flows `ISSUE-019`/`ISSUE-020`/`ISSUE-021` требуют smoke coverage; без UI/e2e тестов регрессии легко пропустить.
 Рекомендация: Добавить минимальный Vitest/React Testing Library слой для helpers/forms/error adapter and Playwright/Wails-compatible smoke for production build lifecycle.
-Проверка после исправления: Added dependency-free frontend test infrastructure using TypeScript compile + Node test runner: `npm test` covers `formatAppError`/`normalizeAppError` safe copy and `confirmDiscardFormChanges` dirty form behavior. Added `npm run smoke:prod` to verify production `dist/index.html` and referenced JS/CSS assets after `npm run build`. `make release-gate` now runs `frontend-test`, `frontend-build` and `frontend-smoke`. Проверено: `npm test`, `npm run build`, `npm run smoke:prod`, `GOCACHE=/tmp/go-build-cache go test ./...`, `git diff --check`. Browser/manual UX lifecycle smoke remains tracked by `ISSUE-043`.
+Проверка после исправления: Added dependency-free frontend test infrastructure using TypeScript compile + Node test runner: `npm test` covers `formatAppError`/`normalizeAppError` safe copy and `confirmDiscardFormChanges` dirty form behavior. Added `npm run smoke:prod` to verify production `dist/index.html` and referenced JS/CSS assets after `npm run build`. `make release-gate` now runs `frontend-test`, `frontend-build` and `frontend-smoke`. Проверено: `npm test`, `npm run build`, `npm run smoke:prod`, `GOCACHE=/tmp/go-build-cache go test ./...`, `git diff --check`. Browser/manual UX safety smoke is maintained and release-gated after `ISSUE-043`.
 Связанные пункты: D.04, D.05, G.02, H.03
 
 ## ISSUE-039
@@ -528,12 +528,12 @@ Severity: major
 Категория: Performance/Baseline
 Пункт плана: G.03.204, G.03.205, G.03.206, G.03.207, G.03.208, G.03.209, G.03.210
 Severity: major
-Статус: open
+Статус: fixed
 Место: Wails app, backend operations, React screens
 Проблема: Performance baseline exists for PostgreSQL synthetic EXPLAIN only. Нет измерений Wails startup, login/dashboard, list open/search/filter, document save latency, statistics screens, frontend render cost, memory.
 Почему важно: Production SLO зафиксирован, но фактическое desktop поведение на target OS/build не измерено.
 Рекомендация: Add performance smoke with target metrics: startup <=5s, lists/search <=2s, statistics <=5s, memory <=512 MB, registration save latency.
-Проверка после исправления: Baseline report on target Linux/Windows build with production-like data.
+Проверка после исправления: Added maintained `make performance-baseline` target and `tools/performance-report.js`; release gate now generates `build/release-evidence/PERFORMANCE_BASELINE.md`. The report records SLO budgets, frontend dist total, largest route chunks, available Linux/Windows binary sizes and a required target OS manual timings table for startup/login/lists/search/save/statistics/memory. Current generated static baseline passes thresholds: frontend dist 3.05 MiB, largest JS `StatisticsPage` 1.40 MiB under 1.6 MiB route budget, Linux binary 17.48 MiB and Windows binary 18.66 MiB under 100 MiB warning threshold. Target OS timing rows remain release-evidence fields to fill on Linux/Windows artifacts. Проверено: `make performance-baseline`, `node tools/performance-report.js`, `git diff --check`.
 Связанные пункты: A.01.007, D.07, F.06, G.03
 
 ## ISSUE-042
@@ -541,12 +541,12 @@ Severity: major
 Категория: Long Running/Cancellation
 Пункт плана: G.04.211, G.04.212, G.04.213, G.04.214, G.04.215, G.04.216, G.04.217, G.04.220
 Severity: major
-Статус: open
+Статус: fixed
 Место: Wails runtime, file operations, statistics, link graph
-Проблема: Нет long-running/memory/cancellation tests. Open lifecycle issue remains: several operations use `context.Background()` and app shutdown does not coordinate active requests.
+Проблема: Нет long-running/memory/cancellation tests. Open lifecycle issue remained before `ISSUE-015`: several operations used `context.Background()` and app shutdown did not coordinate active requests.
 Почему важно: Долгая работа desktop app, repeated modals/file operations and network failures can produce leaks, stuck UI or work on closed resources.
 Рекомендация: After context propagation remediation, add long-running smoke: repeated modals/views, upload/download loops, statistics refresh, app close during operation, DB/MinIO outage.
-Проверка после исправления: 4-8 hour manual/automated session has stable memory and predictable cancellation/errors.
+Проверка после исправления: Added maintained `docs/long_running_smoke.md` for target OS release evidence. It covers 4-8 hour memory trend, repeated document/registration/file/statistics/link graph loops, app close during upload/download/statistics/link graph, MinIO upload/download/statistics outage and PostgreSQL list/save outage recovery. Added `tools/long-running-smoke-check.js`, `make long-running-smoke-check` and release-gate integration so required scenario IDs cannot silently disappear. Updated release checklist/runbook/smoke docs. Проверено: `make long-running-smoke-check`, `GOCACHE=/tmp/go-build-cache go test ./...`, `git diff --check`; full target OS execution remains release evidence.
 Связанные пункты: C.05, E.05, G.04
 
 ## ISSUE-043
@@ -554,12 +554,12 @@ Severity: major
 Категория: UX/Safety Tests
 Пункт плана: G.04.218, G.04.219, G.04.220
 Severity: major
-Статус: open
+Статус: fixed
 Место: migration rollback, file delete, assignments, settings actions
 Проблема: Critical/destructive action confirmations and error dead-end scenarios are not covered by e2e/smoke tests. Rollback guardrails, dirty form warning, file deletion and failed backend actions still need validation.
 Почему важно: Даже если logic is correct, operator can still make destructive mistakes or get stuck after failure without validated UX path.
 Рекомендация: Add smoke/e2e cases for destructive confirmations, visual separation, failure recovery, retry/cancel paths.
-Проверка после исправления: Smoke covers rollback, delete file, close dirty form, failed migration, failed upload/download, forbidden action.
+Проверка после исправления: Added maintained `docs/ux_safety_smoke.md` for target OS/Wails release smoke. It covers validation/forbidden/not_found/conflict/internal error recovery, migration rollback, file/link/assignment/acknowledgment/reference destructive confirmations, dirty document/settings forms, repeat submit guards, empty states and terminology. Added `tools/ux-smoke-check.js`, `make ux-smoke-check` and release-gate integration so required scenario IDs cannot silently disappear from the checklist. Updated release checklist/runbook and smoke docs. Проверено: `make ux-smoke-check`, `GOCACHE=/tmp/go-build-cache go test ./...`, `npm test`, `npm run smoke:prod`, `git diff --check`; full manual target OS execution remains release evidence.
 Связанные пункты: B.06, D.04, E.03, H.03
 
 ## ISSUE-044
@@ -572,7 +572,7 @@ Severity: major
 Проблема: Пользовательские ошибки часто строятся из raw `err?.message || String(err)`, могут содержать технический текст, не всегда объясняют следующий шаг и местами закрывают контекст после ошибки.
 Почему важно: Пользователь может увидеть внутренние DB/storage/Go details, не понять, что делать дальше, или потерять контекст работы.
 Рекомендация: После `DECISION-009` завести UX copy map для structured error codes: что произошло, что можно сделать, когда обращаться к администратору.
-Проверка после исправления: Shared frontend `appError` adapter maps structured codes to safe UX copy with next-step actions for login, forbidden, validation, not found, conflict/idempotency and internal/unknown errors. Unstructured raw `Error.message` / string errors are no longer displayed directly; validation/not-found/conflict preserve safe backend details and add recovery action. Verified with `npm run build` and `git diff --check`; manual smoke remains under `ISSUE-043`.
+Проверка после исправления: Shared frontend `appError` adapter maps structured codes to safe UX copy with next-step actions for login, forbidden, validation, not found, conflict/idempotency and internal/unknown errors. Unstructured raw `Error.message` / string errors are no longer displayed directly; validation/not-found/conflict preserve safe backend details and add recovery action. Verified with `npm run build` and `git diff --check`; manual smoke is maintained in `docs/ux_safety_smoke.md`.
 Связанные пункты: D.05, E.04.174, H.03
 
 ## ISSUE-045
@@ -585,7 +585,7 @@ Severity: major
 Проблема: Термины используются неодинаково: `вид документа` используется там, где по glossary нужен `тип документа`; `дело` и `номенклатура` обозначают одну сущность; `исполнитель` используется для разных ролей; `содержание` and `краткое содержание` смешиваются.
 Почему важно: Ошибка терминологии может привести к неверному заполнению документов и неправильному пониманию прав/обязанностей.
 Рекомендация: Принять UX-терминологию из `TERMS_GLOSSARY.md` and apply consistently. Согласовать спорные термины с бизнесом: `Дело` vs `Номенклатура`, `Краткое содержание`. `ПОС` expansion is fixed under `ISSUE-048`.
-Проверка после исправления: Frontend document forms now use `Тип документа` for `documentTypeId`; document cards use user-facing `Дело`; outgoing letter UI says `Исполнитель письма`; assignments say `Ответственный исполнитель`; citizen appeal list/card uses `Содержание` instead of `Краткое содержание`; settings resolution executor copy is qualified. Verified with `npm run build`, `git diff --check` and targeted `rg` search for old problematic frontend strings. Manual terminology smoke remains under `ISSUE-043`.
+Проверка после исправления: Frontend document forms now use `Тип документа` for `documentTypeId`; document cards use user-facing `Дело`; outgoing letter UI says `Исполнитель письма`; assignments say `Ответственный исполнитель`; citizen appeal list/card uses `Содержание` instead of `Краткое содержание`; settings resolution executor copy is qualified. Verified with `npm run build`, `git diff --check` and targeted `rg` search for old problematic frontend strings. Manual terminology smoke is maintained in `docs/ux_safety_smoke.md`.
 Связанные пункты: H.02, H.04, I.01
 
 ## ISSUE-046

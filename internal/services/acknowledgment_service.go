@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -92,7 +91,7 @@ func (s *AcknowledgmentService) Create(
 		return nil, err
 	}
 
-	s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+	s.journal.LogAction(nil, models.CreateJournalEntryRequest{
 		DocumentID: docUUID,
 		UserID:     creatorUUID,
 		Action:     "ACK_CREATE",
@@ -164,7 +163,7 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 	if err == nil {
 		ack, _ := s.repo.GetByID(ackUUID)
 		if ack != nil {
-			s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			s.journal.LogAction(nil, models.CreateJournalEntryRequest{
 				DocumentID: ack.DocumentID,
 				UserID:     userUUID,
 				Action:     "ACK_VIEW",
@@ -194,7 +193,7 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 	if err == nil {
 		ack, _ := s.repo.GetByID(ackUUID)
 		if ack != nil {
-			s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+			s.journal.LogAction(nil, models.CreateJournalEntryRequest{
 				DocumentID: ack.DocumentID,
 				UserID:     userUUID,
 				Action:     "ACK_CONFIRM",
@@ -226,7 +225,7 @@ func (s *AcknowledgmentService) Delete(id string) error {
 	err = s.repo.Delete(ackUUID)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		s.journal.LogAction(nil, models.CreateJournalEntryRequest{
 			DocumentID: ack.DocumentID,
 			UserID:     currentUserID,
 			Action:     "ACK_DELETE",

@@ -5,7 +5,7 @@
 
 ## Вывод
 
-User-facing error copy is centralized in the shared frontend `appError` adapter. Structured backend/Wails error codes now map to safe UX copy that says what happened and gives the next step; unstructured raw `Error.message` / string errors are not displayed directly. Manual smoke for full failure paths remains tracked by `ISSUE-043`.
+User-facing error copy is centralized in the shared frontend `appError` adapter. Structured backend/Wails error codes now map to safe UX copy that says what happened and gives the next step; unstructured raw `Error.message` / string errors are not displayed directly. Full failure-path smoke scenarios are maintained in `docs/ux_safety_smoke.md` after `ISSUE-043`.
 
 ## Examples
 
@@ -25,4 +25,4 @@ User-facing error copy is centralized in the shared frontend `appError` adapter.
 - Use neutral tone: "Не удалось..." instead of blame.
 - Keep details in technical logs and audit trail.
 
-Связанные issues: `ISSUE-019`, `ISSUE-043`, `ISSUE-028`.
+Связанные issues: fixed `ISSUE-019`, `ISSUE-028`, `ISSUE-043`.

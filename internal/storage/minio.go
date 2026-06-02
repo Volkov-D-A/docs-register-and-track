@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 
@@ -29,7 +30,9 @@ func NewMinioService(cfg config.MinioConfig) (*MinioService, error) {
 		return nil, fmt.Errorf("failed to init minio client: %w", err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
 	exists, err := client.BucketExists(ctx, cfg.BucketName)
 	if err != nil {
 		return nil, fmt.Errorf("check bucket exists failed: %w", err)

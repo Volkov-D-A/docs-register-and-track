@@ -11,16 +11,8 @@ None currently tracked. Release must still be built from a clean committed/tagge
 
 ## Major Issues Requiring Fix Or Explicit Acceptance
 
-| Issue | Area | Owner | Mitigation / required action |
-| --- | --- | --- | --- |
-| `ISSUE-015` | Backend lifecycle | Backend owner | Add app/request context propagation and timeout/cancel policy for MinIO, journal, link graph and statistics operations. |
-| `ISSUE-041` | Performance baseline | QA owner | Record startup, list, dashboard/statistics and memory baselines on production-like data. |
-| `ISSUE-042` | Cancellation tests | QA/backend owner | Test long-running upload/download/list/statistics/link operations and shutdown cancellation. |
-| `ISSUE-043` | UX safety tests | QA/frontend owner | Smoke destructive confirmations, dirty confirmations, empty states and error messages. |
+None currently tracked.
 
 ## Postponable Minor Issues
 
-| Issue | Area | Acceptance note |
-| --- | --- | --- |
-| `ISSUE-009` | Database performance | Current baseline plans are fast for expected initial volume; repeat EXPLAIN on production-like data before adding indexes. |
-| `ISSUE-022` | Frontend structure | Large components are accepted short-term; decompose gradually during feature work with smoke coverage. |
+None currently tracked.

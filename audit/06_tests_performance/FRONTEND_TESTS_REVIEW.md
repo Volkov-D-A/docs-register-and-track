@@ -23,6 +23,6 @@ Frontend has TypeScript build coverage through `npm run build`. After `ISSUE-038
 
 - Keep dependency-free helper tests in release gate.
 - Add browser/jsdom component tests only when the dependency/tooling tradeoff is accepted.
-- Keep full Wails flows in manual/target OS release smoke under `ISSUE-043`; do not over-mock Wails internals in component tests.
+- Keep full Wails flows in manual/target OS release smoke through `docs/ux_safety_smoke.md`; do not over-mock Wails internals in component tests.
 
-Связанные issues: `ISSUE-043`; fixed after audit: `ISSUE-019`, `ISSUE-020`, `ISSUE-021`, `ISSUE-038`.
+Связанные issues: fixed after audit: `ISSUE-019`, `ISSUE-020`, `ISSUE-021`, `ISSUE-038`, `ISSUE-043`.

@@ -22,7 +22,7 @@ Backend имеет понятную слоистую структуру: Wails b
 | ISSUE-012 | major | Нет структурированного Wails/backend error contract со стабильными кодами. | C/D |
 | ISSUE-013 | major | Регистрация документов не имеет backend `idempotency_key`; номер выдается до transaction create. | C/D/F |
 | ISSUE-014 | major | Document registration Wails API принимает `any`, неизвестные поля не отклоняются. | C/D |
-| ISSUE-015 | major | Операции MinIO/журналов/связей используют `context.Background()` и не отменяются при shutdown. | C/E/F |
+| ISSUE-015 | fixed | Операции MinIO/журналов/связей/statistics now use shared operation lifecycle and shutdown coordination. | C/E/F |
 
 ## Контрольные Пункты C
 
@@ -46,7 +46,7 @@ Backend имеет понятную слоистую структуру: Wails b
 | C.04.092 | ok | none | access/auth services | Unauthorized/forbidden в основном идут через `models.ErrUnauthorized`/`ErrForbidden`. | Права предсказуемее остальных ошибок; сохранить codes. |
 | C.04.093 | ok | none | not found paths | Missing document/assignment/user target/acknowledgment row/nomenclature/department paths now return structured `NOT_FOUND`/404 instead of validation, silent nil or plain not-found errors. | Keep nullable read responses explicit; do not introduce new plain `fmt.Errorf("... not found")` production paths. |
 | C.05.094 | issue | major | services/storage | MinIO, journal, link, statistics используют `context.Background()`. | Пробросить Wails/request context и timeout/cancel. |
-| C.05.095 | ok | none | logger Seq writer | `Close` больше не ждет через sleep; flush синхронизирован через `sync.WaitGroup`, repeated close idempotent. | Покрыто `TestSeqAsyncWriterCloseFlushesBufferedLogs`; общий context/shutdown lifecycle остается в C.05.094/C.05.097. |
+| C.05.095 | ok | none | logger Seq writer | `Close` больше не ждет через sleep; flush синхронизирован через `sync.WaitGroup`, repeated close idempotent. | Покрыто `TestSeqAsyncWriterCloseFlushesBufferedLogs`; общий context/shutdown lifecycle fixed in C.05.094/C.05.097. |
 | C.05.096 | issue | major | DB/MinIO/files/processes | DB закрывается; MinIO операций с cancel нет; `exec.Command(...).Start()` не отслеживает процесс. | Для долгих операций использовать context, timeout и явную lifecycle policy. |
 | C.05.097 | issue | major | `main.go` OnShutdown | `OnShutdown` закрывает DB/logger, но не отменяет операции; `closeLogger` вызывается и defer, и shutdown. | Ввести app context, единый shutdown coordinator, idempotent close. |
 | C.06.098 | ok | none | slog | `slog` поддерживает уровни; Wails logger настроен на ERROR, app logs через slog. | Уровни доступны. |

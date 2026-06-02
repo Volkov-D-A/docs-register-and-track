@@ -5,11 +5,11 @@
 
 ## Вывод
 
-No long-running/memory/cancellation test suite was found. This aligns with open lifecycle issues from C/E:
+Long-running/memory/cancellation coverage is now maintained as release smoke after `ISSUE-042`. It follows lifecycle remediation from `ISSUE-015`:
 
-- `context.Background()` in MinIO/link/statistics/journal paths;
-- shutdown closes DB/logger without active request coordination;
-- no cancellation/progress UX for long operations.
+- lifecycle-aware MinIO/link/statistics/journal paths;
+- shutdown cancel/wait coordination before DB/logger close;
+- maintained release evidence checklist for memory, repeated workflows, shutdown and outages.
 
 ## Missing Scenarios
 
@@ -26,8 +26,8 @@ No long-running/memory/cancellation test suite was found. This aligns with open 
 
 ## Recommendations
 
-- Add manual long-running smoke before release, then automate the highest-risk parts.
-- Add context cancellation first; tests should assert cancellation behavior after implementation.
+- Execute maintained long-running smoke before release, then automate the highest-risk parts.
+- Keep context cancellation tests after implementation and expand outage/shutdown coverage.
 - Track memory via OS tools on both target platforms.
 
-Связанные issues: `ISSUE-015`, `ISSUE-028`, `ISSUE-041`, `ISSUE-043`; fixed after audit: `ISSUE-017`, `ISSUE-020`.
+Связанные issues: fixed after audit: `ISSUE-015`, `ISSUE-017`, `ISSUE-020`, `ISSUE-028`, `ISSUE-041`, `ISSUE-042`, `ISSUE-043`.

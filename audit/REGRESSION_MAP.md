@@ -148,19 +148,43 @@
 
 ## CHANGE-019
 
-Что изменено: Планируется добавление performance baseline and long-running smoke suite.
-Затронутые файлы: performance scripts/docs, smoke checklist, possibly e2e tooling.
+Что изменено: `ISSUE-041` fixed by adding `make performance-baseline`, `tools/performance-report.js`, maintained `docs/performance_baseline.md` and release-gated `build/release-evidence/PERFORMANCE_BASELINE.md` generation. Long-running smoke remains tracked separately.
+Затронутые файлы: `Makefile`, `tools/performance-report.js`, `docs/performance_baseline.md`, release checklist/runbook and performance audit artifacts.
 Затронутые пункты плана: G.03.204-G.04.220.
-Что перепроверить: startup <=5s; lists/search <=2s; statistics <=5s; registration save latency; memory <=512 MB under normal work; repeated modals/views/files; app close during long operation; DB/MinIO outage handling.
+Что перепроверить: generated static performance report; Linux/Windows startup <=5s; lists/search <=2s; statistics <=5s; registration save latency; memory <=512 MB under normal work. Repeated modals/views/files, app close during long operation and DB/MinIO outage handling remain under long-running/cancellation work.
 Что не нужно перепроверять: pure SQL migrations unless performance scripts provision data.
 
 ## CHANGE-020
 
-Что изменено: Планируется remediation for context cancellation/shutdown lifecycle and tests around long operations.
-Затронутые файлы: Wails startup/shutdown, file/storage/statistics/link/journal services, repository/storage interfaces, frontend progress/cancel UI.
+Что изменено: Закрыт `ISSUE-015`: added shared `OperationLifecycle`, Wails shutdown cancel/wait coordination, operation contexts for attachment upload/download/delete/bulk delete, link create/delete/list/graph, journal read/write, storage statistics and document registration wrapper. MinIO startup bucket check now has a 15s timeout.
+Затронутые файлы: `main.go`, `internal/services/operation_lifecycle.go`, file/statistics/link/journal/document command services, `internal/storage/minio.go`, backend lifecycle audit artifacts.
 Затронутые пункты плана: C.05, E.05, G.04.
 Что перепроверить: upload/download/delete; statistics; link graph; journal writes; app shutdown during operation; cancellation messages; no goroutine/resource leaks.
 Что не нужно перепроверять: document form static labels unless UI copy changes.
+
+## CHANGE-031
+
+Что изменено: Закрыт `ISSUE-042`: добавлен maintained long-running/cancellation smoke checklist and release-gated static validation through `make long-running-smoke-check`.
+Затронутые файлы: `docs/long_running_smoke.md`, `tools/long-running-smoke-check.js`, `Makefile`, release checklist/runbook/smoke docs and audit test artifacts.
+Затронутые пункты плана: G.04.211-G.04.220, E.05.
+Что перепроверить: `make long-running-smoke-check`; 4-8 hour memory trend; repeated document/registration/file/statistics/link graph loops; app close during upload/download/statistics/link graph; MinIO upload/download/statistics outages; PostgreSQL list/save outage recovery.
+Что не нужно перепроверять: UX terminology/destructive copy unless smoke execution touches those flows.
+
+## CHANGE-032
+
+Что изменено: Закрыт `ISSUE-009`: добавлен maintained DB performance evidence checklist and release-gated static validation through `make db-performance-check`. Conditional composite/partial/trigram indexes remain evidence-driven, with required before/after plans.
+Затронутые файлы: `docs/db_performance_evidence.md`, `tools/db-performance-check.js`, `Makefile`, performance/release docs and database/performance audit artifacts.
+Затронутые пункты плана: B.04.051-B.04.064, F.06.
+Что перепроверить: `make db-performance-check`; production-like row counts; `ANALYZE`; required `EXPLAIN (ANALYZE, BUFFERS)` set; list/search latency <=2s; before/after plans for any added index.
+Что не нужно перепроверять: frontend smoke unless DB performance execution changes runtime flows.
+
+## CHANGE-033
+
+Что изменено: Закрыт `ISSUE-022`: extracted reference directory management from `SettingsPage.tsx` into `frontend/src/features/settings/ReferenceDirectoriesTab.tsx`; `ReferencesPage` imports the feature component directly.
+Затронутые файлы: `frontend/src/pages/SettingsPage.tsx`, `frontend/src/pages/ReferencesPage.tsx`, `frontend/src/features/settings/ReferenceDirectoriesTab.tsx`, frontend structure audit artifacts.
+Затронутые пункты плана: D.01.102-D.01.103, F.04.
+Что перепроверить: settings page opens; references page opens; organizations tab loads/edits/deletes; resolution executors tab loads/edits/deletes; dirty discard confirmation in reference edit modals; frontend build/test.
+Что не нужно перепроверять: backend lifecycle and DB query plans.
 
 ## CHANGE-021
 
@@ -233,3 +257,11 @@
 Затронутые пункты плана: E.03.167, E.04.174, H.02.
 Что перепроверить: missing config; invalid JSON config; encrypted config with missing/wrong `ENCRYPTION_KEY`; PostgreSQL down; MinIO down; release notes/theme init failure if reproducible; Wails/WebView startup failure on target OS; Seq unavailable should not block startup but should be recorded as degraded logging.
 Что не нужно перепроверять: document registration numbering/idempotency and SQL query plans.
+
+## CHANGE-030
+
+Что изменено: Закрыт `ISSUE-043`: добавлен maintained UX safety smoke checklist and release-gated static validation through `make ux-smoke-check`. Checklist covers safe error recovery, destructive confirmations, dirty forms, repeat submit guards, empty states and terminology.
+Затронутые файлы: `docs/ux_safety_smoke.md`, `tools/ux-smoke-check.js`, `Makefile`, `docs/smoke_test.md`, `docs/release_checklist.md`, `docs/release_runbook.md`, audit test/UX/release artifacts.
+Затронутые пункты плана: G.04.218-G.04.220, H.03, I.02.
+Что перепроверить: `make ux-smoke-check`; target OS UX safety smoke result attached to release evidence; validation/forbidden/not_found/conflict/internal errors; rollback/file/link/assignment/acknowledgment/reference destructive confirmations; dirty document/settings forms; repeat submit; empty states; terminology spot-check.
+Что не нужно перепроверять: backend transaction invariants and SQL query plans unless the smoke execution changes data setup.

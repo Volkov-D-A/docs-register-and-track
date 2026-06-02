@@ -26,7 +26,7 @@
 | Admin audit list | `idx_admin_audit_log_created_at` | ~0.05 ms |
 | ILIKE document search | `idx_documents_kind`, filter over 250 docs, top-N sort | ~0.21 ms |
 
-Вывод: при подтвержденном baseline до 1000 документов/год текущие планы быстрые и не требуют срочного добавления индексов. Кандидаты ниже остаются conditional: добавлять только если final production-like dataset, реальные планы или рост данных покажут деградацию.
+Вывод: при подтвержденном baseline до 1000 документов/год текущие планы быстрые и не требуют срочного добавления индексов. After `ISSUE-009`, final production-like plan evidence is maintained in `docs/db_performance_evidence.md` and checked by `make db-performance-check`. Кандидаты ниже остаются conditional: добавлять только если final production-like dataset, реальные планы или рост данных покажут деградацию.
 
 ## Index Stats Snapshot
 

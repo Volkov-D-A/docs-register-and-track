@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -75,7 +74,7 @@ func (s *AssignmentService) Create(
 	res, err := s.repo.Create(docUUID, execUUID, content, deadlineTime, coExecutorIDs)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		s.journal.LogAction(nil, models.CreateJournalEntryRequest{
 			DocumentID: docUUID,
 			UserID:     currentUserID,
 			Action:     "ASSIGNMENT_CREATE",
@@ -134,7 +133,7 @@ func (s *AssignmentService) Update(
 	res, err := s.repo.Update(uid, execUUID, content, deadlineTime, existing.Status, existing.Report, existing.CompletedAt, coExecutorIDs)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		s.journal.LogAction(nil, models.CreateJournalEntryRequest{
 			DocumentID: existing.DocumentID,
 			UserID:     currentUserID,
 			Action:     "ASSIGNMENT_UPDATE",
@@ -212,7 +211,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	res, err := s.repo.Update(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, report, completedAt, existing.CoExecutorIDs)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		s.journal.LogAction(nil, models.CreateJournalEntryRequest{
 			DocumentID: existing.DocumentID,
 			UserID:     currentUserID,
 			Action:     "ASSIGNMENT_STATUS",
@@ -323,7 +322,7 @@ func (s *AssignmentService) Delete(id string) error {
 	err = s.repo.Delete(uid)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(context.Background(), models.CreateJournalEntryRequest{
+		s.journal.LogAction(nil, models.CreateJournalEntryRequest{
 			DocumentID: existing.DocumentID,
 			UserID:     currentUserID,
 			Action:     "ASSIGNMENT_DELETE",

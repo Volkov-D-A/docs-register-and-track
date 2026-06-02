@@ -1,4 +1,4 @@
-.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test go-vet govulncheck integration-test frontend-ci frontend-build frontend-lint frontend-test frontend-smoke npm-audit npm-license-check license-inventory security-gate release-gate
+.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test go-vet govulncheck integration-test frontend-ci frontend-build frontend-lint frontend-test frontend-smoke ux-smoke-check long-running-smoke-check db-performance-check performance-baseline npm-audit npm-license-check license-inventory security-gate release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
@@ -78,6 +78,18 @@ frontend-test:
 frontend-smoke:
 	cd $(FRONTEND_DIR) && npm run smoke:prod
 
+ux-smoke-check:
+	node tools/ux-smoke-check.js
+
+long-running-smoke-check:
+	node tools/long-running-smoke-check.js
+
+db-performance-check:
+	node tools/db-performance-check.js
+
+performance-baseline:
+	node tools/performance-report.js
+
 npm-audit:
 	cd $(FRONTEND_DIR) && npm audit --audit-level=critical
 
@@ -92,7 +104,7 @@ license-inventory:
 
 security-gate: govulncheck npm-audit npm-license-check
 
-release-gate: check-release-env release-assets-check go-test go-vet integration-test govulncheck frontend-ci frontend-lint frontend-test frontend-build frontend-smoke npm-audit npm-license-check license-inventory
+release-gate: check-release-env release-assets-check go-test go-vet integration-test govulncheck frontend-ci frontend-lint frontend-test frontend-build frontend-smoke ux-smoke-check long-running-smoke-check db-performance-check performance-baseline npm-audit npm-license-check license-inventory
 
 # ==========================================
 # УПРАВЛЕНИЕ БАЗОЙ ДАННЫХ (DOCKER)
