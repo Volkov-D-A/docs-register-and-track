@@ -8,7 +8,6 @@
     "build": "tsc && vite build",
     "lint": "eslint .",
     "test": "tsc -p tsconfig.test.json && node --test .test-build/test/*.test.js",
-    "smoke:prod": "node --test test/productionBuildSmoke.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
