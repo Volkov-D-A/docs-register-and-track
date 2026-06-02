@@ -7,7 +7,7 @@
 
 Runtime startup initializes config, logger, DB pool, repositories, services, MinIO, release notes, theme and then starts Wails. Frontend has first-run organization setup for admins when required settings are empty. Local user state is stored under user config dir.
 
-Главный runtime gap: часть failures occurs before UI exists (`config.Load`, DB/MinIO/release/theme init) and exits process via `log.Fatalf`/`os.Exit`. For production desktop this should become an operator-visible startup diagnostics screen or a documented launcher/runbook behavior.
+After `ISSUE-028`, failures before UI exists (`config.Load`, DB/MinIO/release/theme/Wails init) write structured startup diagnostics and an operator-readable stderr block with component, resolved config path when relevant, next step and technical details. Seq startup is asynchronous/non-fatal and is treated as degraded logging if unavailable.
 
 ## Runtime Strengths
 
@@ -18,9 +18,9 @@ Runtime startup initializes config, logger, DB pool, repositories, services, Min
 
 ## Runtime Gaps
 
-- Startup config failure exits before UI.
-- MinIO init failure exits before UI.
-- DB ping failure is warning-only, but later DB operations may fail in UI.
+- Startup config failure exits before UI but now includes actionable diagnostics.
+- MinIO init failure exits before UI but now includes actionable diagnostics.
+- DB ping failure now stops startup with PostgreSQL diagnostics.
 - Shutdown still closes DB without active request coordination (`ISSUE-015`); logger close is now deterministic and idempotent.
 - Context propagation for MinIO/file/statistics/link operations remains open.
 
@@ -30,7 +30,7 @@ Runtime startup initializes config, logger, DB pool, repositories, services, Min
 - `ISSUE-017`: fixed deterministic logger shutdown.
 - `ISSUE-019`: fixed frontend structured error handling.
 - `ISSUE-025`: fixed config lookup; target OS config smoke remains in release evidence.
-- `ISSUE-028`: startup/update failure UX.
+- `ISSUE-028`: fixed startup diagnostics for fatal pre-UI startup failures.
 
 ## Smoke Tests To Add
 

@@ -25,9 +25,10 @@ This checklist must be completed from a clean checkout for every production cand
 
 - [ ] `make release-gate` completed.
 - [ ] Go tests completed.
+- [ ] Disposable PostgreSQL integration tests completed through `make integration-test`.
 - [ ] Go vet completed.
 - [ ] `govulncheck` completed with no reachable vulnerabilities.
-- [ ] `npm ci`, frontend lint, frontend build and `npm audit --audit-level=critical` completed.
+- [ ] `npm ci`, frontend lint, frontend tests, frontend build, production build smoke and `npm audit --audit-level=critical` completed.
 - [ ] License report and dependency inventories generated under `build/release-evidence/`.
 
 ## Build Artifacts

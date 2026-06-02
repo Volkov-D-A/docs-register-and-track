@@ -25,10 +25,8 @@
 - Dates in UI: `DD.MM.YYYY`; date-time: `DD.MM.YYYY HH:mm`.
 - Avoid internal IDs in user-facing messages. IDs may remain in admin audit details only if explicitly considered technical/audit context.
 
-## Needs Business Agreement
+## Current Status
 
-- Whether public UI should say `Дело` or official `Номенклатура`.
-- Business confirmation for broader terminology; `ПОС` expansion is fixed in UI by `ISSUE-048`.
-- Whether `Краткое содержание` is still a valid business field after backend/frontend consolidation to `content`.
+`ISSUE-045` fixed the audited frontend terminology: public document flows use `Дело`, admin settings keep `Номенклатура`, document type fields use `Тип документа`, executor terms are qualified by context, and `content` is shown as `Содержание`.
 
-Связанные issues: open `ISSUE-045`; fixed `ISSUE-048`.
+Связанные issues: fixed `ISSUE-045`, fixed `ISSUE-048`.

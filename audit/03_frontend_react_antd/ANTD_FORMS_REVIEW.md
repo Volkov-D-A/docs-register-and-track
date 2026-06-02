@@ -15,11 +15,11 @@ Fixed after audit: document registration/edit modals now use local register/edit
 
 Связано: `ISSUE-020` fixed; manual double-click smoke remains under `ISSUE-043`.
 
-### Unsaved changes guard отсутствует
+### Unsaved changes guard
 
-`DocumentKindPage` закрывает registration/edit modals через переданный `onCancel` без проверки dirty fields. Пользователь может потерять введенные данные при закрытии модалки или смене flow.
+Fixed after audit: document registration/edit and important settings modals use shared dirty-form confirmation before discarding touched fields.
 
-Связано: `ISSUE-021`.
+Связано: `ISSUE-021` fixed; manual dirty modal smoke remains under `ISSUE-043`.
 
 ### Валидация неодинакова
 
@@ -27,7 +27,6 @@ Fixed after audit: document registration/edit modals now use local register/edit
 
 ## Рекомендации
 
-- Ввести локальный `submitting` для каждого create/update/critical action.
-- Добавить dirty confirmation для registration/edit/settings forms.
+- Keep repeat-submit and dirty-close smoke in release checklist.
 - Унифицировать form rules: required message, whitespace для строк, numeric min/max там, где есть backend invariant.
 - При появлении backend `details` для validation мапить field errors в AntD `form.setFields`.

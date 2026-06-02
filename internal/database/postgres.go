@@ -58,10 +58,9 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 		return nil, fmt.Errorf("failed to open database connection pool: %w", err)
 	}
 
-	// We ping the database but do not return an error if it fails.
-	// This allows the application to start and show a reconnect UI.
 	if err := db.Ping(); err != nil {
-		fmt.Printf("Warning: Failed to ping database on startup: %v\n", err)
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	return &DB{db}, nil

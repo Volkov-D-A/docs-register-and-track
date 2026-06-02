@@ -9,12 +9,12 @@
 
 Главные production-риски этапа H не в стиле, а в точности и безопасности микротекстов:
 
-- ошибки часто показывают raw backend text и не подсказывают следующий шаг;
+- safe error copy is fixed after `ISSUE-044`; smoke coverage remains under `ISSUE-043`;
 - destructive confirmations are strengthened after `ISSUE-046`; smoke coverage remains under `ISSUE-043`;
-- терминология местами расходится: "тип документа" vs "вид документа", "дело" vs "номенклатура", "содержание" vs "краткое содержание";
-- common abbreviations/placeholders are clarified after `ISSUE-048`; broader terminology consistency remains under `ISSUE-045`;
+- terminology consistency is fixed after `ISSUE-045`;
+- common abbreviations/placeholders are clarified after `ISSUE-048`;
 - empty states are action-aware after `ISSUE-047`; smoke coverage remains under `ISSUE-043`;
-- microcopy style consistency is fixed for audited examples after `ISSUE-049`; broader terminology consistency remains under `ISSUE-045`.
+- microcopy style consistency is fixed for audited examples after `ISSUE-049`.
 
 ## Контрольные Пункты H
 
@@ -24,9 +24,9 @@
 | H.01.222 | fixed | minor | buttons | `Откатить последнюю`, `Исполнено`, `Отметить`, `Проср.` | Не все кнопки начинались с ясного действия. | Fixed across `ISSUE-046`, `ISSUE-048`, `ISSUE-049`. |
 | H.01.223 | ok | none | document pages | `Зарегистрировать`, primary buttons. | Primary action generally visible. | Нет. |
 | H.01.224 | issue | minor | migration/storage actions | destructive buttons visually danger, but copy can be stronger. | Secondary/destructive actions need clearer consequence text. | See `MICROCOPY_REVIEW.md`. |
-| H.02.225 | issue | major | forms/cards | `Вид документа`, backend `тип документа`, UI `Вид`, glossary `Тип документа`. | Domain terms conflict. | Separate: "Вид документа" = incoming/outgoing/appeal/order; "Тип документа" = Письмо/Договор/Акт. |
-| H.02.226 | issue | major | document forms/view | `Дело`, `Номенклатура`, `Все дела`. | Same entity named differently. | Use `Дело (номенклатура)` in forms first, then `Дело`; use `Номенклатура` only in admin settings if needed. |
-| H.02.227 | issue | minor | forms | `Исполнитель` can mean поручение executor, sender executor, resolution executor. | Different entities share same label. | Use `Ответственный исполнитель`, `Исполнитель письма`, `Исполнители резолюции`. |
+| H.02.225 | fixed | major | forms/cards | `Вид документа`, backend `тип документа`, UI `Вид`, glossary `Тип документа`. | Domain terms conflict. | Fixed in `ISSUE-045`: document type fields/cards use `Тип документа`; document family filters keep `Вид документа`. |
+| H.02.226 | fixed | major | document forms/view | `Дело`, `Номенклатура`, `Все дела`. | Same entity named differently. | Fixed in `ISSUE-045`: user-facing forms/cards/statistics use `Дело`; admin settings keep `Номенклатура`. |
+| H.02.227 | fixed | minor | forms | `Исполнитель` can mean поручение executor, sender executor, resolution executor. | Different entities share same label. | Fixed in `ISSUE-045`: `Ответственный исполнитель`, `Исполнитель письма`, `Исполнитель резолюции`. |
 | H.02.228 | fixed | minor | icon buttons | Some icon buttons have tooltips, some not. | Meaning was not always discoverable. | Fixed in `ISSUE-048` for key lists/actions; keep accessibility smoke under `ISSUE-043`. |
 | H.02.229 | ok | none | forms | Most inputs have labels. | Placeholder not replacing labels except login fields where icons/title context exists. | Acceptable. |
 | H.02.230 | fixed | minor | filters/forms | `Поиск...`, `ФИО`, `Проср.` | Placeholders/examples were often too vague. | Fixed in `ISSUE-048` for known generic search/date labels. |
@@ -46,7 +46,7 @@ Major before production or as part of D/E remediation:
 
 - structured safe error copy;
 - destructive confirmation smoke coverage;
-- terminology split `вид документа` / `тип документа`;
+- terminology split `вид документа` / `тип документа` is fixed in audited frontend flows;
 - startup/migration/system messages without technical jargon.
 
 Minor can be batched:

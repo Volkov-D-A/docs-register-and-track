@@ -12,6 +12,7 @@ import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { getDocumentPageConfig } from '../config/documentPageConfigs';
 import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
 import { formatAppError } from '../utils/appError';
+import { confirmDiscardFormChanges } from '../utils/dirtyForm';
 import {
     OutgoingLetterDocumentForm,
     OutgoingLetterFilters,
@@ -26,7 +27,7 @@ import {
  * Обеспечивает отображение списка, фильтрацию, регистрацию и редактирование исходящей корреспонденции.
  */
 const OutgoingPage: React.FC = () => {
-    const { message } = App.useApp();
+    const { message, modal } = App.useApp();
     const { ready: accessReady, getKindAccess } = useCurrentAccessSummary();
     const currentKind = getKindAccess(DOCUMENT_KIND_OUTGOING_LETTER);
     const canCreateCurrentKind = accessReady && (currentKind?.canRegister ?? false);
@@ -278,7 +279,11 @@ const OutgoingPage: React.FC = () => {
             registerModal={{
                 title: pageConfig.registerModalTitle,
                 open: registerModalOpen,
-                onCancel: () => { closeRegisterModal(); clearDraftLink(); },
+                onCancel: () => confirmDiscardFormChanges(modal, registerForm, () => {
+                    closeRegisterModal();
+                    registerForm.resetFields();
+                    clearDraftLink();
+                }),
                 onOk: () => registerForm.submit(),
                 width: 800,
                 okText: 'Зарегистрировать',
@@ -304,7 +309,10 @@ const OutgoingPage: React.FC = () => {
             editModal={{
                 title: pageConfig.getEditModalTitle(editDoc),
                 open: editModalOpen,
-                onCancel: closeEditModal,
+                onCancel: () => confirmDiscardFormChanges(modal, editForm, () => {
+                    closeEditModal();
+                    editForm.resetFields();
+                }),
                 onOk: () => editForm.submit(),
                 width: 800,
                 okText: 'Сохранить',

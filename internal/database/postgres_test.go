@@ -25,11 +25,9 @@ func TestConnect_Failure(t *testing.T) {
 	}
 
 	db, err := Connect(cfg)
-	require.NoError(t, err)
-	require.NotNil(t, db)
-
-	err = db.Ping()
 	require.Error(t, err)
+	require.Nil(t, db)
+	assert.Contains(t, err.Error(), "failed to ping database")
 }
 
 func setupMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock, *DB) {

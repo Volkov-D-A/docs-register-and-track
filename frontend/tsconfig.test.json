@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "rootDir": ".",
+    "outDir": ".test-build",
+    "noEmit": false
+  },
+  "include": [
+    "src/utils/appError.ts",
+    "src/utils/dirtyForm.ts",
+    "test/**/*.test.ts"
+  ]
+}

@@ -13,7 +13,7 @@ Severity: major
 Проблема: В репозитории есть только local/dev-oriented configuration examples: `localhost`, `sslmode: disable`, MinIO `useSSL: false`, Seq по `http://localhost`, слабые примерные пароли в `.envExample`. Пользователь подтвердил, что weak example passwords допустимы для закрытого контура разработки, но production template/guide базируется на утвержденной документации за пределами проекта, ссылку на нее нельзя добавить в audit context.
 Почему важно: Текущие defaults безопасны только как local/dev шаблон в закрытом контуре разработки. Пользователь подтвердил, что production разворачивается вручную через `config/config.json` по утвержденной документации, поэтому production-конфигурацию, границы контура, секреты и runtime defaults нужно сверять вручную.
 Рекомендация: На этапах B/E/H сверить production config/ops с утвержденной документацией, явно пометить текущие examples как local-only и не использовать их как production defaults.
-Проверка после исправления: `.envExample`, `config.example.json` and `docker-compose.yaml` explicitly say they are local development examples only and must not be used as production defaults. `config.example.json` remains valid JSON and Go config loader ignores the top-level `_comment`. Проверено: `python3 -m json.tool config.example.json`, `GOCACHE=/tmp/go-build-cache go test ./internal/config`. `docker compose config` was not run because Docker CLI is not available in this WSL environment. Production diagnostics validation remains covered by `ISSUE-028`; secret policy is covered by `docs/secret_policy.md`.
+Проверка после исправления: `.envExample`, `config.example.json` and `docker-compose.yaml` explicitly say they are local development examples only and must not be used as production defaults. `config.example.json` remains valid JSON and Go config loader ignores the top-level `_comment`. Проверено: `python3 -m json.tool config.example.json`, `GOCACHE=/tmp/go-build-cache go test ./internal/config`. `docker compose config` was not run because Docker CLI is not available in this WSL environment. Production diagnostics validation fixed by `ISSUE-028`; secret policy is covered by `docs/secret_policy.md`.
 Связанные пункты: B.06, E.01, E.02, H.02
 
 ## ISSUE-002
@@ -247,7 +247,7 @@ Severity: major
 Проблема: Frontend еще не использует structured backend/Wails error envelope `{code,message,status}` как контракт. Большинство handlers показывает `message.error(err?.message || String(err))`, а auth lockout распознается через поиск текста в `formatAuthError`.
 Почему важно: UI остается зависимым от русских/Go/PostgreSQL/storage строк и не может стабильно отличать validation, forbidden, not_found, conflict/idempotency и internal errors.
 Рекомендация: Ввести единый frontend error adapter `formatAppError`/`useAppError`, читать stable `code`, а raw strings использовать только как fallback. Перевести login lockout, forbidden/not_found/conflict и validation behavior на коды.
-Проверка после исправления: Added frontend error adapter `formatAppError`/`normalizeAppError` for Wails `{code,message,status}` envelope and code-based auth lockout handling via `USER_LOCKED`. Replaced raw `err?.message || String(err)` usage in auth, document pages, dashboard, settings, assignments, acknowledgments, files, journal and document modal flows. Проверено: `npm run build`; `rg` no longer finds `err?.message || String(err)` frontend patterns. Full UI smoke for login/forbidden/validation/not_found/conflict/internal remains covered by `ISSUE-038`/`ISSUE-043` release-gate test work.
+Проверка после исправления: Added frontend error adapter `formatAppError`/`normalizeAppError` for Wails `{code,message,status}` envelope and code-based auth lockout handling via `USER_LOCKED`. Replaced raw `err?.message || String(err)` usage in auth, document pages, dashboard, settings, assignments, acknowledgments, files, journal and document modal flows. Проверено: `npm run build`; `rg` no longer finds `err?.message || String(err)` frontend patterns. Automated helper coverage is fixed by `ISSUE-038`; full UI smoke for login/forbidden/validation/not_found/conflict/internal remains covered by `ISSUE-043`.
 Связанные пункты: C.03.090, D.05, F.04, H.03
 
 ## ISSUE-020
@@ -268,12 +268,12 @@ Severity: major
 Категория: Frontend/UX
 Пункт плана: D.02.113, D.04.130, D.06.142
 Severity: major
-Статус: open
+Статус: fixed
 Место: `frontend/src/components/DocumentKindPage.tsx`, document/settings modals
 Проблема: Формы в модалках регистрации/редактирования можно закрыть без предупреждения о несохраненных изменениях. `onCancel` закрывает modal и иногда сбрасывает draft/link state сразу.
 Почему важно: Длинные документные формы содержат много обязательных полей; случайное закрытие приводит к потере данных и повторному ручному вводу.
 Рекомендация: Добавить dirty-state tracking и confirmation перед закрытием/сменой flow для registration/edit и важных settings forms.
-Проверка после исправления: Попробовать закрыть модалки с пустой, измененной и успешно сохраненной формой; предупреждение должно появляться только при несохраненных изменениях.
+Проверка после исправления: Added shared `confirmDiscardFormChanges` helper using AntD `form.isFieldsTouched(true)`. Registration/edit modals for all document kinds and important settings modals now ask for confirmation only when fields were changed, and reset form state after confirmed discard. Verified with `npm run build` and `git diff --check`; manual dirty modal smoke remains in release smoke and `ISSUE-043`.
 Связанные пункты: D.04, D.06, H.03
 
 ## ISSUE-022
@@ -359,12 +359,12 @@ Severity: major
 Категория: Runtime/Startup Errors
 Пункт плана: E.03.167, E.04.174
 Severity: major
-Статус: open
+Статус: fixed
 Место: `main.go`, startup init path
 Проблема: Ошибки загрузки config, подключения к MinIO, release/theme init и часть DB-critical failures завершают процесс через `log.Fatalf`/`os.Exit` до появления UI. Пользователь не получает встроенную diagnostics/error screen.
 Почему важно: На production рабочем месте проблема конфигурации или инфраструктуры будет выглядеть как "приложение не запускается", без понятного действия для оператора.
 Рекомендация: Ввести startup diagnostics mode/screen или launcher-level error dialog с safe message и ссылкой на runbook; technical details логировать.
-Проверка после исправления: Missing config, invalid JSON, wrong encryption key, PostgreSQL down, MinIO down.
+Проверка после исправления: Startup fatal exits replaced by `startupdiag`: configuration, PostgreSQL, MinIO, release notes, theme and Wails startup failures now write a structured `startup_diagnostics` log and an operator-readable stderr block with component, config path, next step and technical details. `database.Connect` now fails startup on `Ping` errors instead of continuing with a warning. Seq startup is intentionally non-fatal/asynchronous and documented as degraded logging. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/startupdiag`, `GOCACHE=/tmp/go-build-cache go test ./internal/database`, `GOCACHE=/tmp/go-build-cache go test ./...`, missing config smoke via `DOCFLOW_CONFIG_PATH=/tmp/docflow-missing-config.json GOCACHE=/tmp/go-build-cache go run .`, PostgreSQL-down smoke via temp config on `127.0.0.1:1`.
 Связанные пункты: E.03.167, E.04.174, H.02
 
 ## ISSUE-029
@@ -489,12 +489,12 @@ Severity: major
 Категория: Tests/Frontend-E2E
 Пункт плана: G.02.196, G.02.197, G.02.198, G.02.199, G.02.200, G.02.201
 Severity: major
-Статус: open
+Статус: fixed
 Место: frontend/e2e test infrastructure
 Проблема: В проекте нет frontend unit/component tests and e2e framework. `npm run build` проверяет TypeScript compile, но не покрывает формы, ошибки отправки, empty states, навигацию и основной пользовательский lifecycle на production build.
-Почему важно: Открытый frontend remediation task `ISSUE-021` затрагивает dirty forms, а исправленные `ISSUE-019`/`ISSUE-020` требуют smoke coverage; без UI/e2e тестов регрессии легко пропустить.
+Почему важно: Исправленные frontend flows `ISSUE-019`/`ISSUE-020`/`ISSUE-021` требуют smoke coverage; без UI/e2e тестов регрессии легко пропустить.
 Рекомендация: Добавить минимальный Vitest/React Testing Library слой для helpers/forms/error adapter and Playwright/Wails-compatible smoke for production build lifecycle.
-Проверка после исправления: Frontend test command and e2e smoke pass on clean test environment.
+Проверка после исправления: Added dependency-free frontend test infrastructure using TypeScript compile + Node test runner: `npm test` covers `formatAppError`/`normalizeAppError` safe copy and `confirmDiscardFormChanges` dirty form behavior. Added `npm run smoke:prod` to verify production `dist/index.html` and referenced JS/CSS assets after `npm run build`. `make release-gate` now runs `frontend-test`, `frontend-build` and `frontend-smoke`. Проверено: `npm test`, `npm run build`, `npm run smoke:prod`, `GOCACHE=/tmp/go-build-cache go test ./...`, `git diff --check`. Browser/manual UX lifecycle smoke remains tracked by `ISSUE-043`.
 Связанные пункты: D.04, D.05, G.02, H.03
 
 ## ISSUE-039
@@ -502,12 +502,12 @@ Severity: major
 Категория: Tests/Integration Safety
 Пункт плана: G.01.193, G.01.194, G.01.195, G.02.202
 Severity: major
-Статус: open
+Статус: fixed
 Место: `internal/repository/document_registration_integration_test.go`, release test gate
 Проблема: Критичные PostgreSQL integration tests gated by `DOCFLOW_INTEGRATION_DSN` and skipped by default. Integration helper resets `public` schema, so DSN must never point to real data.
 Почему важно: Release gate can miss no-gaps/idempotency/retention invariants if env is not set; unsafe DSN could destroy data.
 Рекомендация: Add safe disposable DB provisioning/guard: require DB name prefix like `docflow_test`/`docflow_regression`, create/drop DB in test runner, include integration tests in release gate.
-Проверка после исправления: Default release integration target creates isolated DB and refuses unsafe DSN; integration tests pass.
+Проверка после исправления: Added `tools/integrationtest` and Makefile `integration-test`; release gate now runs it. Runner requires `DOCFLOW_INTEGRATION_ADMIN_DSN`, creates disposable `docflow_test_*` DB, injects `DOCFLOW_INTEGRATION_DSN`, runs registration/concurrency/retention integration tests and drops the DB. Integration tests refuse DSNs whose database name is not `docflow_test*`/`docflow_regression*`. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/repository ./tools/integrationtest`, `GOCACHE=/tmp/go-build-cache go run ./tools/integrationtest` fails with explicit missing-admin-DSN message. Full positive integration run requires local/test PostgreSQL admin DSN.
 Связанные пункты: B.01, B.05, G.01, H.03
 
 ## ISSUE-040
@@ -515,12 +515,12 @@ Severity: major
 Категория: Tests/Database Constraints
 Пункт плана: G.01.194, G.01.195
 Severity: major
-Статус: open
+Статус: fixed
 Место: database integration tests
 Проблема: Есть coverage for migration availability, document registration transactions and retention FK, но broader schema constraints не покрыты integration tests: duplicate registration number conflicts, required fields, FK references for assignments/acknowledgments/attachments, dirty migration recovery.
 Почему важно: Schema-level invariants are final protection when frontend/backend validation misses a case.
 Рекомендация: Add focused DB integration tests for critical unique/FK/not-null constraints and dirty migration behavior.
-Проверка после исправления: Constraint tests fail on broken schema and pass on current schema.
+Проверка после исправления: Added `TestDatabaseConstraintsIntegration` to the guarded PostgreSQL integration suite. It checks duplicate `(kind, registration_number, registration year)`, required `documents.idempotency_key`, FK constraints for assignments/acknowledgments/attachments, duplicate `acknowledgment_users`, and dirty `schema_migrations` rejection through `CheckMigrationCompatibility`. `tools/integrationtest` now runs it in the disposable `docflow_test_*` DB. Проверено: `GOCACHE=/tmp/go-build-cache go test ./internal/repository ./tools/integrationtest`, `GOCACHE=/tmp/go-build-cache go test ./...`; positive DB execution requires non-production `DOCFLOW_INTEGRATION_ADMIN_DSN`.
 Связанные пункты: B.02, B.05, G.01
 
 ## ISSUE-041
@@ -580,12 +580,12 @@ Severity: major
 Категория: UX/Terminology
 Пункт плана: H.02.225, H.02.226, H.02.227, H.04.242
 Severity: major
-Статус: open
+Статус: fixed
 Место: document forms, document view, settings, glossary
 Проблема: Термины используются неодинаково: `вид документа` используется там, где по glossary нужен `тип документа`; `дело` и `номенклатура` обозначают одну сущность; `исполнитель` используется для разных ролей; `содержание` and `краткое содержание` смешиваются.
 Почему важно: Ошибка терминологии может привести к неверному заполнению документов и неправильному пониманию прав/обязанностей.
 Рекомендация: Принять UX-терминологию из `TERMS_GLOSSARY.md` and apply consistently. Согласовать спорные термины с бизнесом: `Дело` vs `Номенклатура`, `Краткое содержание`. `ПОС` expansion is fixed under `ISSUE-048`.
-Проверка после исправления: Review all document forms/views/settings and smoke document registration/edit flows.
+Проверка после исправления: Frontend document forms now use `Тип документа` for `documentTypeId`; document cards use user-facing `Дело`; outgoing letter UI says `Исполнитель письма`; assignments say `Ответственный исполнитель`; citizen appeal list/card uses `Содержание` instead of `Краткое содержание`; settings resolution executor copy is qualified. Verified with `npm run build`, `git diff --check` and targeted `rg` search for old problematic frontend strings. Manual terminology smoke remains under `ISSUE-043`.
 Связанные пункты: H.02, H.04, I.01
 
 ## ISSUE-046
@@ -648,7 +648,7 @@ Severity: critical
 Статус: fixed
 Место: `README.md`, `docs/release_runbook.md`, `docs/diagnostics_runbook.md`, `docs/backup_restore_runbook.md`, `docs/migration_rollback_runbook.md`
 Проблема: В репозитории отсутствует корневой release-grade README/runbook, который описывает dev запуск, production build, миграции, backup/restore and diagnostics. `build/README.md` содержит только стандартное описание Wails build directory.
-Почему важно: Production handover, clean clone build and non-author release execution become dependent on unstated local knowledge. This is especially risky because rollback, restore, config lookup and startup diagnostics already have open blockers.
+Почему важно: Production handover, clean clone build and non-author release execution become dependent on unstated local knowledge. This is especially risky because rollback, restore and config/startup diagnostics need explicit release evidence.
 Рекомендация: Добавить maintained root README/runbooks for dev setup, release build, DB migrations, backup/restore, diagnostics and target OS install smoke. Audit artifacts in `audit/08_docs_release` can be used as starting material.
 Проверка после исправления: Добавлен root `README.md` with dev setup, local config caveats, release/ops entry points, build commands, migration/backup/diagnostics links and critical gate notes. Добавлены maintained `docs/release_runbook.md` and `docs/diagnostics_runbook.md`; existing backup/restore and rollback runbooks are linked from README. Audit docs updated so `ISSUE-050` no longer appears as a critical blocker. Проверено статически: `rg` consistency pass, `git diff --check`. Full non-author clean-clone execution remains a release checklist evidence step.
 Связанные пункты: I.01.258-I.01.262, I.02.265-I.02.268

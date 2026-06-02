@@ -21,6 +21,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
 )
 
@@ -38,14 +39,24 @@ func main() {
 	if *encryptFlag != "" {
 		encrypted, err := config.EncryptPassword(*encryptFlag)
 		if err != nil {
-			log.Fatalf("Ошибка шифрования: %v", err)
+			failStartup(startupdiag.Failure{
+				Component: "config encryption",
+				Summary:   "Не удалось зашифровать пароль для config.json.",
+				NextStep:  "Проверьте значение ENCRYPTION_KEY и повторите команду --encrypt-password.",
+				Err:       err,
+			})
 		}
 		// Wails собирается как GUI-приложение (без консоли), поэтому
 		// записываем результат в файл рядом с исполняемым файлом.
 		outputFile := "encrypted_password.txt"
 		content := fmt.Sprintf("Зашифрованный пароль для поля \"password\" в config.json:\n\n%s\n", encrypted)
 		if err := os.WriteFile(outputFile, []byte(content), 0600); err != nil {
-			log.Fatalf("Ошибка записи файла: %v", err)
+			failStartup(startupdiag.Failure{
+				Component: "config encryption",
+				Summary:   "Не удалось записать encrypted_password.txt.",
+				NextStep:  "Проверьте права записи в текущий каталог или запустите команду из доступного рабочего каталога.",
+				Err:       err,
+			})
 		}
 		log.Printf("Результат записан в файл: %s", outputFile)
 		return
@@ -55,7 +66,13 @@ func main() {
 	configPath := config.GetDefaultConfigPath()
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		log.Fatalf("Failed to load config %q: %v", configPath, err)
+		failStartup(startupdiag.Failure{
+			Component:  "configuration",
+			ConfigPath: configPath,
+			Summary:    "Не удалось загрузить config.json.",
+			NextStep:   "Проверьте DOCFLOW_CONFIG_PATH, наличие файла, права чтения, JSON-синтаксис и ENCRYPTION_KEY для ENC:-значений.",
+			Err:        err,
+		})
 	}
 
 	// Инициализация логгера
@@ -65,8 +82,13 @@ func main() {
 	// Подключение к БД
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
-		slog.Error("Critical: Failed to establish database connection pool", "error", err)
-		os.Exit(1)
+		failStartup(startupdiag.Failure{
+			Component:  "PostgreSQL",
+			ConfigPath: configPath,
+			Summary:    "Не удалось подключиться к базе данных.",
+			NextStep:   "Проверьте host/port/dbname/user/sslmode в config.json, расшифровку пароля и доступность PostgreSQL из рабочего места.",
+			Err:        err,
+		})
 	}
 
 	// Создание репозиториев
@@ -133,8 +155,13 @@ func main() {
 
 	minioService, err := storage.NewMinioService(cfg.Minio)
 	if err != nil {
-		slog.Error("Critical: Failed to establish MinIO connection", "error", err)
-		os.Exit(1)
+		failStartup(startupdiag.Failure{
+			Component:  "MinIO",
+			ConfigPath: configPath,
+			Summary:    "Не удалось подключиться к объектному хранилищу.",
+			NextStep:   "Проверьте endpoint/useSSL/bucket/accessKeyId в config.json, расшифровку secretAccessKey и доступность MinIO из рабочего места.",
+			Err:        err,
+		})
 	}
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, documentAccessService)
@@ -145,13 +172,23 @@ func main() {
 	systemService := services.NewSystemService(db)
 	releaseNoteService, err := services.NewReleaseNoteService(releaseNotesSource)
 	if err != nil {
-		slog.Error("Critical: Failed to load embedded release notes", "error", err)
-		os.Exit(1)
+		failStartup(startupdiag.Failure{
+			Component:  "release notes",
+			ConfigPath: configPath,
+			Summary:    "Не удалось загрузить встроенные release notes.",
+			NextStep:   "Проверьте, что сборка выполнена через release workflow и generated release assets актуальны.",
+			Err:        err,
+		})
 	}
 	themeService, err := services.NewThemeService()
 	if err != nil {
-		slog.Error("Critical: Failed to initialize theme service", "error", err)
-		os.Exit(1)
+		failStartup(startupdiag.Failure{
+			Component:  "local theme state",
+			ConfigPath: configPath,
+			Summary:    "Не удалось инициализировать локальное состояние темы.",
+			NextStep:   "Проверьте доступность пользовательского config directory и права записи для профиля пользователя.",
+			Err:        err,
+		})
 	}
 
 	// Запуск приложения Wails
@@ -216,7 +253,18 @@ func main() {
 	})
 
 	if err != nil {
-		slog.Error("Error starting Wails app", "error", err)
-		os.Exit(1)
+		failStartup(startupdiag.Failure{
+			Component:  "Wails",
+			ConfigPath: configPath,
+			Summary:    "Не удалось запустить desktop UI.",
+			NextStep:   "Проверьте WebView2/runtime окружение, технический лог и повторите smoke на целевой ОС.",
+			Err:        err,
+		})
 	}
+}
+
+func failStartup(failure startupdiag.Failure) {
+	startupdiag.Log(slog.Default(), failure)
+	startupdiag.Write(os.Stderr, failure)
+	os.Exit(1)
 }

@@ -1,4 +1,4 @@
-.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test go-vet govulncheck frontend-ci frontend-build frontend-lint npm-audit npm-license-check license-inventory security-gate release-gate
+.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test go-vet govulncheck integration-test frontend-ci frontend-build frontend-lint frontend-test frontend-smoke npm-audit npm-license-check license-inventory security-gate release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
@@ -60,6 +60,9 @@ go-vet:
 govulncheck:
 	GOCACHE=$(GOCACHE) $(GOVULNCHECK) $(GO_PACKAGES)
 
+integration-test:
+	GOCACHE=$(GOCACHE) go run ./tools/integrationtest
+
 frontend-ci:
 	cd $(FRONTEND_DIR) && npm ci
 
@@ -68,6 +71,12 @@ frontend-build:
 
 frontend-lint:
 	cd $(FRONTEND_DIR) && npm run lint
+
+frontend-test:
+	cd $(FRONTEND_DIR) && npm test
+
+frontend-smoke:
+	cd $(FRONTEND_DIR) && npm run smoke:prod
 
 npm-audit:
 	cd $(FRONTEND_DIR) && npm audit --audit-level=critical
@@ -83,7 +92,7 @@ license-inventory:
 
 security-gate: govulncheck npm-audit npm-license-check
 
-release-gate: check-release-env release-assets-check go-test go-vet govulncheck frontend-ci frontend-lint frontend-build npm-audit npm-license-check license-inventory
+release-gate: check-release-env release-assets-check go-test go-vet integration-test govulncheck frontend-ci frontend-lint frontend-test frontend-build frontend-smoke npm-audit npm-license-check license-inventory
 
 # ==========================================
 # УПРАВЛЕНИЕ БАЗОЙ ДАННЫХ (DOCKER)

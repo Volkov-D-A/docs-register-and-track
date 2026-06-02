@@ -5,7 +5,7 @@
 
 ## Итог
 
-Текущий candidate нельзя выпускать в production. Аудит A-I завершен, часть критичных backend/database/security/docs remediation уже реализована and verified, including runtime rollback guardrails, Go vulnerability remediation and maintained root release docs, but release readiness is still blocked by open critical issues and missing release evidence.
+Текущий candidate нельзя выпускать в production. Аудит A-I завершен, критичные backend/database/security/docs remediation уже реализованы and verified, including runtime rollback guardrails, Go vulnerability remediation, maintained root release docs and clean worktree evidence, but release readiness is still blocked by remaining major issues and missing release evidence.
 
 ## Release Blockers
 
@@ -13,7 +13,7 @@ No critical release blockers are currently tracked. Production approval still re
 
 ## Major Issues Requiring Acceptance Or Fix
 
-Major open issues remain in startup diagnostics, context/shutdown lifecycle, dirty form guards, target OS install/update smoke, frontend/e2e coverage, performance baseline and UX safety.
+Major open issues remain in context/shutdown lifecycle, target OS install/update smoke, performance baseline, long-running/cancellation testing and full browser/Wails UX safety smoke.
 
 ## What Is Ready
 

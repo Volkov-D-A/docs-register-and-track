@@ -455,7 +455,7 @@ const StatisticsPage: React.FC = () => {
                 style={{ display: 'flex', marginTop: 4 }}
                 options={[
                   { label: 'Виды', value: 'kind' },
-                  { label: 'Номенклатура', value: 'nomenclature' },
+                  { label: 'Дело', value: 'nomenclature' },
                   { label: 'Пользователи', value: 'user' },
                 ]}
               />
@@ -469,7 +469,7 @@ const StatisticsPage: React.FC = () => {
               <Select allowClear placeholder="Вид документа" value={documentKind} onChange={setDocumentKind} options={documentFilters.kinds || []} style={{ width: '100%' }} />
             </Col>
             <Col xs={24} md={8}>
-              <Select allowClear showSearch optionFilterProp="label" placeholder="Номенклатура" value={documentNomenclature} onChange={setDocumentNomenclature} options={documentFilters.nomenclature || []} style={{ width: '100%' }} />
+              <Select allowClear showSearch optionFilterProp="label" placeholder="Дело" value={documentNomenclature} onChange={setDocumentNomenclature} options={documentFilters.nomenclature || []} style={{ width: '100%' }} />
             </Col>
             <Col xs={24} md={8}>
               <Select allowClear showSearch optionFilterProp="label" placeholder="Пользователь" value={documentUser} onChange={setDocumentUser} options={documentFilters.users || []} style={{ width: '100%' }} />
@@ -518,9 +518,9 @@ const StatisticsPage: React.FC = () => {
           </Col>
           <Col xs={24} xl={10}>
             <ChartCard
-              title="Ежемесячно по основным исполнителям"
+              title="Ежемесячно по ответственным исполнителям"
               isEmpty={!assignmentStats?.monthlyByExecutor?.length}
-              emptyDescription="Нет данных по исполнителям за выбранный год. Проверьте период или фильтр пользователя."
+              emptyDescription="Нет данных по ответственным исполнителям за выбранный год. Проверьте период или фильтр пользователя."
             >
               <Line {...assignmentExecutorChartConfig} />
             </ChartCard>

@@ -18,12 +18,12 @@ Open risks remain around config placement and secret handling. Temp cleanup in b
 
 | Код | Статус | Severity | Lifecycle | Место | Доказательство | Проблема / рекомендация |
 | --- | --- | --- | --- | --- | --- | --- |
-| E.04.169 | ok | none | runtime/install | `config.GetDefaultConfigPath()` | Main resolves config via `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json`, then cwd fallback for local development. | App no longer depends only on cwd-specific config; missing/invalid config diagnostics remain in `ISSUE-028`. |
+| E.04.169 | ok | none | runtime/install | `config.GetDefaultConfigPath()` | Main resolves config via `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json`, then cwd fallback for local development. | App no longer depends only on cwd-specific config; missing/invalid config now produces startup diagnostics. |
 | E.04.170 | ok | none | ops | `backup_smb_tar.sh`, `restore_smb_tar.sh` | Temp dirs are created via `mktemp -d`, restricted with `chmod 700`, and removed by cleanup trap on any exit. | Manual interruption smoke remains part of release-gate validation on the target contour. |
 | E.04.171 | ok | none | runtime | `DownloadToDisk`, local state | State files use `0600`; download files use `0644`; `docs/secret_policy.md` requires production `.env`/`config.json`/CIFS credentials permission checks. | File permission enforcement is release policy/smoke; attachment downloads remain ordinary user files. |
 | E.04.172 | ok | none | build/runtime | `config.example.json`, `crypto.go`, Makefile | `docs/secret_policy.md` defines encrypted config preference, plaintext break-glass acceptance, key delivery, artifact sensitivity and rotation. | Keep release checklist evidence for permissions, process-list and logs/artifact scans. |
 | E.04.173 | ok | none | runtime/ops | logs/scripts | Technical logs now use `app_user_id` without full names; binding error logs do not include full error text; SMB password mount exposure fixed via CIFS credentials file support. | Keep process-list/log secret exposure smoke in release gate. |
-| E.04.174 | issue | major | runtime | startup/file/storage errors | Startup config/DB failures use `log.Fatalf`/`os.Exit`; file errors include internal paths/details. | Map startup/runtime errors to safe operator messages and logs. |
+| E.04.174 | fixed | none | runtime | startup/file/storage errors | Startup config/DB/MinIO/release/theme/Wails failures use `startupdiag` with structured logs and operator-readable diagnostics; runtime binding errors are mapped through the structured error envelope. | Keep target OS smoke evidence for startup diagnostics and file operations. |
 | E.05.175 | not_applicable | none | runtime | application export | Dedicated domain data export not found; attachment download returns original file content. | Reassess if report/export feature appears. |
 | E.05.176 | ok | none | runtime | `AttachmentService.Upload` | Upload validates UUID document, access, base64 decode, max size, extension allowlist. | Backend validates core attachment input. |
 | E.05.177 | ok | none | runtime | `Upload` | Max file size defaults to 15 MB and setting-driven. | Large-file risk bounded by configured max. |
@@ -33,7 +33,7 @@ Open risks remain around config placement and secret handling. Temp cleanup in b
 
 ## Issues
 
-Связанные новые issues: none; fixed: `ISSUE-029`, `ISSUE-030`, `ISSUE-031`.
+Связанные новые issues: none; fixed: `ISSUE-028`, `ISSUE-029`, `ISSUE-030`, `ISSUE-031`.
 Связанные ранее открытые: none; fixed: `ISSUE-002`, `ISSUE-016`.
 
 ## Проверки После Исправлений

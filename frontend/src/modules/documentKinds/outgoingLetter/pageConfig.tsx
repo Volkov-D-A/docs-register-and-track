@@ -54,13 +54,13 @@ export const outgoingLetterPageConfig = {
             ),
         },
         {
-            title: 'Исполнитель / Подписант',
+            title: 'Исполнитель письма / Подписант',
             key: 'executor',
             width: '26%',
             render: (_: any, record: any) => (
                 <div style={{ fontSize: 13 }}>
-                    <div>Исп: {record.senderExecutor}</div>
-                    <div>Подп: {record.senderSignatory}</div>
+                    <div>Исполнитель письма: {record.senderExecutor}</div>
+                    <div>Подписант: {record.senderSignatory}</div>
                 </div>
             ),
         },

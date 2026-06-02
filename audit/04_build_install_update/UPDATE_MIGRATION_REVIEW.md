@@ -21,7 +21,7 @@ Runtime rollback по решению `DECISION-003` остается production 
 
 ## Issues
 
-Связанные новые issues: `ISSUE-028`.
+Связанные новые issues: none; fixed: `ISSUE-028`.
 Связанные ранее открытые: `ISSUE-015`; fixed after audit: `ISSUE-007`, `ISSUE-010`, `ISSUE-017`, `ISSUE-027`.
 
 ## Проверки После Исправлений

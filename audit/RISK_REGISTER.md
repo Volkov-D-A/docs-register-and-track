@@ -117,7 +117,7 @@
 Описание: Backend/Wails и frontend после remediation используют structured error envelope and frontend adapter for stable codes. Residual risk remains in end-to-end coverage: login/forbidden/validation/not_found/conflict/internal scenarios still need release smoke/e2e evidence.
 Вероятность: medium
 Влияние: medium
-Митигирующее действие: Structured backend envelope and frontend `formatAppError` adapter implemented; cover the main error families in `ISSUE-038`/`ISSUE-043` frontend/e2e smoke work.
+Митигирующее действие: Structured backend envelope and frontend `formatAppError` adapter implemented; helper-level frontend coverage fixed by `ISSUE-038`; cover the main error families in full UI smoke under `ISSUE-043`.
 Ответственный этап: C, D
 
 ## RISK-014
@@ -153,16 +153,16 @@
 Описание: Frontend error adapter внедрен после audit, но остаётся риск непроверенных end-to-end сценариев: forbidden/not_found/conflict/internal cases могут регрессировать без UI/e2e smoke.
 Вероятность: medium
 Влияние: medium
-Митигирующее действие: `formatAppError`/`normalizeAppError` внедрены для Wails errors; добавить smoke cases в рамках `ISSUE-038`/`ISSUE-043`.
+Митигирующее действие: `formatAppError`/`normalizeAppError` внедрены для Wails errors and covered by `npm test` after `ISSUE-038`; add full UI smoke cases under `ISSUE-043`.
 Ответственный этап: D, F, H
 
 ## RISK-018
 
 Категория: Frontend/UX
-Описание: Критичные frontend actions не везде имеют локальный submitting/loading guard, а длинные формы в модалках можно закрыть без dirty confirmation.
+Описание: Критичные frontend actions now have local submitting/loading guards, and long document/settings modals ask before discarding touched forms. Residual risk remains until manual/e2e UX safety smoke is executed.
 Вероятность: medium
 Влияние: medium
-Митигирующее действие: Для create/update/delete/rollback/upload/assignment actions добавить локальный submit lock; для document/settings forms добавить unsaved changes confirmation.
+Митигирующее действие: Выполнено: local submit locks and unsaved changes confirmation added. Execute release smoke for repeat submit, destructive actions and dirty modal close paths.
 Ответственный этап: D, F
 
 ## RISK-019
@@ -186,10 +186,10 @@
 ## RISK-021
 
 Категория: Installation/Runtime Config
-Описание: Runtime config lookup supports `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json` and cwd fallback for local development. Remaining risk is missing/invalid config diagnostics and target OS smoke.
+Описание: Runtime config lookup supports `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json` and cwd fallback for local development. Startup diagnostics for missing/invalid config, PostgreSQL, MinIO, release notes, theme and Wails failures are implemented; remaining risk is target OS smoke evidence.
 Вероятность: low
 Влияние: high
-Митигирующее действие: Use `DOCFLOW_CONFIG_PATH` or executable-relative config for production; verify shortcut/default cwd/path with spaces/Cyrillic and missing/invalid config in target OS smoke.
+Митигирующее действие: Use `DOCFLOW_CONFIG_PATH` or executable-relative config for production; verify shortcut/default cwd/path with spaces/Cyrillic, missing/invalid config, PostgreSQL down, MinIO down and Seq degraded logging in target OS smoke.
 Ответственный этап: E, H
 
 ## RISK-022
@@ -249,19 +249,19 @@
 ## RISK-028
 
 Категория: Testing/Frontend-E2E
-Описание: Frontend forms, error states, empty states, navigation and full user lifecycle are not covered by automated frontend/e2e tests.
-Вероятность: high
+Описание: After `ISSUE-038`, frontend error adapter and dirty-form helpers are covered by `npm test`, and production build assets are checked by `npm run smoke:prod`. Full browser/Wails navigation and user lifecycle smoke remains manual/release evidence under `ISSUE-043`.
+Вероятность: medium
 Влияние: high
-Митигирующее действие: Add frontend component tests and production-build e2e smoke for critical workflows before release.
+Митигирующее действие: Keep `frontend-test` and `frontend-smoke` in release gate; execute manual/target OS UX smoke for login, navigation, document flows, destructive actions and permissions under `ISSUE-043`.
 Ответственный этап: G, H
 
 ## RISK-029
 
 Категория: Testing/Integration Data Safety
-Описание: Critical PostgreSQL integration tests are gated by an external DSN and reset `public` schema. They can be skipped in release gate or damage data if pointed at a non-disposable DB.
-Вероятность: medium
+Описание: Critical PostgreSQL integration tests reset `public` schema, but after `ISSUE-039` they are guarded by safe DB name checks and a release runner that provisions disposable `docflow_test_*` databases from `DOCFLOW_INTEGRATION_ADMIN_DSN`.
+Вероятность: low
 Влияние: high
-Митигирующее действие: Provision disposable DB automatically; add DSN/database-name safety guard; include integration tests in release pipeline.
+Митигирующее действие: Keep `make integration-test` in release gate; provide only non-production maintenance DSNs; archive integration test output as release evidence.
 Ответственный этап: G, H
 
 ## RISK-030
@@ -294,10 +294,10 @@
 ## RISK-033
 
 Категория: UX/Terminology
-Описание: Inconsistent document terminology (`вид`/`тип`, `дело`/`номенклатура`, different meanings of `исполнитель`) can cause wrong data entry or support confusion.
+Описание: Audited frontend terminology was aligned in `ISSUE-045`: `вид`/`тип`, `дело`/`номенклатура`, `исполнитель` contexts and `содержание` labels are now separated. Residual risk remains until release smoke confirms all document flows.
 Вероятность: medium
 Влияние: medium
-Митигирующее действие: Adopt `TERMS_GLOSSARY.md` UX terminology and review all visible labels/messages.
+Митигирующее действие: Выполнено: frontend labels/messages now follow `TERMS_GLOSSARY.md` for audited flows. Keep terminology checks in release smoke and future UI reviews.
 Ответственный этап: H, I
 
 ## RISK-034

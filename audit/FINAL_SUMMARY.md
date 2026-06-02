@@ -27,18 +27,24 @@ Production-аудит A-I завершен. Система имеет рабоч
 - `ISSUE-018`: backend missing-entity paths now return structured `NOT_FOUND`.
 - `ISSUE-019`: frontend now consumes structured Wails error envelope via a shared adapter.
 - `ISSUE-020`: critical frontend submit/actions now have local repeat-click guards.
+- `ISSUE-021`: long document/settings forms now confirm before discarding unsaved changes.
 - `ISSUE-023`: release notes and Wails product metadata now use one generated version source.
 - `ISSUE-024`: release build gate now validates secrets, generated asset freshness and deterministic frontend install.
 - `ISSUE-025`: runtime config lookup no longer depends only on current working directory.
+- `ISSUE-028`: fatal pre-UI startup failures now produce structured and operator-readable diagnostics.
 - `ISSUE-026`: Windows per-machine admin install policy is explicit and release smoke covers ordinary-user launch.
 - `ISSUE-029`: production secret delivery, permissions and rotation policy is maintained.
 - `ISSUE-044`: frontend maps structured error codes to safe user-facing messages with recovery actions.
+- `ISSUE-045`: audited frontend terminology now follows the UX glossary.
 - `ISSUE-051`: release notes and maintained known issues now describe the current production candidate.
 - `ISSUE-052`: audit/remediation worktree changes were committed and current status is clean.
 - `ISSUE-053`: maintained release checklist and smoke test are now project docs.
 - `ISSUE-030`: attachment downloads no longer overwrite existing local files.
 - `ISSUE-035`: obsolete frontend `@ts-ignore` suppressions removed.
 - `ISSUE-036`: Go formatting drift fixed.
+- `ISSUE-039`: release integration test gate now provisions disposable PostgreSQL DBs and refuses unsafe DSNs.
+- `ISSUE-040`: critical database unique/FK/not-null/dirty migration constraints are covered by release-gated integration tests.
+- `ISSUE-038`: frontend helper tests and production build smoke are included in the release gate.
 
 ## Critical Blockers
 
@@ -47,14 +53,12 @@ None currently tracked. The candidate still requires clean-clone release gate ex
 ## Main Open Major Themes
 
 - Restore hardening and backup/restore runbook.
-- Startup diagnostics.
 - Context/shutdown lifecycle for long operations.
-- Frontend dirty form warnings.
 - Target OS install/update smoke evidence.
 - Release docs/runbooks now exist, but clean-clone execution evidence is still a required release checklist step.
 - Remaining frontend lint warnings.
-- Frontend/e2e tests, safe integration test gate and performance baseline.
-- UX terminology and UX smoke coverage for destructive/empty-state/microcopy paths.
+- Full browser/Wails UX smoke and performance baseline.
+- UX smoke coverage for destructive/empty-state/microcopy paths.
 
 ## Verified Commands In Current Workspace
 

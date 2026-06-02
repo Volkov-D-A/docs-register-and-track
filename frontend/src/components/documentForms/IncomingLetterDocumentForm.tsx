@@ -48,7 +48,7 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
                     </Form.Item>
                 </Col>
                 <Col span={8}>
-                    <Form.Item name="documentTypeId" label="Вид документа" rules={[{ required: true }]}>
+                    <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
                         <Select placeholder="Выберите тип">
                             {docTypes.map((t: any) => (
                                 <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
@@ -69,7 +69,7 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
             </Form.Item>
         )}
         {isEdit && (
-            <Form.Item name="documentTypeId" label="Вид документа" rules={[{ required: true }]}>
+            <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
                 <Select placeholder="Выберите тип">
                     {docTypes.map((t: any) => (
                         <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>

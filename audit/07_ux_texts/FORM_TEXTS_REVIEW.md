@@ -73,4 +73,4 @@ Examples:
 | `Не действующий` | `Недействующий` |
 | `Контролер` | `Контролёр` or `Контролирующий` |
 
-Связанные issues: open `ISSUE-045`; fixed `ISSUE-048`.
+Связанные issues: fixed `ISSUE-045`; fixed `ISSUE-048`.

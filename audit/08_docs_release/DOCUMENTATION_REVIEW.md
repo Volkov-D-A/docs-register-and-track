@@ -67,8 +67,8 @@ Release-риск: manual restore evidence still required.
 
 Статус: ok
 Severity: none
-Release-риск: startup diagnostics UX implementation remains tracked separately.
-Доказательство: `docs/diagnostics_runbook.md` added with config lookup, DB/MinIO/Seq connectivity, migration dirty/newer-schema, restore failure and release diagnostics smoke sections. `ISSUE-025` fixed after remediation; `ISSUE-028`, `ISSUE-044` remain open as product UX/runtime blockers.
+Release-риск: target OS diagnostics smoke evidence remains required.
+Доказательство: `docs/diagnostics_runbook.md` added with config lookup, DB/MinIO/Seq connectivity, migration dirty/newer-schema, restore failure and release diagnostics smoke sections. `ISSUE-025`, `ISSUE-028` and `ISSUE-044` are fixed after remediation.
 Что нужно сделать до релиза: execute target OS diagnostics smoke and attach evidence.
 Можно ли отложить: нет для non-author operation.
 Финальная проверка: target OS smoke for missing config, invalid config, unavailable DB/MinIO/Seq.

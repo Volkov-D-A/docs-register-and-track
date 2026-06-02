@@ -68,7 +68,7 @@ export const citizenAppealPageConfig = {
             ),
         },
         {
-            title: 'Краткое содержание',
+            title: 'Содержание',
             key: 'content',
             width: '28%',
             render: (_: any, record: any) => (

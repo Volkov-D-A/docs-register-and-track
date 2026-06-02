@@ -16,19 +16,17 @@
 
 - idempotency/no-gaps;
 - concurrent numbering;
-- retention-safe FK behavior for journals/audit.
+- retention-safe FK behavior for journals/audit;
+- duplicate registration number, required idempotency key, assignments/acknowledgments/attachments FK constraints, duplicate acknowledgment users and dirty migration rejection after `ISSUE-040`.
 
 ## Gaps
 
-- Integration tests are gated by `DOCFLOW_INTEGRATION_DSN` and skipped by default.
-- Integration helper resets `public` schema; release pipeline must guarantee it only points to disposable test DB.
-- Fresh migration from empty DB is covered by integration helper, but release gate should run it explicitly.
-- Broader schema constraints are not covered as integration tests: duplicate registration number conflicts, required fields, FK references for assignments/acknowledgments/attachments, rollback dirty-state handling.
+- `ISSUE-039` fixed after audit: `make integration-test` provisions a disposable `docflow_test_*` DB from `DOCFLOW_INTEGRATION_ADMIN_DSN`, runs the critical repository integration tests and drops the DB afterwards.
+- Integration tests refuse unsafe direct `DOCFLOW_INTEGRATION_DSN` values whose DB name does not start with `docflow_test` or `docflow_regression`.
+- Broader schema constraints covered by `TestDatabaseConstraintsIntegration`; additional future constraint tests can be added for new schema rules as they appear.
 
 ## Рекомендации
 
-- Add safe DSN guard: require database name/prefix like `docflow_test`/`docflow_regression`.
-- Add release target that creates/drops disposable DB and runs integration tests.
-- Add constraint-focused DB tests for critical unique/FK/not-null invariants.
+- Keep constraint-focused DB tests in `make integration-test`.
 
-Связанные issues: `ISSUE-039`, `ISSUE-040`.
+Связанные issues: none; fixed: `ISSUE-039`, `ISSUE-040`.

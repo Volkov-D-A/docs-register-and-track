@@ -58,7 +58,7 @@ Run the maintained release gate:
 make release-gate
 ```
 
-The gate verifies `ENCRYPTION_KEY`, generated release asset freshness, Go tests, Go vet, `govulncheck`, `npm ci`, frontend lint/build, `npm audit --audit-level=critical`, npm GPL-family license check and dependency inventory generation.
+The gate verifies `ENCRYPTION_KEY`, generated release asset freshness, Go tests, Go vet, disposable PostgreSQL integration tests, `govulncheck`, `npm ci`, frontend lint/test/build, production build smoke, `npm audit --audit-level=critical`, npm GPL-family license check and dependency inventory generation.
 
 Expanded manual steps are listed below for troubleshooting.
 
@@ -87,10 +87,21 @@ go vet ./...
 govulncheck ./...
 ```
 
+Run disposable PostgreSQL integration tests:
+
+```bash
+DOCFLOW_INTEGRATION_ADMIN_DSN="postgres://user:password@host:5432/postgres?sslmode=disable" make integration-test
+```
+
+The integration runner creates a temporary `docflow_test_*` database, injects `DOCFLOW_INTEGRATION_DSN`, runs the critical repository integration tests and drops the database afterwards. Direct integration DSNs are rejected unless the database name starts with `docflow_test` or `docflow_regression`.
+
 Run npm security gate:
 
 ```bash
 cd frontend
+npm test
+npm run build
+npm run smoke:prod
 npm audit --audit-level=critical
 cd ..
 ```

@@ -106,7 +106,7 @@
 
 Дата: 2026-05-28
 Контекст: Runtime config сейчас ищется как `config/config.json` относительно cwd, но production запускается через installer/shortcut/portable binary and config is managed manually.
-Решение: Требуется явно выбрать production config placement policy: executable-relative config for managed portable install, OS system config dir, or user config dir. Lookup order and failure UX must be documented and tested on target OS. После remediation lookup order выбран: `DOCFLOW_CONFIG_PATH`, executable-relative config, затем cwd fallback for local development; in-app failure UX remains in `ISSUE-028`.
+Решение: Требуется явно выбрать production config placement policy: executable-relative config for managed portable install, OS system config dir, or user config dir. Lookup order and failure UX must be documented and tested on target OS. После remediation lookup order выбран: `DOCFLOW_CONFIG_PATH`, executable-relative config, затем cwd fallback for local development; fatal pre-UI failure diagnostics fixed by `ISSUE-028`.
 Причина: Desktop app should start predictably regardless of shortcut working directory and should show actionable diagnostics when config is missing.
 Альтернативы: Оставить cwd-relative config and rely on operator discipline. Этот вариант хрупкий для стандартной установки.
 Последствия: После выбора политики нужно изменить startup lookup or installer/runbook, добавить smoke tests for missing/invalid/unreadable config.
@@ -145,11 +145,11 @@
 ## DECISION-015
 
 Дата: 2026-05-28
-Контекст: Этап G подтвердил strong Go unit coverage and passing gated PostgreSQL integration tests, but frontend/e2e tests are absent and integration tests are skipped unless `DOCFLOW_INTEGRATION_DSN` is set.
-Решение: Production release test gate must include four layers: Go unit tests, safe disposable PostgreSQL integration tests, frontend component/type/lint checks, and production-build e2e smoke. Integration tests must refuse unsafe DSNs.
+Контекст: Этап G подтвердил strong Go unit coverage and passing PostgreSQL integration tests. After `ISSUE-039`, integration tests are run through `make integration-test` with disposable DB provisioning. After `ISSUE-038`, frontend helper tests and production build asset smoke are release-gated.
+Решение: Production release test gate must include four layers: Go unit tests, safe disposable PostgreSQL integration tests, frontend type/lint/helper checks, and production-build smoke. Integration tests must refuse unsafe DSNs. Full browser/Wails UX lifecycle smoke remains release evidence under `ISSUE-043`.
 Причина: Critical no-gaps/idempotency and retention invariants must run in release gate, while frontend remediation needs UI-level protection.
 Альтернативы: Keep manual testing only; rely on `go test ./...`. These miss gated DB tests and all frontend/e2e behavior.
-Последствия: Need release test script, safe test DB provisioning and minimal frontend/e2e tooling.
+Последствия: Need release test script, safe test DB provisioning, frontend helper/build smoke tooling and manual target OS UX smoke evidence.
 Какие этапы затрагивает: G, H, I
 
 ## DECISION-016
@@ -169,7 +169,7 @@
 Решение: Adopt UX terminology rules in `TERMS_GLOSSARY.md`: `вид документа` for document family, `тип документа` for document type value, `дело` as primary user-facing term for nomenclature item, qualified executor labels by context, and expanded abbreviations/tooltips for `ПОС`, `Рег. №`, `Проср.`.
 Причина: Consistent terminology reduces wrong data entry and support ambiguity.
 Альтернативы: Keep current mixed terms. This preserves existing habit but leaves confusion.
-Последствия: UI text changes need form/list/card smoke and business confirmation for `Дело` vs `Номенклатура`, `ПОС`, `Краткое содержание`.
+Последствия: UI text changes need form/list/card smoke; audited frontend terminology was applied in `ISSUE-045`, while future business term changes must update `TERMS_GLOSSARY.md`.
 Какие этапы затрагивает: H, I
 
 ## DECISION-018

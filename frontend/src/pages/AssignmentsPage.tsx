@@ -211,7 +211,7 @@ const AssignmentsPage: React.FC = () => {
             )
         },
         {
-            title: 'Исполнитель', key: 'executorName', width: 148,
+            title: 'Ответственный исполнитель', key: 'executorName', width: 148,
             render: (_: any, r: any) => (
                 <div>
                     <div>{r.executorName}</div>
@@ -363,7 +363,7 @@ const AssignmentsPage: React.FC = () => {
                     {hasAnyAction('assign') && (
                         <>
                             <Col span={4}>
-                                <Select style={{ width: '100%' }} placeholder="Исполнитель" allowClear showSearch
+                                <Select style={{ width: '100%' }} placeholder="Ответственный исполнитель" allowClear showSearch
                                     options={executors.map(u => ({ value: u.id, label: u.fullName }))}
                                     value={filterExecutorId || undefined} onChange={setFilterExecutorId}
                                 />

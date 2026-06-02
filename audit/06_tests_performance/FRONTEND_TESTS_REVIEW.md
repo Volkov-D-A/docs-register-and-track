@@ -5,26 +5,24 @@
 
 ## Вывод
 
-Frontend has TypeScript build coverage through `npm run build`, but no unit/component test framework was found:
+Frontend has TypeScript build coverage through `npm run build`. After `ISSUE-038`, it also has a dependency-free TypeScript + Node test layer:
 
-- no Vitest/Jest config;
-- no React Testing Library tests;
-- no frontend `test` script;
-- no component specs for document forms, errors, empty states or navigation.
+- `npm test` compiles focused frontend tests and runs them through Node's built-in test runner;
+- `appError` safe copy and serialized Wails envelope handling are covered;
+- `dirtyForm` touched-state and discard confirmation behavior are covered;
+- `npm run smoke:prod` verifies production `dist/index.html` and referenced JS/CSS assets.
 
 ## Missing Coverage
 
-- Registration forms for incoming/outgoing/citizen appeals/orders.
-- Validation and backend error display.
-- Empty table/list states.
+- Full registration form component tests for incoming/outgoing/citizen appeals/orders.
+- Empty table/list component tests.
 - Access-based navigation and hidden actions.
-- Submit loading/dirty confirmation after planned remediation.
-- Structured error code handling after `DECISION-009`.
+- Browser/Wails lifecycle smoke for login, navigation and document flows.
 
 ## Рекомендации
 
-- Add small Vitest/React Testing Library setup.
-- Start with pure helpers and high-risk UI: error adapter, document form payload builders, access navigation.
-- Keep e2e for full Wails flows; do not over-mock Wails internals in component tests.
+- Keep dependency-free helper tests in release gate.
+- Add browser/jsdom component tests only when the dependency/tooling tradeoff is accepted.
+- Keep full Wails flows in manual/target OS release smoke under `ISSUE-043`; do not over-mock Wails internals in component tests.
 
-Связанные issues: `ISSUE-038`, `ISSUE-019`, `ISSUE-020`, `ISSUE-021`.
+Связанные issues: `ISSUE-043`; fixed after audit: `ISSUE-019`, `ISSUE-020`, `ISSUE-021`, `ISSUE-038`.

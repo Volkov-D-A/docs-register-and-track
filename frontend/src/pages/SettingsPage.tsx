@@ -9,6 +9,7 @@ import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAuthStore } from '../store/useAuthStore';
 import { models } from '../../wailsjs/go/models';
 import { formatAppError } from '../utils/appError';
+import { confirmDiscardFormChanges } from '../utils/dirtyForm';
 
 const { Title } = Typography;
 const ROLLBACK_MIGRATION_CONFIRMATION_PHRASE = 'ОТКАТ МИГРАЦИИ';
@@ -18,7 +19,7 @@ const ROLLBACK_MIGRATION_CONFIRMATION_PHRASE = 'ОТКАТ МИГРАЦИИ';
  * Вкладка управления справочником номенклатуры дел.
  */
 const NomenclatureTab: React.FC = () => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -155,7 +156,11 @@ const NomenclatureTab: React.FC = () => {
       <Modal
         title={editItem ? 'Редактировать дело' : 'Новое дело'}
         open={modalOpen}
-        onCancel={() => { setModalOpen(false); setEditItem(null); }}
+        onCancel={() => confirmDiscardFormChanges(modal, form, () => {
+          setModalOpen(false);
+          setEditItem(null);
+          form.resetFields();
+        })}
         onOk={() => form.submit()}
         confirmLoading={loading}
       >
@@ -207,7 +212,7 @@ const NomenclatureTab: React.FC = () => {
  * Вкладка управления справочником организаций.
  */
 const OrganizationsTab: React.FC = () => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -303,7 +308,11 @@ const OrganizationsTab: React.FC = () => {
       <Modal
         title="Редактировать организацию"
         open={modalOpen}
-        onCancel={() => { setModalOpen(false); setEditItem(null); }}
+        onCancel={() => confirmDiscardFormChanges(modal, form, () => {
+          setModalOpen(false);
+          setEditItem(null);
+          form.resetFields();
+        })}
         onOk={() => form.submit()}
         confirmLoading={loading}
       >
@@ -322,7 +331,7 @@ const OrganizationsTab: React.FC = () => {
  * Вкладка управления справочником исполнителей резолюции.
  */
 const ResolutionExecutorsTab: React.FC = () => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -353,7 +362,7 @@ const ResolutionExecutorsTab: React.FC = () => {
         const { UpdateResolutionExecutor } = await import('../../wailsjs/go/services/ReferenceService');
         await UpdateResolutionExecutor(editItem.id, values.name);
       }
-      message.success('Исполнитель обновлён');
+      message.success('Исполнитель резолюции обновлён');
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
@@ -373,7 +382,7 @@ const ResolutionExecutorsTab: React.FC = () => {
     try {
       const { DeleteResolutionExecutor } = await import('../../wailsjs/go/services/ReferenceService');
       await DeleteResolutionExecutor(id);
-      message.success('Исполнитель удалён');
+      message.success('Исполнитель резолюции удалён');
       await load();
     } catch (err: any) {
       message.error(formatAppError(err));
@@ -388,20 +397,20 @@ const ResolutionExecutorsTab: React.FC = () => {
       title: 'Действия', key: 'actions', width: 100,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" title="Редактировать исполнителя" icon={<EditOutlined />} onClick={() => {
+          <Button size="small" title="Редактировать исполнителя резолюции" icon={<EditOutlined />} onClick={() => {
             setEditItem(record);
             form.setFieldsValue(record);
             setModalOpen(true);
           }} />
           <Popconfirm
-            title={`Удалить исполнителя "${record.name}"?`}
-            description="Это действие нельзя отменить. Исполнитель исчезнет из справочника."
+            title={`Удалить исполнителя резолюции "${record.name}"?`}
+            description="Это действие нельзя отменить. Исполнитель резолюции исчезнет из справочника."
             okText="Удалить"
             cancelText="Отмена"
             okButtonProps={{ danger: true, loading }}
             onConfirm={() => onDelete(record.id)}
           >
-            <Button size="small" title="Удалить исполнителя" icon={<DeleteOutlined />} danger loading={loading} />
+            <Button size="small" title="Удалить исполнителя резолюции" icon={<DeleteOutlined />} danger loading={loading} />
           </Popconfirm>
         </Space>
       ),
@@ -416,9 +425,13 @@ const ResolutionExecutorsTab: React.FC = () => {
       </Typography.Text>
 
       <Modal
-        title="Редактировать исполнителя"
+        title="Редактировать исполнителя резолюции"
         open={modalOpen}
-        onCancel={() => { setModalOpen(false); setEditItem(null); }}
+        onCancel={() => confirmDiscardFormChanges(modal, form, () => {
+          setModalOpen(false);
+          setEditItem(null);
+          form.resetFields();
+        })}
         onOk={() => form.submit()}
         confirmLoading={loading}
       >
@@ -437,7 +450,7 @@ const ResolutionExecutorsTab: React.FC = () => {
  * Вкладка управления справочником подразделений организации.
  */
 const DepartmentsTab: React.FC = () => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -548,7 +561,11 @@ const DepartmentsTab: React.FC = () => {
       <Modal
         title={editItem ? 'Редактировать подразделение' : 'Новое подразделение'}
         open={modalOpen}
-        onCancel={() => { setModalOpen(false); setEditItem(null); }}
+        onCancel={() => confirmDiscardFormChanges(modal, form, () => {
+          setModalOpen(false);
+          setEditItem(null);
+          form.resetFields();
+        })}
         onOk={() => form.submit()}
         confirmLoading={loading}
       >
@@ -576,7 +593,7 @@ const DepartmentsTab: React.FC = () => {
  * Вкладка управления пользователями системы (создание, роли, отделы, пароли).
  */
 const UsersTab: React.FC = () => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [data, setData] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -831,11 +848,12 @@ const UsersTab: React.FC = () => {
       <Modal
         title={editItem ? 'Редактировать пользователя' : 'Новый пользователь'}
         open={modalOpen}
-        onCancel={() => {
+        onCancel={() => confirmDiscardFormChanges(modal, form, () => {
           setModalOpen(false);
           setEditItem(null);
           setDocumentAccessCollapseKeys([]);
-        }}
+          form.resetFields();
+        })}
         onOk={() => form.submit()}
         width={1100}
         confirmLoading={loading}
@@ -923,7 +941,11 @@ const UsersTab: React.FC = () => {
       <Modal
         title={`Смена пароля для пользователя ${editItem?.login}`}
         open={passwordModalOpen}
-        onCancel={() => { setPasswordModalOpen(false); setEditItem(null); passwordForm.resetFields(); }}
+        onCancel={() => confirmDiscardFormChanges(modal, passwordForm, () => {
+          setPasswordModalOpen(false);
+          setEditItem(null);
+          passwordForm.resetFields();
+        })}
         onOk={() => passwordForm.submit()}
         width={400}
         confirmLoading={loading}

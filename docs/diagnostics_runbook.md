@@ -6,7 +6,7 @@
 
 This runbook gives operators and release testers a consistent path for startup, configuration, database, storage, logging and migration failures.
 
-Current limitation: some startup errors still exit before an in-app diagnostics screen. That is tracked by `ISSUE-028`.
+Startup failures before the desktop UI is available write a `DocFlow startup diagnostics` block to stderr/console and a structured `startup_diagnostics` log entry. The block includes component, resolved config path when relevant, operator action and technical details.
 
 ## First Checks
 
@@ -68,6 +68,8 @@ If migration status is dirty:
 4. Use latest PostgreSQL+MinIO backup if recovery requires restore.
 5. Record migration version and error before remediation.
 
+Startup diagnostic component: `PostgreSQL`.
+
 ## Newer Schema Or Downgrade Failure
 
 If the app reports that DB schema is newer than the embedded migrations:
@@ -90,6 +92,8 @@ Check:
 
 For attachment inconsistencies between PostgreSQL metadata and MinIO objects, restore PostgreSQL and MinIO from the same backup set. Do not restore only one side unless a recovery plan explicitly allows it.
 
+Startup diagnostic component: `MinIO`.
+
 ## Seq Failures
 
 Seq is used for technical logs and is not included in the PostgreSQL+MinIO backup set.
@@ -101,7 +105,7 @@ Check:
 - network route;
 - credentials or first-run admin password if applicable.
 
-If Seq is unavailable, application behavior should continue where possible, but release smoke must record whether logs were delivered.
+If Seq is unavailable, application behavior should continue where possible because the Seq writer is asynchronous and non-blocking. Release smoke must record whether logs were delivered or whether the app ran in degraded logging mode.
 
 ## Backup And Restore Failures
 

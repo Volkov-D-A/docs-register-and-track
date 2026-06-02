@@ -3,8 +3,10 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -19,20 +21,8 @@ import (
 )
 
 func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
-	dsn := os.Getenv("DOCFLOW_INTEGRATION_DSN")
-	if dsn == "" {
-		t.Skip("set DOCFLOW_INTEGRATION_DSN to run PostgreSQL integration test")
-	}
-
-	sqlDB, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatalf("open integration db: %v", err)
-	}
+	sqlDB := openSafeIntegrationDB(t)
 	defer sqlDB.Close()
-
-	if err := applyIntegrationMigrations(sqlDB); err != nil {
-		t.Fatalf("apply migrations: %v", err)
-	}
 
 	db := &database.DB{DB: sqlDB}
 	repo := NewOutgoingDocumentRepository(db)
@@ -110,20 +100,8 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 }
 
 func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
-	dsn := os.Getenv("DOCFLOW_INTEGRATION_DSN")
-	if dsn == "" {
-		t.Skip("set DOCFLOW_INTEGRATION_DSN to run PostgreSQL integration test")
-	}
-
-	sqlDB, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatalf("open integration db: %v", err)
-	}
+	sqlDB := openSafeIntegrationDB(t)
 	defer sqlDB.Close()
-
-	if err := applyIntegrationMigrations(sqlDB); err != nil {
-		t.Fatalf("apply migrations: %v", err)
-	}
 
 	db := &database.DB{DB: sqlDB}
 	repo := NewOutgoingDocumentRepository(db)
@@ -246,20 +224,8 @@ func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
 }
 
 func TestJournalRetentionFKIntegration(t *testing.T) {
-	dsn := os.Getenv("DOCFLOW_INTEGRATION_DSN")
-	if dsn == "" {
-		t.Skip("set DOCFLOW_INTEGRATION_DSN to run PostgreSQL integration test")
-	}
-
-	sqlDB, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatalf("open integration db: %v", err)
-	}
+	sqlDB := openSafeIntegrationDB(t)
 	defer sqlDB.Close()
-
-	if err := applyIntegrationMigrations(sqlDB); err != nil {
-		t.Fatalf("apply migrations: %v", err)
-	}
 
 	userID := uuid.New()
 	nomID := uuid.New()
@@ -305,6 +271,166 @@ func TestJournalRetentionFKIntegration(t *testing.T) {
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM admin_audit_log WHERE user_id = $1`, []any{userID}, 1)
 }
 
+func TestDatabaseConstraintsIntegration(t *testing.T) {
+	sqlDB := openSafeIntegrationDB(t)
+	defer sqlDB.Close()
+
+	userID := uuid.New()
+	nomID := uuid.New()
+	orgID := uuid.New()
+	docID := uuid.New()
+
+	execSQL(t, sqlDB, `
+		INSERT INTO users (id, login, password_hash, full_name)
+		VALUES ($1, 'constraint_user', 'hash', 'Constraint User')
+	`, userID)
+	execSQL(t, sqlDB, `
+		INSERT INTO organizations (id, name)
+		VALUES ($1, 'Constraint Org')
+	`, orgID)
+	execSQL(t, sqlDB, `
+		INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode, next_number)
+		VALUES ($1, 'Constraint outgoing', '04-04', 2026, 'outgoing_letter', '/', 'index_and_number', 1)
+	`, nomID)
+	execSQL(t, sqlDB, `
+		INSERT INTO documents (
+			id, kind, nomenclature_id, idempotency_key, registration_number, registration_date,
+			document_type, content, pages_count, created_by
+		) VALUES ($1, 'outgoing_letter', $2, $3, '04-04/1', DATE '2026-05-28', $4, 'constraint', 1, $5)
+	`, docID, nomID, uuid.New(), models.DocumentTypeLetter, userID)
+
+	expectExecError(t, sqlDB, `
+		INSERT INTO documents (
+			kind, nomenclature_id, idempotency_key, registration_number, registration_date,
+			document_type, content, pages_count, created_by
+		) VALUES ('outgoing_letter', $1, $2, '04-04/1', DATE '2026-12-31', $3, 'duplicate number', 1, $4)
+	`, nomID, uuid.New(), models.DocumentTypeLetter, userID)
+	expectExecError(t, sqlDB, `
+		INSERT INTO documents (
+			kind, nomenclature_id, registration_number, registration_date,
+			document_type, content, pages_count, created_by
+		) VALUES ('outgoing_letter', $1, '04-04/2', DATE '2026-05-28', $2, 'missing idempotency', 1, $3)
+	`, nomID, models.DocumentTypeLetter, userID)
+	expectExecError(t, sqlDB, `
+		INSERT INTO assignments (document_id, executor_id, content)
+		VALUES ($1, $2, 'invalid document')
+	`, uuid.New(), userID)
+	expectExecError(t, sqlDB, `
+		INSERT INTO assignments (document_id, executor_id, content)
+		VALUES ($1, $2, 'invalid executor')
+	`, docID, uuid.New())
+	expectExecError(t, sqlDB, `
+		INSERT INTO acknowledgments (id, document_id, creator_id, content)
+		VALUES ($1, $2, $3, 'invalid document')
+	`, uuid.New(), uuid.New(), userID)
+	expectExecError(t, sqlDB, `
+		INSERT INTO attachments (document_id, filename, file_size, storage_path, uploaded_by)
+		VALUES ($1, 'invalid.pdf', 1, 'invalid.pdf', $2)
+	`, docID, uuid.New())
+
+	ackID := uuid.New()
+	execSQL(t, sqlDB, `
+		INSERT INTO acknowledgments (id, document_id, creator_id, content)
+		VALUES ($1, $2, $3, 'ack')
+	`, ackID, docID, userID)
+	execSQL(t, sqlDB, `
+		INSERT INTO acknowledgment_users (id, acknowledgment_id, user_id)
+		VALUES ($1, $2, $3)
+	`, uuid.New(), ackID, userID)
+	expectExecError(t, sqlDB, `
+		INSERT INTO acknowledgment_users (id, acknowledgment_id, user_id)
+		VALUES ($1, $2, $3)
+	`, uuid.New(), ackID, userID)
+
+	execSQL(t, sqlDB, `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			version BIGINT NOT NULL PRIMARY KEY,
+			dirty BOOLEAN NOT NULL
+		)
+	`)
+	execSQL(t, sqlDB, `DELETE FROM schema_migrations`)
+	execSQL(t, sqlDB, `INSERT INTO schema_migrations (version, dirty) VALUES (10, true)`)
+	db := &database.DB{DB: sqlDB}
+	if err := db.CheckMigrationCompatibility(database.DefaultMigrationsPath); err == nil {
+		t.Fatalf("expected dirty migration state to be rejected")
+	}
+}
+
+func TestValidateIntegrationDSNRequiresSafeDatabaseName(t *testing.T) {
+	for _, dsn := range []string{
+		"postgres://user:pass@localhost:5432/docflow_test_123?sslmode=disable",
+		"host=localhost port=5432 user=user password=pass dbname=docflow_regression sslmode=disable",
+	} {
+		if err := validateIntegrationDSN(dsn); err != nil {
+			t.Fatalf("expected safe DSN %q, got error: %v", dsn, err)
+		}
+	}
+
+	for _, dsn := range []string{
+		"postgres://user:pass@localhost:5432/docflow?sslmode=disable",
+		"host=localhost port=5432 user=user password=pass dbname=postgres sslmode=disable",
+		"host=localhost port=5432 user=user password=pass sslmode=disable",
+	} {
+		if err := validateIntegrationDSN(dsn); err == nil {
+			t.Fatalf("expected unsafe DSN %q to be rejected", dsn)
+		}
+	}
+}
+
+func openSafeIntegrationDB(t *testing.T) *sql.DB {
+	t.Helper()
+	dsn := os.Getenv("DOCFLOW_INTEGRATION_DSN")
+	if dsn == "" {
+		t.Skip("set DOCFLOW_INTEGRATION_DSN to run PostgreSQL integration test")
+	}
+	if err := validateIntegrationDSN(dsn); err != nil {
+		t.Fatalf("unsafe DOCFLOW_INTEGRATION_DSN: %v", err)
+	}
+
+	sqlDB, err := sql.Open("postgres", dsn)
+	if err != nil {
+		t.Fatalf("open integration db: %v", err)
+	}
+
+	if err := applyIntegrationMigrations(sqlDB); err != nil {
+		sqlDB.Close()
+		t.Fatalf("apply migrations: %v", err)
+	}
+	return sqlDB
+}
+
+func validateIntegrationDSN(dsn string) error {
+	dbName, err := integrationDBName(dsn)
+	if err != nil {
+		return err
+	}
+	if isSafeIntegrationDBName(dbName) {
+		return nil
+	}
+	return fmt.Errorf("database name %q must start with docflow_test or docflow_regression", dbName)
+}
+
+func integrationDBName(dsn string) (string, error) {
+	if u, err := url.Parse(dsn); err == nil && u.Scheme != "" {
+		name := strings.TrimPrefix(u.Path, "/")
+		if name == "" {
+			return "", fmt.Errorf("database name is empty")
+		}
+		return name, nil
+	}
+
+	for _, match := range regexp.MustCompile(`(?:^|\s)dbname=('[^']*'|"[^"]*"|[^\s]+)`).FindAllStringSubmatch(dsn, -1) {
+		if len(match) == 2 {
+			return strings.Trim(match[1], `'"`), nil
+		}
+	}
+	return "", fmt.Errorf("database name not found")
+}
+
+func isSafeIntegrationDBName(name string) bool {
+	return strings.HasPrefix(name, "docflow_test") || strings.HasPrefix(name, "docflow_regression")
+}
+
 func applyIntegrationMigrations(db *sql.DB) error {
 	if _, err := db.Exec(`DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;`); err != nil {
 		return err
@@ -332,6 +458,13 @@ func execSQL(t *testing.T, db *sql.DB, query string, args ...any) {
 	t.Helper()
 	if _, err := db.Exec(query, args...); err != nil {
 		t.Fatalf("exec %s: %v", strings.TrimSpace(query), err)
+	}
+}
+
+func expectExecError(t *testing.T, db *sql.DB, query string, args ...any) {
+	t.Helper()
+	if _, err := db.Exec(query, args...); err == nil {
+		t.Fatalf("expected query to fail: %s", strings.TrimSpace(query))
 	}
 }
 

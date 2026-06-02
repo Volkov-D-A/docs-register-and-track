@@ -16,7 +16,7 @@
 | E.02.160 | needs_info | major | install/first run | Windows/Linux target OS | Локального installer smoke на целевых ОС в этом проходе не было. | Выполнить запуск после установки в Program Files/portable path и проверить config resolution. |
 | E.02.161 | needs_info | major | install/runtime | target OS paths | Код использует `filepath`, но запуск из пути с пробелами/кириллицей не проверен. | Добавить smoke: `C:\Program Files\...`, каталог с кириллицей, Linux path с пробелом. |
 | E.02.162 | ok | none | install | `build/windows/installer/project.nsi`, `docs/install_policy.md` | Per-machine Windows install policy accepted: installer requires admin, installs under Program Files, writes HKLM uninstall metadata and creates all-user shortcuts. | Target OS smoke must verify the installed app runs for ordinary users without elevation. |
-| E.02.163 | ok | none | first run/runtime | `config.GetDefaultConfigPath()` | Config lookup order: `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json`, cwd fallback for local development. Startup log includes resolved path. | In-app startup diagnostics remain tracked by `ISSUE-028`; target OS smoke must verify missing/invalid config. |
+| E.02.163 | ok | none | first run/runtime | `config.GetDefaultConfigPath()` | Config lookup order: `DOCFLOW_CONFIG_PATH`, executable-relative `config/config.json`, cwd fallback for local development. Startup diagnostics include resolved path. | Target OS smoke must verify missing/invalid config. |
 
 ## Issues
 

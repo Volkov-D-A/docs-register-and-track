@@ -76,10 +76,10 @@
 
 ## CHANGE-010
 
-Что изменено: Добавлены frontend submitting guards for critical forms/actions under `ISSUE-020`; dirty confirmation remains open under `ISSUE-021`.
+Что изменено: Добавлены frontend submitting guards for critical forms/actions under `ISSUE-020`; dirty confirmation for document/settings modals under `ISSUE-021` is also fixed.
 Затронутые файлы: document pages/modals, settings/actions, assignments/files where applicable.
 Затронутые пункты плана: D.02.110, D.02.113, D.04.123-D.04.130.
-Что перепроверить: double-click submit; settings CRUD; migration rollback/apply buttons; file upload/delete; assignments create/update/return/complete. Closing dirty registration/edit modal remains under `ISSUE-021`.
+Что перепроверить: double-click submit; settings CRUD; migration rollback/apply buttons; file upload/delete; assignments create/update/return/complete; closing clean vs dirty registration/edit/settings modals.
 Что не нужно перепроверять: backend no-gaps transaction except repeated registration smoke.
 
 ## CHANGE-011
@@ -140,10 +140,10 @@
 
 ## CHANGE-018
 
-Что изменено: Планируется добавление release test gate with safe DB integration tests and frontend/e2e smoke.
-Затронутые файлы: test scripts, CI/release scripts, frontend test config, e2e config, integration test helpers.
+Что изменено: Частично закрыт release test gate work: `ISSUE-039` fixed by adding `make integration-test`, disposable PostgreSQL DB provisioning through `tools/integrationtest`, safe `DOCFLOW_INTEGRATION_DSN` database-name guard and release-gate integration. `ISSUE-040` fixed by adding release-gated database constraint checks for duplicate registration numbers, required idempotency key, assignments/acknowledgments/attachments FKs, duplicate acknowledgment users and dirty migration state. Frontend/e2e smoke remains tracked separately.
+Затронутые файлы: `Makefile`, `tools/integrationtest`, `internal/repository/document_registration_integration_test.go`, release docs and audit test artifacts.
 Затронутые пункты плана: G.01.190-G.02.203, H/I release gates.
-Что перепроверить: `go test ./...`; disposable PostgreSQL integration tests; frontend component tests; production-build e2e smoke; test data isolation; failure when unsafe DSN is used.
+Что перепроверить: `go test ./...`; `make integration-test` with non-production `DOCFLOW_INTEGRATION_ADMIN_DSN`; unsafe direct `DOCFLOW_INTEGRATION_DSN` refusal; duplicate registration number/required idempotency/FK/dirty migration failures; release gate failure when admin DSN is missing; frontend component tests and production-build e2e smoke remain future work.
 Что не нужно перепроверять: license inventory unless release script also changes license tooling.
 
 ## CHANGE-019
@@ -225,3 +225,11 @@
 Затронутые пункты плана: H.03.232-H.03.240, D.05.
 Что перепроверить: login invalid/locked/inactive; forbidden action; validation error; not found; conflict/idempotency; internal backend failure; raw thrown frontend error; DB/MinIO failure copy.
 Что не нужно перепроверять: backend transaction invariants and SQL query plans.
+
+## CHANGE-029
+
+Что изменено: Закрыт `ISSUE-028`: fatal pre-UI startup failures now use `internal/startupdiag` and write both structured `startup_diagnostics` logs and operator-readable stderr diagnostics with component, config path, next step and technical details. `database.Connect` now returns an error on failed startup `Ping`.
+Затронутые файлы: `main.go`, `internal/startupdiag/*`, `internal/database/postgres.go`, `docs/diagnostics_runbook.md`, audit runtime/release artifacts.
+Затронутые пункты плана: E.03.167, E.04.174, H.02.
+Что перепроверить: missing config; invalid JSON config; encrypted config with missing/wrong `ENCRYPTION_KEY`; PostgreSQL down; MinIO down; release notes/theme init failure if reproducible; Wails/WebView startup failure on target OS; Seq unavailable should not block startup but should be recorded as degraded logging.
+Что не нужно перепроверять: document registration numbering/idempotency and SQL query plans.

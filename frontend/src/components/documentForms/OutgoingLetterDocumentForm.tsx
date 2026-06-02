@@ -47,7 +47,7 @@ const OutgoingLetterDocumentForm: React.FC<OutgoingLetterDocumentFormProps> = ({
                 </Row>
                 <Row gutter={16}>
                     <Col span={12}>
-                        <Form.Item name="documentTypeId" label="Вид документа" rules={[{ required: true }]}>
+                        <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
                             <Select options={docTypes.map((t: any) => ({ value: t.id, label: t.name }))} />
                         </Form.Item>
                     </Col>
@@ -80,7 +80,7 @@ const OutgoingLetterDocumentForm: React.FC<OutgoingLetterDocumentFormProps> = ({
                 </Row>
                 <Row gutter={16}>
                     <Col span={12}>
-                        <Form.Item name="documentTypeId" label="Вид документа" rules={[{ required: true }]}>
+                        <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
                             <Select options={docTypes.map((t: any) => ({ value: t.id, label: t.name }))} />
                         </Form.Item>
                     </Col>
@@ -114,7 +114,7 @@ const OutgoingLetterDocumentForm: React.FC<OutgoingLetterDocumentFormProps> = ({
                 </Form.Item>
             </Col>
             <Col span={12}>
-                <Form.Item name="senderExecutor" label="Исполнитель" rules={[{ required: true }]}>
+                <Form.Item name="senderExecutor" label="Исполнитель письма" rules={[{ required: true }]}>
                     <Input />
                 </Form.Item>
             </Col>

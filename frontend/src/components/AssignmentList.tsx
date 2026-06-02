@@ -94,7 +94,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
         },
         { title: 'Содержание', dataIndex: 'content', key: 'content' },
         {
-            title: 'Исполнитель', key: 'executorName', width: 200,
+            title: 'Ответственный исполнитель', key: 'executorName', width: 200,
             render: (_: any, r: any) => (
                 <div>
                     <div>{r.executorName}</div>

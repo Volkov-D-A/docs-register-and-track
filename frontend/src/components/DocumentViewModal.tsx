@@ -74,7 +74,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                     <Text type="secondary" style={{ fontSize: 12 }}>Дата:</Text> <Text strong>{dayjs(doc.incomingDate).format('DD.MM.YYYY')}</Text>
                 </Col>
             </Row>
-            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {doc.nomenclatureName}</Col></Row>
+            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Дело:</Text> {doc.nomenclatureName}</Col></Row>
 
             <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
@@ -150,10 +150,10 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                     <Text type="secondary" style={{ fontSize: 12 }}>Дата:</Text> <Text strong>{dayjs(doc.outgoingDate).format('DD.MM.YYYY')}</Text>
                 </Col>
                 <Col span={12}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Вид:</Text> <Tag>{doc.documentTypeName}</Tag>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Тип документа:</Text> <Tag>{doc.documentTypeName}</Tag>
                 </Col>
             </Row>
-            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {doc.nomenclatureName}</Col></Row>
+            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Дело:</Text> {doc.nomenclatureName}</Col></Row>
 
             <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
@@ -167,7 +167,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                     <Text type="secondary" style={{ fontSize: 12 }}>Подписал:</Text> {doc.senderSignatory}
                 </Col>
                 <Col span={12}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Исполнитель:</Text> {doc.senderExecutor}
+                    <Text type="secondary" style={{ fontSize: 12 }}>Исполнитель письма:</Text> {doc.senderExecutor}
                 </Col>
             </Row>
 
@@ -195,7 +195,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                     <Text type="secondary" style={{ fontSize: 12 }}>Дата обращения:</Text> <Text strong>{dayjs(doc.appealDate).format('DD.MM.YYYY')}</Text>
                 </Col>
             </Row>
-            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {doc.nomenclatureName}</Col></Row>
+            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Дело:</Text> {doc.nomenclatureName}</Col></Row>
 
             <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
@@ -209,7 +209,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             </Row>
             <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Адрес регистрации:</Text> {doc.registrationAddress}</Col></Row>
             <Row gutter={16}>
-                <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>Вид:</Text> <Tag>{doc.appealType}</Tag></Col>
+                <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>Тип обращения:</Text> <Tag>{doc.appealType}</Tag></Col>
                 <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>Конверт:</Text> {doc.hasEnvelope ? 'Да' : 'Нет'}</Col>
                 <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>Платформа обратной связи:</Text> {doc.receivedFromPos ? 'Да' : 'Нет'}</Col>
             </Row>
@@ -235,7 +235,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
             <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 
             <div>
-                <Text type="secondary" style={{ fontSize: 12 }}>Краткое содержание:</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>Содержание:</Text>
                 <div style={{ fontWeight: 500, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{doc.content}</div>
             </div>
 
@@ -347,7 +347,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
                     <Tag color={doc.isActive === false ? 'default' : 'green'}>{doc.isActive === false ? 'Не действующий' : 'Действующий'}</Tag>
                 </Col>
             </Row>
-            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Номенклатура:</Text> {doc.nomenclatureName}</Col></Row>
+            <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Дело:</Text> {doc.nomenclatureName}</Col></Row>
 
             <div style={{ height: 1, background: 'var(--app-border)', margin: '4px 0' }} />
 

@@ -1,5 +1,6 @@
 node_modules
 frontend/dist
+frontend/.test-build
 .agent
 /config
 .env
