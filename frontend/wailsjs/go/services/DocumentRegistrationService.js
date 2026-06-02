@@ -6,6 +6,10 @@ export function Register(arg1, arg2) {
   return window['go']['services']['DocumentRegistrationService']['Register'](arg1, arg2);
 }
 
+export function SetOperationLifecycle(arg1) {
+  return window['go']['services']['DocumentRegistrationService']['SetOperationLifecycle'](arg1);
+}
+
 export function Update(arg1, arg2) {
   return window['go']['services']['DocumentRegistrationService']['Update'](arg1, arg2);
 }

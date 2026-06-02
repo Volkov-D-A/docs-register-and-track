@@ -2031,19 +2031,16 @@ export namespace models {
 		}
 	}
 	
-
-
-
 	export class RollbackMigrationRequest {
 	    backupCompleted: boolean;
 	    backupReference: string;
 	    acknowledgedDataLoss: boolean;
 	    confirmation: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new RollbackMigrationRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.backupCompleted = source["backupCompleted"];
@@ -2052,9 +2049,9 @@ export namespace models {
 	        this.confirmation = source["confirmation"];
 	    }
 	}
-
-
-
+	
+	
+	
 	export class SystemSetting {
 	    key: string;
 	    value: string;
@@ -2262,5 +2259,18 @@ export namespace services {
 	
 	    }
 	}
+	export class OperationLifecycle {
+	
+	
+	    static createFrom(source: any = {}) {
+	        return new OperationLifecycle(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	
+	    }
+	}
 
 }
+

@@ -29,3 +29,7 @@ export function GetDocumentStatistics() {
 export function GetSystemStatistics() {
   return window['go']['services']['StatisticsService']['GetSystemStatistics']();
 }
+
+export function SetOperationLifecycle(arg1) {
+  return window['go']['services']['StatisticsService']['SetOperationLifecycle'](arg1);
+}

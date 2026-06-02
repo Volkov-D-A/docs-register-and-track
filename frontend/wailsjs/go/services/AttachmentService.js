@@ -30,6 +30,10 @@ export function OpenFolder(arg1) {
   return window['go']['services']['AttachmentService']['OpenFolder'](arg1);
 }
 
+export function SetOperationLifecycle(arg1) {
+  return window['go']['services']['AttachmentService']['SetOperationLifecycle'](arg1);
+}
+
 export function Upload(arg1, arg2, arg3) {
   return window['go']['services']['AttachmentService']['Upload'](arg1, arg2, arg3);
 }
