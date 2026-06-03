@@ -254,3 +254,49 @@ func TestAcknowledgmentRepository_GetAllActive(t *testing.T) {
 	require.Len(t, acks, 1)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestAcknowledgmentRepository_DocumentAccess(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	userID := uuid.New()
+	docID := uuid.New()
+
+	t.Run("has document access", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT EXISTS`).
+			WithArgs(userID, docID).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+		ok, err := repo.HasDocumentAccess(userID, docID)
+
+		require.NoError(t, err)
+		assert.True(t, ok)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("empty bulk input", func(t *testing.T) {
+		result, err := repo.GetAccessibleDocumentIDs(userID, nil)
+
+		require.NoError(t, err)
+		assert.Empty(t, result)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("bulk accessible ids", func(t *testing.T) {
+		allowedID := uuid.New()
+		deniedID := uuid.New()
+
+		mock.ExpectQuery(`SELECT DISTINCT a\.document_id\s+FROM acknowledgment_users au`).
+			WithArgs(userID, sqlmock.AnyArg()).
+			WillReturnRows(sqlmock.NewRows([]string{"document_id"}).AddRow(allowedID))
+
+		result, err := repo.GetAccessibleDocumentIDs(userID, []uuid.UUID{allowedID, deniedID})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, allowedID)
+		assert.NotContains(t, result, deniedID)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}

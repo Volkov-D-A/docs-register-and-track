@@ -135,3 +135,51 @@ func TestAttachmentRepository_GetByDocumentID(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestAttachmentRepository_GetOlderThan(t *testing.T) {
+	repo, mock := setupAttachmentRepo(t)
+	cutoff := time.Now().Add(-24 * time.Hour)
+	attachmentID := uuid.New()
+	docID := uuid.New()
+	uploaderID := uuid.New()
+	uploadedAt := cutoff.Add(-time.Hour)
+
+	mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE uploaded_at < \$1`).
+		WithArgs(cutoff).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "document_id", "filename", "storage_path", "file_size", "content_type", "uploaded_by", "uploaded_at",
+		}).AddRow(attachmentID, docID, "old.pdf", "path/old.pdf", 42, "application/pdf", uploaderID, uploadedAt))
+
+	attachments, err := repo.GetOlderThan(cutoff)
+
+	require.NoError(t, err)
+	require.Len(t, attachments, 1)
+	assert.Equal(t, attachmentID, attachments[0].ID)
+	assert.Equal(t, "old.pdf", attachments[0].Filename)
+	assert.Equal(t, uploadedAt, attachments[0].UploadedAt)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAttachmentRepository_DeleteMultiple(t *testing.T) {
+	repo, mock := setupAttachmentRepo(t)
+
+	t.Run("empty input", func(t *testing.T) {
+		err := repo.DeleteMultiple(nil)
+
+		require.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("success", func(t *testing.T) {
+		ids := []uuid.UUID{uuid.New(), uuid.New()}
+
+		mock.ExpectExec(`DELETE FROM attachments WHERE id = ANY\(\$1\)`).
+			WithArgs(sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(0, 2))
+
+		err := repo.DeleteMultiple(ids)
+
+		require.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}

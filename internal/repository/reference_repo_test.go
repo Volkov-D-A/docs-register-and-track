@@ -199,3 +199,129 @@ func TestReferenceRepository_DeleteOrganization(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+// === Resolution executors ===
+
+func TestReferenceRepository_GetAllResolutionExecutors(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewReferenceRepository(&database.DB{DB: db})
+	now := time.Now()
+
+	mock.ExpectQuery(`SELECT id, name, created_at FROM resolution_executors ORDER BY name`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at"}).
+			AddRow(uuid.New(), "Исполнитель А", now).
+			AddRow(uuid.New(), "Исполнитель Б", now))
+
+	items, err := repo.GetAllResolutionExecutors()
+
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	assert.Equal(t, "Исполнитель А", items[0].Name)
+	assert.Equal(t, "Исполнитель Б", items[1].Name)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestReferenceRepository_FindOrCreateResolutionExecutor(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewReferenceRepository(&database.DB{DB: db})
+	id := uuid.New()
+	name := "Исполнитель"
+	now := time.Now()
+
+	t.Run("found existing", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT id, name, created_at FROM resolution_executors WHERE name = \$1`).
+			WithArgs(name).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at"}).AddRow(id, name, now))
+
+		item, err := repo.FindOrCreateResolutionExecutor(name)
+
+		require.NoError(t, err)
+		require.NotNil(t, item)
+		assert.Equal(t, id, item.ID)
+		assert.Equal(t, name, item.Name)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("create new", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT id, name, created_at FROM resolution_executors WHERE name = \$1`).
+			WithArgs(name).
+			WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(`INSERT INTO resolution_executors \(name\) VALUES \(\$1\) RETURNING id`).
+			WithArgs(name).
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(id))
+		mock.ExpectQuery(`SELECT id, name, created_at FROM resolution_executors WHERE id = \$1`).
+			WithArgs(id).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at"}).AddRow(id, name, now))
+
+		item, err := repo.FindOrCreateResolutionExecutor(name)
+
+		require.NoError(t, err)
+		require.NotNil(t, item)
+		assert.Equal(t, id, item.ID)
+		assert.Equal(t, name, item.Name)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestReferenceRepository_SearchResolutionExecutors(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewReferenceRepository(&database.DB{DB: db})
+	now := time.Now()
+
+	mock.ExpectQuery(`SELECT id, name, created_at FROM resolution_executors\s+WHERE name ILIKE \$1\s+ORDER BY name LIMIT 20`).
+		WithArgs("%Исп%").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at"}).
+			AddRow(uuid.New(), "Исполнитель", now))
+
+	items, err := repo.SearchResolutionExecutors("Исп")
+
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "Исполнитель", items[0].Name)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestReferenceRepository_UpdateResolutionExecutor(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewReferenceRepository(&database.DB{DB: db})
+	id := uuid.New()
+
+	mock.ExpectExec(`UPDATE resolution_executors SET name = \$1 WHERE id = \$2`).
+		WithArgs("Новое имя", id).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = repo.UpdateResolutionExecutor(id, "Новое имя")
+
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestReferenceRepository_DeleteResolutionExecutor(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewReferenceRepository(&database.DB{DB: db})
+	id := uuid.New()
+
+	mock.ExpectExec(`DELETE FROM resolution_executors WHERE id = \$1`).
+		WithArgs(id).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = repo.DeleteResolutionExecutor(id)
+
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

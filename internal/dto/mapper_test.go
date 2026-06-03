@@ -248,6 +248,186 @@ func TestMapDocumentListItemsPagesCount(t *testing.T) {
 	})
 }
 
+func TestMapDocumentKindSpec(t *testing.T) {
+	spec, ok := models.GetDocumentKindSpec(models.DocumentKindIncomingLetter)
+	require.True(t, ok)
+
+	dto := MapDocumentKindSpec(spec)
+
+	require.NotNil(t, dto)
+	assert.Equal(t, string(models.DocumentKindIncomingLetter), dto.Code)
+	assert.Equal(t, spec.Name, dto.Name)
+	assert.Equal(t, spec.RegistrationFormCode, dto.RegistrationFormCode)
+	assert.Equal(t, spec.RegistryGroup, dto.RegistryGroup)
+	assert.Contains(t, dto.SupportedActions, string(models.DocumentActionRead))
+}
+
+func TestMapIncomingAndOutgoingDocumentCards(t *testing.T) {
+	now := time.Now()
+
+	t.Run("incoming", func(t *testing.T) {
+		model := &models.IncomingDocument{
+			ID:               uuid.New(),
+			NomenclatureID:   uuid.New(),
+			NomenclatureName: "01-01",
+			IncomingNumber:   "IN-1",
+			IncomingDate:     now,
+			DocumentTypeID:   models.DocumentTypeLetter,
+			DocumentTypeName: models.DocumentTypeLetter,
+			Content:          "Входящее",
+			CreatedBy:        uuid.New(),
+			CreatedByName:    "Регистратор",
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}
+
+		card := MapIncomingDocumentCard(model)
+
+		require.NotNil(t, card)
+		assert.Equal(t, model.ID.String(), card.ID)
+		assert.Equal(t, string(models.DocumentKindIncomingLetter), card.KindCode)
+		assert.Equal(t, model.IncomingNumber, card.RegistrationNumber)
+		assert.NotNil(t, card.IncomingLetter)
+		assert.Nil(t, MapIncomingDocumentCard(nil))
+	})
+
+	t.Run("outgoing", func(t *testing.T) {
+		model := &models.OutgoingDocument{
+			ID:               uuid.New(),
+			NomenclatureID:   uuid.New(),
+			NomenclatureName: "02-01",
+			OutgoingNumber:   "OUT-1",
+			OutgoingDate:     now,
+			DocumentTypeID:   models.DocumentTypeLetter,
+			DocumentTypeName: models.DocumentTypeLetter,
+			Content:          "Исходящее",
+			CreatedBy:        uuid.New(),
+			CreatedByName:    "Регистратор",
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}
+
+		card := MapOutgoingDocumentCard(model)
+
+		require.NotNil(t, card)
+		assert.Equal(t, model.ID.String(), card.ID)
+		assert.Equal(t, string(models.DocumentKindOutgoingLetter), card.KindCode)
+		assert.Equal(t, model.OutgoingNumber, card.RegistrationNumber)
+		assert.NotNil(t, card.OutgoingLetter)
+		assert.Nil(t, MapOutgoingDocumentCard(nil))
+	})
+}
+
+func TestMapIncomingAndOutgoingDocumentListSlices(t *testing.T) {
+	t.Run("incoming", func(t *testing.T) {
+		assert.Nil(t, MapDocumentListItemsFromIncoming(nil))
+
+		id := uuid.New()
+		items := MapDocumentListItemsFromIncoming([]models.IncomingDocument{{
+			ID:             id,
+			NomenclatureID: uuid.New(),
+			IncomingNumber: "IN-1",
+			IncomingDate:   time.Now(),
+			CreatedBy:      uuid.New(),
+		}})
+
+		require.Len(t, items, 1)
+		assert.Equal(t, id.String(), items[0].ID)
+		assert.Equal(t, string(models.DocumentKindIncomingLetter), items[0].KindCode)
+	})
+
+	t.Run("outgoing", func(t *testing.T) {
+		assert.Nil(t, MapDocumentListItemsFromOutgoing(nil))
+
+		id := uuid.New()
+		items := MapDocumentListItemsFromOutgoing([]models.OutgoingDocument{{
+			ID:             id,
+			NomenclatureID: uuid.New(),
+			OutgoingNumber: "OUT-1",
+			OutgoingDate:   time.Now(),
+			CreatedBy:      uuid.New(),
+		}})
+
+		require.Len(t, items, 1)
+		assert.Equal(t, id.String(), items[0].ID)
+		assert.Equal(t, string(models.DocumentKindOutgoingLetter), items[0].KindCode)
+	})
+}
+
+func TestMapJournalAndAdminAuditLogs(t *testing.T) {
+	now := time.Now()
+
+	t.Run("journal", func(t *testing.T) {
+		entry := models.JournalEntry{
+			ID:         uuid.New(),
+			DocumentID: uuid.New(),
+			UserName:   "Регистратор",
+			Action:     "CREATE",
+			Details:    "Создан документ",
+			CreatedAt:  now,
+		}
+
+		mapped := MapJournalEntry(&entry)
+
+		require.NotNil(t, mapped)
+		assert.Equal(t, entry.ID.String(), mapped.ID)
+		assert.Equal(t, entry.DocumentID.String(), mapped.DocumentID)
+		assert.Equal(t, entry.UserName, mapped.UserName)
+		assert.Nil(t, MapJournalEntry(nil))
+		assert.Empty(t, MapJournalEntries(nil))
+
+		items := MapJournalEntries([]models.JournalEntry{entry})
+		require.Len(t, items, 1)
+		assert.Equal(t, entry.Action, items[0].Action)
+	})
+
+	t.Run("admin audit", func(t *testing.T) {
+		entry := models.AdminAuditLog{
+			ID:        uuid.New(),
+			UserName:  "Админ",
+			Action:    "UPDATE_USER",
+			Details:   "Изменен пользователь",
+			CreatedAt: now,
+		}
+
+		mapped := MapAdminAuditLog(&entry)
+
+		require.NotNil(t, mapped)
+		assert.Equal(t, entry.ID.String(), mapped.ID)
+		assert.Equal(t, entry.UserName, mapped.UserName)
+		assert.Equal(t, entry.Action, mapped.Action)
+		assert.Nil(t, MapAdminAuditLog(nil))
+		assert.Empty(t, MapAdminAuditLogs(nil))
+
+		items := MapAdminAuditLogs([]models.AdminAuditLog{entry})
+		require.Len(t, items, 1)
+		assert.Equal(t, entry.Details, items[0].Details)
+	})
+}
+
+func TestMapResolutionExecutor(t *testing.T) {
+	now := time.Now()
+	id := uuid.New()
+	model := &models.ResolutionExecutor{
+		ID:        id,
+		Name:      "Исполнитель резолюции",
+		CreatedAt: now,
+	}
+
+	mapped := MapResolutionExecutor(model)
+
+	require.NotNil(t, mapped)
+	assert.Equal(t, id.String(), mapped.ID)
+	assert.Equal(t, model.Name, mapped.Name)
+	assert.Equal(t, now, mapped.CreatedAt)
+	assert.Nil(t, MapResolutionExecutor(nil))
+	assert.Nil(t, MapResolutionExecutors(nil))
+
+	items := MapResolutionExecutors([]models.ResolutionExecutor{*model})
+	require.Len(t, items, 1)
+	assert.Equal(t, model.Name, items[0].Name)
+}
+
 func TestMapSlices(t *testing.T) {
 	// Тестирование групповых функций маппинга массивов (слайсов)
 	t.Run("MapUsers nil", func(t *testing.T) {
@@ -347,5 +527,272 @@ func TestMapSlices(t *testing.T) {
 		res := MapAcknowledgments([]models.Acknowledgment{{ID: uuid.New(), Content: "A1"}})
 		require.Len(t, res, 1)
 		assert.Equal(t, "A1", res[0].Content)
+	})
+}
+
+func TestMapCitizenAppealDocument(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, MapCitizenAppealDocument(nil))
+	})
+
+	t.Run("success with correspondents and resolutions", func(t *testing.T) {
+		id := uuid.New()
+		nomID := uuid.New()
+		correspondentID := uuid.New()
+		createdBy := uuid.New()
+		regDate := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
+		appealDate := time.Date(2026, 6, 2, 0, 0, 0, 0, time.UTC)
+		resolutionText := "Подготовить ответ"
+		resolutionAuthor := "Руководитель"
+		resolutionExecutors := "Исполнитель"
+
+		dto := MapCitizenAppealDocument(&models.CitizenAppealDocument{
+			ID:                   id,
+			NomenclatureID:       nomID,
+			NomenclatureName:     "Appeals",
+			RegistrationNumber:   "CA-1",
+			RegistrationDate:     regDate,
+			AppealDate:           appealDate,
+			DocumentTypeID:       models.DocumentTypeCitizenAppeal,
+			DocumentTypeName:     models.DocumentTypeCitizenAppeal,
+			Content:              "Content",
+			PagesCount:           5,
+			ApplicantFullName:    "Иван Иванов",
+			RegistrationAddress:  "Address",
+			AppealType:           "жалоба",
+			ApplicantCategory:    "гражданин",
+			AppealPagesCount:     2,
+			AttachmentPagesCount: 3,
+			HasEnvelope:          true,
+			ReceivedFromPOS:      true,
+			Correspondents: []models.DocumentCorrespondentRegistration{
+				{
+					ID:                 uuid.New(),
+					RegistrationNumber: "EXT-1",
+					RegistrationDate:   appealDate,
+					CorrespondentOrgID: correspondentID,
+					CorrespondentName:  "Администрация",
+					Position:           1,
+				},
+			},
+			Resolutions: []models.DocumentResolution{
+				{
+					ID:                  uuid.New(),
+					Resolution:          &resolutionText,
+					ResolutionAuthor:    &resolutionAuthor,
+					ResolutionExecutors: &resolutionExecutors,
+					Position:            1,
+				},
+			},
+			CreatedBy:        createdBy,
+			CreatedByName:    "Registrar",
+			CreatedAt:        regDate,
+			UpdatedAt:        appealDate,
+			AttachmentsCount: 1,
+			AssignmentsCount: 2,
+		})
+
+		require.NotNil(t, dto)
+		assert.Equal(t, id.String(), dto.ID)
+		assert.Equal(t, nomID.String(), dto.NomenclatureID)
+		assert.Equal(t, "CA-1", dto.RegistrationNumber)
+		assert.Equal(t, regDate, dto.RegistrationDate)
+		assert.Equal(t, appealDate, dto.AppealDate)
+		assert.Equal(t, "Иван Иванов", dto.ApplicantFullName)
+		assert.Equal(t, "жалоба", dto.AppealType)
+		assert.True(t, dto.HasEnvelope)
+		assert.True(t, dto.ReceivedFromPOS)
+		assert.Len(t, dto.Correspondents, 1)
+		assert.Equal(t, correspondentID.String(), dto.Correspondents[0].CorrespondentOrgID)
+		assert.Len(t, dto.Resolutions, 1)
+		assert.Equal(t, resolutionText, *dto.Resolutions[0].Resolution)
+		assert.Equal(t, createdBy.String(), dto.CreatedBy)
+		assert.Equal(t, 1, dto.AttachmentsCount)
+		assert.Equal(t, 2, dto.AssignmentsCount)
+	})
+}
+
+func TestMapCitizenAppealDocumentCardAndListItem(t *testing.T) {
+	resolutionText := "Резолюция"
+	resolutionAuthor := "Автор"
+	resolutionExecutors := "Исполнитель"
+	model := &models.CitizenAppealDocument{
+		ID:                 uuid.New(),
+		NomenclatureID:     uuid.New(),
+		NomenclatureName:   "Appeals",
+		RegistrationNumber: "CA-2",
+		RegistrationDate:   time.Date(2026, 6, 4, 0, 0, 0, 0, time.UTC),
+		AppealDate:         time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
+		DocumentTypeID:     models.DocumentTypeCitizenAppeal,
+		DocumentTypeName:   models.DocumentTypeCitizenAppeal,
+		Content:            "Appeal content",
+		PagesCount:         4,
+		ApplicantFullName:  "Петр Петров",
+		AppealType:         "заявление",
+		Resolutions: []models.DocumentResolution{
+			{
+				Resolution:          &resolutionText,
+				ResolutionAuthor:    &resolutionAuthor,
+				ResolutionExecutors: &resolutionExecutors,
+			},
+		},
+		CreatedBy: uuid.New(),
+	}
+
+	card := MapCitizenAppealDocumentCard(model)
+	require.NotNil(t, card)
+	assert.Equal(t, string(models.DocumentKindCitizenAppeal), card.KindCode)
+	assert.Equal(t, "CA-2", card.RegistrationNumber)
+	require.NotNil(t, card.CitizenAppeal)
+	assert.Equal(t, model.ID.String(), card.CitizenAppeal.ID)
+
+	item := MapCitizenAppealDocumentListItem(model)
+	require.NotNil(t, item)
+	assert.Equal(t, string(models.DocumentKindCitizenAppeal), item.KindCode)
+	assert.Equal(t, "CA-2", item.RegistrationNumber)
+	require.NotNil(t, item.AppealDate)
+	assert.Equal(t, model.AppealDate, *item.AppealDate)
+	assert.Equal(t, "Петр Петров", item.ApplicantFullName)
+	assert.Equal(t, resolutionText, *item.Resolution)
+	assert.Equal(t, resolutionAuthor, *item.ResolutionAuthor)
+	assert.Equal(t, resolutionExecutors, *item.ResolutionExecutors)
+
+	assert.Nil(t, MapCitizenAppealDocumentCard(nil))
+	assert.Nil(t, MapCitizenAppealDocumentListItem(nil))
+}
+
+func TestMapAdministrativeOrderDocument(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, MapAdministrativeOrderDocument(nil))
+	})
+
+	t.Run("success with acknowledgment people", func(t *testing.T) {
+		id := uuid.New()
+		nomID := uuid.New()
+		createdBy := uuid.New()
+		ackID := uuid.New()
+		ackBy := uuid.New()
+		orderDate := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
+		deadline := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
+		ackTime := time.Date(2026, 6, 4, 10, 0, 0, 0, time.UTC)
+
+		dto := MapAdministrativeOrderDocument(&models.AdministrativeOrderDocument{
+			ID:                  id,
+			NomenclatureID:      nomID,
+			NomenclatureName:    "Orders",
+			OrderNumber:         "ORD-1",
+			OrderDate:           orderDate,
+			Title:               "Order title",
+			ExecutionController: "Controller",
+			ExecutionDeadline:   &deadline,
+			IsActive:            true,
+			AcknowledgmentPeople: []models.AdministrativeOrderAcknowledgmentPerson{
+				{
+					ID:                 ackID,
+					FullName:           "Иван Иванов",
+					AcknowledgedAt:     &ackTime,
+					AcknowledgedBy:     &ackBy,
+					AcknowledgedByName: "Registrar",
+					Position:           1,
+					CreatedAt:          orderDate,
+				},
+			},
+			CreatedBy:        createdBy,
+			CreatedByName:    "Creator",
+			CreatedAt:        orderDate,
+			UpdatedAt:        ackTime,
+			AttachmentsCount: 1,
+			AssignmentsCount: 2,
+		})
+
+		require.NotNil(t, dto)
+		assert.Equal(t, id.String(), dto.ID)
+		assert.Equal(t, nomID.String(), dto.NomenclatureID)
+		assert.Equal(t, "ORD-1", dto.OrderNumber)
+		assert.Equal(t, models.DocumentTypeAdministrativeOrder, dto.DocumentTypeID)
+		assert.Equal(t, "Order title", dto.Content)
+		assert.Equal(t, 1, dto.PagesCount)
+		assert.Equal(t, "Controller", dto.ExecutionController)
+		require.NotNil(t, dto.ExecutionDeadline)
+		assert.Equal(t, deadline, *dto.ExecutionDeadline)
+		assert.True(t, dto.IsActive)
+		assert.Len(t, dto.AcknowledgmentPeople, 1)
+		assert.Equal(t, ackID.String(), dto.AcknowledgmentPeople[0].ID)
+		assert.Equal(t, ackBy.String(), dto.AcknowledgmentPeople[0].AcknowledgedBy)
+		assert.Equal(t, createdBy.String(), dto.CreatedBy)
+		assert.Equal(t, 1, dto.AttachmentsCount)
+		assert.Equal(t, 2, dto.AssignmentsCount)
+	})
+}
+
+func TestMapAdministrativeOrderDocumentCardAndListItem(t *testing.T) {
+	cancelledAt := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	model := &models.AdministrativeOrderDocument{
+		ID:                  uuid.New(),
+		NomenclatureID:      uuid.New(),
+		NomenclatureName:    "Orders",
+		OrderNumber:         "ORD-2",
+		OrderDate:           time.Date(2026, 6, 5, 0, 0, 0, 0, time.UTC),
+		Title:               "Inactive order",
+		ExecutionController: "Controller",
+		IsActive:            false,
+		CancelledAt:         &cancelledAt,
+		AcknowledgmentPeople: []models.AdministrativeOrderAcknowledgmentPerson{
+			{ID: uuid.New(), FullName: "Acknowledged", AcknowledgedAt: &cancelledAt},
+			{ID: uuid.New(), FullName: "Pending"},
+		},
+		CreatedBy: uuid.New(),
+	}
+
+	card := MapAdministrativeOrderDocumentCard(model)
+	require.NotNil(t, card)
+	assert.Equal(t, string(models.DocumentKindAdministrativeOrder), card.KindCode)
+	assert.Equal(t, "ORD-2", card.RegistrationNumber)
+	assert.Equal(t, models.DocumentTypeAdministrativeOrder, card.DocumentTypeID)
+	require.NotNil(t, card.AdministrativeOrder)
+	assert.Equal(t, model.ID.String(), card.AdministrativeOrder.ID)
+
+	item := MapAdministrativeOrderDocumentListItem(model)
+	require.NotNil(t, item)
+	assert.Equal(t, string(models.DocumentKindAdministrativeOrder), item.KindCode)
+	assert.Equal(t, "ORD-2", item.OrderNumber)
+	require.NotNil(t, item.OrderDate)
+	assert.Equal(t, model.OrderDate, *item.OrderDate)
+	assert.False(t, item.IsActive)
+	require.NotNil(t, item.CancelledAt)
+	assert.Equal(t, cancelledAt, *item.CancelledAt)
+	assert.Equal(t, 1, item.PendingAcknowledgmentsCount)
+	assert.Len(t, item.AcknowledgmentPeople, 2)
+
+	assert.Nil(t, MapAdministrativeOrderDocumentCard(nil))
+	assert.Nil(t, MapAdministrativeOrderDocumentListItem(nil))
+}
+
+func TestMapCitizenAppealAndAdministrativeOrderSlices(t *testing.T) {
+	t.Run("citizen appeals nil", func(t *testing.T) {
+		assert.Nil(t, MapCitizenAppealDocuments(nil))
+		assert.Nil(t, MapDocumentListItemsFromCitizenAppeals(nil))
+	})
+
+	t.Run("citizen appeals success", func(t *testing.T) {
+		items := []models.CitizenAppealDocument{{ID: uuid.New(), RegistrationNumber: "CA-1"}}
+		docs := MapCitizenAppealDocuments(items)
+		require.Len(t, docs, 1)
+		assert.Equal(t, "CA-1", docs[0].RegistrationNumber)
+
+		listItems := MapDocumentListItemsFromCitizenAppeals(items)
+		require.Len(t, listItems, 1)
+		assert.Equal(t, "CA-1", listItems[0].RegistrationNumber)
+	})
+
+	t.Run("administrative orders nil", func(t *testing.T) {
+		assert.Nil(t, MapDocumentListItemsFromAdministrativeOrders(nil))
+	})
+
+	t.Run("administrative orders success", func(t *testing.T) {
+		items := []models.AdministrativeOrderDocument{{ID: uuid.New(), OrderNumber: "ORD-1"}}
+		listItems := MapDocumentListItemsFromAdministrativeOrders(items)
+		require.Len(t, listItems, 1)
+		assert.Equal(t, "ORD-1", listItems[0].OrderNumber)
 	})
 }

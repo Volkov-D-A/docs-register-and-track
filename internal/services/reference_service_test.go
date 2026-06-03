@@ -242,3 +242,138 @@ func TestReferenceService_DeleteOrganization(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+// === Исполнители резолюции ===
+
+func TestReferenceService_GetResolutionExecutors(t *testing.T) {
+	t.Run("успех", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "clerk")
+		mockValues := []models.ResolutionExecutor{
+			{ID: uuid.New(), Name: "Исполнитель 1"},
+			{ID: uuid.New(), Name: "Исполнитель 2"},
+		}
+		repo.On("GetAllResolutionExecutors").Return(mockValues, nil).Once()
+
+		result, err := svc.GetResolutionExecutors()
+
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		assert.Equal(t, "Исполнитель 1", result[0].Name)
+	})
+
+	t.Run("не авторизован", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "")
+
+		result, err := svc.GetResolutionExecutors()
+
+		require.ErrorIs(t, err, ErrNotAuthenticated)
+		assert.Nil(t, result)
+	})
+}
+
+func TestReferenceService_SearchResolutionExecutors(t *testing.T) {
+	t.Run("успех", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "clerk")
+		mockValues := []models.ResolutionExecutor{{ID: uuid.New(), Name: "Исполнитель"}}
+		repo.On("SearchResolutionExecutors", "Исп").Return(mockValues, nil).Once()
+
+		result, err := svc.SearchResolutionExecutors("Исп")
+
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, "Исполнитель", result[0].Name)
+	})
+
+	t.Run("не авторизован", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "")
+
+		result, err := svc.SearchResolutionExecutors("Исп")
+
+		require.ErrorIs(t, err, ErrNotAuthenticated)
+		assert.Nil(t, result)
+	})
+}
+
+func TestReferenceService_FindOrCreateResolutionExecutor(t *testing.T) {
+	t.Run("успех", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, "clerk")
+		name := "Новый исполнитель"
+		expected := &models.ResolutionExecutor{ID: uuid.New(), Name: name}
+		repo.On("FindOrCreateResolutionExecutor", name).Return(expected, nil).Once()
+
+		result, err := svc.FindOrCreateResolutionExecutor(name)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, name, result.Name)
+	})
+
+	t.Run("не авторизован", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "")
+
+		result, err := svc.FindOrCreateResolutionExecutor("Исполнитель")
+
+		require.ErrorIs(t, err, ErrNotAuthenticated)
+		assert.Nil(t, result)
+	})
+}
+
+func TestReferenceService_UpdateResolutionExecutor(t *testing.T) {
+	idStr := uuid.New().String()
+
+	t.Run("невалидный ID", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
+
+		err := svc.UpdateResolutionExecutor("invalid-uuid", "Тест")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ID")
+	})
+
+	t.Run("запрещено", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "clerk")
+
+		err := svc.UpdateResolutionExecutor(idStr, "Тест")
+
+		require.ErrorIs(t, err, models.ErrForbidden)
+	})
+
+	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
+		repo.On("UpdateResolutionExecutor", mock.AnythingOfType("uuid.UUID"), "Тест").Return(nil).Once()
+
+		err := svc.UpdateResolutionExecutor(idStr, "Тест")
+
+		require.NoError(t, err)
+	})
+}
+
+func TestReferenceService_DeleteResolutionExecutor(t *testing.T) {
+	idStr := uuid.New().String()
+
+	t.Run("невалидный ID", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
+
+		err := svc.DeleteResolutionExecutor("invalid-uuid")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ID")
+	})
+
+	t.Run("запрещено", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "clerk")
+
+		err := svc.DeleteResolutionExecutor(idStr)
+
+		require.ErrorIs(t, err, models.ErrForbidden)
+	})
+
+	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
+		repo.On("DeleteResolutionExecutor", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
+
+		err := svc.DeleteResolutionExecutor(idStr)
+
+		require.NoError(t, err)
+	})
+}

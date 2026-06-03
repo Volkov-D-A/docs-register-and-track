@@ -13,6 +13,8 @@ import (
 
 type spyDocumentAccessStore struct {
 	replaceCalled bool
+	profileUserID string
+	profile       *models.UserDocumentAccessProfile
 }
 
 func (s *spyDocumentAccessStore) HasPermission(kindCode, action string, departmentID, userID string) (bool, error) {
@@ -24,12 +26,72 @@ func (s *spyDocumentAccessStore) HasSystemPermission(permission, userID string) 
 }
 
 func (s *spyDocumentAccessStore) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
+	s.profileUserID = userID
+	if s.profile != nil {
+		return s.profile, nil
+	}
 	return &models.UserDocumentAccessProfile{}, nil
 }
 
 func (s *spyDocumentAccessStore) ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error {
 	s.replaceCalled = true
 	return nil
+}
+
+func TestDocumentAccessAdminService_GetUserAccessProfile(t *testing.T) {
+	t.Run("returns profile for admin", func(t *testing.T) {
+		userRepo := mocks.NewUserStore(t)
+		targetUserID := uuid.New().String()
+		expected := &models.UserDocumentAccessProfile{
+			SystemPermissions: []models.UserSystemPermissionRule{
+				{Permission: models.SystemPermissionReferences, IsAllowed: true},
+			},
+			Permissions: []models.UserDocumentPermissionRule{
+				{KindCode: string(models.DocumentKindIncomingLetter), Action: string(models.DocumentActionRead), IsAllowed: true},
+			},
+		}
+		accessRepo := &spyDocumentAccessStore{profile: expected}
+		auth := NewAuthService(nil, userRepo)
+		auth.SetAccessStore(accessRepo)
+		auth.currentUserID = uuid.New()
+
+		svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
+
+		profile, err := svc.GetUserAccessProfile(targetUserID)
+
+		require.NoError(t, err)
+		assert.Same(t, expected, profile)
+		assert.Equal(t, targetUserID, accessRepo.profileUserID)
+	})
+
+	t.Run("rejects invalid user id", func(t *testing.T) {
+		userRepo := mocks.NewUserStore(t)
+		accessRepo := &spyDocumentAccessStore{}
+		auth := NewAuthService(nil, userRepo)
+		auth.SetAccessStore(accessRepo)
+		auth.currentUserID = uuid.New()
+		svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
+
+		profile, err := svc.GetUserAccessProfile("bad-id")
+
+		require.Error(t, err)
+		assert.Nil(t, profile)
+		assert.Empty(t, accessRepo.profileUserID)
+	})
+
+	t.Run("requires admin permission", func(t *testing.T) {
+		userRepo := mocks.NewUserStore(t)
+		accessRepo := newRoleMappedDocumentAccessStore(models.SystemPermissionReferences)
+		auth := NewAuthService(nil, userRepo)
+		auth.SetAccessStore(accessRepo)
+		auth.currentUserID = uuid.New()
+		svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
+
+		profile, err := svc.GetUserAccessProfile(uuid.New().String())
+
+		require.ErrorIs(t, err, models.ErrForbidden)
+		assert.Nil(t, profile)
+	})
 }
 
 func TestDocumentAccessAdminService_UpdateUserAccessProfile_RejectsUnsupportedDocumentAction(t *testing.T) {
