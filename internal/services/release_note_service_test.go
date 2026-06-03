@@ -32,6 +32,93 @@ changes:
 	}
 }
 
+func TestNewReleaseNoteServiceUsesUserConfigDir(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configDir)
+
+	service, err := NewReleaseNoteService([]byte(`version: 1.2.0
+releasedAt: 2026-04-01
+changes:
+  - title: Новое
+    description: Описание.
+`))
+	if err != nil {
+		t.Fatalf("NewReleaseNoteService() error = %v", err)
+	}
+
+	if service.currentRelease.Version != "1.2.0" {
+		t.Fatalf("expected version 1.2.0, got %s", service.currentRelease.Version)
+	}
+
+	expectedPath := filepath.Join(configDir, "docflow", "state.json")
+	if service.statePath != expectedPath {
+		t.Fatalf("expected state path %s, got %s", expectedPath, service.statePath)
+	}
+}
+
+func TestParseEmbeddedCurrentReleaseErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+	}{
+		{
+			name: "invalid yaml",
+			source: `version:
+  - broken
+`,
+		},
+		{
+			name: "missing version",
+			source: `releasedAt: 2026-03-29
+changes:
+  - title: Новое
+    description: Описание.
+`,
+		},
+		{
+			name: "missing changes",
+			source: `version: 1.1.0
+releasedAt: 2026-03-29
+`,
+		},
+		{
+			name: "invalid release date",
+			source: `version: 1.1.0
+releasedAt: 29.03.2026
+changes:
+  - title: Новое
+    description: Описание.
+`,
+		},
+		{
+			name: "empty change title",
+			source: `version: 1.1.0
+releasedAt: 2026-03-29
+changes:
+  - title: " "
+    description: Описание.
+`,
+		},
+		{
+			name: "empty change description",
+			source: `version: 1.1.0
+releasedAt: 2026-03-29
+changes:
+  - title: Новое
+    description: " "
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := parseEmbeddedCurrentRelease([]byte(tt.source)); err == nil {
+				t.Fatal("expected parse error")
+			}
+		})
+	}
+}
+
 func TestMarkCurrentViewedAndGetCurrent(t *testing.T) {
 	service := &ReleaseNoteService{
 		currentRelease: mustParseRelease(t, []byte(`version: 1.1.0

@@ -302,3 +302,127 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 	assert.Equal(t, "ОГ-123", doc.RegistrationNumber)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestCitizenAppealRepository_Update(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewCitizenAppealRepository(&database.DB{DB: db})
+		docID := uuid.New()
+		now := time.Now()
+		resolution := "Повторно рассмотреть"
+		author := "Руководитель"
+		executors := "Исполнитель"
+		req := models.UpdateCitizenAppealDocRequest{
+			ID:                   docID,
+			RegistrationNumber:   "ОГ-002",
+			RegistrationDate:     now,
+			AppealDate:           now.Add(-24 * time.Hour),
+			Content:              "Обновленный текст",
+			ApplicantFullName:    "Петр Петров",
+			RegistrationAddress:  "ул. Мира, 2",
+			AppealType:           "заявление",
+			ApplicantCategory:    "пенсионер",
+			AppealPagesCount:     0,
+			AttachmentPagesCount: 0,
+			HasEnvelope:          false,
+			ReceivedFromPOS:      true,
+			Correspondents: []models.DocumentCorrespondentRegistration{{
+				RegistrationNumber: "EXT-2",
+				RegistrationDate:   now.Add(-48 * time.Hour),
+				CorrespondentOrgID: uuid.New(),
+			}},
+			Resolutions: []models.DocumentResolution{{
+				Resolution:          &resolution,
+				ResolutionAuthor:    &author,
+				ResolutionExecutors: &executors,
+			}},
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE documents SET`).WithArgs(
+			req.RegistrationNumber,
+			req.RegistrationDate,
+			req.Content,
+			1,
+			req.ID,
+			models.DocumentKindCitizenAppeal,
+		).WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`UPDATE citizen_appeal_details SET`).WithArgs(
+			req.AppealDate,
+			req.ApplicantFullName,
+			req.RegistrationAddress,
+			req.AppealType,
+			req.ApplicantCategory,
+			req.AppealPagesCount,
+			req.AttachmentPagesCount,
+			req.HasEnvelope,
+			req.ReceivedFromPOS,
+			req.ID,
+		).WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`DELETE FROM document_correspondent_registrations`).WithArgs(docID).WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`INSERT INTO document_correspondent_registrations`).WithArgs(
+			docID,
+			req.Correspondents[0].RegistrationNumber,
+			req.Correspondents[0].RegistrationDate,
+			req.Correspondents[0].CorrespondentOrgID,
+			1,
+		).WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(`DELETE FROM document_resolutions`).WithArgs(docID).WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`INSERT INTO document_resolutions`).WithArgs(
+			docID,
+			req.Resolutions[0].Resolution,
+			req.Resolutions[0].ResolutionAuthor,
+			req.Resolutions[0].ResolutionExecutors,
+			1,
+		).WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		expectedQuery := citizenAppealSelectBase + " WHERE d.id = $1 AND d.kind = $2"
+		mock.ExpectQuery(regexp.QuoteMeta(expectedQuery)).
+			WithArgs(docID, models.DocumentKindCitizenAppeal).
+			WillReturnRows(citizenAppealRows(docID, now))
+		expectCitizenAppealHydrateEmpty(mock, docID)
+
+		doc, err := repo.Update(req)
+
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		assert.Equal(t, docID, doc.ID)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("root update error rolls back", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewCitizenAppealRepository(&database.DB{DB: db})
+		req := models.UpdateCitizenAppealDocRequest{
+			ID:                 uuid.New(),
+			RegistrationNumber: "ОГ-003",
+			RegistrationDate:   time.Now(),
+			Content:            "Текст",
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE documents SET`).WithArgs(
+			req.RegistrationNumber,
+			req.RegistrationDate,
+			req.Content,
+			1,
+			req.ID,
+			models.DocumentKindCitizenAppeal,
+		).WillReturnError(sql.ErrConnDone)
+		mock.ExpectRollback()
+
+		doc, err := repo.Update(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to update citizen appeal root")
+		assert.Nil(t, doc)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}

@@ -122,6 +122,36 @@ func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	assert.Equal(t, 7, total)
 }
 
+func TestMigrationCompatibilityErrorError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *MigrationCompatibilityError
+		want string
+	}{
+		{
+			name: "schema too new",
+			err:  &MigrationCompatibilityError{CurrentVersion: 8, TotalAvailable: 7, SchemaTooNew: true},
+			want: "database schema version 8 is newer than embedded migrations 7",
+		},
+		{
+			name: "dirty schema",
+			err:  &MigrationCompatibilityError{CurrentVersion: 7, Dirty: true},
+			want: "database schema version 7 is dirty",
+		},
+		{
+			name: "generic incompatible schema",
+			err:  &MigrationCompatibilityError{},
+			want: "database schema is incompatible with this binary",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.err.Error())
+		})
+	}
+}
+
 func TestMigrationStatus_applyCompatibility(t *testing.T) {
 	tests := []struct {
 		name         string

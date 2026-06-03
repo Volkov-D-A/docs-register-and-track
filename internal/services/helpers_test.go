@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
@@ -371,6 +372,85 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 		}
 		if len(filtered) != 0 {
 			t.Errorf("expected nil ids")
+		}
+	})
+}
+
+func TestGetExecutorAllowedNomenclatureIDs(t *testing.T) {
+	setupAuth := func(t *testing.T, user *models.User) *AuthService {
+		t.Helper()
+		userRepo := mocks.NewUserStore(t)
+		auth := NewAuthService(nil, userRepo)
+		if user != nil {
+			auth.currentUserID = user.ID
+			userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+		}
+		return auth
+	}
+
+	t.Run("returns nil for user without department", func(t *testing.T) {
+		auth := setupAuth(t, &models.User{ID: uuid.New(), IsActive: true})
+		depRepo := &MockDepartmentStore{}
+
+		ids, err := getExecutorAllowedNomenclatureIDs(auth, depRepo)
+
+		if err != nil {
+			t.Fatalf("expected no err, got %v", err)
+		}
+		if ids != nil {
+			t.Fatalf("expected nil ids, got %v", ids)
+		}
+	})
+
+	t.Run("returns department nomenclature ids", func(t *testing.T) {
+		departmentID := uuid.New()
+		auth := setupAuth(t, &models.User{
+			ID:         uuid.New(),
+			IsActive:   true,
+			Department: &models.Department{ID: departmentID},
+		})
+		depRepo := &MockDepartmentStore{
+			GetNomsFunc: func(d uuid.UUID) ([]string, error) {
+				if d != departmentID {
+					t.Fatalf("unexpected department id: %s", d)
+				}
+				return []string{"nom1", "nom2"}, nil
+			},
+		}
+
+		ids, err := getExecutorAllowedNomenclatureIDs(auth, depRepo)
+
+		if err != nil {
+			t.Fatalf("expected no err, got %v", err)
+		}
+		if !reflect.DeepEqual(ids, []string{"nom1", "nom2"}) {
+			t.Fatalf("unexpected ids: %v", ids)
+		}
+	})
+
+	t.Run("wraps department repository error", func(t *testing.T) {
+		departmentID := uuid.New()
+		auth := setupAuth(t, &models.User{
+			ID:         uuid.New(),
+			IsActive:   true,
+			Department: &models.Department{ID: departmentID},
+		})
+		depRepo := &MockDepartmentStore{
+			GetNomsFunc: func(d uuid.UUID) ([]string, error) {
+				return nil, errors.New("db failed")
+			},
+		}
+
+		ids, err := getExecutorAllowedNomenclatureIDs(auth, depRepo)
+
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if ids != nil {
+			t.Fatalf("expected nil ids, got %v", ids)
+		}
+		if !strings.Contains(err.Error(), "failed to get allowed nomenclatures") {
+			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 }

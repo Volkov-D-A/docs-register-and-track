@@ -51,6 +51,58 @@ func TestAcknowledgmentRepository_Create(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAcknowledgmentRepository_GetByID(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+		ackID := uuid.New()
+		docID := uuid.New()
+		creatorID := uuid.New()
+		now := time.Now()
+		completedAt := now.Add(time.Hour)
+
+		query := `SELECT a\.id, a\.document_id, d\.kind, a\.creator_id, a\.content, a\.created_at, a\.completed_at FROM acknowledgments a JOIN documents d ON d\.id = a\.document_id WHERE a\.id = \$1`
+		rows := sqlmock.NewRows([]string{
+			"id", "document_id", "kind", "creator_id", "content", "created_at", "completed_at",
+		}).AddRow(ackID, docID, string(models.DocumentKindIncomingLetter), creatorID, "Ознакомиться", now, completedAt)
+
+		mock.ExpectQuery(query).WithArgs(ackID).WillReturnRows(rows)
+
+		ack, err := repo.GetByID(ackID)
+		require.NoError(t, err)
+		require.NotNil(t, ack)
+		assert.Equal(t, ackID, ack.ID)
+		assert.Equal(t, docID, ack.DocumentID)
+		assert.Equal(t, string(models.DocumentKindIncomingLetter), ack.DocumentKind)
+		assert.Equal(t, creatorID, ack.CreatorID)
+		assert.Equal(t, "Ознакомиться", ack.Content)
+		assert.Equal(t, now, ack.CreatedAt)
+		require.NotNil(t, ack.CompletedAt)
+		assert.Equal(t, completedAt, *ack.CompletedAt)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+		ackID := uuid.New()
+
+		query := `SELECT a\.id, a\.document_id, d\.kind, a\.creator_id, a\.content, a\.created_at, a\.completed_at FROM acknowledgments a JOIN documents d ON d\.id = a\.document_id WHERE a\.id = \$1`
+		mock.ExpectQuery(query).WithArgs(ackID).WillReturnError(sqlmock.ErrCancelled)
+
+		ack, err := repo.GetByID(ackID)
+		require.Error(t, err)
+		assert.Nil(t, ack)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
 func TestAcknowledgmentRepository_GetByDocumentID(t *testing.T) {
 	// Получение списка листов ознакомления по ID документа
 	db, mock, err := sqlmock.New()

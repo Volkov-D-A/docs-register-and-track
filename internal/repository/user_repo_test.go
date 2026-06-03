@@ -114,6 +114,68 @@ func TestUserRepository_GetAll(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUserRepository_GetExecutors(t *testing.T) {
+	t.Run("success with department", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewUserRepository(&database.DB{DB: db})
+		now := time.Now()
+		userID := uuid.New()
+		departmentID := uuid.New()
+		nomenclatureID := uuid.New()
+
+		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active, u\.created_at, u\.updated_at,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "login", "full_name", "is_document_participant", "is_active", "created_at", "updated_at",
+				"d.id", "d.name",
+			}).AddRow(userID, "executor", "Executor User", true, true, now, now, departmentID, "Office"))
+
+		mock.ExpectQuery(`SELECT user_id, permission\s+FROM user_system_permissions\s+WHERE user_id = ANY\(\$1\) AND is_allowed = true`).
+			WithArgs(pq.Array([]uuid.UUID{userID})).
+			WillReturnRows(sqlmock.NewRows([]string{"user_id", "permission"}).AddRow(userID, "documents.assign"))
+
+		mock.ExpectQuery(`SELECT department_id, nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = ANY\(\$1\)`).
+			WithArgs(pq.Array([]uuid.UUID{departmentID})).
+			WillReturnRows(sqlmock.NewRows([]string{"department_id", "nomenclature_id"}).AddRow(departmentID, nomenclatureID))
+
+		users, err := repo.GetExecutors()
+		require.NoError(t, err)
+		require.Len(t, users, 1)
+		assert.Equal(t, userID, users[0].ID)
+		assert.Equal(t, "executor", users[0].Login)
+		assert.Equal(t, "Executor User", users[0].FullName)
+		assert.True(t, users[0].IsDocumentParticipant)
+		assert.True(t, users[0].IsActive)
+		assert.Equal(t, []string{"documents.assign"}, users[0].SystemPermissions)
+		require.NotNil(t, users[0].Department)
+		assert.Equal(t, departmentID, users[0].Department.ID)
+		assert.Equal(t, "Office", users[0].Department.Name)
+		assert.Equal(t, []string{nomenclatureID.String()}, users[0].Department.NomenclatureIDs)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("empty result skips batch loads", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewUserRepository(&database.DB{DB: db})
+
+		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active, u\.created_at, u\.updated_at,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "login", "full_name", "is_document_participant", "is_active", "created_at", "updated_at",
+				"d.id", "d.name",
+			}))
+
+		users, err := repo.GetExecutors()
+		require.NoError(t, err)
+		assert.Empty(t, users)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
 func TestUserRepository_Create(t *testing.T) {
 	// Создание новой учетной записи пользователя и назначение ему ролей
 	db, mock, err := sqlmock.New()
@@ -213,6 +275,20 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		err = repo.UpdatePassword(uid, "newhash")
+		require.NoError(t, err)
+	})
+
+	t.Run("ResetPassword invalid password", func(t *testing.T) {
+		err = repo.ResetPassword(uid, "weak")
+		require.Error(t, err)
+	})
+
+	t.Run("ResetPassword success", func(t *testing.T) {
+		mock.ExpectExec(`UPDATE users SET password_hash`).
+			WithArgs(sqlmock.AnyArg(), uid).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+
+		err = repo.ResetPassword(uid, "NewPass123!")
 		require.NoError(t, err)
 	})
 

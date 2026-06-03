@@ -62,6 +62,61 @@ func TestLinkRepository_Delete(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestLinkRepository_GetByID(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewLinkRepository(&database.DB{DB: db})
+		ctx := context.Background()
+		id := uuid.New()
+		sourceID := uuid.New()
+		targetID := uuid.New()
+		createdBy := uuid.New()
+		now := time.Now()
+
+		query := `SELECT l\.id, ds\.kind, l\.source_document_id, dt\.kind, l\.target_document_id, l\.link_type, l\.created_by, l\.created_at FROM document_links l JOIN documents ds ON ds\.id = l\.source_document_id JOIN documents dt ON dt\.id = l\.target_document_id WHERE l\.id = \$1`
+		rows := sqlmock.NewRows([]string{
+			"id", "source_kind", "source_document_id", "target_kind", "target_document_id",
+			"link_type", "created_by", "created_at",
+		}).AddRow(id, models.DocumentKindIncomingLetter, sourceID, models.DocumentKindOutgoingLetter, targetID, "reply", createdBy, now)
+
+		mock.ExpectQuery(query).WithArgs(id).WillReturnRows(rows)
+
+		link, err := repo.GetByID(ctx, id)
+		require.NoError(t, err)
+		require.NotNil(t, link)
+		assert.Equal(t, id, link.ID)
+		assert.Equal(t, models.DocumentKindIncomingLetter, link.SourceKind)
+		assert.Equal(t, sourceID, link.SourceID)
+		assert.Equal(t, models.DocumentKindOutgoingLetter, link.TargetKind)
+		assert.Equal(t, targetID, link.TargetID)
+		assert.Equal(t, "reply", link.LinkType)
+		assert.Equal(t, createdBy, link.CreatedBy)
+		assert.Equal(t, now, link.CreatedAt)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewLinkRepository(&database.DB{DB: db})
+		ctx := context.Background()
+		id := uuid.New()
+
+		query := `SELECT l\.id, ds\.kind, l\.source_document_id, dt\.kind, l\.target_document_id, l\.link_type, l\.created_by, l\.created_at FROM document_links l JOIN documents ds ON ds\.id = l\.source_document_id JOIN documents dt ON dt\.id = l\.target_document_id WHERE l\.id = \$1`
+		mock.ExpectQuery(query).WithArgs(id).WillReturnError(sqlmock.ErrCancelled)
+
+		link, err := repo.GetByID(ctx, id)
+		require.Error(t, err)
+		assert.Nil(t, link)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
 func TestLinkRepository_GetByDocumentID(t *testing.T) {
 	// Получение списка всех связей для конкретного документа (как для входящих, так и для исходящих)
 	db, mock, err := sqlmock.New()

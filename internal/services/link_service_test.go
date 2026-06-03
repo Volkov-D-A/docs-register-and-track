@@ -263,6 +263,63 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 	})
 }
 
+func TestValidateDocumentLinkType(t *testing.T) {
+	tests := []struct {
+		name       string
+		sourceKind models.DocumentKind
+		targetKind models.DocumentKind
+		linkType   string
+		wantErr    bool
+	}{
+		{
+			name:       "order amends between administrative orders",
+			sourceKind: models.DocumentKindAdministrativeOrder,
+			targetKind: models.DocumentKindAdministrativeOrder,
+			linkType:   "order_amends",
+		},
+		{
+			name:       "order cancels between administrative orders",
+			sourceKind: models.DocumentKindAdministrativeOrder,
+			targetKind: models.DocumentKindAdministrativeOrder,
+			linkType:   "order_cancels",
+		},
+		{
+			name:       "order link rejects non order source",
+			sourceKind: models.DocumentKindIncomingLetter,
+			targetKind: models.DocumentKindAdministrativeOrder,
+			linkType:   "order_amends",
+			wantErr:    true,
+		},
+		{
+			name:       "order link rejects non order target",
+			sourceKind: models.DocumentKindAdministrativeOrder,
+			targetKind: models.DocumentKindOutgoingLetter,
+			linkType:   "order_cancels",
+			wantErr:    true,
+		},
+		{
+			name:       "custom link type is accepted for mixed kinds",
+			sourceKind: models.DocumentKindIncomingLetter,
+			targetKind: models.DocumentKindOutgoingLetter,
+			linkType:   "ответ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateDocumentLinkType(tt.sourceKind, tt.targetKind, tt.linkType)
+			if tt.wantErr {
+				require.Error(t, err)
+				appErr, ok := models.AsAppError(err)
+				require.True(t, ok)
+				assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestLinkService_GetDocumentLinks(t *testing.T) {
 	// Получение всех прямых связей для конкретного документа
 	docID := uuid.New()

@@ -275,6 +275,42 @@ func TestMigrationCompatibilityAppError(t *testing.T) {
 	assert.ErrorIs(t, err, assert.AnError)
 }
 
+func TestSettingsServiceGetSettingAuditLabel(t *testing.T) {
+	service := &SettingsService{}
+
+	tests := []struct {
+		name    string
+		key     string
+		current *models.SystemSetting
+		want    string
+	}{
+		{name: "organization name", key: "organization_name", want: "Название организации"},
+		{name: "organization short name", key: "organization_short_name", want: "Краткое название организации"},
+		{name: "max file size", key: "max_file_size_mb", want: "Максимальный размер файла"},
+		{name: "allowed file types", key: "allowed_file_types", want: "Разрешенные типы файлов"},
+		{name: "assignment completion attachments", key: "assignment_completion_attachments_enabled", want: "Файлы при завершении поручения"},
+		{
+			name:    "custom description",
+			key:     "custom_key",
+			current: &models.SystemSetting{Description: "Пользовательское описание"},
+			want:    "Пользовательское описание",
+		},
+		{
+			name:    "blank description fallback",
+			key:     "custom_key",
+			current: &models.SystemSetting{Description: "   "},
+			want:    "«custom_key»",
+		},
+		{name: "nil current fallback", key: "missing_key", want: "«missing_key»"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, service.getSettingAuditLabel(tt.key, tt.current))
+		})
+	}
+}
+
 func TestSettingsService_GetMaxFileSize(t *testing.T) {
 	// Получение максимально допустимого размера загружаемых файлов в байтах
 	t.Run("from settings", func(t *testing.T) {

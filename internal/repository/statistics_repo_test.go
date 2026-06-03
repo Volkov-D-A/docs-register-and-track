@@ -29,15 +29,30 @@ func TestStatisticsRepository_GetDocumentTotalByYear(t *testing.T) {
 	start := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 	end := start.AddDate(1, 0, 0)
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents`).
-		WithArgs(start, end).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(42))
+	t.Run("success", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents`).
+			WithArgs(start, end).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(42))
 
-	count, err := repo.GetDocumentTotalByYear(start, end)
+		count, err := repo.GetDocumentTotalByYear(start, end)
 
-	require.NoError(t, err)
-	assert.Equal(t, 42, count)
-	require.NoError(t, mock.ExpectationsWereMet())
+		require.NoError(t, err)
+		assert.Equal(t, 42, count)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents`).
+			WithArgs(start, end).
+			WillReturnError(sql.ErrConnDone)
+
+		count, err := repo.GetDocumentTotalByYear(start, end)
+
+		require.Error(t, err)
+		assert.Equal(t, 0, count)
+		assert.Contains(t, err.Error(), "failed to get document total by year")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestStatisticsRepository_MonthlyDocumentCounts(t *testing.T) {
@@ -76,6 +91,19 @@ func TestStatisticsRepository_MonthlyDocumentCounts(t *testing.T) {
 		assert.Equal(t, []models.StatisticsSeriesPoint{
 			{Month: 3, CategoryKey: "user-1", CategoryName: "Регистратор", Value: 5},
 		}, points)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("by kind scan error", func(t *testing.T) {
+		mock.ExpectQuery(`EXTRACT\(MONTH FROM registration_date\)::int AS month, kind, COUNT\(\*\)`).
+			WithArgs(start, end).
+			WillReturnRows(sqlmock.NewRows([]string{"month", "kind", "count"}).
+				AddRow("not-a-month", string(models.DocumentKindIncomingLetter), 3))
+
+		points, err := repo.GetMonthlyDocumentCountsByKind(start, end)
+
+		require.Error(t, err)
+		assert.Nil(t, points)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
@@ -157,6 +185,20 @@ func TestStatisticsRepository_Options(t *testing.T) {
 		assert.Equal(t, []models.StatisticsOption{{Value: "user-1", Label: "Иван Иванов"}}, options)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("rows error", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"value", "label"}).
+			AddRow("nom-1", "01-01 - Дело (2026)").
+			RowError(0, sql.ErrConnDone)
+		mock.ExpectQuery(`SELECT id::text, CONCAT\(index, ' - ', name, ' \(', year, '\)'\)\s+FROM nomenclature`).
+			WillReturnRows(rows)
+
+		options, err := repo.GetNomenclatureOptions()
+
+		require.Error(t, err)
+		assert.Nil(t, options)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
@@ -234,6 +276,31 @@ func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, []models.StatisticsReportRow{{Key: userID, Name: "Исполнитель", Count: 3}}, rows)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("report non-overdue", func(t *testing.T) {
+		mock.ExpectQuery(`a\.created_at::date >= \$1::date`).
+			WithArgs(start, end).
+			WillReturnRows(sqlmock.NewRows([]string{"key", "name", "count"}).
+				AddRow("user-2", "Исполнитель 2", 4))
+
+		rows, err := repo.GetAssignmentReport(start, end, false, "")
+
+		require.NoError(t, err)
+		assert.Equal(t, []models.StatisticsReportRow{{Key: "user-2", Name: "Исполнитель 2", Count: 4}}, rows)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("status scan error", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT status AS key, status AS name, COUNT\(\*\) AS count\s+FROM assignments`).
+			WillReturnRows(sqlmock.NewRows([]string{"key", "name", "count"}).
+				AddRow("completed", "completed", "not-a-count"))
+
+		rows, err := repo.GetAssignmentStatusCounts()
+
+		require.Error(t, err)
+		assert.Nil(t, rows)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
