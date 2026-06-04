@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { App, Form, Tag } from 'antd';
+import React, { useState } from 'react';
+import { App, Form } from 'antd';
 import DocumentKindPage from '../components/DocumentKindPage';
+import LinkedDocumentBadge from '../components/LinkedDocumentBadge';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
-import { DOCUMENT_KIND_CITIZEN_APPEAL, getDocumentKindShortLabel } from '../constants/documentKinds';
+import { DOCUMENT_KIND_CITIZEN_APPEAL } from '../constants/documentKinds';
 import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
-import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
-import { getDocumentPageConfig } from '../config/documentPageConfigs';
-import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
+import { useDocumentKindPageAccess } from '../hooks/useDocumentKindPageAccess';
+import { useNomenclaturesForKind } from '../hooks/useNomenclaturesForKind';
+import { useOrganizationSearch, useResolutionExecutorSearch } from '../hooks/useReferenceSearch';
+import { useDocumentRegistrationActions } from '../hooks/useDocumentRegistrationActions';
 import { formatAppError } from '../utils/appError';
 import { confirmDiscardFormChanges } from '../utils/dirtyForm';
 import {
@@ -21,13 +23,13 @@ import {
 
 const CitizenAppealsPage: React.FC = () => {
     const { message, modal } = App.useApp();
-    const { ready: accessReady, getKindAccess } = useCurrentAccessSummary();
-    const currentKind = getKindAccess(DOCUMENT_KIND_CITIZEN_APPEAL);
-    const canCreateCurrentKind = accessReady && (currentKind?.canRegister ?? false);
-    const canUpdateCurrentKind = accessReady && (currentKind?.availableActions?.includes('update') ?? false);
-    const isExecutorOnly = accessReady ? !canUpdateCurrentKind : true;
-    const pageConfig = getDocumentPageConfig(DOCUMENT_KIND_CITIZEN_APPEAL);
-    const filterDisabled = !accessReady || isExecutorOnly;
+    const {
+        accessReady,
+        canCreateCurrentKind,
+        isExecutorOnly,
+        pageConfig,
+        filterDisabled,
+    } = useDocumentKindPageAccess(DOCUMENT_KIND_CITIZEN_APPEAL);
 
     const { sourceId, sourceKind, sourceNumber, targetKind, clearDraftLink } = useDraftLinkStore();
 
@@ -42,57 +44,24 @@ const CitizenAppealsPage: React.FC = () => {
     const [filterNoResolution, setFilterNoResolution] = useState(defaultCitizenAppealFilters.filterNoResolution);
     const [filterNomenclatureIds, setFilterNomenclatureIds] = useState<string[]>(defaultCitizenAppealFilters.filterNomenclatureIds);
 
-    const [nomenclatures, setNomenclatures] = useState<any[]>([]);
-    const [orgOptions, setOrgOptions] = useState<{ value: string; label: string }[]>([]);
-    const [executorOptions, setExecutorOptions] = useState<{ value: string; label: string }[]>([]);
+    const nomenclatures = useNomenclaturesForKind(DOCUMENT_KIND_CITIZEN_APPEAL, 'Failed to load citizen appeal refs:');
+    const { options: orgOptions, search: onOrgSearch } = useOrganizationSearch();
+    const { options: executorOptions, search: onExecutorSearch } = useResolutionExecutorSearch();
 
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
-    const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
-    const [registerSubmitting, setRegisterSubmitting] = useState(false);
-    const [editSubmitting, setEditSubmitting] = useState(false);
-
-    const loadRefs = async () => {
-        try {
-            const { GetActiveForKind } = await import('../../wailsjs/go/services/NomenclatureService');
-            const noms = await GetActiveForKind(DOCUMENT_KIND_CITIZEN_APPEAL);
-            setNomenclatures(noms || []);
-        } catch (err) {
-            console.error('Failed to load citizen appeal refs:', err);
-        }
-    };
-
-    const onOrgSearch = async (query: string) => {
-        if (query.length < 2) {
-            setOrgOptions(query ? [{ value: query, label: query }] : []);
-            return;
-        }
-        try {
-            const { SearchOrganizations } = await import('../../wailsjs/go/services/ReferenceService');
-            const orgs = await SearchOrganizations(query);
-            const items = (orgs || []).map((o: any) => ({ value: o.name, label: o.name }));
-            if (!items.find((i: any) => i.value === query)) {
-                items.unshift({ value: query, label: query });
-            }
-            setOrgOptions(items);
-        } catch {
-            setOrgOptions([{ value: query, label: query }]);
-        }
-    };
-
-    const onExecutorSearch = async (query: string) => {
-        if (query.length < 2) {
-            setExecutorOptions([]);
-            return;
-        }
-        try {
-            const { SearchResolutionExecutors } = await import('../../wailsjs/go/services/ReferenceService');
-            const execs = await SearchResolutionExecutors(query);
-            setExecutorOptions((execs || []).map((e: any) => ({ value: e.name, label: e.name })));
-        } catch {
-            setExecutorOptions([]);
-        }
-    };
+    const {
+        registerSubmitting,
+        editSubmitting,
+        registerDocument,
+        updateDocument,
+    } = useDocumentRegistrationActions({
+        kindCode: DOCUMENT_KIND_CITIZEN_APPEAL,
+        sourceId,
+        sourceKind,
+        targetKind,
+        clearDraftLink,
+    });
 
     const buildCorrespondentsPayload = (values: any) => (
         (values.correspondents || []).map((item: any) => ({
@@ -157,8 +126,6 @@ const CitizenAppealsPage: React.FC = () => {
         },
     });
 
-    useEffect(() => { loadRefs(); }, []);
-
     const clearFilters = () => {
         setSearch('');
         setFilterRegistrationNumber(defaultCitizenAppealFilters.filterRegistrationNumber);
@@ -188,15 +155,9 @@ const CitizenAppealsPage: React.FC = () => {
     });
 
     const onRegister = async (values: any) => {
-        if (registerSubmitting) {
-            return;
-        }
-        setRegisterSubmitting(true);
-        try {
-            const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
-            const newDoc = await Register(DOCUMENT_KIND_CITIZEN_APPEAL, {
+        await registerDocument({
+            payload: {
                 nomenclatureId: values.nomenclatureId,
-                idempotencyKey: registerIdempotencyKey,
                 registrationNumber: values.registrationNumber || '',
                 registrationDate: values.registrationDate?.format('YYYY-MM-DD') || '',
                 appealDate: values.appealDate?.format('YYYY-MM-DD') || '',
@@ -211,35 +172,19 @@ const CitizenAppealsPage: React.FC = () => {
                 content: values.content || '',
                 correspondents: buildCorrespondentsPayload(values),
                 resolutions: buildResolutionsPayload(values),
-            });
-
-            if (sourceId && targetKind === DOCUMENT_KIND_CITIZEN_APPEAL) {
-                const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
-                const linkType = resolveLinkTypeForNewDocument(sourceKind, DOCUMENT_KIND_CITIZEN_APPEAL);
-                await LinkDocuments(sourceId, newDoc.id, linkType);
-                clearDraftLink();
-            }
-
-            message.success('Обращение зарегистрировано');
-            setRegisterIdempotencyKey(crypto.randomUUID());
-            closeRegisterModal();
-            registerForm.resetFields();
-            load();
-        } catch (err: any) {
-            message.error(formatAppError(err));
-        } finally {
-            setRegisterSubmitting(false);
-        }
+            },
+            successMessage: 'Обращение зарегистрировано',
+            onSuccess: () => {
+                closeRegisterModal();
+                registerForm.resetFields();
+                void load();
+            },
+        });
     };
 
     const onUpdate = async (values: any) => {
-        if (editSubmitting) {
-            return;
-        }
-        setEditSubmitting(true);
-        try {
-            const { Update } = await import('../../wailsjs/go/services/DocumentRegistrationService');
-            await Update(DOCUMENT_KIND_CITIZEN_APPEAL, {
+        await updateDocument({
+            payload: {
                 id: editDoc.id,
                 registrationNumber: values.registrationNumber || editDoc.registrationNumber || '',
                 registrationDate: values.registrationDate?.format('YYYY-MM-DD') || '',
@@ -255,16 +200,14 @@ const CitizenAppealsPage: React.FC = () => {
                 content: values.content || '',
                 correspondents: buildCorrespondentsPayload(values),
                 resolutions: buildResolutionsPayload(values),
-            });
-            message.success('Обращение обновлено');
-            closeEditModal();
-            editForm.resetFields();
-            load();
-        } catch (err: any) {
-            message.error(formatAppError(err));
-        } finally {
-            setEditSubmitting(false);
-        }
+            },
+            successMessage: 'Обращение обновлено',
+            onSuccess: () => {
+                closeEditModal();
+                editForm.resetFields();
+                void load();
+            },
+        });
     };
 
     const {
@@ -351,9 +294,7 @@ const CitizenAppealsPage: React.FC = () => {
                 okText: 'Зарегистрировать',
                 confirmLoading: registerSubmitting,
                 linkedBadge: sourceId && targetKind === DOCUMENT_KIND_CITIZEN_APPEAL ? (
-                    <div style={{ marginBottom: 16 }}>
-                        <Tag color="blue">Создание документа, связанного с: {getDocumentKindShortLabel(sourceKind)} №{sourceNumber}</Tag>
-                    </div>
+                    <LinkedDocumentBadge sourceKind={sourceKind} sourceNumber={sourceNumber} />
                 ) : undefined,
                 content: (
                     <CitizenAppealDocumentForm

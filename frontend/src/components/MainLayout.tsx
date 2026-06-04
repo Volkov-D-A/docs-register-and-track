@@ -1,34 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { Layout, Menu, Button, Typography, Avatar, Dropdown, Space, Modal, Spin, theme as antdTheme } from 'antd';
-import {
-    DashboardOutlined,
-    BarChartOutlined,
-    InboxOutlined,
-    SendOutlined,
-    MessageOutlined,
-    CheckSquareOutlined,
-    SettingOutlined,
-    FileTextOutlined,
-    FileDoneOutlined,
-    UserOutlined,
-    LogoutOutlined,
-    InfoCircleOutlined,
-    PlusOutlined,
-} from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Layout, theme as antdTheme } from 'antd';
 import { useAuthStore } from '../store/useAuthStore';
 import AboutProgramModal from './AboutProgramModal';
 import { models } from '../../wailsjs/go/models';
-import { useRegisterDocumentStore } from '../store/useRegisterDocumentStore';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAppTheme } from '../theme/useAppTheme';
+import { useBrandName } from '../hooks/useBrandName';
+import AppHeader from './layout/AppHeader';
+import AppSidebar from './layout/AppSidebar';
+import RegisterDocumentAction from './layout/RegisterDocumentAction';
 
-const { Header, Sider, Content } = Layout;
-const { Text } = Typography;
-const DEFAULT_BRAND_NAME = 'Система регистрации документов';
+const { Content } = Layout;
 
-/**
- * Свойства основного слоя (мэйкапа) приложения.
- */
 interface MainLayoutProps {
     children: React.ReactNode;
     currentPage: string;
@@ -39,13 +22,6 @@ interface MainLayoutProps {
     release: models.ReleaseNote | null;
 }
 
-/**
- * Основной макет приложения (сайдбар, шапка, контентная часть).
- * Осуществляет навигацию и отображение инфо о пользователе.
- * @param children Дочерние элементы (контент страницы)
- * @param currentPage Текущая активная страница (для выделения в меню)
- * @param onPageChange Обработчик смены страницы
- */
 const MainLayout: React.FC<MainLayoutProps> = ({
     children,
     currentPage,
@@ -59,8 +35,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     const { theme: appTheme } = useAppTheme();
     const { token } = antdTheme.useToken();
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
-    const [registerModalOpen, setRegisterModalOpen] = useState(false);
-    const [brandName, setBrandName] = useState(DEFAULT_BRAND_NAME);
+    const brandName = useBrandName(!!user);
     const {
         sections,
         registrationKinds: availableRegistrationKinds,
@@ -69,102 +44,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     } = useCurrentAccessSummary();
     const canRegisterDocuments = accessReady && availableRegistrationKinds.length > 0;
 
-    useEffect(() => {
-        if (!user) {
-            setBrandName(DEFAULT_BRAND_NAME);
-            return;
-        }
-
-        let isMounted = true;
-
-        void import('../../wailsjs/go/services/SettingsService')
-            .then(({ GetOrganizationShortName }) => GetOrganizationShortName())
-            .then((value) => {
-                if (!isMounted) {
-                    return;
-                }
-                const nextBrandName = String(value || '').trim();
-                setBrandName(nextBrandName || DEFAULT_BRAND_NAME);
-            })
-            .catch(() => {
-                if (isMounted) {
-                    setBrandName(DEFAULT_BRAND_NAME);
-                }
-            });
-
-        return () => {
-            isMounted = false;
-        };
-    }, [user]);
-
-    const menuItems = [
-        ...(sections.dashboard ? [{
-            key: 'dashboard',
-            icon: <DashboardOutlined />,
-            label: 'Дашборд',
-        }] : []),
-        ...[
-            ...(sections.incoming ? [{
-                key: 'incoming',
-                icon: <InboxOutlined />,
-                label: 'Входящие',
-            }] : []),
-            ...(sections.outgoing ? [{
-                key: 'outgoing',
-                icon: <SendOutlined />,
-                label: 'Исходящие',
-            }] : []),
-            ...(sections.appeals ? [{
-                key: 'appeals',
-                icon: <MessageOutlined />,
-                label: 'Обращения',
-            }] : []),
-            ...(sections.orders ? [{
-                key: 'orders',
-                icon: <FileDoneOutlined />,
-                label: 'Приказы',
-            }] : []),
-            ...(sections.assignments ? [{
-                key: 'assignments',
-                icon: <CheckSquareOutlined />,
-                label: 'Поручения',
-            }] : []),
-        ],
-        ...(sections.references ? [{
-            key: 'references',
-            icon: <FileTextOutlined />,
-            label: 'Справочники',
-        }] : []),
-        ...(sections.statistics ? [{
-            key: 'statistics',
-            icon: <BarChartOutlined />,
-            label: 'Статистика',
-        }] : []),
-        ...(sections.settings ? [{
-            key: 'settings',
-            icon: <SettingOutlined />,
-            label: 'Настройки',
-        }] : []),
-    ];
-
-    const userMenuItems = [
-        {
-            key: 'profile',
-            icon: <UserOutlined />,
-            label: 'Профиль',
-        },
-        {
-            type: 'divider' as const,
-        },
-        {
-            key: 'logout',
-            icon: <LogoutOutlined />,
-            label: 'Выйти',
-            danger: true,
-        },
-    ];
-
-    const handleUserMenu = ({ key }: { key: string }) => {
+    const handleUserMenu = (key: string) => {
         if (key === 'logout') {
             logout();
         } else if (key === 'profile') {
@@ -174,68 +54,24 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 
     return (
         <Layout style={{ height: '100vh', background: token.colorBgLayout }}>
-            <Sider
-                className={`app-sider ${isSidebarExpanded ? 'app-sider-expanded' : 'app-sider-collapsed'}`}
-                theme={appTheme}
-                width={220}
-                collapsedWidth={72}
-                collapsed={!isSidebarExpanded}
-                trigger={null}
-                style={{
-                    borderRight: `1px solid ${token.colorBorderSecondary}`,
-                    background: token.colorBgContainer,
-                }}
-            >
-                <div className="app-sider-brand">
-                    <span className="app-sider-brand-icon">📄</span>
-                    <Text strong className="app-sider-brand-text">
-                        {brandName}
-                    </Text>
-                </div>
-                <Menu
-                    mode="inline"
-                    theme={appTheme}
-                    selectedKeys={[currentPage]}
-                    items={menuItems}
-                    inlineCollapsed={!isSidebarExpanded}
-                    onClick={({ key }) => onPageChange(key)}
-                    style={{ borderRight: 0 }}
-                />
-                <Button
-                    type="text"
-                    size="small"
-                    className="app-sider-toggle"
-                    onClick={() => setIsSidebarExpanded((prev) => !prev)}
-                    aria-label={isSidebarExpanded ? 'Свернуть боковую панель' : 'Развернуть боковую панель'}
-                >
-                    <span className="app-sider-toggle-icon" aria-hidden="true">
-                        {isSidebarExpanded ? '❮' : '❯'}
-                    </span>
-                </Button>
-            </Sider>
+            <AppSidebar
+                appTheme={appTheme}
+                token={token}
+                brandName={brandName}
+                currentPage={currentPage}
+                sections={sections}
+                expanded={isSidebarExpanded}
+                onExpandedChange={setIsSidebarExpanded}
+                onPageChange={onPageChange}
+            />
 
             <Layout style={{ height: '100vh', overflow: 'hidden', background: token.colorBgLayout }}>
-                <Header style={{
-                    background: token.colorBgContainer,
-                    padding: '0 24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                }}>
-                    <Space size="middle">
-                        <Button icon={<InfoCircleOutlined />} onClick={onAboutModalOpen}>
-                            О программе
-                        </Button>
-
-                        <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenu }} placement="bottomRight">
-                            <Space style={{ cursor: 'pointer' }}>
-                                <Avatar icon={<UserOutlined />} style={{ backgroundColor: token.colorPrimary }} />
-                                <Text>{user?.fullName}</Text>
-                            </Space>
-                        </Dropdown>
-                    </Space>
-                </Header>
+                <AppHeader
+                    token={token}
+                    userName={user?.fullName}
+                    onAboutModalOpen={onAboutModalOpen}
+                    onUserMenu={handleUserMenu}
+                />
 
                 <Content style={{ overflowY: 'auto', padding: 24, height: 'calc(100vh - 64px)' }}>
                     <div style={{ background: token.colorBgContainer, padding: 24, borderRadius: token.borderRadiusLG, minHeight: '100%' }}>
@@ -243,56 +79,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                     </div>
                 </Content>
             </Layout>
+
             {canRegisterDocuments && (
-                <>
-                    <Button
-                        type="primary"
-                        size="large"
-                        icon={<PlusOutlined />}
-                        onClick={() => setRegisterModalOpen(true)}
-                        style={{
-                            position: 'fixed',
-                            right: 28,
-                            bottom: 28,
-                            zIndex: 1000,
-                            height: 52,
-                            borderRadius: 999,
-                            paddingInline: 20,
-                            boxShadow: '0 10px 24px rgba(24, 144, 255, 0.24)',
-                        }}
-                    >
-                        Зарегистрировать
-                    </Button>
-                    <Modal
-                        title="Выберите вид документа"
-                        open={registerModalOpen}
-                        onCancel={() => setRegisterModalOpen(false)}
-                        footer={null}
-                    >
-                        <Space orientation="vertical" style={{ width: '100%' }}>
-                            {registrationKindsLoading && canRegisterDocuments ? (
-                                <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
-                                    <Spin />
-                                </div>
-                            ) : (
-                                availableRegistrationKinds.map((kind) => (
-                                    <Button
-                                        key={kind.code}
-                                        block
-                                        size="large"
-                                        onClick={() => {
-                                            useRegisterDocumentStore.getState().requestOpen(kind.code);
-                                            setRegisterModalOpen(false);
-                                            onPageChange(kind.pageKey);
-                                        }}
-                                    >
-                                        {kind.label}
-                                    </Button>
-                                ))
-                            )}
-                        </Space>
-                    </Modal>
-                </>
+                <RegisterDocumentAction
+                    availableKinds={availableRegistrationKinds}
+                    loading={registrationKindsLoading}
+                    onPageChange={onPageChange}
+                />
             )}
             <AboutProgramModal open={isAboutModalOpen} onClose={onAboutModalClose} release={release} />
         </Layout>

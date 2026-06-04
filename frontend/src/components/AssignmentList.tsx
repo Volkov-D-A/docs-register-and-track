@@ -1,16 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Table, Button, Tag, Space, Popconfirm, Modal, Input, Tooltip, App } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, PlayCircleOutlined, UndoOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
+import React, { useState } from 'react';
+import { App, Button, Input, Modal, Table } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../store/useAuthStore';
 import AssignmentModal from './AssignmentModal';
 import AssignmentCompletionModal from './AssignmentCompletionModal';
-import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
-import { formatAppError } from '../utils/appError';
+import { useAssignments } from '../hooks/useAssignments';
+import { buildAssignmentColumns } from './assignmentListColumns';
 
-/**
- * Свойства компонента AssignmentList.
- */
 interface AssignmentListProps {
     documentId: string;
     documentKind: string;
@@ -18,186 +14,55 @@ interface AssignmentListProps {
 
 const { TextArea } = Input;
 
-/**
- * Компонент списка поручений по документу.
- * @param documentId Идентификатор документа
- */
 const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKind }) => {
     const { message } = App.useApp();
-    const [data, setData] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
+    const { user } = useAuthStore();
+    const {
+        data,
+        loading,
+        accessReady,
+        canManageAssignments,
+        load,
+        deleteAssignment,
+        updateStatus,
+    } = useAssignments({ documentId, documentKind });
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<any>(null);
-    const { user } = useAuthStore();
-    const { hasAction, ready: accessReady } = useDocumentKindAccess();
-    const canManageAssignments = accessReady && hasAction(documentKind, 'assign');
-
-    // Report modal
     const [completionModalOpen, setCompletionModalOpen] = useState(false);
     const [currentAssignment, setCurrentAssignment] = useState<any>(null);
     const [returnModalOpen, setReturnModalOpen] = useState(false);
     const [returnReasonText, setReturnReasonText] = useState('');
-
-    const load = useCallback(async () => {
-        if (!documentId || !canManageAssignments) return;
-        setLoading(true);
-        try {
-            const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
-            const result = await GetList({ documentId, page: 1, pageSize: 100, showFinished: true, overdueOnly: false });
-            setData(result?.items || []);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }, [canManageAssignments, documentId]);
-
-    useEffect(() => { load(); }, [load]);
-
-    const onDelete = async (id: string) => {
-        try {
-            const { Delete } = await import('../../wailsjs/go/services/AssignmentService');
-            await Delete(id);
-            message.success('Поручение удалено');
-            load();
-        } catch (err: unknown) {
-            message.error(formatAppError(err));
-        }
-    };
-
-    const updateStatus = async (id: string, status: string, report: string = '') => {
-        try {
-            const { UpdateStatus } = await import('../../wailsjs/go/services/AssignmentService');
-            await UpdateStatus(id, status, report);
-            message.success('Статус поручения обновлён');
-            load();
-        } catch (err: unknown) {
-            message.error(formatAppError(err));
-        }
-    };
 
     const handleReturnToRevision = () => {
         if (!returnReasonText.trim()) {
             message.error('Введите причину возврата');
             return;
         }
-        updateStatus(currentAssignment.id, 'returned', returnReasonText);
+        void updateStatus(currentAssignment.id, 'returned', returnReasonText);
         setReturnModalOpen(false);
         setReturnReasonText('');
         setCurrentAssignment(null);
     };
 
-    const columns = [
-        {
-            title: 'Дата', dataIndex: 'createdAt', key: 'createdAt', width: 100,
-            render: (v: string) => dayjs(v).format('DD.MM.YYYY'),
+    const columns = buildAssignmentColumns({
+        userId: user?.id,
+        canManageAssignments,
+        onEdit: (assignment) => {
+            setEditAssignment(assignment);
+            setModalOpen(true);
         },
-        { title: 'Содержание', dataIndex: 'content', key: 'content' },
-        {
-            title: 'Ответственный исполнитель', key: 'executorName', width: 200,
-            render: (_: any, r: any) => (
-                <div>
-                    <div>{r.executorName}</div>
-                    {r.coExecutors && r.coExecutors.length > 0 && (
-                        <div style={{ fontSize: '11px', color: 'var(--app-text-muted)' }}>
-                            + {r.coExecutors.map((u: any) => u.fullName).join(', ')}
-                        </div>
-                    )}
-                </div>
-            )
+        onDelete: deleteAssignment,
+        onUpdateStatus: updateStatus,
+        onOpenCompletion: (assignment) => {
+            setCurrentAssignment(assignment);
+            setCompletionModalOpen(true);
         },
-        {
-            title: 'Срок', dataIndex: 'deadline', key: 'deadline', width: 100,
-            render: (v: string) => v ? dayjs(v).format('DD.MM.YYYY') : '',
+        onOpenReturn: (assignment) => {
+            setCurrentAssignment(assignment);
+            setReturnReasonText('');
+            setReturnModalOpen(true);
         },
-        {
-            title: 'Статус', dataIndex: 'status', key: 'status', width: 120,
-            render: (status: string, record: any) => {
-                let color = 'default';
-                let text = status;
-
-                // Check for overdue completion (only for completed status)
-                // If completedAt is after deadline (day granularity)
-                const isOverdue = status === 'completed' && record.completedAt && record.deadline &&
-                    dayjs(record.completedAt).isAfter(dayjs(record.deadline), 'day');
-
-                switch (status) {
-                    case 'new': color = 'blue'; text = 'Новое'; break;
-                    case 'in_progress': color = 'orange'; text = 'В работе'; break;
-                    case 'completed':
-                        if (isOverdue) {
-                            color = 'red';
-                            text = 'Исполнено (просрочено)';
-                        } else {
-                            color = 'green';
-                            text = 'Исполнено';
-                        }
-                        break;
-                    case 'finished': color = 'geekblue'; text = 'Завершён'; break;
-                    case 'cancelled': color = 'red'; text = 'Отменено'; break;
-                    case 'returned': color = 'volcano'; text = 'Возврат'; break;
-                }
-                return <Tag color={color}>{text}</Tag>;
-            }
-        },
-        {
-            title: '', key: 'actions', width: 150,
-            render: (_: any, r: any) => {
-                const isExecutor = user?.id === r.executorId;
-                const canEdit = canManageAssignments && r.status !== 'finished';
-
-                return (
-                    <Space size={2}>
-                        {canEdit && (
-                            <>
-                                <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />
-                                <Popconfirm
-                                    title="Удалить поручение?"
-                                    description="Это действие нельзя отменить. Поручение исчезнет из документа и списка исполнителя."
-                                    okText="Удалить"
-                                    cancelText="Отмена"
-                                    okButtonProps={{ danger: true }}
-                                    onConfirm={() => onDelete(r.id)}
-                                >
-                                    <Button size="small" title="Удалить поручение" icon={<DeleteOutlined />} danger />
-                                </Popconfirm>
-                            </>
-                        )}
-
-                        {/* Status Actions */}
-                        {/* Start: Executor, status=new/returned */}
-                        {isExecutor && (r.status === 'new' || r.status === 'returned') && (
-                            <Tooltip title="Взять в работу">
-                                <Button size="small" icon={<PlayCircleOutlined />} onClick={() => updateStatus(r.id, 'in_progress')} />
-                            </Tooltip>
-                        )}
-
-                        {/* Complete: Executor, status=in_progress */}
-                        {isExecutor && r.status === 'in_progress' && (
-                            <Tooltip title="Исполнить">
-                                <Button size="small" icon={<CheckCircleOutlined />}
-                                    onClick={() => { setCurrentAssignment(r); setCompletionModalOpen(true); }} />
-                            </Tooltip>
-                        )}
-
-                        {canManageAssignments && r.status === 'completed' && (
-                            <Tooltip title="Вернуть на доработку">
-                                <Button
-                                    size="small"
-                                    icon={<UndoOutlined />}
-                                    onClick={() => {
-                                        setCurrentAssignment(r);
-                                        setReturnReasonText('');
-                                        setReturnModalOpen(true);
-                                    }}
-                                />
-                            </Tooltip>
-                        )}
-                    </Space>
-                );
-            }
-        },
-    ];
+    });
 
     return (
         <div>
@@ -249,7 +114,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
                 onSuccess={() => {
                     setCompletionModalOpen(false);
                     setCurrentAssignment(null);
-                    load();
+                    void load();
                 }}
             />
 
@@ -267,7 +132,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
                 <TextArea
                     rows={4}
                     value={returnReasonText}
-                    onChange={e => setReturnReasonText(e.target.value)}
+                    onChange={(event) => setReturnReasonText(event.target.value)}
                     placeholder="Введите причину возврата..."
                 />
             </Modal>

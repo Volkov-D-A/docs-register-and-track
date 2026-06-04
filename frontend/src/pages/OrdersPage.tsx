@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { App, Form, Tag } from 'antd';
+import React, { useState } from 'react';
+import { App, Form } from 'antd';
 import DocumentKindPage from '../components/DocumentKindPage';
+import LinkedDocumentBadge from '../components/LinkedDocumentBadge';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
-import { DOCUMENT_KIND_ADMINISTRATIVE_ORDER, getDocumentKindShortLabel } from '../constants/documentKinds';
+import { DOCUMENT_KIND_ADMINISTRATIVE_ORDER } from '../constants/documentKinds';
 import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
-import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
-import { getDocumentPageConfig } from '../config/documentPageConfigs';
-import { getDocumentLinkTypeLabel, resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
+import { useDocumentKindPageAccess } from '../hooks/useDocumentKindPageAccess';
+import { useNomenclaturesForKind } from '../hooks/useNomenclaturesForKind';
+import { useDocumentRegistrationActions } from '../hooks/useDocumentRegistrationActions';
+import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
 import { formatAppError } from '../utils/appError';
 import { confirmDiscardFormChanges } from '../utils/dirtyForm';
 import {
@@ -29,17 +31,17 @@ const normalizeAcknowledgmentFullNames = (values: any[] = []) => (
 
 const OrdersPage: React.FC = () => {
     const { message, modal } = App.useApp();
-    const { ready: accessReady, getKindAccess } = useCurrentAccessSummary();
-    const currentKind = getKindAccess(DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
-    const canCreateCurrentKind = accessReady && (currentKind?.canRegister ?? false);
-    const canUpdateCurrentKind = accessReady && (currentKind?.availableActions?.includes('update') ?? false);
-    const isExecutorOnly = accessReady ? !canUpdateCurrentKind : true;
-    const pageConfig = getDocumentPageConfig(DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
-    const filterDisabled = !accessReady || isExecutorOnly;
+    const {
+        accessReady,
+        canCreateCurrentKind,
+        isExecutorOnly,
+        pageConfig,
+        filterDisabled,
+    } = useDocumentKindPageAccess(DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
 
     const { sourceId, sourceKind, sourceNumber, targetKind, linkType: draftLinkType, clearDraftLink } = useDraftLinkStore();
 
-    const [nomenclatures, setNomenclatures] = useState<any[]>([]);
+    const nomenclatures = useNomenclaturesForKind(DOCUMENT_KIND_ADMINISTRATIVE_ORDER, 'Failed to load order refs:');
     const [filterNomenclatureIds, setFilterNomenclatureIds] = useState<string[]>(defaultAdministrativeOrderFilters.filterNomenclatureIds);
     const [filterOrderNumber, setFilterOrderNumber] = useState(defaultAdministrativeOrderFilters.filterOrderNumber);
     const [filterExecutionController, setFilterExecutionController] = useState(defaultAdministrativeOrderFilters.filterExecutionController);
@@ -50,21 +52,32 @@ const OrdersPage: React.FC = () => {
 
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
-    const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
-    const [registerSubmitting, setRegisterSubmitting] = useState(false);
-    const [editSubmitting, setEditSubmitting] = useState(false);
     const registerNomenclatureId = Form.useWatch('nomenclatureId', registerForm);
     const selectedRegisterNomenclature = nomenclatures.find((n: any) => n.id === registerNomenclatureId);
-
-    const loadRefs = async () => {
-        try {
-            const { GetActiveForKind } = await import('../../wailsjs/go/services/NomenclatureService');
-            const noms = await GetActiveForKind(DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
-            setNomenclatures(noms || []);
-        } catch (err) {
-            console.error('Failed to load order refs:', err);
-        }
-    };
+    const {
+        registerSubmitting,
+        editSubmitting,
+        registerDocument,
+        updateDocument,
+    } = useDocumentRegistrationActions({
+        kindCode: DOCUMENT_KIND_ADMINISTRATIVE_ORDER,
+        sourceId,
+        sourceKind,
+        targetKind,
+        draftLinkType,
+        clearDraftLink,
+        linkCreatedDocument: async ({ newDocument, sourceId: linkedSourceId, sourceKind: linkedSourceKind, draftLinkType: linkedDraftLinkType }) => {
+            const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
+            const linkType = linkedDraftLinkType || resolveLinkTypeForNewDocument(linkedSourceKind, DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
+            const sourceDocumentId = linkType === 'order_amends' || linkType === 'order_cancels'
+                ? newDocument.id
+                : linkedSourceId;
+            const targetDocumentId = linkType === 'order_amends' || linkType === 'order_cancels'
+                ? linkedSourceId
+                : newDocument.id;
+            await LinkDocuments(sourceDocumentId, targetDocumentId, linkType);
+        },
+    });
 
     const {
         data,
@@ -107,8 +120,6 @@ const OrdersPage: React.FC = () => {
         },
     });
 
-    useEffect(() => { loadRefs(); }, []);
-
     const clearFilters = () => {
         setSearch('');
         setFilterNomenclatureIds(defaultAdministrativeOrderFilters.filterNomenclatureIds);
@@ -142,64 +153,34 @@ const OrdersPage: React.FC = () => {
     });
 
     const onRegister = async (values: any) => {
-        if (registerSubmitting) {
-            return;
-        }
-        setRegisterSubmitting(true);
-        try {
-            const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
-            const newDoc = await Register(DOCUMENT_KIND_ADMINISTRATIVE_ORDER, {
+        await registerDocument({
+            payload: {
                 nomenclatureId: values.nomenclatureId,
-                idempotencyKey: registerIdempotencyKey,
                 registrationNumber: values.registrationNumber || '',
                 ...buildPayload(values),
-            });
-
-            if (sourceId && targetKind === DOCUMENT_KIND_ADMINISTRATIVE_ORDER) {
-                const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
-                const linkType = draftLinkType || resolveLinkTypeForNewDocument(sourceKind, DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
-                const sourceDocumentId = linkType === 'order_amends' || linkType === 'order_cancels'
-                    ? newDoc.id
-                    : sourceId;
-                const targetDocumentId = linkType === 'order_amends' || linkType === 'order_cancels'
-                    ? sourceId
-                    : newDoc.id;
-                await LinkDocuments(sourceDocumentId, targetDocumentId, linkType);
-                clearDraftLink();
-            }
-
-            message.success('Приказ зарегистрирован');
-            setRegisterIdempotencyKey(crypto.randomUUID());
-            closeRegisterModal();
-            registerForm.resetFields();
-            load();
-        } catch (err: any) {
-            message.error(formatAppError(err));
-        } finally {
-            setRegisterSubmitting(false);
-        }
+            },
+            successMessage: 'Приказ зарегистрирован',
+            onSuccess: () => {
+                closeRegisterModal();
+                registerForm.resetFields();
+                void load();
+            },
+        });
     };
 
     const onUpdate = async (values: any) => {
-        if (editSubmitting) {
-            return;
-        }
-        setEditSubmitting(true);
-        try {
-            const { Update } = await import('../../wailsjs/go/services/DocumentRegistrationService');
-            await Update(DOCUMENT_KIND_ADMINISTRATIVE_ORDER, {
+        await updateDocument({
+            payload: {
                 id: editDoc.id,
                 ...buildPayload(values),
-            });
-            message.success('Приказ обновлён');
-            closeEditModal();
-            editForm.resetFields();
-            load();
-        } catch (err: any) {
-            message.error(formatAppError(err));
-        } finally {
-            setEditSubmitting(false);
-        }
+            },
+            successMessage: 'Приказ обновлён',
+            onSuccess: () => {
+                closeEditModal();
+                editForm.resetFields();
+                void load();
+            },
+        });
     };
 
     const {
@@ -294,10 +275,7 @@ const OrdersPage: React.FC = () => {
                 okText: 'Зарегистрировать',
                 confirmLoading: registerSubmitting,
                 linkedBadge: sourceId && targetKind === DOCUMENT_KIND_ADMINISTRATIVE_ORDER ? (
-                    <Tag color="blue">
-                        Создание документа, связанного с: {getDocumentKindShortLabel(sourceKind)} №{sourceNumber}
-                        {draftLinkType ? ` — ${getDocumentLinkTypeLabel(draftLinkType).toLowerCase()}` : ''}
-                    </Tag>
+                    <LinkedDocumentBadge sourceKind={sourceKind} sourceNumber={sourceNumber} linkType={draftLinkType} withMargin={false} />
                 ) : null,
                 content: (
                     <AdministrativeOrderDocumentForm

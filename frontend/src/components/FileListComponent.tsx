@@ -1,162 +1,41 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Upload, Popconfirm, Typography, Tooltip, notification, Space, Spin, Empty, App } from 'antd';
-import { UploadOutlined, DownloadOutlined, DeleteOutlined, FileOutlined, FilePdfOutlined, FileImageOutlined, FileWordOutlined } from '@ant-design/icons';
+import React from 'react';
+import { Button, Empty, Popconfirm, Space, Spin, Tooltip, Typography, Upload } from 'antd';
+import { DeleteOutlined, DownloadOutlined, FileImageOutlined, FileOutlined, FilePdfOutlined, FileWordOutlined, UploadOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
-import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
-import { formatAppError } from '../utils/appError';
+import { useAttachments } from '../hooks/useAttachments';
 
 const { Text } = Typography;
 
-/**
- * Свойства компонента списка прикрепленных файлов.
- */
 interface FileListComponentProps {
     documentId: string;
     documentKind: string;
     readOnly?: boolean;
 }
 
-/**
- * Компонент управления прикрепленными файлами.
- * Позволяет просматривать, загружать, скачивать и удалять файлы, прикрепленные к документу.
- * @param documentId Идентификатор документа
- * @param readOnly Флаг режима только для чтения
- */
+const getIcon = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return <FilePdfOutlined style={{ color: 'red' }} />;
+    if (['doc', 'docx'].includes(ext || '')) return <FileWordOutlined style={{ color: 'blue' }} />;
+    if (['jpg', 'png', 'jpeg'].includes(ext || '')) return <FileImageOutlined style={{ color: 'orange' }} />;
+    return <FileOutlined />;
+};
+
 const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, documentKind, readOnly }) => {
-    const { message } = App.useApp();
-    const { hasAction, ready: accessReady } = useDocumentKindAccess();
-    const canEdit = accessReady && !readOnly && hasAction(documentKind, 'upload');
+    const {
+        files,
+        loading,
+        uploading,
+        deletingIds,
+        accessReady,
+        canEdit,
+        contextHolder,
+        uploadFile,
+        downloadFile,
+        deleteFile,
+    } = useAttachments({ documentId, documentKind, readOnly });
 
-    const [files, setFiles] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [uploading, setUploading] = useState(false);
-    const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
-    const [api, contextHolder] = notification.useNotification();
-
-    const loadFiles = useCallback(async () => {
-        setLoading(true);
-        try {
-            const { GetList } = await import('../../wailsjs/go/services/AttachmentService');
-            const list = await GetList(documentId);
-            setFiles(list || []);
-        } catch (err: unknown) {
-            console.error(err);
-            message.error(formatAppError(err, 'Не удалось загрузить файлы'));
-        }
-        setLoading(false);
-    }, [documentId, message]);
-
-    useEffect(() => {
-        if (documentId) {
-            loadFiles();
-        }
-    }, [documentId, loadFiles]);
-
-    const handleUpload = async (file: File) => {
-        if (uploading) {
-            return Upload.LIST_IGNORE;
-        }
-        setUploading(true);
-        try {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async () => {
-                const base64Content = reader.result as string;
-                try {
-                    const { Upload } = await import('../../wailsjs/go/services/AttachmentService');
-                    await Upload(documentId, file.name, base64Content);
-                    message.success('Файл загружен');
-                    loadFiles();
-                } catch (err: unknown) {
-                    message.error(formatAppError(err, 'Ошибка загрузки'));
-                } finally {
-                    setUploading(false);
-                }
-            };
-            reader.onerror = () => {
-                message.error('Ошибка чтения файла');
-                setUploading(false);
-            };
-        } catch {
-            setUploading(false);
-        }
-        return false; // Prevent default upload
-    };
-
-    const handleDownload = async (file: any) => {
-        try {
-            const { DownloadToDisk, OpenFile, OpenFolder } = await import('../../wailsjs/go/services/AttachmentService');
-
-            // Start download
-            message.loading({ content: 'Скачивание файла...', key: 'download' });
-
-            const savedPath = await DownloadToDisk(file.id);
-
-            message.success({ content: 'Файл сохранён', key: 'download' });
-
-            // Show notification with actions
-            const key = `open${Date.now()}`;
-            api.open({
-                title: 'Скачивание завершено',
-                description: `Файл сохранён: ${savedPath}`,
-                icon: <FileOutlined style={{ color: '#108ee9' }} />,
-                key,
-                duration: 0, // Keep open until user interacts
-                actions: (
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <Button type="primary" size="small" onClick={async () => {
-                            await OpenFile(savedPath);
-                            api.destroy(key);
-                        }}>
-                            Открыть
-                        </Button>
-                        <Button size="small" onClick={async () => {
-                            await OpenFolder(savedPath);
-                            api.destroy(key);
-                        }}>
-                            В папку
-                        </Button>
-                    </div>
-                ),
-            });
-
-        } catch (err: unknown) {
-            console.error(err);
-            message.error({ content: formatAppError(err, 'Ошибка скачивания'), key: 'download' });
-        }
-    };
-
-    const handleDelete = async (id: string) => {
-        if (deletingIds.has(id)) {
-            return;
-        }
-        setDeletingIds((current) => new Set(current).add(id));
-        try {
-            const { Delete } = await import('../../wailsjs/go/services/AttachmentService');
-            await Delete(id);
-            message.success('Файл удалён');
-            loadFiles();
-        } catch (err: unknown) {
-            message.error(formatAppError(err, 'Ошибка удаления'));
-        } finally {
-            setDeletingIds((current) => {
-                const next = new Set(current);
-                next.delete(id);
-                return next;
-            });
-        }
-    };
-
-    const getIcon = (filename: string) => {
-        const ext = filename.split('.').pop()?.toLowerCase();
-        if (ext === 'pdf') return <FilePdfOutlined style={{ color: 'red' }} />;
-        if (['doc', 'docx'].includes(ext || '')) return <FileWordOutlined style={{ color: 'blue' }} />;
-        if (['jpg', 'png', 'jpeg'].includes(ext || '')) return <FileImageOutlined style={{ color: 'orange' }} />;
-        return <FileOutlined />;
-    };
-
-    const props: UploadProps = {
-        beforeUpload: handleUpload,
+    const uploadProps: UploadProps = {
+        beforeUpload: uploadFile,
         showUploadList: false,
     };
 
@@ -165,7 +44,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
             {contextHolder}
             {canEdit && (
                 <div style={{ marginBottom: 16 }}>
-                    <Upload {...props}>
+                    <Upload {...uploadProps}>
                         <Button icon={<UploadOutlined />} loading={uploading}>Загрузить файл</Button>
                     </Upload>
                 </div>
@@ -193,7 +72,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                                 </div>
                                 <div style={{ minWidth: 0 }}>
                                     <div style={{ marginBottom: 4 }}>
-                                        <a onClick={() => handleDownload(item)} style={{ color: '#1677ff', fontWeight: 500, wordBreak: 'break-word' }}>
+                                        <a onClick={() => downloadFile(item)} style={{ color: '#1677ff', fontWeight: 500, wordBreak: 'break-word' }}>
                                             {item.filename}
                                         </a>
                                     </div>
@@ -204,7 +83,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                             </div>
                             <Space style={{ flexShrink: 0, marginLeft: 16 }}>
                                 <Tooltip title="Скачать">
-                                    <Button type="text" icon={<DownloadOutlined />} onClick={() => handleDownload(item)} />
+                                    <Button type="text" icon={<DownloadOutlined />} onClick={() => downloadFile(item)} />
                                 </Tooltip>
                                 {canEdit && (
                                     <Popconfirm
@@ -213,7 +92,7 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
                                         okText="Удалить"
                                         cancelText="Отмена"
                                         okButtonProps={{ danger: true, loading: deletingIds.has(item.id) }}
-                                        onConfirm={() => handleDelete(item.id)}
+                                        onConfirm={() => deleteFile(item.id)}
                                     >
                                         <Button
                                             type="text"

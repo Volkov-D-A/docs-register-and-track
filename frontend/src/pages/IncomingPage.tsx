@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-    Form, Tag, App,
+    Form, App,
 } from 'antd';
 import DocumentKindPage from '../components/DocumentKindPage';
+import LinkedDocumentBadge from '../components/LinkedDocumentBadge';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
-import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel } from '../constants/documentKinds';
+import { DOCUMENT_KIND_INCOMING_LETTER } from '../constants/documentKinds';
 import { DOCUMENT_TYPE_OPTIONS } from '../constants/documentTypes';
 import { useDocumentListPage } from '../hooks/useDocumentListPage';
 import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
-import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
-import { getDocumentPageConfig } from '../config/documentPageConfigs';
-import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
+import { useDocumentKindPageAccess } from '../hooks/useDocumentKindPageAccess';
+import { useNomenclaturesForKind } from '../hooks/useNomenclaturesForKind';
+import { useOrganizationSearch, useResolutionExecutorSearch } from '../hooks/useReferenceSearch';
+import { useDocumentRegistrationActions } from '../hooks/useDocumentRegistrationActions';
 import { formatAppError } from '../utils/appError';
 import { confirmDiscardFormChanges } from '../utils/dirtyForm';
 import {
@@ -28,14 +30,13 @@ import {
  */
 const IncomingPage: React.FC = () => {
     const { message, modal } = App.useApp();
-    const { ready: accessReady, getKindAccess } = useCurrentAccessSummary();
-    const currentKind = getKindAccess(DOCUMENT_KIND_INCOMING_LETTER);
-    const canCreateCurrentKind = accessReady && (currentKind?.canRegister ?? false);
-    const canUpdateCurrentKind = accessReady && (currentKind?.availableActions?.includes('update') ?? false);
-    const isExecutorOnly = accessReady ? !canUpdateCurrentKind : true;
-    const pageConfig = getDocumentPageConfig(DOCUMENT_KIND_INCOMING_LETTER);
-    // Скрываем фильтр, если пользователь — исполнитель без админских прав
-    const filterDisabled = !accessReady || isExecutorOnly;
+    const {
+        accessReady,
+        canCreateCurrentKind,
+        isExecutorOnly,
+        pageConfig,
+        filterDisabled,
+    } = useDocumentKindPageAccess(DOCUMENT_KIND_INCOMING_LETTER);
 
     const { sourceId, sourceKind, sourceNumber, targetKind, clearDraftLink } = useDraftLinkStore();
 
@@ -51,49 +52,26 @@ const IncomingPage: React.FC = () => {
     const [filterNoResolution, setFilterNoResolution] = useState(defaultIncomingLetterFilters.filterNoResolution);
     const [filterNomenclatureIds, setFilterNomenclatureIds] = useState<string[]>(defaultIncomingLetterFilters.filterNomenclatureIds);
 
-    // Справочники
-    const [nomenclatures, setNomenclatures] = useState<any[]>([]);
-    const [orgOptionsSender, setOrgOptionsSender] = useState<{ value: string; label: string }[]>([]);
-    const [executorOptions, setExecutorOptions] = useState<{ value: string; label: string }[]>([]);
+    const nomenclatures = useNomenclaturesForKind(DOCUMENT_KIND_INCOMING_LETTER);
+    const { options: orgOptionsSender, search: onSenderOrgSearch } = useOrganizationSearch();
+    const { options: executorOptions, search: onExecutorSearch } = useResolutionExecutorSearch();
 
     const [registerForm] = Form.useForm();
     const [editForm] = Form.useForm();
-    const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
-    const [registerSubmitting, setRegisterSubmitting] = useState(false);
-    const [editSubmitting, setEditSubmitting] = useState(false);
     const registerNomenclatureId = Form.useWatch('nomenclatureId', registerForm);
     const selectedRegisterNomenclature = nomenclatures.find((n: any) => n.id === registerNomenclatureId);
-
-    const loadRefs = async () => {
-        try {
-            const { GetActiveForKind } = await import('../../wailsjs/go/services/NomenclatureService');
-            const noms = await GetActiveForKind(DOCUMENT_KIND_INCOMING_LETTER);
-            setNomenclatures(noms || []);
-        } catch (err) {
-            console.error('Failed to load refs:', err);
-        }
-    };
-
-    const onSenderOrgSearch = async (query: string) => {
-        if (query.length < 2) { setOrgOptionsSender(query ? [{ value: query, label: query }] : []); return; }
-        try {
-            const { SearchOrganizations } = await import('../../wailsjs/go/services/ReferenceService');
-            const orgs = await SearchOrganizations(query);
-            const items = (orgs || []).map((o: any) => ({ value: o.name, label: o.name }));
-            if (!items.find((i: any) => i.value === query)) items.unshift({ value: query, label: query });
-            setOrgOptionsSender(items);
-        } catch { setOrgOptionsSender([{ value: query, label: query }]); }
-    };
-
-    const onExecutorSearch = async (query: string) => {
-        if (query.length < 2) { setExecutorOptions([]); return; }
-        try {
-            const { SearchResolutionExecutors } = await import('../../wailsjs/go/services/ReferenceService');
-            const execs = await SearchResolutionExecutors(query);
-            const items = (execs || []).map((e: any) => ({ value: e.name, label: e.name }));
-            setExecutorOptions(items);
-        } catch { setExecutorOptions([]); }
-    };
+    const {
+        registerSubmitting,
+        editSubmitting,
+        registerDocument,
+        updateDocument,
+    } = useDocumentRegistrationActions({
+        kindCode: DOCUMENT_KIND_INCOMING_LETTER,
+        sourceId,
+        sourceKind,
+        targetKind,
+        clearDraftLink,
+    });
 
     const buildCorrespondentsPayload = (values: any) => (
         (values.correspondents || []).map((item: any) => ({
@@ -150,8 +128,6 @@ const IncomingPage: React.FC = () => {
         },
     });
 
-    useEffect(() => { loadRefs(); }, []);
-
     const clearFilters = () => {
         setSearch('');
         setFilterIncomingNumber(defaultIncomingLetterFilters.filterIncomingNumber);
@@ -181,15 +157,9 @@ const IncomingPage: React.FC = () => {
 
     // Регистрация
     const onRegister = async (values: any) => {
-        if (registerSubmitting) {
-            return;
-        }
-        setRegisterSubmitting(true);
-        try {
-            const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
-            const newDoc = await Register(DOCUMENT_KIND_INCOMING_LETTER, {
+        await registerDocument({
+            payload: {
                 nomenclatureId: values.nomenclatureId,
-                idempotencyKey: registerIdempotencyKey,
                 documentTypeId: values.documentTypeId,
                 incomingDate: values.incomingDate?.format('YYYY-MM-DD') || '',
                 correspondents: buildCorrespondentsPayload(values),
@@ -200,34 +170,20 @@ const IncomingPage: React.FC = () => {
                 resolutionAuthor: values.resolutionAuthor || '',
                 resolutionExecutors: (values.resolutionExecutors || []).join('; '),
                 registrationNumber: values.registrationNumber || '',
-            });
-
-            if (sourceId && targetKind === DOCUMENT_KIND_INCOMING_LETTER) {
-                const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
-                const linkType = resolveLinkTypeForNewDocument(sourceKind, DOCUMENT_KIND_INCOMING_LETTER);
-                await LinkDocuments(sourceId, newDoc.id, linkType);
-                clearDraftLink();
-            }
-
-            message.success('Документ зарегистрирован');
-            setRegisterIdempotencyKey(crypto.randomUUID());
-            closeRegisterModal(); registerForm.resetFields(); load();
-        } catch (err: any) {
-            message.error(formatAppError(err));
-        } finally {
-            setRegisterSubmitting(false);
-        }
+            },
+            successMessage: 'Документ зарегистрирован',
+            onSuccess: () => {
+                closeRegisterModal();
+                registerForm.resetFields();
+                void load();
+            },
+        });
     };
 
     // Редактирование
     const onEdit = async (values: any) => {
-        if (editSubmitting) {
-            return;
-        }
-        setEditSubmitting(true);
-        try {
-            const { Update } = await import('../../wailsjs/go/services/DocumentRegistrationService');
-            await Update(DOCUMENT_KIND_INCOMING_LETTER, {
+        await updateDocument({
+            payload: {
                 id: editDoc.id,
                 documentTypeId: values.documentTypeId,
                 correspondents: buildCorrespondentsPayload(values),
@@ -237,14 +193,14 @@ const IncomingPage: React.FC = () => {
                 resolution: values.resolution || '',
                 resolutionAuthor: values.resolutionAuthor || '',
                 resolutionExecutors: (values.resolutionExecutors || []).join('; '),
-            });
-            message.success('Документ обновлён');
-            closeEditModal(); editForm.resetFields(); load();
-        } catch (err: any) {
-            message.error(formatAppError(err));
-        } finally {
-            setEditSubmitting(false);
-        }
+            },
+            successMessage: 'Документ обновлён',
+            onSuccess: () => {
+                closeEditModal();
+                editForm.resetFields();
+                void load();
+            },
+        });
     };
 
     const {
@@ -331,9 +287,7 @@ const IncomingPage: React.FC = () => {
                 okText: 'Зарегистрировать',
                 confirmLoading: registerSubmitting,
                 linkedBadge: sourceId && targetKind === DOCUMENT_KIND_INCOMING_LETTER ? (
-                    <div style={{ marginBottom: 16 }}>
-                        <Tag color="blue">Создание документа, связанного с: {getDocumentKindShortLabel(sourceKind)} №{sourceNumber}</Tag>
-                    </div>
+                    <LinkedDocumentBadge sourceKind={sourceKind} sourceNumber={sourceNumber} />
                 ) : undefined,
                 content: (
                     <IncomingLetterDocumentForm
