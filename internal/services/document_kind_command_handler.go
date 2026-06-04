@@ -3,7 +3,6 @@ package services
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
@@ -37,7 +36,7 @@ func NewDocumentKindCommandRegistry(handlers ...DocumentKindCommandHandler) *Doc
 func (r *DocumentKindCommandRegistry) Get(kind models.DocumentKind) (DocumentKindCommandHandler, error) {
 	handler, ok := r.handlers[kind]
 	if !ok {
-		return nil, fmt.Errorf("unsupported document kind: %s", kind)
+		return nil, models.NewBadRequest("неподдерживаемый вид документа")
 	}
 
 	return handler, nil

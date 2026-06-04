@@ -179,7 +179,7 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "clerk")
 		result, err := svc.LinkDocuments(sourceID.String(), sourceID.String(), "копия")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot link document to itself")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "нельзя связать документ с самим собой")
 		assert.Nil(t, result)
 	})
 
@@ -187,7 +187,7 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "clerk")
 		result, err := svc.LinkDocuments("invalid", targetID.String(), "ответ")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid source ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID исходного документа")
 		assert.Nil(t, result)
 	})
 
@@ -240,7 +240,7 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "clerk")
 		err := svc.UnlinkDocument("invalid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID связи")
 	})
 
 	t.Run("executor не может удалять связи", func(t *testing.T) {
@@ -375,7 +375,7 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "clerk")
 		result, err := svc.GetDocumentLinks("invalid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid document ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
 		assert.Nil(t, result)
 	})
 
@@ -594,7 +594,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		svc, _, _, _, _ := setupLinkService(t, "clerk")
 		result, err := svc.GetDocumentFlow("invalid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid document ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
 		assert.Nil(t, result)
 	})
 

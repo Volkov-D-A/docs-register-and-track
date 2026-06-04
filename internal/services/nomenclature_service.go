@@ -68,7 +68,7 @@ func (s *NomenclatureService) Update(id string, name, index string, year int, ki
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID номенклатуры", err)
 	}
 	res, err := s.repo.Update(uid, name, index, year, kindCode, separator, numberingMode, isActive)
 	if err != nil {
@@ -88,7 +88,7 @@ func (s *NomenclatureService) Delete(id string) error {
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID номенклатуры", err)
 	}
 	if err := s.repo.Delete(uid); err != nil {
 		return err

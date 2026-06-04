@@ -197,7 +197,7 @@ func TestNomenclatureService_Update(t *testing.T) {
 		svc, _, _ := setupNomenclatureService(t, "admin")
 		result, err := svc.Update("invalid-uuid", "Тест", "idx", 2024, "incoming_letter", "/", "index_and_number", true)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID номенклатуры")
 		assert.Nil(t, result)
 	})
 
@@ -238,7 +238,7 @@ func TestNomenclatureService_Delete(t *testing.T) {
 		svc, _, _ := setupNomenclatureService(t, "admin")
 		err := svc.Delete("invalid-uuid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID номенклатуры")
 	})
 
 	t.Run("запрещено (делопроизводитель)", func(t *testing.T) { // доступно только админам

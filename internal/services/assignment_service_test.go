@@ -172,7 +172,7 @@ func TestAssignmentService_Create(t *testing.T) {
 
 		result, err := svc.Create("not-a-uuid", execID.String(), "Выполнить", "", nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid document ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
 		assert.Nil(t, result)
 	})
 
@@ -182,7 +182,7 @@ func TestAssignmentService_Create(t *testing.T) {
 
 		result, err := svc.Create(docID.String(), "not-a-uuid", "Выполнить", "", nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid executor ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID исполнителя")
 		assert.Nil(t, result)
 	})
 }
@@ -280,7 +280,7 @@ func TestAssignmentService_Update(t *testing.T) {
 
 		result, err := svc.Update(assignmentID.String(), execID.String(), "Новое", "", nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "завершённое")
+		requireAppError(t, err, "CONFLICT", 409, "завершённое")
 		assert.Nil(t, result)
 	})
 }
@@ -439,7 +439,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 
 		result, err := svc.UpdateStatus(assignmentID.String(), "returned", "")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "причина возврата обязательна")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "причина возврата обязательна")
 		assert.Nil(t, result)
 	})
 
@@ -527,7 +527,7 @@ func TestAssignmentService_GetByID(t *testing.T) {
 
 		result, err := svc.GetByID("not-a-uuid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID поручения")
 		assert.Nil(t, result)
 	})
 
@@ -732,7 +732,7 @@ func TestAssignmentService_Delete(t *testing.T) {
 
 		err := svc.Delete(assignmentID.String())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "завершённое")
+		requireAppError(t, err, "CONFLICT", 409, "завершённое")
 	})
 
 	t.Run("not found", func(t *testing.T) {

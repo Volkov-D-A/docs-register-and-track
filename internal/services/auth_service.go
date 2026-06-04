@@ -341,11 +341,11 @@ func (s *AuthService) InitialSetup(password string) error {
 		return fmt.Errorf("ошибка проверки пользователей: %w", err)
 	}
 	if count > 0 {
-		return fmt.Errorf("начальная настройка уже выполнена")
+		return models.NewConflict("начальная настройка уже выполнена")
 	}
 
 	if err := security.ValidatePassword(password); err != nil {
-		return err
+		return models.NewBadRequestWrapped(err.Error(), err)
 	}
 
 	user, err := s.userRepo.Create(models.CreateUserRequest{

@@ -36,7 +36,7 @@ func NewAdministrativeOrderService(
 func (s *AdministrativeOrderService) MarkAcknowledged(personIDStr string) (*dto.AdministrativeOrderAcknowledgmentPerson, error) {
 	personID, err := uuid.Parse(personIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid acknowledgment person ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID строки ознакомления", err)
 	}
 
 	person, err := s.repo.GetAcknowledgmentPersonByID(personID)

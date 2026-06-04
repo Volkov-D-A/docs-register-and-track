@@ -237,7 +237,7 @@ func TestAttachmentService_Upload(t *testing.T) {
 
 		result, err := svc.Upload(docID.String(), "test.txt", "!!!not-base64!!!")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to decode")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "не удалось прочитать содержимое файла")
 		assert.Nil(t, result)
 	})
 
@@ -252,7 +252,7 @@ func TestAttachmentService_Upload(t *testing.T) {
 
 		result, err := svc.Upload(docID.String(), "test.txt", b64)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeds maximum")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "размер файла превышает")
 		assert.Nil(t, result)
 	})
 
@@ -269,7 +269,7 @@ func TestAttachmentService_Upload(t *testing.T) {
 
 		result, err := svc.Upload(docID.String(), "virus.exe", b64)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not allowed")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "тип файла")
 		assert.Nil(t, result)
 	})
 }
@@ -292,7 +292,7 @@ func TestAttachmentService_GetList(t *testing.T) {
 		svc, _, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
 		result, err := svc.GetList("not-a-uuid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid document ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
 		assert.Nil(t, result)
 	})
 }
@@ -320,7 +320,7 @@ func TestAttachmentService_Download(t *testing.T) {
 		svc, _, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
 		result, err := svc.Download("not-a-uuid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid attachment ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID файла")
 		assert.Nil(t, result)
 	})
 }
@@ -397,14 +397,14 @@ func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
 		svc, _, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
 		err := svc.validatePathInDownloads("C:\\Windows\\System32\\..\\..\\test.pdf")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "access denied")
+		requireAppError(t, err, "FORBIDDEN", 403, "папке загрузок")
 	})
 
 	t.Run("outside downloads", func(t *testing.T) {
 		svc, _, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
 		err := svc.validatePathInDownloads("C:\\Windows\\System32\\cmd.exe")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "access denied")
+		requireAppError(t, err, "FORBIDDEN", 403, "папке загрузок")
 	})
 }
 
@@ -432,7 +432,7 @@ func TestAttachmentService_BulkDeleteOlderThan(t *testing.T) {
 
 		count, err := svc.BulkDeleteOlderThan("not-a-date")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid date format")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный формат даты")
 		assert.Equal(t, 0, count)
 	})
 

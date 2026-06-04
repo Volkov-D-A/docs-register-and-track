@@ -276,11 +276,11 @@ func parseStatisticsDateRange(startDateStr, endDateStr string) (time.Time, time.
 
 	startDate, err := time.Parse("2006-01-02", startDateStr)
 	if err != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("invalid start date: %w", err)
+		return time.Time{}, time.Time{}, models.NewBadRequestWrapped("неверный формат даты начала", err)
 	}
 	endDate, err := time.Parse("2006-01-02", endDateStr)
 	if err != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("invalid end date: %w", err)
+		return time.Time{}, time.Time{}, models.NewBadRequestWrapped("неверный формат даты окончания", err)
 	}
 	if endDate.Before(startDate) {
 		return time.Time{}, time.Time{}, models.NewBadRequest("дата окончания не может быть раньше даты начала")

@@ -56,7 +56,7 @@ func (s *DepartmentService) UpdateDepartment(id, name string, nomenclatureIDs []
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid department ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID отдела", err)
 	}
 	res, err := s.repo.Update(uid, name, nomenclatureIDs)
 	if err != nil {
@@ -76,7 +76,7 @@ func (s *DepartmentService) DeleteDepartment(id string) error {
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return fmt.Errorf("invalid department ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID отдела", err)
 	}
 	if err := s.repo.Delete(uid); err != nil {
 		return err

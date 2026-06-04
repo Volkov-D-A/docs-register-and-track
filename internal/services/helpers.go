@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/google/uuid"
 )
 
@@ -17,7 +18,7 @@ const (
 func parseUUID(s string) (uuid.UUID, error) {
 	id, err := uuid.Parse(s)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID: %s", s)
+		return uuid.Nil, models.NewBadRequestWrapped("неверный UUID", err)
 	}
 	return id, nil
 }

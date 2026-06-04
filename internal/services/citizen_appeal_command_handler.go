@@ -203,7 +203,7 @@ func (h *CitizenAppealCommandHandler) RegisterDocument(req any) (any, error) {
 func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*dto.CitizenAppealDocument, error) {
 	uid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, fmt.Errorf("неверный ID документа: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := h.access.RequireDocumentAction(uid, "update"); err != nil {
 		return nil, err
@@ -377,7 +377,7 @@ func (h *CitizenAppealCommandHandler) ensureResolutionExecutors(executors string
 func parseCommandDate(value, fieldName string) (time.Time, error) {
 	parsed, err := time.Parse("2006-01-02", strings.TrimSpace(value))
 	if err != nil {
-		return time.Time{}, fmt.Errorf("неверный формат %s: %w", fieldName, err)
+		return time.Time{}, models.NewBadRequestWrapped(fmt.Sprintf("неверный формат %s", fieldName), err)
 	}
 	return parsed, nil
 }

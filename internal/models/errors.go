@@ -62,6 +62,10 @@ func NewBadRequest(msg string) *AppError {
 	return &AppError{Code: 400, Kind: "VALIDATION_ERROR", Message: msg, Production: true}
 }
 
+func NewBadRequestWrapped(msg string, err error) *AppError {
+	return &AppError{Code: 400, Kind: "VALIDATION_ERROR", Message: msg, Internal: err, Production: true}
+}
+
 // NewUnauthorized — ошибка 401 с кастомным сообщением.
 func NewUnauthorized(msg string) *AppError {
 	return &AppError{Code: 401, Kind: "UNAUTHORIZED", Message: msg, Production: true}
@@ -72,13 +76,25 @@ func NewForbidden(msg string) *AppError {
 	return &AppError{Code: 403, Kind: "FORBIDDEN", Message: msg, Production: true}
 }
 
+func NewForbiddenWrapped(msg string, err error) *AppError {
+	return &AppError{Code: 403, Kind: "FORBIDDEN", Message: msg, Internal: err, Production: true}
+}
+
 // NewNotFound — ошибка 404 с кастомным сообщением.
 func NewNotFound(msg string) *AppError {
 	return &AppError{Code: 404, Kind: "NOT_FOUND", Message: msg, Production: true}
 }
 
+func NewNotFoundWrapped(msg string, err error) *AppError {
+	return &AppError{Code: 404, Kind: "NOT_FOUND", Message: msg, Internal: err, Production: true}
+}
+
 func NewConflict(msg string) *AppError {
 	return &AppError{Code: 409, Kind: "CONFLICT", Message: msg, Production: true}
+}
+
+func NewConflictWrapped(msg string, err error) *AppError {
+	return &AppError{Code: 409, Kind: "CONFLICT", Message: msg, Internal: err, Production: true}
 }
 
 func NewIdempotencyConflict(msg string) *AppError {

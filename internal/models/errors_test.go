@@ -37,6 +37,11 @@ func TestAppErrorConstructorsAndUnwrap(t *testing.T) {
 	assert.Equal(t, 404, NewNotFound("missing").Code)
 	assert.Equal(t, 409, NewConflict("conflict").Code)
 	assert.Equal(t, "IDEMPOTENCY_CONFLICT", NewIdempotencyConflict("idem").Kind)
+
+	assert.ErrorIs(t, NewBadRequestWrapped("bad", internal), internal)
+	assert.ErrorIs(t, NewForbiddenWrapped("forbidden", internal), internal)
+	assert.ErrorIs(t, NewNotFoundWrapped("missing", internal), internal)
+	assert.ErrorIs(t, NewConflictWrapped("conflict", internal), internal)
 }
 
 func TestAsAppError(t *testing.T) {

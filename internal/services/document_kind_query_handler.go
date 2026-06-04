@@ -1,8 +1,6 @@
 package services
 
 import (
-	"fmt"
-
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
@@ -38,7 +36,7 @@ func NewDocumentKindQueryRegistry(handlers ...DocumentKindQueryHandler) *Documen
 func (r *DocumentKindQueryRegistry) Get(kind models.DocumentKind) (DocumentKindQueryHandler, error) {
 	handler, ok := r.handlers[kind]
 	if !ok {
-		return nil, fmt.Errorf("unsupported document kind: %s", kind)
+		return nil, models.NewBadRequest("неподдерживаемый вид документа")
 	}
 
 	return handler, nil

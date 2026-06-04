@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 const (
@@ -48,7 +50,7 @@ func (s *ThemeService) GetTheme() (string, error) {
 func (s *ThemeService) SetTheme(theme string) error {
 	normalizedTheme, ok := normalizeAppTheme(theme)
 	if !ok {
-		return fmt.Errorf("unsupported app theme %q", theme)
+		return models.NewBadRequest(fmt.Sprintf("неподдерживаемая тема приложения: %q", theme))
 	}
 
 	s.stateMu.Lock()

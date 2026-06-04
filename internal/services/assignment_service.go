@@ -47,7 +47,7 @@ func (s *AssignmentService) Create(
 ) (*dto.Assignment, error) {
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid document ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := s.access.RequireDocumentAction(docUUID, "assign"); err != nil {
 		return nil, err
@@ -59,14 +59,14 @@ func (s *AssignmentService) Create(
 
 	execUUID, err := uuid.Parse(executorID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid executor ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID исполнителя", err)
 	}
 
 	var deadlineTime *time.Time
 	if deadline != "" {
 		t, err := time.Parse("2006-01-02", deadline)
 		if err != nil {
-			return nil, fmt.Errorf("invalid deadline format: %w", err)
+			return nil, models.NewBadRequestWrapped("неверный формат срока исполнения", err)
 		}
 		deadlineTime = &t
 	}
@@ -94,7 +94,7 @@ func (s *AssignmentService) Update(
 ) (*dto.Assignment, error) {
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
 	}
 
 	// Проверка прав доступа
@@ -113,19 +113,19 @@ func (s *AssignmentService) Update(
 	// Редактировать могут админ и делопроизводитель
 	// Завершенные поручения редактировать нельзя
 	if existing.Status == "finished" {
-		return nil, fmt.Errorf("нельзя редактировать завершённое поручение")
+		return nil, models.NewConflict("нельзя редактировать завершённое поручение")
 	}
 
 	execUUID, err := uuid.Parse(executorID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid executor ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID исполнителя", err)
 	}
 
 	var deadlineTime *time.Time
 	if deadline != "" {
 		t, err := time.Parse("2006-01-02", deadline)
 		if err != nil {
-			return nil, fmt.Errorf("invalid deadline format: %w", err)
+			return nil, models.NewBadRequestWrapped("неверный формат срока исполнения", err)
 		}
 		deadlineTime = &t
 	}
@@ -151,7 +151,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
 	}
 
 	existing, err := s.repo.GetByID(uid)
@@ -181,11 +181,11 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	switch status {
 	case "completed":
 		if report == "" {
-			return nil, fmt.Errorf("отчет об исполнении обязателен")
+			return nil, models.NewBadRequest("отчет об исполнении обязателен")
 		}
 	case "returned":
 		if report == "" {
-			return nil, fmt.Errorf("причина возврата обязательна")
+			return nil, models.NewBadRequest("причина возврата обязательна")
 		}
 	case "finished":
 		if report == "" {
@@ -228,7 +228,7 @@ func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
 	}
 	res, err := s.repo.GetByID(uid)
 	if err != nil {
@@ -258,7 +258,7 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 	if filter.DocumentID != "" {
 		docUUID, err := uuid.Parse(filter.DocumentID)
 		if err != nil {
-			return nil, fmt.Errorf("invalid document ID: %w", err)
+			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 		}
 		if err := s.access.RequireDocumentAction(docUUID, "assign"); err != nil {
 			return nil, err
@@ -300,7 +300,7 @@ func documentKindCodes(kinds []models.DocumentKind) []string {
 func (s *AssignmentService) Delete(id string) error {
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID поручения", err)
 	}
 
 	existing, err := s.repo.GetByID(uid)
@@ -316,7 +316,7 @@ func (s *AssignmentService) Delete(id string) error {
 
 	// Завершенные поручения удалять нельзя
 	if existing.Status == "finished" {
-		return fmt.Errorf("нельзя удалить завершённое поручение")
+		return models.NewConflict("нельзя удалить завершённое поручение")
 	}
 
 	err = s.repo.Delete(uid)

@@ -47,7 +47,7 @@ func TestDocumentKindQueryRegistry(t *testing.T) {
 	got, err = registry.Get(models.DocumentKind("unsupported"))
 	require.Error(t, err)
 	assert.Nil(t, got)
-	assert.Contains(t, err.Error(), "unsupported document kind")
+	requireAppError(t, err, "VALIDATION_ERROR", 400, "неподдерживаемый вид документа")
 }
 
 func TestDocumentQueryService_GetByID(t *testing.T) {
@@ -80,7 +80,7 @@ func TestDocumentQueryService_GetByID(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Nil(t, card)
-		assert.Contains(t, err.Error(), "invalid ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
 	})
 
 	t.Run("returns forbidden for missing handler", func(t *testing.T) {

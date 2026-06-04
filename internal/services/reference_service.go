@@ -94,7 +94,7 @@ func (s *ReferenceService) UpdateOrganization(id string, name string) error {
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
 	}
 	if err := s.repo.UpdateOrganization(uid, name); err != nil {
 		return err
@@ -112,7 +112,7 @@ func (s *ReferenceService) DeleteOrganization(id string) error {
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
 	}
 	if err := s.repo.DeleteOrganization(uid); err != nil {
 		return err
@@ -159,7 +159,7 @@ func (s *ReferenceService) UpdateResolutionExecutor(id string, name string) erro
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
 	}
 	if err := s.repo.UpdateResolutionExecutor(uid, name); err != nil {
 		return err
@@ -177,7 +177,7 @@ func (s *ReferenceService) DeleteResolutionExecutor(id string) error {
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
 	}
 	if err := s.repo.DeleteResolutionExecutor(uid); err != nil {
 		return err

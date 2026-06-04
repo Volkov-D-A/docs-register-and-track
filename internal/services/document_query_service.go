@@ -1,8 +1,6 @@
 package services
 
 import (
-	"fmt"
-
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
@@ -34,7 +32,7 @@ func (s *DocumentQueryService) GetByID(id string) (*dto.DocumentCard, error) {
 
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 
 	doc, err := s.access.RequireExists(uid)

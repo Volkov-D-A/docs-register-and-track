@@ -213,7 +213,11 @@ func main() {
 			// Перехватываем все ошибки, которые методы сервисов (Bindings) возвращают во фронтенд
 			if appErr, ok := models.AsAppError(err); ok {
 				if appErr.StatusCode() >= 500 {
-					slog.Error("Backend binding failed", "type", "backend_binding", "code", appErr.SafeKind(), "status", appErr.StatusCode())
+					attrs := []any{"type", "backend_binding", "code", appErr.SafeKind(), "status", appErr.StatusCode(), "error", appErr.Error()}
+					if appErr.Internal != nil {
+						attrs = append(attrs, "internal", appErr.Internal.Error())
+					}
+					slog.Error("Backend binding failed", attrs...)
 				}
 				return map[string]any{
 					"code":    appErr.SafeKind(),
@@ -221,7 +225,7 @@ func main() {
 					"status":  appErr.StatusCode(),
 				}
 			}
-			slog.Error("Backend binding failed", "type", "backend_binding", "error_type", fmt.Sprintf("%T", err))
+			slog.Error("Backend binding failed", "type", "backend_binding", "error_type", fmt.Sprintf("%T", err), "error", err.Error())
 			return map[string]any{
 				"code":    "INTERNAL_ERROR",
 				"message": "произошла внутренняя ошибка",

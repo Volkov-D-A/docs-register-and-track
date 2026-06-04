@@ -108,7 +108,7 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 		result, err := svc.Create(docID.String(), "text", []string{"not-a-uuid"})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "не выбраны пользователи")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "не выбраны пользователи")
 		assert.Nil(t, result)
 	})
 
@@ -116,7 +116,7 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 		svc, _, _, _, _ := setupAckService(t, "clerk")
 		result, err := svc.Create("not-a-uuid", "text", []string{user1.String()})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid document ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
 		assert.Nil(t, result)
 	})
 }
@@ -146,7 +146,7 @@ func TestAcknowledgmentService_GetList(t *testing.T) {
 		svc, _, _, _, _ := setupAckService(t, "clerk")
 		result, err := svc.GetList("not-a-uuid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid document ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
 		assert.Nil(t, result)
 	})
 }
@@ -227,7 +227,7 @@ func TestAcknowledgmentService_MarkViewed(t *testing.T) {
 		svc, _, _, _, _ := setupAckService(t, "executor")
 		err := svc.MarkViewed("not-a-uuid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid acknowledgment ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID строки ознакомления")
 	})
 }
 

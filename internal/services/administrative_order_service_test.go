@@ -142,7 +142,7 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 		result, err := svc.MarkAcknowledged("bad-id")
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid acknowledgment person ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID строки ознакомления")
 		assert.Nil(t, result)
 	})
 

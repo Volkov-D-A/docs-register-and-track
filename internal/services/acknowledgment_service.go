@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,7 +43,7 @@ func (s *AcknowledgmentService) Create(
 ) (*dto.Acknowledgment, error) {
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid document ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := s.access.RequireDocumentAction(docUUID, "acknowledge"); err != nil {
 		return nil, err
@@ -83,7 +82,7 @@ func (s *AcknowledgmentService) Create(
 	}
 
 	if len(ack.Users) == 0 {
-		return nil, fmt.Errorf("не выбраны пользователи для ознакомления")
+		return nil, models.NewBadRequest("не выбраны пользователи для ознакомления")
 	}
 
 	err = s.repo.Create(ack)
@@ -107,7 +106,7 @@ func (s *AcknowledgmentService) Create(
 func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment, error) {
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid document ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := s.access.RequireDocumentAction(docUUID, "acknowledge"); err != nil {
 		return nil, err
@@ -151,7 +150,7 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 	}
 	ackUUID, err := uuid.Parse(ackID)
 	if err != nil {
-		return fmt.Errorf("invalid acknowledgment ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID строки ознакомления", err)
 	}
 	userID := s.auth.GetCurrentUserID()
 	userUUID, err := uuid.Parse(userID)
@@ -181,7 +180,7 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 	}
 	ackUUID, err := uuid.Parse(ackID)
 	if err != nil {
-		return fmt.Errorf("invalid acknowledgment ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID строки ознакомления", err)
 	}
 	userID := s.auth.GetCurrentUserID()
 	userUUID, err := uuid.Parse(userID)
@@ -208,7 +207,7 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 func (s *AcknowledgmentService) Delete(id string) error {
 	ackUUID, err := uuid.Parse(id)
 	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID строки ознакомления", err)
 	}
 
 	ack, err := s.repo.GetByID(ackUUID)

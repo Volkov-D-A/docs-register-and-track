@@ -154,7 +154,7 @@ func TestDepartmentService_UpdateDepartment(t *testing.T) {
 		svc, _, _ := setupDepartmentService(t, "admin")
 		result, err := svc.UpdateDepartment("invalid-uuid", "Тест", nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid department ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID отдела")
 		assert.Nil(t, result)
 	})
 
@@ -192,7 +192,7 @@ func TestDepartmentService_DeleteDepartment(t *testing.T) {
 		svc, _, _ := setupDepartmentService(t, "admin")
 		err := svc.DeleteDepartment("invalid-uuid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid department ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID отдела")
 	})
 
 	t.Run("запрещено (не админ)", func(t *testing.T) {

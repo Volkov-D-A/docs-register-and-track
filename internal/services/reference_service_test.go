@@ -197,7 +197,7 @@ func TestReferenceService_UpdateOrganization(t *testing.T) {
 		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		err := svc.UpdateOrganization("invalid-uuid", "Тест")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID записи справочника")
 	})
 
 	t.Run("запрещено (не админ)", func(t *testing.T) {
@@ -224,7 +224,7 @@ func TestReferenceService_DeleteOrganization(t *testing.T) {
 		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
 		err := svc.DeleteOrganization("invalid-uuid")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID записи справочника")
 	})
 
 	t.Run("запрещено (не админ)", func(t *testing.T) {
@@ -327,7 +327,7 @@ func TestReferenceService_UpdateResolutionExecutor(t *testing.T) {
 		err := svc.UpdateResolutionExecutor("invalid-uuid", "Тест")
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID записи справочника")
 	})
 
 	t.Run("запрещено", func(t *testing.T) {
@@ -357,7 +357,7 @@ func TestReferenceService_DeleteResolutionExecutor(t *testing.T) {
 		err := svc.DeleteResolutionExecutor("invalid-uuid")
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID записи справочника")
 	})
 
 	t.Run("запрещено", func(t *testing.T) {

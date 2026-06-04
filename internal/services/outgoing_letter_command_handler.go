@@ -148,7 +148,7 @@ func (h *OutgoingLetterCommandHandler) RegisterDocument(req any) (any, error) {
 func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (*dto.OutgoingDocument, error) {
 	uid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, fmt.Errorf("неверный ID документа: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := h.access.RequireDocumentAction(uid, "update"); err != nil {
 		return nil, err

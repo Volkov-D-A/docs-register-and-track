@@ -59,7 +59,7 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 
 	documentID, err := uuid.Parse(documentIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid document ID")
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if _, err := s.access.RequireExists(documentID); err != nil {
 		return nil, err
@@ -88,13 +88,13 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 
 	data, err := base64.StdEncoding.DecodeString(contentBase64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode file content: %v", err)
+		return nil, models.NewBadRequestWrapped("не удалось прочитать содержимое файла", err)
 	}
 
 	// 2. Проверка размера
 	maxSize, _ := s.settingsService.GetMaxFileSize() // returns bytes
 	if int64(len(data)) > maxSize {
-		return nil, fmt.Errorf("file size exceeds maximum allowed size (%d MB)", maxSize/(1024*1024))
+		return nil, models.NewBadRequest(fmt.Sprintf("размер файла превышает максимально допустимый (%d МБ)", maxSize/(1024*1024)))
 	}
 
 	// 3. Проверка типа файла
@@ -108,7 +108,7 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 		}
 	}
 	if !allowed {
-		return nil, fmt.Errorf("file type '%s' is not allowed", ext)
+		return nil, models.NewBadRequest(fmt.Sprintf("тип файла %q не разрешен", ext))
 	}
 
 	contentType := mime.TypeByExtension(ext)
@@ -158,7 +158,7 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, error) {
 	documentID, err := uuid.Parse(documentIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid document ID")
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := s.access.RequireReadAnyType(documentID); err != nil {
 		return nil, err
@@ -178,7 +178,7 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid attachment ID")
+		return nil, models.NewBadRequestWrapped("неверный ID файла", err)
 	}
 
 	// Получение метаданных файла
@@ -213,7 +213,7 @@ func (s *AttachmentService) Delete(idStr string) error {
 	// Проверка прав доступа
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return fmt.Errorf("invalid attachment ID")
+		return models.NewBadRequestWrapped("неверный ID файла", err)
 	}
 
 	// Получение вложения для журналирования
@@ -260,7 +260,7 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return "", fmt.Errorf("invalid attachment ID")
+		return "", models.NewBadRequestWrapped("неверный ID файла", err)
 	}
 
 	// Получение метаданных
@@ -367,7 +367,7 @@ func (s *AttachmentService) validatePathInDownloads(path string) error {
 	// Разрешение символических ссылок и относительных путей
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return fmt.Errorf("invalid path: %v", err)
+		return models.NewBadRequestWrapped("неверный путь к файлу", err)
 	}
 	evalPath, err := filepath.EvalSymlinks(absPath)
 	if err != nil {
@@ -383,7 +383,7 @@ func (s *AttachmentService) validatePathInDownloads(path string) error {
 	// Убеждаемся, что путь находится внутри папки «Загрузки»
 	rel, err := filepath.Rel(absDownloadDir, evalPath)
 	if err != nil || strings.HasPrefix(rel, "..") {
-		return fmt.Errorf("access denied: path is outside the download directory")
+		return models.NewForbidden("доступ разрешен только к файлам в папке загрузок")
 	}
 
 	return nil
@@ -451,7 +451,7 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 
 	date, err := time.Parse(time.RFC3339, dateStr)
 	if err != nil {
-		return 0, fmt.Errorf("invalid date format, expected RFC3339: %v", err)
+		return 0, models.NewBadRequestWrapped("неверный формат даты", err)
 	}
 
 	attachments, err := s.repo.GetOlderThan(date)

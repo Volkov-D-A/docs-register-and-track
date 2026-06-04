@@ -146,7 +146,7 @@ func (h *AdministrativeOrderCommandHandler) RegisterDocument(req any) (any, erro
 func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdateRequest) (*dto.AdministrativeOrderDocument, error) {
 	uid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, fmt.Errorf("неверный ID документа: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := h.access.RequireDocumentAction(uid, "update"); err != nil {
 		return nil, err

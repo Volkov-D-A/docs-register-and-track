@@ -62,21 +62,21 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 	userIDStr := s.authService.GetCurrentUserID()
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user ID: %w", err)
+		return nil, ErrNotAuthenticated
 	}
 
 	sourceID, err := uuid.Parse(sourceIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid source ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID исходного документа", err)
 	}
 	targetID, err := uuid.Parse(targetIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid target ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID связанного документа", err)
 	}
 
 	// Базовая валидация: запрет связи документа с самим собой
 	if sourceID == targetID {
-		return nil, fmt.Errorf("cannot link document to itself")
+		return nil, models.NewBadRequest("нельзя связать документ с самим собой")
 	}
 	sourceDoc, targetDoc, err := s.access.ResolveLink(sourceID, targetID)
 	if err != nil {
@@ -131,7 +131,7 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return fmt.Errorf("invalid ID: %w", err)
+		return models.NewBadRequestWrapped("неверный ID связи", err)
 	}
 
 	link, err := s.repo.GetByID(ctx, id)
@@ -171,7 +171,7 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 
 	docID, err := uuid.Parse(docIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid document ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := s.access.RequireDocumentAction(docID, "link"); err != nil {
 		return nil, err
@@ -211,7 +211,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 
 	rootID, err := uuid.Parse(rootIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid document ID: %w", err)
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := s.access.RequireDocumentAction(rootID, "link"); err != nil {
 		return nil, err
