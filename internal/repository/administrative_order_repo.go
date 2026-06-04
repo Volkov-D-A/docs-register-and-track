@@ -157,20 +157,26 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 	defer rows.Close()
 
 	items := make([]models.AdministrativeOrderDocument, 0)
+	documentIDs := make([]uuid.UUID, 0)
 	for rows.Next() {
 		doc, err := scanAdministrativeOrder(rows)
 		if err != nil {
 			return nil, err
 		}
-		people, err := r.GetAcknowledgmentPeople(doc.ID)
-		if err != nil {
-			return nil, err
-		}
-		doc.AcknowledgmentPeople = people
+		documentIDs = append(documentIDs, doc.ID)
 		items = append(items, *doc)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	if len(documentIDs) > 0 {
+		peopleByDocumentID, err := r.getAcknowledgmentPeopleByDocumentIDs(documentIDs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range items {
+			items[i].AcknowledgmentPeople = peopleByDocumentID[items[i].ID]
+		}
 	}
 
 	return &models.PagedResult[models.AdministrativeOrderDocument]{
@@ -410,6 +416,40 @@ func (r *AdministrativeOrderRepository) GetAcknowledgmentPeople(documentID uuid.
 			return nil, err
 		}
 		result = append(result, *person)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (r *AdministrativeOrderRepository) getAcknowledgmentPeopleByDocumentIDs(documentIDs []uuid.UUID) (map[uuid.UUID][]models.AdministrativeOrderAcknowledgmentPerson, error) {
+	result := make(map[uuid.UUID][]models.AdministrativeOrderAcknowledgmentPerson, len(documentIDs))
+	if len(documentIDs) == 0 {
+		return result, nil
+	}
+
+	rows, err := r.db.Query(`
+		SELECT
+			p.id, p.document_id, p.full_name, p.acknowledged_at, p.acknowledged_by,
+			COALESCE(NULLIF(u.full_name, ''), u.login, '') AS acknowledged_by_name,
+			p.position, p.created_at
+		FROM administrative_order_acknowledgment_people p
+		LEFT JOIN users u ON u.id = p.acknowledged_by
+		WHERE p.document_id = ANY($1)
+		ORDER BY p.document_id, p.position, p.created_at, p.full_name
+	`, pq.Array(documentIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch load administrative order acknowledgment people: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		person, err := scanAdministrativeOrderAcknowledgmentPerson(rows)
+		if err != nil {
+			return nil, err
+		}
+		result[person.DocumentID] = append(result[person.DocumentID], *person)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

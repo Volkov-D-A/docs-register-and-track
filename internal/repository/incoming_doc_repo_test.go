@@ -418,6 +418,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 
 	t.Run("success with filters", func(t *testing.T) {
 		docID := uuid.New()
+		docID2 := uuid.New()
 		filter := models.DocumentFilter{
 			NomenclatureID: uuid.New().String(),
 			Page:           1,
@@ -425,7 +426,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 		}
 
 		// Count query
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
 		// Data query
 		rows := sqlmock.NewRows([]string{
@@ -440,18 +441,24 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 			docID, uuid.New(), "01-01", "ВХ-001", now,
 			models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст", 0, "",
 			uuid.New(), "", now, now,
+		).AddRow(
+			docID2, uuid.New(), "01-02", "ВХ-002", now,
+			models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст 2", 1, "",
+			uuid.New(), "", now, now,
 		)
 		mock.ExpectQuery(regexp.QuoteMeta(incomingDocSelectBase)).WillReturnRows(rows)
-		mock.ExpectQuery(`SELECT cr\.id, cr\.document_id, cr\.registration_number, cr\.registration_date`).WithArgs(docID).WillReturnRows(sqlmock.NewRows([]string{
+		mock.ExpectQuery(`SELECT cr\.id, cr\.document_id, cr\.registration_number, cr\.registration_date`).WithArgs(sqlmock.AnyArg()).WillReturnRows(sqlmock.NewRows([]string{
 			"id", "document_id", "registration_number", "registration_date", "correspondent_org_id", "name", "position",
 		}).AddRow(uuid.New(), docID, "ИСХ-001", now, uuid.New(), "Орг 1", 1))
-		mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).WithArgs(sqlmock.AnyArg()).WillReturnRows(sqlmock.NewRows([]string{
+			"id", "document_id", "resolution", "resolution_author", "resolution_executors", "position",
+		}))
 
 		res, err := repo.GetList(filter)
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		assert.Equal(t, 1, res.TotalCount)
-		assert.Len(t, res.Items, 1)
+		assert.Equal(t, 2, res.TotalCount)
+		assert.Len(t, res.Items, 2)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 

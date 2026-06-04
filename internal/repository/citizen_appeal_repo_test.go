@@ -65,6 +65,15 @@ func expectCitizenAppealHydrateEmpty(mock sqlmock.Sqlmock, docID uuid.UUID) {
 		WillReturnRows(emptyDocumentResolutionRows())
 }
 
+func expectCitizenAppealBatchHydrateEmpty(mock sqlmock.Sqlmock) {
+	mock.ExpectQuery(`SELECT cr\.id, cr\.document_id, cr\.registration_number, cr\.registration_date`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(emptyCitizenAppealCorrespondentRows())
+	mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(emptyDocumentResolutionRows())
+}
+
 func TestCitizenAppealRepository_GetByID(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -146,6 +155,7 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success with filters", func(t *testing.T) {
+		docID2 := uuid.New()
 		filter := models.DocumentFilter{
 			NomenclatureID:     uuid.New().String(),
 			RegistrationNumber: "ОГ",
@@ -156,19 +166,31 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 		}
 
 		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents d\s+JOIN citizen_appeal_details ca ON ca.document_id = d.id`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 		mock.ExpectQuery(regexp.QuoteMeta(citizenAppealSelectBase)).
-			WillReturnRows(citizenAppealRows(docID, now))
-		expectCitizenAppealHydrateEmpty(mock, docID)
+			WillReturnRows(citizenAppealRows(docID, now).AddRow(
+				docID2, uuid.New(), "03-02 - Обращения",
+				"ОГ-124", now,
+				now.Add(-48*time.Hour),
+				models.DocumentTypeCitizenAppeal, models.DocumentTypeCitizenAppeal,
+				"Содержание обращения 2", 4,
+				"Петр Петров", "ул. Мира, 2",
+				"заявление", "гражданин",
+				3, 1,
+				false, true,
+				uuid.New(), "Регистратор",
+				now, now,
+			))
+		expectCitizenAppealBatchHydrateEmpty(mock)
 
 		res, err := repo.GetList(filter)
 
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		assert.Equal(t, 1, res.TotalCount)
+		assert.Equal(t, 2, res.TotalCount)
 		assert.Equal(t, 1, res.Page)
 		assert.Equal(t, 10, res.PageSize)
-		require.Len(t, res.Items, 1)
+		require.Len(t, res.Items, 2)
 		assert.Equal(t, docID, res.Items[0].ID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})

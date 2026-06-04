@@ -72,6 +72,47 @@ func (r *IncomingDocumentRepository) loadResolution(documentID uuid.UUID) (*mode
 	return resolution, nil
 }
 
+func loadFirstDocumentResolutionsByDocumentIDs(db interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}, documentIDs []uuid.UUID) (map[uuid.UUID]*models.DocumentResolution, error) {
+	result := make(map[uuid.UUID]*models.DocumentResolution, len(documentIDs))
+	if len(documentIDs) == 0 {
+		return result, nil
+	}
+
+	rows, err := db.Query(`
+		SELECT id, document_id, resolution, resolution_author, resolution_executors, position
+		FROM (
+			SELECT id, document_id, resolution, resolution_author, resolution_executors, position,
+				ROW_NUMBER() OVER (PARTITION BY document_id ORDER BY position, created_at, id) AS rn
+			FROM document_resolutions
+			WHERE document_id = ANY($1)
+		) ranked
+		WHERE rn = 1
+		ORDER BY document_id, position, id
+	`, pq.Array(documentIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch load first document resolutions: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		item := &models.DocumentResolution{}
+		if err := rows.Scan(
+			&item.ID, &item.DocumentID, &item.Resolution,
+			&item.ResolutionAuthor, &item.ResolutionExecutors, &item.Position,
+		); err != nil {
+			return nil, fmt.Errorf("scan first document resolution error: %w", err)
+		}
+		result[item.DocumentID] = item
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("first document resolutions rows error: %w", err)
+	}
+
+	return result, nil
+}
+
 func applyResolution(doc *models.IncomingDocument, resolution *models.DocumentResolution) {
 	if doc == nil || resolution == nil {
 		return
@@ -117,6 +158,42 @@ func loadDocumentResolutions(db interface {
 	return items, nil
 }
 
+func loadDocumentResolutionsByDocumentIDs(db interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}, documentIDs []uuid.UUID) (map[uuid.UUID][]models.DocumentResolution, error) {
+	result := make(map[uuid.UUID][]models.DocumentResolution, len(documentIDs))
+	if len(documentIDs) == 0 {
+		return result, nil
+	}
+
+	rows, err := db.Query(`
+		SELECT id, document_id, resolution, resolution_author, resolution_executors, position
+		FROM document_resolutions
+		WHERE document_id = ANY($1)
+		ORDER BY document_id, position, created_at, id
+	`, pq.Array(documentIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch load document resolutions: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var item models.DocumentResolution
+		if err := rows.Scan(
+			&item.ID, &item.DocumentID, &item.Resolution,
+			&item.ResolutionAuthor, &item.ResolutionExecutors, &item.Position,
+		); err != nil {
+			return nil, fmt.Errorf("scan document resolution error: %w", err)
+		}
+		result[item.DocumentID] = append(result[item.DocumentID], item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("document resolutions rows error: %w", err)
+	}
+
+	return result, nil
+}
+
 func (r *IncomingDocumentRepository) loadCorrespondents(documentID uuid.UUID) ([]models.DocumentCorrespondentRegistration, error) {
 	rows, err := r.db.Query(`
 		SELECT cr.id, cr.document_id, cr.registration_number, cr.registration_date,
@@ -147,6 +224,44 @@ func (r *IncomingDocumentRepository) loadCorrespondents(documentID uuid.UUID) ([
 	}
 
 	return items, nil
+}
+
+func loadDocumentCorrespondentsByDocumentIDs(db interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}, documentIDs []uuid.UUID) (map[uuid.UUID][]models.DocumentCorrespondentRegistration, error) {
+	result := make(map[uuid.UUID][]models.DocumentCorrespondentRegistration, len(documentIDs))
+	if len(documentIDs) == 0 {
+		return result, nil
+	}
+
+	rows, err := db.Query(`
+		SELECT cr.id, cr.document_id, cr.registration_number, cr.registration_date,
+			cr.correspondent_org_id, o.name, cr.position
+		FROM document_correspondent_registrations cr
+		JOIN organizations o ON o.id = cr.correspondent_org_id
+		WHERE cr.document_id = ANY($1)
+		ORDER BY cr.document_id, cr.position, cr.created_at, cr.id
+	`, pq.Array(documentIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch load document correspondents: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var item models.DocumentCorrespondentRegistration
+		if err := rows.Scan(
+			&item.ID, &item.DocumentID, &item.RegistrationNumber, &item.RegistrationDate,
+			&item.CorrespondentOrgID, &item.CorrespondentName, &item.Position,
+		); err != nil {
+			return nil, fmt.Errorf("scan document correspondent error: %w", err)
+		}
+		result[item.DocumentID] = append(result[item.DocumentID], item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("document correspondents rows error: %w", err)
+	}
+
+	return result, nil
 }
 
 func replaceCorrespondents(tx *sql.Tx, documentID uuid.UUID, items []models.DocumentCorrespondentRegistration) error {
@@ -399,24 +514,31 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 	defer rows.Close()
 
 	items := make([]models.IncomingDocument, 0)
+	documentIDs := make([]uuid.UUID, 0)
 	for rows.Next() {
 		doc, err := scanIncomingDoc(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
-		doc.Correspondents, err = r.loadCorrespondents(doc.ID)
-		if err != nil {
-			return nil, err
-		}
-		resolution, err := r.loadResolution(doc.ID)
-		if err != nil {
-			return nil, err
-		}
-		applyResolution(doc, resolution)
+		documentIDs = append(documentIDs, doc.ID)
 		items = append(items, *doc)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+	if len(documentIDs) > 0 {
+		correspondentsByDocumentID, err := loadDocumentCorrespondentsByDocumentIDs(r.db, documentIDs)
+		if err != nil {
+			return nil, err
+		}
+		resolutionsByDocumentID, err := loadFirstDocumentResolutionsByDocumentIDs(r.db, documentIDs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range items {
+			items[i].Correspondents = correspondentsByDocumentID[items[i].ID]
+			applyResolution(&items[i], resolutionsByDocumentID[items[i].ID])
+		}
 	}
 
 	return &models.PagedResult[models.IncomingDocument]{

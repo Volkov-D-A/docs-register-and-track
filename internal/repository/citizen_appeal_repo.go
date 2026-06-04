@@ -289,18 +289,31 @@ func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models
 	defer rows.Close()
 
 	items := make([]models.CitizenAppealDocument, 0)
+	documentIDs := make([]uuid.UUID, 0)
 	for rows.Next() {
 		doc, err := scanCitizenAppealDoc(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scan citizen appeal error: %w", err)
 		}
-		if err := r.hydrateCommonDetails(doc); err != nil {
-			return nil, err
-		}
+		documentIDs = append(documentIDs, doc.ID)
 		items = append(items, *doc)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("citizen appeals rows error: %w", err)
+	}
+	if len(documentIDs) > 0 {
+		correspondentsByDocumentID, err := loadDocumentCorrespondentsByDocumentIDs(r.db, documentIDs)
+		if err != nil {
+			return nil, err
+		}
+		resolutionsByDocumentID, err := loadDocumentResolutionsByDocumentIDs(r.db, documentIDs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range items {
+			items[i].Correspondents = correspondentsByDocumentID[items[i].ID]
+			items[i].Resolutions = resolutionsByDocumentID[items[i].ID]
+		}
 	}
 
 	return &models.PagedResult[models.CitizenAppealDocument]{
