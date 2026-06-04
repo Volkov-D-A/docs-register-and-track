@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -135,5 +136,41 @@ func TestJournalService_LogAction(t *testing.T) {
 
 		err := svc.LogAction(context.Background(), expectedReq)
 		require.NoError(t, err)
+	})
+
+	t.Run("uses lifecycle context when ctx is nil", func(t *testing.T) {
+		svc, repo, _, _, _ := setupJournalService(t, "admin")
+		svc.SetOperationLifecycle(NewOperationLifecycle(time.Second))
+
+		expectedReq := models.CreateJournalEntryRequest{
+			DocumentID: docID,
+			UserID:     userID,
+			Action:     action,
+			Details:    details,
+		}
+
+		repo.On("Create", mock.MatchedBy(func(ctx context.Context) bool {
+			return ctx != nil
+		}), expectedReq).Return(uuid.New(), nil).Once()
+
+		err := svc.LogAction(nil, expectedReq)
+		require.NoError(t, err)
+	})
+
+	t.Run("propagates repository error", func(t *testing.T) {
+		svc, repo, _, _, _ := setupJournalService(t, "admin")
+		expectedErr := errors.New("journal create failed")
+
+		expectedReq := models.CreateJournalEntryRequest{
+			DocumentID: docID,
+			UserID:     userID,
+			Action:     action,
+			Details:    details,
+		}
+
+		repo.On("Create", mock.Anything, expectedReq).Return(uuid.Nil, expectedErr).Once()
+
+		err := svc.LogAction(context.Background(), expectedReq)
+		require.ErrorIs(t, err, expectedErr)
 	})
 }

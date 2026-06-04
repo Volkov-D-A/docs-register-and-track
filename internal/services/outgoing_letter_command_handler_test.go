@@ -155,6 +155,36 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
+	t.Run("rejects invalid nomenclature ID", func(t *testing.T) {
+		deps := setupOutgoingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+		)
+		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
+		req.NomenclatureID = "bad-id"
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный ID номенклатуры")
+		assert.Nil(t, result)
+	})
+
+	t.Run("rejects invalid document type", func(t *testing.T) {
+		deps := setupOutgoingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+		)
+		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
+		req.DocumentTypeID = "unknown"
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный тип документа")
+		assert.Nil(t, result)
+	})
+
 	t.Run("rejects invalid outgoing date", func(t *testing.T) {
 		deps := setupOutgoingLetterCommandHandler(
 			t,
@@ -185,6 +215,24 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		require.ErrorIs(t, err, expectedErr)
 		assert.Contains(t, err.Error(), "ошибка организации получателя")
 		assert.Nil(t, result)
+	})
+
+	t.Run("propagates repository error and skips journal", func(t *testing.T) {
+		expectedErr := errors.New("create failed")
+		recipientOrgID := uuid.New()
+		deps := setupOutgoingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+		)
+		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
+		deps.refRepo.On("FindOrCreateOrganization", "ООО Получатель").Return(&models.Organization{ID: recipientOrgID, Name: "ООО Получатель"}, nil).Once()
+		deps.repo.On("Create", mock.Anything).Return(nil, expectedErr).Once()
+
+		result, err := deps.handler.Register(req)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
+		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 
@@ -286,4 +334,120 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		require.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
+
+	t.Run("rejects invalid document type", func(t *testing.T) {
+		documentID := uuid.New()
+		deps := setupOutgoingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+			},
+		}
+
+		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{
+			ID:             documentID.String(),
+			DocumentTypeID: "unknown",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный тип документа")
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates recipient organization errors", func(t *testing.T) {
+		documentID := uuid.New()
+		expectedErr := errors.New("reference unavailable")
+		deps := setupOutgoingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+			},
+		}
+		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return((*models.Organization)(nil), expectedErr).Once()
+
+		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{
+			ID:               documentID.String(),
+			DocumentTypeID:   models.DocumentTypeLetter,
+			RecipientOrgName: "АО Новый получатель",
+		})
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Contains(t, err.Error(), "ошибка организации получателя")
+		assert.Nil(t, result)
+	})
+
+	t.Run("rejects invalid outgoing date", func(t *testing.T) {
+		documentID := uuid.New()
+		deps := setupOutgoingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+			},
+		}
+		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return(&models.Organization{ID: uuid.New(), Name: "АО Новый получатель"}, nil).Once()
+
+		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{
+			ID:               documentID.String(),
+			DocumentTypeID:   models.DocumentTypeLetter,
+			RecipientOrgName: "АО Новый получатель",
+			OutgoingDate:     "04.06.2026",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный формат даты исходящего документа")
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates repository error and skips journal", func(t *testing.T) {
+		documentID := uuid.New()
+		expectedErr := errors.New("update failed")
+		deps := setupOutgoingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+			},
+		}
+		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return(&models.Organization{ID: uuid.New(), Name: "АО Новый получатель"}, nil).Once()
+		deps.repo.On("Update", mock.Anything).Return(nil, expectedErr).Once()
+
+		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{
+			ID:               documentID.String(),
+			DocumentTypeID:   models.DocumentTypeLetter,
+			RecipientOrgName: "АО Новый получатель",
+			OutgoingDate:     "2026-06-04",
+		})
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
+		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	})
+}
+
+func TestOutgoingLetterCommandHandler_CommandInterface(t *testing.T) {
+	deps := setupOutgoingLetterCommandHandler(
+		t,
+		allowDocumentActions(models.DocumentKindOutgoingLetter, "create", "read", "update"),
+	)
+
+	registered, err := deps.handler.RegisterDocument(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid register request")
+	assert.Nil(t, registered)
+
+	updated, err := deps.handler.UpdateDocument(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid update request")
+	assert.Nil(t, updated)
 }

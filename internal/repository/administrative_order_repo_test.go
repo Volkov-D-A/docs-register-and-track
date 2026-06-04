@@ -7,6 +7,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -69,6 +70,115 @@ func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *te
 	require.Len(t, res.Items, 1)
 	assert.Equal(t, docID, res.Items[0].ID)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
+	t.Run("success with broad filters and pagination limits", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		filter := models.DocumentFilter{
+			AccessibleByUserID:         uuid.New().String(),
+			AllowedNomenclatureIDs:     []string{uuid.New().String()},
+			NomenclatureIDs:            []string{uuid.New().String(), uuid.New().String()},
+			DateFrom:                   "2026-01-01",
+			DateTo:                     "2026-12-31",
+			Search:                     "регламент",
+			OrderNumber:                "ПР",
+			ExecutionController:        "Контроль",
+			OnlyPendingAcknowledgment:  true,
+			OrderActiveStatus:          "active",
+			Page:                       -1,
+			PageSize:                   500,
+		}
+
+		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "nomenclature_id", "nomenclature_name",
+				"order_number", "order_date", "title",
+				"execution_controller", "execution_deadline", "is_active", "cancelled_at",
+				"created_by", "created_by_name",
+				"created_at", "updated_at",
+			}))
+
+		res, err := repo.GetList(filter)
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Empty(t, res.Items)
+		assert.Equal(t, 0, res.TotalCount)
+		assert.Equal(t, 1, res.Page)
+		assert.Equal(t, 100, res.PageSize)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("success with inactive status and defaults", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+
+		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "nomenclature_id", "nomenclature_name",
+				"order_number", "order_date", "title",
+				"execution_controller", "execution_deadline", "is_active", "cancelled_at",
+				"created_by", "created_by_name",
+				"created_at", "updated_at",
+			}))
+
+		res, err := repo.GetList(models.DocumentFilter{OrderActiveStatus: "inactive"})
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Empty(t, res.Items)
+		assert.Equal(t, 1, res.Page)
+		assert.Equal(t, 20, res.PageSize)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("count database error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+			WillReturnError(sql.ErrConnDone)
+
+		res, err := repo.GetList(models.DocumentFilter{Search: "test"})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to count administrative orders")
+		assert.Nil(t, res)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("data database error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+			WillReturnError(sql.ErrConnDone)
+
+		res, err := repo.GetList(models.DocumentFilter{})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get administrative orders")
+		assert.Nil(t, res)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func administrativeOrderAcknowledgmentPeopleRows(documentID uuid.UUID, now time.Time) *sqlmock.Rows {
@@ -159,6 +269,66 @@ func TestAdministrativeOrderRepository_GetAcknowledgmentPersonByID(t *testing.T)
 
 		require.NoError(t, err)
 		assert.Nil(t, person)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("fills missing acknowledgment fields from update result", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		personID := uuid.New()
+		documentID := uuid.New()
+		acknowledgedBy := uuid.New()
+		now := time.Now()
+		acknowledgedAt := now.Add(time.Hour)
+
+		mock.ExpectQuery(`UPDATE administrative_order_acknowledgment_people`).
+			WithArgs(personID, acknowledgedBy).
+			WillReturnRows(sqlmock.NewRows([]string{"document_id", "acknowledged_at"}).AddRow(documentID, acknowledgedAt))
+		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.id = \$1`).
+			WithArgs(personID).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
+				"acknowledged_by_name", "position", "created_at",
+			}).AddRow(personID, uuid.Nil, "Иванов И.И.", nil, nil, "", 1, now))
+
+		person, err := repo.MarkAcknowledgmentPerson(personID, acknowledgedBy)
+
+		require.NoError(t, err)
+		require.NotNil(t, person)
+		assert.Equal(t, documentID, person.DocumentID)
+		require.NotNil(t, person.AcknowledgedAt)
+		assert.Equal(t, acknowledgedAt, *person.AcknowledgedAt)
+		require.NotNil(t, person.AcknowledgedBy)
+		assert.Equal(t, acknowledgedBy, *person.AcknowledgedBy)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("person reload error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		personID := uuid.New()
+		documentID := uuid.New()
+		acknowledgedBy := uuid.New()
+		acknowledgedAt := time.Now()
+
+		mock.ExpectQuery(`UPDATE administrative_order_acknowledgment_people`).
+			WithArgs(personID, acknowledgedBy).
+			WillReturnRows(sqlmock.NewRows([]string{"document_id", "acknowledged_at"}).AddRow(documentID, acknowledgedAt))
+		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.id = \$1`).
+			WithArgs(personID).
+			WillReturnError(sql.ErrConnDone)
+
+		person, err := repo.MarkAcknowledgmentPerson(personID, acknowledgedBy)
+
+		require.Error(t, err)
+		assert.Nil(t, person)
+		assert.Contains(t, err.Error(), "failed to get administrative order acknowledgment person")
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
@@ -491,6 +661,128 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 	})
 }
 
+func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
+	t.Run("existing people load error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		docID := uuid.New()
+		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
+			WithArgs(docID).
+			WillReturnError(sql.ErrConnDone)
+
+		doc, err := repo.Update(models.UpdateAdministrativeOrderDocRequest{ID: docID})
+
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "failed to get administrative order acknowledgment people")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("begin transaction error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		docID := uuid.New()
+		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
+			WithArgs(docID).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
+				"acknowledged_by_name", "position", "created_at",
+			}))
+		mock.ExpectBegin().WillReturnError(sql.ErrConnDone)
+
+		doc, err := repo.Update(models.UpdateAdministrativeOrderDocRequest{ID: docID})
+
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "failed to begin transaction")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("root update error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		req := models.UpdateAdministrativeOrderDocRequest{
+			ID:        uuid.New(),
+			OrderDate: time.Now(),
+			Title:     "Приказ",
+			IsActive:  true,
+		}
+
+		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
+			WithArgs(req.ID).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
+				"acknowledged_by_name", "position", "created_at",
+			}))
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE documents SET`).
+			WithArgs(req.OrderDate, req.Title, req.ID, models.DocumentKindAdministrativeOrder).
+			WillReturnError(sql.ErrConnDone)
+		mock.ExpectRollback()
+
+		doc, err := repo.Update(req)
+
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "failed to update administrative order root")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("details update error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		req := models.UpdateAdministrativeOrderDocRequest{
+			ID:                  uuid.New(),
+			OrderDate:           time.Now(),
+			Title:               "Приказ",
+			ExecutionController: "Контроль",
+			IsActive:            true,
+		}
+
+		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
+			WithArgs(req.ID).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
+				"acknowledged_by_name", "position", "created_at",
+			}))
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE documents SET`).
+			WithArgs(req.OrderDate, req.Title, req.ID, models.DocumentKindAdministrativeOrder).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`UPDATE administrative_order_details SET`).
+			WithArgs(
+				req.OrderDate,
+				req.Title,
+				req.ExecutionController,
+				req.ExecutionDeadline,
+				req.IsActive,
+				req.CancelledAt,
+				req.ID,
+			).
+			WillReturnError(sql.ErrConnDone)
+		mock.ExpectRollback()
+
+		doc, err := repo.Update(req)
+
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "failed to update administrative order details")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
 func TestAdministrativeOrderRepository_Create(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
@@ -621,5 +913,96 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "failed to create administrative order details")
 		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("missing idempotency key", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		mock.ExpectBegin()
+		mock.ExpectRollback()
+
+		doc, err := repo.Create(models.CreateAdministrativeOrderDocRequest{
+			NomenclatureID: uuid.New(),
+			CreatedBy:      uuid.New(),
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "отсутствует ключ идемпотентности")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("root insert errors", func(t *testing.T) {
+		tests := []struct {
+			name       string
+			insertErr  error
+			wantErr    string
+			wantAppErr bool
+		}{
+			{
+				name:       "registration number conflict",
+				insertErr:  &pq.Error{Code: "23505", Constraint: "idx_documents_kind_registration_number_year"},
+				wantErr:    "документ с таким регистрационным номером уже существует",
+				wantAppErr: true,
+			},
+			{
+				name:      "generic root insert error",
+				insertErr: sql.ErrConnDone,
+				wantErr:   "failed to create administrative order root",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				db, mock, err := sqlmock.New()
+				require.NoError(t, err)
+				defer db.Close()
+
+				repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+				req := models.CreateAdministrativeOrderDocRequest{
+					NomenclatureID: uuid.New(),
+					IdempotencyKey: uuid.New(),
+					CreatedBy:      uuid.New(),
+					OrderNumber:    "ПР-005",
+					OrderDate:      time.Now(),
+					Title:          "О назначении ответственных",
+				}
+
+				mock.ExpectBegin()
+				mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
+					WithArgs(req.CreatedBy, models.DocumentKindAdministrativeOrder, req.IdempotencyKey).
+					WillReturnError(sql.ErrNoRows)
+				mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+					WithArgs(req.NomenclatureID).
+					WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
+						AddRow("04-01", "/", "manual_only", 1, string(models.DocumentKindAdministrativeOrder)))
+				mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
+					models.DocumentKindAdministrativeOrder,
+					req.NomenclatureID,
+					req.IdempotencyKey,
+					req.OrderNumber,
+					req.OrderDate,
+					models.DocumentTypeAdministrativeOrder,
+					req.Title,
+					req.CreatedBy,
+				).WillReturnError(tt.insertErr)
+				mock.ExpectRollback()
+
+				doc, err := repo.Create(req)
+
+				require.Error(t, err)
+				assert.Nil(t, doc)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				if tt.wantAppErr {
+					appErr, ok := models.AsAppError(err)
+					require.True(t, ok)
+					assert.Equal(t, "CONFLICT", appErr.Kind)
+				}
+				require.NoError(t, mock.ExpectationsWereMet())
+			})
+		}
 	})
 }

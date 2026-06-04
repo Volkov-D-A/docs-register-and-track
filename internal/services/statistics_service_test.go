@@ -268,6 +268,51 @@ func TestStatisticsService_GetSystemStatistics(t *testing.T) {
 	assert.Zero(t, stats.StorageObjects)
 }
 
+func TestParseStatisticsDateRange(t *testing.T) {
+	t.Run("defaults to current year", func(t *testing.T) {
+		start, end, err := parseStatisticsDateRange("", "")
+
+		require.NoError(t, err)
+		assert.Equal(t, time.Now().Year(), start.Year())
+		assert.Equal(t, time.January, start.Month())
+		assert.Equal(t, 1, start.Day())
+		assert.Equal(t, time.December, end.Month())
+		assert.Equal(t, 31, end.Day())
+	})
+
+	t.Run("valid range", func(t *testing.T) {
+		start, end, err := parseStatisticsDateRange("2026-01-02", "2026-03-04")
+
+		require.NoError(t, err)
+		assert.Equal(t, time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC), start)
+		assert.Equal(t, time.Date(2026, time.March, 4, 0, 0, 0, 0, time.UTC), end)
+	})
+
+	t.Run("invalid start date", func(t *testing.T) {
+		start, end, err := parseStatisticsDateRange("bad-date", "2026-03-04")
+
+		require.Error(t, err)
+		assert.True(t, start.IsZero())
+		assert.True(t, end.IsZero())
+	})
+
+	t.Run("invalid end date", func(t *testing.T) {
+		start, end, err := parseStatisticsDateRange("2026-01-02", "bad-date")
+
+		require.Error(t, err)
+		assert.True(t, start.IsZero())
+		assert.True(t, end.IsZero())
+	})
+
+	t.Run("end before start", func(t *testing.T) {
+		start, end, err := parseStatisticsDateRange("2026-03-04", "2026-01-02")
+
+		require.Error(t, err)
+		assert.True(t, start.IsZero())
+		assert.True(t, end.IsZero())
+	})
+}
+
 func TestStatisticsService_RejectsMissingPermission(t *testing.T) {
 	svc, _, _, _ := setupStatisticsService(t)
 

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -208,6 +209,54 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 		assert.Nil(t, deps.repo.createReq)
 	})
 
+	t.Run("rejects invalid nomenclature ID", func(t *testing.T) {
+		deps := setupCitizenAppealCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindCitizenAppeal, "create"),
+		)
+		req := validCitizenAppealRegisterRequest(uuid.New(), uuid.New())
+		req.NomenclatureID = "bad-id"
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный ID номенклатуры")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.createReq)
+	})
+
+	t.Run("rejects invalid idempotency key", func(t *testing.T) {
+		deps := setupCitizenAppealCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindCitizenAppeal, "create"),
+		)
+		req := validCitizenAppealRegisterRequest(uuid.New(), uuid.New())
+		req.IdempotencyKey = uuid.Nil.String()
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный ключ идемпотентности")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.createReq)
+	})
+
+	t.Run("rejects invalid registration date", func(t *testing.T) {
+		deps := setupCitizenAppealCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindCitizenAppeal, "create"),
+		)
+		req := validCitizenAppealRegisterRequest(uuid.New(), uuid.New())
+		req.RegistrationDate = "03.06.2026"
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный формат даты регистрации")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.createReq)
+	})
+
 	t.Run("rejects unsupported appeal type", func(t *testing.T) {
 		deps := setupCitizenAppealCommandHandler(
 			t,
@@ -240,6 +289,22 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 		assert.Nil(t, deps.repo.createReq)
 	})
 
+	t.Run("rejects missing appeal pages", func(t *testing.T) {
+		deps := setupCitizenAppealCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindCitizenAppeal, "create"),
+		)
+		req := validCitizenAppealRegisterRequest(uuid.New(), uuid.New())
+		req.AppealPagesCount = 0
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "укажите количество листов обращения")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.createReq)
+	})
+
 	t.Run("rejects negative attachment pages", func(t *testing.T) {
 		deps := setupCitizenAppealCommandHandler(
 			t,
@@ -252,6 +317,40 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "количество листов приложения не может быть отрицательным")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.createReq)
+	})
+
+	t.Run("rejects incomplete correspondent", func(t *testing.T) {
+		deps := setupCitizenAppealCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindCitizenAppeal, "create"),
+		)
+		req := validCitizenAppealRegisterRequest(uuid.New(), uuid.New())
+		req.Correspondents[0].CorrespondentName = " "
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "укажите корреспондента")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.createReq)
+	})
+
+	t.Run("wraps correspondent repository error", func(t *testing.T) {
+		expectedErr := errors.New("organization failed")
+		deps := setupCitizenAppealCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindCitizenAppeal, "create"),
+		)
+		req := validCitizenAppealRegisterRequest(uuid.New(), uuid.New())
+		req.Resolutions = nil
+		deps.refRepo.On("FindOrCreateOrganization", "Администрация").Return(nil, expectedErr).Once()
+
+		result, err := deps.handler.Register(req)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Contains(t, err.Error(), "ошибка корреспондента")
 		assert.Nil(t, result)
 		assert.Nil(t, deps.repo.createReq)
 	})
@@ -271,6 +370,25 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 		assert.Contains(t, err.Error(), "укажите текст резолюции")
 		assert.Nil(t, result)
 		assert.Nil(t, deps.repo.createReq)
+	})
+
+	t.Run("propagates repository error and skips journal", func(t *testing.T) {
+		expectedErr := errors.New("create failed")
+		deps := setupCitizenAppealCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindCitizenAppeal, "create"),
+		)
+		deps.repo.createErr = expectedErr
+		req := validCitizenAppealRegisterRequest(uuid.New(), uuid.New())
+		req.Resolutions = nil
+		deps.refRepo.On("FindOrCreateOrganization", "Администрация").Return(&models.Organization{ID: uuid.New(), Name: "Администрация"}, nil).Once()
+
+		result, err := deps.handler.Register(req)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
+		require.NotNil(t, deps.repo.createReq)
+		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 
@@ -399,5 +517,149 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 		assert.Contains(t, err.Error(), "укажите номер документа")
 		assert.Nil(t, result)
 		assert.Nil(t, deps.repo.updateReq)
+	})
+
+	t.Run("rejects invalid appeal date", func(t *testing.T) {
+		documentID := uuid.New()
+		deps := setupCitizenAppealCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindCitizenAppeal, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
+			},
+		}
+
+		result, err := deps.handler.Update(CitizenAppealUpdateRequest{
+			ID:                   documentID.String(),
+			RegistrationNumber:   "CA-20",
+			RegistrationDate:     "2026-06-04",
+			AppealDate:           "03.06.2026",
+			ApplicantFullName:    "Петр Петров",
+			RegistrationAddress:  "ул. Мира, 2",
+			AppealType:           AppealTypeApplication,
+			ApplicantCategory:    "пенсионер",
+			AppealPagesCount:     3,
+			AttachmentPagesCount: 0,
+			Content:              "Обновленное обращение",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный формат даты обращения")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.updateReq)
+	})
+
+	t.Run("propagates repository error and skips journal", func(t *testing.T) {
+		documentID := uuid.New()
+		expectedErr := errors.New("update failed")
+		deps := setupCitizenAppealCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindCitizenAppeal, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
+			},
+		}
+		deps.repo.updateErr = expectedErr
+
+		result, err := deps.handler.Update(CitizenAppealUpdateRequest{
+			ID:                   documentID.String(),
+			RegistrationNumber:   "CA-20",
+			RegistrationDate:     "2026-06-04",
+			AppealDate:           "2026-06-03",
+			ApplicantFullName:    "Петр Петров",
+			RegistrationAddress:  "ул. Мира, 2",
+			AppealType:           AppealTypeApplication,
+			ApplicantCategory:    "пенсионер",
+			AppealPagesCount:     3,
+			AttachmentPagesCount: 0,
+			Content:              "Обновленное обращение",
+		})
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
+		require.NotNil(t, deps.repo.updateReq)
+		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	})
+}
+
+func TestCitizenAppealCommandHandler_CommandInterface(t *testing.T) {
+	deps := setupCitizenAppealCommandHandler(
+		t,
+		allowDocumentActions(models.DocumentKindCitizenAppeal, "create", "read", "update"),
+	)
+
+	registered, err := deps.handler.RegisterDocument(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid register request")
+	assert.Nil(t, registered)
+
+	updated, err := deps.handler.UpdateDocument(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid update request")
+	assert.Nil(t, updated)
+}
+
+func TestCitizenAppealHelperValidation(t *testing.T) {
+	t.Run("required field errors", func(t *testing.T) {
+		tests := []struct {
+			name              string
+			applicantFullName string
+			registrationAddr  string
+			applicantCategory string
+			content           string
+			want              string
+		}{
+			{name: "missing registration address", applicantFullName: "Иван", registrationAddr: " ", applicantCategory: "гражданин", content: "текст", want: "укажите адрес регистрации"},
+			{name: "missing applicant category", applicantFullName: "Иван", registrationAddr: "адрес", applicantCategory: " ", content: "текст", want: "укажите категорию"},
+			{name: "missing content", applicantFullName: "Иван", registrationAddr: "адрес", applicantCategory: "гражданин", content: " ", want: "укажите краткое содержание"},
+			{name: "success", applicantFullName: "Иван", registrationAddr: "адрес", applicantCategory: "гражданин", content: "текст"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				err := validateCitizenAppealRequiredFields(tt.applicantFullName, tt.registrationAddr, tt.applicantCategory, tt.content)
+				if tt.want == "" {
+					require.NoError(t, err)
+					return
+				}
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.want)
+			})
+		}
+	})
+
+	t.Run("optional string pointer trims only for blank check", func(t *testing.T) {
+		assert.Nil(t, optionalStringPtr("   "))
+
+		value := optionalStringPtr("  значение  ")
+		require.NotNil(t, value)
+		assert.Equal(t, "  значение  ", *value)
+	})
+}
+
+func TestCitizenAppealCommandHandler_EnsureResolutionExecutors(t *testing.T) {
+	t.Run("skips empty executor names", func(t *testing.T) {
+		deps := setupCitizenAppealCommandHandler(t, nil)
+		deps.refRepo.On("FindOrCreateResolutionExecutor", "Исполнитель").Return(&models.ResolutionExecutor{ID: uuid.New(), Name: "Исполнитель"}, nil).Once()
+
+		err := deps.handler.ensureResolutionExecutors(" ; Исполнитель;  ")
+
+		require.NoError(t, err)
+		deps.refRepo.AssertExpectations(t)
+	})
+
+	t.Run("wraps repository error", func(t *testing.T) {
+		deps := setupCitizenAppealCommandHandler(t, nil)
+		deps.refRepo.On("FindOrCreateResolutionExecutor", "Исполнитель").Return(nil, assert.AnError).Once()
+
+		err := deps.handler.ensureResolutionExecutors("Исполнитель")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ошибка исполнителя резолюции")
+		deps.refRepo.AssertExpectations(t)
 	})
 }

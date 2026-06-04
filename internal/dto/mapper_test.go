@@ -222,29 +222,76 @@ func TestMapOutgoingDocument(t *testing.T) {
 
 func TestMapDocumentListItemsPagesCount(t *testing.T) {
 	t.Run("incoming", func(t *testing.T) {
+		assert.Nil(t, MapIncomingDocumentListItem(nil))
+
+		incomingDate := time.Now()
+		correspondentID := uuid.New()
+		resolution := "Исполнить"
+		resolutionAuthor := "Руководитель"
+		resolutionExecutors := "Исполнитель"
 		item := MapIncomingDocumentListItem(&models.IncomingDocument{
-			ID:             uuid.New(),
-			NomenclatureID: uuid.New(),
-			DocumentTypeID: models.DocumentTypeLetter,
-			CreatedBy:      uuid.New(),
-			PagesCount:     12,
+			ID:                  uuid.New(),
+			NomenclatureID:      uuid.New(),
+			NomenclatureName:    "01-01",
+			IncomingNumber:      "IN-12",
+			IncomingDate:        incomingDate,
+			DocumentTypeID:      models.DocumentTypeLetter,
+			DocumentTypeName:    "Письмо",
+			Content:             "Входящее",
+			CreatedBy:           uuid.New(),
+			CreatedByName:       "Регистратор",
+			PagesCount:          12,
+			Correspondents:      []models.DocumentCorrespondentRegistration{{CorrespondentOrgID: correspondentID, CorrespondentName: "Организация"}},
+			SenderSignatory:     "Подписант",
+			Resolution:          &resolution,
+			ResolutionAuthor:    &resolutionAuthor,
+			ResolutionExecutors: &resolutionExecutors,
 		})
 
 		require.NotNil(t, item)
 		assert.Equal(t, 12, item.PagesCount)
+		assert.Equal(t, "IN-12", item.RegistrationNumber)
+		require.NotNil(t, item.IncomingDate)
+		assert.Equal(t, incomingDate, *item.IncomingDate)
+		require.Len(t, item.Correspondents, 1)
+		assert.Equal(t, correspondentID.String(), item.Correspondents[0].CorrespondentOrgID)
+		assert.Equal(t, "Подписант", item.SenderSignatory)
+		require.NotNil(t, item.Resolution)
+		assert.Equal(t, "Исполнить", *item.Resolution)
+		require.NotNil(t, item.ResolutionAuthor)
+		assert.Equal(t, "Руководитель", *item.ResolutionAuthor)
+		require.NotNil(t, item.ResolutionExecutors)
+		assert.Equal(t, "Исполнитель", *item.ResolutionExecutors)
 	})
 
 	t.Run("outgoing", func(t *testing.T) {
+		assert.Nil(t, MapOutgoingDocumentListItem(nil))
+
+		outgoingDate := time.Now()
 		item := MapOutgoingDocumentListItem(&models.OutgoingDocument{
-			ID:             uuid.New(),
-			NomenclatureID: uuid.New(),
-			DocumentTypeID: models.DocumentTypeLetter,
-			CreatedBy:      uuid.New(),
-			PagesCount:     7,
+			ID:               uuid.New(),
+			NomenclatureID:   uuid.New(),
+			OutgoingNumber:   "OUT-7",
+			OutgoingDate:     outgoingDate,
+			DocumentTypeID:   models.DocumentTypeLetter,
+			Content:          "Исходящее",
+			CreatedBy:        uuid.New(),
+			PagesCount:       7,
+			RecipientOrgName: "Получатель",
+			Addressee:        "Адресат",
+			SenderSignatory:  "Подписант",
+			SenderExecutor:   "Исполнитель",
 		})
 
 		require.NotNil(t, item)
 		assert.Equal(t, 7, item.PagesCount)
+		assert.Equal(t, "OUT-7", item.RegistrationNumber)
+		require.NotNil(t, item.OutgoingDate)
+		assert.Equal(t, outgoingDate, *item.OutgoingDate)
+		assert.Equal(t, "Получатель", item.RecipientOrgName)
+		assert.Equal(t, "Адресат", item.Addressee)
+		assert.Equal(t, "Подписант", item.SenderSignatory)
+		assert.Equal(t, "Исполнитель", item.SenderExecutor)
 	})
 }
 

@@ -331,4 +331,20 @@ func TestDocumentKindQueryHandlers_ReturnRepositoryErrors(t *testing.T) {
 	list, err = outgoing.GetList(models.DocumentFilter{})
 	require.ErrorIs(t, err, repoErr)
 	assert.Nil(t, list)
+
+	citizenAppeal := NewCitizenAppealQueryHandler(&queryCitizenAppealDocStore{err: repoErr})
+	card, err = citizenAppeal.GetCard(uuid.New())
+	require.ErrorIs(t, err, repoErr)
+	assert.Nil(t, card)
+	list, err = citizenAppeal.GetList(models.DocumentFilter{})
+	require.ErrorIs(t, err, repoErr)
+	assert.Nil(t, list)
+
+	administrativeOrder := NewAdministrativeOrderQueryHandler(&queryAdministrativeOrderDocStore{err: repoErr})
+	card, err = administrativeOrder.GetCard(uuid.New())
+	require.ErrorIs(t, err, repoErr)
+	assert.Nil(t, card)
+	list, err = administrativeOrder.GetList(models.DocumentFilter{})
+	require.ErrorIs(t, err, repoErr)
+	assert.Nil(t, list)
 }

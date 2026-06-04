@@ -78,6 +78,33 @@ func TestThemeServiceIgnoresInvalidState(t *testing.T) {
 	}
 }
 
+func TestThemeServiceReadStateErrors(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "docflow")
+	if err := os.MkdirAll(statePath, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	service := &ThemeService{statePath: statePath}
+
+	if _, err := service.GetTheme(); err == nil {
+		t.Fatal("expected read error for directory state path")
+	}
+}
+
+func TestThemeServiceWriteStateErrors(t *testing.T) {
+	tempDir := t.TempDir()
+	blockingFile := filepath.Join(tempDir, "docflow")
+	if err := os.WriteFile(blockingFile, []byte("not a directory"), 0600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	service := &ThemeService{statePath: filepath.Join(blockingFile, "theme.json")}
+
+	if err := service.SetTheme(appThemeDark); err == nil {
+		t.Fatal("expected write error when parent path is a file")
+	}
+}
+
 func TestNormalizeAppTheme(t *testing.T) {
 	tests := []struct {
 		name     string

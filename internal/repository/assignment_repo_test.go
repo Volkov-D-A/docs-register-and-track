@@ -221,6 +221,104 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
+	t.Run("finished status hidden returns empty result before query", func(t *testing.T) {
+		db, _, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		res, err := NewAssignmentRepository(&database.DB{DB: db}).GetList(models.AssignmentFilter{
+			Status:       "finished",
+			ShowFinished: false,
+			Page:         3,
+			PageSize:     50,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Empty(t, res.Items)
+		assert.Equal(t, 0, res.TotalCount)
+		assert.Equal(t, 3, res.Page)
+		assert.Equal(t, 50, res.PageSize)
+	})
+
+	t.Run("success with broad filters and pagination limits", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAssignmentRepository(&database.DB{DB: db})
+		filter := models.AssignmentFilter{
+			DocumentID:           uuid.New().String(),
+			AllowedDocumentKinds: []string{string(models.DocumentKindIncomingLetter), string(models.DocumentKindOutgoingLetter)},
+			AccessibleByUserID:   uuid.New().String(),
+			ExecutorID:           uuid.New().String(),
+			OverdueOnly:          true,
+			Status:               "completed",
+			ShowFinished:         true,
+			DateFrom:             "2026-01-01",
+			DateTo:               "2026-12-31",
+			Search:               "контроль",
+			Page:                 -1,
+			PageSize:             500,
+		}
+
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM assignments a JOIN documents d ON d.id = a.document_id(.*)`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`SELECT(.*)FROM assignments a(.*)JOIN documents d ON d.id = a.document_id(.*)`).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "document_id", "kind", "executor_id", "full_name",
+				"content", "deadline", "status", "report", "completed_at",
+				"created_at", "updated_at", "doc_number", "doc_subject",
+			}))
+
+		res, err := repo.GetList(filter)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Empty(t, res.Items)
+		assert.Equal(t, 0, res.TotalCount)
+		assert.Equal(t, 1, res.Page)
+		assert.Equal(t, 100, res.PageSize)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("count database error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAssignmentRepository(&database.DB{DB: db})
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM assignments a JOIN documents d ON d.id = a.document_id(.*)`).
+			WillReturnError(sql.ErrConnDone)
+
+		res, err := repo.GetList(models.AssignmentFilter{Search: "test"})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to count assignments")
+		assert.Nil(t, res)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("data database error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewAssignmentRepository(&database.DB{DB: db})
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM assignments a JOIN documents d ON d.id = a.document_id(.*)`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(`SELECT(.*)FROM assignments a(.*)JOIN documents d ON d.id = a.document_id(.*)`).
+			WillReturnError(sql.ErrConnDone)
+
+		res, err := repo.GetList(models.AssignmentFilter{})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to list assignments")
+		assert.Nil(t, res)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
 func TestAssignmentRepository_DocumentAccess(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)

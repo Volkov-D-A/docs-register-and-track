@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -164,6 +165,21 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
+	t.Run("rejects invalid nomenclature ID", func(t *testing.T) {
+		deps := setupIncomingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindIncomingLetter, "create"),
+		)
+		req := validIncomingLetterRegisterRequest(uuid.New(), uuid.New())
+		req.NomenclatureID = "bad-id"
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный ID номенклатуры")
+		assert.Nil(t, result)
+	})
+
 	t.Run("rejects invalid document type", func(t *testing.T) {
 		deps := setupIncomingLetterCommandHandler(
 			t,
@@ -176,6 +192,21 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "неверный тип документа")
+		assert.Nil(t, result)
+	})
+
+	t.Run("rejects invalid incoming date", func(t *testing.T) {
+		deps := setupIncomingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindIncomingLetter, "create"),
+		)
+		req := validIncomingLetterRegisterRequest(uuid.New(), uuid.New())
+		req.IncomingDate = "03.06.2026"
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный формат даты поступления")
 		assert.Nil(t, result)
 	})
 
@@ -192,6 +223,58 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "неверный формат даты регистрации корреспондента")
 		assert.Nil(t, result)
+	})
+
+	t.Run("rejects empty correspondent rows", func(t *testing.T) {
+		deps := setupIncomingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindIncomingLetter, "create"),
+		)
+		req := validIncomingLetterRegisterRequest(uuid.New(), uuid.New())
+		req.Correspondents = []IncomingLetterCorrespondentRequest{{}}
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "укажите реквизиты корреспондента")
+		assert.Nil(t, result)
+	})
+
+	t.Run("wraps correspondent repository error", func(t *testing.T) {
+		deps := setupIncomingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindIncomingLetter, "create"),
+		)
+		req := validIncomingLetterRegisterRequest(uuid.New(), uuid.New())
+		expectedErr := errors.New("organization failed")
+		deps.refRepo.On("FindOrCreateOrganization", "ООО Ромашка").Return(nil, expectedErr).Once()
+
+		result, err := deps.handler.Register(req)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Contains(t, err.Error(), "ошибка корреспондента")
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates repository error and skips journal", func(t *testing.T) {
+		nomenclatureID := uuid.New()
+		idempotencyKey := uuid.New()
+		orgID := uuid.New()
+		expectedErr := errors.New("create failed")
+		deps := setupIncomingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindIncomingLetter, "create"),
+		)
+		req := validIncomingLetterRegisterRequest(nomenclatureID, idempotencyKey)
+
+		deps.refRepo.On("FindOrCreateOrganization", "ООО Ромашка").Return(&models.Organization{ID: orgID, Name: "ООО Ромашка"}, nil).Once()
+		deps.repo.On("Create", mock.Anything).Return(nil, expectedErr).Once()
+
+		result, err := deps.handler.Register(req)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
+		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 
@@ -297,4 +380,87 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 		require.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
+
+	t.Run("rejects invalid document type", func(t *testing.T) {
+		documentID := uuid.New()
+		deps := setupIncomingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindIncomingLetter, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter),
+			},
+		}
+
+		result, err := deps.handler.Update(IncomingLetterUpdateRequest{
+			ID:             documentID.String(),
+			DocumentTypeID: "unknown",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный тип документа")
+		assert.Nil(t, result)
+	})
+
+	t.Run("normalizes resolution executors and propagates repository error", func(t *testing.T) {
+		documentID := uuid.New()
+		orgID := uuid.New()
+		expectedErr := errors.New("update failed")
+		deps := setupIncomingLetterCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindIncomingLetter, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter),
+			},
+		}
+
+		deps.refRepo.On("FindOrCreateResolutionExecutor", "Иванов").Return(&models.ResolutionExecutor{ID: uuid.New(), Name: "Иванов"}, nil).Once()
+		deps.refRepo.On("FindOrCreateResolutionExecutor", "Петров").Return(&models.ResolutionExecutor{ID: uuid.New(), Name: "Петров"}, nil).Once()
+		deps.refRepo.On("FindOrCreateOrganization", "АО Василек").Return(&models.Organization{ID: orgID, Name: "АО Василек"}, nil).Once()
+		deps.repo.On("Update", mock.MatchedBy(func(updateReq models.UpdateIncomingDocRequest) bool {
+			return updateReq.Resolution != nil &&
+				updateReq.ResolutionAuthor != nil &&
+				updateReq.ResolutionExecutors != nil
+		})).Return(nil, expectedErr).Once()
+
+		result, err := deps.handler.Update(IncomingLetterUpdateRequest{
+			ID:                  documentID.String(),
+			DocumentTypeID:      models.DocumentTypeLetter,
+			Content:             "Updated content",
+			Resolution:          "Рассмотреть",
+			ResolutionAuthor:    "Руководитель",
+			ResolutionExecutors: "Иванов; ; Петров",
+			Correspondents: []IncomingLetterCorrespondentRequest{
+				{
+					RegistrationNumber: "B-2",
+					RegistrationDate:   "2026-06-01",
+					CorrespondentName:  "АО Василек",
+				},
+			},
+		})
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
+		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	})
+}
+
+func TestIncomingLetterCommandHandler_CommandInterface(t *testing.T) {
+	deps := setupIncomingLetterCommandHandler(
+		t,
+		allowDocumentActions(models.DocumentKindIncomingLetter, "create", "read", "update"),
+	)
+
+	registered, err := deps.handler.RegisterDocument(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid register request")
+	assert.Nil(t, registered)
+
+	updated, err := deps.handler.UpdateDocument(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid update request")
+	assert.Nil(t, updated)
 }

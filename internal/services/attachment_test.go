@@ -141,6 +141,26 @@ func setupAttachmentServiceNotAuth(t *testing.T) *AttachmentService {
 	return NewAttachmentService(attachRepo, settingsSvc, auth, journalSvc, nil, fileStorage, accessSvc)
 }
 
+func TestSafeDownloadFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		want     string
+	}{
+		{name: "keeps simple filename", filename: "report.pdf", want: "report.pdf"},
+		{name: "trims spaces", filename: "  report.pdf  ", want: "report.pdf"},
+		{name: "drops parent directories", filename: "../secret/report.pdf", want: "report.pdf"},
+		{name: "empty fallback", filename: "   ", want: "attachment"},
+		{name: "dot fallback", filename: ".", want: "attachment"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, safeDownloadFilename(tt.filename))
+		})
+	}
+}
+
 func TestAttachmentService_Upload(t *testing.T) {
 	// Загрузка нового файла вложения к документу (проверка размера, типа и сохранение)
 	docID := uuid.New()
@@ -404,6 +424,57 @@ func TestAttachmentService_BulkDeleteOlderThan(t *testing.T) {
 
 		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
 		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("invalid date", func(t *testing.T) {
+		svc, _, _, _, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"admin"})
+
+		count, err := svc.BulkDeleteOlderThan("not-a-date")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid date format")
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("repo fetch error", func(t *testing.T) {
+		svc, repo, _, _, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"admin"})
+		repo.On("GetOlderThan", mock.AnythingOfType("time.Time")).Return(nil, assert.AnError).Once()
+
+		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to fetch old attachments")
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("partial storage failure deletes successful records", func(t *testing.T) {
+		svc, repo, _, fileStorage, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"admin"})
+		firstID := uuid.New()
+		secondID := uuid.New()
+		attachments := []models.Attachment{
+			{ID: firstID, StoragePath: "ok.pdf"},
+			{ID: secondID, StoragePath: "missing.pdf"},
+		}
+		repo.On("GetOlderThan", mock.AnythingOfType("time.Time")).Return(attachments, nil).Once()
+		fileStorage.On("DeleteFile", mock.Anything, "ok.pdf").Return(nil).Once()
+		fileStorage.On("DeleteFile", mock.Anything, "missing.pdf").Return(assert.AnError).Once()
+		repo.On("DeleteMultiple", []uuid.UUID{firstID}).Return(nil).Once()
+
+		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("delete multiple error", func(t *testing.T) {
+		svc, repo, _, fileStorage, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"admin"})
+		attachmentID := uuid.New()
+		attachments := []models.Attachment{{ID: attachmentID, StoragePath: "ok.pdf"}}
+		repo.On("GetOlderThan", mock.AnythingOfType("time.Time")).Return(attachments, nil).Once()
+		fileStorage.On("DeleteFile", mock.Anything, "ok.pdf").Return(nil).Once()
+		repo.On("DeleteMultiple", []uuid.UUID{attachmentID}).Return(assert.AnError).Once()
+
+		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to delete records from db")
 		assert.Equal(t, 0, count)
 	})
 }

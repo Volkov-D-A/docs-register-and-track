@@ -8,6 +8,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -196,6 +197,80 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 		assert.Nil(t, res)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("success with broad filters and pagination limits", func(t *testing.T) {
+		filter := models.DocumentFilter{
+			AccessibleByUserID:     uuid.New().String(),
+			AllowedNomenclatureIDs: []string{uuid.New().String()},
+			NomenclatureIDs:        []string{uuid.New().String(), uuid.New().String()},
+			DateFrom:               "2026-01-01",
+			DateTo:                 "2026-12-31",
+			AppealDateFrom:         "2025-01-01",
+			AppealDateTo:           "2025-12-31",
+			RegistrationNumber:     "ОГ",
+			ApplicantName:          "Иван",
+			AppealType:             "жалоба",
+			OrgID:                  uuid.New().String(),
+			Search:                 "важно",
+			NoResolution:           true,
+			Page:                   -1,
+			PageSize:               500,
+		}
+
+		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents d\s+JOIN citizen_appeal_details ca ON ca.document_id = d.id`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(regexp.QuoteMeta(citizenAppealSelectBase)).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "nomenclature_id", "nomenclature_name",
+				"registration_number", "registration_date",
+				"appeal_date", "content", "pages_count",
+				"applicant_full_name", "registration_address", "appeal_type", "applicant_category",
+				"appeal_pages_count", "attachment_pages_count", "has_envelope", "received_from_pos",
+				"created_by", "created_by_name",
+				"created_at", "updated_at",
+			}))
+
+		res, err := repo.GetList(filter)
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Empty(t, res.Items)
+		assert.Equal(t, 0, res.TotalCount)
+		assert.Equal(t, 1, res.Page)
+		assert.Equal(t, 100, res.PageSize)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("success with alternate aliases and resolution filter", func(t *testing.T) {
+		filter := models.DocumentFilter{
+			NomenclatureID: uuid.New().String(),
+			IncomingNumber: "ОГ",
+			SenderName:     "Петров",
+			Resolution:     "исполнить",
+		}
+
+		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents d\s+JOIN citizen_appeal_details ca ON ca.document_id = d.id`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(regexp.QuoteMeta(citizenAppealSelectBase)).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "nomenclature_id", "nomenclature_name",
+				"registration_number", "registration_date",
+				"appeal_date", "content", "pages_count",
+				"applicant_full_name", "registration_address", "appeal_type", "applicant_category",
+				"appeal_pages_count", "attachment_pages_count", "has_envelope", "received_from_pos",
+				"created_by", "created_by_name",
+				"created_at", "updated_at",
+			}))
+
+		res, err := repo.GetList(filter)
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Empty(t, res.Items)
+		assert.Equal(t, 1, res.Page)
+		assert.Equal(t, 20, res.PageSize)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestCitizenAppealRepository_Create(t *testing.T) {
@@ -300,6 +375,159 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.Equal(t, docID, doc.ID)
 	assert.Equal(t, "ОГ-123", doc.RegistrationNumber)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCitizenAppealRepository_CreateMissingIdempotencyKey(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewCitizenAppealRepository(&database.DB{DB: db})
+	mock.ExpectBegin()
+	mock.ExpectRollback()
+
+	doc, err := repo.Create(models.CreateCitizenAppealDocRequest{
+		NomenclatureID: uuid.New(),
+		CreatedBy:      uuid.New(),
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, doc)
+	assert.Contains(t, err.Error(), "отсутствует ключ идемпотентности")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCitizenAppealRepository_CreateRootInsertErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		insertErr  error
+		wantErr    string
+		wantAppErr bool
+	}{
+		{
+			name:       "registration number conflict",
+			insertErr:  &pq.Error{Code: "23505", Constraint: "idx_documents_kind_registration_number_year"},
+			wantErr:    "документ с таким регистрационным номером уже существует",
+			wantAppErr: true,
+		},
+		{
+			name:      "generic root insert error",
+			insertErr: sql.ErrConnDone,
+			wantErr:   "failed to create citizen appeal root",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer db.Close()
+
+			repo := NewCitizenAppealRepository(&database.DB{DB: db})
+			req := models.CreateCitizenAppealDocRequest{
+				NomenclatureID:     uuid.New(),
+				IdempotencyKey:     uuid.New(),
+				CreatedBy:          uuid.New(),
+				RegistrationNumber: "ОГ-002",
+				RegistrationDate:   time.Now(),
+				AppealDate:         time.Now(),
+				Content:            "Текст",
+			}
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
+				WithArgs(req.CreatedBy, models.DocumentKindCitizenAppeal, req.IdempotencyKey).
+				WillReturnError(sql.ErrNoRows)
+			mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+				WithArgs(req.NomenclatureID).
+				WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
+					AddRow("03-01", "/", "manual_only", 1, string(models.DocumentKindCitizenAppeal)))
+			mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
+				models.DocumentKindCitizenAppeal,
+				req.NomenclatureID,
+				req.IdempotencyKey,
+				req.RegistrationNumber,
+				req.RegistrationDate,
+				models.DocumentTypeCitizenAppeal,
+				req.Content,
+				1,
+				req.CreatedBy,
+			).WillReturnError(tt.insertErr)
+			mock.ExpectRollback()
+
+			doc, err := repo.Create(req)
+
+			require.Error(t, err)
+			assert.Nil(t, doc)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			if tt.wantAppErr {
+				appErr, ok := models.AsAppError(err)
+				require.True(t, ok)
+				assert.Equal(t, "CONFLICT", appErr.Kind)
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestCitizenAppealRepository_CreateDetailsInsertError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewCitizenAppealRepository(&database.DB{DB: db})
+	docID := uuid.New()
+	req := models.CreateCitizenAppealDocRequest{
+		NomenclatureID:     uuid.New(),
+		IdempotencyKey:     uuid.New(),
+		CreatedBy:          uuid.New(),
+		RegistrationNumber: "ОГ-003",
+		RegistrationDate:   time.Now(),
+		AppealDate:         time.Now(),
+		Content:            "Текст",
+		ApplicantFullName:  "Иван Иванов",
+		AppealType:         "жалоба",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
+		WithArgs(req.CreatedBy, models.DocumentKindCitizenAppeal, req.IdempotencyKey).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+		WithArgs(req.NomenclatureID).
+		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
+			AddRow("03-01", "/", "manual_only", 1, string(models.DocumentKindCitizenAppeal)))
+	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
+		models.DocumentKindCitizenAppeal,
+		req.NomenclatureID,
+		req.IdempotencyKey,
+		req.RegistrationNumber,
+		req.RegistrationDate,
+		models.DocumentTypeCitizenAppeal,
+		req.Content,
+		1,
+		req.CreatedBy,
+	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
+	mock.ExpectExec(`INSERT INTO citizen_appeal_details`).WithArgs(
+		docID,
+		req.AppealDate,
+		req.ApplicantFullName,
+		req.RegistrationAddress,
+		req.AppealType,
+		req.ApplicantCategory,
+		req.AppealPagesCount,
+		req.AttachmentPagesCount,
+		req.HasEnvelope,
+		req.ReceivedFromPOS,
+	).WillReturnError(sql.ErrConnDone)
+	mock.ExpectRollback()
+
+	doc, err := repo.Create(req)
+
+	require.Error(t, err)
+	assert.Nil(t, doc)
+	assert.Contains(t, err.Error(), "failed to create citizen appeal details")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

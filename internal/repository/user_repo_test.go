@@ -334,3 +334,61 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestUserRepository_GetDepartmentNomenclatureIDs(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewUserRepository(&database.DB{DB: db})
+		departmentID := uuid.New()
+		firstID := uuid.New()
+		secondID := uuid.New()
+
+		mock.ExpectQuery(`SELECT nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = \$1`).
+			WithArgs(departmentID).
+			WillReturnRows(sqlmock.NewRows([]string{"nomenclature_id"}).AddRow(firstID).AddRow(secondID))
+
+		ids, err := repo.getDepartmentNomenclatureIDs(departmentID)
+		require.NoError(t, err)
+		assert.Equal(t, []string{firstID.String(), secondID.String()}, ids)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewUserRepository(&database.DB{DB: db})
+		departmentID := uuid.New()
+
+		mock.ExpectQuery(`SELECT nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = \$1`).
+			WithArgs(departmentID).
+			WillReturnError(sql.ErrConnDone)
+
+		ids, err := repo.getDepartmentNomenclatureIDs(departmentID)
+		require.ErrorIs(t, err, sql.ErrConnDone)
+		assert.Nil(t, ids)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("scan error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewUserRepository(&database.DB{DB: db})
+		departmentID := uuid.New()
+
+		mock.ExpectQuery(`SELECT nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = \$1`).
+			WithArgs(departmentID).
+			WillReturnRows(sqlmock.NewRows([]string{"nomenclature_id"}).AddRow("not-a-uuid"))
+
+		ids, err := repo.getDepartmentNomenclatureIDs(departmentID)
+		require.Error(t, err)
+		assert.Nil(t, ids)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}

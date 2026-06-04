@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -187,6 +188,54 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 		assert.Nil(t, deps.repo.createReq)
 	})
 
+	t.Run("rejects invalid nomenclature ID", func(t *testing.T) {
+		deps := setupAdministrativeOrderCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+		)
+		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
+		req.NomenclatureID = "bad-id"
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный ID номенклатуры")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.createReq)
+	})
+
+	t.Run("rejects invalid idempotency key", func(t *testing.T) {
+		deps := setupAdministrativeOrderCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+		)
+		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
+		req.IdempotencyKey = uuid.Nil.String()
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный ключ идемпотентности")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.createReq)
+	})
+
+	t.Run("rejects invalid order date", func(t *testing.T) {
+		deps := setupAdministrativeOrderCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+		)
+		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
+		req.OrderDate = "03.06.2026"
+
+		result, err := deps.handler.Register(req)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный формат даты приказа")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.createReq)
+	})
+
 	t.Run("rejects active order with cancellation date", func(t *testing.T) {
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
@@ -249,6 +298,23 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 		assert.Contains(t, err.Error(), "неверный формат срока выполнения")
 		assert.Nil(t, result)
 		assert.Nil(t, deps.repo.createReq)
+	})
+
+	t.Run("propagates repository error and skips journal", func(t *testing.T) {
+		expectedErr := errors.New("create failed")
+		deps := setupAdministrativeOrderCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+		)
+		deps.repo.createErr = expectedErr
+		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
+
+		result, err := deps.handler.Register(req)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
+		require.NotNil(t, deps.repo.createReq)
+		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 
@@ -365,4 +431,125 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Nil(t, deps.repo.updateReq)
 	})
+
+	t.Run("rejects invalid order date", func(t *testing.T) {
+		documentID := uuid.New()
+		deps := setupAdministrativeOrderCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+			},
+		}
+
+		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{
+			ID:                  documentID.String(),
+			OrderDate:           "04.06.2026",
+			ExecutionController: "Контроль",
+			IsActive:            true,
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный формат даты приказа")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.updateReq)
+	})
+
+	t.Run("rejects invalid deadline date", func(t *testing.T) {
+		documentID := uuid.New()
+		deps := setupAdministrativeOrderCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+			},
+		}
+
+		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{
+			ID:                  documentID.String(),
+			OrderDate:           "2026-06-04",
+			ExecutionDeadline:   "30.06.2026",
+			ExecutionController: "Контроль",
+			IsActive:            true,
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "неверный формат срока выполнения")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.updateReq)
+	})
+
+	t.Run("rejects empty execution controller", func(t *testing.T) {
+		documentID := uuid.New()
+		deps := setupAdministrativeOrderCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+			},
+		}
+
+		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{
+			ID:                  documentID.String(),
+			OrderDate:           "2026-06-04",
+			ExecutionController: " ",
+			IsActive:            true,
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "укажите контроль за выполнением")
+		assert.Nil(t, result)
+		assert.Nil(t, deps.repo.updateReq)
+	})
+
+	t.Run("propagates repository error and skips journal", func(t *testing.T) {
+		documentID := uuid.New()
+		expectedErr := errors.New("update failed")
+		deps := setupAdministrativeOrderCommandHandler(
+			t,
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+		)
+		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+			docs: map[uuid.UUID]models.Document{
+				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+			},
+		}
+		deps.repo.updateErr = expectedErr
+
+		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{
+			ID:                  documentID.String(),
+			OrderDate:           "2026-06-04",
+			Title:               "Обновленный приказ",
+			ExecutionController: "Контроль",
+			IsActive:            true,
+		})
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
+		require.NotNil(t, deps.repo.updateReq)
+		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	})
+}
+
+func TestAdministrativeOrderCommandHandler_CommandInterface(t *testing.T) {
+	deps := setupAdministrativeOrderCommandHandler(
+		t,
+		allowDocumentActions(models.DocumentKindAdministrativeOrder, "create", "read", "update"),
+	)
+
+	registered, err := deps.handler.RegisterDocument(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid register request")
+	assert.Nil(t, registered)
+
+	updated, err := deps.handler.UpdateDocument(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid update request")
+	assert.Nil(t, updated)
 }

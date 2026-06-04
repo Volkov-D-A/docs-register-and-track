@@ -10,6 +10,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -150,6 +151,172 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestOutgoingDocumentRepository_CreateValidationErrors(t *testing.T) {
+	t.Run("invalid document type", func(t *testing.T) {
+		db, _, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+
+		doc, err := repo.Create(models.CreateOutgoingDocRequest{DocumentTypeID: "unknown"})
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "неверный тип документа")
+	})
+
+	t.Run("missing idempotency key", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		mock.ExpectBegin()
+		mock.ExpectRollback()
+
+		doc, err := repo.Create(models.CreateOutgoingDocRequest{
+			NomenclatureID: uuid.New(),
+			CreatedBy:      uuid.New(),
+			DocumentTypeID: models.DocumentTypeLetter,
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "отсутствует ключ идемпотентности")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestOutgoingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		insertErr  error
+		wantErr    string
+		wantAppErr bool
+	}{
+		{
+			name:       "registration number conflict",
+			insertErr:  &pq.Error{Code: "23505", Constraint: "idx_documents_kind_registration_number_year"},
+			wantErr:    "документ с таким регистрационным номером уже существует",
+			wantAppErr: true,
+		},
+		{
+			name:      "generic root insert error",
+			insertErr: sql.ErrConnDone,
+			wantErr:   "failed to create document root",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer db.Close()
+
+			repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+			req := models.CreateOutgoingDocRequest{
+				NomenclatureID: uuid.New(),
+				IdempotencyKey: uuid.New(),
+				CreatedBy:      uuid.New(),
+				OutgoingNumber: "ИСХ-002",
+				OutgoingDate:   time.Now(),
+				DocumentTypeID: models.DocumentTypeLetter,
+				Content:        "Текст",
+				RecipientOrgID: uuid.New(),
+			}
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
+				WithArgs(req.CreatedBy, models.DocumentKindOutgoingLetter, req.IdempotencyKey).
+				WillReturnError(sql.ErrNoRows)
+			mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+				WithArgs(req.NomenclatureID).
+				WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
+					AddRow("02-01", "/", "manual_only", 1, string(models.DocumentKindOutgoingLetter)))
+			mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
+				models.DocumentKindOutgoingLetter,
+				req.NomenclatureID,
+				req.IdempotencyKey,
+				req.OutgoingNumber,
+				req.OutgoingDate,
+				req.DocumentTypeID,
+				req.Content,
+				req.PagesCount,
+				req.CreatedBy,
+			).WillReturnError(tt.insertErr)
+			mock.ExpectRollback()
+
+			doc, err := repo.Create(req)
+
+			require.Error(t, err)
+			assert.Nil(t, doc)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			if tt.wantAppErr {
+				appErr, ok := models.AsAppError(err)
+				require.True(t, ok)
+				assert.Equal(t, "CONFLICT", appErr.Kind)
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestOutgoingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	docID := uuid.New()
+	req := models.CreateOutgoingDocRequest{
+		NomenclatureID: uuid.New(),
+		IdempotencyKey: uuid.New(),
+		CreatedBy:      uuid.New(),
+		OutgoingNumber: "ИСХ-003",
+		OutgoingDate:   time.Now(),
+		DocumentTypeID: models.DocumentTypeLetter,
+		Content:        "Текст",
+		RecipientOrgID: uuid.New(),
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
+		WithArgs(req.CreatedBy, models.DocumentKindOutgoingLetter, req.IdempotencyKey).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+		WithArgs(req.NomenclatureID).
+		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
+			AddRow("02-01", "/", "manual_only", 1, string(models.DocumentKindOutgoingLetter)))
+	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
+		models.DocumentKindOutgoingLetter,
+		req.NomenclatureID,
+		req.IdempotencyKey,
+		req.OutgoingNumber,
+		req.OutgoingDate,
+		req.DocumentTypeID,
+		req.Content,
+		req.PagesCount,
+		req.CreatedBy,
+	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
+	mock.ExpectExec(`INSERT INTO outgoing_document_details`).WithArgs(
+		docID,
+		req.OutgoingNumber,
+		req.OutgoingDate,
+		req.SenderSignatory,
+		req.SenderExecutor,
+		req.RecipientOrgID,
+		req.Addressee,
+	).WillReturnError(sql.ErrConnDone)
+	mock.ExpectRollback()
+
+	doc, err := repo.Create(req)
+
+	require.Error(t, err)
+	assert.Nil(t, doc)
+	assert.Contains(t, err.Error(), "failed to create outgoing document details")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 	// Получение списка исходящих документов с фильтрацией (по номенклатуре) и пагинацией
 	db, mock, err := sqlmock.New()
@@ -218,6 +385,69 @@ func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 		assert.Nil(t, res)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("success with broad filters and pagination limits", func(t *testing.T) {
+		filter := models.OutgoingDocumentFilter{
+			AccessibleByUserID:     uuid.New().String(),
+			AllowedNomenclatureIDs: []string{uuid.New().String()},
+			NomenclatureIDs:        []string{uuid.New().String(), uuid.New().String()},
+			DocumentTypeID:         string(models.DocumentTypeContract),
+			OrgID:                  uuid.New().String(),
+			DateFrom:               "2026-01-01",
+			DateTo:                 "2026-12-31",
+			Search:                 "важно",
+			OutgoingNumber:         "ИСХ",
+			RecipientName:          "Ромашка",
+			Page:                   -1,
+			PageSize:               500,
+		}
+
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN outgoing_document_details out ON out.document_id = d.id(.*)`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`SELECT(.*)FROM documents d(.*)JOIN outgoing_document_details out ON out.document_id = d.id(.*)`).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "nomenclature_id", "nomenclature_name",
+				"outgoing_number", "outgoing_date",
+				"document_type", "document_type_name",
+				"content", "pages_count",
+				"sender_signatory", "sender_executor",
+				"recipient_org_id", "recipient_org_name", "addressee",
+				"created_by", "created_by_name",
+				"created_at", "updated_at",
+			}))
+
+		res, err := repo.GetList(filter)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Empty(t, res.Items)
+		assert.Equal(t, 0, res.TotalCount)
+		assert.Equal(t, 1, res.Page)
+		assert.Equal(t, 100, res.PageSize)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("success with default pagination", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN outgoing_document_details out ON out.document_id = d.id(.*)`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`SELECT(.*)FROM documents d(.*)JOIN outgoing_document_details out ON out.document_id = d.id(.*)`).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "nomenclature_id", "nomenclature_name",
+				"outgoing_number", "outgoing_date",
+				"document_type", "document_type_name",
+				"content", "pages_count",
+				"sender_signatory", "sender_executor",
+				"recipient_org_id", "recipient_org_name", "addressee",
+				"created_by", "created_by_name",
+				"created_at", "updated_at",
+			}))
+
+		res, err := repo.GetList(models.OutgoingDocumentFilter{})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, 1, res.Page)
+		assert.Equal(t, 20, res.PageSize)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestOutgoingDocumentRepository_Update(t *testing.T) {
@@ -271,4 +501,94 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 	assert.Equal(t, docID, doc.ID)
 	assert.Equal(t, "Обновленный текст", doc.Content)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutgoingDocumentRepository_UpdateErrors(t *testing.T) {
+	t.Run("invalid document type", func(t *testing.T) {
+		db, _, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+
+		doc, err := repo.Update(models.UpdateOutgoingDocRequest{DocumentTypeID: "unknown"})
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "неверный тип документа")
+	})
+
+	t.Run("begin transaction error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		mock.ExpectBegin().WillReturnError(sql.ErrConnDone)
+
+		doc, err := repo.Update(models.UpdateOutgoingDocRequest{DocumentTypeID: models.DocumentTypeLetter})
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "failed to begin transaction")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("root update error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		req := models.UpdateOutgoingDocRequest{
+			ID:             uuid.New(),
+			DocumentTypeID: models.DocumentTypeLetter,
+			Content:        "Текст",
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE documents SET`).
+			WithArgs(req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindOutgoingLetter).
+			WillReturnError(sql.ErrConnDone)
+		mock.ExpectRollback()
+
+		doc, err := repo.Update(req)
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "failed to update document root")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("details update error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		req := models.UpdateOutgoingDocRequest{
+			ID:             uuid.New(),
+			DocumentTypeID: models.DocumentTypeLetter,
+			Content:        "Текст",
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE documents SET`).
+			WithArgs(req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindOutgoingLetter).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`UPDATE outgoing_document_details SET`).
+			WithArgs(
+				req.OutgoingDate,
+				req.SenderSignatory,
+				req.SenderExecutor,
+				req.RecipientOrgID,
+				req.Addressee,
+				req.ID,
+			).
+			WillReturnError(sql.ErrConnDone)
+		mock.ExpectRollback()
+
+		doc, err := repo.Update(req)
+		require.Error(t, err)
+		assert.Nil(t, doc)
+		assert.Contains(t, err.Error(), "failed to update outgoing document details")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }

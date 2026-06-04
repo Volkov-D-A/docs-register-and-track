@@ -431,6 +431,95 @@ func TestDocumentAccessService_ResolveReadableDocuments(t *testing.T) {
 	assert.NotContains(t, readable, deniedID)
 }
 
+type bulkDocumentAccessStore struct {
+	accessible map[uuid.UUID]struct{}
+	err        error
+}
+
+func (s *bulkDocumentAccessStore) GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.accessible, nil
+}
+
+func TestResolveBulkAccessibleDocumentIDs(t *testing.T) {
+	t.Run("store without bulk support", func(t *testing.T) {
+		ids, bulkAvailable, err := resolveBulkAccessibleDocumentIDs(struct{}{}, uuid.New(), []uuid.UUID{uuid.New()})
+
+		require.NoError(t, err)
+		assert.False(t, bulkAvailable)
+		assert.Empty(t, ids)
+	})
+
+	t.Run("returns bulk accessible ids", func(t *testing.T) {
+		documentID := uuid.New()
+		store := &bulkDocumentAccessStore{accessible: map[uuid.UUID]struct{}{documentID: {}}}
+
+		ids, bulkAvailable, err := resolveBulkAccessibleDocumentIDs(store, uuid.New(), []uuid.UUID{documentID})
+
+		require.NoError(t, err)
+		assert.True(t, bulkAvailable)
+		assert.Contains(t, ids, documentID)
+	})
+
+	t.Run("propagates bulk errors", func(t *testing.T) {
+		expectedErr := errors.New("bulk access failed")
+		store := &bulkDocumentAccessStore{err: expectedErr}
+
+		ids, bulkAvailable, err := resolveBulkAccessibleDocumentIDs(store, uuid.New(), []uuid.UUID{uuid.New()})
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.True(t, bulkAvailable)
+		assert.Nil(t, ids)
+	})
+}
+
+func TestDocumentAccessService_HasImplicitReadAccess(t *testing.T) {
+	t.Run("nil document is not found", func(t *testing.T) {
+		deps := setupDocumentAccessService(t, documentAccessUser(true, nil), nil)
+
+		ok, err := deps.service.hasImplicitReadAccess(nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "документ не найден")
+		assert.False(t, ok)
+	})
+
+	t.Run("non participant is denied without repository checks", func(t *testing.T) {
+		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
+
+		ok, err := deps.service.hasImplicitReadAccess(&models.Document{ID: uuid.New()})
+
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("propagates assignment access error", func(t *testing.T) {
+		departmentID := uuid.New()
+		expectedErr := errors.New("assignment access failed")
+		deps := setupDocumentAccessService(t, documentAccessUser(true, &departmentID), nil)
+		deps.assignRepo.err = expectedErr
+
+		ok, err := deps.service.hasImplicitReadAccess(&models.Document{ID: uuid.New(), NomenclatureID: uuid.New()})
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.False(t, ok)
+	})
+
+	t.Run("propagates acknowledgment access error after assignment miss", func(t *testing.T) {
+		departmentID := uuid.New()
+		expectedErr := errors.New("acknowledgment access failed")
+		deps := setupDocumentAccessService(t, documentAccessUser(true, &departmentID), nil)
+		deps.ackRepo.err = expectedErr
+
+		ok, err := deps.service.hasImplicitReadAccess(&models.Document{ID: uuid.New(), NomenclatureID: uuid.New()})
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.False(t, ok)
+	})
+}
+
 func TestDocumentAccessService_RequireResolvedRead(t *testing.T) {
 	t.Run("allows explicit read permission", func(t *testing.T) {
 		documentID := uuid.New()
