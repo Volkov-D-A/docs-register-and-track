@@ -113,6 +113,28 @@ func TestJournalService_GetByDocumentID(t *testing.T) {
 		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
+
+	t.Run("returns repository error", func(t *testing.T) {
+		svc, repo, _, _, _ := setupJournalService(t, "clerk")
+		expectedErr := errors.New("journal lookup failed")
+		repo.On("GetByDocumentID", mock.Anything, docID).Return(nil, expectedErr).Once()
+
+		result, err := svc.GetByDocumentID(docID.String())
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
+	})
+
+	t.Run("falls back to authentication when access service is absent", func(t *testing.T) {
+		svc, repo, _, _, _ := setupJournalService(t, "clerk")
+		svc.access = nil
+		repo.On("GetByDocumentID", mock.Anything, docID).Return([]models.JournalEntry{}, nil).Once()
+
+		result, err := svc.GetByDocumentID(docID.String())
+
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
 }
 
 func TestJournalService_LogAction(t *testing.T) {

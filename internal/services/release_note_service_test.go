@@ -155,6 +155,82 @@ changes:
 	}
 }
 
+func TestReleaseNoteServiceStateErrors(t *testing.T) {
+	t.Run("get current returns read error", func(t *testing.T) {
+		statePath := filepath.Join(t.TempDir(), "state-dir")
+		if err := os.MkdirAll(statePath, 0755); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
+		service := &ReleaseNoteService{
+			currentRelease: mustParseRelease(t, []byte(`version: 1.1.0
+releasedAt: 2026-03-29
+changes:
+  - title: Новый блок
+    description: Описание.
+`)),
+			statePath: statePath,
+		}
+
+		current, err := service.GetCurrent()
+
+		if err == nil {
+			t.Fatal("expected read error")
+		}
+		if current != nil {
+			t.Fatalf("expected nil current on read error, got %#v", current)
+		}
+	})
+
+	t.Run("invalid state json is ignored", func(t *testing.T) {
+		statePath := filepath.Join(t.TempDir(), "docflow", "state.json")
+		if err := os.MkdirAll(filepath.Dir(statePath), 0755); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
+		if err := os.WriteFile(statePath, []byte("{invalid"), 0600); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+		service := &ReleaseNoteService{
+			currentRelease: mustParseRelease(t, []byte(`version: 1.1.0
+releasedAt: 2026-03-29
+changes:
+  - title: Новый блок
+    description: Описание.
+`)),
+			statePath: statePath,
+		}
+
+		current, err := service.GetCurrent()
+
+		if err != nil {
+			t.Fatalf("GetCurrent() error = %v", err)
+		}
+		if current.IsViewed {
+			t.Fatal("expected invalid state to be ignored")
+		}
+	})
+
+	t.Run("mark viewed returns mkdir error", func(t *testing.T) {
+		tempDir := t.TempDir()
+		blockingFile := filepath.Join(tempDir, "docflow")
+		if err := os.WriteFile(blockingFile, []byte("not a directory"), 0600); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+		service := &ReleaseNoteService{
+			currentRelease: mustParseRelease(t, []byte(`version: 1.1.0
+releasedAt: 2026-03-29
+changes:
+  - title: Новый блок
+    description: Описание.
+`)),
+			statePath: filepath.Join(blockingFile, "state.json"),
+		}
+
+		if err := service.MarkCurrentViewed(); err == nil {
+			t.Fatal("expected save error")
+		}
+	})
+}
+
 func mustParseRelease(t *testing.T, source []byte) models.ReleaseNote {
 	t.Helper()
 

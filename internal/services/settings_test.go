@@ -100,6 +100,25 @@ func TestSettingsService_GetAll(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 	})
+
+	t.Run("forbidden executor", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "executor")
+
+		result, err := svc.GetAll()
+
+		require.ErrorIs(t, err, models.ErrForbidden)
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates repository error", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("GetAll").Return(nil, assert.AnError).Once()
+
+		result, err := svc.GetAll()
+
+		require.ErrorIs(t, err, assert.AnError)
+		assert.Nil(t, result)
+	})
 }
 
 func TestSettingsService_Update(t *testing.T) {
@@ -324,6 +343,22 @@ func TestSettingsService_GetMaxFileSize(t *testing.T) {
 	t.Run("default on error", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
 		repo.On("Get", "max_file_size_mb").Return((*models.SystemSetting)(nil), assert.AnError).Once()
+		size, err := svc.GetMaxFileSize()
+		require.NoError(t, err)
+		assert.Equal(t, int64(15*1024*1024), size)
+	})
+
+	t.Run("default on empty setting", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: " "}, nil).Once()
+		size, err := svc.GetMaxFileSize()
+		require.NoError(t, err)
+		assert.Equal(t, int64(15*1024*1024), size)
+	})
+
+	t.Run("default on invalid setting", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "large"}, nil).Once()
 		size, err := svc.GetMaxFileSize()
 		require.NoError(t, err)
 		assert.Equal(t, int64(15*1024*1024), size)

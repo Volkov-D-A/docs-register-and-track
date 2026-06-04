@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
@@ -269,5 +270,27 @@ func TestUserService_GetExecutors(t *testing.T) {
 		result, err := svc.GetExecutors()
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
+	})
+
+	t.Run("rejects unauthenticated user", func(t *testing.T) {
+		repo := mocks.NewUserStore(t)
+		auth := NewAuthService(nil, mocks.NewUserStore(t))
+		svc := NewUserService(repo, auth, nil)
+
+		result, err := svc.GetExecutors()
+
+		require.ErrorIs(t, err, ErrNotAuthenticated)
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates repository error", func(t *testing.T) {
+		expectedErr := errors.New("executors failed")
+		svc, repo := setupUserService(t, "executor")
+		repo.On("GetExecutors").Return(nil, expectedErr).Once()
+
+		result, err := svc.GetExecutors()
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, result)
 	})
 }

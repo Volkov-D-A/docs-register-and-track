@@ -827,3 +827,135 @@ func TestDocumentAccessService_RequireReadAnyType(t *testing.T) {
 
 	require.NoError(t, err)
 }
+
+func TestDocumentAccessService_GetDocumentFallbackRepositories(t *testing.T) {
+	t.Run("maps incoming document when root repository is absent", func(t *testing.T) {
+		documentID := uuid.New()
+		nomenclatureID := uuid.New()
+		now := time.Now()
+		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
+		deps.service.documentRepo = nil
+		deps.service.incomingRepo = &queryIncomingDocStore{
+			doc: &models.IncomingDocument{
+				ID:             documentID,
+				NomenclatureID: nomenclatureID,
+				IncomingNumber: "IN-1",
+				IncomingDate:   now,
+				DocumentTypeID: models.DocumentTypeLetter,
+				Content:        "Incoming",
+				PagesCount:     3,
+				CreatedBy:      deps.user.ID,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			},
+		}
+
+		doc, err := deps.service.GetDocument(documentID)
+
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		assert.Equal(t, models.DocumentKindIncomingLetter, doc.Kind)
+		assert.Equal(t, "IN-1", doc.RegistrationNumber)
+		assert.Equal(t, nomenclatureID, doc.NomenclatureID)
+	})
+
+	t.Run("maps outgoing document after incoming miss", func(t *testing.T) {
+		documentID := uuid.New()
+		nomenclatureID := uuid.New()
+		now := time.Now()
+		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
+		deps.service.documentRepo = nil
+		deps.service.incomingRepo = &queryIncomingDocStore{}
+		deps.service.outgoingRepo = &queryOutgoingDocStore{
+			doc: &models.OutgoingDocument{
+				ID:             documentID,
+				NomenclatureID: nomenclatureID,
+				OutgoingNumber: "OUT-1",
+				OutgoingDate:   now,
+				DocumentTypeID: models.DocumentTypeLetter,
+				Content:        "Outgoing",
+				PagesCount:     2,
+				CreatedBy:      deps.user.ID,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			},
+		}
+
+		doc, err := deps.service.GetDocument(documentID)
+
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		assert.Equal(t, models.DocumentKindOutgoingLetter, doc.Kind)
+		assert.Equal(t, "OUT-1", doc.RegistrationNumber)
+		assert.Equal(t, nomenclatureID, doc.NomenclatureID)
+	})
+
+	t.Run("propagates incoming fallback errors", func(t *testing.T) {
+		expectedErr := errors.New("incoming lookup failed")
+		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
+		deps.service.documentRepo = nil
+		deps.service.incomingRepo = &queryIncomingDocStore{err: expectedErr}
+
+		doc, err := deps.service.GetDocument(uuid.New())
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, doc)
+	})
+
+	t.Run("returns nil when no fallback repository has the document", func(t *testing.T) {
+		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
+		deps.service.documentRepo = nil
+		deps.service.incomingRepo = &queryIncomingDocStore{}
+		deps.service.outgoingRepo = &queryOutgoingDocStore{}
+
+		doc, err := deps.service.GetDocument(uuid.New())
+
+		require.NoError(t, err)
+		assert.Nil(t, doc)
+	})
+}
+
+func TestDocumentAccessService_ResolveLink(t *testing.T) {
+	t.Run("returns both readable linkable documents", func(t *testing.T) {
+		sourceID := uuid.New()
+		targetID := uuid.New()
+		allowed := addDocumentActions(nil, models.DocumentKindIncomingLetter, "read", "link")
+		allowed = addDocumentActions(allowed, models.DocumentKindOutgoingLetter, "read", "link")
+		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), allowed)
+		deps.docRepo.docs[sourceID] = documentAccessDoc(sourceID, uuid.New(), models.DocumentKindIncomingLetter)
+		deps.docRepo.docs[targetID] = documentAccessDoc(targetID, uuid.New(), models.DocumentKindOutgoingLetter)
+
+		sourceDoc, targetDoc, err := deps.service.ResolveLink(sourceID, targetID)
+
+		require.NoError(t, err)
+		require.NotNil(t, sourceDoc)
+		require.NotNil(t, targetDoc)
+		assert.Equal(t, sourceID, sourceDoc.ID)
+		assert.Equal(t, targetID, targetDoc.ID)
+	})
+
+	t.Run("rejects when one side lacks link permission", func(t *testing.T) {
+		sourceID := uuid.New()
+		targetID := uuid.New()
+		allowed := addDocumentActions(nil, models.DocumentKindIncomingLetter, "read", "link")
+		allowed = addDocumentActions(allowed, models.DocumentKindOutgoingLetter, "read")
+		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), allowed)
+		deps.docRepo.docs[sourceID] = documentAccessDoc(sourceID, uuid.New(), models.DocumentKindIncomingLetter)
+		deps.docRepo.docs[targetID] = documentAccessDoc(targetID, uuid.New(), models.DocumentKindOutgoingLetter)
+
+		sourceDoc, targetDoc, err := deps.service.ResolveLink(sourceID, targetID)
+
+		require.ErrorIs(t, err, models.ErrForbidden)
+		assert.Nil(t, sourceDoc)
+		assert.Nil(t, targetDoc)
+	})
+}
+
+func TestDocumentAccessService_RequireViewJournalWithoutAccessRepository(t *testing.T) {
+	deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
+	deps.service.accessRepo = nil
+
+	err := deps.service.RequireViewJournal(uuid.New())
+
+	require.ErrorIs(t, err, models.ErrForbidden)
+}
