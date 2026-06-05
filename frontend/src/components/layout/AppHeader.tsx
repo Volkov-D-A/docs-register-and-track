@@ -1,6 +1,8 @@
 import React from 'react';
 import { Avatar, Button, Dropdown, Layout, Space, Typography } from 'antd';
 import { InfoCircleOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { dto } from '../../../wailsjs/go/models';
+import UserEventsButton from './UserEventsButton';
 
 const { Header } = Layout;
 const { Text } = Typography;
@@ -10,6 +12,7 @@ type AppHeaderProps = {
     userName?: string;
     onAboutModalOpen: () => void;
     onUserMenu: (key: string) => void;
+    onOpenEvent: (event: dto.UserEvent) => void;
 };
 
 const userMenuItems = [
@@ -34,6 +37,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     userName,
     onAboutModalOpen,
     onUserMenu,
+    onOpenEvent,
 }) => (
     <Header style={{
         background: token.colorBgContainer,
@@ -47,6 +51,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             <Button icon={<InfoCircleOutlined />} onClick={onAboutModalOpen}>
                 О программе
             </Button>
+            <UserEventsButton onOpenEvent={onOpenEvent} />
 
             <Dropdown menu={{ items: userMenuItems, onClick: ({ key }) => onUserMenu(key) }} placement="bottomRight">
                 <Space style={{ cursor: 'pointer' }}>

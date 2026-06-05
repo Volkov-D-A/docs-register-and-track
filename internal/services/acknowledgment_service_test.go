@@ -121,6 +121,29 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 	})
 }
 
+func TestAcknowledgmentService_CreateEmitsUserEvents(t *testing.T) {
+	docID := uuid.New()
+	user1 := uuid.New()
+	user2 := uuid.New()
+	svc, repo, _, auth, incomingRepo := setupAckService(t, "clerk")
+	eventStore := &fakeUserEventStore{}
+	svc.events = NewUserEventService(eventStore, auth)
+	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
+		ID:             docID,
+		NomenclatureID: uuid.New(),
+		IncomingNumber: "ВХ-2",
+	}, nil).Maybe()
+	repo.On("Create", mock.AnythingOfType("*models.Acknowledgment")).Return(nil).Once()
+
+	result, err := svc.Create(docID.String(), "text", []string{user1.String(), user2.String()})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, eventStore.created, 2)
+	assert.Equal(t, user1, eventStore.created[0].RecipientUserID)
+	assert.Equal(t, user2, eventStore.created[1].RecipientUserID)
+	assert.Equal(t, models.UserEventAcknowledgmentCreated, eventStore.created[0].EventType)
+}
+
 func TestAcknowledgmentService_GetList(t *testing.T) {
 	// Получение списка статусов ознакомления для конкретного документа
 	docID := uuid.New()
@@ -254,6 +277,35 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, ErrNotAuthenticated, err)
 	})
+}
+
+func TestAcknowledgmentService_MarkConfirmedEmitsUserEvent(t *testing.T) {
+	ackID := uuid.New()
+	docID := uuid.New()
+	creatorID := uuid.New()
+	svc, repo, userRepo, auth, incomingRepo := setupAckService(t, "executor")
+	eventStore := &fakeUserEventStore{}
+	svc.events = NewUserEventService(eventStore, auth)
+	userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
+	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
+		ID:             docID,
+		NomenclatureID: uuid.New(),
+		IncomingNumber: "ВХ-3",
+	}, nil).Maybe()
+	userRepo.On("GetAll").Return([]models.User{}, nil).Once()
+	repo.On("MarkConfirmed", ackID, userUUID).Return(nil).Once()
+	repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+		ID:           ackID,
+		DocumentID:   docID,
+		DocumentKind: "incoming_letter",
+		CreatorID:    creatorID,
+	}, nil).Once()
+
+	err := svc.MarkConfirmed(ackID.String())
+	require.NoError(t, err)
+	require.Len(t, eventStore.created, 1)
+	assert.Equal(t, creatorID, eventStore.created[0].RecipientUserID)
+	assert.Equal(t, models.UserEventAcknowledgmentConfirmed, eventStore.created[0].EventType)
 }
 
 func TestAcknowledgmentService_Delete(t *testing.T) {

@@ -18,6 +18,7 @@ type AssignmentService struct {
 	auth     *AuthService
 	journal  *JournalService
 	access   *DocumentAccessService
+	events   *UserEventService
 }
 
 // NewAssignmentService создает новый экземпляр AssignmentService.
@@ -27,14 +28,19 @@ func NewAssignmentService(
 	auth *AuthService,
 	journal *JournalService,
 	access *DocumentAccessService,
+	events ...*UserEventService,
 ) *AssignmentService {
-	return &AssignmentService{
+	s := &AssignmentService{
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
 		journal:  journal,
 		access:   access,
 	}
+	if len(events) > 0 {
+		s.events = events[0]
+	}
+	return s
 }
 
 // Create — создание поручения
@@ -80,6 +86,7 @@ func (s *AssignmentService) Create(
 			Action:     "ASSIGNMENT_CREATE",
 			Details:    fmt.Sprintf("Создано поручение для %s", doc.Kind),
 		})
+		s.createAssignmentCreatedEvents(res, eventActorID(s.auth))
 	}
 	return dto.MapAssignment(res), err
 }
@@ -139,6 +146,7 @@ func (s *AssignmentService) Update(
 			Action:     "ASSIGNMENT_UPDATE",
 			Details:    "Поручение отредактировано",
 		})
+		s.createAssignmentUpdatedEvents(res, eventActorID(s.auth))
 	}
 	return dto.MapAssignment(res), err
 }
@@ -217,6 +225,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 			Action:     "ASSIGNMENT_STATUS",
 			Details:    fmt.Sprintf("Статус поручения изменен на %s", status),
 		})
+		s.createAssignmentStatusEvents(res, existing.Status, status, report, eventActorID(s.auth))
 	}
 	return dto.MapAssignment(res), err
 }
@@ -294,6 +303,168 @@ func documentKindCodes(kinds []models.DocumentKind) []string {
 		codes = append(codes, string(kind))
 	}
 	return codes
+}
+
+func (s *AssignmentService) createAssignmentCreatedEvents(assignment *models.Assignment, actorID *uuid.UUID) {
+	if s.events == nil || assignment == nil {
+		return
+	}
+
+	recipients := appendUniqueUserID(nil, assignment.ExecutorID)
+	for _, coExecutorID := range assignment.CoExecutorIDs {
+		uid, err := uuid.Parse(coExecutorID)
+		if err == nil {
+			recipients = appendUniqueUserID(recipients, uid)
+		}
+	}
+
+	for _, recipientID := range recipients {
+		createUserEventIfEnabled(s.events, models.CreateUserEventRequest{
+			RecipientUserID: recipientID,
+			ActorUserID:     actorID,
+			DocumentID:      assignment.DocumentID,
+			DocumentKind:    assignment.DocumentKind,
+			DocumentNumber:  assignment.DocumentNumber,
+			EntityType:      models.UserEventEntityAssignment,
+			EntityID:        assignment.ID,
+			EventType:       models.UserEventAssignmentCreated,
+			Title:           "Новое поручение",
+			Message:         fmt.Sprintf("Вам назначено поручение по документу %s", documentNumberLabel(assignment.DocumentNumber)),
+			Metadata: userEventMetadata(map[string]string{
+				"status": assignment.Status,
+			}),
+		})
+	}
+}
+
+func (s *AssignmentService) createAssignmentUpdatedEvents(assignment *models.Assignment, actorID *uuid.UUID) {
+	if s.events == nil || assignment == nil {
+		return
+	}
+
+	recipients := appendUniqueUserID(nil, assignment.ExecutorID)
+	for _, coExecutorID := range assignment.CoExecutorIDs {
+		uid, err := uuid.Parse(coExecutorID)
+		if err == nil {
+			recipients = appendUniqueUserID(recipients, uid)
+		}
+	}
+
+	for _, recipientID := range recipients {
+		createUserEventIfEnabled(s.events, models.CreateUserEventRequest{
+			RecipientUserID: recipientID,
+			ActorUserID:     actorID,
+			DocumentID:      assignment.DocumentID,
+			DocumentKind:    assignment.DocumentKind,
+			DocumentNumber:  assignment.DocumentNumber,
+			EntityType:      models.UserEventEntityAssignment,
+			EntityID:        assignment.ID,
+			EventType:       models.UserEventAssignmentUpdated,
+			Title:           "Поручение изменено",
+			Message:         fmt.Sprintf("Изменено поручение по документу %s", documentNumberLabel(assignment.DocumentNumber)),
+			Metadata: userEventMetadata(map[string]string{
+				"status": assignment.Status,
+			}),
+		})
+	}
+}
+
+func (s *AssignmentService) createAssignmentStatusEvents(
+	assignment *models.Assignment,
+	oldStatus string,
+	newStatus string,
+	report string,
+	actorID *uuid.UUID,
+) {
+	if s.events == nil || assignment == nil || oldStatus == newStatus {
+		return
+	}
+
+	switch newStatus {
+	case "completed":
+		s.createAssignmentControlEvents(assignment, actorID, models.UserEventAssignmentCompleted, "Поручение ожидает приемки", fmt.Sprintf("Исполнитель отправил поручение по документу %s на приемку", documentNumberLabel(assignment.DocumentNumber)), report)
+	case "finished":
+		s.createAssignmentExecutorEvent(assignment, actorID, models.UserEventAssignmentFinished, "Поручение принято", fmt.Sprintf("Исполненное поручение по документу %s принято", documentNumberLabel(assignment.DocumentNumber)), report)
+	case "returned":
+		s.createAssignmentExecutorEvent(assignment, actorID, models.UserEventAssignmentReturned, "Поручение отклонено", fmt.Sprintf("Поручение по документу %s возвращено на доработку", documentNumberLabel(assignment.DocumentNumber)), report)
+	}
+}
+
+func (s *AssignmentService) createAssignmentExecutorEvent(
+	assignment *models.Assignment,
+	actorID *uuid.UUID,
+	eventType string,
+	title string,
+	message string,
+	report string,
+) {
+	recipients := appendUniqueUserID(nil, assignment.ExecutorID)
+	for _, coExecutorID := range assignment.CoExecutorIDs {
+		uid, err := uuid.Parse(coExecutorID)
+		if err == nil {
+			recipients = appendUniqueUserID(recipients, uid)
+		}
+	}
+
+	for _, recipientID := range recipients {
+		createUserEventIfEnabled(s.events, models.CreateUserEventRequest{
+			RecipientUserID: recipientID,
+			ActorUserID:     actorID,
+			DocumentID:      assignment.DocumentID,
+			DocumentKind:    assignment.DocumentKind,
+			DocumentNumber:  assignment.DocumentNumber,
+			EntityType:      models.UserEventEntityAssignment,
+			EntityID:        assignment.ID,
+			EventType:       eventType,
+			Title:           title,
+			Message:         message,
+			Metadata: userEventMetadata(map[string]string{
+				"status": assignment.Status,
+				"report": report,
+			}),
+		})
+	}
+}
+
+func (s *AssignmentService) createAssignmentControlEvents(
+	assignment *models.Assignment,
+	actorID *uuid.UUID,
+	eventType string,
+	title string,
+	message string,
+	report string,
+) {
+	excluded := eventActorExcluded(s.auth)
+	excluded[assignment.ExecutorID] = struct{}{}
+	for _, coExecutorID := range assignment.CoExecutorIDs {
+		uid, err := uuid.Parse(coExecutorID)
+		if err == nil {
+			excluded[uid] = struct{}{}
+		}
+	}
+
+	recipients, err := collectUserIDsWithDocumentAction(s.userRepo, s.access, assignment.DocumentKind, "assign", excluded)
+	if err != nil {
+		return
+	}
+	for _, recipientID := range recipients {
+		createUserEventIfEnabled(s.events, models.CreateUserEventRequest{
+			RecipientUserID: recipientID,
+			ActorUserID:     actorID,
+			DocumentID:      assignment.DocumentID,
+			DocumentKind:    assignment.DocumentKind,
+			DocumentNumber:  assignment.DocumentNumber,
+			EntityType:      models.UserEventEntityAssignment,
+			EntityID:        assignment.ID,
+			EventType:       eventType,
+			Title:           title,
+			Message:         message,
+			Metadata: userEventMetadata(map[string]string{
+				"status": assignment.Status,
+				"report": report,
+			}),
+		})
+	}
 }
 
 // Delete удаляет поручение по его ID (только для незавершенных, если не админ).

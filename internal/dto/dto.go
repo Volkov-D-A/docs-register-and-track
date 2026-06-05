@@ -442,6 +442,24 @@ type PagedResult[T any] struct {
 	PageSize   int `json:"pageSize"`
 }
 
+// UserEvent описывает DTO персонального события пользователя.
+type UserEvent struct {
+	ID             string     `json:"id"`
+	ActorUserID    string     `json:"actorUserId,omitempty"`
+	ActorUserName  string     `json:"actorUserName,omitempty"`
+	DocumentID     string     `json:"documentId"`
+	DocumentKind   string     `json:"documentKind"`
+	DocumentNumber string     `json:"documentNumber,omitempty"`
+	EntityType     string     `json:"entityType"`
+	EntityID       string     `json:"entityId"`
+	EventType      string     `json:"eventType"`
+	Title          string     `json:"title"`
+	Message        string     `json:"message"`
+	Metadata       string     `json:"metadata,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	ReadAt         *time.Time `json:"readAt,omitempty"`
+}
+
 // JournalEntry описывает DTO записи в журнале (истории) документа.
 type JournalEntry struct {
 	ID         string    `json:"id"`

@@ -1,0 +1,184 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Badge, Button, Empty, List, Popover, Space, Spin, Typography } from 'antd';
+import { BellOutlined, CheckOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import { dto, models } from '../../../wailsjs/go/models';
+import {
+    GetCurrentUserEvents,
+    GetUnreadCount,
+    MarkAllRead,
+    MarkRead,
+} from '../../../wailsjs/go/services/UserEventService';
+
+const { Text } = Typography;
+
+type UserEventsButtonProps = {
+    onOpenEvent: (event: dto.UserEvent) => void;
+};
+
+const eventAccentColor = (eventType: string): string => {
+    if (eventType.includes('returned')) {
+        return '#ff4d4f';
+    }
+    if (eventType.includes('finished') || eventType.includes('confirmed')) {
+        return '#52c41a';
+    }
+    if (eventType.includes('completed')) {
+        return '#faad14';
+    }
+    return '#1677ff';
+};
+
+const UserEventsButton: React.FC<UserEventsButtonProps> = ({ onOpenEvent }) => {
+    const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [events, setEvents] = useState<dto.UserEvent[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    const loadUnreadCount = useCallback(() => {
+        void GetUnreadCount()
+            .then(setUnreadCount)
+            .catch((error) => {
+                console.error('GetUnreadCount error:', error);
+            });
+    }, []);
+
+    const loadEvents = useCallback(() => {
+        setLoading(true);
+        void Promise.all([
+            GetCurrentUserEvents(models.UserEventFilter.createFrom({ page: 1, pageSize: 20 })),
+            GetUnreadCount(),
+        ])
+            .then(([result, count]) => {
+                setEvents(result?.items || []);
+                setUnreadCount(count);
+            })
+            .catch((error) => {
+                console.error('GetCurrentUserEvents error:', error);
+            })
+            .finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        loadUnreadCount();
+    }, [loadUnreadCount]);
+
+    useEffect(() => {
+        if (open) {
+            loadEvents();
+        }
+    }, [open, loadEvents]);
+
+    const handleOpenEvent = useCallback((event: dto.UserEvent) => {
+        if (!event.readAt) {
+            void MarkRead(event.id)
+                .then(() => {
+                    setEvents((current) => current.map((item) => (
+                        item.id === event.id
+                            ? dto.UserEvent.createFrom({ ...item, readAt: new Date().toISOString() })
+                            : item
+                    )));
+                    setUnreadCount((current) => Math.max(0, current - 1));
+                })
+                .catch((error) => {
+                    console.error('MarkRead error:', error);
+                });
+        }
+        setOpen(false);
+        onOpenEvent(event);
+    }, [onOpenEvent]);
+
+    const handleMarkAllRead = useCallback(() => {
+        void MarkAllRead()
+            .then(() => {
+                const now = new Date().toISOString();
+                setEvents((current) => current.map((item) => (
+                    item.readAt ? item : dto.UserEvent.createFrom({ ...item, readAt: now })
+                )));
+                setUnreadCount(0);
+            })
+            .catch((error) => {
+                console.error('MarkAllRead error:', error);
+            });
+    }, []);
+
+    const content = useMemo(() => (
+        <div style={{ width: 380, maxWidth: 'calc(100vw - 48px)' }}>
+            <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text strong>События</Text>
+                <Button
+                    size="small"
+                    type="text"
+                    icon={<CheckOutlined />}
+                    disabled={unreadCount === 0}
+                    onClick={handleMarkAllRead}
+                >
+                    Прочитать все
+                </Button>
+            </Space>
+
+            {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+                    <Spin />
+                </div>
+            ) : events.length === 0 ? (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Событий нет" />
+            ) : (
+                <List
+                    dataSource={events}
+                    style={{ maxHeight: 420, overflowY: 'auto' }}
+                    renderItem={(event) => (
+                        <List.Item
+                            key={event.id}
+                            style={{ cursor: 'pointer', paddingInline: 0 }}
+                            onClick={() => handleOpenEvent(event)}
+                        >
+                            <Space align="start" style={{ width: '100%' }}>
+                                <span
+                                    style={{
+                                        width: 8,
+                                        height: 8,
+                                        marginTop: 7,
+                                        borderRadius: 8,
+                                        background: event.readAt ? '#d9d9d9' : eventAccentColor(event.eventType),
+                                        flex: '0 0 auto',
+                                    }}
+                                />
+                                <Space orientation="vertical" size={2} style={{ minWidth: 0 }}>
+                                    <Text strong={!event.readAt} style={{ lineHeight: 1.25 }}>
+                                        {event.title}
+                                    </Text>
+                                    <Text type="secondary" style={{ lineHeight: 1.25 }}>
+                                        {event.message}
+                                    </Text>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                        {dayjs(event.createdAt).format('DD.MM.YYYY HH:mm')}
+                                        {event.documentNumber ? ` · ${event.documentNumber}` : ''}
+                                    </Text>
+                                </Space>
+                            </Space>
+                        </List.Item>
+                    )}
+                />
+            )}
+        </div>
+    ), [events, handleMarkAllRead, handleOpenEvent, loading, unreadCount]);
+
+    return (
+        <Popover
+            open={open}
+            onOpenChange={setOpen}
+            content={content}
+            placement="bottomRight"
+            trigger="click"
+        >
+            <Badge count={unreadCount} size="small">
+                <Button icon={<BellOutlined />}>
+                    События
+                </Button>
+            </Badge>
+        </Popover>
+    );
+};
+
+export default UserEventsButton;

@@ -128,7 +128,7 @@ func TestDB_GetMigrationStatus(t *testing.T) {
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	total, err := countAvailableMigrations(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 7, total)
+	assert.Equal(t, 8, total)
 }
 
 func TestMigrationCompatibilityErrorError(t *testing.T) {
@@ -139,8 +139,8 @@ func TestMigrationCompatibilityErrorError(t *testing.T) {
 	}{
 		{
 			name: "schema too new",
-			err:  &MigrationCompatibilityError{CurrentVersion: 8, TotalAvailable: 7, SchemaTooNew: true},
-			want: "database schema version 8 is newer than embedded migrations 7",
+			err:  &MigrationCompatibilityError{CurrentVersion: 9, TotalAvailable: 8, SchemaTooNew: true},
+			want: "database schema version 9 is newer than embedded migrations 8",
 		},
 		{
 			name: "dirty schema",

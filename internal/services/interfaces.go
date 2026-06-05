@@ -199,6 +199,16 @@ type AcknowledgmentStore interface {
 	Delete(id uuid.UUID) error
 }
 
+// UserEventStore — интерфейс для работы с персональными событиями.
+type UserEventStore interface {
+	Create(req models.CreateUserEventRequest) (*models.UserEvent, error)
+	GetByID(id uuid.UUID) (*models.UserEvent, error)
+	GetList(userID uuid.UUID, filter models.UserEventFilter) (*models.PagedResult[models.UserEvent], error)
+	CountUnread(userID uuid.UUID) (int, error)
+	MarkRead(id, userID uuid.UUID, readAt time.Time) error
+	MarkAllRead(userID uuid.UUID, readAt time.Time) error
+}
+
 // DashboardStore — интерфейс для получения аналитических данных дашборда из хранилища.
 type DashboardStore interface {
 	GetExpiringAssignments(userID *uuid.UUID, days int) ([]models.Assignment, error)

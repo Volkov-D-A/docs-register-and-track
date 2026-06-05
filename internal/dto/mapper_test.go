@@ -189,6 +189,47 @@ func TestMapAcknowledgment(t *testing.T) {
 	})
 }
 
+func TestMapUserEvent(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, MapUserEvent(nil))
+	})
+
+	t.Run("success", func(t *testing.T) {
+		id := uuid.New()
+		actorID := uuid.New()
+		documentID := uuid.New()
+		entityID := uuid.New()
+		now := time.Now()
+		readAt := now.Add(time.Hour)
+		m := &models.UserEvent{
+			ID:             id,
+			ActorUserID:    &actorID,
+			ActorUserName:  "Автор",
+			DocumentID:     documentID,
+			DocumentKind:   "incoming_letter",
+			DocumentNumber: "ВХ-1",
+			EntityType:     models.UserEventEntityAssignment,
+			EntityID:       entityID,
+			EventType:      models.UserEventAssignmentCreated,
+			Title:          "Новое поручение",
+			Message:        "Текст",
+			Metadata:       `{"status":"new"}`,
+			CreatedAt:      now,
+			ReadAt:         &readAt,
+		}
+
+		d := MapUserEvent(m)
+		require.NotNil(t, d)
+		assert.Equal(t, id.String(), d.ID)
+		assert.Equal(t, actorID.String(), d.ActorUserID)
+		assert.Equal(t, "Автор", d.ActorUserName)
+		assert.Equal(t, documentID.String(), d.DocumentID)
+		assert.Equal(t, entityID.String(), d.EntityID)
+		assert.Equal(t, models.UserEventAssignmentCreated, d.EventType)
+		assert.Equal(t, &readAt, d.ReadAt)
+	})
+}
+
 func TestMapIncomingDocument(t *testing.T) {
 	// Тестирование маппинга входящего документа в DTO
 	t.Run("nil", func(t *testing.T) {

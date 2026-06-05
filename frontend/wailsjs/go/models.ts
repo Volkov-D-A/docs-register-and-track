@@ -1432,6 +1432,100 @@ export namespace dto {
 		    return a;
 		}
 	}
+	export class UserEvent {
+	    id: string;
+	    actorUserId?: string;
+	    actorUserName?: string;
+	    documentId: string;
+	    documentKind: string;
+	    documentNumber?: string;
+	    entityType: string;
+	    entityId: string;
+	    eventType: string;
+	    title: string;
+	    message: string;
+	    metadata?: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    readAt?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserEvent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.actorUserId = source["actorUserId"];
+	        this.actorUserName = source["actorUserName"];
+	        this.documentId = source["documentId"];
+	        this.documentKind = source["documentKind"];
+	        this.documentNumber = source["documentNumber"];
+	        this.entityType = source["entityType"];
+	        this.entityId = source["entityId"];
+	        this.eventType = source["eventType"];
+	        this.title = source["title"];
+	        this.message = source["message"];
+	        this.metadata = source["metadata"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.readAt = this.convertValues(source["readAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_UserEvent_ {
+	    items: UserEvent[];
+	    totalCount: number;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_UserEvent_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], UserEvent);
+	        this.totalCount = source["totalCount"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ResolutionExecutor {
 	    id: string;
 	    name: string;
@@ -1467,6 +1561,7 @@ export namespace dto {
 		    return a;
 		}
 	}
+	
 
 }
 
@@ -2242,6 +2337,22 @@ export namespace models {
 		}
 	}
 	
+	export class UserEventFilter {
+	    unreadOnly: boolean;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserEventFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.unreadOnly = source["unreadOnly"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	    }
+	}
 
 }
 

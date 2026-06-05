@@ -16,6 +16,7 @@ type AcknowledgmentService struct {
 	auth     *AuthService
 	journal  *JournalService
 	access   *DocumentAccessService
+	events   *UserEventService
 }
 
 // NewAcknowledgmentService создает новый экземпляр AcknowledgmentService.
@@ -25,14 +26,19 @@ func NewAcknowledgmentService(
 	auth *AuthService,
 	journal *JournalService,
 	access *DocumentAccessService,
+	events ...*UserEventService,
 ) *AcknowledgmentService {
-	return &AcknowledgmentService{
+	s := &AcknowledgmentService{
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
 		journal:  journal,
 		access:   access,
 	}
+	if len(events) > 0 {
+		s.events = events[0]
+	}
+	return s
 }
 
 // Create создает новую задачу на ознакомление для указанных пользователей.
@@ -96,6 +102,7 @@ func (s *AcknowledgmentService) Create(
 		Action:     "ACK_CREATE",
 		Details:    "Отправлен на ознакомление",
 	})
+	s.createAcknowledgmentCreatedEvents(ack, doc.RegistrationNumber, &creatorUUID)
 
 	// Заполнение строковых ID для результата
 
@@ -198,9 +205,75 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 				Action:     "ACK_CONFIRM",
 				Details:    "Ознакомление подтверждено",
 			})
+			doc, _ := s.access.GetDocument(ack.DocumentID)
+			documentNumber := ""
+			if doc != nil {
+				documentNumber = doc.RegistrationNumber
+			}
+			s.createAcknowledgmentConfirmedEvents(ack, documentNumber, &userUUID)
 		}
 	}
 	return err
+}
+
+func (s *AcknowledgmentService) createAcknowledgmentCreatedEvents(ack *models.Acknowledgment, documentNumber string, actorID *uuid.UUID) {
+	if s.events == nil || ack == nil {
+		return
+	}
+
+	for _, user := range ack.Users {
+		createUserEventIfEnabled(s.events, models.CreateUserEventRequest{
+			RecipientUserID: user.UserID,
+			ActorUserID:     actorID,
+			DocumentID:      ack.DocumentID,
+			DocumentKind:    ack.DocumentKind,
+			DocumentNumber:  documentNumber,
+			EntityType:      models.UserEventEntityAcknowledgment,
+			EntityID:        ack.ID,
+			EventType:       models.UserEventAcknowledgmentCreated,
+			Title:           "Новое ознакомление",
+			Message:         "Вам направлен документ на ознакомление",
+			Metadata: userEventMetadata(map[string]string{
+				"status": "pending",
+			}),
+		})
+	}
+}
+
+func (s *AcknowledgmentService) createAcknowledgmentConfirmedEvents(ack *models.Acknowledgment, documentNumber string, actorID *uuid.UUID) {
+	if s.events == nil || ack == nil {
+		return
+	}
+
+	excluded := eventActorExcluded(s.auth)
+	recipients := appendUniqueUserID(nil, ack.CreatorID)
+	controlRecipients, err := collectUserIDsWithDocumentAction(s.userRepo, s.access, ack.DocumentKind, "acknowledge", excluded)
+	if err == nil {
+		for _, recipientID := range controlRecipients {
+			recipients = appendUniqueUserID(recipients, recipientID)
+		}
+	}
+
+	for _, recipientID := range recipients {
+		if _, skip := excluded[recipientID]; skip {
+			continue
+		}
+		createUserEventIfEnabled(s.events, models.CreateUserEventRequest{
+			RecipientUserID: recipientID,
+			ActorUserID:     actorID,
+			DocumentID:      ack.DocumentID,
+			DocumentKind:    ack.DocumentKind,
+			DocumentNumber:  documentNumber,
+			EntityType:      models.UserEventEntityAcknowledgment,
+			EntityID:        ack.ID,
+			EventType:       models.UserEventAcknowledgmentConfirmed,
+			Title:           "Ознакомление подтверждено",
+			Message:         "Пользователь подтвердил ознакомление с документом",
+			Metadata: userEventMetadata(map[string]string{
+				"status": "completed",
+			}),
+		})
+	}
 }
 
 // Delete удаляет задачу на ознакомление по её ID.

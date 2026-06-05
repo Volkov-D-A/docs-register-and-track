@@ -68,6 +68,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	statisticsRepo := repository.NewStatisticsRepository(db)
 	journalRepo := repository.NewJournalRepository(db)
 	adminAuditLogRepo := repository.NewAdminAuditLogRepository(db)
+	userEventRepo := repository.NewUserEventRepository(db)
 
 	operationLifecycle := services.NewOperationLifecycle(5 * time.Minute)
 
@@ -108,8 +109,9 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	)
 	documentRegistrationService := services.NewDocumentRegistrationService(documentKindCommandRegistry)
 	documentRegistrationService.SetOperationLifecycle(operationLifecycle)
+	userEventService := services.NewUserEventService(userEventRepo, authService)
 	administrativeOrderService := services.NewAdministrativeOrderService(administrativeOrderRepo, authService, documentAccessService, journalService)
-	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService, documentAccessService)
+	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService, documentAccessService, userEventService)
 	departmentService := services.NewDepartmentService(departmentRepo, authService, adminAuditLogService)
 
 	minioService, err := storage.NewMinioService(cfg.Minio)
@@ -130,7 +132,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	attachmentService.SetOperationLifecycle(operationLifecycle)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, administrativeOrderRepo, documentAccessService, authService, journalService)
 	linkService.SetOperationLifecycle(operationLifecycle)
-	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService)
+	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService, userEventService)
 	systemService := services.NewSystemService(db)
 	releaseNoteService, err := services.NewReleaseNoteService(params.ReleaseNotesSource)
 	if err != nil {
@@ -198,6 +200,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 			themeService,
 			journalService,
 			adminAuditLogService,
+			userEventService,
 		},
 	}
 	created = true

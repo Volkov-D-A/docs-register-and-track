@@ -6,6 +6,7 @@ import { models } from '../../wailsjs/go/models';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAppTheme } from '../theme/useAppTheme';
 import { useBrandName } from '../hooks/useBrandName';
+import { getDocumentPageKey } from '../constants/documentKinds';
 import AppHeader from './layout/AppHeader';
 import AppSidebar from './layout/AppSidebar';
 import RegisterDocumentAction from './layout/RegisterDocumentAction';
@@ -71,6 +72,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                     userName={user?.fullName}
                     onAboutModalOpen={onAboutModalOpen}
                     onUserMenu={handleUserMenu}
+                    onOpenEvent={(event) => onPageChange(getDocumentPageKey(event.documentKind))}
                 />
 
                 <Content style={{ overflowY: 'auto', padding: 24, height: 'calc(100vh - 64px)' }}>
