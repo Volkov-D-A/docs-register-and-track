@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -15,6 +16,13 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+)
+
+const (
+	defaultMaxOpenConns    = 5
+	defaultMaxIdleConns    = 2
+	defaultConnMaxIdleTime = 5 * time.Minute
+	defaultConnMaxLifetime = 30 * time.Minute
 )
 
 // DB представляет собой обертку над подключением к базе данных SQL.
@@ -57,6 +65,7 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection pool: %w", err)
 	}
+	configureConnectionPool(db)
 
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
@@ -64,6 +73,13 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 	}
 
 	return &DB{db}, nil
+}
+
+func configureConnectionPool(db *sql.DB) {
+	db.SetMaxOpenConns(defaultMaxOpenConns)
+	db.SetMaxIdleConns(defaultMaxIdleConns)
+	db.SetConnMaxIdleTime(defaultConnMaxIdleTime)
+	db.SetConnMaxLifetime(defaultConnMaxLifetime)
 }
 
 // RunMigrations применяет все доступные миграции к базе данных.

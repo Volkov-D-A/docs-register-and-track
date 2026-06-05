@@ -38,6 +38,15 @@ func setupMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock, *DB) {
 	return dbMock, mock, &DB{DB: dbMock}
 }
 
+func TestConfigureConnectionPool(t *testing.T) {
+	dbMock, _, _ := setupMockDB(t)
+	defer dbMock.Close()
+
+	configureConnectionPool(dbMock)
+
+	assert.Equal(t, defaultMaxOpenConns, dbMock.Stats().MaxOpenConnections)
+}
+
 func addMigrateInitExpectations(mock sqlmock.Sqlmock) {
 	// Ожидания системных запросов (golong-migrate) при запуске инициализации
 	mock.ExpectQuery(`(?i)SELECT CURRENT_DATABASE\(\)`).WillReturnRows(sqlmock.NewRows([]string{"current_database"}).AddRow("testdb"))
