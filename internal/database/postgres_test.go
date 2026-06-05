@@ -125,6 +125,27 @@ func TestDB_GetMigrationStatus(t *testing.T) {
 	})
 }
 
+func TestDB_MigratorCloseKeepsSharedDatabaseOpen(t *testing.T) {
+	dbMock, mock, db := setupMockDB(t)
+	defer dbMock.Close()
+	tmpDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "000001_init.up.sql"), []byte("CREATE TABLE test (id int);"), 0644))
+
+	addMigrateInitExpectations(mock)
+
+	m, err := db.newMigrator(tmpDir)
+	require.NoError(t, err)
+
+	closeMigrator(m)
+
+	mock.ExpectQuery(`SELECT 1`).WillReturnRows(sqlmock.NewRows([]string{"one"}).AddRow(1))
+	var one int
+	err = db.QueryRow("SELECT 1").Scan(&one)
+	require.NoError(t, err)
+	assert.Equal(t, 1, one)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	total, err := countAvailableMigrations(DefaultMigrationsPath)
 	require.NoError(t, err)

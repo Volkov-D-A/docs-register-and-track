@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io/fs"
@@ -94,6 +95,7 @@ func (db *DB) RunMigrations(migrationsPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
 	}
+	defer closeMigrator(m)
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("failed to run migrations: %w", err)
@@ -117,6 +119,7 @@ func (db *DB) GetMigrationStatus(migrationsPath string) (*MigrationStatus, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to create migration instance: %w", err)
 	}
+	defer closeMigrator(m)
 
 	version, dirty, err := m.Version()
 	if err != nil && err != migrate.ErrNilVersion {
@@ -161,6 +164,7 @@ func (db *DB) RollbackMigration(migrationsPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
 	}
+	defer closeMigrator(m)
 
 	if err := m.Steps(-1); err != nil {
 		return fmt.Errorf("failed to rollback migration: %w", err)
@@ -176,7 +180,7 @@ func (db *DB) newMigrator(migrationsPath string) (*migrate.Migrate, error) {
 			return nil, fmt.Errorf("failed to create embedded migration source: %w", err)
 		}
 
-		driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
+		driver, err := db.newMigrationDatabaseDriver()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create migration driver: %w", err)
 		}
@@ -188,7 +192,7 @@ func (db *DB) newMigrator(migrationsPath string) (*migrate.Migrate, error) {
 		return nil, err
 	}
 
-	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
+	driver, err := db.newMigrationDatabaseDriver()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create migration driver: %w", err)
 	}
@@ -198,6 +202,21 @@ func (db *DB) newMigrator(migrationsPath string) (*migrate.Migrate, error) {
 		"postgres",
 		driver,
 	)
+}
+
+func (db *DB) newMigrationDatabaseDriver() (*postgres.Postgres, error) {
+	ctx := context.Background()
+	conn, err := db.DB.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	driver, err := postgres.WithConnection(ctx, conn, &postgres.Config{})
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return driver, nil
 }
 
 func countAvailableMigrations(migrationsPath string) (int, error) {
@@ -251,6 +270,13 @@ func validateMigrationDirectory(migrationsPath string) error {
 
 func isDefaultMigrationsPath(migrationsPath string) bool {
 	return filepath.ToSlash(migrationsPath) == DefaultMigrationsPath
+}
+
+func closeMigrator(m *migrate.Migrate) {
+	if m == nil {
+		return
+	}
+	_, _ = m.Close()
 }
 
 func (s *MigrationStatus) applyCompatibility() {
