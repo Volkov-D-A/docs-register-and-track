@@ -283,7 +283,7 @@ func (s *AcknowledgmentService) createAcknowledgmentConfirmedEvents(ack *models.
 	}
 
 	for _, recipientID := range recipients {
-		if _, skip := excluded[recipientID]; skip {
+		if _, skip := excluded[recipientID]; skip && recipientID != ack.CreatorID {
 			continue
 		}
 		createUserEventIfEnabled(s.events, models.CreateUserEventRequest{

@@ -13,6 +13,12 @@ import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 
 import DocumentViewModal from '../components/DocumentViewModal';
 import { formatAppError } from '../utils/appError';
+import { onAssignmentsChanged } from '../events/assignmentEvents';
+import {
+    isAcknowledgmentUserEvent,
+    isAssignmentUserEvent,
+    onUserEventsReceived,
+} from '../events/userEvents';
 
 const { Title, Text } = Typography;
 
@@ -68,6 +74,16 @@ const DashboardPage: React.FC = () => {
             loadStats();
         }
     }, [accessReady, loadStats]);
+
+    useEffect(() => onUserEventsReceived((events) => {
+        if (events.some((event) => isAssignmentUserEvent(event) || isAcknowledgmentUserEvent(event))) {
+            void loadStats();
+        }
+    }), [loadStats]);
+
+    useEffect(() => onAssignmentsChanged(() => {
+        void loadStats();
+    }), [loadStats]);
 
     // Определение отображения по текущей роли
     if (!accessReady || (loading && !stats)) {

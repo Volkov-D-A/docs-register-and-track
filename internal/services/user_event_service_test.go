@@ -18,6 +18,7 @@ type fakeUserEventStore struct {
 	items        []models.UserEvent
 	unreadCount  int
 	markedRead   []uuid.UUID
+	markedDocFor []uuid.UUID
 	markedAllFor []uuid.UUID
 }
 
@@ -104,6 +105,16 @@ func (s *fakeUserEventStore) MarkAllRead(userID uuid.UUID, readAt time.Time) err
 	return nil
 }
 
+func (s *fakeUserEventStore) MarkDocumentRead(documentID, userID uuid.UUID, readAt time.Time) error {
+	s.markedDocFor = append(s.markedDocFor, documentID)
+	for i := range s.items {
+		if s.items[i].DocumentID == documentID && s.items[i].RecipientUserID == userID && s.items[i].ReadAt == nil {
+			s.items[i].ReadAt = &readAt
+		}
+	}
+	return nil
+}
+
 func setupUserEventService(t *testing.T) (*UserEventService, *fakeUserEventStore, *models.User) {
 	t.Helper()
 
@@ -172,11 +183,12 @@ func TestUserEventService_GetCurrentUserEvents(t *testing.T) {
 func TestUserEventService_ReadMarkers(t *testing.T) {
 	svc, store, user := setupUserEventService(t)
 	eventID := uuid.New()
+	documentID := uuid.New()
 	store.items = []models.UserEvent{
 		{
 			ID:              eventID,
 			RecipientUserID: user.ID,
-			DocumentID:      uuid.New(),
+			DocumentID:      documentID,
 			EntityID:        uuid.New(),
 			DocumentKind:    "incoming_letter",
 			EntityType:      models.UserEventEntityAssignment,
@@ -192,6 +204,10 @@ func TestUserEventService_ReadMarkers(t *testing.T) {
 	err = svc.MarkRead(eventID.String())
 	require.NoError(t, err)
 	assert.Equal(t, []uuid.UUID{eventID}, store.markedRead)
+
+	err = svc.MarkDocumentRead(documentID.String())
+	require.NoError(t, err)
+	assert.Equal(t, []uuid.UUID{documentID}, store.markedDocFor)
 
 	err = svc.MarkAllRead()
 	require.NoError(t, err)

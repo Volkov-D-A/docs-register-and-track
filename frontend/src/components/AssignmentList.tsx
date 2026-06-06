@@ -8,9 +8,10 @@ import { buildAssignmentColumns } from './assignmentListColumns';
 interface AssignmentListProps {
     documentId: string;
     documentKind: string;
+    onAssignmentsChanged?: () => void | Promise<void>;
 }
 
-const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKind }) => {
+const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKind, onAssignmentsChanged }) => {
     const {
         data,
         loading,
@@ -30,6 +31,11 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
         },
         onDelete: deleteAssignment,
     });
+
+    const handleAssignmentsChanged = async () => {
+        await load();
+        await onAssignmentsChanged?.();
+    };
 
     return (
         <div>
@@ -63,7 +69,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
             <AssignmentModal
                 open={modalOpen}
                 onCancel={() => { setModalOpen(false); setEditAssignment(null); }}
-                onSuccess={load}
+                onSuccess={handleAssignmentsChanged}
                 documentId={documentId}
                 isEdit={!!editAssignment}
                 initialValues={editAssignment}

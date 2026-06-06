@@ -320,30 +320,59 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 func TestAcknowledgmentService_MarkConfirmedEmitsUserEvent(t *testing.T) {
 	ackID := uuid.New()
 	docID := uuid.New()
-	creatorID := uuid.New()
-	svc, repo, userRepo, auth, incomingRepo := setupAckService(t, "executor")
-	eventStore := &fakeUserEventStore{}
-	svc.events = NewUserEventService(eventStore, auth)
-	userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
-	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
-		ID:             docID,
-		NomenclatureID: uuid.New(),
-		IncomingNumber: "ВХ-3",
-	}, nil).Maybe()
-	userRepo.On("GetAll").Return([]models.User{}, nil).Once()
-	repo.On("MarkConfirmed", ackID, userUUID).Return(nil).Once()
-	repo.On("GetByID", ackID).Return(&models.Acknowledgment{
-		ID:           ackID,
-		DocumentID:   docID,
-		DocumentKind: "incoming_letter",
-		CreatorID:    creatorID,
-	}, nil).Once()
 
-	err := svc.MarkConfirmed(ackID.String())
-	require.NoError(t, err)
-	require.Len(t, eventStore.created, 1)
-	assert.Equal(t, creatorID, eventStore.created[0].RecipientUserID)
-	assert.Equal(t, models.UserEventAcknowledgmentConfirmed, eventStore.created[0].EventType)
+	t.Run("notifies creator", func(t *testing.T) {
+		creatorID := uuid.New()
+		svc, repo, userRepo, auth, incomingRepo := setupAckService(t, "executor")
+		eventStore := &fakeUserEventStore{}
+		svc.events = NewUserEventService(eventStore, auth)
+		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
+			ID:             docID,
+			NomenclatureID: uuid.New(),
+			IncomingNumber: "ВХ-3",
+		}, nil).Maybe()
+		userRepo.On("GetAll").Return([]models.User{}, nil).Once()
+		repo.On("MarkConfirmed", ackID, userUUID).Return(nil).Once()
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+			ID:           ackID,
+			DocumentID:   docID,
+			DocumentKind: "incoming_letter",
+			CreatorID:    creatorID,
+		}, nil).Once()
+
+		err := svc.MarkConfirmed(ackID.String())
+		require.NoError(t, err)
+		require.Len(t, eventStore.created, 1)
+		assert.Equal(t, creatorID, eventStore.created[0].RecipientUserID)
+		assert.Equal(t, models.UserEventAcknowledgmentConfirmed, eventStore.created[0].EventType)
+	})
+
+	t.Run("notifies creator when creator confirms own acknowledgment", func(t *testing.T) {
+		svc, repo, userRepo, auth, incomingRepo := setupAckService(t, "executor")
+		eventStore := &fakeUserEventStore{}
+		svc.events = NewUserEventService(eventStore, auth)
+		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
+			ID:             docID,
+			NomenclatureID: uuid.New(),
+			IncomingNumber: "ВХ-3",
+		}, nil).Maybe()
+		userRepo.On("GetAll").Return([]models.User{}, nil).Once()
+		repo.On("MarkConfirmed", ackID, userUUID).Return(nil).Once()
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+			ID:           ackID,
+			DocumentID:   docID,
+			DocumentKind: "incoming_letter",
+			CreatorID:    userUUID,
+		}, nil).Once()
+
+		err := svc.MarkConfirmed(ackID.String())
+		require.NoError(t, err)
+		require.Len(t, eventStore.created, 1)
+		assert.Equal(t, userUUID, eventStore.created[0].RecipientUserID)
+		assert.Equal(t, models.UserEventAcknowledgmentConfirmed, eventStore.created[0].EventType)
+	})
 }
 
 func TestAcknowledgmentService_Delete(t *testing.T) {

@@ -163,6 +163,25 @@ func TestUserEventRepository_MarkRead(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUserEventRepository_MarkDocumentRead(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewUserEventRepository(&database.DB{DB: db})
+	documentID := uuid.New()
+	userID := uuid.New()
+	readAt := time.Now()
+
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE user_events SET read_at = COALESCE(read_at, $3) WHERE document_id = $1 AND recipient_user_id = $2 AND read_at IS NULL")).
+		WithArgs(documentID, userID, readAt).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+
+	err = repo.MarkDocumentRead(documentID, userID, readAt)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 type userEventRow struct {
 	ID              uuid.UUID
 	RecipientUserID uuid.UUID

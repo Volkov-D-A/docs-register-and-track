@@ -15,6 +15,8 @@ import AssignmentModal from '../components/AssignmentModal';
 import DocumentViewModal from '../components/DocumentViewModal';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
+import { onAssignmentsChanged } from '../events/assignmentEvents';
+import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvents';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -118,6 +120,16 @@ const AssignmentsPage: React.FC = () => {
             load();
         }
     }, [accessReady, load]);
+
+    useEffect(() => onUserEventsReceived((events) => {
+        if (events.some(isAssignmentUserEvent)) {
+            void load();
+        }
+    }), [load]);
+
+    useEffect(() => onAssignmentsChanged(() => {
+        void load();
+    }), [load]);
 
     useEffect(() => {
         loadUsers();

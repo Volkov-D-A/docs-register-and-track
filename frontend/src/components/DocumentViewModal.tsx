@@ -18,6 +18,7 @@ import { getDocumentViewConfig } from '../config/documentViewConfig';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { useDocumentDetails } from '../hooks/useDocumentDetails';
 import { formatAppError } from '../utils/appError';
+import { emitUserEventsDocumentRead, onUserEventsReceived } from '../events/userEvents';
 
 interface DocumentViewModalProps {
     open: boolean;
@@ -52,11 +53,45 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
         onError: handleLoadError,
     });
 
+    const markDocumentEventsRead = useCallback(async () => {
+        if (!documentId) {
+            return;
+        }
+
+        try {
+            const { MarkDocumentRead } = await import('../../wailsjs/go/services/UserEventService');
+            await MarkDocumentRead(documentId);
+            emitUserEventsDocumentRead(documentId);
+        } catch (error) {
+            console.error('MarkDocumentRead error:', error);
+        }
+    }, [documentId]);
+
     useEffect(() => {
         if (open && documentId) {
             setActiveTab('info');
         }
     }, [documentId, documentKind, open]);
+
+    useEffect(() => {
+        if (!open || !documentId) {
+            return;
+        }
+
+        void markDocumentEventsRead();
+    }, [documentId, markDocumentEventsRead, open]);
+
+    useEffect(() => {
+        if (!open || !documentId) {
+            return undefined;
+        }
+
+        return onUserEventsReceived((events) => {
+            if (events.some((event) => !event.readAt && event.documentId === documentId)) {
+                void markDocumentEventsRead();
+            }
+        });
+    }, [documentId, markDocumentEventsRead, open]);
 
     const resolvedKindCode = data?.kindCode || documentKind;
     const isIncomingDocument = isIncomingKind(resolvedKindCode);
@@ -153,7 +188,13 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
             {
                 key: 'assignments',
                 label: 'Поручения',
-                children: <AssignmentList documentId={data.id} documentKind={resolvedKindCode} />,
+                children: (
+                    <AssignmentList
+                        documentId={data.id}
+                        documentKind={resolvedKindCode}
+                        onAssignmentsChanged={onAssignmentsChanged}
+                    />
+                ),
             },
             {
                 key: 'files',

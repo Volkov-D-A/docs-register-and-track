@@ -574,10 +574,105 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 		result, err := svc.UpdateStatus(assignmentID.String(), "completed", "Отчет")
 		require.NoError(t, err)
 		require.NotNil(t, result)
+		require.Len(t, eventStore.created, 2)
+		assert.ElementsMatch(t, []uuid.UUID{controllerID, executorID}, []uuid.UUID{
+			eventStore.created[0].RecipientUserID,
+			eventStore.created[1].RecipientUserID,
+		})
+		for _, event := range eventStore.created {
+			assert.Equal(t, models.UserEventAssignmentCompleted, event.EventType)
+			assert.Equal(t, "Поручение ожидает приемки", event.Title)
+		}
+	})
+
+	t.Run("completed notifies assignee with assign access", func(t *testing.T) {
+		svc, repo, userRepo, auth, _ := setupAssignmentService(t, "executor")
+		executorID, _ := uuid.Parse(auth.GetCurrentUserID())
+		svc.access.accessRepo = newKindActionAccessStore(map[string][]string{
+			"incoming_letter": {"assign"},
+		})
+		eventStore := &fakeUserEventStore{}
+		svc.events = NewUserEventService(eventStore, auth)
+		userRepo.On("GetAll").Return([]models.User{
+			{ID: executorID, IsActive: true},
+		}, nil).Once()
+
+		existing := &models.Assignment{
+			ID:           assignmentID,
+			DocumentID:   docID,
+			DocumentKind: "incoming_letter",
+			ExecutorID:   executorID,
+			Content:      "Контент",
+			Status:       "in_progress",
+		}
+		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
+		repo.On("Update", assignmentID, executorID, "Контент",
+			(*time.Time)(nil), "completed", "Отчет",
+			mock.AnythingOfType("*time.Time"), []string(nil),
+		).Return(&models.Assignment{
+			ID:           assignmentID,
+			DocumentID:   docID,
+			DocumentKind: "incoming_letter",
+			ExecutorID:   executorID,
+			Content:      "Контент",
+			Status:       "completed",
+			Report:       "Отчет",
+		}, nil).Once()
+
+		result, err := svc.UpdateStatus(assignmentID.String(), "completed", "Отчет")
+		require.NoError(t, err)
+		require.NotNil(t, result)
 		require.Len(t, eventStore.created, 1)
-		assert.Equal(t, controllerID, eventStore.created[0].RecipientUserID)
+		assert.Equal(t, executorID, eventStore.created[0].RecipientUserID)
 		assert.Equal(t, models.UserEventAssignmentCompleted, eventStore.created[0].EventType)
-		assert.Equal(t, "Поручение ожидает приемки", eventStore.created[0].Title)
+	})
+
+	t.Run("completed notifies coexecutor with assign access", func(t *testing.T) {
+		svc, repo, userRepo, auth, _ := setupAssignmentService(t, "executor")
+		executorID, _ := uuid.Parse(auth.GetCurrentUserID())
+		coExecutorID := uuid.New()
+		svc.access.accessRepo = newKindActionAccessStore(map[string][]string{
+			"incoming_letter": {"assign"},
+		})
+		eventStore := &fakeUserEventStore{}
+		svc.events = NewUserEventService(eventStore, auth)
+		userRepo.On("GetAll").Return([]models.User{
+			{ID: coExecutorID, IsActive: true},
+			{ID: executorID, IsActive: true},
+		}, nil).Once()
+
+		existing := &models.Assignment{
+			ID:            assignmentID,
+			DocumentID:    docID,
+			DocumentKind:  "incoming_letter",
+			ExecutorID:    executorID,
+			CoExecutorIDs: []string{coExecutorID.String()},
+			Content:       "Контент",
+			Status:        "in_progress",
+		}
+		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
+		repo.On("Update", assignmentID, executorID, "Контент",
+			(*time.Time)(nil), "completed", "Отчет",
+			mock.AnythingOfType("*time.Time"), []string{coExecutorID.String()},
+		).Return(&models.Assignment{
+			ID:            assignmentID,
+			DocumentID:    docID,
+			DocumentKind:  "incoming_letter",
+			ExecutorID:    executorID,
+			CoExecutorIDs: []string{coExecutorID.String()},
+			Content:       "Контент",
+			Status:        "completed",
+			Report:        "Отчет",
+		}, nil).Once()
+
+		result, err := svc.UpdateStatus(assignmentID.String(), "completed", "Отчет")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, eventStore.created, 2)
+		assert.ElementsMatch(t, []uuid.UUID{coExecutorID, executorID}, []uuid.UUID{
+			eventStore.created[0].RecipientUserID,
+			eventStore.created[1].RecipientUserID,
+		})
 	})
 
 	t.Run("returned notifies executor", func(t *testing.T) {

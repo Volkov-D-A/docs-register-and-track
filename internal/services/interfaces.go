@@ -206,6 +206,7 @@ type UserEventStore interface {
 	GetList(userID uuid.UUID, filter models.UserEventFilter) (*models.PagedResult[models.UserEvent], error)
 	CountUnread(userID uuid.UUID) (int, error)
 	MarkRead(id, userID uuid.UUID, readAt time.Time) error
+	MarkDocumentRead(documentID, userID uuid.UUID, readAt time.Time) error
 	MarkAllRead(userID uuid.UUID, readAt time.Time) error
 }
 

@@ -82,6 +82,19 @@ func (s *UserEventService) MarkRead(id string) error {
 	return s.repo.MarkRead(eventID, userID, time.Now())
 }
 
+// MarkDocumentRead отмечает все события текущего пользователя по документу прочитанными.
+func (s *UserEventService) MarkDocumentRead(documentID string) error {
+	docID, err := uuid.Parse(documentID)
+	if err != nil {
+		return models.NewBadRequestWrapped("неверный ID документа", err)
+	}
+	userID, err := s.currentUserUUID()
+	if err != nil {
+		return err
+	}
+	return s.repo.MarkDocumentRead(docID, userID, time.Now())
+}
+
 // MarkAllRead отмечает все события текущего пользователя прочитанными.
 func (s *UserEventService) MarkAllRead() error {
 	userID, err := s.currentUserUUID()

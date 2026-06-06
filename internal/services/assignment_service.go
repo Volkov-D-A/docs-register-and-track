@@ -434,16 +434,7 @@ func (s *AssignmentService) createAssignmentControlEvents(
 	message string,
 	report string,
 ) {
-	excluded := eventActorExcluded(s.auth)
-	excluded[assignment.ExecutorID] = struct{}{}
-	for _, coExecutorID := range assignment.CoExecutorIDs {
-		uid, err := uuid.Parse(coExecutorID)
-		if err == nil {
-			excluded[uid] = struct{}{}
-		}
-	}
-
-	recipients, err := collectUserIDsWithDocumentAction(s.userRepo, s.access, assignment.DocumentKind, "assign", excluded)
+	recipients, err := collectUserIDsWithDocumentAction(s.userRepo, s.access, assignment.DocumentKind, "assign", nil)
 	if err != nil {
 		return
 	}

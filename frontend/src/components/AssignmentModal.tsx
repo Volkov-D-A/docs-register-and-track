@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, DatePicker, App } from 'antd';
 import dayjs from 'dayjs';
 import { formatAppError } from '../utils/appError';
+import { emitAssignmentsChanged } from '../events/assignmentEvents';
 
 /**
  * Свойства модального окна создания/редактирования поручения.
@@ -76,6 +77,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                     values.coExecutorIds || []
                 );
                 message.success('Поручение обновлено');
+                emitAssignmentsChanged({ documentId: initialValues.documentId || documentId });
             } else {
                 const { Create } = await import('../../wailsjs/go/services/AssignmentService');
                 await Create(
@@ -86,6 +88,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                     values.coExecutorIds || []
                 );
                 message.success('Поручение создано');
+                emitAssignmentsChanged({ documentId });
             }
             onSuccess();
             onCancel();

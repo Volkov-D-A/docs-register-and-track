@@ -169,6 +169,17 @@ func (r *UserEventRepository) MarkRead(id, userID uuid.UUID, readAt time.Time) e
 	return nil
 }
 
+// MarkDocumentRead отмечает все события пользователя по документу прочитанными.
+func (r *UserEventRepository) MarkDocumentRead(documentID, userID uuid.UUID, readAt time.Time) error {
+	_, err := r.db.Exec(
+		"UPDATE user_events SET read_at = COALESCE(read_at, $3) WHERE document_id = $1 AND recipient_user_id = $2 AND read_at IS NULL",
+		documentID,
+		userID,
+		readAt,
+	)
+	return err
+}
+
 // MarkAllRead отмечает все события пользователя прочитанными.
 func (r *UserEventRepository) MarkAllRead(userID uuid.UUID, readAt time.Time) error {
 	_, err := r.db.Exec(

@@ -14,6 +14,10 @@ export function MarkAllRead() {
   return window['go']['services']['UserEventService']['MarkAllRead']();
 }
 
+export function MarkDocumentRead(arg1) {
+  return window['go']['services']['UserEventService']['MarkDocumentRead'](arg1);
+}
+
 export function MarkRead(arg1) {
   return window['go']['services']['UserEventService']['MarkRead'](arg1);
 }

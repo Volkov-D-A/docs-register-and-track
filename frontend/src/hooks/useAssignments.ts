@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { App } from 'antd';
 import { useDocumentKindAccess } from './useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
+import { emitAssignmentsChanged } from '../events/assignmentEvents';
+import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvents';
 
 type UseAssignmentsOptions = {
     documentId: string;
@@ -36,29 +38,37 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
         void load();
     }, [load]);
 
+    useEffect(() => onUserEventsReceived((events) => {
+        if (events.some((event) => isAssignmentUserEvent(event) && event.documentId === documentId)) {
+            void load();
+        }
+    }), [documentId, load]);
+
     const deleteAssignment = useCallback(async (id: string) => {
         try {
             const { Delete } = await import('../../wailsjs/go/services/AssignmentService');
             await Delete(id);
             message.success('Поручение удалено');
+            emitAssignmentsChanged({ documentId });
             await load();
         } catch (error: unknown) {
             message.error(formatAppError(error));
         }
-    }, [load, message]);
+    }, [documentId, load, message]);
 
     const updateStatus = useCallback(async (id: string, status: string, report = '') => {
         try {
             const { UpdateStatus } = await import('../../wailsjs/go/services/AssignmentService');
             await UpdateStatus(id, status, report);
             message.success('Статус поручения обновлён');
+            emitAssignmentsChanged({ documentId });
             await load();
             return true;
         } catch (error: unknown) {
             message.error(formatAppError(error));
             return false;
         }
-    }, [load, message]);
+    }, [documentId, load, message]);
 
     return {
         data,

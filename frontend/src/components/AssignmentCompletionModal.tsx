@@ -3,6 +3,7 @@ import { Modal, Input, Upload, Button, Typography, App } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { UploadFile, UploadProps } from 'antd';
 import { formatAppError } from '../utils/appError';
+import { emitAssignmentsChanged } from '../events/assignmentEvents';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -97,6 +98,7 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
 
             await UpdateStatus(assignmentId, 'completed', reportText.trim());
             message.success('Поручение исполнено');
+            emitAssignmentsChanged({ documentId });
             onSuccess();
         } catch (err: unknown) {
             message.error(formatAppError(err));
