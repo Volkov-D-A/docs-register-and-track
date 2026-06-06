@@ -136,6 +136,34 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 	return dto.MapAcknowledgments(res), err
 }
 
+// GetCurrentUserPendingByDocument возвращает ожидающие подтверждения ознакомления текущего пользователя по документу.
+func (s *AcknowledgmentService) GetCurrentUserPendingByDocument(documentID string) ([]dto.Acknowledgment, error) {
+	if err := s.access.RequireDomainRead(); err != nil {
+		return nil, err
+	}
+	docUUID, err := uuid.Parse(documentID)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
+	}
+	userID := s.auth.GetCurrentUserID()
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
+
+	res, err := s.repo.GetPendingForUser(userUUID)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]models.Acknowledgment, 0)
+	for _, ack := range res {
+		if ack.DocumentID == docUUID {
+			filtered = append(filtered, ack)
+		}
+	}
+	return dto.MapAcknowledgments(filtered), nil
+}
+
 // GetAllActive возвращает список всех активных (не завершенных) задач на ознакомление в системе.
 // Доступно только делопроизводителям.
 func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {

@@ -270,7 +270,7 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 		}
 		if err := s.access.RequireDocumentAction(docUUID, "assign"); err != nil {
-			return nil, err
+			filter.AccessibleByUserID = s.auth.GetCurrentUserID()
 		}
 	}
 

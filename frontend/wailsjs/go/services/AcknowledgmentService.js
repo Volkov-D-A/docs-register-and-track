@@ -14,6 +14,10 @@ export function GetAllActive() {
   return window['go']['services']['AcknowledgmentService']['GetAllActive']();
 }
 
+export function GetCurrentUserPendingByDocument(arg1) {
+  return window['go']['services']['AcknowledgmentService']['GetCurrentUserPendingByDocument'](arg1);
+}
+
 export function GetList(arg1) {
   return window['go']['services']['AcknowledgmentService']['GetList'](arg1);
 }

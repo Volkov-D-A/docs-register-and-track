@@ -756,19 +756,35 @@ func TestAssignmentService_GetList(t *testing.T) {
 		assert.Len(t, result.Items, 1)
 	})
 
-	t.Run("document assignments forbidden for executor without assign right", func(t *testing.T) {
-		svc, _, _, _, _ := setupAssignmentService(t, "executor")
+	t.Run("document assignments scoped for executor without assign right", func(t *testing.T) {
+		svc, repo, _, auth, _ := setupAssignmentService(t, "executor")
 		docID := uuid.New()
-
-		result, err := svc.GetList(models.AssignmentFilter{
+		filter := models.AssignmentFilter{
 			DocumentID:   docID.String(),
 			Page:         1,
 			PageSize:     100,
 			ShowFinished: true,
-		})
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
+		}
+		expectedFilter := models.AssignmentFilter{
+			DocumentID:         docID.String(),
+			Page:               1,
+			PageSize:           100,
+			ShowFinished:       true,
+			ExecutorID:         auth.GetCurrentUserID(),
+			AccessibleByUserID: auth.GetCurrentUserID(),
+		}
+		repoResult := &models.PagedResult[models.Assignment]{
+			Items:      []models.Assignment{{ID: uuid.New(), DocumentID: docID, ExecutorID: uuid.MustParse(auth.GetCurrentUserID()), Status: "new"}},
+			TotalCount: 1,
+			Page:       1,
+			PageSize:   100,
+		}
+		repo.On("GetList", expectedFilter).Return(repoResult, nil).Once()
+
+		result, err := svc.GetList(filter)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Len(t, result.Items, 1)
 	})
 
 	t.Run("partial assignment rights are scoped by document kind and own assignments", func(t *testing.T) {

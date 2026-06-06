@@ -1,26 +1,18 @@
 import React from 'react';
-import { Button, Popconfirm, Space, Tag, Tooltip } from 'antd';
-import { CheckCircleOutlined, DeleteOutlined, EditOutlined, PlayCircleOutlined, UndoOutlined } from '@ant-design/icons';
+import { Button, Popconfirm, Space, Tag } from 'antd';
+import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 type BuildAssignmentColumnsParams = {
-    userId?: string;
     canManageAssignments: boolean;
     onEdit: (assignment: any) => void;
     onDelete: (id: string) => void;
-    onUpdateStatus: (id: string, status: string) => void;
-    onOpenCompletion: (assignment: any) => void;
-    onOpenReturn: (assignment: any) => void;
 };
 
 export const buildAssignmentColumns = ({
-    userId,
     canManageAssignments,
     onEdit,
     onDelete,
-    onUpdateStatus,
-    onOpenCompletion,
-    onOpenReturn,
 }: BuildAssignmentColumnsParams) => [
     {
         title: 'Дата',
@@ -87,7 +79,6 @@ export const buildAssignmentColumns = ({
         key: 'actions',
         width: 150,
         render: (_: any, record: any) => {
-            const isExecutor = userId === record.executorId;
             const canEdit = canManageAssignments && record.status !== 'finished';
 
             return (
@@ -106,24 +97,6 @@ export const buildAssignmentColumns = ({
                                 <Button size="small" title="Удалить поручение" icon={<DeleteOutlined />} danger />
                             </Popconfirm>
                         </>
-                    )}
-
-                    {isExecutor && (record.status === 'new' || record.status === 'returned') && (
-                        <Tooltip title="Взять в работу">
-                            <Button size="small" icon={<PlayCircleOutlined />} onClick={() => onUpdateStatus(record.id, 'in_progress')} />
-                        </Tooltip>
-                    )}
-
-                    {isExecutor && record.status === 'in_progress' && (
-                        <Tooltip title="Исполнить">
-                            <Button size="small" icon={<CheckCircleOutlined />} onClick={() => onOpenCompletion(record)} />
-                        </Tooltip>
-                    )}
-
-                    {canManageAssignments && record.status === 'completed' && (
-                        <Tooltip title="Вернуть на доработку">
-                            <Button size="small" icon={<UndoOutlined />} onClick={() => onOpenReturn(record)} />
-                        </Tooltip>
                     )}
                 </Space>
             );

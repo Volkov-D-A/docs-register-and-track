@@ -8,6 +8,8 @@ export function Delete(arg1:string):Promise<void>;
 
 export function GetAllActive():Promise<Array<dto.Acknowledgment>>;
 
+export function GetCurrentUserPendingByDocument(arg1:string):Promise<Array<dto.Acknowledgment>>;
+
 export function GetList(arg1:string):Promise<Array<dto.Acknowledgment>>;
 
 export function GetPendingForCurrentUser():Promise<Array<dto.Acknowledgment>>;

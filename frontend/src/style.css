@@ -194,3 +194,112 @@ body {
   max-width: 160px;
   opacity: 1;
 }
+
+.document-assignment-workflow {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--app-border);
+}
+
+.document-acknowledgment-workflow {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--app-border);
+}
+
+.document-assignment-workflow__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin-bottom: 8px;
+}
+
+.document-acknowledgment-workflow__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin-bottom: 8px;
+}
+
+.document-assignment-workflow__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--app-border);
+}
+
+.document-acknowledgment-workflow__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--app-border);
+}
+
+.document-assignment-workflow__item:first-of-type {
+  border-top: none;
+}
+
+.document-acknowledgment-workflow__item:first-of-type {
+  border-top: none;
+}
+
+.document-assignment-workflow__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.document-acknowledgment-workflow__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.document-assignment-workflow__content {
+  margin-bottom: 6px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.document-acknowledgment-workflow__content {
+  margin-bottom: 6px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.document-assignment-workflow__report {
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+.document-assignment-workflow__actions {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+.document-acknowledgment-workflow__actions {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .document-assignment-workflow__item {
+    flex-direction: column;
+  }
+
+  .document-acknowledgment-workflow__item {
+    flex-direction: column;
+  }
+
+  .document-assignment-workflow__actions {
+    justify-content: flex-start;
+  }
+
+  .document-acknowledgment-workflow__actions {
+    justify-content: flex-start;
+  }
+}

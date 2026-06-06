@@ -3,6 +3,8 @@ import { App, Button, Modal, Spin, Tabs } from 'antd';
 import AssignmentList from './AssignmentList';
 import AcknowledgmentList from './AcknowledgmentList';
 import FileListComponent from './FileListComponent';
+import DocumentAssignmentWorkflowPanel from './DocumentAssignmentWorkflowPanel';
+import DocumentAcknowledgmentWorkflowPanel from './DocumentAcknowledgmentWorkflowPanel';
 import { LinksTab } from './DocumentLinks/LinksTab';
 import JournalList from './JournalList';
 import RelatedDocumentModal from './RelatedDocumentModal';
@@ -22,9 +24,18 @@ interface DocumentViewModalProps {
     onCancel: () => void;
     documentId: string;
     documentKind: string;
+    onAssignmentsChanged?: () => void | Promise<void>;
+    onAcknowledgmentsChanged?: () => void | Promise<void>;
 }
 
-const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, documentId, documentKind }) => {
+const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
+    open,
+    onCancel,
+    documentId,
+    documentKind,
+    onAssignmentsChanged,
+    onAcknowledgmentsChanged,
+}) => {
     const { message } = App.useApp();
     const { hasAction, kinds, loading: kindsLoading, ready: accessReady } = useDocumentKindAccess();
     const [activeTab, setActiveTab] = useState('info');
@@ -95,22 +106,37 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({ open, onCancel, d
     };
 
     const infoContent = () => {
+        let content: React.ReactNode;
         if (isIncomingDocument) {
-            return <IncomingDocumentDetails doc={details} />;
-        }
-        if (isCitizenAppealDocument) {
-            return <CitizenAppealDetails doc={details} />;
-        }
-        if (isAdministrativeOrderDocument) {
-            return (
+            content = <IncomingDocumentDetails doc={details} />;
+        } else if (isCitizenAppealDocument) {
+            content = <CitizenAppealDetails doc={details} />;
+        } else if (isAdministrativeOrderDocument) {
+            content = (
                 <AdministrativeOrderDetails
                     doc={details}
                     canUpdateDocument={canUpdateDocument}
                     onMarkAcknowledged={markOrderAcknowledged}
                 />
             );
+        } else {
+            content = <OutgoingDocumentDetails doc={details} />;
         }
-        return <OutgoingDocumentDetails doc={details} />;
+
+        return (
+            <>
+                {content}
+                <DocumentAssignmentWorkflowPanel
+                    documentId={data?.id || documentId}
+                    documentKind={resolvedKindCode}
+                    onAssignmentsChanged={onAssignmentsChanged}
+                />
+                <DocumentAcknowledgmentWorkflowPanel
+                    documentId={data?.id || documentId}
+                    onAcknowledgmentsChanged={onAcknowledgmentsChanged}
+                />
+            </>
+        );
     };
 
     const getTabs = () => {

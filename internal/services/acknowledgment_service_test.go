@@ -195,6 +195,44 @@ func TestAcknowledgmentService_GetPendingForCurrentUser(t *testing.T) {
 	})
 }
 
+func TestAcknowledgmentService_GetCurrentUserPendingByDocument(t *testing.T) {
+	docID := uuid.New()
+
+	t.Run("success filters current user pending acknowledgments by document", func(t *testing.T) {
+		svc, repo, _, auth, _ := setupAckService(t, "executor")
+		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
+		acks := []models.Acknowledgment{
+			{ID: uuid.New(), DocumentID: docID, Content: "Ознакомиться"},
+			{ID: uuid.New(), DocumentID: uuid.New(), Content: "Другой документ"},
+		}
+		repo.On("GetPendingForUser", userUUID).Return(acks, nil).Once()
+
+		result, err := svc.GetCurrentUserPendingByDocument(docID.String())
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, docID.String(), result[0].DocumentID)
+		assert.Equal(t, "Ознакомиться", result[0].Content)
+	})
+
+	t.Run("not authenticated", func(t *testing.T) {
+		svc := setupAckServiceNotAuth(t)
+
+		result, err := svc.GetCurrentUserPendingByDocument(docID.String())
+		require.Error(t, err)
+		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("invalid document ID", func(t *testing.T) {
+		svc, _, _, _, _ := setupAckService(t, "executor")
+
+		result, err := svc.GetCurrentUserPendingByDocument("not-a-uuid")
+		require.Error(t, err)
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
+		assert.Nil(t, result)
+	})
+}
+
 func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 	// Получение всех активных ознакомлений в системе (для администратора/делопроизводителя)
 	t.Run("success clerk", func(t *testing.T) {

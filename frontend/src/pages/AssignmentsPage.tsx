@@ -1,30 +1,27 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    Typography, Table, Button, Modal, Input, Select, DatePicker,
+    Typography, Table, Button, Input, Select, DatePicker,
     Space, Row, Col, Tag, Popconfirm, Tooltip, Switch, App
 } from 'antd';
 import {
     SearchOutlined, EditOutlined, DeleteOutlined,
-    CheckCircleOutlined, PlayCircleOutlined, UndoOutlined,
-    ClearOutlined, EyeOutlined, FileDoneOutlined
+    ClearOutlined, EyeOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import { DOCUMENT_KIND_INCOMING_LETTER } from '../constants/documentKinds';
 import AssignmentModal from '../components/AssignmentModal';
-import AssignmentCompletionModal from '../components/AssignmentCompletionModal';
 
 import DocumentViewModal from '../components/DocumentViewModal';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
 
 const { Title, Text } = Typography;
-const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 /**
  * Страница управления поручениями.
- * Позволяет просматривать, фильтровать, создавать и менять статусы поручений в зависимости от роли.
+ * Позволяет просматривать, фильтровать и администрировать поручения в зависимости от роли.
  */
 const AssignmentsPage: React.FC = () => {
     const { message } = App.useApp();
@@ -49,10 +46,6 @@ const AssignmentsPage: React.FC = () => {
     // Модальные окна
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<any>(null);
-    const [completionModalOpen, setCompletionModalOpen] = useState(false);
-    const [currentAssignment, setCurrentAssignment] = useState<any>(null);
-    const [returnModalOpen, setReturnModalOpen] = useState(false);
-    const [returnReasonText, setReturnReasonText] = useState('');
 
     // View Document
     const [viewDocId, setViewDocId] = useState<string>('');
@@ -129,28 +122,6 @@ const AssignmentsPage: React.FC = () => {
     useEffect(() => {
         loadUsers();
     }, []);
-
-    const updateStatus = async (id: string, status: string, report: string = '') => {
-        try {
-            const { UpdateStatus } = await import('../../wailsjs/go/services/AssignmentService');
-            await UpdateStatus(id, status, report);
-            message.success('Статус поручения обновлён');
-            load();
-        } catch (err: any) {
-            message.error(formatAppError(err));
-        }
-    };
-
-    const handleReturnToRevision = () => {
-        if (!returnReasonText.trim()) {
-            message.error('Введите причину возврата');
-            return;
-        }
-        updateStatus(currentAssignment.id, 'returned', returnReasonText);
-        setReturnModalOpen(false);
-        setReturnReasonText('');
-        setCurrentAssignment(null);
-    };
 
     const onDelete = async (id: string) => {
         try {
@@ -273,7 +244,6 @@ const AssignmentsPage: React.FC = () => {
         {
             title: 'Действия', key: 'actions', width: 140,
             render: (_: any, r: any) => {
-                const isExecutor = user?.id === r.executorId;
                 const canManageAssignment = hasAction(r.documentKind, 'assign');
                 const canEdit = canManageAssignment && r.status !== 'finished';
 
@@ -295,35 +265,6 @@ const AssignmentsPage: React.FC = () => {
                                 >
                                     <Button size="small" title="Удалить поручение" icon={<DeleteOutlined />} danger />
                                 </Popconfirm>
-                            </>
-                        )}
-                        {isExecutor && (r.status === 'new' || r.status === 'returned') && (
-                            <Tooltip title="Взять в работу">
-                                <Button size="small" icon={<PlayCircleOutlined />} onClick={() => updateStatus(r.id, 'in_progress')} />
-                            </Tooltip>
-                        )}
-                        {isExecutor && r.status === 'in_progress' && (
-                            <Tooltip title="Исполнить">
-                                <Button size="small" icon={<CheckCircleOutlined />}
-                                    onClick={() => { setCurrentAssignment(r); setCompletionModalOpen(true); }} />
-                            </Tooltip>
-                        )}
-                        {canManageAssignment && r.status === 'completed' && (
-                            <>
-                                <Tooltip title="Завершить">
-                                    <Button size="small" icon={<FileDoneOutlined />} onClick={() => updateStatus(r.id, 'finished')} />
-                                </Tooltip>
-                                <Tooltip title="Вернуть на доработку">
-                                    <Button
-                                        size="small"
-                                        icon={<UndoOutlined />}
-                                        onClick={() => {
-                                            setCurrentAssignment(r);
-                                            setReturnReasonText('');
-                                            setReturnModalOpen(true);
-                                        }}
-                                    />
-                                </Tooltip>
                             </>
                         )}
                     </Space>
@@ -439,46 +380,12 @@ const AssignmentsPage: React.FC = () => {
                 initialValues={editAssignment}
             />
 
-            <AssignmentCompletionModal
-                open={completionModalOpen}
-                assignmentId={currentAssignment?.id || ''}
-                documentId={currentAssignment?.documentId || ''}
-                initialReport={currentAssignment?.report || ''}
-                onCancel={() => {
-                    setCompletionModalOpen(false);
-                    setCurrentAssignment(null);
-                }}
-                onSuccess={() => {
-                    setCompletionModalOpen(false);
-                    setCurrentAssignment(null);
-                    load();
-                }}
-            />
-
-            <Modal
-                title="Причина возврата на доработку"
-                open={returnModalOpen}
-                onCancel={() => {
-                    setReturnModalOpen(false);
-                    setReturnReasonText('');
-                    setCurrentAssignment(null);
-                }}
-                onOk={handleReturnToRevision}
-                okText="Вернуть"
-            >
-                <TextArea
-                    rows={4}
-                    value={returnReasonText}
-                    onChange={e => setReturnReasonText(e.target.value)}
-                    placeholder="Введите причину возврата..."
-                />
-            </Modal>
-
             <DocumentViewModal
                 open={viewModalOpen}
                 onCancel={() => setViewModalOpen(false)}
                 documentId={viewDocId}
                 documentKind={viewDocKind}
+                onAssignmentsChanged={load}
             />
         </div>
     );

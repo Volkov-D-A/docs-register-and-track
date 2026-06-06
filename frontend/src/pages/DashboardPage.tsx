@@ -69,17 +69,6 @@ const DashboardPage: React.FC = () => {
         }
     }, [accessReady, loadStats]);
 
-    const onAcknowledge = async (id: string) => {
-        try {
-            const { MarkConfirmed } = await import('../../wailsjs/go/services/AcknowledgmentService');
-            await MarkConfirmed(id);
-            message.success('Ознакомление подтверждено');
-            loadStats();
-        } catch (err: unknown) {
-            message.error(formatAppError(err));
-        }
-    };
-
     // Определение отображения по текущей роли
     if (!accessReady || (loading && !stats)) {
         return <div style={{ textAlign: 'center', marginTop: 50 }}><Spin size="large" /></div>;
@@ -164,9 +153,6 @@ const DashboardPage: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {pendingAcks.map((item: any) => (
                             (() => {
-                                const currentAckUser = item.users?.find((u: any) => u.userId === user?.id);
-                                const canSelfAcknowledge = !!currentAckUser && !currentAckUser.confirmedAt;
-
                                 return (
                                     <div key={item.id} style={{ paddingBottom: 12, borderBottom: '1px solid var(--app-border)' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
@@ -198,16 +184,11 @@ const DashboardPage: React.FC = () => {
                                                         ))}
                                                     </div>
                                                 ) : <Text type="secondary" style={{ fontSize: 12 }}>Нет участников</Text>}
-                                                {canSelfAcknowledge && (
-                                                    <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-start' }}>
-                                                        <Button size="small" type="primary" onClick={() => onAcknowledge(item.id)}>ознакомлен</Button>
-                                                    </div>
-                                                )}
                                             </div>
                                         ) : (
-                                            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-start' }}>
-                                                <Button size="small" type="primary" onClick={() => onAcknowledge(item.id)}>ознакомлен</Button>
-                                            </div>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                                Откройте карточку документа для подтверждения ознакомления.
+                                            </Text>
                                         )}
                                     </div>
                                 );
@@ -284,6 +265,8 @@ const DashboardPage: React.FC = () => {
                     onCancel={() => setViewModalOpen(false)}
                     documentId={viewDocId}
                     documentKind={viewDocKind}
+                    onAssignmentsChanged={loadStats}
+                    onAcknowledgmentsChanged={loadStats}
                 />
             )}
         </div>

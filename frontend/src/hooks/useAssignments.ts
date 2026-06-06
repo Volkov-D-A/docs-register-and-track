@@ -16,7 +16,7 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
     const [loading, setLoading] = useState(false);
 
     const load = useCallback(async () => {
-        if (!documentId || !canManageAssignments) {
+        if (!documentId || !accessReady) {
             setData([]);
             return;
         }
@@ -30,7 +30,7 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
         } finally {
             setLoading(false);
         }
-    }, [canManageAssignments, documentId]);
+    }, [accessReady, documentId]);
 
     useEffect(() => {
         void load();
@@ -53,8 +53,10 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
             await UpdateStatus(id, status, report);
             message.success('Статус поручения обновлён');
             await load();
+            return true;
         } catch (error: unknown) {
             message.error(formatAppError(error));
+            return false;
         }
     }, [load, message]);
 
