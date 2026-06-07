@@ -937,6 +937,43 @@ func TestAssignmentService_GetList(t *testing.T) {
 		assert.Len(t, result.Items, 1)
 	})
 
+	t.Run("substitute list ignores current user executor filter from client", func(t *testing.T) {
+		svc, repo, _, auth, _ := setupAssignmentService(t, "")
+		principalID := uuid.New()
+		currentUserID := auth.GetCurrentUserID()
+		substitutions := &userSubstitutionStoreStub{
+			activePrincipals: []uuid.UUID{principalID},
+		}
+		svc.SetSubstitutionStore(substitutions)
+		svc.access.substitutionRepo = substitutions
+
+		filter := models.AssignmentFilter{
+			Page:       1,
+			PageSize:   20,
+			ExecutorID: currentUserID,
+		}
+		expectedFilter := models.AssignmentFilter{
+			Page:                1,
+			PageSize:            20,
+			AccessibleByUserID:  currentUserID,
+			AccessibleByUserIDs: []string{currentUserID, principalID.String()},
+		}
+		repoResult := &models.PagedResult[models.Assignment]{
+			Items:      []models.Assignment{{ID: uuid.New(), ExecutorID: principalID, Status: "new"}},
+			TotalCount: 1,
+			Page:       1,
+			PageSize:   20,
+		}
+		repo.On("GetList", expectedFilter).Return(repoResult, nil).Once()
+
+		result, err := svc.GetList(filter)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Len(t, result.Items, 1)
+		assert.True(t, result.Items[0].CanAct)
+	})
+
 	t.Run("partial assignment rights are scoped by document kind and own assignments", func(t *testing.T) {
 		svc, repo, _, auth, _ := setupAssignmentService(t, "executor")
 		svc.access = NewDocumentAccessService(

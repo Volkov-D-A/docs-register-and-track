@@ -271,7 +271,11 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 		})
 		s.createAssignmentStatusEvents(res, existing.Status, status, report, eventActorID(s.auth))
 	}
-	return dto.MapAssignment(res), err
+	mapped := dto.MapAssignment(res)
+	if mapped != nil {
+		mapped.CanAct = isExecutor || isSubstituteExecutor
+	}
+	return mapped, err
 }
 
 // GetByID возвращает поручение по его ID.
@@ -299,7 +303,15 @@ func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 			return nil, models.ErrForbidden
 		}
 	}
-	return dto.MapAssignment(res), nil
+	mapped := dto.MapAssignment(res)
+	if mapped != nil {
+		_, subjectIDs, subjectsErr := s.currentUserAndSubstitutionSubjectIDs()
+		if subjectsErr != nil {
+			return nil, subjectsErr
+		}
+		mapped.CanAct = isAssignmentExecutorInSubjects(subjectIDs, res)
+	}
+	return mapped, nil
 }
 
 // GetList возвращает список поручений с учетом фильтрации.
@@ -328,6 +340,7 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 			if len(subjectIDs) == 1 {
 				filter.ExecutorID = subjectIDs[0]
 			} else {
+				filter.ExecutorID = ""
 				filter.AccessibleByUserIDs = subjectIDs
 			}
 		}
@@ -345,6 +358,7 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 		if len(subjectIDs) == 1 {
 			filter.ExecutorID = subjectIDs[0]
 		} else {
+			filter.ExecutorID = ""
 			filter.AccessibleByUserID = subjectIDs[0]
 			filter.AccessibleByUserIDs = subjectIDs
 		}
@@ -360,12 +374,35 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 	if err != nil {
 		return nil, err
 	}
+	items := dto.MapAssignments(res.Items)
+	markAssignmentsCanAct(items, subjectIDs, res.Items)
 	return &dto.PagedResult[dto.Assignment]{
-		Items:      dto.MapAssignments(res.Items),
+		Items:      items,
 		TotalCount: res.TotalCount,
 		Page:       res.Page,
 		PageSize:   res.PageSize,
 	}, nil
+}
+
+func markAssignmentsCanAct(items []dto.Assignment, subjectIDs []string, assignments []models.Assignment) {
+	for i := range items {
+		if i < len(assignments) {
+			items[i].CanAct = isAssignmentExecutorInSubjects(subjectIDs, &assignments[i])
+		}
+	}
+}
+
+func isAssignmentExecutorInSubjects(subjectIDs []string, assignment *models.Assignment) bool {
+	if assignment == nil {
+		return false
+	}
+	executorID := assignment.ExecutorID.String()
+	for _, subjectID := range subjectIDs {
+		if subjectID == executorID {
+			return true
+		}
+	}
+	return false
 }
 
 func documentKindCodes(kinds []models.DocumentKind) []string {

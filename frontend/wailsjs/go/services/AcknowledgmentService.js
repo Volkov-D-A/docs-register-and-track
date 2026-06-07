@@ -33,3 +33,7 @@ export function MarkConfirmed(arg1) {
 export function MarkViewed(arg1) {
   return window['go']['services']['AcknowledgmentService']['MarkViewed'](arg1);
 }
+
+export function SetSubstitutionStore(arg1) {
+  return window['go']['services']['AcknowledgmentService']['SetSubstitutionStore'](arg1);
+}

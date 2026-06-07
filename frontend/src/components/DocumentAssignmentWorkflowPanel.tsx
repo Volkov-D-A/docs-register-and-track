@@ -4,7 +4,6 @@ import { CheckCircleOutlined, FileDoneOutlined, PlayCircleOutlined, UndoOutlined
 import dayjs from 'dayjs';
 import AssignmentCompletionModal from './AssignmentCompletionModal';
 import { useAssignments } from '../hooks/useAssignments';
-import { useAuthStore } from '../store/useAuthStore';
 
 interface DocumentAssignmentWorkflowPanelProps {
     documentId: string;
@@ -40,7 +39,6 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
     onAssignmentsChanged,
 }) => {
     const { message } = App.useApp();
-    const { user } = useAuthStore();
     const {
         data,
         loading,
@@ -55,11 +53,10 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
     const [returnReasonText, setReturnReasonText] = useState('');
 
     const actionableAssignments = useMemo(() => data.filter((assignment) => {
-        const isExecutor = user?.id === assignment.executorId;
-        const executorCanAct = isExecutor && ['new', 'returned', 'in_progress'].includes(assignment.status);
+        const executorCanAct = assignment.canAct && ['new', 'returned', 'in_progress'].includes(assignment.status);
         const managerCanAct = canManageAssignments && assignment.status === 'completed';
         return executorCanAct || managerCanAct;
-    }), [canManageAssignments, data, user?.id]);
+    }), [canManageAssignments, data]);
 
     const notifyAssignmentsChanged = async () => {
         await onAssignmentsChanged?.();
@@ -95,7 +92,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
             </div>
 
             {!loading && actionableAssignments.map((assignment) => {
-                const isExecutor = user?.id === assignment.executorId;
+                const canActAsExecutor = assignment.canAct;
                 return (
                     <div className="document-assignment-workflow__item" key={assignment.id}>
                         <div className="document-assignment-workflow__body">
@@ -119,7 +116,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                             )}
                         </div>
                         <Space size={6} wrap className="document-assignment-workflow__actions">
-                            {isExecutor && (assignment.status === 'new' || assignment.status === 'returned') && (
+                            {canActAsExecutor && (assignment.status === 'new' || assignment.status === 'returned') && (
                                 <Tooltip title="Взять в работу">
                                     <Button
                                         size="small"
@@ -130,7 +127,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                                     </Button>
                                 </Tooltip>
                             )}
-                            {isExecutor && assignment.status === 'in_progress' && (
+                            {canActAsExecutor && assignment.status === 'in_progress' && (
                                 <Tooltip title="Исполнить">
                                     <Button
                                         size="small"

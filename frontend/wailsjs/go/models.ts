@@ -487,58 +487,6 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class UserSubstitution {
-	    id: string;
-	    principalUserId: string;
-	    substituteUserId: string;
-	    principalName?: string;
-	    substituteName?: string;
-	    // Go type: time
-	    startsAt?: any;
-	    // Go type: time
-	    endsAt?: any;
-	    isActive: boolean;
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
-	
-	    static createFrom(source: any = {}) {
-	        return new UserSubstitution(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.principalUserId = source["principalUserId"];
-	        this.substituteUserId = source["substituteUserId"];
-	        this.principalName = source["principalName"];
-	        this.substituteName = source["substituteName"];
-	        this.startsAt = this.convertValues(source["startsAt"], null);
-	        this.endsAt = this.convertValues(source["endsAt"], null);
-	        this.isActive = source["isActive"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class Assignment {
 	    id: string;
 	    documentId: string;
@@ -552,6 +500,7 @@ export namespace dto {
 	    report?: string;
 	    // Go type: time
 	    completedAt?: any;
+	    canAct: boolean;
 	    documentNumber?: string;
 	    documentSubject?: string;
 	    coExecutors?: User[];
@@ -577,6 +526,7 @@ export namespace dto {
 	        this.status = source["status"];
 	        this.report = source["report"];
 	        this.completedAt = this.convertValues(source["completedAt"], null);
+	        this.canAct = source["canAct"];
 	        this.documentNumber = source["documentNumber"];
 	        this.documentSubject = source["documentSubject"];
 	        this.coExecutors = this.convertValues(source["coExecutors"], User);
@@ -1614,6 +1564,59 @@ export namespace dto {
 		}
 	}
 	
+	
+	export class UserSubstitution {
+	    id: string;
+	    principalUserId: string;
+	    substituteUserId: string;
+	    principalName?: string;
+	    substituteName?: string;
+	    // Go type: time
+	    startsAt?: any;
+	    // Go type: time
+	    endsAt?: any;
+	    isActive: boolean;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserSubstitution(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.principalUserId = source["principalUserId"];
+	        this.substituteUserId = source["substituteUserId"];
+	        this.principalName = source["principalName"];
+	        this.substituteName = source["substituteName"];
+	        this.startsAt = this.convertValues(source["startsAt"], null);
+	        this.endsAt = this.convertValues(source["endsAt"], null);
+	        this.isActive = source["isActive"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 
@@ -2270,26 +2273,6 @@ export namespace models {
 	        this.fullName = source["fullName"];
 	    }
 	}
-	export class UpdateUserSubstitutionRequest {
-	    principalUserId?: string;
-	    substituteUserId?: string;
-	    startsAt?: string;
-	    endsAt?: string;
-	    isActive: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new UpdateUserSubstitutionRequest(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.principalUserId = source["principalUserId"];
-	        this.substituteUserId = source["substituteUserId"];
-	        this.startsAt = source["startsAt"];
-	        this.endsAt = source["endsAt"];
-	        this.isActive = source["isActive"];
-	    }
-	}
 	export class UserDocumentPermissionRule {
 	    kindCode: string;
 	    action: string;
@@ -2374,6 +2357,26 @@ export namespace models {
 	        this.isActive = source["isActive"];
 	        this.departmentId = source["departmentId"];
 	        this.isDocumentParticipant = source["isDocumentParticipant"];
+	    }
+	}
+	export class UpdateUserSubstitutionRequest {
+	    principalUserId?: string;
+	    substituteUserId?: string;
+	    startsAt?: string;
+	    endsAt?: string;
+	    isActive: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateUserSubstitutionRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.principalUserId = source["principalUserId"];
+	        this.substituteUserId = source["substituteUserId"];
+	        this.startsAt = source["startsAt"];
+	        this.endsAt = source["endsAt"];
+	        this.isActive = source["isActive"];
 	    }
 	}
 	export class UserDocumentAccessProfile {

@@ -404,6 +404,7 @@ type Assignment struct {
 	Status      string     `json:"status"`
 	Report      string     `json:"report,omitempty"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	CanAct      bool       `json:"canAct"`
 
 	DocumentNumber  string `json:"documentNumber,omitempty"`
 	DocumentSubject string `json:"documentSubject,omitempty"`
