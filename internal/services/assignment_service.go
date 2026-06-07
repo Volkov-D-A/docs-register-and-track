@@ -13,12 +13,13 @@ import (
 
 // AssignmentService предоставляет бизнес-логику для работы с поручениями.
 type AssignmentService struct {
-	repo     AssignmentStore
-	userRepo UserStore // Для валидации
-	auth     *AuthService
-	journal  *JournalService
-	access   *DocumentAccessService
-	events   *UserEventService
+	repo          AssignmentStore
+	userRepo      UserStore // Для валидации
+	auth          *AuthService
+	journal       *JournalService
+	access        *DocumentAccessService
+	events        *UserEventService
+	substitutions UserSubstitutionStore
 }
 
 // NewAssignmentService создает новый экземпляр AssignmentService.
@@ -41,6 +42,37 @@ func NewAssignmentService(
 		s.events = events[0]
 	}
 	return s
+}
+
+// SetSubstitutionStore подключает источник активных замещений.
+func (s *AssignmentService) SetSubstitutionStore(store UserSubstitutionStore) {
+	s.substitutions = store
+}
+
+func (s *AssignmentService) currentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, []string, error) {
+	currentUserID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, nil, err
+	}
+	ids := []uuid.UUID{currentUserID}
+	if s.substitutions != nil {
+		principalIDs, err := s.substitutions.GetActivePrincipalIDs(currentUserID)
+		if err != nil {
+			return nil, nil, err
+		}
+		seen := map[uuid.UUID]struct{}{currentUserID: {}}
+		for _, principalID := range principalIDs {
+			if principalID == uuid.Nil {
+				continue
+			}
+			if _, ok := seen[principalID]; ok {
+				continue
+			}
+			seen[principalID] = struct{}{}
+			ids = append(ids, principalID)
+		}
+	}
+	return ids, uuidStrings(ids), nil
 }
 
 // Create — создание поручения
@@ -170,14 +202,26 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 		return nil, models.NewNotFound("поручение не найдено")
 	}
 
-	currentUserID := s.auth.GetCurrentUserID()
+	currentUserUUID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, err
+	}
+	currentUserID := currentUserUUID.String()
 	isExecutor := existing.ExecutorID.String() == currentUserID
+	isSubstituteExecutor := false
+	if !isExecutor && s.substitutions != nil {
+		ok, err := s.substitutions.IsActiveSubstitute(currentUserUUID, existing.ExecutorID)
+		if err != nil {
+			return nil, err
+		}
+		isSubstituteExecutor = ok
+	}
 	canManageAssignment := s.access.RequireDocumentAction(existing.DocumentID, "assign") == nil
 	allowed := false
 	if canManageAssignment && existing.Status == "completed" && (status == "finished" || status == "returned") {
 		allowed = true
 	}
-	if isExecutor && (status == "in_progress" || status == "completed") {
+	if (isExecutor || isSubstituteExecutor) && (status == "in_progress" || status == "completed") {
 		allowed = true
 	}
 
@@ -246,8 +290,14 @@ func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 	if res == nil {
 		return nil, models.NewNotFound("поручение не найдено")
 	}
-	if err := s.access.RequireDocumentAction(res.DocumentID, "assign"); err != nil && !isAssignmentAccessibleToExecutor(s.auth.GetCurrentUserID(), res) {
-		return nil, models.ErrForbidden
+	if err := s.access.RequireDocumentAction(res.DocumentID, "assign"); err != nil {
+		_, subjectIDs, subjectsErr := s.currentUserAndSubstitutionSubjectIDs()
+		if subjectsErr != nil {
+			return nil, subjectsErr
+		}
+		if !isAssignmentAccessibleToAnyExecutor(subjectIDs, res) {
+			return nil, models.ErrForbidden
+		}
 	}
 	return dto.MapAssignment(res), nil
 }
@@ -270,7 +320,16 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 		}
 		if err := s.access.RequireDocumentAction(docUUID, "assign"); err != nil {
-			filter.AccessibleByUserID = s.auth.GetCurrentUserID()
+			_, subjectIDs, subjectsErr := s.currentUserAndSubstitutionSubjectIDs()
+			if subjectsErr != nil {
+				return nil, subjectsErr
+			}
+			filter.AccessibleByUserID = subjectIDs[0]
+			if len(subjectIDs) == 1 {
+				filter.ExecutorID = subjectIDs[0]
+			} else {
+				filter.AccessibleByUserIDs = subjectIDs
+			}
 		}
 	}
 
@@ -278,11 +337,23 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 	if err != nil {
 		return nil, err
 	}
+	_, subjectIDs, err := s.currentUserAndSubstitutionSubjectIDs()
+	if err != nil {
+		return nil, err
+	}
 	if len(assignableKinds) == 0 {
-		filter.ExecutorID = s.auth.GetCurrentUserID()
+		if len(subjectIDs) == 1 {
+			filter.ExecutorID = subjectIDs[0]
+		} else {
+			filter.AccessibleByUserID = subjectIDs[0]
+			filter.AccessibleByUserIDs = subjectIDs
+		}
 	} else if len(assignableKinds) < len(models.AllDocumentKindSpecs()) {
 		filter.AllowedDocumentKinds = documentKindCodes(assignableKinds)
-		filter.AccessibleByUserID = s.auth.GetCurrentUserID()
+		filter.AccessibleByUserID = subjectIDs[0]
+		if len(subjectIDs) > 1 {
+			filter.AccessibleByUserIDs = subjectIDs
+		}
 	}
 
 	res, err := s.repo.GetList(filter)

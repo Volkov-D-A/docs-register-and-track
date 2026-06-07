@@ -329,7 +329,8 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 
 	where = append(where, "d.kind = 'incoming_letter'")
 
-	if filter.AccessibleByUserID != "" {
+	accessibleIDs := accessibleUserIDs(filter.AccessibleByUserID, filter.AccessibleByUserIDs)
+	if len(accessibleIDs) > 0 {
 		accessClauses := make([]string, 0, 2)
 		if len(filter.AllowedNomenclatureIDs) > 0 {
 			accessClauses = append(accessClauses, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
@@ -337,30 +338,44 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 			argIdx++
 		}
 
+		useAccessArray := len(filter.AccessibleByUserIDs) > 0
+		assignmentUserPredicate := fmt.Sprintf("a.executor_id = $%d", argIdx)
+		coExecutorUserPredicate := fmt.Sprintf("ce.user_id = $%d", argIdx)
+		ackUserPredicate := fmt.Sprintf("au.user_id = $%d", argIdx+1)
+		assignmentArg := interface{}(filter.AccessibleByUserID)
+		ackArg := interface{}(filter.AccessibleByUserID)
+		if useAccessArray {
+			assignmentUserPredicate = fmt.Sprintf("a.executor_id = ANY($%d::uuid[])", argIdx)
+			coExecutorUserPredicate = fmt.Sprintf("ce.user_id = ANY($%d::uuid[])", argIdx)
+			ackUserPredicate = fmt.Sprintf("au.user_id = ANY($%d::uuid[])", argIdx+1)
+			assignmentArg = pq.Array(accessibleIDs)
+			ackArg = pq.Array(accessibleIDs)
+		}
+
 		accessClauses = append(accessClauses, fmt.Sprintf(`EXISTS (
 			SELECT 1
 			FROM assignments a
 			WHERE a.document_id = d.id
 			  AND (
-				a.executor_id = $%d
+				%s
 				OR EXISTS (
 					SELECT 1
 					FROM assignment_co_executors ce
-					WHERE ce.assignment_id = a.id AND ce.user_id = $%d
+					WHERE ce.assignment_id = a.id AND %s
 				)
 			  )
-		)`, argIdx, argIdx))
-		args = append(args, filter.AccessibleByUserID)
+		)`, assignmentUserPredicate, coExecutorUserPredicate))
+		args = append(args, assignmentArg)
 		argIdx++
 
 		accessClauses = append(accessClauses, fmt.Sprintf(`EXISTS (
 			SELECT 1
 			FROM acknowledgment_users au
 			JOIN acknowledgments a ON au.acknowledgment_id = a.id
-			WHERE au.user_id = $%d
+			WHERE %s
 			  AND a.document_id = d.id
-		)`, argIdx))
-		args = append(args, filter.AccessibleByUserID)
+		)`, ackUserPredicate))
+		args = append(args, ackArg)
 		argIdx++
 
 		where = append(where, "("+strings.Join(accessClauses, " OR ")+")")

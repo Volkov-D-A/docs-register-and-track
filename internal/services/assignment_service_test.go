@@ -434,6 +434,61 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		assert.Equal(t, "completed", result.Status)
 	})
 
+	t.Run("active substitute can move assignment to in_progress", func(t *testing.T) {
+		substituteID := uuid.New()
+		_, repo, userRepo, _, _ := setupAssignmentService(t, "")
+		password := "Passw0rd!"
+		hash, _ := security.HashPassword(password)
+		substituteUser := &models.User{
+			ID:                    substituteID,
+			Login:                 "substitute",
+			PasswordHash:          hash,
+			IsDocumentParticipant: false,
+			IsActive:              true,
+		}
+		authSvc := NewAuthService(nil, userRepo)
+		userRepo.On("GetByLogin", substituteUser.Login).Return(substituteUser, nil).Once()
+		_, err := authSvc.Login(substituteUser.Login, password)
+		require.NoError(t, err)
+		userRepo.On("GetByID", substituteUser.ID).Return(substituteUser, nil).Maybe()
+
+		journalRepo := mocks.NewJournalStore(t)
+		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
+		journalSvc := NewJournalService(journalRepo, authSvc, nil)
+
+		incomingRepo := mocks.NewIncomingDocStore(t)
+		outgoingRepo := mocks.NewOutgoingDocStore(t)
+		incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
+			return &models.IncomingDocument{ID: id, NomenclatureID: uuid.New()}
+		}, nil).Maybe()
+		outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
+			return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
+		}, nil).Maybe()
+		repo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
+		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
+		svc2.SetSubstitutionStore(&userSubstitutionStoreStub{
+			isActive: map[[2]uuid.UUID]bool{
+				{substituteID, execID}: true,
+			},
+		})
+
+		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
+		repo.On("Update", assignmentID, execID, "Контент",
+			(*time.Time)(nil), "in_progress", "",
+			(*time.Time)(nil), []string(nil),
+		).Return(&models.Assignment{
+			ID:     assignmentID,
+			Status: "in_progress",
+		}, nil).Once()
+
+		result, err := svc2.UpdateStatus(assignmentID.String(), "in_progress", "")
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "in_progress", result.Status)
+	})
+
 	t.Run("clerk to finished from completed", func(t *testing.T) {
 		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 		completedAt := time.Now()

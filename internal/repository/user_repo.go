@@ -331,6 +331,73 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	return users, nil
 }
 
+// GetActiveUsers возвращает всех активных пользователей.
+func (r *UserRepository) GetActiveUsers() ([]models.User, error) {
+	rows, err := r.db.Query(`
+		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active, u.created_at, u.updated_at,
+		       d.id, d.name
+		FROM users u
+		LEFT JOIN departments d ON u.department_id = d.id
+		WHERE u.is_active = true
+		ORDER BY u.full_name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active users: %w", err)
+	}
+	defer rows.Close()
+
+	users := make([]models.User, 0)
+	userIDs := make([]uuid.UUID, 0)
+	departmentIDs := make([]uuid.UUID, 0)
+	departmentIndexes := make(map[uuid.UUID][]int)
+
+	for rows.Next() {
+		var user models.User
+		var departmentID sql.NullString
+		var departmentName sql.NullString
+
+		if err := rows.Scan(
+			&user.ID, &user.Login, &user.FullName,
+			&user.IsDocumentParticipant, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+			&departmentID, &departmentName,
+		); err != nil {
+			return nil, err
+		}
+
+		if departmentID.Valid {
+			uid, _ := uuid.Parse(departmentID.String)
+			user.DepartmentID = &uid
+			user.Department = &models.Department{
+				ID:   uid,
+				Name: departmentName.String,
+			}
+			if _, exists := departmentIndexes[uid]; !exists {
+				departmentIDs = append(departmentIDs, uid)
+			}
+			departmentIndexes[uid] = append(departmentIndexes[uid], len(users))
+		}
+
+		userIDs = append(userIDs, user.ID)
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(users) == 0 {
+		return users, nil
+	}
+
+	if err := r.batchLoadUserSystemPermissions(users, userIDs); err != nil {
+		return nil, err
+	}
+	if err := r.batchLoadDepartmentNomenclatures(users, departmentIDs, departmentIndexes); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
 // UpdatePassword обновляет хэш пароля пользователя.
 func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string) error {
 	_, err := r.db.Exec(`

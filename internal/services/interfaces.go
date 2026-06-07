@@ -18,12 +18,28 @@ type UserStore interface {
 	Create(req models.CreateUserRequest) (*models.User, error)
 	Update(req models.UpdateUserRequest) (*models.User, error)
 	GetExecutors() ([]models.User, error)
+	GetActiveUsers() ([]models.User, error)
 	UpdatePassword(userID uuid.UUID, newPasswordHash string) error
 	ResetPassword(userID uuid.UUID, newPassword string) error
 	UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error
 	IncrementFailedLoginAttempts(userID uuid.UUID) (int, bool, error)
 	ResetFailedLoginAttempts(userID uuid.UUID) error
 	CountUsers() (int, error)
+}
+
+// UserSubstitutionStore — интерфейс для работы с замещениями пользователей.
+type UserSubstitutionStore interface {
+	GetByPrincipalID(principalUserID uuid.UUID) (*models.UserSubstitution, error)
+	GetActivePrincipalIDs(substituteUserID uuid.UUID) ([]uuid.UUID, error)
+	IsActiveSubstitute(substituteUserID, principalUserID uuid.UUID) (bool, error)
+	ReplaceForPrincipal(
+		principalUserID uuid.UUID,
+		substituteUserID *uuid.UUID,
+		startsAt *time.Time,
+		endsAt *time.Time,
+		isActive bool,
+		createdBy *uuid.UUID,
+	) (*models.UserSubstitution, error)
 }
 
 // IncomingDocStore — интерфейс для работы с входящими документами в хранилище.

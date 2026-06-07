@@ -309,6 +309,29 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("active substitute confirms principal row", func(t *testing.T) {
+		principalID := uuid.New()
+		svc, repo, _, auth, _ := setupAckService(t, "")
+		substituteID, _ := uuid.Parse(auth.GetCurrentUserID())
+		svc.SetSubstitutionStore(&userSubstitutionStoreStub{
+			activePrincipals: []uuid.UUID{principalID},
+		})
+		repo.On("GetPendingForUser", principalID).Return([]models.Acknowledgment{
+			{ID: ackID, DocumentID: uuid.New(), DocumentKind: "incoming_letter"},
+		}, nil).Once()
+		repo.On("MarkConfirmed", ackID, principalID).Return(nil).Once()
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+			ID:           ackID,
+			DocumentID:   uuid.New(),
+			DocumentKind: "incoming_letter",
+		}, nil).Once()
+
+		err := svc.MarkConfirmed(ackID.String())
+
+		require.NoError(t, err)
+		assert.NotEqual(t, substituteID, principalID)
+	})
+
 	t.Run("not authenticated", func(t *testing.T) {
 		svc := setupAckServiceNotAuth(t)
 		err := svc.MarkConfirmed(ackID.String())

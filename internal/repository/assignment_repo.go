@@ -263,16 +263,22 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		args = append(args, filter.DocumentID)
 		argIdx++
 	}
-	if len(filter.AllowedDocumentKinds) > 0 || filter.AccessibleByUserID != "" {
+	accessibleIDs := accessibleUserIDs(filter.AccessibleByUserID, filter.AccessibleByUserIDs)
+	if len(filter.AllowedDocumentKinds) > 0 || len(accessibleIDs) > 0 {
 		accessClauses := make([]string, 0, 2)
 		if len(filter.AllowedDocumentKinds) > 0 {
 			accessClauses = append(accessClauses, fmt.Sprintf("d.kind = ANY($%d)", argIdx))
 			args = append(args, pq.Array(filter.AllowedDocumentKinds))
 			argIdx++
 		}
-		if filter.AccessibleByUserID != "" {
-			accessClauses = append(accessClauses, fmt.Sprintf("(a.executor_id = $%d OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $%d))", argIdx, argIdx))
-			args = append(args, filter.AccessibleByUserID)
+		if len(accessibleIDs) > 0 {
+			if len(filter.AccessibleByUserIDs) > 0 {
+				accessClauses = append(accessClauses, fmt.Sprintf("(a.executor_id = ANY($%d::uuid[]) OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = ANY($%d::uuid[])))", argIdx, argIdx))
+				args = append(args, pq.Array(accessibleIDs))
+			} else {
+				accessClauses = append(accessClauses, fmt.Sprintf("(a.executor_id = $%d OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $%d))", argIdx, argIdx))
+				args = append(args, filter.AccessibleByUserID)
+			}
 			argIdx++
 		}
 		where = append(where, "("+strings.Join(accessClauses, " OR ")+")")

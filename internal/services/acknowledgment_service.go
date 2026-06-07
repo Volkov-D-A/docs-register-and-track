@@ -11,12 +11,13 @@ import (
 
 // AcknowledgmentService предоставляет бизнес-логику для работы с задачами на ознакомление.
 type AcknowledgmentService struct {
-	repo     AcknowledgmentStore
-	userRepo UserStore
-	auth     *AuthService
-	journal  *JournalService
-	access   *DocumentAccessService
-	events   *UserEventService
+	repo          AcknowledgmentStore
+	userRepo      UserStore
+	auth          *AuthService
+	journal       *JournalService
+	access        *DocumentAccessService
+	events        *UserEventService
+	substitutions UserSubstitutionStore
 }
 
 // NewAcknowledgmentService создает новый экземпляр AcknowledgmentService.
@@ -39,6 +40,71 @@ func NewAcknowledgmentService(
 		s.events = events[0]
 	}
 	return s
+}
+
+// SetSubstitutionStore подключает источник активных замещений.
+func (s *AcknowledgmentService) SetSubstitutionStore(store UserSubstitutionStore) {
+	s.substitutions = store
+}
+
+func (s *AcknowledgmentService) currentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error) {
+	currentUserID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, err
+	}
+	ids := []uuid.UUID{currentUserID}
+	if s.substitutions == nil {
+		return ids, nil
+	}
+	principalIDs, err := s.substitutions.GetActivePrincipalIDs(currentUserID)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[uuid.UUID]struct{}{currentUserID: {}}
+	for _, principalID := range principalIDs {
+		if principalID == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[principalID]; ok {
+			continue
+		}
+		seen[principalID] = struct{}{}
+		ids = append(ids, principalID)
+	}
+	return ids, nil
+}
+
+func acknowledgmentListContainsUser(acknowledgments []models.Acknowledgment, ackID uuid.UUID) bool {
+	for _, ack := range acknowledgments {
+		if ack.ID == ackID {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *AcknowledgmentService) resolveAcknowledgmentSubjectUserID(ackID uuid.UUID) (uuid.UUID, error) {
+	currentUserID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if s.substitutions == nil {
+		return currentUserID, nil
+	}
+	principalIDs, err := s.substitutions.GetActivePrincipalIDs(currentUserID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	for _, subjectID := range principalIDs {
+		pending, err := s.repo.GetPendingForUser(subjectID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		if acknowledgmentListContainsUser(pending, ackID) {
+			return subjectID, nil
+		}
+	}
+	return currentUserID, nil
 }
 
 // Create создает новую задачу на ознакомление для указанных пользователей.
@@ -127,13 +193,26 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
-	userID := s.auth.GetCurrentUserID()
-	userUUID, err := uuid.Parse(userID)
+	subjectIDs, err := s.currentUserAndSubstitutionSubjectIDs()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, err
 	}
-	res, err := s.repo.GetPendingForUser(userUUID)
-	return dto.MapAcknowledgments(res), err
+	result := make([]models.Acknowledgment, 0)
+	seen := make(map[uuid.UUID]struct{})
+	for _, subjectID := range subjectIDs {
+		res, err := s.repo.GetPendingForUser(subjectID)
+		if err != nil {
+			return nil, err
+		}
+		for _, ack := range res {
+			if _, ok := seen[ack.ID]; ok {
+				continue
+			}
+			seen[ack.ID] = struct{}{}
+			result = append(result, ack)
+		}
+	}
+	return dto.MapAcknowledgments(result), nil
 }
 
 // GetCurrentUserPendingByDocument возвращает ожидающие подтверждения ознакомления текущего пользователя по документу.
@@ -145,19 +224,26 @@ func (s *AcknowledgmentService) GetCurrentUserPendingByDocument(documentID strin
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
-	userID := s.auth.GetCurrentUserID()
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		return nil, ErrNotAuthenticated
-	}
-
-	res, err := s.repo.GetPendingForUser(userUUID)
+	subjectIDs, err := s.currentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return nil, err
 	}
+
 	filtered := make([]models.Acknowledgment, 0)
-	for _, ack := range res {
-		if ack.DocumentID == docUUID {
+	seen := make(map[uuid.UUID]struct{})
+	for _, subjectID := range subjectIDs {
+		res, err := s.repo.GetPendingForUser(subjectID)
+		if err != nil {
+			return nil, err
+		}
+		for _, ack := range res {
+			if ack.DocumentID != docUUID {
+				continue
+			}
+			if _, ok := seen[ack.ID]; ok {
+				continue
+			}
+			seen[ack.ID] = struct{}{}
 			filtered = append(filtered, ack)
 		}
 	}
@@ -187,10 +273,9 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 	if err != nil {
 		return models.NewBadRequestWrapped("неверный ID строки ознакомления", err)
 	}
-	userID := s.auth.GetCurrentUserID()
-	userUUID, err := uuid.Parse(userID)
+	userUUID, err := s.resolveAcknowledgmentSubjectUserID(ackUUID)
 	if err != nil {
-		return ErrNotAuthenticated
+		return err
 	}
 
 	err = s.repo.MarkViewed(ackUUID, userUUID)
@@ -217,10 +302,9 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 	if err != nil {
 		return models.NewBadRequestWrapped("неверный ID строки ознакомления", err)
 	}
-	userID := s.auth.GetCurrentUserID()
-	userUUID, err := uuid.Parse(userID)
+	userUUID, err := s.resolveAcknowledgmentSubjectUserID(ackUUID)
 	if err != nil {
-		return ErrNotAuthenticated
+		return err
 	}
 
 	err = s.repo.MarkConfirmed(ackUUID, userUUID)

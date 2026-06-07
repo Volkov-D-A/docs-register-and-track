@@ -21,6 +21,7 @@ type documentAccessTestDeps struct {
 	assignRepo *documentAccessAssignmentStore
 	ackRepo    *documentAccessAcknowledgmentStore
 	docRepo    *documentAccessDocumentStore
+	subRepo    *userSubstitutionStoreStub
 	service    *DocumentAccessService
 	user       *models.User
 }
@@ -201,7 +202,8 @@ func setupDocumentAccessService(t *testing.T, user *models.User, allowed map[mod
 	assignRepo := &documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}}
 	ackRepo := &documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}}
 	docRepo := &documentAccessDocumentStore{docs: map[uuid.UUID]models.Document{}}
-	service := NewDocumentAccessService(auth, depRepo, assignRepo, ackRepo, accessRepo, docRepo, nil, nil)
+	subRepo := &userSubstitutionStoreStub{}
+	service := NewDocumentAccessService(auth, depRepo, assignRepo, ackRepo, accessRepo, docRepo, nil, nil, subRepo)
 
 	return &documentAccessTestDeps{
 		auth:       auth,
@@ -211,6 +213,7 @@ func setupDocumentAccessService(t *testing.T, user *models.User, allowed map[mod
 		assignRepo: assignRepo,
 		ackRepo:    ackRepo,
 		docRepo:    docRepo,
+		subRepo:    subRepo,
 		service:    service,
 		user:       user,
 	}
@@ -290,6 +293,16 @@ func TestDocumentAccessService_RequireDomainRead(t *testing.T) {
 			documentAccessUser(false, nil),
 			allowDocumentActions(models.DocumentKindIncomingLetter, "upload"),
 		)
+
+		err := deps.service.RequireDomainRead()
+
+		require.NoError(t, err)
+	})
+
+	t.Run("non participant with active substitution is allowed", func(t *testing.T) {
+		principalID := uuid.New()
+		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
+		deps.subRepo.activePrincipals = []uuid.UUID{principalID}
 
 		err := deps.service.RequireDomainRead()
 
@@ -428,6 +441,26 @@ func TestDocumentAccessService_ResolveReadableDocuments(t *testing.T) {
 	assert.Contains(t, readable, byDepartmentID)
 	assert.Contains(t, readable, byAssignmentID)
 	assert.Contains(t, readable, byAcknowledgmentID)
+	assert.NotContains(t, readable, deniedID)
+}
+
+func TestDocumentAccessService_ResolveReadableDocumentsForSubstitute(t *testing.T) {
+	principalID := uuid.New()
+	byAssignmentID := uuid.New()
+	deniedID := uuid.New()
+	user := documentAccessUser(false, nil)
+	deps := setupDocumentAccessService(t, user, nil)
+	deps.subRepo.activePrincipals = []uuid.UUID{principalID}
+	deps.assignRepo.accessible[byAssignmentID] = struct{}{}
+	deps.docRepo.docs = map[uuid.UUID]models.Document{
+		byAssignmentID: documentAccessDoc(byAssignmentID, uuid.New(), models.DocumentKindIncomingLetter),
+		deniedID:       documentAccessDoc(deniedID, uuid.New(), models.DocumentKindIncomingLetter),
+	}
+
+	readable, err := deps.service.ResolveReadableDocuments([]uuid.UUID{byAssignmentID, deniedID})
+
+	require.NoError(t, err)
+	assert.Contains(t, readable, byAssignmentID)
 	assert.NotContains(t, readable, deniedID)
 }
 

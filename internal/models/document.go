@@ -284,6 +284,7 @@ type DocumentFilter struct {
 	NomenclatureIDs           []string `json:"nomenclatureIds,omitempty"`
 	AllowedNomenclatureIDs    []string `json:"-"`
 	AccessibleByUserID        string   `json:"-"`
+	AccessibleByUserIDs       []string `json:"-"`
 	KindCode                  string   `json:"kindCode,omitempty"`
 	DocumentTypeID            string   `json:"documentTypeId,omitempty"`
 	OrgID                     string   `json:"orgId,omitempty"`
@@ -316,6 +317,7 @@ type OutgoingDocumentFilter struct {
 	NomenclatureIDs        []string `json:"nomenclatureIds,omitempty"`
 	AllowedNomenclatureIDs []string `json:"-"`
 	AccessibleByUserID     string   `json:"-"`
+	AccessibleByUserIDs    []string `json:"-"`
 	KindCode               string   `json:"kindCode,omitempty"`
 	DocumentTypeID         string   `json:"documentTypeId,omitempty"`
 	OrgID                  string   `json:"orgId,omitempty"` // Организация-получатель

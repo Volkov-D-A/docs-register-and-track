@@ -162,6 +162,23 @@ func TestAcknowledgmentRepository_MarkViewed(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAcknowledgmentRepository_MarkViewedReturnsForbiddenWhenUserRowMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	ackID := uuid.New()
+	userID := uuid.New()
+
+	mock.ExpectExec(`UPDATE acknowledgment_users SET viewed_at = \$1 WHERE acknowledgment_id = \$2 AND user_id = \$3 AND viewed_at IS NULL`).
+		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = repo.MarkViewed(ackID, userID)
+	require.ErrorIs(t, err, models.ErrForbidden)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestAcknowledgmentRepository_Delete(t *testing.T) {
 	// Удаление листа ознакомления по его ID
 	db, mock, err := sqlmock.New()
@@ -272,6 +289,25 @@ func TestAcknowledgmentRepository_MarkConfirmed(t *testing.T) {
 
 	err = repo.MarkConfirmed(ackID, userID)
 	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAcknowledgmentRepository_MarkConfirmedReturnsForbiddenWhenUserRowMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	ackID := uuid.New()
+	userID := uuid.New()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE acknowledgment_users SET confirmed_at = \$1, viewed_at = COALESCE\(viewed_at, \$1\) WHERE acknowledgment_id = \$2 AND user_id = \$3`).
+		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	err = repo.MarkConfirmed(ackID, userID)
+	require.ErrorIs(t, err, models.ErrForbidden)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

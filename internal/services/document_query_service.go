@@ -65,6 +65,7 @@ func (s *DocumentQueryService) GetList(kindCode string, filter models.DocumentFi
 	if scope.Restricted {
 		filter.AllowedNomenclatureIDs = scope.AllowedNomenclatureIDs
 		filter.AccessibleByUserID = scope.AccessibleByUserID
+		filter.AccessibleByUserIDs = scope.AccessibleByUserIDs
 	}
 
 	handler, err := s.registry.Get(kind)

@@ -16,6 +16,20 @@ type User struct {
 	Department            *Department `json:"department,omitempty"`
 }
 
+// UserSubstitution описывает DTO замещения пользователя.
+type UserSubstitution struct {
+	ID               string     `json:"id"`
+	PrincipalUserID  string     `json:"principalUserId"`
+	SubstituteUserID string     `json:"substituteUserId"`
+	PrincipalName    string     `json:"principalName,omitempty"`
+	SubstituteName   string     `json:"substituteName,omitempty"`
+	StartsAt         *time.Time `json:"startsAt,omitempty"`
+	EndsAt           *time.Time `json:"endsAt,omitempty"`
+	IsActive         bool       `json:"isActive"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	UpdatedAt        time.Time  `json:"updatedAt"`
+}
+
 // Department описывает DTO подразделения.
 type Department struct {
 	ID              string         `json:"id"`

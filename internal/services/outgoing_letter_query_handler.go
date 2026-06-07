@@ -38,6 +38,7 @@ func (h *OutgoingLetterQueryHandler) GetList(filter models.DocumentFilter) (*dto
 		NomenclatureIDs:        filter.NomenclatureIDs,
 		AllowedNomenclatureIDs: filter.AllowedNomenclatureIDs,
 		AccessibleByUserID:     filter.AccessibleByUserID,
+		AccessibleByUserIDs:    filter.AccessibleByUserIDs,
 		KindCode:               string(models.DocumentKindOutgoingLetter),
 		DocumentTypeID:         filter.DocumentTypeID,
 		OrgID:                  filter.OrgID,

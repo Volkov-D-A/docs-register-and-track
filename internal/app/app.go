@@ -50,6 +50,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	}()
 
 	userRepo := repository.NewUserRepository(db)
+	userSubstitutionRepo := repository.NewUserSubstitutionRepository(db)
 	nomenclatureRepo := repository.NewNomenclatureRepository(db)
 	referenceRepo := repository.NewReferenceRepository(db)
 	documentAccessRepo := repository.NewDocumentAccessRepository(db)
@@ -87,9 +88,10 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	authService.SetAdminAuditLogService(adminAuditLogService)
 	settingsService := services.NewSettingsService(db, settingsRepo, authService, adminAuditLogService)
 	userService := services.NewUserService(userRepo, authService, adminAuditLogService)
+	userSubstitutionService := services.NewUserSubstitutionService(userSubstitutionRepo, userRepo, authService, adminAuditLogService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService, adminAuditLogService)
 	referenceService := services.NewReferenceService(referenceRepo, authService, adminAuditLogService)
-	documentAccessService := services.NewDocumentAccessService(authService, departmentRepo, assignmentRepo, acknowledgmentRepo, documentAccessRepo, documentRepo, incomingDocRepo, outgoingDocRepo)
+	documentAccessService := services.NewDocumentAccessService(authService, departmentRepo, assignmentRepo, acknowledgmentRepo, documentAccessRepo, documentRepo, incomingDocRepo, outgoingDocRepo, userSubstitutionRepo)
 	documentAccessAdminService := services.NewDocumentAccessAdminService(authService, documentAccessRepo, userRepo)
 	documentKindService := services.NewDocumentKindService(documentAccessService)
 	journalService := services.NewJournalService(journalRepo, authService, documentAccessService)
@@ -112,6 +114,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	userEventService := services.NewUserEventService(userEventRepo, authService)
 	administrativeOrderService := services.NewAdministrativeOrderService(administrativeOrderRepo, authService, documentAccessService, journalService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService, documentAccessService, userEventService)
+	assignmentService.SetSubstitutionStore(userSubstitutionRepo)
 	departmentService := services.NewDepartmentService(departmentRepo, authService, adminAuditLogService)
 
 	minioService, err := storage.NewMinioService(cfg.Minio)
@@ -133,6 +136,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, administrativeOrderRepo, documentAccessService, authService, journalService)
 	linkService.SetOperationLifecycle(operationLifecycle)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService, userEventService)
+	acknowledgmentService.SetSubstitutionStore(userSubstitutionRepo)
 	systemService := services.NewSystemService(db)
 	releaseNoteService, err := services.NewReleaseNoteService(params.ReleaseNotesSource)
 	if err != nil {
@@ -180,6 +184,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 		Bind: []interface{}{
 			authService,
 			userService,
+			userSubstitutionService,
 			nomenclatureService,
 			referenceService,
 			documentAccessAdminService,

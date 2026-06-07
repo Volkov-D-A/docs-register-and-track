@@ -37,6 +37,11 @@ func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSumma
 	registrationKinds := make([]string, 0)
 	hasAnyAction := false
 	hasAnyAssign := false
+	subjectIDs, err := s.access.getCurrentUserAndSubstitutionSubjectIDs()
+	if err != nil {
+		return nil, err
+	}
+	hasActiveSubstitution := len(subjectIDs) > 1
 
 	for _, spec := range specs {
 		base := dto.MapDocumentKindSpec(spec)
@@ -48,7 +53,7 @@ func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSumma
 		canRegister := containsAction(actions, string(models.DocumentActionCreate))
 		canReadFull := containsAction(actions, string(models.DocumentActionRead))
 		canAssign := containsAction(actions, string(models.DocumentActionAssign))
-		canOpenPage := user.IsDocumentParticipant || canReadFull || canRegister
+		canOpenPage := user.IsDocumentParticipant || hasActiveSubstitution || canReadFull || canRegister
 
 		if len(actions) > 0 {
 			hasAnyAction = true
@@ -73,7 +78,7 @@ func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSumma
 		})
 	}
 
-	documentDomainAccess := user.IsDocumentParticipant || hasAnyAction
+	documentDomainAccess := user.IsDocumentParticipant || hasActiveSubstitution || hasAnyAction
 	systemPermissions := []string{}
 	for _, permission := range []string{
 		models.SystemPermissionAdmin,
@@ -96,7 +101,7 @@ func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSumma
 			Outgoing:    canOpenDocumentKindPage(documentKinds, string(models.DocumentKindOutgoingLetter)),
 			Appeals:     canOpenDocumentKindPage(documentKinds, string(models.DocumentKindCitizenAppeal)),
 			Orders:      canOpenDocumentKindPage(documentKinds, string(models.DocumentKindAdministrativeOrder)),
-			Assignments: user.IsDocumentParticipant || hasAnyAssign,
+			Assignments: user.IsDocumentParticipant || hasActiveSubstitution || hasAnyAssign,
 			References:  containsAction(systemPermissions, models.SystemPermissionReferences),
 			Statistics:  containsAnyAction(systemPermissions, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem),
 			Settings:    containsAction(systemPermissions, models.SystemPermissionAdmin),

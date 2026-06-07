@@ -102,3 +102,12 @@ func (s *UserService) GetExecutors() ([]dto.User, error) {
 	res, err := s.userRepo.GetExecutors()
 	return dto.MapUsers(res), err
 }
+
+// GetSubstitutionCandidates возвращает активных пользователей, которых можно выбрать замещающими.
+func (s *UserService) GetSubstitutionCandidates() ([]dto.User, error) {
+	if !s.auth.IsAuthenticated() {
+		return nil, ErrNotAuthenticated
+	}
+	res, err := s.userRepo.GetActiveUsers()
+	return dto.MapUsers(res), err
+}

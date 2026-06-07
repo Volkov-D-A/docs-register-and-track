@@ -13,6 +13,7 @@ type DocumentAccessService struct {
 	depRepo            DepartmentStore
 	assignmentRepo     AssignmentStore
 	acknowledgmentRepo AcknowledgmentStore
+	substitutionRepo   UserSubstitutionStore
 	accessRepo         DocumentAccessStore
 	documentRepo       DocumentStore
 	incomingRepo       IncomingDocStore
@@ -23,6 +24,7 @@ type DocumentReadScope struct {
 	Restricted             bool
 	AllowedNomenclatureIDs []string
 	AccessibleByUserID     string
+	AccessibleByUserIDs    []string
 }
 
 // NewDocumentAccessService создает сервис проверки доступа к документам.
@@ -35,8 +37,9 @@ func NewDocumentAccessService(
 	documentRepo DocumentStore,
 	incomingRepo IncomingDocStore,
 	outgoingRepo OutgoingDocStore,
+	substitutionRepos ...UserSubstitutionStore,
 ) *DocumentAccessService {
-	return &DocumentAccessService{
+	svc := &DocumentAccessService{
 		auth:               auth,
 		depRepo:            depRepo,
 		assignmentRepo:     assignmentRepo,
@@ -46,6 +49,10 @@ func NewDocumentAccessService(
 		incomingRepo:       incomingRepo,
 		outgoingRepo:       outgoingRepo,
 	}
+	if len(substitutionRepos) > 0 {
+		svc.substitutionRepo = substitutionRepos[0]
+	}
+	return svc
 }
 
 // RequireDomainRead проверяет базовый доступ к document-domain.
@@ -62,6 +69,14 @@ func (s *DocumentAccessService) RequireDomainRead() error {
 		return err
 	}
 	if user != nil && user.IsDocumentParticipant {
+		return nil
+	}
+
+	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
+	if err != nil {
+		return err
+	}
+	if len(subjectIDs) > 1 {
 		return nil
 	}
 
@@ -236,6 +251,45 @@ func (s *DocumentAccessService) hasPermission(kind models.DocumentKind, action s
 	return s.accessRepo.HasPermission(string(kind), action, departmentID, userID)
 }
 
+func (s *DocumentAccessService) getCurrentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error) {
+	currentUserID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, err
+	}
+
+	ids := []uuid.UUID{currentUserID}
+	if s.substitutionRepo == nil {
+		return ids, nil
+	}
+
+	principalIDs, err := s.substitutionRepo.GetActivePrincipalIDs(currentUserID)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[uuid.UUID]struct{}{currentUserID: {}}
+	for _, principalID := range principalIDs {
+		if principalID == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[principalID]; ok {
+			continue
+		}
+		seen[principalID] = struct{}{}
+		ids = append(ids, principalID)
+	}
+	return ids, nil
+}
+
+func uuidStrings(ids []uuid.UUID) []string {
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id != uuid.Nil {
+			result = append(result, id.String())
+		}
+	}
+	return result
+}
+
 func (s *DocumentAccessService) GetAvailableActions(kind models.DocumentKind) ([]string, error) {
 	spec, ok := models.GetDocumentKindSpec(kind)
 	if !ok {
@@ -329,37 +383,42 @@ func (s *DocumentAccessService) hasImplicitReadAccess(doc *models.Document) (boo
 	if err != nil {
 		return false, err
 	}
-	if !isParticipant {
-		return false, nil
-	}
 
-	ok, err := s.hasDepartmentNomenclatureAccess(doc.NomenclatureID)
-	if err == nil && ok {
-		return true, nil
-	}
-
-	currentUserID, err := s.auth.GetCurrentUserUUID()
+	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return false, err
 	}
 
-	if s.assignmentRepo != nil {
-		ok, err := s.assignmentRepo.HasDocumentAccess(currentUserID, doc.ID)
-		if err != nil {
-			return false, err
-		}
-		if ok {
+	if isParticipant {
+		ok, err := s.hasDepartmentNomenclatureAccess(doc.NomenclatureID)
+		if err == nil && ok {
 			return true, nil
+		}
+	} else if len(subjectIDs) <= 1 {
+		return false, nil
+	}
+
+	if s.assignmentRepo != nil {
+		for _, subjectID := range subjectIDs {
+			ok, err := s.assignmentRepo.HasDocumentAccess(subjectID, doc.ID)
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				return true, nil
+			}
 		}
 	}
 
 	if s.acknowledgmentRepo != nil {
-		ok, err := s.acknowledgmentRepo.HasDocumentAccess(currentUserID, doc.ID)
-		if err != nil {
-			return false, err
-		}
-		if ok {
-			return true, nil
+		for _, subjectID := range subjectIDs {
+			ok, err := s.acknowledgmentRepo.HasDocumentAccess(subjectID, doc.ID)
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				return true, nil
+			}
 		}
 	}
 
@@ -410,9 +469,14 @@ func (s *DocumentAccessService) ResolveReadScope(kind models.DocumentKind) (*Doc
 		return &DocumentReadScope{}, nil
 	}
 
-	userID, err := s.auth.GetCurrentUserUUID()
+	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return nil, err
+	}
+	subjectIDStrings := uuidStrings(subjectIDs)
+	accessibleByUserID := ""
+	if len(subjectIDStrings) > 0 {
+		accessibleByUserID = subjectIDStrings[0]
 	}
 
 	allowedNomenclatureIDs, err := s.getDepartmentNomenclatureIDs()
@@ -425,12 +489,13 @@ func (s *DocumentAccessService) ResolveReadScope(kind models.DocumentKind) (*Doc
 		return nil, err
 	}
 	if !isParticipant {
-		return &DocumentReadScope{Restricted: true, AccessibleByUserID: userID.String()}, nil
+		return &DocumentReadScope{Restricted: true, AccessibleByUserID: accessibleByUserID, AccessibleByUserIDs: subjectIDStrings}, nil
 	}
 
 	return &DocumentReadScope{
 		Restricted:             true,
-		AccessibleByUserID:     userID.String(),
+		AccessibleByUserID:     accessibleByUserID,
+		AccessibleByUserIDs:    subjectIDStrings,
 		AllowedNomenclatureIDs: allowedNomenclatureIDs,
 	}, nil
 }
@@ -483,7 +548,7 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 	if user.Department != nil {
 		departmentID = user.Department.ID
 	}
-	userUUID, err := uuid.Parse(userID)
+	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return nil, err
 	}
@@ -509,14 +574,25 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 	assignmentBulkAvailable := false
 	acknowledgmentAccessibleDocuments := make(map[uuid.UUID]struct{})
 	acknowledgmentBulkAvailable := false
-	if user.IsDocumentParticipant {
-		assignmentAccessibleDocuments, assignmentBulkAvailable, err = resolveBulkAccessibleDocumentIDs(s.assignmentRepo, userUUID, uniqueIDs)
-		if err != nil {
-			return nil, err
-		}
-		acknowledgmentAccessibleDocuments, acknowledgmentBulkAvailable, err = resolveBulkAccessibleDocumentIDs(s.acknowledgmentRepo, userUUID, uniqueIDs)
-		if err != nil {
-			return nil, err
+	if user.IsDocumentParticipant || len(subjectIDs) > 1 {
+		for _, subjectID := range subjectIDs {
+			ids, bulkAvailable, err := resolveBulkAccessibleDocumentIDs(s.assignmentRepo, subjectID, uniqueIDs)
+			if err != nil {
+				return nil, err
+			}
+			assignmentBulkAvailable = assignmentBulkAvailable || bulkAvailable
+			for documentID := range ids {
+				assignmentAccessibleDocuments[documentID] = struct{}{}
+			}
+
+			ids, bulkAvailable, err = resolveBulkAccessibleDocumentIDs(s.acknowledgmentRepo, subjectID, uniqueIDs)
+			if err != nil {
+				return nil, err
+			}
+			acknowledgmentBulkAvailable = acknowledgmentBulkAvailable || bulkAvailable
+			for documentID := range ids {
+				acknowledgmentAccessibleDocuments[documentID] = struct{}{}
+			}
 		}
 	}
 
@@ -537,13 +613,15 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 			continue
 		}
 
-		if !user.IsDocumentParticipant {
+		if !user.IsDocumentParticipant && len(subjectIDs) <= 1 {
 			continue
 		}
 
-		if _, ok := allowedNomenclatures[doc.NomenclatureID]; ok {
-			readable[doc.ID] = doc
-			continue
+		if user.IsDocumentParticipant {
+			if _, ok := allowedNomenclatures[doc.NomenclatureID]; ok {
+				readable[doc.ID] = doc
+				continue
+			}
 		}
 
 		if s.assignmentRepo != nil {
@@ -552,12 +630,17 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 				continue
 			}
 			if !assignmentBulkAvailable {
-				allowed, err := s.assignmentRepo.HasDocumentAccess(userUUID, doc.ID)
-				if err != nil {
-					return nil, err
+				for _, subjectID := range subjectIDs {
+					allowed, err := s.assignmentRepo.HasDocumentAccess(subjectID, doc.ID)
+					if err != nil {
+						return nil, err
+					}
+					if allowed {
+						readable[doc.ID] = doc
+						break
+					}
 				}
-				if allowed {
-					readable[doc.ID] = doc
+				if _, ok := readable[doc.ID]; ok {
 					continue
 				}
 			}
@@ -569,12 +652,15 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 				continue
 			}
 			if !acknowledgmentBulkAvailable {
-				allowed, err := s.acknowledgmentRepo.HasDocumentAccess(userUUID, doc.ID)
-				if err != nil {
-					return nil, err
-				}
-				if allowed {
-					readable[doc.ID] = doc
+				for _, subjectID := range subjectIDs {
+					allowed, err := s.acknowledgmentRepo.HasDocumentAccess(subjectID, doc.ID)
+					if err != nil {
+						return nil, err
+					}
+					if allowed {
+						readable[doc.ID] = doc
+						break
+					}
 				}
 			}
 		}
@@ -626,35 +712,40 @@ func (s *DocumentAccessService) RequireResolvedRead(documentKind string, documen
 	if err != nil {
 		return err
 	}
-	if !isParticipant {
-		return models.ErrForbidden
-	}
 
-	ok, err := s.hasDepartmentNomenclatureAccess(nomenclatureID)
-	if err == nil && ok {
-		return nil
-	}
-
-	currentUserID, err := s.auth.GetCurrentUserUUID()
+	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return err
 	}
-	if s.assignmentRepo != nil {
-		ok, err := s.assignmentRepo.HasDocumentAccess(currentUserID, documentID)
-		if err != nil {
-			return err
-		}
-		if ok {
+
+	if isParticipant {
+		ok, err := s.hasDepartmentNomenclatureAccess(nomenclatureID)
+		if err == nil && ok {
 			return nil
+		}
+	} else if len(subjectIDs) <= 1 {
+		return models.ErrForbidden
+	}
+	if s.assignmentRepo != nil {
+		for _, subjectID := range subjectIDs {
+			ok, err := s.assignmentRepo.HasDocumentAccess(subjectID, documentID)
+			if err != nil {
+				return err
+			}
+			if ok {
+				return nil
+			}
 		}
 	}
 	if s.acknowledgmentRepo != nil {
-		ok, err := s.acknowledgmentRepo.HasDocumentAccess(currentUserID, documentID)
-		if err != nil {
-			return err
-		}
-		if ok {
-			return nil
+		for _, subjectID := range subjectIDs {
+			ok, err := s.acknowledgmentRepo.HasDocumentAccess(subjectID, documentID)
+			if err != nil {
+				return err
+			}
+			if ok {
+				return nil
+			}
 		}
 	}
 
@@ -691,12 +782,21 @@ func (s *DocumentAccessService) HasAssignmentAccess(documentID uuid.UUID) (bool,
 		return false, nil
 	}
 
-	currentUserID, err := s.auth.GetCurrentUserUUID()
+	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return false, err
 	}
 
-	return s.assignmentRepo.HasDocumentAccess(currentUserID, documentID)
+	for _, subjectID := range subjectIDs {
+		ok, err := s.assignmentRepo.HasDocumentAccess(subjectID, documentID)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *DocumentAccessService) ResolveLink(sourceID, targetID uuid.UUID) (*models.Document, *models.Document, error) {

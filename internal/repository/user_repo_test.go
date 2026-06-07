@@ -176,6 +176,42 @@ func TestUserRepository_GetExecutors(t *testing.T) {
 	})
 }
 
+func TestUserRepository_GetActiveUsers(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewUserRepository(&database.DB{DB: db})
+	now := time.Now()
+	userID := uuid.New()
+	departmentID := uuid.New()
+
+	mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active, u\.created_at, u\.updated_at,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true\s+ORDER BY u\.full_name`).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "login", "full_name", "is_document_participant", "is_active", "created_at", "updated_at",
+			"d.id", "d.name",
+		}).AddRow(userID, "candidate", "Candidate User", false, true, now, now, departmentID, "Office"))
+
+	mock.ExpectQuery(`SELECT user_id, permission\s+FROM user_system_permissions\s+WHERE user_id = ANY\(\$1\) AND is_allowed = true`).
+		WithArgs(pq.Array([]uuid.UUID{userID})).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id", "permission"}))
+
+	mock.ExpectQuery(`SELECT department_id, nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = ANY\(\$1\)`).
+		WithArgs(pq.Array([]uuid.UUID{departmentID})).
+		WillReturnRows(sqlmock.NewRows([]string{"department_id", "nomenclature_id"}))
+
+	users, err := repo.GetActiveUsers()
+
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	assert.Equal(t, userID, users[0].ID)
+	assert.False(t, users[0].IsDocumentParticipant)
+	assert.True(t, users[0].IsActive)
+	require.NotNil(t, users[0].Department)
+	assert.Equal(t, departmentID, users[0].Department.ID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUserRepository_Create(t *testing.T) {
 	// Создание новой учетной записи пользователя и назначение ему ролей
 	db, mock, err := sqlmock.New()

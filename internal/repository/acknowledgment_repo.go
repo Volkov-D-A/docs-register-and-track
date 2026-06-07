@@ -266,8 +266,18 @@ func (r *AcknowledgmentRepository) MarkViewed(ackID, userID uuid.UUID) error {
 		SET viewed_at = $1
 		WHERE acknowledgment_id = $2 AND user_id = $3 AND viewed_at IS NULL
 	`
-	_, err := r.db.Exec(query, time.Now(), ackID, userID)
-	return err
+	res, err := r.db.Exec(query, time.Now(), ackID, userID)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return models.ErrForbidden
+	}
+	return nil
 }
 
 // MarkConfirmed отмечает задачу на ознакомление как подтвержденную (выполненную) пользователем.
@@ -286,9 +296,16 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 		SET confirmed_at = $1, viewed_at = COALESCE(viewed_at, $1)
 		WHERE acknowledgment_id = $2 AND user_id = $3
 	`
-	_, err = tx.Exec(query, now, ackID, userID)
+	res, err := tx.Exec(query, now, ackID, userID)
 	if err != nil {
 		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return models.ErrForbidden
 	}
 
 	// 2. Проверка, все ли пользователи подтвердили

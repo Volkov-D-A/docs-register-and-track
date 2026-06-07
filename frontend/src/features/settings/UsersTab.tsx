@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { App, Button, Checkbox, Collapse, Form, Input, Modal, Row, Col, Select, Space, Switch, Table, Tag, Typography } from 'antd';
+import { App, Button, Checkbox, Collapse, DatePicker, Form, Input, Modal, Row, Col, Select, Space, Switch, Table, Tag, Typography } from 'antd';
 import { EditOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { models } from '../../../wailsjs/go/models';
 import { useCurrentAccessSummary } from '../../hooks/useCurrentAccessSummary';
 import { formatAppError } from '../../utils/appError';
@@ -86,7 +87,7 @@ const UsersTab: React.FC = () => {
     setEditItem(null);
     setDocumentAccessCollapseKeys([]);
     form.resetFields();
-    form.setFieldsValue({ documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], isActive: true, isDocumentParticipant: false });
+    form.setFieldsValue({ documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], isActive: true, isDocumentParticipant: false, substitutionActive: true });
     setModalOpen(true);
   };
 
@@ -99,13 +100,22 @@ const UsersTab: React.FC = () => {
 
     try {
       const { GetUserAccessProfile } = await import('../../../wailsjs/go/services/DocumentAccessAdminService');
-      const profile = await GetUserAccessProfile(record.id);
+      const { GetUserSubstitution } = await import('../../../wailsjs/go/services/UserSubstitutionService');
+      const [profile, substitution] = await Promise.all([
+        GetUserAccessProfile(record.id),
+        GetUserSubstitution(record.id),
+      ]);
       form.setFieldsValue({
         ...record,
         departmentId: record.department?.id,
         systemPermissions: buildSystemPermissionsFormValue(profile),
         statisticsPermissions: buildStatisticsPermissionsFormValue(profile),
         documentAccess: buildDocumentAccessFormValue(profile),
+        substituteUserId: substitution?.substituteUserId || undefined,
+        substitutionActive: substitution?.isActive ?? true,
+        substitutionPeriod: substitution?.startsAt || substitution?.endsAt
+          ? [substitution?.startsAt ? dayjs(substitution.startsAt) : null, substitution?.endsAt ? dayjs(substitution.endsAt) : null]
+          : null,
       });
     } catch (error: unknown) {
       message.error(formatAppError(error));
@@ -137,6 +147,7 @@ const UsersTab: React.FC = () => {
     setLoading(true);
     try {
       const { UpdateUserAccessProfile } = await import('../../../wailsjs/go/services/DocumentAccessAdminService');
+      const { UpdateUserSubstitution } = await import('../../../wailsjs/go/services/UserSubstitutionService');
 
       if (editItem) {
         const { UpdateUser } = await import('../../../wailsjs/go/services/UserService');
@@ -149,6 +160,13 @@ const UsersTab: React.FC = () => {
           isDocumentParticipant: !!values.isDocumentParticipant,
         });
         await UpdateUserAccessProfile(buildAccessRequest(editItem.id, values));
+        await UpdateUserSubstitution({
+          principalUserId: editItem.id,
+          substituteUserId: values.isDocumentParticipant ? (values.substituteUserId || '') : '',
+          startsAt: values.isDocumentParticipant && values.substitutionPeriod?.[0] ? values.substitutionPeriod[0].format('YYYY-MM-DD') : '',
+          endsAt: values.isDocumentParticipant && values.substitutionPeriod?.[1] ? values.substitutionPeriod[1].format('YYYY-MM-DD') : '',
+          isActive: values.substitutionActive ?? true,
+        });
       } else {
         const { CreateUser } = await import('../../../wailsjs/go/services/UserService');
         const createdUser = await CreateUser({
@@ -159,6 +177,13 @@ const UsersTab: React.FC = () => {
           isDocumentParticipant: !!values.isDocumentParticipant,
         });
         await UpdateUserAccessProfile(buildAccessRequest(createdUser.id, values));
+        await UpdateUserSubstitution({
+          principalUserId: createdUser.id,
+          substituteUserId: values.isDocumentParticipant ? (values.substituteUserId || '') : '',
+          startsAt: values.isDocumentParticipant && values.substitutionPeriod?.[0] ? values.substitutionPeriod[0].format('YYYY-MM-DD') : '',
+          endsAt: values.isDocumentParticipant && values.substitutionPeriod?.[1] ? values.substitutionPeriod[1].format('YYYY-MM-DD') : '',
+          isActive: values.substitutionActive ?? true,
+        });
       }
       message.success(editItem ? 'Пользователь обновлён' : 'Пользователь создан');
       setModalOpen(false);
@@ -290,7 +315,11 @@ const UsersTab: React.FC = () => {
                 <Input />
               </Form.Item>
               <Form.Item name="departmentId" label="Подразделение" rules={[{ required: true }]}>
-                <Select showSearch optionFilterProp="children">
+                <Select
+                  showSearch
+                  optionFilterProp="children"
+                  onChange={() => form.setFieldsValue({ substituteUserId: undefined, substitutionPeriod: null })}
+                >
                   {departments.map((department) => (
                     <Select.Option key={department.id} value={department.id}>{department.name}</Select.Option>
                   ))}
@@ -298,6 +327,39 @@ const UsersTab: React.FC = () => {
               </Form.Item>
               <Form.Item name="isDocumentParticipant" label="Участник документооборота" valuePropName="checked">
                 <Switch />
+              </Form.Item>
+              <Form.Item shouldUpdate={(prev, next) => prev.isDocumentParticipant !== next.isDocumentParticipant} noStyle>
+                {({ getFieldValue }) => {
+                  const participant = !!getFieldValue('isDocumentParticipant');
+                  const departmentID = getFieldValue('departmentId');
+                  return (
+                    <>
+                      <Form.Item name="substituteUserId" label="Замещающий">
+                        <Select
+                          allowClear
+                          showSearch
+                          disabled={!participant}
+                          optionFilterProp="label"
+                          placeholder="Выберите сотрудника"
+                          options={data
+                            .filter((user) => user.id !== editItem?.id && user.isActive && user.department?.id === departmentID)
+                            .map((user) => ({ value: user.id, label: user.fullName }))}
+                        />
+                      </Form.Item>
+                      <Form.Item name="substitutionPeriod" label="Период замещения">
+                        <DatePicker.RangePicker
+                          style={{ width: '100%' }}
+                          format="DD.MM.YYYY"
+                          allowEmpty={[true, true]}
+                          disabled={!participant}
+                        />
+                      </Form.Item>
+                      <Form.Item name="substitutionActive" label="Замещение активно" valuePropName="checked">
+                        <Switch disabled={!participant} />
+                      </Form.Item>
+                    </>
+                  );
+                }}
               </Form.Item>
               {editItem && (
                 <>

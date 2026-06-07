@@ -27,6 +27,37 @@ func MapUser(m *models.User) *User {
 	}
 }
 
+// MapUserSubstitution преобразует модель замещения в DTO.
+func MapUserSubstitution(m *models.UserSubstitution) *UserSubstitution {
+	if m == nil {
+		return nil
+	}
+	return &UserSubstitution{
+		ID:               m.ID.String(),
+		PrincipalUserID:  m.PrincipalUserID.String(),
+		SubstituteUserID: m.SubstituteUserID.String(),
+		PrincipalName:    m.PrincipalName,
+		SubstituteName:   m.SubstituteName,
+		StartsAt:         m.StartsAt,
+		EndsAt:           m.EndsAt,
+		IsActive:         m.IsActive,
+		CreatedAt:        m.CreatedAt,
+		UpdatedAt:        m.UpdatedAt,
+	}
+}
+
+// MapUserSubstitutions преобразует набор замещений в DTO.
+func MapUserSubstitutions(items []models.UserSubstitution) []UserSubstitution {
+	if items == nil {
+		return nil
+	}
+	result := make([]UserSubstitution, len(items))
+	for i := range items {
+		result[i] = *MapUserSubstitution(&items[i])
+	}
+	return result
+}
+
 // MapDepartment преобразует модель Department в DTO Department.
 func MapDepartment(m *models.Department) *Department {
 	if m == nil {

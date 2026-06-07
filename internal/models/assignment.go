@@ -48,4 +48,5 @@ type AssignmentFilter struct {
 	// Внутренний скоуп доступа: не принимается с клиента.
 	AllowedDocumentKinds []string `json:"-"`
 	AccessibleByUserID   string   `json:"-"`
+	AccessibleByUserIDs  []string `json:"-"`
 }
