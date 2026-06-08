@@ -178,6 +178,45 @@ func TestSettingsService_Update(t *testing.T) {
 		assert.Equal(t, "Изменена настройка Файлы при завершении поручения: false", auditRepo.requests[0].Details)
 	})
 
+	t.Run("updates password lifetime setting", func(t *testing.T) {
+		svc, repo, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
+		auditRepo := &captureSettingsAuditLogStore{}
+		svc.auditService = NewAdminAuditLogService(auditRepo, auth)
+
+		repo.On("Get", "password_lifetime_days").Return(&models.SystemSetting{
+			Key:   "password_lifetime_days",
+			Value: "0",
+		}, nil).Once()
+		repo.On("Update", "password_lifetime_days", "90").Return(nil).Once()
+
+		err := svc.Update("password_lifetime_days", "90")
+		require.NoError(t, err)
+		require.Len(t, auditRepo.requests, 1)
+		assert.Equal(t, "Изменена настройка Срок жизни пароля: 90", auditRepo.requests[0].Details)
+	})
+
+	t.Run("rejects negative password lifetime", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+
+		err := svc.Update("password_lifetime_days", "-1")
+
+		require.Error(t, err)
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
+	})
+
+	t.Run("rejects non numeric password lifetime", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+
+		err := svc.Update("password_lifetime_days", "month")
+
+		require.Error(t, err)
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
+	})
+
 	t.Run("forbidden executor", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "executor")
 		err := svc.Update("key", "value")

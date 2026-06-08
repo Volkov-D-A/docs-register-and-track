@@ -148,6 +148,7 @@ const UsersTab: React.FC = () => {
     try {
       const { UpdateUserAccessProfile } = await import('../../../wailsjs/go/services/DocumentAccessAdminService');
       const { UpdateUserSubstitution } = await import('../../../wailsjs/go/services/UserSubstitutionService');
+      let generatedTemporaryPassword = '';
 
       if (editItem) {
         const { UpdateUser } = await import('../../../wailsjs/go/services/UserService');
@@ -171,7 +172,7 @@ const UsersTab: React.FC = () => {
         const { CreateUser } = await import('../../../wailsjs/go/services/UserService');
         const createdUser = await CreateUser({
           login: values.login,
-          password: values.password,
+          password: values.password || '',
           fullName: values.fullName,
           departmentId: values.departmentId,
           isDocumentParticipant: !!values.isDocumentParticipant,
@@ -184,8 +185,25 @@ const UsersTab: React.FC = () => {
           endsAt: values.isDocumentParticipant && values.substitutionPeriod?.[1] ? values.substitutionPeriod[1].format('YYYY-MM-DD') : '',
           isActive: values.substitutionActive ?? true,
         });
+        generatedTemporaryPassword = createdUser.temporaryPassword || '';
       }
       message.success(editItem ? 'Пользователь обновлён' : 'Пользователь создан');
+      if (!editItem && generatedTemporaryPassword) {
+        modal.info({
+          title: 'Временный пароль',
+          content: (
+            <Space direction="vertical" size="small">
+              <Typography.Text>
+                Передайте пользователю временный пароль. При первом входе система потребует его сменить.
+              </Typography.Text>
+              <Typography.Text copyable code>
+                {generatedTemporaryPassword}
+              </Typography.Text>
+            </Space>
+          ),
+          okText: 'Готово',
+        });
+      }
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
@@ -225,6 +243,8 @@ const UsersTab: React.FC = () => {
   };
 
   const isBruteforceLocked = (user: any) => !user?.isActive && (user?.failedLoginAttempts || 0) >= 5;
+
+  const compactUserFormItemStyle = { marginBottom: 12 };
 
   const columns = [
     { title: 'Логин', dataIndex: 'login', key: 'login', width: 150 },
@@ -302,19 +322,24 @@ const UsersTab: React.FC = () => {
         <Form form={form} layout="vertical" onFinish={onSave} style={{ overflowX: 'hidden' }}>
           <Row gutter={24} align="top" wrap style={{ marginInline: 0 }}>
             <Col xs={24} lg={10}>
-              <Typography.Title level={5}>Сведения о пользователе</Typography.Title>
-              <Form.Item name="login" label="Логин" rules={[{ required: true }]}>
+              <Typography.Title level={5} style={{ marginBottom: 12 }}>Сведения о пользователе</Typography.Title>
+              <Form.Item name="login" label="Логин" rules={[{ required: true }]} style={compactUserFormItemStyle}>
                 <Input />
               </Form.Item>
               {!editItem && (
-                <Form.Item name="password" label="Пароль" rules={[{ required: true, min: 6 }]}>
-                  <Input.Password />
+                <Form.Item
+                  name="password"
+                  label="Временный пароль"
+                  rules={[{ min: 8, message: 'Минимум 8 символов' }]}
+                  style={compactUserFormItemStyle}
+                >
+                  <Input.Password placeholder="Сгенерировать автоматически" />
                 </Form.Item>
               )}
-              <Form.Item name="fullName" label="ФИО" rules={[{ required: true }]}>
+              <Form.Item name="fullName" label="ФИО" rules={[{ required: true }]} style={compactUserFormItemStyle}>
                 <Input />
               </Form.Item>
-              <Form.Item name="departmentId" label="Подразделение" rules={[{ required: true }]}>
+              <Form.Item name="departmentId" label="Подразделение" rules={[{ required: true }]} style={compactUserFormItemStyle}>
                 <Select
                   showSearch
                   optionFilterProp="children"
@@ -325,7 +350,7 @@ const UsersTab: React.FC = () => {
                   ))}
                 </Select>
               </Form.Item>
-              <Form.Item name="isDocumentParticipant" label="Участник документооборота" valuePropName="checked">
+              <Form.Item name="isDocumentParticipant" label="Участник документооборота" valuePropName="checked" style={compactUserFormItemStyle}>
                 <Switch />
               </Form.Item>
               <Form.Item shouldUpdate={(prev, next) => prev.isDocumentParticipant !== next.isDocumentParticipant} noStyle>
@@ -334,7 +359,7 @@ const UsersTab: React.FC = () => {
                   const departmentID = getFieldValue('departmentId');
                   return (
                     <>
-                      <Form.Item name="substituteUserId" label="Замещающий">
+                      <Form.Item name="substituteUserId" label="Замещающий" style={compactUserFormItemStyle}>
                         <Select
                           allowClear
                           showSearch
@@ -346,7 +371,7 @@ const UsersTab: React.FC = () => {
                             .map((user) => ({ value: user.id, label: user.fullName }))}
                         />
                       </Form.Item>
-                      <Form.Item name="substitutionPeriod" label="Период замещения">
+                      <Form.Item name="substitutionPeriod" label="Период замещения" style={compactUserFormItemStyle}>
                         <DatePicker.RangePicker
                           style={{ width: '100%' }}
                           format="DD.MM.YYYY"
@@ -354,7 +379,7 @@ const UsersTab: React.FC = () => {
                           disabled={!participant}
                         />
                       </Form.Item>
-                      <Form.Item name="substitutionActive" label="Замещение активно" valuePropName="checked">
+                      <Form.Item name="substitutionActive" label="Замещение активно" valuePropName="checked" style={compactUserFormItemStyle}>
                         <Switch disabled={!participant} />
                       </Form.Item>
                     </>
@@ -368,7 +393,7 @@ const UsersTab: React.FC = () => {
                       Пользователь автоматически заблокирован после 5 неверных попыток входа. Включение флага «Активен» разблокирует его и сбросит счетчик ошибок.
                     </Typography.Text>
                   )}
-                  <Form.Item name="isActive" label="Активен" valuePropName="checked">
+                  <Form.Item name="isActive" label="Активен" valuePropName="checked" style={compactUserFormItemStyle}>
                     <Switch />
                   </Form.Item>
                 </>
@@ -431,7 +456,7 @@ const UsersTab: React.FC = () => {
           <Form.Item
             name="newPassword"
             label="Новый пароль"
-            rules={[{ required: true, min: 6, message: 'Минимум 6 символов' }]}
+            rules={[{ required: true, min: 8, message: 'Минимум 8 символов' }]}
           >
             <Input.Password />
           </Form.Item>

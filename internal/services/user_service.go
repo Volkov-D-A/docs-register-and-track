@@ -5,6 +5,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
 // UserService предоставляет бизнес-логику для управления пользователями.
@@ -37,6 +38,18 @@ func (s *UserService) CreateUser(req models.CreateUserRequest) (*dto.User, error
 	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
+
+	temporaryPassword := ""
+	if req.Password == "" {
+		generatedPassword, err := security.GenerateTemporaryPassword()
+		if err != nil {
+			return nil, err
+		}
+		req.Password = generatedPassword
+		temporaryPassword = generatedPassword
+	}
+	req.PasswordChangeRequired = true
+
 	res, err := s.userRepo.Create(req)
 	if err != nil {
 		return nil, err
@@ -45,7 +58,9 @@ func (s *UserService) CreateUser(req models.CreateUserRequest) (*dto.User, error
 	userID, userName := s.auth.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "USER_CREATE", fmt.Sprintf("Создан пользователь «%s» (%s)", req.FullName, req.Login))
 
-	return dto.MapUser(res), nil
+	userDTO := dto.MapUser(res)
+	userDTO.TemporaryPassword = temporaryPassword
+	return userDTO, nil
 }
 
 // UpdateUser обновляет данные пользователя (доступно только администраторам).

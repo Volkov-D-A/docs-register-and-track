@@ -158,7 +158,12 @@ func TestUserService_CreateUser(t *testing.T) {
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo := setupUserService(t, "admin")
 		req := models.CreateUserRequest{Login: "newuser", Password: "Pass1234!", FullName: "New User"}
-		repo.On("Create", req).Return(&models.User{ID: uuid.New(), Login: "newuser"}, nil).Once()
+		repo.On("Create", mock.MatchedBy(func(actual models.CreateUserRequest) bool {
+			return actual.Login == req.Login &&
+				actual.Password == req.Password &&
+				actual.FullName == req.FullName &&
+				actual.PasswordChangeRequired
+		})).Return(&models.User{ID: uuid.New(), Login: "newuser"}, nil).Once()
 		result, err := svc.CreateUser(req)
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -175,11 +180,14 @@ func TestUserService_CreateUser(t *testing.T) {
 	t.Run("allowed for user with admin role", func(t *testing.T) {
 		svc, repo, auth := setupUserServiceWithRoles(t, []string{"admin", "clerk"})
 		req := models.CreateUserRequest{}
-		repo.On("Create", req).Return(&models.User{ID: uuid.New()}, nil).Once()
+		repo.On("Create", mock.MatchedBy(func(actual models.CreateUserRequest) bool {
+			return actual.Password != "" && actual.PasswordChangeRequired
+		})).Return(&models.User{ID: uuid.New()}, nil).Once()
 
 		result, err := svc.CreateUser(req)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
+		assert.NotEmpty(t, result.TemporaryPassword)
 		_ = auth
 	})
 }

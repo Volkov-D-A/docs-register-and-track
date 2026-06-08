@@ -72,3 +72,20 @@ func TestValidatePassword(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateTemporaryPassword(t *testing.T) {
+	password, err := GenerateTemporaryPassword()
+
+	require.NoError(t, err)
+	assert.Len(t, password, 14)
+	assert.NoError(t, ValidatePassword(password))
+}
+
+func TestGenerateTemporaryPasswordReturnsDifferentValues(t *testing.T) {
+	first, err := GenerateTemporaryPassword()
+	require.NoError(t, err)
+	second, err := GenerateTemporaryPassword()
+	require.NoError(t, err)
+
+	assert.NotEqual(t, first, second)
+}

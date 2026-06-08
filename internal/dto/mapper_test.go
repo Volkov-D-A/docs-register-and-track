@@ -18,12 +18,23 @@ func TestMapUser(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := uuid.New()
-		m := &models.User{ID: id, Login: "test", FullName: "Test User", IsActive: true, SystemPermissions: []string{"admin"}}
+		passwordChangedAt := time.Now()
+		m := &models.User{
+			ID:                     id,
+			Login:                  "test",
+			FullName:               "Test User",
+			IsActive:               true,
+			PasswordChangedAt:      &passwordChangedAt,
+			PasswordChangeRequired: true,
+			SystemPermissions:      []string{"admin"},
+		}
 		d := MapUser(m)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Equal(t, "test", d.Login)
 		assert.Equal(t, "Test User", d.FullName)
 		assert.True(t, d.IsActive)
+		assert.Equal(t, &passwordChangedAt, d.PasswordChangedAt)
+		assert.True(t, d.PasswordChangeRequired)
 	})
 }
 

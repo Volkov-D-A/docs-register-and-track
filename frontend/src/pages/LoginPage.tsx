@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Button, Card, Typography, Alert, Space } from 'antd';
+import { Form, Input, Button, Card, Typography, Alert, Space, Modal } from 'antd';
 import { UserOutlined, LockOutlined, SettingOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../store/useAuthStore';
 import { NeedsInitialSetup, InitialSetup } from '../../wailsjs/go/services/AuthService';
-import { formatAppError } from '../utils/appError';
+import { formatAppError, getAppErrorCode } from '../utils/appError';
 
 const { Title, Text } = Typography;
 
@@ -12,13 +12,17 @@ const { Title, Text } = Typography;
  * Позволяет войти в систему или создать пароль администратора при первом запуске.
  */
 const LoginPage: React.FC = () => {
-    const { login, isLoading, error, clearError } = useAuthStore();
+    const { login, changeRequiredPassword, isLoading, error, clearError } = useAuthStore();
     const [form] = Form.useForm();
+    const [requiredPasswordForm] = Form.useForm();
     const [setupMode, setSetupMode] = useState(false);
     const [setupLoading, setSetupLoading] = useState(false);
     const [setupError, setSetupError] = useState<string | null>(null);
     const [setupSuccess, setSetupSuccess] = useState(false);
     const [checking, setChecking] = useState(true);
+    const [passwordChangeOpen, setPasswordChangeOpen] = useState(false);
+    const [passwordChangeCredentials, setPasswordChangeCredentials] = useState<{ login: string; password: string } | null>(null);
+    const [passwordChangeError, setPasswordChangeError] = useState<string | null>(null);
 
     useEffect(() => {
         NeedsInitialSetup()
@@ -32,7 +36,38 @@ const LoginPage: React.FC = () => {
     }, []);
 
     const onLoginFinish = async (values: { login: string; password: string }) => {
-        await login(values.login, values.password);
+        try {
+            await login(values.login, values.password);
+        } catch (err: unknown) {
+            if (getAppErrorCode(err) === 'PASSWORD_CHANGE_REQUIRED') {
+                setPasswordChangeCredentials(values);
+                setPasswordChangeError(null);
+                requiredPasswordForm.resetFields();
+                setPasswordChangeOpen(true);
+                return;
+            }
+            throw err;
+        }
+    };
+
+    const onRequiredPasswordFinish = async (values: { newPassword: string; confirmPassword: string }) => {
+        if (!passwordChangeCredentials) {
+            return;
+        }
+        if (values.newPassword !== values.confirmPassword) {
+            setPasswordChangeError('Пароли не совпадают');
+            return;
+        }
+        setPasswordChangeError(null);
+        try {
+            await changeRequiredPassword(passwordChangeCredentials.login, passwordChangeCredentials.password, values.newPassword);
+            setPasswordChangeOpen(false);
+            setPasswordChangeCredentials(null);
+            requiredPasswordForm.resetFields();
+            await login(passwordChangeCredentials.login, values.newPassword);
+        } catch (err: unknown) {
+            setPasswordChangeError(formatAppError(err, 'Ошибка смены пароля'));
+        }
     };
 
     const onSetupFinish = async (values: { password: string; confirmPassword: string }) => {
@@ -217,6 +252,70 @@ const LoginPage: React.FC = () => {
                     )}
                 </Space>
             </Card>
+            <Modal
+                title="Смена пароля"
+                open={passwordChangeOpen}
+                onCancel={() => {
+                    setPasswordChangeOpen(false);
+                    setPasswordChangeCredentials(null);
+                    setPasswordChangeError(null);
+                    requiredPasswordForm.resetFields();
+                }}
+                onOk={() => requiredPasswordForm.submit()}
+                confirmLoading={isLoading}
+                okText="Сменить пароль"
+                cancelText="Отмена"
+                width={420}
+            >
+                <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+                    {passwordChangeError && (
+                        <Alert
+                            title={passwordChangeError}
+                            type="error"
+                            showIcon
+                            closable
+                            onClose={() => setPasswordChangeError(null)}
+                        />
+                    )}
+                    <Text type="secondary">
+                        Для продолжения работы задайте новый пароль.
+                    </Text>
+                    <Form
+                        form={requiredPasswordForm}
+                        layout="vertical"
+                        onFinish={onRequiredPasswordFinish}
+                    >
+                        <Form.Item
+                            name="newPassword"
+                            label="Новый пароль"
+                            rules={[
+                                { required: true, message: 'Введите новый пароль' },
+                                { min: 8, message: 'Минимум 8 символов' },
+                            ]}
+                        >
+                            <Input.Password prefix={<LockOutlined />} />
+                        </Form.Item>
+                        <Form.Item
+                            name="confirmPassword"
+                            label="Подтверждение пароля"
+                            dependencies={['newPassword']}
+                            rules={[
+                                { required: true, message: 'Подтвердите новый пароль' },
+                                ({ getFieldValue }) => ({
+                                    validator(_, value) {
+                                        if (!value || getFieldValue('newPassword') === value) {
+                                            return Promise.resolve();
+                                        }
+                                        return Promise.reject(new Error('Пароли не совпадают'));
+                                    },
+                                }),
+                            ]}
+                        >
+                            <Input.Password prefix={<LockOutlined />} />
+                        </Form.Item>
+                    </Form>
+                </Space>
+            </Modal>
         </div>
     );
 };

@@ -43,6 +43,9 @@ func (s *SettingsService) Update(key, value string) error {
 	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return err
 	}
+	if err := validateSystemSettingValue(key, value); err != nil {
+		return err
+	}
 
 	current, err := s.repo.Get(key)
 	if err == nil && current != nil && current.Value == value {
@@ -55,6 +58,17 @@ func (s *SettingsService) Update(key, value string) error {
 
 	userID, userName := s.authService.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "SETTINGS_UPDATE", fmt.Sprintf("Изменена настройка %s: %s", s.getSettingAuditLabel(key, current), value))
+	return nil
+}
+
+func validateSystemSettingValue(key, value string) error {
+	switch key {
+	case "password_lifetime_days":
+		days, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || days < 0 {
+			return models.NewBadRequest("Срок жизни пароля должен быть целым числом от 0 дней")
+		}
+	}
 	return nil
 }
 
@@ -227,6 +241,8 @@ func (s *SettingsService) getSettingAuditLabel(key string, current *models.Syste
 		return "Разрешенные типы файлов"
 	case "assignment_completion_attachments_enabled":
 		return "Файлы при завершении поручения"
+	case "password_lifetime_days":
+		return "Срок жизни пароля"
 	}
 
 	if current != nil && strings.TrimSpace(current.Description) != "" {

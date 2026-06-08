@@ -1,7 +1,9 @@
 package security
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -53,4 +55,31 @@ func HashPassword(password string) (string, error) {
 		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
 	return string(hash), nil
+}
+
+// GenerateTemporaryPassword создает временный пароль, соответствующий требованиям сложности.
+func GenerateTemporaryPassword() (string, error) {
+	const letters = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	const specials = "!@#$%*-_"
+	parts := []byte{'A', 'a', '7', '!'}
+	alphabet := letters + specials
+
+	for len(parts) < 14 {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
+		if err != nil {
+			return "", fmt.Errorf("failed to generate temporary password: %w", err)
+		}
+		parts = append(parts, alphabet[n.Int64()])
+	}
+
+	for i := len(parts) - 1; i > 0; i-- {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
+		if err != nil {
+			return "", fmt.Errorf("failed to shuffle temporary password: %w", err)
+		}
+		j := int(n.Int64())
+		parts[i], parts[j] = parts[j], parts[i]
+	}
+
+	return string(parts), nil
 }

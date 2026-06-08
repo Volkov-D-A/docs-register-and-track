@@ -24,7 +24,8 @@ func NewUserRepository(db *database.DB) *UserRepository {
 
 // userSelectBase — базовый SELECT для получения пользователя с department.
 const userSelectBase = `
-	SELECT u.id, u.login, u.password_hash, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
+	SELECT u.id, u.login, u.password_hash, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts,
+	       u.password_changed_at, u.password_change_required, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id`
@@ -39,7 +40,8 @@ func (r *UserRepository) getUserByCondition(whereClause string, arg interface{})
 	query := userSelectBase + " " + whereClause
 	err := r.db.QueryRow(query, arg).Scan(
 		&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
-		&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts, &user.CreatedAt, &user.UpdatedAt,
+		&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts,
+		&user.PasswordChangedAt, &user.PasswordChangeRequired, &user.CreatedAt, &user.UpdatedAt,
 		&departmentID, &departmentName,
 	)
 
@@ -84,7 +86,8 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 // GetAll возвращает список всех пользователей.
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts, u.created_at, u.updated_at,
+		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts,
+		       u.password_changed_at, u.password_change_required, u.created_at, u.updated_at,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -107,7 +110,8 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 
 		if err := rows.Scan(
 			&user.ID, &user.Login, &user.FullName,
-			&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts, &user.CreatedAt, &user.UpdatedAt,
+			&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts,
+			&user.PasswordChangedAt, &user.PasswordChangeRequired, &user.CreatedAt, &user.UpdatedAt,
 			&departmentID, &departmentName,
 		); err != nil {
 			return nil, err
@@ -175,10 +179,10 @@ func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, err
 
 	var userID uuid.UUID
 	err = tx.QueryRow(`
-		INSERT INTO users (login, password_hash, full_name, department_id, is_document_participant)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO users (login, password_hash, full_name, department_id, is_document_participant, password_changed_at, password_change_required)
+		VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)
 		RETURNING id
-	`, req.Login, passwordHash, req.FullName, depID, req.IsDocumentParticipant).Scan(&userID)
+	`, req.Login, passwordHash, req.FullName, depID, req.IsDocumentParticipant, req.PasswordChangeRequired).Scan(&userID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
@@ -404,6 +408,8 @@ func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string
 		UPDATE users
 		SET password_hash = $1,
 		    failed_login_attempts = 0,
+		    password_changed_at = CURRENT_TIMESTAMP,
+		    password_change_required = false,
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = $2
 	`, newPasswordHash, userID)

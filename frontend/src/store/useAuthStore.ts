@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Login, Logout, ChangePassword, UpdateProfile } from '../../wailsjs/go/services/AuthService';
+import { Login, Logout, ChangePassword, ChangeRequiredPassword, UpdateProfile } from '../../wailsjs/go/services/AuthService';
 import { models } from '../../wailsjs/go/models';
 import { DocumentKindMeta } from '../constants/documentKinds';
 import { useDraftLinkStore } from './useDraftLinkStore';
@@ -84,6 +84,7 @@ interface AuthState {
     login: (username: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
+    changeRequiredPassword: (login: string, oldPassword: string, newPassword: string) => Promise<void>;
     updateProfile: (login: string, fullName: string) => Promise<void>;
     clearError: () => void;
     hasSystemPermission: (permission: string) => boolean;
@@ -123,6 +124,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isLoading: false,
             });
         } catch (err: unknown) {
+            if (getAppErrorCode(err) === 'PASSWORD_CHANGE_REQUIRED') {
+                set({ error: null, isLoading: false });
+                throw err;
+            }
             set({ error: formatAuthError(err), isLoading: false });
         }
     },
@@ -142,6 +147,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             await ChangePassword(oldPassword, newPassword);
+            set({ isLoading: false });
+        } catch (err: unknown) {
+            set({ error: formatAppError(err, 'Ошибка смены пароля'), isLoading: false });
+            throw err;
+        }
+    },
+
+    changeRequiredPassword: async (login: string, oldPassword: string, newPassword: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            await ChangeRequiredPassword(login, oldPassword, newPassword);
             set({ isLoading: false });
         } catch (err: unknown) {
             set({ error: formatAppError(err, 'Ошибка смены пароля'), isLoading: false });

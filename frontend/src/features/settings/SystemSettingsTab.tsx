@@ -73,6 +73,13 @@ const SystemSettingsTab: React.FC = () => {
         <Form.Item name="max_file_size_mb" label="Максимальный размер файла (МБ)" rules={[{ required: true }]}>
           <InputNumber min={1} max={1000} style={{ width: '100%' }} />
         </Form.Item>
+        <Form.Item
+          name="password_lifetime_days"
+          label="Срок жизни пароля, дней"
+          rules={[{ required: true, message: 'Укажите срок жизни пароля' }]}
+        >
+          <InputNumber min={0} max={3650} placeholder="0 - без ограничения" style={{ width: '100%' }} />
+        </Form.Item>
         <Form.Item name="allowed_file_types" label="Разрешенные типы файлов (через запятую)" rules={[{ required: true }]}>
           <Input placeholder=".pdf, .doc, .docx" />
         </Form.Item>

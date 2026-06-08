@@ -1,9 +1,13 @@
 package services
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -15,17 +19,19 @@ import (
 )
 
 var (
-	ErrInvalidCredentials = models.ErrInvalidCredentials
-	ErrUserNotActive      = models.ErrUserNotActive
-	ErrUserLocked         = models.ErrUserLocked
-	ErrNotAuthenticated   = models.ErrUnauthorized
-	ErrWrongPassword      = models.ErrWrongPassword
+	ErrInvalidCredentials     = models.ErrInvalidCredentials
+	ErrUserNotActive          = models.ErrUserNotActive
+	ErrUserLocked             = models.ErrUserLocked
+	ErrPasswordChangeRequired = models.ErrPasswordChangeRequired
+	ErrNotAuthenticated       = models.ErrUnauthorized
+	ErrWrongPassword          = models.ErrWrongPassword
 )
 
 // AuthService предоставляет бизнес-логику для аутентификации и авторизации пользователей.
 type AuthService struct {
 	db            *database.DB
 	userRepo      UserStore
+	settingsRepo  SettingsStore
 	accessRepo    DocumentAccessStore
 	auditService  *AdminAuditLogService
 	currentUserID uuid.UUID
@@ -48,6 +54,11 @@ func (s *AuthService) SetAdminAuditLogService(auditService *AdminAuditLogService
 // SetAccessStore подключает источник системных прав пользователя.
 func (s *AuthService) SetAccessStore(accessRepo DocumentAccessStore) {
 	s.accessRepo = accessRepo
+}
+
+// SetSettingsStore подключает источник системных настроек.
+func (s *AuthService) SetSettingsStore(settingsRepo SettingsStore) {
+	s.settingsRepo = settingsRepo
 }
 
 // isTableNotExistsError проверяет, является ли ошибка «таблица не существует» (PostgreSQL 42P01).
@@ -102,11 +113,58 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 		user.FailedLoginAttempts = 0
 	}
 
+	if s.isPasswordChangeRequired(user) {
+		return nil, ErrPasswordChangeRequired
+	}
+
 	s.mu.Lock()
 	s.currentUserID = user.ID
 	s.mu.Unlock()
 
 	return dto.MapUser(user), nil
+}
+
+func (s *AuthService) isPasswordChangeRequired(user *models.User) bool {
+	if user == nil {
+		return false
+	}
+	if user.PasswordChangeRequired {
+		return true
+	}
+
+	lifetimeDays := s.getPasswordLifetimeDays()
+	if lifetimeDays <= 0 {
+		return false
+	}
+	if user.PasswordChangedAt == nil {
+		return true
+	}
+
+	expiresAt := user.PasswordChangedAt.AddDate(0, 0, lifetimeDays)
+	return !time.Now().Before(expiresAt)
+}
+
+func (s *AuthService) getPasswordLifetimeDays() int {
+	if s.settingsRepo == nil {
+		return 0
+	}
+
+	setting, err := s.settingsRepo.Get("password_lifetime_days")
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0
+		}
+		return 0
+	}
+	if setting == nil || strings.TrimSpace(setting.Value) == "" {
+		return 0
+	}
+
+	days, err := strconv.Atoi(strings.TrimSpace(setting.Value))
+	if err != nil || days < 0 {
+		return 0
+	}
+	return days
 }
 
 func (s *AuthService) ensureCompatibleSchema() error {
@@ -206,6 +264,51 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 	}
 
 	return s.userRepo.UpdatePassword(userID, newHash)
+}
+
+// ChangeRequiredPassword меняет пароль до полноценного входа, когда пароль истек или требуется первичная смена.
+func (s *AuthService) ChangeRequiredPassword(login, oldPassword, newPassword string) error {
+	user, err := s.userRepo.GetByLogin(login)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return ErrInvalidCredentials
+	}
+	if !user.IsActive {
+		if user.FailedLoginAttempts >= 5 {
+			return ErrUserLocked
+		}
+		return ErrUserNotActive
+	}
+
+	if !security.VerifyPassword(user.PasswordHash, oldPassword) {
+		attempts, isActive, err := s.userRepo.IncrementFailedLoginAttempts(user.ID)
+		if err != nil {
+			return err
+		}
+		if !isActive {
+			if attempts == 5 {
+				s.logUserLock(user)
+			}
+			return ErrUserLocked
+		}
+		return ErrInvalidCredentials
+	}
+
+	if !s.isPasswordChangeRequired(user) {
+		return models.NewConflict("смена пароля сейчас не требуется")
+	}
+	if err := security.ValidatePassword(newPassword); err != nil {
+		return err
+	}
+
+	newHash, err := security.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	return s.userRepo.UpdatePassword(user.ID, newHash)
 }
 
 // UpdateProfile — обновление профиля текущего пользователя
@@ -349,10 +452,11 @@ func (s *AuthService) InitialSetup(password string) error {
 	}
 
 	user, err := s.userRepo.Create(models.CreateUserRequest{
-		Login:                 "admin",
-		Password:              password,
-		FullName:              "Администратор",
-		IsDocumentParticipant: false,
+		Login:                  "admin",
+		Password:               password,
+		FullName:               "Администратор",
+		IsDocumentParticipant:  false,
+		PasswordChangeRequired: false,
 	})
 	if err != nil {
 		return fmt.Errorf("ошибка создания администратора: %w", err)

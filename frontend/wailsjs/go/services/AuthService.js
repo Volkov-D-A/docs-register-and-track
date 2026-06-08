@@ -6,6 +6,10 @@ export function ChangePassword(arg1, arg2) {
   return window['go']['services']['AuthService']['ChangePassword'](arg1, arg2);
 }
 
+export function ChangeRequiredPassword(arg1, arg2, arg3) {
+  return window['go']['services']['AuthService']['ChangeRequiredPassword'](arg1, arg2, arg3);
+}
+
 export function GetCurrentAuditInfo() {
   return window['go']['services']['AuthService']['GetCurrentAuditInfo']();
 }
@@ -64,6 +68,10 @@ export function SetAccessStore(arg1) {
 
 export function SetAdminAuditLogService(arg1) {
   return window['go']['services']['AuthService']['SetAdminAuditLogService'](arg1);
+}
+
+export function SetSettingsStore(arg1) {
+  return window['go']['services']['AuthService']['SetSettingsStore'](arg1);
 }
 
 export function UpdateProfile(arg1) {

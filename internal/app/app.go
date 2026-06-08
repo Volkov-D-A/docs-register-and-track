@@ -75,6 +75,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 
 	authService := services.NewAuthService(db, userRepo)
 	authService.SetAccessStore(documentAccessRepo)
+	authService.SetSettingsStore(settingsRepo)
 
 	logger.GetAppUserID = func() string {
 		uid, _ := authService.GetCurrentAuditInfo()

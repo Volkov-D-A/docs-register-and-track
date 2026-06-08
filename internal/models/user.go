@@ -8,27 +8,30 @@ import (
 
 // User представляет собой сущность пользователя системы.
 type User struct {
-	ID                    uuid.UUID   `json:"-"`
-	Login                 string      `json:"login"`
-	PasswordHash          string      `json:"-"`
-	FullName              string      `json:"fullName"`
-	IsDocumentParticipant bool        `json:"isDocumentParticipant"`
-	IsActive              bool        `json:"isActive"`
-	FailedLoginAttempts   int         `json:"failedLoginAttempts"`
-	SystemPermissions     []string    `json:"systemPermissions"`
-	CreatedAt             time.Time   `json:"createdAt"`
-	UpdatedAt             time.Time   `json:"updatedAt"`
-	DepartmentID          *uuid.UUID  `json:"-"`
-	Department            *Department `json:"department,omitempty"`
+	ID                     uuid.UUID   `json:"-"`
+	Login                  string      `json:"login"`
+	PasswordHash           string      `json:"-"`
+	FullName               string      `json:"fullName"`
+	IsDocumentParticipant  bool        `json:"isDocumentParticipant"`
+	IsActive               bool        `json:"isActive"`
+	FailedLoginAttempts    int         `json:"failedLoginAttempts"`
+	PasswordChangedAt      *time.Time  `json:"passwordChangedAt,omitempty"`
+	PasswordChangeRequired bool        `json:"passwordChangeRequired"`
+	SystemPermissions      []string    `json:"systemPermissions"`
+	CreatedAt              time.Time   `json:"createdAt"`
+	UpdatedAt              time.Time   `json:"updatedAt"`
+	DepartmentID           *uuid.UUID  `json:"-"`
+	Department             *Department `json:"department,omitempty"`
 }
 
 // CreateUserRequest описывает полезную нагрузку для создания нового пользователя.
 type CreateUserRequest struct {
-	Login                 string `json:"login"`
-	Password              string `json:"password"`
-	FullName              string `json:"fullName"`
-	DepartmentID          string `json:"departmentId"`
-	IsDocumentParticipant bool   `json:"isDocumentParticipant"`
+	Login                  string `json:"login"`
+	Password               string `json:"password"`
+	FullName               string `json:"fullName"`
+	DepartmentID           string `json:"departmentId"`
+	IsDocumentParticipant  bool   `json:"isDocumentParticipant"`
+	PasswordChangeRequired bool   `json:"-"`
 }
 
 // UpdateUserRequest описывает полезную нагрузку для обновления данных существующего пользователя администратором.
@@ -55,6 +58,13 @@ type LoginRequest struct {
 
 // ChangePasswordRequest описывает запрос пользователя на смену пароля.
 type ChangePasswordRequest struct {
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword"`
+}
+
+// ChangeRequiredPasswordRequest описывает обязательную смену пароля до полноценного входа.
+type ChangeRequiredPasswordRequest struct {
+	Login       string `json:"login"`
 	OldPassword string `json:"oldPassword"`
 	NewPassword string `json:"newPassword"`
 }

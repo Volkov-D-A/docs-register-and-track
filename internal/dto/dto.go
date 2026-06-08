@@ -4,16 +4,19 @@ import "time"
 
 // User описывает DTO пользователя.
 type User struct {
-	ID                    string      `json:"id"`
-	Login                 string      `json:"login"`
-	FullName              string      `json:"fullName"`
-	IsDocumentParticipant bool        `json:"isDocumentParticipant"`
-	IsActive              bool        `json:"isActive"`
-	FailedLoginAttempts   int         `json:"failedLoginAttempts"`
-	SystemPermissions     []string    `json:"systemPermissions"`
-	CreatedAt             time.Time   `json:"createdAt"`
-	UpdatedAt             time.Time   `json:"updatedAt"`
-	Department            *Department `json:"department,omitempty"`
+	ID                     string      `json:"id"`
+	Login                  string      `json:"login"`
+	FullName               string      `json:"fullName"`
+	IsDocumentParticipant  bool        `json:"isDocumentParticipant"`
+	IsActive               bool        `json:"isActive"`
+	FailedLoginAttempts    int         `json:"failedLoginAttempts"`
+	PasswordChangedAt      *time.Time  `json:"passwordChangedAt,omitempty"`
+	PasswordChangeRequired bool        `json:"passwordChangeRequired"`
+	TemporaryPassword      string      `json:"temporaryPassword,omitempty"`
+	SystemPermissions      []string    `json:"systemPermissions"`
+	CreatedAt              time.Time   `json:"createdAt"`
+	UpdatedAt              time.Time   `json:"updatedAt"`
+	Department             *Department `json:"department,omitempty"`
 }
 
 // UserSubstitution описывает DTO замещения пользователя.

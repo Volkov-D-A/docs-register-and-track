@@ -49,12 +49,13 @@ func (e *AppError) StatusCode() int {
 
 // Предопределённые ошибки
 var (
-	ErrUnauthorized       = &AppError{Code: 401, Kind: "UNAUTHORIZED", Message: "требуется авторизация", Production: true}
-	ErrInvalidCredentials = &AppError{Code: 401, Kind: "INVALID_CREDENTIALS", Message: "неверный логин или пароль", Production: true}
-	ErrUserNotActive      = &AppError{Code: 403, Kind: "USER_INACTIVE", Message: "пользователь деактивирован", Production: true}
-	ErrUserLocked         = &AppError{Code: 403, Kind: "USER_LOCKED", Message: "учетная запись заблокирована после 5 неверных попыток входа; обратитесь к администратору", Production: true}
-	ErrForbidden          = &AppError{Code: 403, Kind: "FORBIDDEN", Message: "недостаточно прав", Production: true}
-	ErrWrongPassword      = &AppError{Code: 400, Kind: "VALIDATION_ERROR", Message: "неверный текущий пароль", Production: true}
+	ErrUnauthorized           = &AppError{Code: 401, Kind: "UNAUTHORIZED", Message: "требуется авторизация", Production: true}
+	ErrInvalidCredentials     = &AppError{Code: 401, Kind: "INVALID_CREDENTIALS", Message: "неверный логин или пароль", Production: true}
+	ErrUserNotActive          = &AppError{Code: 403, Kind: "USER_INACTIVE", Message: "пользователь деактивирован", Production: true}
+	ErrUserLocked             = &AppError{Code: 403, Kind: "USER_LOCKED", Message: "учетная запись заблокирована после 5 неверных попыток входа; обратитесь к администратору", Production: true}
+	ErrPasswordChangeRequired = &AppError{Code: 403, Kind: "PASSWORD_CHANGE_REQUIRED", Message: "необходимо сменить пароль", Production: true}
+	ErrForbidden              = &AppError{Code: 403, Kind: "FORBIDDEN", Message: "недостаточно прав", Production: true}
+	ErrWrongPassword          = &AppError{Code: 400, Kind: "VALIDATION_ERROR", Message: "неверный текущий пароль", Production: true}
 )
 
 // NewBadRequest — ошибка 400 с кастомным сообщением.

@@ -2,10 +2,12 @@ package services
 
 import (
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
-	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -197,6 +199,71 @@ func TestAuthService_Login(t *testing.T) {
 		assert.Nil(t, userDTO)
 		assert.False(t, authService.IsAuthenticated())
 		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("password change required flag blocks full login", func(t *testing.T) {
+		userRequiresPasswordChange := *activeUser
+		userRequiresPasswordChange.PasswordChangeRequired = true
+		mockRepo.On("GetByLogin", login).Return(&userRequiresPasswordChange, nil).Once()
+
+		userDTO, err := authService.Login(login, password)
+
+		require.Error(t, err)
+		assert.Equal(t, ErrPasswordChangeRequired, err)
+		assert.Nil(t, userDTO)
+		assert.False(t, authService.IsAuthenticated())
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("expired password blocks full login", func(t *testing.T) {
+		changedAt := time.Now().AddDate(0, 0, -2)
+		userWithExpiredPassword := *activeUser
+		userWithExpiredPassword.PasswordChangedAt = &changedAt
+
+		settingsRepo := mocks.NewSettingsStore(t)
+		authWithSettings := NewAuthService(nil, mockRepo)
+		authWithSettings.SetSettingsStore(settingsRepo)
+
+		mockRepo.On("GetByLogin", login).Return(&userWithExpiredPassword, nil).Once()
+		settingsRepo.On("Get", "password_lifetime_days").Return(&models.SystemSetting{Key: "password_lifetime_days", Value: "1"}, nil).Once()
+
+		userDTO, err := authWithSettings.Login(login, password)
+
+		require.Error(t, err)
+		assert.Equal(t, ErrPasswordChangeRequired, err)
+		assert.Nil(t, userDTO)
+		assert.False(t, authWithSettings.IsAuthenticated())
+		mockRepo.AssertExpectations(t)
+	})
+}
+
+func TestAuthService_ChangeRequiredPassword(t *testing.T) {
+	user, password := newTestUser()
+	user.PasswordChangeRequired = true
+	newPassword := "NewPassw0rd!"
+
+	t.Run("success", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		mockRepo.On("UpdatePassword", user.ID, mock.AnythingOfType("string")).Return(nil).Once()
+
+		err := authService.ChangeRequiredPassword(user.Login, password, newPassword)
+
+		require.NoError(t, err)
+		assert.False(t, authService.IsAuthenticated())
+	})
+
+	t.Run("wrong old password increments failed attempts", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		mockRepo.On("IncrementFailedLoginAttempts", user.ID).Return(1, true, nil).Once()
+
+		err := authService.ChangeRequiredPassword(user.Login, "WrongPassw0rd!", newPassword)
+
+		require.Error(t, err)
+		assert.Equal(t, ErrInvalidCredentials, err)
 	})
 }
 

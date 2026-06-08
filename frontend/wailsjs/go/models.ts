@@ -444,6 +444,10 @@ export namespace dto {
 	    isDocumentParticipant: boolean;
 	    isActive: boolean;
 	    failedLoginAttempts: number;
+	    // Go type: time
+	    passwordChangedAt?: any;
+	    passwordChangeRequired: boolean;
+	    temporaryPassword?: string;
 	    systemPermissions: string[];
 	    // Go type: time
 	    createdAt: any;
@@ -463,6 +467,9 @@ export namespace dto {
 	        this.isDocumentParticipant = source["isDocumentParticipant"];
 	        this.isActive = source["isActive"];
 	        this.failedLoginAttempts = source["failedLoginAttempts"];
+	        this.passwordChangedAt = this.convertValues(source["passwordChangedAt"], null);
+	        this.passwordChangeRequired = source["passwordChangeRequired"];
+	        this.temporaryPassword = source["temporaryPassword"];
 	        this.systemPermissions = source["systemPermissions"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);

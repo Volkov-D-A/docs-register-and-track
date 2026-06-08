@@ -47,6 +47,11 @@ VALUES (
         'assignment_completion_attachments_enabled',
         'false',
         'Разрешить исполнителю прикладывать файлы при завершении поручения'
+    ),
+    (
+        'password_lifetime_days',
+        '0',
+        'Срок жизни пароля (дней, 0 - без ограничения)'
     );
 
 -- 15. Acknowledgments
