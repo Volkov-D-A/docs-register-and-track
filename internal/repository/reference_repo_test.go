@@ -200,6 +200,53 @@ func TestReferenceRepository_DeleteOrganization(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestReferenceRepository_MergeOrganizations(t *testing.T) {
+	// Перенос ссылок с дубля организации на основную запись.
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewReferenceRepository(&database.DB{DB: db})
+	sourceID := uuid.New()
+	targetID := uuid.New()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT name FROM organizations WHERE id = \$1 FOR UPDATE`).
+		WithArgs(sourceID).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("Организация с ошибкой"))
+	mock.ExpectQuery(`SELECT name FROM organizations WHERE id = \$1 FOR UPDATE`).
+		WithArgs(targetID).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("Правильная организация"))
+	mock.ExpectExec(`UPDATE document_correspondent_registrations\s+SET correspondent_org_id = \$1\s+WHERE correspondent_org_id = \$2`).
+		WithArgs(targetID, sourceID).
+		WillReturnResult(sqlmock.NewResult(0, 3))
+	mock.ExpectExec(`UPDATE outgoing_document_details\s+SET recipient_org_id = \$1\s+WHERE recipient_org_id = \$2`).
+		WithArgs(targetID, sourceID).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectExec(`DELETE FROM organizations WHERE id = \$1`).
+		WithArgs(sourceID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err = repo.MergeOrganizations(sourceID, targetID)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestReferenceRepository_MergeOrganizationsRejectsSameOrganization(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewReferenceRepository(&database.DB{DB: db})
+	id := uuid.New()
+
+	err = repo.MergeOrganizations(id, id)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "саму с собой")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 // === Resolution executors ===
 
 func TestReferenceRepository_GetAllResolutionExecutors(t *testing.T) {

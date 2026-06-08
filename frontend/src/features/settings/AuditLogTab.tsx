@@ -16,6 +16,7 @@ const actionLabels: Record<string, string> = {
   DOCTYPE_DELETE: 'Удаление типа документа',
   ORG_UPDATE: 'Обновление организации',
   ORG_DELETE: 'Удаление организации',
+  ORG_MERGE: 'Объединение организаций',
   DEPT_CREATE: 'Создание подразделения',
   DEPT_UPDATE: 'Обновление подразделения',
   DEPT_DELETE: 'Удаление подразделения',

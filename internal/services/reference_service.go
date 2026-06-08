@@ -123,6 +123,31 @@ func (s *ReferenceService) DeleteOrganization(id string) error {
 	return nil
 }
 
+// MergeOrganizations объединяет две записи справочника организаций.
+func (s *ReferenceService) MergeOrganizations(sourceID string, targetID string) error {
+	if err := s.requireReferenceManagement(); err != nil {
+		return err
+	}
+	sourceUID, err := uuid.Parse(sourceID)
+	if err != nil {
+		return models.NewBadRequestWrapped("неверный ID исходной организации", err)
+	}
+	targetUID, err := uuid.Parse(targetID)
+	if err != nil {
+		return models.NewBadRequestWrapped("неверный ID целевой организации", err)
+	}
+	if sourceUID == targetUID {
+		return models.NewBadRequest("нельзя объединить организацию саму с собой")
+	}
+	if err := s.repo.MergeOrganizations(sourceUID, targetUID); err != nil {
+		return err
+	}
+
+	userID, userName := s.auth.GetCurrentAuditInfo()
+	s.auditService.LogAction(userID, userName, "ORG_MERGE", fmt.Sprintf("Объединены организации: %s -> %s", sourceID, targetID))
+	return nil
+}
+
 // === Исполнители резолюции ===
 
 // GetResolutionExecutors возвращает список всех исполнителей резолюции.

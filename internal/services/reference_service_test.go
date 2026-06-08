@@ -243,6 +243,47 @@ func TestReferenceService_DeleteOrganization(t *testing.T) {
 	})
 }
 
+func TestReferenceService_MergeOrganizations(t *testing.T) {
+	sourceID := uuid.New()
+	targetID := uuid.New()
+
+	t.Run("невалидный ID исходной организации", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
+		err := svc.MergeOrganizations("invalid-uuid", targetID.String())
+		require.Error(t, err)
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID исходной организации")
+	})
+
+	t.Run("невалидный ID целевой организации", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
+		err := svc.MergeOrganizations(sourceID.String(), "invalid-uuid")
+		require.Error(t, err)
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID целевой организации")
+	})
+
+	t.Run("запрещено (не админ)", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, "clerk")
+		err := svc.MergeOrganizations(sourceID.String(), targetID.String())
+		require.Error(t, err)
+		assert.Equal(t, models.ErrForbidden, err)
+	})
+
+	t.Run("нельзя объединить саму с собой", func(t *testing.T) {
+		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
+		err := svc.MergeOrganizations(sourceID.String(), sourceID.String())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "саму с собой")
+	})
+
+	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
+		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
+		repo.On("MergeOrganizations", sourceID, targetID).Return(nil).Once()
+
+		err := svc.MergeOrganizations(sourceID.String(), targetID.String())
+		require.NoError(t, err)
+	})
+}
+
 // === Исполнители резолюции ===
 
 func TestReferenceService_GetResolutionExecutors(t *testing.T) {

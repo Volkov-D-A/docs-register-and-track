@@ -154,6 +154,60 @@ func (r *ReferenceRepository) DeleteOrganization(id uuid.UUID) error {
 	return nil
 }
 
+// MergeOrganizations переносит ссылки с одной организации на другую и удаляет исходную запись.
+func (r *ReferenceRepository) MergeOrganizations(sourceID uuid.UUID, targetID uuid.UUID) error {
+	if sourceID == targetID {
+		return models.NewBadRequest("нельзя объединить организацию саму с собой")
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin organization merge transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var sourceName string
+	if err := tx.QueryRow(`SELECT name FROM organizations WHERE id = $1 FOR UPDATE`, sourceID).Scan(&sourceName); err != nil {
+		if err == sql.ErrNoRows {
+			return models.NewBadRequest("исходная организация не найдена")
+		}
+		return fmt.Errorf("failed to lock source organization: %w", err)
+	}
+
+	var targetName string
+	if err := tx.QueryRow(`SELECT name FROM organizations WHERE id = $1 FOR UPDATE`, targetID).Scan(&targetName); err != nil {
+		if err == sql.ErrNoRows {
+			return models.NewBadRequest("целевая организация не найдена")
+		}
+		return fmt.Errorf("failed to lock target organization: %w", err)
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE document_correspondent_registrations
+		SET correspondent_org_id = $1
+		WHERE correspondent_org_id = $2
+	`, targetID, sourceID); err != nil {
+		return fmt.Errorf("failed to update correspondent registrations organization: %w", err)
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE outgoing_document_details
+		SET recipient_org_id = $1
+		WHERE recipient_org_id = $2
+	`, targetID, sourceID); err != nil {
+		return fmt.Errorf("failed to update outgoing documents organization: %w", err)
+	}
+
+	if _, err := tx.Exec(`DELETE FROM organizations WHERE id = $1`, sourceID); err != nil {
+		return fmt.Errorf("failed to delete merged organization: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit organization merge transaction: %w", err)
+	}
+	return nil
+}
+
 // === Исполнители резолюции ===
 
 // GetAllResolutionExecutors возвращает всех исполнителей резолюции.

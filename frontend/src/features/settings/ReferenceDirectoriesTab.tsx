@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { App, Button, Form, Input, Modal, Popconfirm, Space, Table, Tabs, Typography } from 'antd';
-import { BankOutlined, DeleteOutlined, EditOutlined, SolutionOutlined } from '@ant-design/icons';
+import { Alert, App, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tabs, Typography } from 'antd';
+import { BankOutlined, DeleteOutlined, EditOutlined, SolutionOutlined, SwapOutlined } from '@ant-design/icons';
 
 import { formatAppError } from '../../utils/appError';
 import { confirmDiscardFormChanges } from '../../utils/dirtyForm';
@@ -10,8 +10,11 @@ const OrganizationsTab: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
+  const [mergeItem, setMergeItem] = useState<any>(null);
   const [form] = Form.useForm();
+  const [mergeForm] = Form.useForm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,16 +69,41 @@ const OrganizationsTab: React.FC = () => {
     }
   };
 
+  const onMerge = async (values: any) => {
+    if (loading || !mergeItem) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const { MergeOrganizations } = await import('../../../wailsjs/go/services/ReferenceService');
+      await MergeOrganizations(mergeItem.id, values.targetId);
+      message.success('Организации объединены');
+      setMergeModalOpen(false);
+      mergeForm.resetFields();
+      setMergeItem(null);
+      await load();
+    } catch (err: any) {
+      message.error(formatAppError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const columns = [
     { title: 'Наименование', dataIndex: 'name', key: 'name' },
     {
-      title: 'Действия', key: 'actions', width: 100,
+      title: 'Действия', key: 'actions', width: 132,
       render: (_: any, record: any) => (
         <Space>
           <Button size="small" title="Редактировать организацию" icon={<EditOutlined />} onClick={() => {
             setEditItem(record);
             form.setFieldsValue(record);
             setModalOpen(true);
+          }} />
+          <Button size="small" title="Объединить с другой организацией" icon={<SwapOutlined />} onClick={() => {
+            setMergeItem(record);
+            mergeForm.resetFields();
+            setMergeModalOpen(true);
           }} />
           <Popconfirm
             title={`Удалить организацию "${record.name}"?`}
@@ -115,6 +143,47 @@ const OrganizationsTab: React.FC = () => {
             <Input />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="Объединить организацию"
+        open={mergeModalOpen}
+        onCancel={() => confirmDiscardFormChanges(modal, mergeForm, () => {
+          setMergeModalOpen(false);
+          setMergeItem(null);
+          mergeForm.resetFields();
+        })}
+        onOk={() => mergeForm.submit()}
+        okText="Объединить"
+        okButtonProps={{ danger: true }}
+        confirmLoading={loading}
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Alert
+            type="warning"
+            showIcon
+            message="Документы будут перенесены на выбранную организацию, исходная запись будет удалена."
+          />
+          <Typography.Text>
+            Исходная организация: <Typography.Text strong>{mergeItem?.name}</Typography.Text>
+          </Typography.Text>
+          <Form form={mergeForm} layout="vertical" onFinish={onMerge}>
+            <Form.Item
+              name="targetId"
+              label="Объединить с"
+              rules={[{ required: true, message: 'Выберите организацию' }]}
+            >
+              <Select
+                showSearch
+                placeholder="Выберите основную организацию"
+                optionFilterProp="label"
+                options={data
+                  .filter(item => item.id !== mergeItem?.id)
+                  .map(item => ({ value: item.id, label: item.name }))}
+              />
+            </Form.Item>
+          </Form>
+        </Space>
       </Modal>
     </div>
   );

@@ -171,6 +171,24 @@ func (_m *ReferenceStore) GetAllOrganizations() ([]models.Organization, error) {
 	return r0, r1
 }
 
+// MergeOrganizations provides a mock function with given fields: sourceID, targetID
+func (_m *ReferenceStore) MergeOrganizations(sourceID uuid.UUID, targetID uuid.UUID) error {
+	ret := _m.Called(sourceID, targetID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MergeOrganizations")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(sourceID, targetID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // SearchOrganizations provides a mock function with given fields: query
 func (_m *ReferenceStore) SearchOrganizations(query string) ([]models.Organization, error) {
 	ret := _m.Called(query)

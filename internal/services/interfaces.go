@@ -132,6 +132,7 @@ type ReferenceStore interface {
 	SearchOrganizations(query string) ([]models.Organization, error)
 	UpdateOrganization(id uuid.UUID, name string) error
 	DeleteOrganization(id uuid.UUID) error
+	MergeOrganizations(sourceID uuid.UUID, targetID uuid.UUID) error
 	GetAllResolutionExecutors() ([]models.ResolutionExecutor, error)
 	FindOrCreateResolutionExecutor(name string) (*models.ResolutionExecutor, error)
 	SearchResolutionExecutors(query string) ([]models.ResolutionExecutor, error)

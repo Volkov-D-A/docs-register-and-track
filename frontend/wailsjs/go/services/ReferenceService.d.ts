@@ -20,6 +20,8 @@ export function GetOrganizations():Promise<Array<dto.Organization>>;
 
 export function GetResolutionExecutors():Promise<Array<dto.ResolutionExecutor>>;
 
+export function MergeOrganizations(arg1:string,arg2:string):Promise<void>;
+
 export function SearchOrganizations(arg1:string):Promise<Array<dto.Organization>>;
 
 export function SearchResolutionExecutors(arg1:string):Promise<Array<dto.ResolutionExecutor>>;

@@ -38,6 +38,10 @@ export function GetResolutionExecutors() {
   return window['go']['services']['ReferenceService']['GetResolutionExecutors']();
 }
 
+export function MergeOrganizations(arg1, arg2) {
+  return window['go']['services']['ReferenceService']['MergeOrganizations'](arg1, arg2);
+}
+
 export function SearchOrganizations(arg1) {
   return window['go']['services']['ReferenceService']['SearchOrganizations'](arg1);
 }
