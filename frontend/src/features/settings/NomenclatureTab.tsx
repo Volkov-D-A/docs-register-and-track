@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { App, Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { App, Button, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag } from 'antd';
+import { DeleteOutlined, EditOutlined, FileAddOutlined, PlusOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import locale from 'antd/es/date-picker/locale/ru_RU';
 import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindLabel, getDocumentKindMeta } from '../../constants/documentKinds';
 import { useCurrentAccessSummary } from '../../hooks/useCurrentAccessSummary';
 import { formatAppError } from '../../utils/appError';
 import { confirmDiscardFormChanges } from '../../utils/dirtyForm';
+import { services } from '../../../wailsjs/go/models';
 
 const NomenclatureTab: React.FC = () => {
   const { message, modal } = App.useApp();
@@ -12,7 +15,11 @@ const NomenclatureTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
+  const [adminCreateModalOpen, setAdminCreateModalOpen] = useState(false);
+  const [adminCreateItem, setAdminCreateItem] = useState<any>(null);
+  const [adminCreateLoading, setAdminCreateLoading] = useState(false);
   const [form] = Form.useForm();
+  const [adminCreateForm] = Form.useForm();
   const currentYear = new Date().getFullYear();
   const [filterYear, setFilterYear] = useState(currentYear);
   const { kinds: allDocumentKinds } = useCurrentAccessSummary();
@@ -75,6 +82,46 @@ const NomenclatureTab: React.FC = () => {
     }
   };
 
+  const openAdminCreate = (record: any) => {
+    setAdminCreateItem(record);
+    adminCreateForm.resetFields();
+    adminCreateForm.setFieldsValue({
+      mode: 'insert_shift',
+      number: record.nextNumber || 1,
+      suffix: '',
+      registrationDate: dayjs(),
+    });
+    setAdminCreateModalOpen(true);
+  };
+
+  const onAdminCreate = async (values: any) => {
+    if (!adminCreateItem) {
+      return;
+    }
+    setAdminCreateLoading(true);
+    try {
+      const { CreateAdminDraft } = await import('../../../wailsjs/go/services/DocumentRegistrationService');
+      await CreateAdminDraft(adminCreateItem.kindCode, services.AdminDraftCreateRequest.createFrom({
+        nomenclatureId: adminCreateItem.id,
+        registrationDate: values.registrationDate?.format('YYYY-MM-DD') || '',
+        adminNumberOverride: services.AdminNumberOverrideRequest.createFrom({
+          mode: values.mode,
+          number: values.number,
+          suffix: values.mode === 'literal' ? values.suffix || '' : '',
+        }),
+      }));
+      message.success('Черновик документа создан');
+      setAdminCreateModalOpen(false);
+      setAdminCreateItem(null);
+      adminCreateForm.resetFields();
+      await load();
+    } catch (error: unknown) {
+      message.error(formatAppError(error));
+    } finally {
+      setAdminCreateLoading(false);
+    }
+  };
+
   const columns = [
     { title: 'Индекс', dataIndex: 'index', key: 'index', width: 100 },
     { title: 'Наименование', dataIndex: 'name', key: 'name' },
@@ -109,6 +156,13 @@ const NomenclatureTab: React.FC = () => {
             form.setFieldsValue(record);
             setModalOpen(true);
           }} />
+          <Button
+            size="small"
+            title={record.isActive ? 'Создать документ с особым номером' : 'Дело не активно'}
+            icon={<FileAddOutlined />}
+            disabled={!record.isActive}
+            onClick={() => openAdminCreate(record)}
+          />
           <Popconfirm
             title={`Удалить правило нумерации для ${getDocumentKindLabel(record.kindCode)} за ${record.year} год?`}
             description="Это действие нельзя отменить. Новые документы больше не будут использовать это правило."
@@ -190,6 +244,43 @@ const NomenclatureTab: React.FC = () => {
               <Switch />
             </Form.Item>
           )}
+        </Form>
+      </Modal>
+
+      <Modal
+        title={adminCreateItem ? `Создать документ: ${adminCreateItem.index}` : 'Создать документ'}
+        open={adminCreateModalOpen}
+        onCancel={() => {
+          setAdminCreateModalOpen(false);
+          setAdminCreateItem(null);
+          adminCreateForm.resetFields();
+        }}
+        onOk={() => adminCreateForm.submit()}
+        okText="Создать черновик"
+        confirmLoading={adminCreateLoading}
+      >
+        <Form form={adminCreateForm} layout="vertical" onFinish={onAdminCreate}>
+          <Form.Item name="mode" label="Сценарий" rules={[{ required: true }]}>
+            <Select>
+              <Select.Option value="insert_shift">Встраивание со сдвигом</Select.Option>
+              <Select.Option value="literal">Литерный номер без сдвига</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="number" label="Номер" rules={[{ required: true }]}>
+            <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="registrationDate" label="Дата регистрации" rules={[{ required: true }]}>
+            <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" locale={locale} />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, next) => prev.mode !== next.mode}>
+            {({ getFieldValue }) => (
+              getFieldValue('mode') === 'literal' ? (
+                <Form.Item name="suffix" label="Литера" rules={[{ required: true, message: 'Укажите литеру' }]}>
+                  <Input maxLength={10} placeholder="А" />
+                </Form.Item>
+              ) : null
+            )}
+          </Form.Item>
         </Form>
       </Modal>
     </div>

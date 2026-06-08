@@ -39,6 +39,7 @@ type CitizenAppealRegisterRequest struct {
 	ReceivedFromPOS      bool                                `json:"receivedFromPos"`
 	Content              string                              `json:"content"`
 	RegistrationNumber   string                              `json:"registrationNumber"`
+	AdminNumberOverride  *AdminNumberOverrideRequest         `json:"adminNumberOverride"`
 	Correspondents       []CitizenAppealCorrespondentRequest `json:"correspondents"`
 	Resolutions          []CitizenAppealResolutionRequest    `json:"resolutions"`
 }
@@ -112,8 +113,18 @@ func (h *CitizenAppealCommandHandler) Kind() models.DocumentKind {
 
 // Register регистрирует обращения граждан.
 func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest) (*dto.CitizenAppealDocument, error) {
-	if err := h.access.RequireCreate(models.DocumentKindCitizenAppeal); err != nil {
+	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
+	if err != nil {
 		return nil, err
+	}
+	if adminOverride != nil {
+		if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := h.access.RequireCreate(models.DocumentKindCitizenAppeal); err != nil {
+			return nil, err
+		}
 	}
 
 	nomID, err := uuid.Parse(req.NomenclatureID)
@@ -162,6 +173,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 	res, err := h.repo.Create(models.CreateCitizenAppealDocRequest{
 		NomenclatureID:       nomID,
 		IdempotencyKey:       idempotencyKey,
+		AdminNumberOverride:  adminOverride,
 		CreatedBy:            createdBy,
 		RegistrationNumber:   registrationNumber,
 		RegistrationDate:     registrationDate,
@@ -197,6 +209,57 @@ func (h *CitizenAppealCommandHandler) RegisterDocument(req any) (any, error) {
 	}
 
 	return h.Register(typedReq)
+}
+
+// CreateAdminDraft создает черновик обращения граждан с административно заданным номером.
+func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+	if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
+	nomID, err := uuid.Parse(req.NomenclatureID)
+	if err != nil {
+		return nil, models.NewBadRequest("неверный ID номенклатуры")
+	}
+	registrationDate, err := parseCommandDate(req.RegistrationDate, "даты регистрации")
+	if err != nil {
+		return nil, err
+	}
+	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
+	if err != nil {
+		return nil, err
+	}
+	if adminOverride == nil {
+		return nil, models.NewBadRequest("укажите административный номер")
+	}
+	createdBy, err := h.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
+
+	res, err := h.repo.Create(models.CreateCitizenAppealDocRequest{
+		NomenclatureID:       nomID,
+		IdempotencyKey:       uuid.New(),
+		AdminNumberOverride:  adminOverride,
+		CreatedBy:            createdBy,
+		RegistrationDate:     registrationDate,
+		AppealDate:           registrationDate,
+		Content:              adminDraftPlaceholder,
+		ApplicantFullName:    adminDraftPlaceholder,
+		RegistrationAddress:  adminDraftPlaceholder,
+		AppealType:           AppealTypeApplication,
+		ApplicantCategory:    adminDraftPlaceholder,
+		AppealPagesCount:     1,
+		AttachmentPagesCount: 0,
+	})
+	if err == nil {
+		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
+			DocumentID: res.ID,
+			UserID:     createdBy,
+			Action:     "ADMIN_DRAFT_CREATE",
+			Details:    fmt.Sprintf("Создан административный черновик. Рег. номер: %s", res.RegistrationNumber),
+		})
+	}
+	return dto.MapCitizenAppealDocument(res), err
 }
 
 // Update обновляет обращения граждан.

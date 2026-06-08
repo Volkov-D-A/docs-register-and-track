@@ -30,6 +30,7 @@ function App() {
         getDefaultPage,
     } = useCurrentAccessSummary();
     const requestedRegisterKind = useRegisterDocumentStore((state) => state.requestedKind);
+    const requestedRegisterId = useRegisterDocumentStore((state) => state.requestId);
     const organizationSetup = useOrganizationSetup({
         isAuthenticated,
         userId: user?.id,
@@ -83,7 +84,7 @@ function App() {
         if (isAuthenticated && requestedRegisterKind) {
             setCurrentPage(getDocumentPageKey(requestedRegisterKind));
         }
-    }, [isAuthenticated, requestedRegisterKind]);
+    }, [isAuthenticated, requestedRegisterId, requestedRegisterKind]);
 
     // Подписка на изменения draftLink для мгновенного перехода из модалки
     useEffect(() => {

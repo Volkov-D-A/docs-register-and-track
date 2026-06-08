@@ -262,7 +262,12 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 	}
 	defer tx.Rollback()
 
-	registration, err := resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindOutgoingLetter, req.NomenclatureID, req.IdempotencyKey, req.OutgoingNumber)
+	var registration *registrationNumberResult
+	if req.AdminNumberOverride != nil {
+		registration, err = resolveAdminRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindOutgoingLetter, req.NomenclatureID, req.IdempotencyKey, req.AdminNumberOverride)
+	} else {
+		registration, err = resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindOutgoingLetter, req.NomenclatureID, req.IdempotencyKey, req.OutgoingNumber)
+	}
 	if err != nil {
 		return nil, err
 	}

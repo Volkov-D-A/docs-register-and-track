@@ -22,11 +22,16 @@ export const useDocumentKindModals = ({
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editDoc, setEditDoc] = useState<any>(null);
     const requestedKind = useRegisterDocumentStore((state) => state.requestedKind);
+    const requestedId = useRegisterDocumentStore((state) => state.requestId);
+    const requestedInitialValues = useRegisterDocumentStore((state) => state.initialValues);
     const clearRequest = useRegisterDocumentStore((state) => state.clearRequest);
 
-    const openRegisterModal = useCallback(() => {
+    const openRegisterModal = useCallback((initialValues?: Record<string, unknown> | null) => {
         registerForm.resetFields();
-        registerForm.setFieldsValue(registerInitialValues);
+        registerForm.setFieldsValue({
+            ...registerInitialValues,
+            ...(initialValues || {}),
+        });
         setRegisterModalOpen(true);
     }, [registerForm, registerInitialValues]);
 
@@ -54,9 +59,9 @@ export const useDocumentKindModals = ({
 
     useEffect(() => {
         if (requestedKind === kindCode) {
-            openRegisterModal();
+            openRegisterModal(requestedInitialValues);
         }
-    }, [kindCode, openRegisterModal, requestedKind]);
+    }, [kindCode, openRegisterModal, requestedId, requestedInitialValues, requestedKind]);
 
     return {
         registerModalOpen,

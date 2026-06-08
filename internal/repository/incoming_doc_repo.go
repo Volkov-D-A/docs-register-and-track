@@ -602,7 +602,12 @@ func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest)
 	}
 	defer tx.Rollback()
 
-	registration, err := resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber)
+	var registration *registrationNumberResult
+	if req.AdminNumberOverride != nil {
+		registration, err = resolveAdminRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.AdminNumberOverride)
+	} else {
+		registration, err = resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber)
+	}
 	if err != nil {
 		return nil, err
 	}

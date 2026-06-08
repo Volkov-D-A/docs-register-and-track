@@ -368,6 +368,7 @@ type GraphData struct {
 type CreateIncomingDocRequest struct {
 	NomenclatureID      uuid.UUID
 	IdempotencyKey      uuid.UUID
+	AdminNumberOverride *AdminNumberOverride
 	DocumentTypeID      string
 	CreatedBy           uuid.UUID
 	IncomingNumber      string
@@ -396,18 +397,19 @@ type UpdateIncomingDocRequest struct {
 
 // CreateOutgoingDocRequest — запрос на создание исходящего документа (уровень репозитория).
 type CreateOutgoingDocRequest struct {
-	NomenclatureID  uuid.UUID
-	IdempotencyKey  uuid.UUID
-	DocumentTypeID  string
-	RecipientOrgID  uuid.UUID
-	CreatedBy       uuid.UUID
-	OutgoingNumber  string
-	OutgoingDate    time.Time
-	Content         string
-	PagesCount      int
-	SenderSignatory string
-	SenderExecutor  string
-	Addressee       string
+	NomenclatureID      uuid.UUID
+	IdempotencyKey      uuid.UUID
+	AdminNumberOverride *AdminNumberOverride
+	DocumentTypeID      string
+	RecipientOrgID      uuid.UUID
+	CreatedBy           uuid.UUID
+	OutgoingNumber      string
+	OutgoingDate        time.Time
+	Content             string
+	PagesCount          int
+	SenderSignatory     string
+	SenderExecutor      string
+	Addressee           string
 }
 
 // UpdateOutgoingDocRequest — запрос на обновление исходящего документа (уровень репозитория).
@@ -427,6 +429,7 @@ type UpdateOutgoingDocRequest struct {
 type CreateCitizenAppealDocRequest struct {
 	NomenclatureID       uuid.UUID
 	IdempotencyKey       uuid.UUID
+	AdminNumberOverride  *AdminNumberOverride
 	CreatedBy            uuid.UUID
 	RegistrationNumber   string
 	RegistrationDate     time.Time
@@ -467,6 +470,7 @@ type UpdateCitizenAppealDocRequest struct {
 type CreateAdministrativeOrderDocRequest struct {
 	NomenclatureID          uuid.UUID
 	IdempotencyKey          uuid.UUID
+	AdminNumberOverride     *AdminNumberOverride
 	CreatedBy               uuid.UUID
 	OrderNumber             string
 	OrderDate               time.Time
@@ -476,6 +480,17 @@ type CreateAdministrativeOrderDocRequest struct {
 	IsActive                bool
 	CancelledAt             *time.Time
 	AcknowledgmentFullNames []string
+}
+
+const (
+	AdminNumberModeInsertShift = "insert_shift"
+	AdminNumberModeLiteral     = "literal"
+)
+
+type AdminNumberOverride struct {
+	Mode   string
+	Number int
+	Suffix string
 }
 
 // UpdateAdministrativeOrderDocRequest — запрос на обновление приказа.

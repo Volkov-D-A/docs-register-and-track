@@ -2445,6 +2445,57 @@ export namespace services {
 	
 	    }
 	}
+	export class AdminNumberOverrideRequest {
+	    mode: string;
+	    number: number;
+	    suffix: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AdminNumberOverrideRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.number = source["number"];
+	        this.suffix = source["suffix"];
+	    }
+	}
+	export class AdminDraftCreateRequest {
+	    nomenclatureId: string;
+	    registrationDate: string;
+	    adminNumberOverride?: AdminNumberOverrideRequest;
+	
+	    static createFrom(source: any = {}) {
+	        return new AdminDraftCreateRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.nomenclatureId = source["nomenclatureId"];
+	        this.registrationDate = source["registrationDate"];
+	        this.adminNumberOverride = this.convertValues(source["adminNumberOverride"], AdminNumberOverrideRequest);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class OperationLifecycle {
 	
 	
@@ -2459,3 +2510,4 @@ export namespace services {
 	}
 
 }
+

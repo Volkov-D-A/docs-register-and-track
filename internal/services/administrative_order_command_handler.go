@@ -13,16 +13,17 @@ import (
 
 // AdministrativeOrderRegisterRequest описывает команду регистрации приказа.
 type AdministrativeOrderRegisterRequest struct {
-	NomenclatureID          string   `json:"nomenclatureId"`
-	IdempotencyKey          string   `json:"idempotencyKey"`
-	OrderDate               string   `json:"orderDate"`
-	Title                   string   `json:"title"`
-	ExecutionController     string   `json:"executionController"`
-	ExecutionDeadline       string   `json:"executionDeadline"`
-	IsActive                bool     `json:"isActive"`
-	CancelledAt             string   `json:"cancelledAt"`
-	AcknowledgmentFullNames []string `json:"acknowledgmentFullNames"`
-	RegistrationNumber      string   `json:"registrationNumber"`
+	NomenclatureID          string                      `json:"nomenclatureId"`
+	IdempotencyKey          string                      `json:"idempotencyKey"`
+	OrderDate               string                      `json:"orderDate"`
+	Title                   string                      `json:"title"`
+	ExecutionController     string                      `json:"executionController"`
+	ExecutionDeadline       string                      `json:"executionDeadline"`
+	IsActive                bool                        `json:"isActive"`
+	CancelledAt             string                      `json:"cancelledAt"`
+	AcknowledgmentFullNames []string                    `json:"acknowledgmentFullNames"`
+	RegistrationNumber      string                      `json:"registrationNumber"`
+	AdminNumberOverride     *AdminNumberOverrideRequest `json:"adminNumberOverride"`
 }
 
 // AdministrativeOrderUpdateRequest описывает команду обновления приказа.
@@ -70,8 +71,18 @@ func (h *AdministrativeOrderCommandHandler) Kind() models.DocumentKind {
 
 // Register регистрирует приказ.
 func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegisterRequest) (*dto.AdministrativeOrderDocument, error) {
-	if err := h.access.RequireCreate(models.DocumentKindAdministrativeOrder); err != nil {
+	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
+	if err != nil {
 		return nil, err
+	}
+	if adminOverride != nil {
+		if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := h.access.RequireCreate(models.DocumentKindAdministrativeOrder); err != nil {
+			return nil, err
+		}
 	}
 
 	nomID, err := uuid.Parse(req.NomenclatureID)
@@ -112,6 +123,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 	res, err := h.repo.Create(models.CreateAdministrativeOrderDocRequest{
 		NomenclatureID:          nomID,
 		IdempotencyKey:          idempotencyKey,
+		AdminNumberOverride:     adminOverride,
 		CreatedBy:               createdBy,
 		OrderNumber:             orderNumber,
 		OrderDate:               orderDate,
@@ -140,6 +152,53 @@ func (h *AdministrativeOrderCommandHandler) RegisterDocument(req any) (any, erro
 		return nil, fmt.Errorf("invalid register request for kind %s", h.Kind())
 	}
 	return h.Register(typedReq)
+}
+
+// CreateAdminDraft создает черновик приказа с административно заданным номером.
+func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+	if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
+	nomID, err := uuid.Parse(req.NomenclatureID)
+	if err != nil {
+		return nil, models.NewBadRequest("неверный ID номенклатуры")
+	}
+	registrationDate, err := parseCommandDate(req.RegistrationDate, "даты регистрации")
+	if err != nil {
+		return nil, err
+	}
+	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
+	if err != nil {
+		return nil, err
+	}
+	if adminOverride == nil {
+		return nil, models.NewBadRequest("укажите административный номер")
+	}
+	createdBy, err := h.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
+
+	res, err := h.repo.Create(models.CreateAdministrativeOrderDocRequest{
+		NomenclatureID:          nomID,
+		IdempotencyKey:          uuid.New(),
+		AdminNumberOverride:     adminOverride,
+		CreatedBy:               createdBy,
+		OrderDate:               registrationDate,
+		Title:                   adminDraftPlaceholder,
+		ExecutionController:     adminDraftPlaceholder,
+		IsActive:                true,
+		AcknowledgmentFullNames: []string{},
+	})
+	if err == nil {
+		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
+			DocumentID: res.ID,
+			UserID:     createdBy,
+			Action:     "ADMIN_DRAFT_CREATE",
+			Details:    fmt.Sprintf("Создан административный черновик. Рег. номер: %s", res.OrderNumber),
+		})
+	}
+	return dto.MapAdministrativeOrderDocument(res), err
 }
 
 // Update обновляет приказ.

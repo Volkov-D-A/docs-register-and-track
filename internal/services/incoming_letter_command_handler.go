@@ -25,6 +25,7 @@ type IncomingLetterRegisterRequest struct {
 	ResolutionAuthor    string                               `json:"resolutionAuthor"`
 	ResolutionExecutors string                               `json:"resolutionExecutors"`
 	RegistrationNumber  string                               `json:"registrationNumber"`
+	AdminNumberOverride *AdminNumberOverrideRequest          `json:"adminNumberOverride"`
 }
 
 // IncomingLetterUpdateRequest описывает команду обновления входящего письма.
@@ -83,8 +84,18 @@ func NewIncomingLetterCommandHandler(
 
 // Register регистрирует входящее письмо.
 func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterRequest) (*dto.IncomingDocument, error) {
-	if err := h.access.RequireCreate(models.DocumentKindIncomingLetter); err != nil {
+	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
+	if err != nil {
 		return nil, err
+	}
+	if adminOverride != nil {
+		if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := h.access.RequireCreate(models.DocumentKindIncomingLetter); err != nil {
+			return nil, err
+		}
 	}
 
 	nomID, err := uuid.Parse(req.NomenclatureID)
@@ -141,6 +152,7 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 	res, err := h.repo.Create(models.CreateIncomingDocRequest{
 		NomenclatureID:      nomID,
 		IdempotencyKey:      idempotencyKey,
+		AdminNumberOverride: adminOverride,
 		DocumentTypeID:      docTypeID,
 		CreatedBy:           createdBy,
 		IncomingNumber:      incomingNumberStr,
@@ -172,6 +184,63 @@ func (h *IncomingLetterCommandHandler) RegisterDocument(req any) (any, error) {
 	}
 
 	return h.Register(typedReq)
+}
+
+// CreateAdminDraft создает черновик входящего письма с административно заданным номером.
+func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+	if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
+	nomID, err := uuid.Parse(req.NomenclatureID)
+	if err != nil {
+		return nil, models.NewBadRequest("неверный ID номенклатуры")
+	}
+	registrationDate, err := parseCommandDate(req.RegistrationDate, "даты регистрации")
+	if err != nil {
+		return nil, err
+	}
+	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
+	if err != nil {
+		return nil, err
+	}
+	if adminOverride == nil {
+		return nil, models.NewBadRequest("укажите административный номер")
+	}
+	createdBy, err := h.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
+	org, err := h.refRepo.FindOrCreateOrganization(adminDraftPlaceholder)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка организации корреспондента: %w", err)
+	}
+
+	res, err := h.repo.Create(models.CreateIncomingDocRequest{
+		NomenclatureID:      nomID,
+		IdempotencyKey:      uuid.New(),
+		AdminNumberOverride: adminOverride,
+		DocumentTypeID:      models.DocumentTypeLetter,
+		CreatedBy:           createdBy,
+		IncomingDate:        registrationDate,
+		Correspondents: []models.DocumentCorrespondentRegistration{{
+			RegistrationNumber: adminDraftPlaceholder,
+			RegistrationDate:   registrationDate,
+			CorrespondentOrgID: org.ID,
+			Position:           1,
+		}},
+		Content:         adminDraftPlaceholder,
+		PagesCount:      1,
+		SenderSignatory: adminDraftPlaceholder,
+	})
+	if err == nil {
+		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
+			DocumentID: res.ID,
+			UserID:     createdBy,
+			Action:     "ADMIN_DRAFT_CREATE",
+			Details:    fmt.Sprintf("Создан административный черновик. Рег. номер: %s", res.IncomingNumber),
+		})
+	}
+	return dto.MapIncomingDocument(res), err
 }
 
 // Update обновляет входящее письмо.

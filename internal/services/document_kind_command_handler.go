@@ -14,6 +14,10 @@ type DocumentKindCommandHandler interface {
 	UpdateDocument(req any) (any, error)
 }
 
+type AdminDraftCommandHandler interface {
+	CreateAdminDraft(req AdminDraftCreateRequest) (any, error)
+}
+
 // DocumentKindCommandRegistry хранит обработчики command-операций по видам документов.
 type DocumentKindCommandRegistry struct {
 	handlers map[models.DocumentKind]DocumentKindCommandHandler
@@ -106,6 +110,34 @@ func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, err
 	}
 
 	result, err := handler.UpdateDocument(normalizedReq)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// CreateAdminDraft создает административный черновик с зарезервированным номером.
+func (s *DocumentRegistrationService) CreateAdminDraft(kindCode string, req AdminDraftCreateRequest) (any, error) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	kind := models.DocumentKind(kindCode)
+	handler, err := s.registry.Get(kind)
+	if err != nil {
+		return nil, models.ErrForbidden
+	}
+	draftHandler, ok := handler.(AdminDraftCommandHandler)
+	if !ok {
+		return nil, models.ErrForbidden
+	}
+
+	result, err := draftHandler.CreateAdminDraft(req)
 	if err != nil {
 		return nil, err
 	}

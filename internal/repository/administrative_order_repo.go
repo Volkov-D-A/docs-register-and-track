@@ -242,7 +242,12 @@ func (r *AdministrativeOrderRepository) Create(req models.CreateAdministrativeOr
 	}
 	defer tx.Rollback()
 
-	registration, err := resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindAdministrativeOrder, req.NomenclatureID, req.IdempotencyKey, req.OrderNumber)
+	var registration *registrationNumberResult
+	if req.AdminNumberOverride != nil {
+		registration, err = resolveAdminRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindAdministrativeOrder, req.NomenclatureID, req.IdempotencyKey, req.AdminNumberOverride)
+	} else {
+		registration, err = resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindAdministrativeOrder, req.NomenclatureID, req.IdempotencyKey, req.OrderNumber)
+	}
 	if err != nil {
 		return nil, err
 	}

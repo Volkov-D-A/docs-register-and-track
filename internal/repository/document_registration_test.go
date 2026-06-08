@@ -272,3 +272,127 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestResolveAdminRegistrationNumberTx(t *testing.T) {
+	t.Run("insert shift shifts existing numbers and updates next number", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		createdBy := uuid.New()
+		idempotencyKey := uuid.New()
+		nomenclatureID := uuid.New()
+		doc15 := uuid.New()
+		doc30 := uuid.New()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
+			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
+			WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+			WithArgs(nomenclatureID).
+			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+				AddRow("26-01-27", "/", numberingModeIndexAndNumber, 31, string(models.DocumentKindIncomingLetter), true))
+		mock.ExpectQuery(`SELECT id, registration_number\s+FROM documents\s+WHERE kind = \$1\s+AND nomenclature_id = \$2\s+AND EXTRACT\(YEAR FROM registration_date\) = \(SELECT year FROM nomenclature WHERE id = \$2\)\s+ORDER BY registration_number DESC\s+FOR UPDATE`).
+			WithArgs(models.DocumentKindIncomingLetter, nomenclatureID).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "registration_number"}).
+				AddRow(doc30, "26-01-27/30").
+				AddRow(doc15, "26-01-27/15").
+				AddRow(uuid.New(), "26-01-27/15А").
+				AddRow(uuid.New(), "26-01-27/14"))
+		mock.ExpectExec(`UPDATE documents\s+SET registration_number = \$1, updated_at = CURRENT_TIMESTAMP\s+WHERE id = \$2`).
+			WithArgs("26-01-27/31", doc30).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`UPDATE incoming_document_details SET incoming_number = \$1 WHERE document_id = \$2`).
+			WithArgs("26-01-27/31", doc30).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`UPDATE documents\s+SET registration_number = \$1, updated_at = CURRENT_TIMESTAMP\s+WHERE id = \$2`).
+			WithArgs("26-01-27/16", doc15).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`UPDATE incoming_document_details SET incoming_number = \$1 WHERE document_id = \$2`).
+			WithArgs("26-01-27/16", doc15).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = \$2, updated_at = CURRENT_TIMESTAMP\s+WHERE id = \$1`).
+			WithArgs(nomenclatureID, 32).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		mock.ExpectRollback()
+		tx, err := db.Begin()
+		require.NoError(t, err)
+		result, err := resolveAdminRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, &models.AdminNumberOverride{
+			Mode:   models.AdminNumberModeInsertShift,
+			Number: 15,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "26-01-27/15", result.Number)
+		assert.Equal(t, uuid.Nil, result.Existing)
+		require.NoError(t, tx.Rollback())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("literal number does not shift existing numbers", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		createdBy := uuid.New()
+		idempotencyKey := uuid.New()
+		nomenclatureID := uuid.New()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
+			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
+			WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+			WithArgs(nomenclatureID).
+			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+				AddRow("26-01-27", "/", numberingModeIndexAndNumber, 31, string(models.DocumentKindIncomingLetter), true))
+
+		mock.ExpectRollback()
+		tx, err := db.Begin()
+		require.NoError(t, err)
+		result, err := resolveAdminRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, &models.AdminNumberOverride{
+			Mode:   models.AdminNumberModeLiteral,
+			Number: 15,
+			Suffix: "А",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "26-01-27/15А", result.Number)
+		assert.Equal(t, uuid.Nil, result.Existing)
+		require.NoError(t, tx.Rollback())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("rejects inactive nomenclature", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		createdBy := uuid.New()
+		idempotencyKey := uuid.New()
+		nomenclatureID := uuid.New()
+
+		mock.ExpectBegin()
+		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
+			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
+			WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+			WithArgs(nomenclatureID).
+			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+				AddRow("26-01-27", "/", numberingModeIndexAndNumber, 31, string(models.DocumentKindIncomingLetter), false))
+
+		mock.ExpectRollback()
+		tx, err := db.Begin()
+		require.NoError(t, err)
+		result, err := resolveAdminRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, &models.AdminNumberOverride{
+			Mode:   models.AdminNumberModeLiteral,
+			Number: 15,
+			Suffix: "А",
+		})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "действующее дело номенклатуры")
+		require.NoError(t, tx.Rollback())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}

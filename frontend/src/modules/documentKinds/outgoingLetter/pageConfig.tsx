@@ -1,7 +1,8 @@
 import React from 'react';
-import { Button, Space, Tooltip } from 'antd';
+import { Button, Space, Tag, Tooltip } from 'antd';
 import { EyeOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { isAdminDraft } from '../../../constants/adminDraft';
 import { DOCUMENT_KIND_OUTGOING_LETTER } from '../../../constants/documentKinds';
 
 type ColumnFactoryParams = {
@@ -28,6 +29,7 @@ export const outgoingLetterPageConfig = {
                     <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
                         от {dayjs(record.outgoingDate).format('DD.MM.YYYY')}
                     </div>
+                    {isAdminDraft(record) && <Tag color="gold" style={{ marginTop: 4 }}>Черновик</Tag>}
                 </div>
             ),
         },

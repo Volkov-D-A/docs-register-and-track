@@ -365,7 +365,12 @@ func (r *CitizenAppealRepository) Create(req models.CreateCitizenAppealDocReques
 	}
 	defer tx.Rollback()
 
-	registration, err := resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindCitizenAppeal, req.NomenclatureID, req.IdempotencyKey, req.RegistrationNumber)
+	var registration *registrationNumberResult
+	if req.AdminNumberOverride != nil {
+		registration, err = resolveAdminRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindCitizenAppeal, req.NomenclatureID, req.IdempotencyKey, req.AdminNumberOverride)
+	} else {
+		registration, err = resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindCitizenAppeal, req.NomenclatureID, req.IdempotencyKey, req.RegistrationNumber)
+	}
 	if err != nil {
 		return nil, err
 	}

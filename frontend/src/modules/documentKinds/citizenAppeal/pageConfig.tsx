@@ -2,6 +2,7 @@ import React from 'react';
 import { Button, Space, Tag, Tooltip } from 'antd';
 import { EyeOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { isAdminDraft } from '../../../constants/adminDraft';
 import { DOCUMENT_KIND_CITIZEN_APPEAL } from '../../../constants/documentKinds';
 
 type ColumnFactoryParams = {
@@ -38,6 +39,7 @@ export const citizenAppealPageConfig = {
                     <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
                         от {dayjs(record.registrationDate).format('DD.MM.YYYY')}
                     </div>
+                    {isAdminDraft(record) && <Tag color="gold" style={{ marginTop: 4 }}>Черновик</Tag>}
                 </div>
             ),
         },
