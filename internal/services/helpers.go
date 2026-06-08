@@ -23,6 +23,10 @@ func parseUUID(s string) (uuid.UUID, error) {
 	return id, nil
 }
 
+func wrapPasswordPolicyError(err error) error {
+	return models.NewBadRequestWrapped(err.Error(), err)
+}
+
 // formatDocumentNumber — форматирование номера документа по правилам номенклатуры.
 func formatDocumentNumber(index, separator, numberingMode string, number int) string {
 	switch numberingMode {

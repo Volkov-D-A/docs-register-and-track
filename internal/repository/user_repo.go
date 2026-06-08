@@ -156,7 +156,7 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 // Create создает нового пользователя в БД.
 func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, error) {
 	if err := security.ValidatePassword(req.Password); err != nil {
-		return nil, err
+		return nil, models.NewBadRequestWrapped(err.Error(), err)
 	}
 
 	passwordHash, err := security.HashPassword(req.Password)
@@ -424,7 +424,7 @@ func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string
 // ResetPassword сбрасывает (изменяет) пароль пользователя.
 func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) error {
 	if err := security.ValidatePassword(newPassword); err != nil {
-		return err
+		return models.NewBadRequestWrapped(err.Error(), err)
 	}
 	hash, err := security.HashPassword(newPassword)
 	if err != nil {

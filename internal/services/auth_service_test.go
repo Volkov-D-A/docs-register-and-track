@@ -265,6 +265,17 @@ func TestAuthService_ChangeRequiredPassword(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, ErrInvalidCredentials, err)
 	})
+
+	t.Run("weak new password returns validation error", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+
+		err := authService.ChangeRequiredPassword(user.Login, password, "weak")
+
+		require.Error(t, err)
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "минимум 8 символов")
+	})
 }
 
 // ---------- TestAuthService_Logout ----------
@@ -370,6 +381,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 
 		err := authService.ChangePassword(password, "weak")
 		require.Error(t, err)
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "минимум 8 символов")
 	})
 
 	t.Run("not authenticated", func(t *testing.T) {
@@ -651,5 +663,6 @@ func TestAuthService_InitialSetup(t *testing.T) {
 
 		err := authService.InitialSetup("weak")
 		require.Error(t, err)
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "минимум 8 символов")
 	})
 }

@@ -218,45 +218,70 @@ func TestUserRepository_GetActiveUsers(t *testing.T) {
 
 func TestUserRepository_Create(t *testing.T) {
 	// Создание новой учетной записи пользователя и назначение ему ролей
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
+	t.Run("success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
 
-	repo := NewUserRepository(&database.DB{DB: db})
+		repo := NewUserRepository(&database.DB{DB: db})
 
-	req := models.CreateUserRequest{
-		Login:                 "newuser",
-		Password:              "Password123!",
-		FullName:              "New User",
-		IsDocumentParticipant: true,
-	}
+		req := models.CreateUserRequest{
+			Login:                 "newuser",
+			Password:              "Password123!",
+			FullName:              "New User",
+			IsDocumentParticipant: true,
+		}
 
-	mock.ExpectBegin()
-	uid := uuid.New()
+		mock.ExpectBegin()
+		uid := uuid.New()
 
-	mock.ExpectQuery(`INSERT INTO users`).
-		WithArgs(req.Login, sqlmock.AnyArg(), req.FullName, nil, req.IsDocumentParticipant, req.PasswordChangeRequired).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uid))
+		mock.ExpectQuery(`INSERT INTO users`).
+			WithArgs(req.Login, sqlmock.AnyArg(), req.FullName, nil, req.IsDocumentParticipant, req.PasswordChangeRequired).
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uid))
 
-	mock.ExpectCommit()
+		mock.ExpectCommit()
 
-	// getByCondition inside GetByID
-	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
-		WithArgs(uid).
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "password_hash", "full_name", "is_document_participant", "is_active", "failed_login_attempts",
-			"password_changed_at", "password_change_required", "created_at", "updated_at",
-			"d.id", "d.name",
-		}).AddRow(uid, req.Login, "hash", req.FullName, true, true, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
-	mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).
-		WithArgs(uid).
-		WillReturnRows(sqlmock.NewRows([]string{"permission"}))
+		// getByCondition inside GetByID
+		mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
+			WithArgs(uid).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "login", "password_hash", "full_name", "is_document_participant", "is_active", "failed_login_attempts",
+				"password_changed_at", "password_change_required", "created_at", "updated_at",
+				"d.id", "d.name",
+			}).AddRow(uid, req.Login, "hash", req.FullName, true, true, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
+		mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).
+			WithArgs(uid).
+			WillReturnRows(sqlmock.NewRows([]string{"permission"}))
 
-	user, err := repo.Create(req)
-	require.NoError(t, err)
-	require.NotNil(t, user)
-	assert.Equal(t, req.Login, user.Login)
-	require.NoError(t, mock.ExpectationsWereMet())
+		user, err := repo.Create(req)
+		require.NoError(t, err)
+		require.NotNil(t, user)
+		assert.Equal(t, req.Login, user.Login)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("weak password returns validation error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		repo := NewUserRepository(&database.DB{DB: db})
+
+		user, err := repo.Create(models.CreateUserRequest{
+			Login:    "newuser",
+			Password: "weak",
+			FullName: "New User",
+		})
+
+		require.Error(t, err)
+		assert.Nil(t, user)
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
+		assert.Equal(t, 400, appErr.Code)
+		assert.Contains(t, appErr.Message, "минимум 8 символов")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestUserRepository_Update(t *testing.T) {
@@ -323,6 +348,11 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 	t.Run("ResetPassword invalid password", func(t *testing.T) {
 		err = repo.ResetPassword(uid, "weak")
 		require.Error(t, err)
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
+		assert.Equal(t, 400, appErr.Code)
+		assert.Contains(t, appErr.Message, "минимум 8 символов")
 	})
 
 	t.Run("ResetPassword success", func(t *testing.T) {

@@ -255,7 +255,7 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 	}
 
 	if err := security.ValidatePassword(newPassword); err != nil {
-		return err
+		return wrapPasswordPolicyError(err)
 	}
 
 	newHash, err := security.HashPassword(newPassword)
@@ -300,7 +300,7 @@ func (s *AuthService) ChangeRequiredPassword(login, oldPassword, newPassword str
 		return models.NewConflict("смена пароля сейчас не требуется")
 	}
 	if err := security.ValidatePassword(newPassword); err != nil {
-		return err
+		return wrapPasswordPolicyError(err)
 	}
 
 	newHash, err := security.HashPassword(newPassword)
@@ -448,7 +448,7 @@ func (s *AuthService) InitialSetup(password string) error {
 	}
 
 	if err := security.ValidatePassword(password); err != nil {
-		return models.NewBadRequestWrapped(err.Error(), err)
+		return wrapPasswordPolicyError(err)
 	}
 
 	user, err := s.userRepo.Create(models.CreateUserRequest{
