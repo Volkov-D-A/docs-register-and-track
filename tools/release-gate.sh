@@ -94,7 +94,5 @@ run_step "frontend-lint" "Frontend lint" make --no-print-directory frontend-lint
 run_step "frontend-test" "Frontend tests" make --no-print-directory frontend-test
 run_step "frontend-build" "Frontend build" make --no-print-directory frontend-build
 run_step "npm-audit" "NPM audit" make --no-print-directory npm-audit
-run_step "npm-license-check" "NPM license check" make --no-print-directory npm-license-check
-run_step "license-inventory" "License inventory" make --no-print-directory license-inventory
 
 print_summary

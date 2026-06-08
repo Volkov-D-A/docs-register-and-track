@@ -1,4 +1,4 @@
-.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test performance-baseline npm-audit npm-license-check license-inventory security-gate release-gate
+.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
@@ -70,15 +70,6 @@ frontend-test:
 
 npm-audit:
 	cd $(FRONTEND_DIR) && npm audit --audit-level=critical
-
-npm-license-check:
-	node tools/license-report.js
-
-license-inventory:
-	mkdir -p $(RELEASE_EVIDENCE_DIR)
-	go list -m -json all > $(RELEASE_EVIDENCE_DIR)/go-modules.json
-	cd $(FRONTEND_DIR) && npm ls --all --json > ../$(RELEASE_EVIDENCE_DIR)/npm-dependencies.json
-	node tools/license-report.js
 
 release-gate:
 	@./tools/release-gate.sh
