@@ -33,7 +33,7 @@ const RelatedDocumentModal: React.FC<RelatedDocumentModalProps> = ({
                 <Spin />
             </div>
         ) : (
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space orientation="vertical" style={{ width: '100%' }}>
                 {creatableKinds.map((kind) => {
                     const isOrderToOrder = sourceIsAdministrativeOrder
                         && kind.code === DOCUMENT_KIND_ADMINISTRATIVE_ORDER;

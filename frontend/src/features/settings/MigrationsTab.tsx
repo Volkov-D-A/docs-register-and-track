@@ -168,7 +168,7 @@ const MigrationsTab: React.FC = () => {
         confirmLoading={rollingBack}
         destroyOnClose
       >
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
           <Typography.Text type="danger">
             Откат последней миграции может удалить таблицы, столбцы и данные, созданные этой миграцией.
           </Typography.Text>

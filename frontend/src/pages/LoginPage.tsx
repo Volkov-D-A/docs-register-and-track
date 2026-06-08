@@ -255,6 +255,7 @@ const LoginPage: React.FC = () => {
             <Modal
                 title="Смена пароля"
                 open={passwordChangeOpen}
+                forceRender
                 onCancel={() => {
                     setPasswordChangeOpen(false);
                     setPasswordChangeCredentials(null);

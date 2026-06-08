@@ -192,7 +192,7 @@ const UsersTab: React.FC = () => {
         modal.info({
           title: 'Временный пароль',
           content: (
-            <Space direction="vertical" size="small">
+            <Space orientation="vertical" size="small">
               <Typography.Text>
                 Передайте пользователю временный пароль. При первом входе система потребует его сменить.
               </Typography.Text>

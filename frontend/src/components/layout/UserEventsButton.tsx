@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, Button, Empty, List, Popover, Space, Spin, Typography } from 'antd';
+import { Badge, Button, Empty, Popover, Space, Spin, Typography } from 'antd';
 import { BellOutlined, CheckOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { dto, models } from '../../../wailsjs/go/models';
@@ -177,14 +177,24 @@ const UserEventsButton: React.FC<UserEventsButtonProps> = ({ onOpenEvent }) => {
             ) : events.length === 0 ? (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Событий нет" />
             ) : (
-                <List
-                    dataSource={events}
-                    style={{ maxHeight: 420, overflowY: 'auto' }}
-                    renderItem={(event) => (
-                        <List.Item
+                <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+                    {events.map((event) => (
+                        <div
                             key={event.id}
-                            style={{ cursor: 'pointer', paddingInline: 0 }}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => handleOpenEvent(event)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleOpenEvent(event);
+                                }
+                            }}
+                            style={{
+                                cursor: 'pointer',
+                                padding: '12px 0',
+                                borderBottom: '1px solid #f0f0f0',
+                            }}
                         >
                             <Space align="start" style={{ width: '100%' }}>
                                 <span
@@ -210,9 +220,9 @@ const UserEventsButton: React.FC<UserEventsButtonProps> = ({ onOpenEvent }) => {
                                     </Text>
                                 </Space>
                             </Space>
-                        </List.Item>
-                    )}
-                />
+                        </div>
+                    ))}
+                </div>
             )}
         </div>
     ), [events, handleMarkAllRead, handleOpenEvent, loading, unreadCount]);
