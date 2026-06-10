@@ -24,3 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_user_events_recipient_unread
 
 CREATE INDEX IF NOT EXISTS idx_user_events_entity
     ON user_events (entity_type, entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_events_document_recipient_unread
+    ON user_events (document_id, recipient_user_id)
+    WHERE read_at IS NULL;

@@ -195,7 +195,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 			DocumentID: res.ID,
 			UserID:     createdBy,
 			Action:     "CREATE",
-			Details:    fmt.Sprintf("Обращение зарегистрировано. Номер: %s", registrationNumber),
+			Details:    fmt.Sprintf("Обращение зарегистрировано. Номер: %s", res.RegistrationNumber),
 		})
 	}
 	return dto.MapCitizenAppealDocument(res), err

@@ -64,6 +64,8 @@ CREATE TABLE acknowledgments (
     completed_at TIMESTAMP WITH TIME ZONE
 );
 
+CREATE INDEX idx_acknowledgments_document ON acknowledgments (document_id);
+
 CREATE TABLE acknowledgment_users (
     id UUID PRIMARY KEY,
     acknowledgment_id UUID NOT NULL REFERENCES acknowledgments (id) ON DELETE CASCADE,
@@ -73,3 +75,7 @@ CREATE TABLE acknowledgment_users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (acknowledgment_id, user_id)
 );
+
+CREATE INDEX idx_acknowledgment_users_user_acknowledgment ON acknowledgment_users (user_id, acknowledgment_id);
+CREATE INDEX idx_acknowledgment_users_pending_user ON acknowledgment_users (user_id, acknowledgment_id)
+    WHERE confirmed_at IS NULL;

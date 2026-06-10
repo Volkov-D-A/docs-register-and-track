@@ -139,7 +139,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 			DocumentID: res.ID,
 			UserID:     createdBy,
 			Action:     "CREATE",
-			Details:    fmt.Sprintf("Приказ зарегистрирован. Рег. номер: %s", orderNumber),
+			Details:    fmt.Sprintf("Приказ зарегистрирован. Рег. номер: %s", res.OrderNumber),
 		})
 	}
 	return dto.MapAdministrativeOrderDocument(res), err

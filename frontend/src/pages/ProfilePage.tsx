@@ -27,6 +27,7 @@ const ProfilePage: React.FC = () => {
     const [isSavingTheme, setIsSavingTheme] = useState(false);
     const [executors, setExecutors] = useState<any[]>([]);
     const [isSavingSubstitution, setIsSavingSubstitution] = useState(false);
+    const userDepartmentId = user?.department?.id;
 
     useEffect(() => {
         if (isEditingProfile && user) {
@@ -57,7 +58,7 @@ const ProfilePage: React.FC = () => {
                 if (!mounted) {
                     return;
                 }
-                setExecutors((users || []).filter((item: any) => item.id !== user.id && item.department?.id === user.department?.id));
+                setExecutors((users || []).filter((item: any) => item.id !== user.id && item.department?.id === userDepartmentId));
                 substitutionForm.setFieldsValue({
                     substituteUserId: substitution?.substituteUserId || undefined,
                     isActive: substitution?.isActive ?? true,
@@ -71,7 +72,7 @@ const ProfilePage: React.FC = () => {
         };
         void loadSubstitution();
         return () => { mounted = false; };
-    }, [message, substitutionForm, user?.id, user?.isDocumentParticipant]);
+    }, [message, substitutionForm, user?.id, user?.isDocumentParticipant, userDepartmentId]);
 
     if (!user) {
         return <div style={{ padding: 24 }}><Text>Загрузка профиля...</Text></div>;

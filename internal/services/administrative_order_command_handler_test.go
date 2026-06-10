@@ -143,7 +143,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 		deps.repo.createResult = &models.AdministrativeOrderDocument{
 			ID:                  documentID,
 			NomenclatureID:      nomenclatureID,
-			OrderNumber:         "ORD-10",
+			OrderNumber:         "ORD-11",
 			OrderDate:           time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
 			Title:               "О назначении ответственного",
 			ExecutionController: "Контрольный отдел",
@@ -155,7 +155,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 			return journalReq.DocumentID == documentID &&
 				journalReq.UserID == deps.user.ID &&
 				journalReq.Action == "CREATE" &&
-				journalReq.Details == "Приказ зарегистрирован. Рег. номер: ORD-10"
+				journalReq.Details == "Приказ зарегистрирован. Рег. номер: ORD-11"
 		})).Return(uuid.New(), nil).Once()
 
 		result, err := deps.handler.Register(req)

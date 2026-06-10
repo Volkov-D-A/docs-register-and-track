@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -106,5 +107,16 @@ func createUserEventIfEnabled(events *UserEventService, req models.CreateUserEve
 	if events == nil {
 		return
 	}
-	_, _ = events.create(req)
+	if _, err := events.create(req); err != nil {
+		slog.Warn(
+			"failed to create user event",
+			"error", err,
+			"recipient_user_id", req.RecipientUserID,
+			"document_id", req.DocumentID,
+			"document_kind", req.DocumentKind,
+			"entity_type", req.EntityType,
+			"entity_id", req.EntityID,
+			"event_type", req.EventType,
+		)
+	}
 }

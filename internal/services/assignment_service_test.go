@@ -585,6 +585,133 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 	})
 }
 
+func TestResolveAssignmentStatusUpdate(t *testing.T) {
+	completedAt := time.Date(2026, 6, 9, 10, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name           string
+		existingStatus string
+		existingReport string
+		status         string
+		report         string
+		canManage      bool
+		canAct         bool
+		wantReport     string
+		wantCompleted  *time.Time
+		wantErrKind    string
+	}{
+		{
+			name:           "executor starts assignment",
+			existingStatus: "new",
+			status:         "in_progress",
+			canAct:         true,
+			wantReport:     "",
+		},
+		{
+			name:           "executor completes with trimmed report",
+			existingStatus: "in_progress",
+			status:         "completed",
+			report:         "  Готово  ",
+			canAct:         true,
+			wantReport:     "Готово",
+		},
+		{
+			name:           "executor completion requires report",
+			existingStatus: "in_progress",
+			status:         "completed",
+			canAct:         true,
+			wantErrKind:    "VALIDATION_ERROR",
+		},
+		{
+			name:           "manager finishes completed assignment with existing report",
+			existingStatus: "completed",
+			existingReport: "Отчет исполнителя",
+			status:         "finished",
+			canManage:      true,
+			wantReport:     "Отчет исполнителя",
+			wantCompleted:  &completedAt,
+		},
+		{
+			name:           "manager return requires reason",
+			existingStatus: "completed",
+			status:         "returned",
+			canManage:      true,
+			wantErrKind:    "VALIDATION_ERROR",
+		},
+		{
+			name:           "unprivileged actor is forbidden",
+			existingStatus: "new",
+			status:         "finished",
+			wantErrKind:    "FORBIDDEN",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := &models.Assignment{
+				Status:      tt.existingStatus,
+				Report:      tt.existingReport,
+				CompletedAt: &completedAt,
+			}
+
+			result, err := resolveAssignmentStatusUpdate(existing, tt.status, tt.report, tt.canManage, tt.canAct)
+			if tt.wantErrKind != "" {
+				require.Error(t, err)
+				appErr, ok := models.AsAppError(err)
+				require.True(t, ok)
+				assert.Equal(t, tt.wantErrKind, appErr.Kind)
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.wantReport, result.report)
+			if tt.status == "completed" {
+				assert.NotNil(t, result.completedAt)
+			} else {
+				assert.Equal(t, tt.wantCompleted, result.completedAt)
+			}
+		})
+	}
+}
+
+func TestAssignmentExecutorRecipientIDs(t *testing.T) {
+	executorID := uuid.New()
+	coExecutorID := uuid.New()
+	otherCoExecutorID := uuid.New()
+
+	tests := []struct {
+		name       string
+		assignment *models.Assignment
+		want       []uuid.UUID
+	}{
+		{
+			name: "nil assignment",
+			want: nil,
+		},
+		{
+			name: "deduplicates executor and coexecutors",
+			assignment: &models.Assignment{
+				ExecutorID: executorID,
+				CoExecutorIDs: []string{
+					coExecutorID.String(),
+					"not-a-uuid",
+					executorID.String(),
+					coExecutorID.String(),
+					otherCoExecutorID.String(),
+				},
+			},
+			want: []uuid.UUID{executorID, coExecutorID, otherCoExecutorID},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, assignmentExecutorRecipientIDs(tt.assignment))
+		})
+	}
+}
+
 func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 	assignmentID := uuid.New()
 	docID := uuid.New()

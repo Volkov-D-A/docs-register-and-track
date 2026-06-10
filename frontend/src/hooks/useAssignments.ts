@@ -4,6 +4,7 @@ import { useDocumentKindAccess } from './useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
 import { emitAssignmentsChanged } from '../events/assignmentEvents';
 import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvents';
+import { dto, models } from '../../wailsjs/go/models';
 
 type UseAssignmentsOptions = {
     documentId: string;
@@ -14,7 +15,7 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
     const { message } = App.useApp();
     const { hasAction, ready: accessReady } = useDocumentKindAccess();
     const canManageAssignments = accessReady && hasAction(documentKind, 'assign');
-    const [data, setData] = useState<any[]>([]);
+    const [data, setData] = useState<dto.Assignment[]>([]);
     const [loading, setLoading] = useState(false);
 
     const load = useCallback(async () => {
@@ -25,9 +26,15 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
         setLoading(true);
         try {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
-            const result = await GetList({ documentId, page: 1, pageSize: 100, showFinished: true, overdueOnly: false });
+            const result = await GetList(models.AssignmentFilter.createFrom({
+                documentId,
+                page: 1,
+                pageSize: 100,
+                showFinished: true,
+                overdueOnly: false,
+            }));
             setData(result?.items || []);
-        } catch (error) {
+        } catch (error: unknown) {
             console.error(error);
         } finally {
             setLoading(false);

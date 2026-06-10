@@ -32,6 +32,7 @@ CREATE INDEX idx_documents_registration_date ON documents (registration_date);
 CREATE UNIQUE INDEX idx_documents_kind_registration_number_year
     ON documents (kind, registration_number, EXTRACT(YEAR FROM registration_date));
 CREATE INDEX idx_documents_created_at ON documents (created_at);
+CREATE INDEX idx_documents_kind_created_at ON documents (kind, created_at DESC);
 CREATE UNIQUE INDEX idx_documents_created_by_kind_idempotency
     ON documents (created_by, kind, idempotency_key);
 

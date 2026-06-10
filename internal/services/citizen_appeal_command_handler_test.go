@@ -150,7 +150,7 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 		deps.repo.createResult = &models.CitizenAppealDocument{
 			ID:                   documentID,
 			NomenclatureID:       nomenclatureID,
-			RegistrationNumber:   "CA-10",
+			RegistrationNumber:   "CA-11",
 			RegistrationDate:     time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
 			AppealDate:           time.Date(2026, 6, 2, 0, 0, 0, 0, time.UTC),
 			ApplicantFullName:    "Иван Иванов",
@@ -172,7 +172,7 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 			return journalReq.DocumentID == documentID &&
 				journalReq.UserID == deps.user.ID &&
 				journalReq.Action == "CREATE" &&
-				journalReq.Details == "Обращение зарегистрировано. Номер: CA-10"
+				journalReq.Details == "Обращение зарегистрировано. Номер: CA-11"
 		})).Return(uuid.New(), nil).Once()
 
 		result, err := deps.handler.Register(req)

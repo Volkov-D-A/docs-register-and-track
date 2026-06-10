@@ -15,8 +15,12 @@ CREATE TABLE assignments (
 CREATE INDEX idx_assignments_executor ON assignments (executor_id);
 
 CREATE INDEX idx_assignments_document ON assignments (document_id);
+CREATE INDEX idx_assignments_document_executor ON assignments (document_id, executor_id);
 
 CREATE INDEX idx_assignments_deadline ON assignments (deadline);
+CREATE INDEX idx_assignments_executor_status ON assignments (executor_id, status);
+CREATE INDEX idx_assignments_active_deadline ON assignments (deadline, status)
+    WHERE status IN ('new', 'in_progress') AND deadline IS NOT NULL;
 
 -- 14. Assignment Co-Executors
 CREATE TABLE assignment_co_executors (
@@ -29,3 +33,4 @@ CREATE TABLE assignment_co_executors (
 CREATE INDEX idx_assignment_co_executors_assignment ON assignment_co_executors (assignment_id);
 
 CREATE INDEX idx_assignment_co_executors_user ON assignment_co_executors (user_id);
+CREATE INDEX idx_assignment_co_executors_user_assignment ON assignment_co_executors (user_id, assignment_id);

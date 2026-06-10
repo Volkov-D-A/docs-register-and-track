@@ -105,7 +105,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		})).Return(&models.OutgoingDocument{
 			ID:               documentID,
 			NomenclatureID:   nomenclatureID,
-			OutgoingNumber:   "OUT-12",
+			OutgoingNumber:   "OUT-13",
 			OutgoingDate:     time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
 			DocumentTypeID:   models.DocumentTypeLetter,
 			RecipientOrgID:   recipientOrgID,
@@ -118,7 +118,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 			return journalReq.DocumentID == documentID &&
 				journalReq.UserID == deps.user.ID &&
 				journalReq.Action == "CREATE" &&
-				journalReq.Details == "Документ зарегистрирован. Рег. номер: OUT-12"
+				journalReq.Details == "Документ зарегистрирован. Рег. номер: OUT-13"
 		})).Return(uuid.New(), nil).Once()
 
 		result, err := deps.handler.Register(req)
@@ -126,7 +126,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, documentID.String(), result.ID)
-		assert.Equal(t, "OUT-12", result.OutgoingNumber)
+		assert.Equal(t, "OUT-13", result.OutgoingNumber)
 		assert.Equal(t, "ООО Получатель", result.RecipientOrgName)
 	})
 

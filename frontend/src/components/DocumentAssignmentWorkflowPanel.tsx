@@ -4,6 +4,7 @@ import { CheckCircleOutlined, FileDoneOutlined, PlayCircleOutlined, UndoOutlined
 import dayjs from 'dayjs';
 import AssignmentCompletionModal from './AssignmentCompletionModal';
 import { useAssignments } from '../hooks/useAssignments';
+import { dto } from '../../wailsjs/go/models';
 
 interface DocumentAssignmentWorkflowPanelProps {
     documentId: string;
@@ -49,7 +50,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
     } = useAssignments({ documentId, documentKind });
     const [completionModalOpen, setCompletionModalOpen] = useState(false);
     const [returnModalOpen, setReturnModalOpen] = useState(false);
-    const [currentAssignment, setCurrentAssignment] = useState<any>(null);
+    const [currentAssignment, setCurrentAssignment] = useState<dto.Assignment | null>(null);
     const [returnReasonText, setReturnReasonText] = useState('');
 
     const actionableAssignments = useMemo(() => data.filter((assignment) => {
@@ -74,6 +75,10 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
     }
 
     const handleReturnToRevision = () => {
+        if (!currentAssignment) {
+            message.error('Поручение не выбрано');
+            return;
+        }
         if (!returnReasonText.trim()) {
             message.error('Введите причину возврата');
             return;

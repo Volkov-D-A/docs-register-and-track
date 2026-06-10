@@ -19,6 +19,7 @@ import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { useDocumentDetails } from '../hooks/useDocumentDetails';
 import { formatAppError } from '../utils/appError';
 import { emitUserEventsDocumentRead, onUserEventsReceived } from '../events/userEvents';
+import { MarkDocumentRead } from '../../wailsjs/go/services/UserEventService';
 
 interface DocumentViewModalProps {
     open: boolean;
@@ -59,7 +60,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
         }
 
         try {
-            const { MarkDocumentRead } = await import('../../wailsjs/go/services/UserEventService');
             await MarkDocumentRead(documentId);
             emitUserEventsDocumentRead(documentId);
         } catch (error) {

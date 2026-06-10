@@ -118,7 +118,7 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 		})).Return(&models.IncomingDocument{
 			ID:             documentID,
 			NomenclatureID: nomenclatureID,
-			IncomingNumber: "12/26",
+			IncomingNumber: "13/26",
 			IncomingDate:   time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
 			DocumentTypeID: models.DocumentTypeLetter,
 			Content:        req.Content,
@@ -129,7 +129,7 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 			return journalReq.DocumentID == documentID &&
 				journalReq.UserID == deps.user.ID &&
 				journalReq.Action == "CREATE" &&
-				journalReq.Details == "Документ зарегистрирован. Рег. номер: 12/26"
+				journalReq.Details == "Документ зарегистрирован. Рег. номер: 13/26"
 		})).Return(uuid.New(), nil).Once()
 
 		result, err := deps.handler.Register(req)
@@ -137,7 +137,7 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, documentID.String(), result.ID)
-		assert.Equal(t, "12/26", result.IncomingNumber)
+		assert.Equal(t, "13/26", result.IncomingNumber)
 	})
 
 	t.Run("rejects missing create permission", func(t *testing.T) {

@@ -17,6 +17,7 @@ import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
 import { onAssignmentsChanged } from '../events/assignmentEvents';
 import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvents';
+import { dto, models } from '../../wailsjs/go/models';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -29,8 +30,7 @@ const AssignmentsPage: React.FC = () => {
     const { message } = App.useApp();
     const { user } = useAuthStore();
     const { hasAction, hasAnyAction, ready: accessReady } = useDocumentKindAccess();
-    // const [activeTab, setActiveTab] = useState('inbox'); // Removed
-    const [data, setData] = useState<any[]>([]);
+    const [data, setData] = useState<dto.Assignment[]>([]);
     const [loading, setLoading] = useState(false);
     const [totalCount, setTotalCount] = useState(0);
     const [page, setPage] = useState(1);
@@ -47,7 +47,7 @@ const AssignmentsPage: React.FC = () => {
 
     // Модальные окна
     const [modalOpen, setModalOpen] = useState(false);
-    const [editAssignment, setEditAssignment] = useState<any>(null);
+    const [editAssignment, setEditAssignment] = useState<dto.Assignment | null>(null);
 
     // View Document
     const [viewDocId, setViewDocId] = useState<string>('');
@@ -55,7 +55,7 @@ const AssignmentsPage: React.FC = () => {
     const [viewModalOpen, setViewModalOpen] = useState(false);
 
     // Refs
-    const [executors, setExecutors] = useState<any[]>([]);
+    const [executors, setExecutors] = useState<dto.User[]>([]);
 
     const loadUsers = async () => {
         try {
@@ -82,8 +82,9 @@ const AssignmentsPage: React.FC = () => {
                 executorId = user?.id || '';
             }
 
-            const result = await GetList({
-                page, pageSize,
+            const result = await GetList(models.AssignmentFilter.createFrom({
+                page,
+                pageSize,
                 search,
                 status: filterStatus,
                 dateFrom: filterDateFrom,
@@ -91,10 +92,10 @@ const AssignmentsPage: React.FC = () => {
                 executorId: executorId,
                 showFinished: showFinished,
                 overdueOnly: filterOverdue,
-            } as any); // Cast to any until models are regenerated
+            }));
             setData(result?.items || []);
             setTotalCount(result?.totalCount || 0);
-        } catch (err: any) {
+        } catch (err: unknown) {
             message.error(formatAppError(err));
         } finally {
             setLoading(false);
@@ -141,7 +142,7 @@ const AssignmentsPage: React.FC = () => {
             await Delete(id);
             message.success('Поручение удалено');
             load();
-        } catch (err: any) {
+        } catch (err: unknown) {
             message.error(formatAppError(err));
         }
     };
@@ -188,7 +189,7 @@ const AssignmentsPage: React.FC = () => {
         },
         {
             title: 'Документ', key: 'doc', width: '25%',
-            render: (_: any, r: any) => (
+            render: (_: unknown, r: dto.Assignment) => (
                 <div className="assignments-document-cell" title={r.documentSubject || r.documentNumber || 'Без номера'}>
                     <div style={{ fontWeight: 600 }}>{r.documentNumber || 'Без номера'}</div>
                     <div className="assignments-document-subject">{r.documentSubject}</div>
@@ -209,12 +210,12 @@ const AssignmentsPage: React.FC = () => {
         },
         {
             title: 'Ответственный исполнитель', key: 'executorName', width: 148,
-            render: (_: any, r: any) => (
+            render: (_: unknown, r: dto.Assignment) => (
                 <div>
                     <div>{r.executorName}</div>
                     {r.coExecutors && r.coExecutors.length > 0 && (
                         <div style={{ fontSize: '11px', color: 'var(--app-text-muted)' }}>
-                            + {r.coExecutors.map((u: any) => u.fullName).join(', ')}
+                            + {r.coExecutors.map((u) => u.fullName).join(', ')}
                         </div>
                     )}
                 </div>
@@ -226,7 +227,7 @@ const AssignmentsPage: React.FC = () => {
         },
         {
             title: 'Статус', dataIndex: 'status', key: 'status', width: 110,
-            render: (status: string, record: any) => {
+            render: (status: string, record: dto.Assignment) => {
                 let color = 'default';
                 let text = status;
 
@@ -255,7 +256,7 @@ const AssignmentsPage: React.FC = () => {
         },
         {
             title: 'Действия', key: 'actions', width: 140,
-            render: (_: any, r: any) => {
+            render: (_: unknown, r: dto.Assignment) => {
                 const canManageAssignment = hasAction(r.documentKind, 'assign');
                 const canEdit = canManageAssignment && r.status !== 'finished';
 
@@ -330,8 +331,8 @@ const AssignmentsPage: React.FC = () => {
                     {hasAnyAction('assign') && (
                         <>
                             <Col span={4}>
-                                <Select style={{ width: '100%' }} placeholder="Ответственный исполнитель" allowClear showSearch
-                                    options={executors.map(u => ({ value: u.id, label: u.fullName }))}
+                    <Select style={{ width: '100%' }} placeholder="Ответственный исполнитель" allowClear showSearch
+                                    options={executors.map((u) => ({ value: u.id, label: u.fullName }))}
                                     value={filterExecutorId || undefined} onChange={setFilterExecutorId}
                                 />
                             </Col>
@@ -362,7 +363,7 @@ const AssignmentsPage: React.FC = () => {
                 className="assignments-table"
                 columns={columns} dataSource={data} rowKey="id"
                 loading={loading || !accessReady} size="small" tableLayout="fixed"
-                rowClassName={(record) => {
+                rowClassName={(record: dto.Assignment) => {
                     const isOverdue = record.deadline && dayjs(record.deadline).isBefore(dayjs(), 'day') && !['completed', 'finished', 'cancelled'].includes(record.status);
                     return isOverdue ? 'assignment-overdue' : '';
                 }}
@@ -373,13 +374,12 @@ const AssignmentsPage: React.FC = () => {
                 }}
                 expandable={{
                     columnWidth: 28,
-                    expandedRowRender: (record) => (
+                    expandedRowRender: (record: dto.Assignment) => (
                         <div style={{ margin: 0 }}>
                             {record.report && <p><b>{record.status === 'returned' ? 'Причина возврата:' : 'Отчет:'}</b> {record.report}</p>}
-                            {record.controllerName && <p><b>Контролер:</b> {record.controllerName}</p>}
                         </div>
                     ),
-                    rowExpandable: (record) => !!record.report || !!record.controllerName
+                    rowExpandable: (record: dto.Assignment) => !!record.report
                 }}
             />
 

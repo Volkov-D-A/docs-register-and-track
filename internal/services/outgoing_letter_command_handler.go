@@ -140,7 +140,7 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 			DocumentID: res.ID,
 			UserID:     createdBy,
 			Action:     "CREATE",
-			Details:    fmt.Sprintf("Документ зарегистрирован. Рег. номер: %s", outgoingNumber),
+			Details:    fmt.Sprintf("Документ зарегистрирован. Рег. номер: %s", res.OutgoingNumber),
 		})
 	}
 	return dto.MapOutgoingDocument(res), err
