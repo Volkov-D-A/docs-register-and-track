@@ -117,6 +117,10 @@ export const normalizeAppError = (error: unknown, fallbackMessage = DEFAULT_ERRO
         }
 
         if (message) {
+            const serialized = parseSerializedError(message);
+            if (serialized) {
+                return serialized;
+            }
             return {
                 code: 'UNKNOWN_ERROR',
                 message: fallbackMessage || DEFAULT_ERROR_MESSAGE,
