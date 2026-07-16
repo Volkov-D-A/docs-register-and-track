@@ -42,7 +42,7 @@ export const useAttachments = ({ documentId, documentKind, readOnly }: UseAttach
 
     const uploadFile = useCallback(async () => {
         if (uploading) {
-            return Upload.LIST_IGNORE;
+            return;
         }
         setUploading(true);
         try {
