@@ -454,39 +454,28 @@ func (s *AuthService) InitialSetup(password string) error {
 		}
 	}
 
-	// После миграций повторно проверяем — вдруг пользователи уже есть
-	count, err := s.userRepo.CountUsers()
-	if err != nil {
-		return fmt.Errorf("ошибка проверки пользователей: %w", err)
-	}
-	if count > 0 {
-		return models.NewConflict("начальная настройка уже выполнена")
-	}
-
 	if err := security.ValidatePassword(password); err != nil {
 		return wrapPasswordPolicyError(err)
 	}
 
-	user, err := s.userRepo.Create(models.CreateUserRequest{
-		Login:                  "admin",
-		Password:               password,
-		FullName:               "Администратор",
-		IsDocumentParticipant:  false,
-		PasswordChangeRequired: false,
-	})
+	passwordHash, err := security.HashPassword(password)
 	if err != nil {
-		return fmt.Errorf("ошибка создания администратора: %w", err)
+		return fmt.Errorf("ошибка подготовки пароля администратора: %w", err)
 	}
 
 	if s.accessRepo == nil {
 		return fmt.Errorf("ошибка назначения системного права администратора: access store не подключен")
 	}
-	if err := s.accessRepo.ReplaceUserAccessProfile(
-		user.ID.String(),
-		[]models.UserSystemPermissionRule{{Permission: models.SystemPermissionAdmin, IsAllowed: true}},
-		nil,
-	); err != nil {
-		return fmt.Errorf("ошибка назначения системного права администратора: %w", err)
+
+	bootstrapStore, ok := s.userRepo.(InitialSetupStore)
+	if !ok {
+		return fmt.Errorf("ошибка создания администратора: хранилище не поддерживает атомарную первоначальную настройку")
+	}
+	if err := bootstrapStore.CreateInitialAdmin(passwordHash); err != nil {
+		if _, ok := models.AsAppError(err); ok {
+			return err
+		}
+		return fmt.Errorf("ошибка создания администратора: %w", err)
 	}
 
 	return nil

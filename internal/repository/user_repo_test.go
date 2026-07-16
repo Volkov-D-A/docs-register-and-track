@@ -77,6 +77,56 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 	})
 }
 
+func TestUserRepository_CreateInitialAdmin(t *testing.T) {
+	t.Run("creates user and admin permission in one transaction", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+		repo := NewUserRepository(&database.DB{DB: db})
+		userID := uuid.New()
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock\(\$1\)`).WithArgs(initialSetupAdvisoryLockID).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`INSERT INTO users`).WithArgs("password-hash").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
+		mock.ExpectExec(`INSERT INTO user_system_permissions`).WithArgs(userID, models.SystemPermissionAdmin).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		err = repo.CreateInitialAdmin("password-hash")
+
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("rolls back when granting permission fails", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+		repo := NewUserRepository(&database.DB{DB: db})
+		userID := uuid.New()
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`SELECT pg_advisory_xact_lock\(\$1\)`).WithArgs(initialSetupAdvisoryLockID).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`INSERT INTO users`).WithArgs("password-hash").
+			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
+		mock.ExpectExec(`INSERT INTO user_system_permissions`).WithArgs(userID, models.SystemPermissionAdmin).
+			WillReturnError(sql.ErrConnDone)
+		mock.ExpectRollback()
+
+		err = repo.CreateInitialAdmin("password-hash")
+
+		require.ErrorIs(t, err, sql.ErrConnDone)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
 func TestUserRepository_GetAll(t *testing.T) {
 	// Получение списка всех пользователей системы с подгрузкой их подразделений и ролей
 	db, mock, err := sqlmock.New()

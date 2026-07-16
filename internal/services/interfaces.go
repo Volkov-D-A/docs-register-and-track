@@ -27,6 +27,11 @@ type UserStore interface {
 	CountUsers() (int, error)
 }
 
+// InitialSetupStore выполняет атомарную первичную настройку после применения миграций.
+type InitialSetupStore interface {
+	CreateInitialAdmin(passwordHash string) error
+}
+
 // UserSubstitutionStore — интерфейс для работы с замещениями пользователей.
 type UserSubstitutionStore interface {
 	GetByPrincipalID(principalUserID uuid.UUID) (*models.UserSubstitution, error)

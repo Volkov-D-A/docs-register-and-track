@@ -666,11 +666,9 @@ func TestAuthService_InitialSetup(t *testing.T) {
 		authService := NewAuthService(nil, mockRepo)
 		authService.SetAccessStore(newRoleMappedDocumentAccessStore())
 
-		// Первый вызов CountUsers — таблица существует, 0 пользователей
-		mockRepo.On("CountUsers").Return(0, nil).Twice()
-		mockRepo.On("Create", mock.MatchedBy(func(req models.CreateUserRequest) bool {
-			return req.Login == "admin" && req.FullName == "Администратор"
-		})).Return(&models.User{ID: uuid.New()}, nil).Once()
+		// Проверка существования таблиц; сам count и создание выполняются атомарно в bootstrap-операции.
+		mockRepo.On("CountUsers").Return(0, nil).Once()
+		mockRepo.On("CreateInitialAdmin", mock.AnythingOfType("string")).Return(nil).Once()
 
 		err := authService.InitialSetup(goodPassword)
 		require.NoError(t, err)
@@ -679,10 +677,11 @@ func TestAuthService_InitialSetup(t *testing.T) {
 	t.Run("already setup", func(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := NewAuthService(nil, mockRepo)
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore())
 
-		// Первый вызов — 0, второй — 1 (кто-то уже создал)
+		// Параллельная настройка обнаруживается внутри атомарной bootstrap-операции.
 		mockRepo.On("CountUsers").Return(0, nil).Once()
-		mockRepo.On("CountUsers").Return(1, nil).Once()
+		mockRepo.On("CreateInitialAdmin", mock.AnythingOfType("string")).Return(models.NewConflict("начальная настройка уже выполнена")).Once()
 
 		err := authService.InitialSetup(goodPassword)
 		require.Error(t, err)
@@ -693,7 +692,7 @@ func TestAuthService_InitialSetup(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := NewAuthService(nil, mockRepo)
 
-		mockRepo.On("CountUsers").Return(0, nil).Twice()
+		mockRepo.On("CountUsers").Return(0, nil).Once()
 
 		err := authService.InitialSetup("weak")
 		require.Error(t, err)

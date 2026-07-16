@@ -17,6 +17,8 @@ type UserRepository struct {
 	db *database.DB
 }
 
+const initialSetupAdvisoryLockID int64 = 78652402
+
 // NewUserRepository создает новый экземпляр UserRepository.
 func NewUserRepository(db *database.DB) *UserRepository {
 	return &UserRepository{db: db}
@@ -193,6 +195,49 @@ func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, err
 	}
 
 	return r.GetByID(userID)
+}
+
+// CreateInitialAdmin создаёт первого администратора и его системное право в одной транзакции.
+// Межпроцессная advisory lock предотвращает параллельное выполнение первичной настройки.
+func (r *UserRepository) CreateInitialAdmin(passwordHash string) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin initial setup transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`SELECT pg_advisory_xact_lock($1)`, initialSetupAdvisoryLockID); err != nil {
+		return fmt.Errorf("failed to lock initial setup: %w", err)
+	}
+
+	var usersCount int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&usersCount); err != nil {
+		return fmt.Errorf("failed to count users during initial setup: %w", err)
+	}
+	if usersCount > 0 {
+		return models.NewConflict("начальная настройка уже выполнена")
+	}
+
+	var userID uuid.UUID
+	if err := tx.QueryRow(`
+		INSERT INTO users (login, password_hash, full_name, is_document_participant, password_changed_at, password_change_required)
+		VALUES ('admin', $1, 'Администратор', false, CURRENT_TIMESTAMP, false)
+		RETURNING id
+	`, passwordHash).Scan(&userID); err != nil {
+		return fmt.Errorf("failed to create initial administrator: %w", err)
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO user_system_permissions (user_id, permission, is_allowed)
+		VALUES ($1, $2, true)
+	`, userID, models.SystemPermissionAdmin); err != nil {
+		return fmt.Errorf("failed to grant initial administrator permission: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit initial setup: %w", err)
+	}
+	return nil
 }
 
 // Update обновляет данные существующего пользователя.

@@ -73,6 +73,20 @@ func (_m *UserStore) Create(req models.CreateUserRequest) (*models.User, error) 
 	return r0, r1
 }
 
+// CreateInitialAdmin provides a mock function with given fields: passwordHash
+func (_m *UserStore) CreateInitialAdmin(passwordHash string) error {
+	ret := _m.Called(passwordHash)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateInitialAdmin")
+	}
+
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		return rf(passwordHash)
+	}
+	return ret.Error(0)
+}
+
 // GetAll provides a mock function with no fields
 func (_m *UserStore) GetAll() ([]models.User, error) {
 	ret := _m.Called()
