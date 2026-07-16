@@ -96,6 +96,22 @@ func TestDepartmentService_GetAllDepartments(t *testing.T) {
 		assert.Equal(t, ErrNotAuthenticated, err)
 		assert.Nil(t, result)
 	})
+
+	t.Run("деактивирован после входа", func(t *testing.T) {
+		depRepo := mocks.NewDepartmentStore(t)
+		userRepo := mocks.NewUserStore(t)
+		user := &models.User{ID: uuid.New(), IsActive: false}
+		auth := NewAuthService(nil, userRepo)
+		auth.currentUserID = user.ID
+		userRepo.On("GetByID", user.ID).Return(user, nil).Once()
+		svc := NewDepartmentService(depRepo, auth, nil)
+
+		result, err := svc.GetAllDepartments()
+
+		require.ErrorIs(t, err, models.ErrUnauthorized)
+		assert.Nil(t, result)
+		assert.False(t, auth.IsAuthenticated())
+	})
 }
 
 func TestDepartmentService_CreateDepartment(t *testing.T) {

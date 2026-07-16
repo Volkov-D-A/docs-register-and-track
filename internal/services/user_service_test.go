@@ -291,6 +291,22 @@ func TestUserService_GetExecutors(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
+	t.Run("rejects user deactivated after login", func(t *testing.T) {
+		repo := mocks.NewUserStore(t)
+		authRepo := mocks.NewUserStore(t)
+		user := &models.User{ID: uuid.New(), IsActive: false}
+		auth := NewAuthService(nil, authRepo)
+		auth.currentUserID = user.ID
+		authRepo.On("GetByID", user.ID).Return(user, nil).Once()
+		svc := NewUserService(repo, auth, nil)
+
+		result, err := svc.GetExecutors()
+
+		require.ErrorIs(t, err, models.ErrUnauthorized)
+		assert.Nil(t, result)
+		assert.False(t, auth.IsAuthenticated())
+	})
+
 	t.Run("propagates repository error", func(t *testing.T) {
 		expectedErr := errors.New("executors failed")
 		svc, repo := setupUserService(t, "executor")

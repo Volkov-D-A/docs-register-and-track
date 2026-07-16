@@ -86,8 +86,8 @@ func (s *UserSubstitutionService) saveForPrincipal(principalID uuid.UUID, req mo
 		if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 			return nil, err
 		}
-	} else if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	} else if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 
 	principal, err := s.userRepo.GetByID(principalID)

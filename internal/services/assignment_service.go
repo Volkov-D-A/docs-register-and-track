@@ -244,8 +244,8 @@ func (s *AssignmentService) Update(
 
 // UpdateStatus — изменение статуса (исполнитель или админ)
 func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assignment, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 
 	uid, err := uuid.Parse(id)

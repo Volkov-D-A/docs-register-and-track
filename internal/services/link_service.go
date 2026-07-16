@@ -56,13 +56,9 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 	ctx, release := serviceOperationContext(s.lifecycle)
 	defer release()
 
-	if !s.authService.IsAuthenticated() {
-		return nil, models.ErrUnauthorized
-	}
-	userIDStr := s.authService.GetCurrentUserID()
-	userID, err := uuid.Parse(userIDStr)
+	userID, err := s.authService.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, err
 	}
 
 	sourceID, err := uuid.Parse(sourceIDStr)

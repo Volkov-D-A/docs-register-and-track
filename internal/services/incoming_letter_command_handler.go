@@ -143,10 +143,9 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 		resExecutorsPtr = &req.ResolutionExecutors
 	}
 
-	createdByStr := h.auth.GetCurrentUserID()
-	createdBy, err := uuid.Parse(createdByStr)
+	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, err
 	}
 
 	res, err := h.repo.Create(models.CreateIncomingDocRequest{

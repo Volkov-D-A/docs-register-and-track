@@ -24,8 +24,8 @@ func NewNomenclatureService(repo NomenclatureStore, auth *AuthService, auditServ
 
 // GetAll возвращает все дела номенклатуры за указанный год и по указанному виду документа.
 func (s *NomenclatureService) GetAll(year int, kindCode string) ([]dto.Nomenclature, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.GetAll(year, kindCode)
 	return dto.MapNomenclatures(res), err
@@ -33,8 +33,8 @@ func (s *NomenclatureService) GetAll(year int, kindCode string) ([]dto.Nomenclat
 
 // GetActiveForKind возвращает активные дела для выбора при регистрации документов.
 func (s *NomenclatureService) GetActiveForKind(kindCode string) ([]dto.Nomenclature, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	year := time.Now().Year()
 	res, err := s.repo.GetActiveByKind(kindCode, year)

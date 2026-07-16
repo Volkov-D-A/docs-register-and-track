@@ -271,6 +271,17 @@ func TestDocumentAccessService_RequireDomainRead(t *testing.T) {
 		require.ErrorIs(t, err, models.ErrUnauthorized)
 	})
 
+	t.Run("user deactivated after login is rejected before access checks", func(t *testing.T) {
+		user := documentAccessUser(true, nil)
+		deps := setupDocumentAccessService(t, user, nil)
+		user.IsActive = false
+
+		err := deps.service.RequireDomainRead()
+
+		require.ErrorIs(t, err, models.ErrUnauthorized)
+		assert.False(t, deps.auth.IsAuthenticated())
+	})
+
 	t.Run("document participant is allowed without explicit document permissions", func(t *testing.T) {
 		deps := setupDocumentAccessService(t, documentAccessUser(true, nil), nil)
 

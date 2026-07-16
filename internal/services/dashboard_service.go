@@ -65,8 +65,8 @@ func (s *DashboardService) determineDashboardAssignmentScope(user *dto.User) das
 
 // GetActivity возвращает оперативные данные для главного экрана.
 func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 
 	user, err := s.auth.GetCurrentUser()

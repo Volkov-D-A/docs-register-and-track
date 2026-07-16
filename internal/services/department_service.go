@@ -26,8 +26,8 @@ func NewDepartmentService(repo DepartmentStore, auth *AuthService, auditService 
 
 // GetAllDepartments возвращает список всех подразделений.
 func (s *DepartmentService) GetAllDepartments() ([]dto.Department, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.GetAll()
 	return dto.MapDepartments(res), err

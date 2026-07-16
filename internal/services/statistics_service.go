@@ -252,8 +252,8 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 }
 
 func (s *StatisticsService) requirePermission(permission string) error {
-	if !s.auth.IsAuthenticated() {
-		return ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return err
 	}
 	if !s.auth.HasSystemPermission(permission) {
 		return models.NewForbidden("Недостаточно прав для просмотра статистики")

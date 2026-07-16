@@ -347,6 +347,23 @@ func TestAuthService_GetCurrentUser(t *testing.T) {
 		assert.Equal(t, ErrNotAuthenticated, err)
 		assert.Nil(t, dto)
 	})
+
+	t.Run("deactivated after login revokes session", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := authService.Login(user.Login, password)
+		require.NoError(t, err)
+
+		inactiveUser := *user
+		inactiveUser.IsActive = false
+		mockRepo.On("GetByID", user.ID).Return(&inactiveUser, nil).Once()
+
+		err = authService.RequireAuthenticated()
+		assert.ErrorIs(t, err, ErrNotAuthenticated)
+		assert.False(t, authService.IsAuthenticated())
+		assert.Empty(t, authService.GetCurrentUserID())
+	})
 }
 
 // ---------- TestAuthService_ChangePassword ----------
@@ -537,6 +554,23 @@ func TestAuthService_GetCurrentAuditInfo(t *testing.T) {
 }
 
 func TestAuthService_SystemPermissionChecks(t *testing.T) {
+	t.Run("deactivated user loses permission without restart", func(t *testing.T) {
+		user, password := newTestUser()
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+		authService.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionAdmin))
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := authService.Login(user.Login, password)
+		require.NoError(t, err)
+
+		inactiveUser := *user
+		inactiveUser.IsActive = false
+		mockRepo.On("GetByID", user.ID).Return(&inactiveUser, nil).Once()
+
+		assert.ErrorIs(t, authService.RequireSystemPermission(models.SystemPermissionAdmin), models.ErrUnauthorized)
+		assert.False(t, authService.IsAuthenticated())
+	})
+
 	t.Run("has system permission", func(t *testing.T) {
 		user, password := newTestUser()
 		mockRepo := mocks.NewUserStore(t)

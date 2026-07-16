@@ -111,8 +111,8 @@ func (s *UserService) ResetPassword(userID string, newPassword string) error {
 
 // GetExecutors возвращает список активных сотрудников для назначений и ознакомления.
 func (s *UserService) GetExecutors() ([]dto.User, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.userRepo.GetExecutors()
 	return dto.MapUsers(res), err
@@ -120,8 +120,8 @@ func (s *UserService) GetExecutors() ([]dto.User, error) {
 
 // GetSubstitutionCandidates возвращает активных пользователей, которых можно выбрать замещающими.
 func (s *UserService) GetSubstitutionCandidates() ([]dto.User, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.userRepo.GetActiveUsers()
 	return dto.MapUsers(res), err

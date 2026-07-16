@@ -29,8 +29,8 @@ func (s *ReferenceService) requireReferenceManagement() error {
 
 // GetDocumentTypes возвращает список всех типов документов.
 func (s *ReferenceService) GetDocumentTypes() ([]dto.DocumentType, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 
 	items := make([]dto.DocumentType, 0, len(models.AllowedDocumentTypes()))
@@ -62,8 +62,8 @@ func (s *ReferenceService) DeleteDocumentType(id string) error {
 
 // GetOrganizations возвращает список всех организаций-корреспондентов.
 func (s *ReferenceService) GetOrganizations() ([]dto.Organization, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.GetAllOrganizations()
 	return dto.MapOrganizations(res), err
@@ -71,8 +71,8 @@ func (s *ReferenceService) GetOrganizations() ([]dto.Organization, error) {
 
 // SearchOrganizations выполняет поиск организаций по названию.
 func (s *ReferenceService) SearchOrganizations(query string) ([]dto.Organization, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.SearchOrganizations(query)
 	return dto.MapOrganizations(res), err
@@ -80,8 +80,8 @@ func (s *ReferenceService) SearchOrganizations(query string) ([]dto.Organization
 
 // FindOrCreateOrganization ищет организацию по названию, и создает новую, если она не найдена.
 func (s *ReferenceService) FindOrCreateOrganization(name string) (*dto.Organization, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.FindOrCreateOrganization(name)
 	return dto.MapOrganization(res), err
@@ -152,8 +152,8 @@ func (s *ReferenceService) MergeOrganizations(sourceID string, targetID string) 
 
 // GetResolutionExecutors возвращает список всех исполнителей резолюции.
 func (s *ReferenceService) GetResolutionExecutors() ([]dto.ResolutionExecutor, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.GetAllResolutionExecutors()
 	return dto.MapResolutionExecutors(res), err
@@ -161,8 +161,8 @@ func (s *ReferenceService) GetResolutionExecutors() ([]dto.ResolutionExecutor, e
 
 // SearchResolutionExecutors выполняет поиск исполнителей резолюции по имени.
 func (s *ReferenceService) SearchResolutionExecutors(query string) ([]dto.ResolutionExecutor, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.SearchResolutionExecutors(query)
 	return dto.MapResolutionExecutors(res), err
@@ -170,8 +170,8 @@ func (s *ReferenceService) SearchResolutionExecutors(query string) ([]dto.Resolu
 
 // FindOrCreateResolutionExecutor ищет исполнителя по имени, и создает нового, если он не найден.
 func (s *ReferenceService) FindOrCreateResolutionExecutor(name string) (*dto.ResolutionExecutor, error) {
-	if !s.auth.IsAuthenticated() {
-		return nil, ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 	res, err := s.repo.FindOrCreateResolutionExecutor(name)
 	return dto.MapResolutionExecutor(res), err

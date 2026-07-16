@@ -114,10 +114,9 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 		return nil, models.NewBadRequest("неверный формат даты исходящего документа")
 	}
 
-	createdByStr := h.auth.GetCurrentUserID()
-	createdBy, err := uuid.Parse(createdByStr)
+	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, err
 	}
 
 	res, err := h.repo.Create(models.CreateOutgoingDocRequest{

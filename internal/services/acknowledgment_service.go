@@ -125,10 +125,9 @@ func (s *AcknowledgmentService) Create(
 		return nil, err
 	}
 
-	creatorID := s.auth.GetCurrentUserID()
-	creatorUUID, err := uuid.Parse(creatorID)
+	creatorUUID, err := s.auth.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, err
 	}
 
 	ack := &models.Acknowledgment{
@@ -266,8 +265,8 @@ func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 
 // MarkViewed отмечает задачу на ознакомление как просмотренную текущим пользователем.
 func (s *AcknowledgmentService) MarkViewed(ackID string) error {
-	if !s.auth.IsAuthenticated() {
-		return ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return err
 	}
 	ackUUID, err := uuid.Parse(ackID)
 	if err != nil {
@@ -295,8 +294,8 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 
 // MarkConfirmed отмечает задачу на ознакомление как выполненную (подтвержденную) текущим пользователем.
 func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
-	if !s.auth.IsAuthenticated() {
-		return ErrNotAuthenticated
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return err
 	}
 	ackUUID, err := uuid.Parse(ackID)
 	if err != nil {

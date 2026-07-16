@@ -205,6 +205,31 @@ func (s *AuthService) Logout() error {
 
 // GetCurrentUser — получить текущего пользователя
 func (s *AuthService) GetCurrentUser() (*dto.User, error) {
+	user, err := s.getActiveCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+	return dto.MapUser(user), nil
+}
+
+// GetCurrentUserUUID возвращает ID активного текущего пользователя.
+// При удалении или деактивации пользователя локальная сессия отзывается.
+func (s *AuthService) GetCurrentUserUUID() (uuid.UUID, error) {
+	user, err := s.getActiveCurrentUser()
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return user.ID, nil
+}
+
+// RequireAuthenticated проверяет, что текущая сессия принадлежит активному пользователю.
+// Используется на границах защищённых операций, где недостаточно наличия UUID в памяти.
+func (s *AuthService) RequireAuthenticated() error {
+	_, err := s.getActiveCurrentUser()
+	return err
+}
+
+func (s *AuthService) getActiveCurrentUser() (*models.User, error) {
 	s.mu.RLock()
 	userID := s.currentUserID
 	s.mu.RUnlock()
@@ -217,22 +242,16 @@ func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	if user == nil {
+	if user == nil || !user.IsActive {
+		s.mu.Lock()
+		if s.currentUserID == userID {
+			s.currentUserID = uuid.Nil
+		}
+		s.mu.Unlock()
 		return nil, ErrNotAuthenticated
 	}
 
-	return dto.MapUser(user), nil
-}
-
-// GetCurrentUserUUID возвращает ID текущего пользователя, безопасно копируя его под блокировкой.
-// Возвращает uuid.Nil и ошибку, если пользователь не авторизован.
-func (s *AuthService) GetCurrentUserUUID() (uuid.UUID, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.currentUserID == uuid.Nil {
-		return uuid.Nil, ErrNotAuthenticated
-	}
-	return s.currentUserID, nil
+	return user, nil
 }
 
 // ChangePassword — смена пароля
@@ -362,11 +381,8 @@ func (s *AuthService) GetCurrentAuditInfo() (uuid.UUID, string) {
 
 // HasSystemPermission проверяет прямое системное право текущего пользователя.
 func (s *AuthService) HasSystemPermission(permission string) bool {
-	s.mu.RLock()
-	userID := s.currentUserID
-	s.mu.RUnlock()
-
-	if userID == uuid.Nil || s.accessRepo == nil {
+	userID, err := s.GetCurrentUserUUID()
+	if err != nil || s.accessRepo == nil {
 		return false
 	}
 
@@ -379,8 +395,8 @@ func (s *AuthService) HasSystemPermission(permission string) bool {
 
 // RequireSystemPermission возвращает nil если у текущего пользователя есть указанное системное право.
 func (s *AuthService) RequireSystemPermission(permission string) error {
-	if !s.IsAuthenticated() {
-		return models.ErrUnauthorized
+	if err := s.RequireAuthenticated(); err != nil {
+		return err
 	}
 	if !s.HasSystemPermission(permission) {
 		return models.ErrForbidden
@@ -400,8 +416,8 @@ func (s *AuthService) HasAnySystemPermission(permissions ...string) bool {
 
 // RequireAnySystemPermission возвращает nil если у текущего пользователя есть хотя бы одно системное право.
 func (s *AuthService) RequireAnySystemPermission(permissions ...string) error {
-	if !s.IsAuthenticated() {
-		return models.ErrUnauthorized
+	if err := s.RequireAuthenticated(); err != nil {
+		return err
 	}
 	if !s.HasAnySystemPermission(permissions...) {
 		return models.ErrForbidden

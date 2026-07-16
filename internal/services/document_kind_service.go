@@ -20,8 +20,8 @@ func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSumma
 	if s.access == nil || s.access.auth == nil {
 		return nil, models.ErrUnauthorized
 	}
-	if !s.access.auth.IsAuthenticated() {
-		return nil, models.ErrUnauthorized
+	if err := s.access.auth.RequireAuthenticated(); err != nil {
+		return nil, err
 	}
 
 	user, err := s.access.auth.GetCurrentUser()

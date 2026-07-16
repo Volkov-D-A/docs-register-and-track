@@ -57,8 +57,8 @@ func NewDocumentAccessService(
 
 // RequireDomainRead проверяет базовый доступ к document-domain.
 func (s *DocumentAccessService) RequireDomainRead() error {
-	if !s.auth.IsAuthenticated() {
-		return models.ErrUnauthorized
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return err
 	}
 	if s.accessRepo == nil {
 		return models.ErrForbidden
@@ -442,8 +442,8 @@ func (s *DocumentAccessService) canReadResolved(doc *models.Document) (bool, err
 }
 
 func (s *DocumentAccessService) RequireCreate(kind models.DocumentKind) error {
-	if !s.auth.IsAuthenticated() {
-		return models.ErrUnauthorized
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return err
 	}
 
 	allowed, err := s.hasPermission(kind, "create")
