@@ -168,9 +168,14 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 		AssetServer: &assetserver.Options{
 			Assets: params.Assets,
 		},
-		Logger:           logger.NewWailsAdapter(),
-		LogLevel:         wailslogger.ERROR,
-		ErrorFormatter:   formatBackendError,
+		Logger:         logger.NewWailsAdapter(),
+		LogLevel:       wailslogger.ERROR,
+		ErrorFormatter: formatBackendError,
+		OnStartup: func(ctx context.Context) {
+			if err := attachmentService.ProcessPendingDeletions(ctx); err != nil {
+				slog.Warn("pending attachment deletions will be retried later", "error", err)
+			}
+		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

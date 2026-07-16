@@ -35,12 +35,12 @@ func (_m *AttachmentStore) Create(a *models.Attachment) error {
 	return r0
 }
 
-// Delete provides a mock function with given fields: id
-func (_m *AttachmentStore) Delete(id uuid.UUID) error {
+// DeleteMarked provides a mock function with given fields: id
+func (_m *AttachmentStore) DeleteMarked(id uuid.UUID) error {
 	ret := _m.Called(id)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Delete")
+		panic("no return value specified for DeleteMarked")
 	}
 
 	var r0 error
@@ -53,12 +53,30 @@ func (_m *AttachmentStore) Delete(id uuid.UUID) error {
 	return r0
 }
 
-// DeleteMultiple provides a mock function with given fields: ids
-func (_m *AttachmentStore) DeleteMultiple(ids []uuid.UUID) error {
+// MarkDeleting provides a mock function with given fields: id
+func (_m *AttachmentStore) MarkDeleting(id uuid.UUID) error {
+	ret := _m.Called(id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkDeleting")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID) error); ok {
+		r0 = rf(id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MarkDeletingMultiple provides a mock function with given fields: ids
+func (_m *AttachmentStore) MarkDeletingMultiple(ids []uuid.UUID) error {
 	ret := _m.Called(ids)
 
 	if len(ret) == 0 {
-		panic("no return value specified for DeleteMultiple")
+		panic("no return value specified for MarkDeletingMultiple")
 	}
 
 	var r0 error
@@ -154,6 +172,33 @@ func (_m *AttachmentStore) GetOlderThan(date time.Time) ([]models.Attachment, er
 
 	if rf, ok := ret.Get(1).(func(time.Time) error); ok {
 		r1 = rf(date)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetPendingDeletion provides a mock function with given fields:
+func (_m *AttachmentStore) GetPendingDeletion() ([]models.Attachment, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPendingDeletion")
+	}
+
+	var r0 []models.Attachment
+	var r1 error
+	if rf, ok := ret.Get(0).(func() ([]models.Attachment, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() []models.Attachment); ok {
+		r0 = rf()
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]models.Attachment)
+	}
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
 	} else {
 		r1 = ret.Error(1)
 	}

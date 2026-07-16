@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/base64"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -363,8 +364,9 @@ func TestAttachmentService_Delete(t *testing.T) {
 			StoragePath: "minio/path",
 		}
 		repo.On("GetByID", attID).Return(att, nil).Once()
+		repo.On("MarkDeleting", attID).Return(nil).Once()
 		fileStorage.On("DeleteFile", mock.Anything, att.StoragePath).Return(nil).Once()
-		repo.On("Delete", attID).Return(nil).Once()
+		repo.On("DeleteMarked", attID).Return(nil).Once()
 		err := svc.Delete(attID.String())
 		require.NoError(t, err)
 	})
@@ -377,10 +379,24 @@ func TestAttachmentService_Delete(t *testing.T) {
 			StoragePath: "minio/path",
 		}
 		repo.On("GetByID", attID).Return(att, nil).Once()
+		repo.On("MarkDeleting", attID).Return(nil).Once()
 		fileStorage.On("DeleteFile", mock.Anything, att.StoragePath).Return(nil).Once()
-		repo.On("Delete", attID).Return(nil).Once()
+		repo.On("DeleteMarked", attID).Return(nil).Once()
 		err := svc.Delete(attID.String())
 		require.NoError(t, err)
+	})
+
+	t.Run("database failure after object deletion keeps a retryable deletion intent", func(t *testing.T) {
+		svc, repo, _, fileStorage, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
+		att := &models.Attachment{ID: attID, DocumentID: uuid.New(), StoragePath: "minio/path"}
+		repo.On("GetByID", attID).Return(att, nil).Once()
+		repo.On("MarkDeleting", attID).Return(nil).Once()
+		fileStorage.On("DeleteFile", mock.Anything, att.StoragePath).Return(nil).Once()
+		repo.On("DeleteMarked", attID).Return(assert.AnError).Once()
+
+		err := svc.Delete(attID.String())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to delete attachment record from db")
 	})
 }
 
@@ -455,26 +471,38 @@ func TestAttachmentService_BulkDeleteOlderThan(t *testing.T) {
 			{ID: secondID, StoragePath: "missing.pdf"},
 		}
 		repo.On("GetOlderThan", mock.AnythingOfType("time.Time")).Return(attachments, nil).Once()
+		repo.On("MarkDeletingMultiple", []uuid.UUID{firstID, secondID}).Return(nil).Once()
 		fileStorage.On("DeleteFile", mock.Anything, "ok.pdf").Return(nil).Once()
 		fileStorage.On("DeleteFile", mock.Anything, "missing.pdf").Return(assert.AnError).Once()
-		repo.On("DeleteMultiple", []uuid.UUID{firstID}).Return(nil).Once()
+		repo.On("DeleteMarked", firstID).Return(nil).Once()
 
 		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
 	})
 
-	t.Run("delete multiple error", func(t *testing.T) {
+	t.Run("database finalization error leaves a hidden retryable record", func(t *testing.T) {
 		svc, repo, _, fileStorage, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"admin"})
 		attachmentID := uuid.New()
 		attachments := []models.Attachment{{ID: attachmentID, StoragePath: "ok.pdf"}}
 		repo.On("GetOlderThan", mock.AnythingOfType("time.Time")).Return(attachments, nil).Once()
+		repo.On("MarkDeletingMultiple", []uuid.UUID{attachmentID}).Return(nil).Once()
 		fileStorage.On("DeleteFile", mock.Anything, "ok.pdf").Return(nil).Once()
-		repo.On("DeleteMultiple", []uuid.UUID{attachmentID}).Return(assert.AnError).Once()
+		repo.On("DeleteMarked", attachmentID).Return(assert.AnError).Once()
 
 		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to delete records from db")
+		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
+}
+
+func TestAttachmentService_ProcessPendingDeletions(t *testing.T) {
+	svc, repo, _, fileStorage, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
+	attachment := models.Attachment{ID: uuid.New(), StoragePath: "retry.pdf"}
+	repo.On("GetPendingDeletion").Return([]models.Attachment{attachment}, nil).Once()
+	fileStorage.On("DeleteFile", mock.Anything, attachment.StoragePath).Return(nil).Once()
+	repo.On("DeleteMarked", attachment.ID).Return(nil).Once()
+
+	err := svc.ProcessPendingDeletions(context.Background())
+	require.NoError(t, err)
 }

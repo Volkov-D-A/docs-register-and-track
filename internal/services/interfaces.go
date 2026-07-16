@@ -182,11 +182,13 @@ type SettingsStore interface {
 // AttachmentStore — интерфейс для работы с вложениями (файлами) в хранилище.
 type AttachmentStore interface {
 	Create(a *models.Attachment) error
-	Delete(id uuid.UUID) error
+	MarkDeleting(id uuid.UUID) error
+	MarkDeletingMultiple(ids []uuid.UUID) error
+	DeleteMarked(id uuid.UUID) error
 	GetByID(id uuid.UUID) (*models.Attachment, error)
 	GetByDocumentID(docID uuid.UUID) ([]models.Attachment, error)
 	GetOlderThan(date time.Time) ([]models.Attachment, error)
-	DeleteMultiple(ids []uuid.UUID) error
+	GetPendingDeletion() ([]models.Attachment, error)
 }
 
 // FileStorage — интерфейс для работы с внешним файловым хранилищем (например, MinIO).

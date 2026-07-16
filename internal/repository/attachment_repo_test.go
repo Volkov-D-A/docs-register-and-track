@@ -52,17 +52,27 @@ func TestAttachmentRepository_Create(t *testing.T) {
 	})
 }
 
-func TestAttachmentRepository_Delete(t *testing.T) {
-	// Удаление вложения по его ID
+func TestAttachmentRepository_DeletionSaga(t *testing.T) {
 	repo, mock := setupAttachmentRepo(t)
 	attachmentID := uuid.New()
 
-	t.Run("success", func(t *testing.T) {
-		mock.ExpectExec(`DELETE FROM attachments WHERE id = \$1`).
+	t.Run("marks deletion before storage operation", func(t *testing.T) {
+		mock.ExpectExec(`UPDATE attachments\s+SET deletion_requested_at = CURRENT_TIMESTAMP\s+WHERE id = \$1 AND deletion_requested_at IS NULL`).
 			WithArgs(attachmentID).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		err := repo.Delete(attachmentID)
+		err := repo.MarkDeleting(attachmentID)
+
+		require.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("removes only a marked record", func(t *testing.T) {
+		mock.ExpectExec(`DELETE FROM attachments WHERE id = \$1 AND deletion_requested_at IS NOT NULL`).
+			WithArgs(attachmentID).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+
+		err := repo.DeleteMarked(attachmentID)
 
 		require.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -75,7 +85,7 @@ func TestAttachmentRepository_GetByID(t *testing.T) {
 	attachmentID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE id = \$1 AND deletion_requested_at IS NULL`).
 			WithArgs(attachmentID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "filename", "storage_path", "file_size", "content_type", "uploaded_by", "uploaded_at"}).
 				AddRow(attachmentID, uuid.New(), "test.txt", "minio-path", 11, "text/plain", uuid.New(), time.Now()))
@@ -89,7 +99,7 @@ func TestAttachmentRepository_GetByID(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE id = \$1 AND deletion_requested_at IS NULL`).
 			WithArgs(attachmentID).
 			WillReturnError(sql.ErrNoRows)
 
@@ -108,7 +118,7 @@ func TestAttachmentRepository_GetByDocumentID(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT a.id, a.document_id, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 ORDER BY a.uploaded_at DESC`).
+		mock.ExpectQuery(`SELECT a.id, a.document_id, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 AND a.deletion_requested_at IS NULL ORDER BY a.uploaded_at DESC`).
 			WithArgs(docID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "filename", "file_size", "content_type", "storage_path", "uploaded_by", "uploaded_at", "full_name"}).
 				AddRow(uuid.New(), docID, "test1.txt", 11, "text/plain", "path1", uuid.New(), time.Now(), "User One").
@@ -124,7 +134,7 @@ func TestAttachmentRepository_GetByDocumentID(t *testing.T) {
 	})
 
 	t.Run("no attachments", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT a.id, a.document_id, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 ORDER BY a.uploaded_at DESC`).
+		mock.ExpectQuery(`SELECT a.id, a.document_id, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 AND a.deletion_requested_at IS NULL ORDER BY a.uploaded_at DESC`).
 			WithArgs(docID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "filename", "file_size", "content_type", "storage_path", "uploaded_by", "uploaded_at", "full_name"}))
 
@@ -144,7 +154,7 @@ func TestAttachmentRepository_GetOlderThan(t *testing.T) {
 	uploaderID := uuid.New()
 	uploadedAt := cutoff.Add(-time.Hour)
 
-	mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE uploaded_at < \$1`).
+	mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE uploaded_at < \$1 AND deletion_requested_at IS NULL`).
 		WithArgs(cutoff).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "document_id", "filename", "storage_path", "file_size", "content_type", "uploaded_by", "uploaded_at",
@@ -160,11 +170,11 @@ func TestAttachmentRepository_GetOlderThan(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAttachmentRepository_DeleteMultiple(t *testing.T) {
+func TestAttachmentRepository_MarkDeletingMultiple(t *testing.T) {
 	repo, mock := setupAttachmentRepo(t)
 
 	t.Run("empty input", func(t *testing.T) {
-		err := repo.DeleteMultiple(nil)
+		err := repo.MarkDeletingMultiple(nil)
 
 		require.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -173,13 +183,31 @@ func TestAttachmentRepository_DeleteMultiple(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ids := []uuid.UUID{uuid.New(), uuid.New()}
 
-		mock.ExpectExec(`DELETE FROM attachments WHERE id = ANY\(\$1\)`).
+		mock.ExpectExec(`UPDATE attachments\s+SET deletion_requested_at = CURRENT_TIMESTAMP\s+WHERE id = ANY\(\$1\) AND deletion_requested_at IS NULL`).
 			WithArgs(sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 2))
 
-		err := repo.DeleteMultiple(ids)
+		err := repo.MarkDeletingMultiple(ids)
 
 		require.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+func TestAttachmentRepository_GetPendingDeletion(t *testing.T) {
+	repo, mock := setupAttachmentRepo(t)
+	attachmentID := uuid.New()
+	documentID := uuid.New()
+	uploaderID := uuid.New()
+	uploadedAt := time.Now()
+
+	mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at\s+FROM attachments WHERE deletion_requested_at IS NOT NULL\s+ORDER BY deletion_requested_at ASC`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "filename", "storage_path", "file_size", "content_type", "uploaded_by", "uploaded_at"}).
+			AddRow(attachmentID, documentID, "retry.pdf", "objects/retry.pdf", 42, "application/pdf", uploaderID, uploadedAt))
+
+	attachments, err := repo.GetPendingDeletion()
+	require.NoError(t, err)
+	require.Len(t, attachments, 1)
+	assert.Equal(t, attachmentID, attachments[0].ID)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

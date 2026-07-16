@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -228,13 +229,13 @@ func (s *AttachmentService) Delete(idStr string) error {
 		return err
 	}
 
-	// Удаление из файлового хранилища
-	if err := s.fileStorage.DeleteFile(ctx, attachment.StoragePath); err != nil {
-		return fmt.Errorf("failed to delete file from storage: %v", err)
+	// First commit the deletion intent. From this point the attachment is hidden
+	// from reads, so a later database failure cannot leave a visible broken link.
+	if err := s.repo.MarkDeleting(id); err != nil {
+		return err
 	}
 
-	// Удаление из БД
-	if err := s.repo.Delete(id); err != nil {
+	if err := s.finalizeDeletion(ctx, *attachment); err != nil {
 		return err
 	}
 
@@ -463,26 +464,26 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 		return 0, nil
 	}
 
-	var successfulIDs []uuid.UUID
+	ids := make([]uuid.UUID, 0, len(attachments))
+	for _, att := range attachments {
+		ids = append(ids, att.ID)
+	}
+	if err := s.repo.MarkDeletingMultiple(ids); err != nil {
+		return 0, fmt.Errorf("failed to mark attachment records for deletion: %w", err)
+	}
+
 	deletedCount := 0
 
 	for _, att := range attachments {
 		if err := ctx.Err(); err != nil {
 			return deletedCount, err
 		}
-		if err := s.fileStorage.DeleteFile(ctx, att.StoragePath); err != nil {
+		if err := s.finalizeDeletion(ctx, att); err != nil {
 			// Логируем ошибку, но продолжаем удаление других файлов
-			fmt.Printf("Failed to delete file %s from MinIO: %v\n", att.StoragePath, err)
+			fmt.Printf("Failed to finalize deletion of file %s: %v\n", att.StoragePath, err)
 			continue
 		}
-		successfulIDs = append(successfulIDs, att.ID)
 		deletedCount++
-	}
-
-	if len(successfulIDs) > 0 {
-		if err := s.repo.DeleteMultiple(successfulIDs); err != nil {
-			return 0, fmt.Errorf("failed to delete records from db: %v", err)
-		}
 	}
 
 	currentUserID, _ := s.authService.GetCurrentUserUUID()
@@ -494,4 +495,35 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	s.auditService.LogAction(currentUserID, currentUserName, "FILES_BULK_DELETE", details)
 
 	return deletedCount, nil
+}
+
+// ProcessPendingDeletions retries deletion intents left by a failed database or
+// storage operation. It is safe to invoke repeatedly: MinIO deletion is
+// idempotent and a row is only physically removed after it was marked.
+func (s *AttachmentService) ProcessPendingDeletions(ctx context.Context) error {
+	attachments, err := s.repo.GetPendingDeletion()
+	if err != nil {
+		return fmt.Errorf("failed to get pending attachment deletions: %w", err)
+	}
+
+	var errs []error
+	for _, attachment := range attachments {
+		if err := ctx.Err(); err != nil {
+			return errors.Join(append(errs, err)...)
+		}
+		if err := s.finalizeDeletion(ctx, attachment); err != nil {
+			errs = append(errs, fmt.Errorf("attachment %s: %w", attachment.ID, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (s *AttachmentService) finalizeDeletion(ctx context.Context, attachment models.Attachment) error {
+	if err := s.fileStorage.DeleteFile(ctx, attachment.StoragePath); err != nil {
+		return fmt.Errorf("failed to delete file from storage: %w", err)
+	}
+	if err := s.repo.DeleteMarked(attachment.ID); err != nil {
+		return fmt.Errorf("failed to delete attachment record from db: %w", err)
+	}
+	return nil
 }
