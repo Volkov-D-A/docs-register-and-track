@@ -19,4 +19,4 @@ export function OpenFolder(arg1:string):Promise<void>;
 
 export function SetOperationLifecycle(arg1:services.OperationLifecycle):Promise<void>;
 
-export function Upload(arg1:string,arg2:string,arg3:string):Promise<dto.Attachment>;
+export function Upload(arg1:string):Promise<Array<dto.Attachment>>;

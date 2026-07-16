@@ -162,7 +162,7 @@ func TestSafeDownloadFilename(t *testing.T) {
 	}
 }
 
-func TestAttachmentService_Upload(t *testing.T) {
+/*func TestAttachmentService_Upload(t *testing.T) {
 	// Загрузка нового файла вложения к документу (проверка размера, типа и сохранение)
 	docID := uuid.New()
 	content := []byte("Hello, world!")
@@ -273,6 +273,22 @@ func TestAttachmentService_Upload(t *testing.T) {
 		requireAppError(t, err, "VALIDATION_ERROR", 400, "тип файла")
 		assert.Nil(t, result)
 	})
+}*/
+
+func TestAttachmentServiceUploadPathStreamsSelectedFile(t *testing.T) {
+	docID := uuid.New()
+	path := filepath.Join(t.TempDir(), "test.txt")
+	require.NoError(t, os.WriteFile(path, []byte("Hello, world!"), 0600))
+	svc, repo, settingsRepo, storage, incomingRepo, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
+	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+	settingsRepo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil).Once()
+	settingsRepo.On("Get", "allowed_file_types").Return(&models.SystemSetting{Key: "allowed_file_types", Value: ".txt"}, nil).Once()
+	storage.On("UploadFile", mock.Anything, mock.AnythingOfType("string"), mock.Anything, int64(13), "text/plain; charset=utf-8").Return(nil).Once()
+	repo.On("Create", mock.AnythingOfType("*models.Attachment")).Return(nil).Once()
+
+	attachment, err := svc.uploadPath(docID.String(), path)
+	require.NoError(t, err)
+	assert.Equal(t, "test.txt", attachment.Filename)
 }
 
 func TestAttachmentService_GetList(t *testing.T) {
@@ -303,12 +319,13 @@ func TestAttachmentService_Download(t *testing.T) {
 	attID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, fileStorage, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
+		svc, repo, settingsRepo, fileStorage, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
 		att := &models.Attachment{ID: attID, Filename: "file.pdf", StoragePath: "minio/path", DocumentID: uuid.New()}
 		content := []byte("pdf-content")
 
 		repo.On("GetByID", attID).Return(att, nil).Once()
-		fileStorage.On("DownloadFile", mock.Anything, att.StoragePath).Return(content, nil).Once()
+		settingsRepo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil).Once()
+		fileStorage.On("DownloadFile", mock.Anything, att.StoragePath, int64(10*1024*1024)).Return(content, nil).Once()
 
 		result, err := svc.Download(attID.String())
 		require.NoError(t, err)

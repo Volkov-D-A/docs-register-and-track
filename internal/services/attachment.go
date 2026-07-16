@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // AttachmentService предоставляет бизнес-логику для работы с вложениями (файлами) документов.
@@ -29,6 +30,7 @@ type AttachmentService struct {
 	fileStorage     FileStorage
 	access          *DocumentAccessService
 	lifecycle       *OperationLifecycle
+	uiContext       context.Context
 }
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
@@ -48,8 +50,31 @@ func (s *AttachmentService) SetOperationLifecycle(lifecycle *OperationLifecycle)
 	s.lifecycle = lifecycle
 }
 
-// Upload — загрузка файла
-func (s *AttachmentService) Upload(documentIDStr string, filename string, contentBase64 string) (*dto.Attachment, error) {
+// Startup receives the Wails context required to display the native file picker.
+func (s *AttachmentService) Startup(ctx context.Context) { s.uiContext = ctx }
+
+// Upload lets the user choose files in the native OS dialog and streams each
+// selected file to MinIO. No renderer-provided path or base64 payload is trusted.
+func (s *AttachmentService) Upload(documentIDStr string) ([]dto.Attachment, error) {
+	if s.uiContext == nil {
+		return nil, fmt.Errorf("file picker is not initialized")
+	}
+	paths, err := wailsruntime.OpenMultipleFilesDialog(s.uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для вложения"})
+	if err != nil {
+		return nil, fmt.Errorf("failed to choose files: %w", err)
+	}
+	attachments := make([]dto.Attachment, 0, len(paths))
+	for _, path := range paths {
+		attachment, err := s.uploadPath(documentIDStr, path)
+		if err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, *attachment)
+	}
+	return attachments, nil
+}
+
+func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachment, error) {
 	ctx, release := serviceOperationContext(s.lifecycle)
 	defer release()
 
@@ -81,20 +106,20 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 		}
 	}
 
-	// 1. Декодирование содержимого
-	// Удаление префикса data URI, если присутствует (например, "data:application/pdf;base64,")
-	if idx := strings.Index(contentBase64, ","); idx != -1 {
-		contentBase64 = contentBase64[idx+1:]
-	}
-
-	data, err := base64.StdEncoding.DecodeString(contentBase64)
+	file, err := os.Open(path)
 	if err != nil {
-		return nil, models.NewBadRequestWrapped("не удалось прочитать содержимое файла", err)
+		return nil, models.NewBadRequestWrapped("не удалось открыть выбранный файл", err)
 	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, models.NewBadRequest("выбранный путь не является обычным файлом")
+	}
+	filename := filepath.Base(path)
 
-	// 2. Проверка размера
+	// Проверка размера до чтения содержимого.
 	maxSize, _ := s.settingsService.GetMaxFileSize() // returns bytes
-	if int64(len(data)) > maxSize {
+	if info.Size() > maxSize {
 		return nil, models.NewBadRequest(fmt.Sprintf("размер файла превышает максимально допустимый (%d МБ)", maxSize/(1024*1024)))
 	}
 
@@ -118,7 +143,7 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 	}
 
 	objectName := uuid.New().String() + ext
-	if err := s.fileStorage.UploadFile(ctx, objectName, data, contentType); err != nil {
+	if err := s.fileStorage.UploadFile(ctx, objectName, file, info.Size(), contentType); err != nil {
 		return nil, fmt.Errorf("failed to upload file to storage: %v", err)
 	}
 
@@ -131,7 +156,7 @@ func (s *AttachmentService) Upload(documentIDStr string, filename string, conten
 	attachment := &models.Attachment{
 		DocumentID:  documentID,
 		Filename:    filename,
-		FileSize:    int64(len(data)),
+		FileSize:    info.Size(),
 		ContentType: contentType,
 		StoragePath: objectName,
 		UploadedBy:  userID,
@@ -195,7 +220,8 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 	}
 
 	// Получение содержимого из файлового хранилища
-	content, err := s.fileStorage.DownloadFile(ctx, attachment.StoragePath)
+	maxSize, _ := s.settingsService.GetMaxFileSize()
+	content, err := s.fileStorage.DownloadFile(ctx, attachment.StoragePath, maxSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file content: %v", err)
 	}
@@ -277,11 +303,6 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	}
 
 	// Получение содержимого
-	content, err := s.fileStorage.DownloadFile(ctx, attachment.StoragePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to get file content: %v", err)
-	}
-
 	// Определение пути для сохранения
 	currentUser, err := user.Current()
 	if err != nil {
@@ -296,12 +317,46 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 		return "", fmt.Errorf("failed to create download directory: %v", err)
 	}
 
-	fullPath, err := writeDownloadFileWithoutOverwrite(downloadDir, attachment.Filename, content)
+	maxSize, _ := s.settingsService.GetMaxFileSize()
+	fullPath, err := writeDownloadFileFromStorage(downloadDir, attachment.Filename, func(file *os.File) error {
+		return s.fileStorage.DownloadFileToWriter(ctx, attachment.StoragePath, file, maxSize)
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to write file: %v", err)
 	}
 
 	return fullPath, nil
+}
+
+func writeDownloadFileFromStorage(downloadDir, filename string, write func(*os.File) error) (string, error) {
+	cleanFilename := safeDownloadFilename(filename)
+	ext := filepath.Ext(cleanFilename)
+	base := strings.TrimSuffix(cleanFilename, ext)
+	for i := 0; i < 1000; i++ {
+		candidate := cleanFilename
+		if i > 0 {
+			candidate = fmt.Sprintf("%s (%d)%s", base, i, ext)
+		}
+		fullPath := filepath.Join(downloadDir, candidate)
+		file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		if err := write(file); err != nil {
+			_ = file.Close()
+			_ = os.Remove(fullPath)
+			return "", err
+		}
+		if err := file.Close(); err != nil {
+			_ = os.Remove(fullPath)
+			return "", err
+		}
+		return fullPath, nil
+	}
+	return "", fmt.Errorf("failed to choose unique download filename for %q", cleanFilename)
 }
 
 func writeDownloadFileWithoutOverwrite(downloadDir, filename string, content []byte) (string, error) {

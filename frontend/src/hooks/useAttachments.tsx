@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { App, Button, notification, Upload } from 'antd';
+import { App, Button, notification } from 'antd';
 import { FileOutlined } from '@ant-design/icons';
 import { useDocumentKindAccess } from './useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
@@ -40,35 +40,20 @@ export const useAttachments = ({ documentId, documentKind, readOnly }: UseAttach
         }
     }, [documentId, loadFiles]);
 
-    const uploadFile = useCallback(async (file: File) => {
+    const uploadFile = useCallback(async () => {
         if (uploading) {
             return Upload.LIST_IGNORE;
         }
         setUploading(true);
         try {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async () => {
-                const base64Content = reader.result as string;
-                try {
-                    const { Upload: uploadAttachment } = await import('../../wailsjs/go/services/AttachmentService');
-                    await uploadAttachment(documentId, file.name, base64Content);
-                    message.success('Файл загружен');
-                    await loadFiles();
-                } catch (error: unknown) {
-                    message.error(formatAppError(error, 'Ошибка загрузки'));
-                } finally {
-                    setUploading(false);
-                }
-            };
-            reader.onerror = () => {
-                message.error('Ошибка чтения файла');
-                setUploading(false);
-            };
-        } catch {
+            const { Upload: uploadAttachment } = await import('../../wailsjs/go/services/AttachmentService');
+            const uploaded = await uploadAttachment(documentId);
+            if (uploaded.length > 0) { message.success('Файлы загружены'); await loadFiles(); }
+        } catch (error: unknown) {
+            message.error(formatAppError(error, 'Ошибка загрузки'));
+        } finally {
             setUploading(false);
         }
-        return false;
     }, [documentId, loadFiles, message, uploading]);
 
     const downloadFile = useCallback(async (file: any) => {

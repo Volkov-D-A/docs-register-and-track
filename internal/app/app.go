@@ -172,6 +172,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 		LogLevel:       wailslogger.ERROR,
 		ErrorFormatter: formatBackendError,
 		OnStartup: func(ctx context.Context) {
+			attachmentService.Startup(ctx)
 			if err := attachmentService.ProcessPendingDeletions(ctx); err != nil {
 				slog.Warn("pending attachment deletions will be retried later", "error", err)
 			}

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Input, Upload, Button, Typography, App } from 'antd';
+import { Modal, Input, Button, Typography, App } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
-import type { UploadFile, UploadProps } from 'antd';
 import { formatAppError } from '../utils/appError';
 import { emitAssignmentsChanged } from '../events/assignmentEvents';
 
@@ -17,13 +16,6 @@ interface AssignmentCompletionModalProps {
     onSuccess: () => void;
 }
 
-const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Ошибка чтения файла'));
-});
-
 const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
     open,
     assignmentId,
@@ -34,20 +26,17 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
 }) => {
     const { message } = App.useApp();
     const [reportText, setReportText] = useState('');
-    const [fileList, setFileList] = useState<UploadFile[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [attachmentsEnabled, setAttachmentsEnabled] = useState(true);
 
     useEffect(() => {
         if (!open) {
             setReportText('');
-            setFileList([]);
             setAttachmentsEnabled(true);
             return;
         }
 
         setReportText(initialReport);
-        setFileList([]);
 
         let isMounted = true;
         const loadSetting = async () => {
@@ -81,20 +70,7 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
 
         setSubmitting(true);
         try {
-            const { Upload: UploadAttachment } = await import('../../wailsjs/go/services/AttachmentService');
             const { UpdateStatus } = await import('../../wailsjs/go/services/AssignmentService');
-
-            if (attachmentsEnabled) {
-                for (const file of fileList) {
-                    const originalFile = file.originFileObj;
-                    if (!originalFile) {
-                        continue;
-                    }
-
-                    const base64Content = await fileToBase64(originalFile as File);
-                    await UploadAttachment(documentId, originalFile.name, base64Content);
-                }
-            }
 
             await UpdateStatus(assignmentId, 'completed', reportText.trim());
             message.success('Поручение исполнено');
@@ -107,15 +83,12 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
         }
     };
 
-    const uploadProps: UploadProps = {
-        multiple: true,
-        beforeUpload: () => false,
-        fileList,
-        onChange: ({ fileList: nextFileList }) => setFileList(nextFileList),
-        onRemove: (file) => {
-            setFileList(current => current.filter(item => item.uid !== file.uid));
-            return true;
-        },
+    const addAttachments = async () => {
+        try {
+            const { Upload: uploadAttachment } = await import('../../wailsjs/go/services/AttachmentService');
+            const uploaded = await uploadAttachment(documentId);
+            if (uploaded.length > 0) message.success('Файлы прикреплены');
+        } catch (err: unknown) { message.error(formatAppError(err)); }
     };
 
     return (
@@ -138,11 +111,9 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
 
                 {attachmentsEnabled && (
                     <div>
-                        <Upload {...uploadProps}>
-                            <Button icon={<UploadOutlined />}>Добавить файлы</Button>
-                        </Upload>
+                        <Button icon={<UploadOutlined />} onClick={() => void addAttachments()}>Добавить файлы</Button>
                         <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                            Файлы будут прикреплены к документу при завершении поручения.
+                            Файлы прикрепляются сразу после выбора.
                         </Text>
                     </div>
                 )}

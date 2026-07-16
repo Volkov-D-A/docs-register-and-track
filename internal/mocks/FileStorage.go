@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"io"
 
 	mock "github.com/stretchr/testify/mock"
 )
@@ -30,8 +31,8 @@ func (_m *FileStorage) DeleteFile(ctx context.Context, objectName string) error 
 }
 
 // DownloadFile provides a mock function with given fields: ctx, objectName
-func (_m *FileStorage) DownloadFile(ctx context.Context, objectName string) ([]byte, error) {
-	ret := _m.Called(ctx, objectName)
+func (_m *FileStorage) DownloadFile(ctx context.Context, objectName string, maxSize int64) ([]byte, error) {
+	ret := _m.Called(ctx, objectName, maxSize)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DownloadFile")
@@ -60,21 +61,32 @@ func (_m *FileStorage) DownloadFile(ctx context.Context, objectName string) ([]b
 }
 
 // UploadFile provides a mock function with given fields: ctx, objectName, data, contentType
-func (_m *FileStorage) UploadFile(ctx context.Context, objectName string, data []byte, contentType string) error {
-	ret := _m.Called(ctx, objectName, data, contentType)
+func (_m *FileStorage) UploadFile(ctx context.Context, objectName string, data io.Reader, size int64, contentType string) error {
+	ret := _m.Called(ctx, objectName, data, size, contentType)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UploadFile")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []byte, string) error); ok {
-		r0 = rf(ctx, objectName, data, contentType)
+	if rf, ok := ret.Get(0).(func(context.Context, string, io.Reader, int64, string) error); ok {
+		r0 = rf(ctx, objectName, data, size, contentType)
 	} else {
 		r0 = ret.Error(0)
 	}
 
 	return r0
+}
+
+func (_m *FileStorage) DownloadFileToWriter(ctx context.Context, objectName string, writer io.Writer, maxSize int64) error {
+	ret := _m.Called(ctx, objectName, writer, maxSize)
+	if len(ret) == 0 {
+		panic("no return value specified for DownloadFileToWriter")
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, io.Writer, int64) error); ok {
+		return rf(ctx, objectName, writer, maxSize)
+	}
+	return ret.Error(0)
 }
 
 // NewFileStorage creates a new instance of FileStorage. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

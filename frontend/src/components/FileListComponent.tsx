@@ -1,7 +1,6 @@
 import React from 'react';
-import { Button, Empty, Popconfirm, Space, Spin, Tooltip, Typography, Upload } from 'antd';
+import { Button, Empty, Popconfirm, Space, Spin, Tooltip, Typography } from 'antd';
 import { DeleteOutlined, DownloadOutlined, FileImageOutlined, FileOutlined, FilePdfOutlined, FileWordOutlined, UploadOutlined } from '@ant-design/icons';
-import type { UploadProps } from 'antd';
 import { useAttachments } from '../hooks/useAttachments';
 
 const { Text } = Typography;
@@ -34,19 +33,12 @@ const FileListComponent: React.FC<FileListComponentProps> = ({ documentId, docum
         deleteFile,
     } = useAttachments({ documentId, documentKind, readOnly });
 
-    const uploadProps: UploadProps = {
-        beforeUpload: uploadFile,
-        showUploadList: false,
-    };
-
     return (
         <div style={{ padding: 16 }}>
             {contextHolder}
             {canEdit && (
                 <div style={{ marginBottom: 16 }}>
-                    <Upload {...uploadProps}>
-                        <Button icon={<UploadOutlined />} loading={uploading}>Загрузить файл</Button>
-                    </Upload>
+                    <Button icon={<UploadOutlined />} loading={uploading} onClick={() => void uploadFile()}>Загрузить файл</Button>
                 </div>
             )}
 

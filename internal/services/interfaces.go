@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -194,9 +195,10 @@ type AttachmentStore interface {
 // FileStorage — интерфейс для работы с внешним файловым хранилищем (например, MinIO).
 type FileStorage interface {
 	// UploadFile загружает файл в хранилище.
-	UploadFile(ctx context.Context, objectName string, data []byte, contentType string) error
+	UploadFile(ctx context.Context, objectName string, data io.Reader, size int64, contentType string) error
 	// DownloadFile скачивает файл из хранилища.
-	DownloadFile(ctx context.Context, objectName string) ([]byte, error)
+	DownloadFile(ctx context.Context, objectName string, maxSize int64) ([]byte, error)
+	DownloadFileToWriter(ctx context.Context, objectName string, writer io.Writer, maxSize int64) error
 	// DeleteFile удаляет файл из хранилища.
 	DeleteFile(ctx context.Context, objectName string) error
 }

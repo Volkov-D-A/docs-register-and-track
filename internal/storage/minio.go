@@ -54,10 +54,8 @@ func NewMinioService(cfg config.MinioConfig) (*MinioService, error) {
 }
 
 // UploadFile загружает файл в MinIO.
-func (m *MinioService) UploadFile(ctx context.Context, objectName string, data []byte, contentType string) error {
-	reader := bytes.NewReader(data)
-
-	_, err := m.client.PutObject(ctx, m.bucketName, objectName, reader, int64(len(data)), minio.PutObjectOptions{
+func (m *MinioService) UploadFile(ctx context.Context, objectName string, data io.Reader, size int64, contentType string) error {
+	_, err := m.client.PutObject(ctx, m.bucketName, objectName, data, size, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 
@@ -69,19 +67,38 @@ func (m *MinioService) UploadFile(ctx context.Context, objectName string, data [
 }
 
 // DownloadFile скачивает файл из MinIO и возвращает его содержимое.
-func (m *MinioService) DownloadFile(ctx context.Context, objectName string) ([]byte, error) {
+func (m *MinioService) DownloadFile(ctx context.Context, objectName string, maxSize int64) ([]byte, error) {
+	var data bytes.Buffer
+	if err := m.DownloadFileToWriter(ctx, objectName, &data, maxSize); err != nil {
+		return nil, err
+	}
+	return data.Bytes(), nil
+}
+
+// DownloadFileToWriter streams a bounded object directly to writer.
+func (m *MinioService) DownloadFileToWriter(ctx context.Context, objectName string, writer io.Writer, maxSize int64) error {
+	info, err := m.client.StatObject(ctx, m.bucketName, objectName, minio.StatObjectOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to stat object: %w", err)
+	}
+	if info.Size > maxSize {
+		return fmt.Errorf("object size %d exceeds maximum allowed size %d", info.Size, maxSize)
+	}
 	obj, err := m.client.GetObject(ctx, m.bucketName, objectName, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get object from minio: %w", err)
+		return fmt.Errorf("failed to get object from minio: %w", err)
 	}
 	defer obj.Close()
 
-	data, err := io.ReadAll(obj)
+	limited := io.LimitReader(obj, maxSize+1)
+	written, err := io.Copy(writer, limited)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read object data: %w", err)
+		return fmt.Errorf("failed to read object data: %w", err)
 	}
-
-	return data, nil
+	if written > maxSize {
+		return fmt.Errorf("object exceeds maximum allowed size %d", maxSize)
+	}
+	return nil
 }
 
 // DeleteFile удаляет файл из MinIO.
