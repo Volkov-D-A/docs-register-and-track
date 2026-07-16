@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
@@ -149,7 +150,19 @@ func TestDB_MigratorCloseKeepsSharedDatabaseOpen(t *testing.T) {
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	total, err := countAvailableMigrations(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 9, total)
+	assert.Equal(t, 10, total)
+}
+
+func TestActiveAdministratorInvariantMigration(t *testing.T) {
+	migration, err := embeddedMigrations.ReadFile("migrations/010_active_admin_invariant.up.sql")
+	require.NoError(t, err)
+	sql := string(migration)
+
+	assert.Contains(t, sql, "CREATE CONSTRAINT TRIGGER active_administrator_required_after_user_update")
+	assert.Contains(t, sql, "CREATE CONSTRAINT TRIGGER active_administrator_required_after_permission_change")
+	assert.Contains(t, sql, "DEFERRABLE INITIALLY DEFERRED")
+	assert.Contains(t, sql, "pg_advisory_xact_lock")
+	assert.True(t, strings.Contains(sql, "at least one active administrator must remain"))
 }
 
 func TestMigrationCompatibilityErrorError(t *testing.T) {

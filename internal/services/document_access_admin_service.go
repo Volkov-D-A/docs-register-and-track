@@ -63,5 +63,5 @@ func (s *DocumentAccessAdminService) UpdateUserAccessProfile(req models.UpdateUs
 		}
 	}
 
-	return s.accessRepo.ReplaceUserAccessProfile(req.UserID, req.SystemPermissions, req.Permissions)
+	return activeAdministratorInvariantConflict(s.accessRepo.ReplaceUserAccessProfile(req.UserID, req.SystemPermissions, req.Permissions))
 }

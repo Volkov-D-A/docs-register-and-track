@@ -70,7 +70,7 @@ func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*dto.User, error
 	}
 	res, err := s.userRepo.Update(req)
 	if err != nil {
-		return nil, err
+		return nil, activeAdministratorInvariantConflict(err)
 	}
 
 	userID, userName := s.auth.GetCurrentAuditInfo()
