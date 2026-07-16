@@ -19,6 +19,7 @@ type AssignmentService struct {
 	journal       *JournalService
 	access        *DocumentAccessService
 	events        *UserEventService
+	outbox        *OutboxPublisher
 	substitutions UserSubstitutionStore
 }
 
@@ -48,6 +49,7 @@ func NewAssignmentService(
 func (s *AssignmentService) SetSubstitutionStore(store UserSubstitutionStore) {
 	s.substitutions = store
 }
+func (s *AssignmentService) SetOutboxPublisher(publisher *OutboxPublisher) { s.outbox = publisher }
 
 func (s *AssignmentService) currentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, []string, error) {
 	currentUserID, err := s.auth.GetCurrentUserUUID()
@@ -203,12 +205,17 @@ func (s *AssignmentService) Create(
 	res, err := s.repo.Create(docUUID, execUUID, content, deadlineTime, coExecutorIDs)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(nil, models.CreateJournalEntryRequest{
+		journalRequest := models.CreateJournalEntryRequest{
 			DocumentID: docUUID,
 			UserID:     currentUserID,
 			Action:     "ASSIGNMENT_CREATE",
 			Details:    fmt.Sprintf("Создано поручение для %s", doc.Kind),
-		})
+		}
+		if s.outbox != nil {
+			_ = s.outbox.PublishJournal(assignmentOutboxKey(res.ID, "created", "", nil, "journal"), journalRequest)
+		} else {
+			s.journal.LogAction(nil, journalRequest)
+		}
 		s.createAssignmentCreatedEvents(res, eventActorID(s.auth))
 	}
 	return dto.MapAssignment(res), err
@@ -263,12 +270,17 @@ func (s *AssignmentService) Update(
 	res, err := s.repo.Update(uid, execUUID, content, deadlineTime, existing.Status, existing.Report, existing.CompletedAt, coExecutorIDs)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(nil, models.CreateJournalEntryRequest{
+		journalRequest := models.CreateJournalEntryRequest{
 			DocumentID: existing.DocumentID,
 			UserID:     currentUserID,
 			Action:     "ASSIGNMENT_UPDATE",
 			Details:    "Поручение отредактировано",
-		})
+		}
+		if s.outbox != nil {
+			_ = s.outbox.PublishJournal(assignmentOutboxKey(res.ID, "updated", assignmentRevision(res), nil, "journal"), journalRequest)
+		} else {
+			s.journal.LogAction(nil, journalRequest)
+		}
 		s.createAssignmentUpdatedEvents(res, eventActorID(s.auth))
 	}
 	return dto.MapAssignment(res), err
@@ -309,12 +321,17 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	res, err := s.repo.Update(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, statusUpdate.report, statusUpdate.completedAt, existing.CoExecutorIDs)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(nil, models.CreateJournalEntryRequest{
+		journalRequest := models.CreateJournalEntryRequest{
 			DocumentID: existing.DocumentID,
 			UserID:     currentUserID,
 			Action:     "ASSIGNMENT_STATUS",
 			Details:    fmt.Sprintf("Статус поручения изменен на %s", status),
-		})
+		}
+		if s.outbox != nil {
+			_ = s.outbox.PublishJournal(assignmentOutboxKey(res.ID, "status:"+status, assignmentRevision(res), nil, "journal"), journalRequest)
+		} else {
+			s.journal.LogAction(nil, journalRequest)
+		}
 		s.createAssignmentStatusEvents(res, existing.Status, status, statusUpdate.report, eventActorID(s.auth))
 	}
 	mapped := dto.MapAssignment(res)
@@ -473,6 +490,28 @@ func assignmentExecutorRecipientIDs(assignment *models.Assignment) []uuid.UUID {
 	return recipients
 }
 
+// assignmentOutboxKey separates the business transition, its persisted
+// revision, recipient and effect kind. Thus a retry repeats one effect, while
+// a later transition creates a distinct task.
+func assignmentOutboxKey(id uuid.UUID, transition, revision string, recipient *uuid.UUID, effect string) string {
+	parts := []string{"assignment", id.String(), transition}
+	if revision != "" {
+		parts = append(parts, revision)
+	}
+	if recipient != nil {
+		parts = append(parts, recipient.String())
+	}
+	parts = append(parts, effect)
+	return strings.Join(parts, ":")
+}
+
+func assignmentRevision(assignment *models.Assignment) string {
+	if assignment == nil {
+		return ""
+	}
+	return assignment.UpdatedAt.UTC().Format(time.RFC3339Nano)
+}
+
 func (s *AssignmentService) createAssignmentEvent(
 	assignment *models.Assignment,
 	recipientID uuid.UUID,
@@ -482,6 +521,11 @@ func (s *AssignmentService) createAssignmentEvent(
 	message string,
 	metadata map[string]string,
 ) {
+	request := models.CreateUserEventRequest{RecipientUserID: recipientID, ActorUserID: actorID, DocumentID: assignment.DocumentID, DocumentKind: assignment.DocumentKind, DocumentNumber: assignment.DocumentNumber, EntityType: models.UserEventEntityAssignment, EntityID: assignment.ID, EventType: eventType, Title: title, Message: message, Metadata: userEventMetadata(metadata)}
+	if s.outbox != nil {
+		_ = s.outbox.PublishUserEvent(assignmentOutboxKey(assignment.ID, eventType, assignmentRevision(assignment), &recipientID, "user_event"), request)
+		return
+	}
 	createUserEventIfEnabled(s.events, models.CreateUserEventRequest{
 		RecipientUserID: recipientID,
 		ActorUserID:     actorID,
@@ -498,10 +542,18 @@ func (s *AssignmentService) createAssignmentEvent(
 }
 
 func (s *AssignmentService) createAssignmentCreatedEvents(assignment *models.Assignment, actorID *uuid.UUID) {
-	if s.events == nil || assignment == nil {
+	if assignment == nil {
 		return
 	}
 	for _, recipientID := range assignmentExecutorRecipientIDs(assignment) {
+		if s.outbox != nil {
+			request := models.CreateUserEventRequest{RecipientUserID: recipientID, ActorUserID: actorID, DocumentID: assignment.DocumentID, DocumentKind: assignment.DocumentKind, DocumentNumber: assignment.DocumentNumber, EntityType: models.UserEventEntityAssignment, EntityID: assignment.ID, EventType: models.UserEventAssignmentCreated, Title: "Новое поручение", Message: fmt.Sprintf("Вам назначено поручение по документу %s", documentNumberLabel(assignment.DocumentNumber)), Metadata: userEventMetadata(map[string]string{"status": assignment.Status})}
+			_ = s.outbox.PublishUserEvent(assignmentOutboxKey(assignment.ID, "created", "", &recipientID, "user_event"), request)
+			continue
+		}
+		if s.events == nil {
+			continue
+		}
 		s.createAssignmentEvent(
 			assignment,
 			recipientID,
@@ -517,10 +569,18 @@ func (s *AssignmentService) createAssignmentCreatedEvents(assignment *models.Ass
 }
 
 func (s *AssignmentService) createAssignmentUpdatedEvents(assignment *models.Assignment, actorID *uuid.UUID) {
-	if s.events == nil || assignment == nil {
+	if assignment == nil {
 		return
 	}
 	for _, recipientID := range assignmentExecutorRecipientIDs(assignment) {
+		if s.outbox != nil {
+			request := models.CreateUserEventRequest{RecipientUserID: recipientID, ActorUserID: actorID, DocumentID: assignment.DocumentID, DocumentKind: assignment.DocumentKind, DocumentNumber: assignment.DocumentNumber, EntityType: models.UserEventEntityAssignment, EntityID: assignment.ID, EventType: models.UserEventAssignmentUpdated, Title: "Поручение изменено", Message: fmt.Sprintf("Изменено поручение по документу %s", documentNumberLabel(assignment.DocumentNumber)), Metadata: userEventMetadata(map[string]string{"status": assignment.Status})}
+			_ = s.outbox.PublishUserEvent(assignmentOutboxKey(assignment.ID, "updated", assignmentRevision(assignment), &recipientID, "user_event"), request)
+			continue
+		}
+		if s.events == nil {
+			continue
+		}
 		s.createAssignmentEvent(
 			assignment,
 			recipientID,
@@ -542,7 +602,7 @@ func (s *AssignmentService) createAssignmentStatusEvents(
 	report string,
 	actorID *uuid.UUID,
 ) {
-	if s.events == nil || assignment == nil || oldStatus == newStatus {
+	if (s.events == nil && s.outbox == nil) || assignment == nil || oldStatus == newStatus {
 		return
 	}
 
@@ -634,12 +694,17 @@ func (s *AssignmentService) Delete(id string) error {
 	err = s.repo.Delete(uid)
 	if err == nil {
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		s.journal.LogAction(nil, models.CreateJournalEntryRequest{
+		journalRequest := models.CreateJournalEntryRequest{
 			DocumentID: existing.DocumentID,
 			UserID:     currentUserID,
 			Action:     "ASSIGNMENT_DELETE",
 			Details:    "Поручение удалено",
-		})
+		}
+		if s.outbox != nil {
+			_ = s.outbox.PublishJournal(assignmentOutboxKey(uid, "deleted", "", nil, "journal"), journalRequest)
+		} else {
+			s.journal.LogAction(nil, journalRequest)
+		}
 	}
 	return err
 }

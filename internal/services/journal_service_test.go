@@ -6,9 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 
 	"github.com/google/uuid"
@@ -194,5 +197,20 @@ func TestJournalService_LogAction(t *testing.T) {
 
 		err := svc.LogAction(context.Background(), expectedReq)
 		require.ErrorIs(t, err, expectedErr)
+	})
+
+	t.Run("queues through outbox when configured", func(t *testing.T) {
+		svc, _, _, _, _ := setupJournalService(t, "admin")
+		db, sqlMock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+		svc.SetOutboxPublisher(NewOutboxPublisher(repository.NewOutboxRepository(&database.DB{DB: db})))
+		expectedReq := models.CreateJournalEntryRequest{DocumentID: docID, UserID: userID, Action: action, Details: details}
+		sqlMock.ExpectBegin()
+		sqlMock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventJournal, sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+		sqlMock.ExpectCommit()
+
+		require.NoError(t, svc.LogAction(context.Background(), expectedReq))
+		require.NoError(t, sqlMock.ExpectationsWereMet())
 	})
 }

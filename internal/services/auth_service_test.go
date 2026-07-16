@@ -450,7 +450,7 @@ func TestAuthService_UpdateProfile(t *testing.T) {
 		}
 
 		mockRepo.On("UpdateProfile", user.ID, req).Return(nil).Once()
-		mockRepo.On("GetByID", user.ID).Return(updatedUser, nil).Once()
+		mockRepo.On("GetByID", user.ID).Return(updatedUser, nil).Twice()
 
 		err := authService.UpdateProfile(req)
 		require.NoError(t, err)

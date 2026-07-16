@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,7 +18,12 @@ type AcknowledgmentService struct {
 	journal       *JournalService
 	access        *DocumentAccessService
 	events        *UserEventService
+	outbox        *OutboxPublisher
 	substitutions UserSubstitutionStore
+}
+
+type acknowledgmentConfirmationOutboxStore interface {
+	MarkConfirmedWithEffects(uuid.UUID, uuid.UUID, models.AcknowledgmentConfirmationEffects) error
 }
 
 // NewAcknowledgmentService создает новый экземпляр AcknowledgmentService.
@@ -46,6 +52,7 @@ func NewAcknowledgmentService(
 func (s *AcknowledgmentService) SetSubstitutionStore(store UserSubstitutionStore) {
 	s.substitutions = store
 }
+func (s *AcknowledgmentService) SetOutboxPublisher(publisher *OutboxPublisher) { s.outbox = publisher }
 
 func (s *AcknowledgmentService) currentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error) {
 	currentUserID, err := s.auth.GetCurrentUserUUID()
@@ -334,7 +341,29 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 		return err
 	}
 
+	if store, ok := s.repo.(acknowledgmentConfirmationOutboxStore); ok {
+		ack, getErr := s.repo.GetByID(ackUUID)
+		if getErr != nil {
+			return getErr
+		}
+		if ack == nil {
+			return models.ErrForbidden
+		}
+		doc, _ := s.access.GetDocument(ack.DocumentID)
+		documentNumber := ""
+		if doc != nil {
+			documentNumber = doc.RegistrationNumber
+		}
+		err = store.MarkConfirmedWithEffects(ackUUID, userUUID, models.AcknowledgmentConfirmationEffects{UserEvents: s.acknowledgmentConfirmedEventRequests(ack, documentNumber, &userUUID)})
+		if errors.Is(err, models.ErrAlreadyConfirmed) {
+			return nil
+		}
+		return err
+	}
 	err = s.repo.MarkConfirmed(ackUUID, userUUID)
+	if errors.Is(err, models.ErrAlreadyConfirmed) {
+		return nil
+	}
 	if err == nil {
 		ack, _ := s.repo.GetByID(ackUUID)
 		if ack != nil {
@@ -356,12 +385,12 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 }
 
 func (s *AcknowledgmentService) createAcknowledgmentCreatedEvents(ack *models.Acknowledgment, documentNumber string, actorID *uuid.UUID) {
-	if s.events == nil || ack == nil {
+	if ack == nil {
 		return
 	}
 
 	for _, user := range ack.Users {
-		createUserEventIfEnabled(s.events, models.CreateUserEventRequest{
+		request := models.CreateUserEventRequest{
 			RecipientUserID: user.UserID,
 			ActorUserID:     actorID,
 			DocumentID:      ack.DocumentID,
@@ -375,16 +404,31 @@ func (s *AcknowledgmentService) createAcknowledgmentCreatedEvents(ack *models.Ac
 			Metadata: userEventMetadata(map[string]string{
 				"status": "pending",
 			}),
-		})
+		}
+		if s.outbox != nil {
+			_ = s.outbox.PublishUserEvent("ack:"+ack.ID.String()+":created:"+user.UserID.String(), request)
+		} else {
+			createUserEventIfEnabled(s.events, request)
+		}
 	}
 }
 
 func (s *AcknowledgmentService) createAcknowledgmentConfirmedEvents(ack *models.Acknowledgment, documentNumber string, actorID *uuid.UUID) {
-	if s.events == nil || ack == nil {
+	if s.events == nil {
 		return
+	}
+	for _, request := range s.acknowledgmentConfirmedEventRequests(ack, documentNumber, actorID) {
+		createUserEventIfEnabled(s.events, request)
+	}
+}
+
+func (s *AcknowledgmentService) acknowledgmentConfirmedEventRequests(ack *models.Acknowledgment, documentNumber string, actorID *uuid.UUID) []models.CreateUserEventRequest {
+	if ack == nil {
+		return nil
 	}
 
 	excluded := eventActorExcluded(s.auth)
+	requests := make([]models.CreateUserEventRequest, 0)
 	recipients := appendUniqueUserID(nil, ack.CreatorID)
 	controlRecipients, err := collectUserIDsWithDocumentAction(s.userRepo, s.access, ack.DocumentKind, "acknowledge", excluded)
 	if err == nil {
@@ -397,7 +441,7 @@ func (s *AcknowledgmentService) createAcknowledgmentConfirmedEvents(ack *models.
 		if _, skip := excluded[recipientID]; skip && recipientID != ack.CreatorID {
 			continue
 		}
-		createUserEventIfEnabled(s.events, models.CreateUserEventRequest{
+		requests = append(requests, models.CreateUserEventRequest{
 			RecipientUserID: recipientID,
 			ActorUserID:     actorID,
 			DocumentID:      ack.DocumentID,
@@ -413,6 +457,7 @@ func (s *AcknowledgmentService) createAcknowledgmentConfirmedEvents(ack *models.
 			}),
 		})
 	}
+	return requests
 }
 
 // Delete удаляет задачу на ознакомление по её ID.

@@ -305,10 +305,28 @@ func TestAcknowledgmentRepository_MarkConfirmedReturnsForbiddenWhenUserRowMissin
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE acknowledgment_users SET confirmed_at = \$1, viewed_at = COALESCE\(viewed_at, \$1\) WHERE acknowledgment_id = \$2 AND user_id = \$3`).
 		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`SELECT EXISTS\(SELECT 1 FROM acknowledgment_users WHERE acknowledgment_id = \$1 AND user_id = \$2\)`).
+		WithArgs(ackID, userID).WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 	mock.ExpectRollback()
 
 	err = repo.MarkConfirmed(ackID, userID)
 	require.ErrorIs(t, err, models.ErrForbidden)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAcknowledgmentRepository_MarkConfirmedIsIdempotent(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	ackID, userID := uuid.New(), uuid.New()
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE acknowledgment_users`).WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`SELECT EXISTS\(SELECT 1 FROM acknowledgment_users WHERE acknowledgment_id = \$1 AND user_id = \$2\)`).
+		WithArgs(ackID, userID).WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectRollback()
+	err = repo.MarkConfirmed(ackID, userID)
+	require.ErrorIs(t, err, models.ErrAlreadyConfirmed)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

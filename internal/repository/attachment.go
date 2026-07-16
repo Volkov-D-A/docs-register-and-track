@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/json"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"time"
@@ -12,7 +13,41 @@ import (
 
 // AttachmentRepository предоставляет методы для работы с вложениями (файлами) в БД.
 type AttachmentRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
+}
+
+func (r *AttachmentRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
+func (r *AttachmentRepository) OutboxEnabled() bool                { return r.outbox != nil }
+
+// MarkDeletingWithOutbox atomically hides the attachment and schedules object
+// cleanup. The consumer may safely retry because DeleteFile and DeleteMarked
+// are both idempotent for an already marked row.
+func (r *AttachmentRepository) MarkDeletingWithOutbox(attachment models.Attachment) error {
+	if r.outbox == nil {
+		return r.MarkDeleting(attachment.ID)
+	}
+	payload, err := json.Marshal(models.AttachmentDeletePayload{AttachmentID: attachment.ID, StoragePath: attachment.StoragePath})
+	if err != nil {
+		return err
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE attachments SET deletion_requested_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND deletion_requested_at IS NULL`, attachment.ID); err != nil {
+		return err
+	}
+	if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{
+		EventType:        models.OutboxEventFileDelete,
+		DeduplicationKey: "attachment:" + attachment.ID.String() + ":delete",
+		Payload:          string(payload),
+	}); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // NewAttachmentRepository создает новый экземпляр AttachmentRepository.
@@ -152,4 +187,47 @@ func (r *AttachmentRepository) GetPendingDeletion() ([]models.Attachment, error)
 		attachments = append(attachments, a)
 	}
 	return attachments, rows.Err()
+}
+
+func (r *AttachmentRepository) GetAllStoragePaths() ([]string, error) {
+	rows, err := r.db.Query(`SELECT storage_path FROM attachments`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	paths := make([]string, 0)
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, rows.Err()
+}
+
+// EnqueuePendingDeletions migrates legacy deleting tombstones to the common
+// outbox worker. Existing deduplication keys make this safe on every startup.
+func (r *AttachmentRepository) EnqueuePendingDeletions() error {
+	if r.outbox == nil {
+		return nil
+	}
+	attachments, err := r.GetPendingDeletion()
+	if err != nil {
+		return err
+	}
+	for _, attachment := range attachments {
+		payload, err := json.Marshal(models.AttachmentDeletePayload{AttachmentID: attachment.ID, StoragePath: attachment.StoragePath})
+		if err != nil {
+			return err
+		}
+		if err := r.outbox.Enqueue(models.OutboxEvent{
+			EventType:        models.OutboxEventFileDelete,
+			DeduplicationKey: "attachment:" + attachment.ID.String() + ":delete",
+			Payload:          string(payload),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

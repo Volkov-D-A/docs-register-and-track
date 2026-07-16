@@ -77,6 +77,19 @@ func TestAttachmentRepository_DeletionSaga(t *testing.T) {
 		require.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("atomically marks and queues deletion", func(t *testing.T) {
+		outboxRepo := NewOutboxRepository(repo.db)
+		repo.SetOutbox(outboxRepo)
+		attachment := models.Attachment{ID: attachmentID, StoragePath: "objects/test.txt"}
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE attachments SET deletion_requested_at = CURRENT_TIMESTAMP`).WithArgs(attachmentID).WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventFileDelete, "attachment:"+attachmentID.String()+":delete", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		require.NoError(t, repo.MarkDeletingWithOutbox(attachment))
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestAttachmentRepository_GetByID(t *testing.T) {

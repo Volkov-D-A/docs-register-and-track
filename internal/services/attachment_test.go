@@ -523,3 +523,12 @@ func TestAttachmentService_ProcessPendingDeletions(t *testing.T) {
 	err := svc.ProcessPendingDeletions(context.Background())
 	require.NoError(t, err)
 }
+
+func TestReconcileAttachmentStorage(t *testing.T) {
+	result := reconcileAttachmentStorage(
+		[]string{"objects/present.pdf", "objects/missing.pdf"},
+		[]string{"objects/present.pdf", "objects/orphan.pdf"},
+	)
+	require.Equal(t, []string{"objects/missing.pdf"}, result.MissingObjects)
+	require.Equal(t, []string{"objects/orphan.pdf"}, result.OrphanObjects)
+}

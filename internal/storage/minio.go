@@ -130,6 +130,18 @@ func (m *MinioService) GetStorageInfo(ctx context.Context) (objectCount int, tot
 	return count, formatSize(size), nil
 }
 
+// ListObjectNames is used by the read-only attachment reconciliation command.
+func (m *MinioService) ListObjectNames(ctx context.Context) ([]string, error) {
+	objects := make([]string, 0)
+	for object := range m.client.ListObjects(ctx, m.bucketName, minio.ListObjectsOptions{Recursive: true}) {
+		if object.Err != nil {
+			return nil, fmt.Errorf("failed to list objects in minio: %w", object.Err)
+		}
+		objects = append(objects, object.Key)
+	}
+	return objects, nil
+}
+
 // formatSize форматирует размер в байтах в человекочитаемый формат.
 func formatSize(bytes int64) string {
 	const (

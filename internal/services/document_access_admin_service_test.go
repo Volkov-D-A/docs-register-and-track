@@ -54,6 +54,7 @@ func TestDocumentAccessAdminService_GetUserAccessProfile(t *testing.T) {
 		auth := NewAuthService(nil, userRepo)
 		auth.SetAccessStore(accessRepo)
 		auth.currentUserID = uuid.New()
+		userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
 
 		svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
 
@@ -70,6 +71,7 @@ func TestDocumentAccessAdminService_GetUserAccessProfile(t *testing.T) {
 		auth := NewAuthService(nil, userRepo)
 		auth.SetAccessStore(accessRepo)
 		auth.currentUserID = uuid.New()
+		userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
 		svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
 
 		profile, err := svc.GetUserAccessProfile("bad-id")
@@ -85,6 +87,7 @@ func TestDocumentAccessAdminService_GetUserAccessProfile(t *testing.T) {
 		auth := NewAuthService(nil, userRepo)
 		auth.SetAccessStore(accessRepo)
 		auth.currentUserID = uuid.New()
+		userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
 		svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
 
 		profile, err := svc.GetUserAccessProfile(uuid.New().String())
@@ -102,6 +105,7 @@ func TestDocumentAccessAdminService_UpdateUserAccessProfile_RejectsUnsupportedDo
 
 	adminID := uuid.New()
 	auth.currentUserID = adminID
+	userRepo.On("GetByID", adminID).Return(&models.User{ID: adminID, IsActive: true}, nil).Maybe()
 
 	targetUserID := uuid.New()
 	userRepo.On("GetByID", targetUserID).Return(&models.User{ID: targetUserID, IsActive: true}, nil).Once()
@@ -129,6 +133,7 @@ func TestDocumentAccessAdminService_UpdateUserAccessProfile_ReturnsNotFoundForMi
 	auth := NewAuthService(nil, userRepo)
 	auth.SetAccessStore(accessRepo)
 	auth.currentUserID = uuid.New()
+	userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
 
 	targetUserID := uuid.New()
 	userRepo.On("GetByID", targetUserID).Return(nil, nil).Once()

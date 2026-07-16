@@ -17,6 +17,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
@@ -71,6 +72,9 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	journalRepo := repository.NewJournalRepository(db)
 	adminAuditLogRepo := repository.NewAdminAuditLogRepository(db)
 	userEventRepo := repository.NewUserEventRepository(db)
+	outboxRepo := repository.NewOutboxRepository(db)
+	acknowledgmentRepo.SetOutbox(outboxRepo)
+	attachmentRepo.SetOutbox(outboxRepo)
 
 	operationLifecycle := services.NewOperationLifecycle(5 * time.Minute)
 
@@ -87,6 +91,8 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	}
 
 	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
+	adminAuditLogService.SetOutboxPublisher(services.NewOutboxPublisher(outboxRepo))
+	outboxAdminService := services.NewOutboxAdminService(outboxRepo, authService)
 	authService.SetAdminAuditLogService(adminAuditLogService)
 	settingsService := services.NewSettingsService(db, settingsRepo, authService, adminAuditLogService)
 	userService := services.NewUserService(userRepo, authService, adminAuditLogService)
@@ -98,6 +104,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	documentKindService := services.NewDocumentKindService(documentAccessService)
 	journalService := services.NewJournalService(journalRepo, authService, documentAccessService)
 	journalService.SetOperationLifecycle(operationLifecycle)
+	journalService.SetOutboxPublisher(services.NewOutboxPublisher(outboxRepo))
 	documentKindQueryRegistry := services.NewDocumentKindQueryRegistry(
 		services.NewIncomingLetterQueryHandler(incomingDocRepo),
 		services.NewOutgoingLetterQueryHandler(outgoingDocRepo),
@@ -116,6 +123,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	userEventService := services.NewUserEventService(userEventRepo, authService)
 	administrativeOrderService := services.NewAdministrativeOrderService(administrativeOrderRepo, authService, documentAccessService, journalService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService, documentAccessService, userEventService)
+	assignmentService.SetOutboxPublisher(services.NewOutboxPublisher(outboxRepo))
 	assignmentService.SetSubstitutionStore(userSubstitutionRepo)
 	departmentService := services.NewDepartmentService(departmentRepo, authService, adminAuditLogService)
 
@@ -129,6 +137,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 			Err:        err,
 		}
 	}
+	outboxWorker := outbox.NewWorker(outboxRepo, userEventRepo, journalRepo, adminAuditLogRepo, attachmentRepo, minioService)
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, documentAccessService)
 	statisticsService := services.NewStatisticsService(statisticsRepo, authService, minioService)
@@ -138,6 +147,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, administrativeOrderRepo, documentAccessService, authService, journalService)
 	linkService.SetOperationLifecycle(operationLifecycle)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService, userEventService)
+	acknowledgmentService.SetOutboxPublisher(services.NewOutboxPublisher(outboxRepo))
 	acknowledgmentService.SetSubstitutionStore(userSubstitutionRepo)
 	systemService := services.NewSystemService(db)
 	releaseNoteService, err := services.NewReleaseNoteService(params.ReleaseNotesSource)
@@ -173,6 +183,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 		ErrorFormatter: formatBackendError,
 		OnStartup: func(ctx context.Context) {
 			attachmentService.Startup(ctx)
+			go outboxWorker.Run(ctx)
 			if err := attachmentService.ProcessPendingDeletions(ctx); err != nil {
 				slog.Warn("pending attachment deletions will be retried later", "error", err)
 			}
@@ -214,6 +225,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 			journalService,
 			adminAuditLogService,
 			userEventService,
+			outboxAdminService,
 		},
 	}
 	created = true

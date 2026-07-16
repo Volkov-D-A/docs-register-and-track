@@ -172,6 +172,7 @@ func TestAcknowledgmentService_GetList(t *testing.T) {
 		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
 		assert.Nil(t, result)
 	})
+
 }
 
 func TestAcknowledgmentService_GetPendingForCurrentUser(t *testing.T) {
@@ -388,6 +389,15 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 		err := svc.MarkConfirmed(ackID.String())
 		require.Error(t, err)
 		assert.Equal(t, ErrNotAuthenticated, err)
+	})
+
+	t.Run("already confirmed is successful without side effects", func(t *testing.T) {
+		svc, repo, _, auth, _ := setupAckService(t, "executor")
+		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
+		repo.On("MarkConfirmed", ackID, userUUID).Return(models.ErrAlreadyConfirmed).Once()
+
+		err := svc.MarkConfirmed(ackID.String())
+		require.NoError(t, err)
 	})
 }
 

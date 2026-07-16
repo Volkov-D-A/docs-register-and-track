@@ -49,6 +49,9 @@ func (e *AppError) StatusCode() int {
 
 // Предопределённые ошибки
 var (
+	// ErrAlreadyConfirmed is an internal idempotency signal. Services translate
+	// it to a successful no-op and must not emit side effects again.
+	ErrAlreadyConfirmed       = errors.New("acknowledgment already confirmed")
 	ErrUnauthorized           = &AppError{Code: 401, Kind: "UNAUTHORIZED", Message: "требуется авторизация", Production: true}
 	ErrInvalidCredentials     = &AppError{Code: 401, Kind: "INVALID_CREDENTIALS", Message: "неверный логин или пароль", Production: true}
 	ErrUserNotActive          = &AppError{Code: 403, Kind: "USER_INACTIVE", Message: "пользователь деактивирован", Production: true}

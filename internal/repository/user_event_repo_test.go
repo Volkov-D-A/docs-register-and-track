@@ -30,9 +30,10 @@ func TestUserEventRepository_Create(t *testing.T) {
 	insertQuery := `INSERT INTO user_events (
 			recipient_user_id, actor_user_id, document_id, document_kind,
 			document_number, entity_type, entity_id, event_type,
-			title, message, metadata
+			title, message, metadata, outbox_deduplication_key
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, NULLIF($12, ''))
+		ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING
 		RETURNING id`
 	mock.ExpectQuery(regexp.QuoteMeta(insertQuery)).
 		WithArgs(
@@ -47,6 +48,7 @@ func TestUserEventRepository_Create(t *testing.T) {
 			"Новое поручение",
 			"Вам назначено поручение",
 			"{}",
+			"",
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(eventID))
 

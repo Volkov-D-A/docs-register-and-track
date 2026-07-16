@@ -19,3 +19,10 @@ type Attachment struct {
 	UploadedByName string    `json:"uploadedByName,omitempty"` // заполняется при получении
 	UploadedAt     time.Time `json:"uploadedAt"`
 }
+
+// AttachmentStorageReconciliation is a read-only comparison of attachment
+// metadata and object storage. No object is deleted automatically.
+type AttachmentStorageReconciliation struct {
+	MissingObjects []string `json:"missingObjects"`
+	OrphanObjects  []string `json:"orphanObjects"`
+}

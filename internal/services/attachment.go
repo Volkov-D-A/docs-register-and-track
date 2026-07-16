@@ -13,6 +13,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,6 +34,24 @@ type AttachmentService struct {
 	uiContext       context.Context
 }
 
+type attachmentOutboxStore interface {
+	MarkDeletingWithOutbox(attachment models.Attachment) error
+	OutboxEnabled() bool
+}
+
+type attachmentDeletionScheduler interface {
+	EnqueuePendingDeletions() error
+	OutboxEnabled() bool
+}
+
+type attachmentStoragePathStore interface {
+	GetAllStoragePaths() ([]string, error)
+}
+
+type objectNameLister interface {
+	ListObjectNames(ctx context.Context) ([]string, error)
+}
+
 // NewAttachmentService создает новый экземпляр AttachmentService.
 func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService, auditService *AdminAuditLogService, fs FileStorage, access *DocumentAccessService) *AttachmentService {
 	return &AttachmentService{
@@ -48,6 +67,58 @@ func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService
 
 func (s *AttachmentService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
 	s.lifecycle = lifecycle
+}
+
+// ReconcileStorage compares database metadata and MinIO without modifying
+// either side. It is intentionally available only to administrators.
+func (s *AttachmentService) ReconcileStorage() (*models.AttachmentStorageReconciliation, error) {
+	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
+	repo, ok := s.repo.(attachmentStoragePathStore)
+	if !ok {
+		return nil, fmt.Errorf("attachment storage reconciliation is not supported")
+	}
+	storage, ok := s.fileStorage.(objectNameLister)
+	if !ok {
+		return nil, fmt.Errorf("object storage reconciliation is not supported")
+	}
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+	databasePaths, err := repo.GetAllStoragePaths()
+	if err != nil {
+		return nil, err
+	}
+	objectPaths, err := storage.ListObjectNames(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return reconcileAttachmentStorage(databasePaths, objectPaths), nil
+}
+
+func reconcileAttachmentStorage(databasePaths, objectPaths []string) *models.AttachmentStorageReconciliation {
+	databaseSet := make(map[string]struct{}, len(databasePaths))
+	for _, path := range databasePaths {
+		databaseSet[path] = struct{}{}
+	}
+	objectSet := make(map[string]struct{}, len(objectPaths))
+	for _, path := range objectPaths {
+		objectSet[path] = struct{}{}
+	}
+	result := &models.AttachmentStorageReconciliation{MissingObjects: make([]string, 0), OrphanObjects: make([]string, 0)}
+	for path := range databaseSet {
+		if _, ok := objectSet[path]; !ok {
+			result.MissingObjects = append(result.MissingObjects, path)
+		}
+	}
+	for path := range objectSet {
+		if _, ok := databaseSet[path]; !ok {
+			result.OrphanObjects = append(result.OrphanObjects, path)
+		}
+	}
+	sort.Strings(result.MissingObjects)
+	sort.Strings(result.OrphanObjects)
+	return result
 }
 
 // Startup receives the Wails context required to display the native file picker.
@@ -257,12 +328,20 @@ func (s *AttachmentService) Delete(idStr string) error {
 
 	// First commit the deletion intent. From this point the attachment is hidden
 	// from reads, so a later database failure cannot leave a visible broken link.
-	if err := s.repo.MarkDeleting(id); err != nil {
+	usesOutbox := false
+	if outboxRepo, ok := s.repo.(attachmentOutboxStore); ok && outboxRepo.OutboxEnabled() {
+		if err := outboxRepo.MarkDeletingWithOutbox(*attachment); err != nil {
+			return err
+		}
+		usesOutbox = true
+	} else if err := s.repo.MarkDeleting(id); err != nil {
 		return err
 	}
 
-	if err := s.finalizeDeletion(ctx, *attachment); err != nil {
-		return err
+	if !usesOutbox {
+		if err := s.finalizeDeletion(ctx, *attachment); err != nil {
+			return err
+		}
 	}
 
 	currentUserID, _ := s.authService.GetCurrentUserUUID()
@@ -518,6 +597,20 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	if len(attachments) == 0 {
 		return 0, nil
 	}
+	if outboxRepo, ok := s.repo.(attachmentOutboxStore); ok && outboxRepo.OutboxEnabled() {
+		for _, attachment := range attachments {
+			if err := outboxRepo.MarkDeletingWithOutbox(attachment); err != nil {
+				return 0, fmt.Errorf("failed to queue attachment deletion: %w", err)
+			}
+		}
+		currentUserID, _ := s.authService.GetCurrentUserUUID()
+		var currentUserName string
+		if u, err := s.authService.GetCurrentUser(); err == nil {
+			currentUserName = u.FullName
+		}
+		s.auditService.LogAction(currentUserID, currentUserName, "FILES_BULK_DELETE", fmt.Sprintf("Массовое удаление файлов: поставлено в очередь %d, загруженных до %s", len(attachments), date.Format("02.01.2006")))
+		return len(attachments), nil
+	}
 
 	ids := make([]uuid.UUID, 0, len(attachments))
 	for _, att := range attachments {
@@ -556,6 +649,9 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 // storage operation. It is safe to invoke repeatedly: MinIO deletion is
 // idempotent and a row is only physically removed after it was marked.
 func (s *AttachmentService) ProcessPendingDeletions(ctx context.Context) error {
+	if scheduler, ok := s.repo.(attachmentDeletionScheduler); ok && scheduler.OutboxEnabled() {
+		return scheduler.EnqueuePendingDeletions()
+	}
 	attachments, err := s.repo.GetPendingDeletion()
 	if err != nil {
 		return fmt.Errorf("failed to get pending attachment deletions: %w", err)

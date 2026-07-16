@@ -111,6 +111,7 @@ func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsSer
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
 	auth.currentUserID = uuid.New()
+	userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(permissions...))
 	store := &fakeStatisticsStore{dbSize: "42 MB"}
 	storage := &fakeStatisticsStorage{objectCount: 5, totalSize: "10 MB"}

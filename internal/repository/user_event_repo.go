@@ -23,6 +23,16 @@ func NewUserEventRepository(db *database.DB) *UserEventRepository {
 
 // Create создает событие пользователя.
 func (r *UserEventRepository) Create(req models.CreateUserEventRequest) (*models.UserEvent, error) {
+	return r.create(req, "")
+}
+
+// CreateFromOutbox is idempotent across worker crashes and retries.
+func (r *UserEventRepository) CreateFromOutbox(req models.CreateUserEventRequest, deduplicationKey string) error {
+	_, err := r.create(req, deduplicationKey)
+	return err
+}
+
+func (r *UserEventRepository) create(req models.CreateUserEventRequest, deduplicationKey string) (*models.UserEvent, error) {
 	metadata := req.Metadata
 	if metadata == "" {
 		metadata = "{}"
@@ -32,9 +42,10 @@ func (r *UserEventRepository) Create(req models.CreateUserEventRequest) (*models
 		INSERT INTO user_events (
 			recipient_user_id, actor_user_id, document_id, document_kind,
 			document_number, entity_type, entity_id, event_type,
-			title, message, metadata
+			 title, message, metadata, outbox_deduplication_key
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, NULLIF($12, ''))
+		ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING
 		RETURNING id
 	`
 	var id uuid.UUID
@@ -51,8 +62,12 @@ func (r *UserEventRepository) Create(req models.CreateUserEventRequest) (*models
 		req.Title,
 		req.Message,
 		metadata,
+		deduplicationKey,
 	).Scan(&id)
 	if err != nil {
+		if err == sql.ErrNoRows && deduplicationKey != "" {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to create user event: %w", err)
 	}
 	return r.GetByID(id)

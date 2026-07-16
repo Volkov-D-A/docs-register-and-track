@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -13,8 +14,11 @@ import (
 
 // AcknowledgmentRepository предоставляет методы для работы с задачами на ознакомление в БД.
 type AcknowledgmentRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *AcknowledgmentRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 // NewAcknowledgmentRepository создает новый экземпляр AcknowledgmentRepository.
 func NewAcknowledgmentRepository(db *database.DB) *AcknowledgmentRepository {
@@ -282,6 +286,16 @@ func (r *AcknowledgmentRepository) MarkViewed(ackID, userID uuid.UUID) error {
 
 // MarkConfirmed отмечает задачу на ознакомление как подтвержденную (выполненную) пользователем.
 func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error {
+	return r.markConfirmed(ackID, userID, nil)
+}
+
+// MarkConfirmedWithEffects persists already calculated notifications in the
+// same transaction as the first confirmation.
+func (r *AcknowledgmentRepository) MarkConfirmedWithEffects(ackID, userID uuid.UUID, effects models.AcknowledgmentConfirmationEffects) error {
+	return r.markConfirmed(ackID, userID, effects.UserEvents)
+}
+
+func (r *AcknowledgmentRepository) markConfirmed(ackID, userID uuid.UUID, userEvents []models.CreateUserEventRequest) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
@@ -294,7 +308,7 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 	query := `
 		UPDATE acknowledgment_users
 		SET confirmed_at = $1, viewed_at = COALESCE(viewed_at, $1)
-		WHERE acknowledgment_id = $2 AND user_id = $3
+		WHERE acknowledgment_id = $2 AND user_id = $3 AND confirmed_at IS NULL
 	`
 	res, err := tx.Exec(query, now, ackID, userID)
 	if err != nil {
@@ -305,6 +319,13 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 		return err
 	}
 	if affected == 0 {
+		var exists bool
+		if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM acknowledgment_users WHERE acknowledgment_id = $1 AND user_id = $2)`, ackID, userID).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			return models.ErrAlreadyConfirmed
+		}
 		return models.ErrForbidden
 	}
 
@@ -325,11 +346,36 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 		updateQuery := `
 			UPDATE acknowledgments
 			SET completed_at = $1
-			WHERE id = $2
+			WHERE id = $2 AND completed_at IS NULL
 		`
 		_, err = tx.Exec(updateQuery, now, ackID)
 		if err != nil {
 			return err
+		}
+	}
+	if r.outbox != nil {
+		var documentID uuid.UUID
+		if err := tx.QueryRow(`SELECT document_id FROM acknowledgments WHERE id = $1`, ackID).Scan(&documentID); err != nil {
+			return err
+		}
+		payload, err := json.Marshal(models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: "ACK_CONFIRM", Details: "Ознакомление подтверждено"})
+		if err != nil {
+			return err
+		}
+		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "ack:" + ackID.String() + ":confirmed:" + userID.String() + ":journal", Payload: string(payload)}); err != nil {
+			return err
+		}
+		for _, request := range userEvents {
+			payload, err := json.Marshal(struct {
+				Request models.CreateUserEventRequest `json:"request"`
+			}{Request: request})
+			if err != nil {
+				return err
+			}
+			key := "ack:" + ackID.String() + ":confirmed:" + userID.String() + ":event:" + request.RecipientUserID.String()
+			if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventUserEvent, DeduplicationKey: key, Payload: string(payload)}); err != nil {
+				return err
+			}
 		}
 	}
 

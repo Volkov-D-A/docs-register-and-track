@@ -14,6 +14,7 @@ type JournalService struct {
 	auth      *AuthService
 	access    *DocumentAccessService
 	lifecycle *OperationLifecycle
+	outbox    *OutboxPublisher
 }
 
 func NewJournalService(repo JournalStore, auth *AuthService, access *DocumentAccessService) *JournalService {
@@ -27,6 +28,11 @@ func NewJournalService(repo JournalStore, auth *AuthService, access *DocumentAcc
 func (s *JournalService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
 	s.lifecycle = lifecycle
 }
+
+// SetOutboxPublisher routes legacy journal records through durable delivery.
+// Operations that do not expose a shared transaction are an intermediate
+// migration: the entry is queued after their business commit.
+func (s *JournalService) SetOutboxPublisher(publisher *OutboxPublisher) { s.outbox = publisher }
 
 // GetByDocumentID возвращает список записей журнала для заданного документа.
 // Этот метод предназначен для вызова из фронтенда Wails.
@@ -60,6 +66,9 @@ func (s *JournalService) GetByDocumentID(documentIDStr string) ([]dto.JournalEnt
 
 // LogAction — это внутренний вспомогательный метод для других сервисов, чтобы логировать действия (создать запись в журнале).
 func (s *JournalService) LogAction(ctx context.Context, req models.CreateJournalEntryRequest) error {
+	if s.outbox != nil {
+		return s.outbox.PublishJournal("journal:"+uuid.NewString(), req)
+	}
 	if ctx == nil && s.lifecycle != nil {
 		opCtx, release := s.lifecycle.OperationContext()
 		defer release()

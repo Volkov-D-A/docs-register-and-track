@@ -56,6 +56,26 @@ func setupAssignmentService(t *testing.T, role string) (
 	return svc, assignmentRepo, userRepo, auth, incomingRepo
 }
 
+func TestAssignmentOutboxKeySeparatesTransitionsAndRecipients(t *testing.T) {
+	assignmentID := uuid.New()
+	recipientA, recipientB := uuid.New(), uuid.New()
+	revision1 := "2026-07-16T10:00:00Z"
+	revision2 := "2026-07-16T10:01:00Z"
+
+	created := assignmentOutboxKey(assignmentID, "created", "", &recipientA, "user_event")
+	retry := assignmentOutboxKey(assignmentID, "created", "", &recipientA, "user_event")
+	otherRecipient := assignmentOutboxKey(assignmentID, "created", "", &recipientB, "user_event")
+	updated := assignmentOutboxKey(assignmentID, "updated", revision1, &recipientA, "user_event")
+	laterUpdate := assignmentOutboxKey(assignmentID, "updated", revision2, &recipientA, "user_event")
+	journal := assignmentOutboxKey(assignmentID, "created", "", nil, "journal")
+
+	assert.Equal(t, created, retry)
+	assert.NotEqual(t, created, otherRecipient)
+	assert.NotEqual(t, created, updated)
+	assert.NotEqual(t, updated, laterUpdate)
+	assert.NotEqual(t, created, journal)
+}
+
 func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.AssignmentStore) {
 	t.Helper()
 	assignmentRepo := mocks.NewAssignmentStore(t)
