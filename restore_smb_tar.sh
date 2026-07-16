@@ -4,15 +4,9 @@ set -euo pipefail
 # ==========================================
 # Загрузка конфигурации из .env
 # ==========================================
-ENV_FILE="/home/dimas/projects/docs-register-and-track/.env"
-if [ ! -f "$ENV_FILE" ]; then
-    echo "Ошибка: Файл конфигурации $ENV_FILE не найден!"
-    exit 1
-fi
-
-set -a
-source "$ENV_FILE"
-set +a
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/scripts/smb_backup_lib.sh"
+load_backup_config
 
 # ==========================================
 # Проверка аргументов
@@ -30,8 +24,6 @@ chmod 700 "$TMP_DIR"
 ARCHIVE_PATH="$MOUNT_POINT/$ARCHIVE_NAME"
 REPORT_DIR="${RESTORE_REPORT_DIR:-$(pwd)/restore_reports}"
 REPORT_FILE="$REPORT_DIR/restore_$(date +%Y%m%d_%H%M%S).log"
-SMB_CREDENTIALS_TMP=""
-MOUNT_OPTIONS=""
 MOUNTED=0
 
 echo "Начало процесса восстановления из файла: $ARCHIVE_NAME"
@@ -41,12 +33,9 @@ cleanup() {
 
   if [ "$MOUNTED" -eq 1 ]; then
     echo "Отключение сетевой папки..."
-    umount "$MOUNT_POINT" || true
+    unmount_smb
   fi
 
-  if [ -n "$SMB_CREDENTIALS_TMP" ] && [ -f "$SMB_CREDENTIALS_TMP" ]; then
-    rm -f "$SMB_CREDENTIALS_TMP"
-  fi
 
   if [ -n "$TMP_DIR" ] && [ -d "$TMP_DIR" ]; then
     rm -rf "$TMP_DIR"
@@ -56,29 +45,6 @@ cleanup() {
 }
 
 trap cleanup EXIT
-
-set_mount_options() {
-  local credentials_file="${SMB_CREDENTIALS_FILE:-}"
-
-  if [ -n "$credentials_file" ]; then
-    if [ ! -f "$credentials_file" ]; then
-      echo "Ошибка: CIFS credentials file $credentials_file не найден."
-      exit 1
-    fi
-    MOUNT_OPTIONS="credentials=$credentials_file,domain=$SMB_DOMAIN"
-    return
-  fi
-
-  SMB_CREDENTIALS_TMP="$(mktemp /tmp/docflow_cifs_credentials_XXXXXXXXXX)"
-  chmod 600 "$SMB_CREDENTIALS_TMP"
-  {
-    printf 'username=%s\n' "$SMB_USER"
-    printf 'password=%s\n' "$SMB_PASSWORD"
-    printf 'domain=%s\n' "$SMB_DOMAIN"
-  } > "$SMB_CREDENTIALS_TMP"
-
-  MOUNT_OPTIONS="credentials=$SMB_CREDENTIALS_TMP"
-}
 
 write_report_header() {
   mkdir -p "$REPORT_DIR"
@@ -100,8 +66,7 @@ write_report_header() {
 mkdir -p "$MOUNT_POINT"
 
 echo "[1/5] Подключение сетевой папки SMB..."
-set_mount_options
-mount -t cifs -o "$MOUNT_OPTIONS" "//$SMB_SERVER/$SMB_SHARE" "$MOUNT_POINT"
+mount_smb
 MOUNTED=1
 
 if [ ! -f "$ARCHIVE_PATH" ]; then
