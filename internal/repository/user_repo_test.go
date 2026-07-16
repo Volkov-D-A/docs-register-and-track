@@ -414,6 +414,19 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("ResetPassword missing user", func(t *testing.T) {
+		mock.ExpectExec(`UPDATE users SET password_hash`).
+			WithArgs(sqlmock.AnyArg(), uid).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+
+		err = repo.ResetPassword(uid, "NewPass123!")
+		appErr, ok := models.AsAppError(err)
+		require.True(t, ok)
+		assert.Equal(t, "NOT_FOUND", appErr.Kind)
+		assert.Equal(t, 404, appErr.Code)
+		assert.Contains(t, appErr.Message, "пользователь не найден")
+	})
+
 	t.Run("UpdateProfile", func(t *testing.T) {
 		// Редактирование собственного профиля пользователем
 		mock.ExpectExec(`UPDATE users SET login(.*)full_name(.*)`).

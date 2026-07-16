@@ -259,6 +259,15 @@ func TestUserService_ResetPassword(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("returns not found for absent user", func(t *testing.T) {
+		svc, repo := setupUserService(t, "admin")
+		repo.On("GetByID", uid).Return(nil, nil).Once()
+
+		err := svc.ResetPassword(uid.String(), "NewPass123!")
+
+		requireAppError(t, err, "NOT_FOUND", 404, "пользователь не найден")
+	})
+
 	t.Run("allowed for user with admin role", func(t *testing.T) {
 		svc, repo, _ := setupUserServiceWithRoles(t, []string{"admin", "clerk"})
 		targetUser := &models.User{ID: uid, FullName: "User", Login: "user"}

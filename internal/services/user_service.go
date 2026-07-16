@@ -94,6 +94,9 @@ func (s *UserService) ResetPassword(userID string, newPassword string) error {
 	if err != nil {
 		return err
 	}
+	if user == nil {
+		return models.NewNotFound("пользователь не найден")
+	}
 
 	if err := s.userRepo.ResetPassword(uid, newPassword); err != nil {
 		return err

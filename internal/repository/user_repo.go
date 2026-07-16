@@ -449,7 +449,7 @@ func (r *UserRepository) GetActiveUsers() ([]models.User, error) {
 
 // UpdatePassword обновляет хэш пароля пользователя.
 func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string) error {
-	_, err := r.db.Exec(`
+	result, err := r.db.Exec(`
 		UPDATE users
 		SET password_hash = $1,
 		    failed_login_attempts = 0,
@@ -461,6 +461,13 @@ func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string
 
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check updated password rows: %w", err)
+	}
+	if affected == 0 {
+		return models.NewNotFound("пользователь не найден")
 	}
 
 	return nil
