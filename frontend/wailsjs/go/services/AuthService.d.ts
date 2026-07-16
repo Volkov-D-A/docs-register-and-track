@@ -33,6 +33,8 @@ export function NeedsInitialSetup():Promise<boolean>;
 
 export function RequireAnySystemPermission(arg1:Array<string>):Promise<void>;
 
+export function RequireAuthenticated():Promise<void>;
+
 export function RequireSystemPermission(arg1:string):Promise<void>;
 
 export function SetAccessStore(arg1:services.DocumentAccessStore):Promise<void>;

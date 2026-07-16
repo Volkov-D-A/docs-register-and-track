@@ -58,6 +58,10 @@ export function RequireAnySystemPermission(arg1) {
   return window['go']['services']['AuthService']['RequireAnySystemPermission'](arg1);
 }
 
+export function RequireAuthenticated() {
+  return window['go']['services']['AuthService']['RequireAuthenticated']();
+}
+
 export function RequireSystemPermission(arg1) {
   return window['go']['services']['AuthService']['RequireSystemPermission'](arg1);
 }

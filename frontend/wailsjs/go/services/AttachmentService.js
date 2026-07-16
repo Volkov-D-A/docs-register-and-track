@@ -30,8 +30,16 @@ export function OpenFolder(arg1) {
   return window['go']['services']['AttachmentService']['OpenFolder'](arg1);
 }
 
+export function ProcessPendingDeletions(arg1) {
+  return window['go']['services']['AttachmentService']['ProcessPendingDeletions'](arg1);
+}
+
 export function SetOperationLifecycle(arg1) {
   return window['go']['services']['AttachmentService']['SetOperationLifecycle'](arg1);
+}
+
+export function Startup(arg1) {
+  return window['go']['services']['AttachmentService']['Startup'](arg1);
 }
 
 export function Upload(arg1) {
