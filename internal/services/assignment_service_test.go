@@ -565,6 +565,25 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		assert.Equal(t, "Нужно исправить замечания", result.Report)
 	})
 
+	for _, terminalStatus := range []string{"finished", "cancelled"} {
+		t.Run("manager cannot reopen "+terminalStatus, func(t *testing.T) {
+			svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+			terminalAssignment := &models.Assignment{
+				ID:         assignmentID,
+				DocumentID: docID,
+				ExecutorID: execID,
+				Content:    "Контент",
+				Status:     terminalStatus,
+			}
+			repo.On("GetByID", assignmentID).Return(terminalAssignment, nil).Once()
+
+			result, err := svc.UpdateStatus(assignmentID.String(), "in_progress", "")
+
+			requireAppError(t, err, "CONFLICT", 409, "недопустимый переход")
+			assert.Nil(t, result)
+		})
+	}
+
 	t.Run("admin forbidden", func(t *testing.T) {
 		svc, repo, _, _, _ := setupAssignmentService(t, "admin")
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
@@ -672,6 +691,46 @@ func TestResolveAssignmentStatusUpdate(t *testing.T) {
 				assert.Equal(t, tt.wantCompleted, result.completedAt)
 			}
 		})
+	}
+}
+
+func TestResolveAssignmentStatusUpdateTransitionMatrix(t *testing.T) {
+	statuses := []string{"new", "in_progress", "completed", "returned", "finished", "cancelled"}
+	roles := []struct {
+		name      string
+		canManage bool
+		canAct    bool
+		allowed   map[string]map[string]struct{}
+	}{
+		{name: "executor", canAct: true, allowed: executorAssignmentTransitions},
+		{name: "manager", canManage: true, allowed: managerAssignmentTransitions},
+		{name: "unprivileged", allowed: map[string]map[string]struct{}{}},
+	}
+
+	for _, role := range roles {
+		for _, currentStatus := range statuses {
+			for _, targetStatus := range statuses {
+				t.Run(role.name+"_"+currentStatus+"_to_"+targetStatus, func(t *testing.T) {
+					existing := &models.Assignment{Status: currentStatus, Report: "Отчет"}
+					result, err := resolveAssignmentStatusUpdate(existing, targetStatus, "Отчет", role.canManage, role.canAct)
+
+					expected := isAssignmentTransitionAllowed(role.allowed, currentStatus, targetStatus)
+					if expected {
+						require.NoError(t, err)
+						require.NotNil(t, result)
+						return
+					}
+
+					require.Error(t, err)
+					assert.Nil(t, result)
+					if role.canManage || role.canAct {
+						requireAppError(t, err, "CONFLICT", 409, "недопустимый переход")
+					} else {
+						requireAppError(t, err, "FORBIDDEN", 403, "недостаточно прав")
+					}
+				})
+			}
+		}
 	}
 }
 

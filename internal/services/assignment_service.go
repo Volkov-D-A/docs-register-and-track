@@ -94,15 +94,47 @@ type assignmentStatusUpdate struct {
 	completedAt *time.Time
 }
 
+var executorAssignmentTransitions = map[string]map[string]struct{}{
+	"new": {
+		"in_progress": {},
+		"completed":   {},
+	},
+	"in_progress": {
+		"completed": {},
+	},
+	"returned": {
+		"in_progress": {},
+		"completed":   {},
+	},
+}
+
+var managerAssignmentTransitions = map[string]map[string]struct{}{
+	"completed": {
+		"finished": {},
+		"returned": {},
+	},
+}
+
+func isAssignmentTransitionAllowed(transitions map[string]map[string]struct{}, currentStatus, targetStatus string) bool {
+	targets, ok := transitions[currentStatus]
+	if !ok {
+		return false
+	}
+	_, ok = targets[targetStatus]
+	return ok
+}
+
 func resolveAssignmentStatusUpdate(existing *models.Assignment, status, report string, canManageAssignment, canActAsExecutor bool) (*assignmentStatusUpdate, error) {
-	allowed := false
-	if canManageAssignment && existing.Status == "completed" && (status == "finished" || status == "returned") {
-		allowed = true
+	if existing == nil {
+		return nil, models.NewNotFound("поручение не найдено")
 	}
-	if canActAsExecutor && (status == "in_progress" || status == "completed") {
-		allowed = true
-	}
+
+	allowed := (canManageAssignment && isAssignmentTransitionAllowed(managerAssignmentTransitions, existing.Status, status)) ||
+		(canActAsExecutor && isAssignmentTransitionAllowed(executorAssignmentTransitions, existing.Status, status))
 	if !allowed {
+		if canManageAssignment || canActAsExecutor {
+			return nil, models.NewConflict(fmt.Sprintf("недопустимый переход статуса поручения: %s → %s", existing.Status, status))
+		}
 		return nil, models.NewForbidden(fmt.Sprintf("недостаточно прав для установки статуса %s", status))
 	}
 
