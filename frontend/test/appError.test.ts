@@ -44,4 +44,14 @@ describe('appError adapter', () => {
       status: 403,
     });
   });
+
+  it('preserves the password-change signal after Wails wraps the envelope in Error', () => {
+    const error = new Error(JSON.stringify({
+      code: 'PASSWORD_CHANGE_REQUIRED',
+      message: 'необходимо сменить пароль',
+      status: 403,
+    }));
+
+    assert.equal(getAppErrorCode(error), 'PASSWORD_CHANGE_REQUIRED');
+  });
 });

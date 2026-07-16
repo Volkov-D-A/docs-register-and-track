@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -214,6 +215,21 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 }
 
 func formatBackendError(err error) any {
+	// Wails v2.13 wraps a formatted error value in JavaScript's Error constructor.
+	// Return a JSON string so the frontend can recover the structured error code
+	// from Error.message (rather than receiving "[object Object]").
+	format := func(code, message string, status int) string {
+		payload, marshalErr := json.Marshal(map[string]any{
+			"code":    code,
+			"message": message,
+			"status":  status,
+		})
+		if marshalErr != nil {
+			return `{"code":"INTERNAL_ERROR","message":"произошла внутренняя ошибка","status":500}`
+		}
+		return string(payload)
+	}
+
 	if appErr, ok := models.AsAppError(err); ok {
 		if appErr.StatusCode() >= 500 {
 			attrs := []any{"type", "backend_binding", "code", appErr.SafeKind(), "status", appErr.StatusCode(), "error", appErr.Error()}
@@ -222,16 +238,8 @@ func formatBackendError(err error) any {
 			}
 			slog.Error("Backend binding failed", attrs...)
 		}
-		return map[string]any{
-			"code":    appErr.SafeKind(),
-			"message": appErr.SafeMessage(),
-			"status":  appErr.StatusCode(),
-		}
+		return format(appErr.SafeKind(), appErr.SafeMessage(), appErr.StatusCode())
 	}
 	slog.Error("Backend binding failed", "type", "backend_binding", "error_type", fmt.Sprintf("%T", err), "error", err.Error())
-	return map[string]any{
-		"code":    "INTERNAL_ERROR",
-		"message": "произошла внутренняя ошибка",
-		"status":  500,
-	}
+	return format("INTERNAL_ERROR", "произошла внутренняя ошибка", 500)
 }
