@@ -3,8 +3,9 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
-	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -20,42 +21,41 @@ func NewDashboardRepository(db *database.DB) *DashboardRepository {
 	return &DashboardRepository{db: db}
 }
 
-// GetExpiringAssignments возвращает поручения, срок которых истекает в ближайшие N дней.
-// Если userID не nil — фильтрует по исполнителю, иначе — все поручения.
-func (r *DashboardRepository) GetExpiringAssignments(userID *uuid.UUID, days int) ([]models.Assignment, error) {
-	var rows *sql.Rows
-	var err error
-
-	if userID != nil {
-		rows, err = r.db.Query(`
-			SELECT 
-				a.id, a.content, a.deadline, a.status,
-				a.document_id, d.kind,
-				u.full_name as executor_name,
-				d.registration_number as doc_number
-			FROM assignments a
-			JOIN documents d ON d.id = a.document_id
-			LEFT JOIN users u ON a.executor_id = u.id
-			WHERE (a.executor_id = $1 OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $1))
-			  AND a.status IN ('new', 'in_progress')
-			  AND a.deadline BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '1 day' * $2)
-			ORDER BY a.deadline ASC
-		`, *userID, days)
-	} else {
-		rows, err = r.db.Query(`
-			SELECT 
-				a.id, a.content, a.deadline, a.status,
-				a.document_id, d.kind,
-				u.full_name as executor_name,
-				d.registration_number as doc_number
-			FROM assignments a
-			JOIN documents d ON d.id = a.document_id
-			LEFT JOIN users u ON a.executor_id = u.id
-			WHERE a.status IN ('new', 'in_progress')
-			  AND a.deadline BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '1 day' * $1)
-			ORDER BY a.deadline ASC
-		`, days)
+// GetExpiringAssignments возвращает поручения, срок которых истекает в ближайшие N дней,
+// ограниченные серверным scope доступа к документам.
+func (r *DashboardRepository) GetExpiringAssignments(filter models.DashboardAssignmentFilter) ([]models.Assignment, error) {
+	where := []string{
+		"a.status IN ('new', 'in_progress')",
+		"a.deadline BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '1 day' * $1)",
 	}
+	args := []interface{}{filter.Days}
+	argIdx := 2
+	if len(filter.AllowedDocumentKinds) > 0 || len(filter.AccessibleByUserIDs) > 0 {
+		accessClauses := make([]string, 0, 2)
+		if len(filter.AllowedDocumentKinds) > 0 {
+			accessClauses = append(accessClauses, fmt.Sprintf("d.kind = ANY($%d)", argIdx))
+			args = append(args, pq.Array(filter.AllowedDocumentKinds))
+			argIdx++
+		}
+		if len(filter.AccessibleByUserIDs) > 0 {
+			accessClauses = append(accessClauses, fmt.Sprintf("(a.executor_id = ANY($%d::uuid[]) OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = ANY($%d::uuid[])))", argIdx, argIdx))
+			args = append(args, pq.Array(filter.AccessibleByUserIDs))
+		}
+		where = append(where, "("+strings.Join(accessClauses, " OR ")+")")
+	}
+
+	rows, err := r.db.Query(`
+			SELECT 
+				a.id, a.content, a.deadline, a.status,
+				a.document_id, d.kind,
+				u.full_name as executor_name,
+				d.registration_number as doc_number
+			FROM assignments a
+			JOIN documents d ON d.id = a.document_id
+			LEFT JOIN users u ON a.executor_id = u.id
+			WHERE `+strings.Join(where, " AND ")+`
+			ORDER BY a.deadline ASC
+		`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get expiring assignments: %w", err)
 	}

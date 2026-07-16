@@ -245,9 +245,9 @@ func (_m *DashboardStore) GetExecutorStatusCounts(userID uuid.UUID) (int, int, e
 	return r0, r1, r2
 }
 
-// GetExpiringAssignments provides a mock function with given fields: userID, days
-func (_m *DashboardStore) GetExpiringAssignments(userID *uuid.UUID, days int) ([]models.Assignment, error) {
-	ret := _m.Called(userID, days)
+// GetExpiringAssignments provides a mock function with given fields: filter
+func (_m *DashboardStore) GetExpiringAssignments(filter models.DashboardAssignmentFilter) ([]models.Assignment, error) {
+	ret := _m.Called(filter)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetExpiringAssignments")
@@ -255,19 +255,19 @@ func (_m *DashboardStore) GetExpiringAssignments(userID *uuid.UUID, days int) ([
 
 	var r0 []models.Assignment
 	var r1 error
-	if rf, ok := ret.Get(0).(func(*uuid.UUID, int) ([]models.Assignment, error)); ok {
-		return rf(userID, days)
+	if rf, ok := ret.Get(0).(func(models.DashboardAssignmentFilter) ([]models.Assignment, error)); ok {
+		return rf(filter)
 	}
-	if rf, ok := ret.Get(0).(func(*uuid.UUID, int) []models.Assignment); ok {
-		r0 = rf(userID, days)
+	if rf, ok := ret.Get(0).(func(models.DashboardAssignmentFilter) []models.Assignment); ok {
+		r0 = rf(filter)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.Assignment)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(*uuid.UUID, int) error); ok {
-		r1 = rf(userID, days)
+	if rf, ok := ret.Get(1).(func(models.DashboardAssignmentFilter) error); ok {
+		r1 = rf(filter)
 	} else {
 		r1 = ret.Error(1)
 	}

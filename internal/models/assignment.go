@@ -50,3 +50,11 @@ type AssignmentFilter struct {
 	AccessibleByUserID   string   `json:"-"`
 	AccessibleByUserIDs  []string `json:"-"`
 }
+
+// DashboardAssignmentFilter — серверный scope для поручений с истекающим сроком.
+// Поля доступа не принимаются с клиента.
+type DashboardAssignmentFilter struct {
+	Days                 int      `json:"-"`
+	AllowedDocumentKinds []string `json:"-"`
+	AccessibleByUserIDs  []string `json:"-"`
+}

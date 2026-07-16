@@ -229,7 +229,7 @@ type UserEventStore interface {
 
 // DashboardStore — интерфейс для получения аналитических данных дашборда из хранилища.
 type DashboardStore interface {
-	GetExpiringAssignments(userID *uuid.UUID, days int) ([]models.Assignment, error)
+	GetExpiringAssignments(filter models.DashboardAssignmentFilter) ([]models.Assignment, error)
 }
 
 // StatisticsStore — интерфейс для получения аналитических данных раздела статистики.

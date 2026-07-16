@@ -46,9 +46,9 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		svc, repo, auth := makeService(t, user, "executor")
 		assignments := []models.Assignment{{ID: uuid.New(), Status: "new"}}
 
-		repo.On("GetExpiringAssignments", mock.MatchedBy(func(id *uuid.UUID) bool {
-			return id != nil && *id == user.ID
-		}), 3).Return(assignments, nil).Once()
+		repo.On("GetExpiringAssignments", mock.MatchedBy(func(filter models.DashboardAssignmentFilter) bool {
+			return filter.Days == 3 && assert.ElementsMatch(t, []string{user.ID.String()}, filter.AccessibleByUserIDs)
+		})).Return(assignments, nil).Once()
 
 		activity, err := svc.GetActivity()
 		require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		require.NoError(t, auth.Logout())
 	})
 
-	t.Run("clerk sees global expiring assignments", func(t *testing.T) {
+	t.Run("full document access keeps unfiltered dashboard scope", func(t *testing.T) {
 		user := &models.User{
 			ID:           uuid.New(),
 			Login:        "clerk",
@@ -67,13 +67,45 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		svc, repo, auth := makeService(t, user, "clerk")
 		assignments := []models.Assignment{{ID: uuid.New(), Status: "in_progress"}}
 
-		repo.On("GetExpiringAssignments", (*uuid.UUID)(nil), 7).Return(assignments, nil).Once()
+		repo.On("GetExpiringAssignments", models.DashboardAssignmentFilter{Days: 7}).Return(assignments, nil).Once()
 
 		activity, err := svc.GetActivity()
 		require.NoError(t, err)
 		require.Len(t, activity.ExpiringAssignments, 1)
 
 		require.NoError(t, auth.Logout())
+	})
+
+	t.Run("active substitution extends personal assignment scope", func(t *testing.T) {
+		user := &models.User{
+			ID:                    uuid.New(),
+			Login:                 "substitute",
+			PasswordHash:          hash,
+			IsDocumentParticipant: true,
+			IsActive:              true,
+		}
+		principalID := uuid.New()
+		repo := mocks.NewDashboardStore(t)
+		userRepo := mocks.NewUserStore(t)
+		auth := NewAuthService(nil, userRepo)
+		accessStore := newRoleMappedDocumentAccessStore("executor")
+		userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := auth.Login(user.Login, password)
+		require.NoError(t, err)
+		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+		access := NewDocumentAccessService(
+			auth, nil, nil, nil, accessStore, nil, nil, nil,
+			&userSubstitutionStoreStub{activePrincipals: []uuid.UUID{principalID}},
+		)
+		svc := NewDashboardService(repo, auth, access)
+
+		repo.On("GetExpiringAssignments", mock.MatchedBy(func(filter models.DashboardAssignmentFilter) bool {
+			return filter.Days == 3 && assert.ElementsMatch(t,
+				[]string{user.ID.String(), principalID.String()}, filter.AccessibleByUserIDs)
+		})).Return([]models.Assignment{}, nil).Once()
+
+		_, err = svc.GetActivity()
+		require.NoError(t, err)
 	})
 
 	t.Run("mixed user keeps personal expiring assignments scope", func(t *testing.T) {
@@ -87,9 +119,9 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		svc, repo, auth := makeService(t, user, "clerk", "executor")
 		assignments := []models.Assignment{{ID: uuid.New(), Status: "in_progress"}}
 
-		repo.On("GetExpiringAssignments", mock.MatchedBy(func(id *uuid.UUID) bool {
-			return id != nil && *id == user.ID
-		}), 3).Return(assignments, nil).Once()
+		repo.On("GetExpiringAssignments", mock.MatchedBy(func(filter models.DashboardAssignmentFilter) bool {
+			return filter.Days == 3 && assert.ElementsMatch(t, []string{user.ID.String()}, filter.AccessibleByUserIDs)
+		})).Return(assignments, nil).Once()
 
 		activity, err := svc.GetActivity()
 		require.NoError(t, err)
@@ -113,6 +145,31 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		assert.Empty(t, activity.ExpiringAssignments)
 
 		require.NoError(t, auth.Logout())
+	})
+
+	t.Run("partial document access is passed to repository scope", func(t *testing.T) {
+		user := &models.User{ID: uuid.New(), Login: "limited", PasswordHash: hash, IsActive: true}
+		repo := mocks.NewDashboardStore(t)
+		userRepo := mocks.NewUserStore(t)
+		auth := NewAuthService(nil, userRepo)
+		accessStore := &kindActionDocumentAccessStore{allowed: map[models.DocumentKind]map[string]bool{
+			models.DocumentKindIncomingLetter: {"read": true},
+		}}
+		userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := auth.Login(user.Login, password)
+		require.NoError(t, err)
+		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+		access := NewDocumentAccessService(auth, nil, nil, nil, accessStore, nil, nil, nil)
+		svc := NewDashboardService(repo, auth, access)
+
+		repo.On("GetExpiringAssignments", mock.MatchedBy(func(filter models.DashboardAssignmentFilter) bool {
+			return filter.Days == 7 &&
+				assert.Equal(t, []string{string(models.DocumentKindIncomingLetter)}, filter.AllowedDocumentKinds) &&
+				assert.Equal(t, []string{user.ID.String()}, filter.AccessibleByUserIDs)
+		})).Return([]models.Assignment{}, nil).Once()
+
+		_, err = svc.GetActivity()
+		require.NoError(t, err)
 	})
 
 	t.Run("not authenticated", func(t *testing.T) {

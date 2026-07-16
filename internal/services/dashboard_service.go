@@ -1,8 +1,6 @@
 package services
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
@@ -14,53 +12,9 @@ type DashboardService struct {
 	access *DocumentAccessService
 }
 
-type dashboardAssignmentScope string
-
-const (
-	dashboardAssignmentScopeNone     dashboardAssignmentScope = "none"
-	dashboardAssignmentScopeGlobal   dashboardAssignmentScope = "global"
-	dashboardAssignmentScopePersonal dashboardAssignmentScope = "personal"
-)
-
 // NewDashboardService создает новый экземпляр DashboardService.
 func NewDashboardService(repo DashboardStore, auth *AuthService, access *DocumentAccessService) *DashboardService {
 	return &DashboardService{repo: repo, auth: auth, access: access}
-}
-
-func (s *DashboardService) determineDashboardAssignmentScope(user *dto.User) dashboardAssignmentScope {
-	if user == nil {
-		return dashboardAssignmentScopePersonal
-	}
-
-	hasSystemPermission := func(expected string) bool {
-		for _, permission := range user.SystemPermissions {
-			if permission == expected {
-				return true
-			}
-		}
-		return false
-	}
-
-	canCreate := false
-	canRead := false
-	if s.access != nil {
-		canCreate, _ = s.access.HasAnyDocumentAction("create")
-		canRead, _ = s.access.HasAnyDocumentAction("read")
-	}
-
-	hasClerkFlow := canCreate || canRead
-	switch {
-	case hasSystemPermission(models.SystemPermissionAdmin) && !hasClerkFlow && !user.IsDocumentParticipant:
-		return dashboardAssignmentScopeNone
-	case user.IsDocumentParticipant:
-		return dashboardAssignmentScopePersonal
-	case hasClerkFlow:
-		return dashboardAssignmentScopeGlobal
-	case hasSystemPermission(models.SystemPermissionAdmin):
-		return dashboardAssignmentScopeNone
-	default:
-		return dashboardAssignmentScopePersonal
-	}
 }
 
 // GetActivity возвращает оперативные данные для главного экрана.
@@ -78,29 +32,41 @@ func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
 		ExpiringAssignments: []dto.Assignment{},
 	}
 
-	switch s.determineDashboardAssignmentScope(user) {
-	case dashboardAssignmentScopeNone:
+	if s.access == nil {
 		return activity, nil
-	case dashboardAssignmentScopeGlobal:
-		assignments, err := s.repo.GetExpiringAssignments(nil, 7)
+	}
+
+	readableKinds, err := s.access.GetDocumentKindsWithAction("read")
+	if err != nil {
+		return nil, err
+	}
+	if len(readableKinds) == 0 && !user.IsDocumentParticipant {
+		return activity, nil
+	}
+
+	filter := models.DashboardAssignmentFilter{Days: 7}
+	if user.IsDocumentParticipant {
+		filter.Days = 3
+		subjectIDs, err := s.access.getCurrentUserAndSubstitutionSubjectIDs()
 		if err != nil {
 			return nil, err
 		}
-		if assignments != nil {
-			activity.ExpiringAssignments = dto.MapAssignments(assignments)
-		}
-	default:
-		userID, err := uuid.Parse(user.ID)
+		filter.AccessibleByUserIDs = uuidStrings(subjectIDs)
+	} else if len(readableKinds) < len(models.AllDocumentKindSpecs()) {
+		filter.AllowedDocumentKinds = documentKindCodes(readableKinds)
+		subjectIDs, err := s.access.getCurrentUserAndSubstitutionSubjectIDs()
 		if err != nil {
 			return nil, err
 		}
-		assignments, err := s.repo.GetExpiringAssignments(&userID, 3)
-		if err != nil {
-			return nil, err
-		}
-		if assignments != nil {
-			activity.ExpiringAssignments = dto.MapAssignments(assignments)
-		}
+		filter.AccessibleByUserIDs = uuidStrings(subjectIDs)
+	}
+
+	assignments, err := s.repo.GetExpiringAssignments(filter)
+	if err != nil {
+		return nil, err
+	}
+	if assignments != nil {
+		activity.ExpiringAssignments = dto.MapAssignments(assignments)
 	}
 
 	return activity, nil
