@@ -209,7 +209,8 @@ type AcknowledgmentStore interface {
 	GetByID(id uuid.UUID) (*models.Acknowledgment, error)
 	GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error)
 	GetPendingForUser(userID uuid.UUID) ([]models.Acknowledgment, error)
-	GetAllActive() ([]models.Acknowledgment, error)
+	GetAllActive(filter models.AcknowledgmentFilter) ([]models.Acknowledgment, error)
+	GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error)
 	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
 	MarkViewed(ackID, userID uuid.UUID) error
 	MarkConfirmed(ackID, userID uuid.UUID) error

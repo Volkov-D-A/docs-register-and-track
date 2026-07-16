@@ -252,15 +252,43 @@ func (s *AcknowledgmentService) GetCurrentUserPendingByDocument(documentID strin
 // GetAllActive возвращает список всех активных (не завершенных) задач на ознакомление в системе.
 // Доступно только делопроизводителям.
 func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
-	allowed, err := s.access.HasAnyDocumentAction("acknowledge")
+	allowedKinds, err := s.access.GetDocumentKindsWithAction("acknowledge")
 	if err != nil {
 		return nil, err
 	}
-	if !allowed {
+	if len(allowedKinds) == 0 {
 		return nil, models.ErrForbidden
 	}
-	res, err := s.repo.GetAllActive()
-	return dto.MapAcknowledgments(res), err
+	res, err := s.repo.GetAllActive(models.AcknowledgmentFilter{
+		AllowedDocumentKinds: documentKindCodes(allowedKinds),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	documentIDs := make([]uuid.UUID, 0, len(res))
+	for _, ack := range res {
+		documentIDs = append(documentIDs, ack.DocumentID)
+	}
+	readableDocuments, err := s.access.ResolveReadableDocuments(documentIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]models.Acknowledgment, 0, len(res))
+	for _, ack := range res {
+		if _, ok := readableDocuments[ack.DocumentID]; !ok {
+			continue
+		}
+		users, err := s.repo.GetUsersByAcknowledgmentID(ack.ID)
+		if err != nil {
+			return nil, err
+		}
+		ack.Users = users
+		filtered = append(filtered, ack)
+	}
+
+	return dto.MapAcknowledgments(filtered), nil
 }
 
 // MarkViewed отмечает задачу на ознакомление как просмотренную текущим пользователем.

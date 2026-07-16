@@ -42,4 +42,7 @@ type AcknowledgmentFilter struct {
 	UserID       string `json:"userId,omitempty"`
 	Status       string `json:"status,omitempty"` // pending, completed
 	ShowFinished bool   `json:"showFinished"`
+
+	// AllowedDocumentKinds — серверный scope, не принимается с клиента.
+	AllowedDocumentKinds []string `json:"-"`
 }

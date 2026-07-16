@@ -10,6 +10,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -320,24 +321,16 @@ func TestAcknowledgmentRepository_GetAllActive(t *testing.T) {
 	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
 	now := time.Now()
 
-	query := `SELECT(.*)FROM acknowledgments a(.*)JOIN documents d ON d.id = a.document_id(.*)WHERE a.completed_at IS NULL(.*)`
+	query := `SELECT(.*)FROM acknowledgments a(.*)JOIN documents d ON d.id = a.document_id(.*)WHERE a.completed_at IS NULL(.*)d.kind = ANY\(\$1\)(.*)`
 
 	rows := sqlmock.NewRows([]string{
 		"id", "document_id", "kind", "creator_id", "content", "created_at", "completed_at",
 		"creator_name", "doc_number",
 	}).AddRow(uuid.New(), uuid.New(), "incoming", uuid.New(), "Ознакомиться", now, nil, "Создатель", "ВХ-1")
 
-	mock.ExpectQuery(query).WillReturnRows(rows)
+	mock.ExpectQuery(query).WithArgs(pq.Array([]string{"incoming_letter"})).WillReturnRows(rows)
 
-	usersQuery := `SELECT au.id, au.acknowledgment_id, au.user_id, au.viewed_at, au.confirmed_at, au.created_at, u.full_name as user_name FROM acknowledgment_users au JOIN users u ON au.user_id = u.id WHERE au.acknowledgment_id = \$1`
-
-	usersRows := sqlmock.NewRows([]string{
-		"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name",
-	}).AddRow(uuid.New(), uuid.New(), uuid.New(), nil, nil, now, "Читатель")
-
-	mock.ExpectQuery(usersQuery).WithArgs(sqlmock.AnyArg()).WillReturnRows(usersRows)
-
-	acks, err := repo.GetAllActive()
+	acks, err := repo.GetAllActive(models.AcknowledgmentFilter{AllowedDocumentKinds: []string{"incoming_letter"}})
 	require.NoError(t, err)
 	require.Len(t, acks, 1)
 	require.NoError(t, mock.ExpectationsWereMet())

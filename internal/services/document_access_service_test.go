@@ -121,7 +121,11 @@ func (s *documentAccessAcknowledgmentStore) GetPendingForUser(userID uuid.UUID) 
 	return nil, nil
 }
 
-func (s *documentAccessAcknowledgmentStore) GetAllActive() ([]models.Acknowledgment, error) {
+func (s *documentAccessAcknowledgmentStore) GetAllActive(filter models.AcknowledgmentFilter) ([]models.Acknowledgment, error) {
+	return nil, nil
+}
+
+func (s *documentAccessAcknowledgmentStore) GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error) {
 	return nil, nil
 }
 

@@ -237,10 +237,61 @@ func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 	// Получение всех активных ознакомлений в системе (для администратора/делопроизводителя)
 	t.Run("success clerk", func(t *testing.T) {
 		svc, repo, _, _, _ := setupAckService(t, "clerk")
-		repo.On("GetAllActive").Return([]models.Acknowledgment{}, nil).Once()
+		repo.On("GetAllActive", mock.MatchedBy(func(filter models.AcknowledgmentFilter) bool {
+			return assert.Len(t, filter.AllowedDocumentKinds, len(models.AllDocumentKindSpecs()))
+		})).Return([]models.Acknowledgment{}, nil).Once()
 		result, err := svc.GetAllActive()
 		require.NoError(t, err)
 		assert.Len(t, result, 0)
+	})
+
+	t.Run("loads recipients after document access check", func(t *testing.T) {
+		svc, repo, _, _, incomingRepo := setupAckService(t, "clerk")
+		ackID := uuid.New()
+		documentID := uuid.New()
+		incomingRepo.On("GetByID", documentID).Return(&models.IncomingDocument{
+			ID: documentID, NomenclatureID: uuid.New(),
+		}, nil).Maybe()
+		repo.On("GetAllActive", mock.MatchedBy(func(filter models.AcknowledgmentFilter) bool {
+			return assert.Len(t, filter.AllowedDocumentKinds, len(models.AllDocumentKindSpecs()))
+		})).Return([]models.Acknowledgment{{ID: ackID, DocumentID: documentID}}, nil).Once()
+		repo.On("GetUsersByAcknowledgmentID", ackID).Return([]models.AcknowledgmentUser{{
+			ID: uuid.New(), AcknowledgmentID: ackID, UserID: uuid.New(),
+		}}, nil).Once()
+
+		result, err := svc.GetAllActive()
+
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Len(t, result[0].Users, 1)
+	})
+
+	t.Run("loads recipients only for readable documents", func(t *testing.T) {
+		ackID := uuid.New()
+		documentID := uuid.New()
+		user := &models.User{ID: uuid.New(), Login: "limited_ack", PasswordHash: "hash", IsActive: true}
+		repo := mocks.NewAcknowledgmentStore(t)
+		userRepo := mocks.NewUserStore(t)
+		auth := NewAuthService(nil, userRepo)
+		accessStore := &kindActionDocumentAccessStore{allowed: map[models.DocumentKind]map[string]bool{
+			models.DocumentKindIncomingLetter: {"acknowledge": true},
+		}}
+		auth.currentUserID = user.ID
+		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+		incomingRepo := mocks.NewIncomingDocStore(t)
+		incomingRepo.On("GetByID", documentID).Return(&models.IncomingDocument{
+			ID: documentID, NomenclatureID: uuid.New(),
+		}, nil).Once()
+		access := NewDocumentAccessService(auth, nil, nil, repo, accessStore, nil, incomingRepo, nil)
+		svc := NewAcknowledgmentService(repo, userRepo, auth, nil, access)
+		repo.On("GetAllActive", models.AcknowledgmentFilter{
+			AllowedDocumentKinds: []string{string(models.DocumentKindIncomingLetter)},
+		}).Return([]models.Acknowledgment{{ID: ackID, DocumentID: documentID}}, nil).Once()
+
+		result, err := svc.GetAllActive()
+
+		require.NoError(t, err)
+		assert.Empty(t, result)
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {

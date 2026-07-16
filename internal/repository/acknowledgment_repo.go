@@ -337,7 +337,7 @@ func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error 
 }
 
 // GetAllActive возвращает все активные (не завершенные) задачи на ознакомление.
-func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, error) {
+func (r *AcknowledgmentRepository) GetAllActive(filter models.AcknowledgmentFilter) ([]models.Acknowledgment, error) {
 	query := `
 		SELECT 
 			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
@@ -347,9 +347,10 @@ func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, erro
 		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
 		WHERE a.completed_at IS NULL
+		  AND d.kind = ANY($1)
 		ORDER BY a.created_at DESC
 	`
-	rows, err := r.db.Query(query)
+	rows, err := r.db.Query(query, pq.Array(filter.AllowedDocumentKinds))
 	if err != nil {
 		return nil, err
 	}
@@ -367,12 +368,6 @@ func (r *AcknowledgmentRepository) GetAllActive() ([]models.Acknowledgment, erro
 			return nil, err
 		}
 		a.DocumentNumber = docNumber
-
-		users, err := r.GetUsersByAcknowledgmentID(a.ID)
-		if err != nil {
-			return nil, err
-		}
-		a.Users = users
 
 		result = append(result, a)
 	}

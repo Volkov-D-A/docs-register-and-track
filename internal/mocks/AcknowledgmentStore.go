@@ -51,9 +51,9 @@ func (_m *AcknowledgmentStore) Delete(id uuid.UUID) error {
 	return r0
 }
 
-// GetAllActive provides a mock function with no fields
-func (_m *AcknowledgmentStore) GetAllActive() ([]models.Acknowledgment, error) {
-	ret := _m.Called()
+// GetAllActive provides a mock function with given fields: filter
+func (_m *AcknowledgmentStore) GetAllActive(filter models.AcknowledgmentFilter) ([]models.Acknowledgment, error) {
+	ret := _m.Called(filter)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetAllActive")
@@ -61,19 +61,19 @@ func (_m *AcknowledgmentStore) GetAllActive() ([]models.Acknowledgment, error) {
 
 	var r0 []models.Acknowledgment
 	var r1 error
-	if rf, ok := ret.Get(0).(func() ([]models.Acknowledgment, error)); ok {
-		return rf()
+	if rf, ok := ret.Get(0).(func(models.AcknowledgmentFilter) ([]models.Acknowledgment, error)); ok {
+		return rf(filter)
 	}
-	if rf, ok := ret.Get(0).(func() []models.Acknowledgment); ok {
-		r0 = rf()
+	if rf, ok := ret.Get(0).(func(models.AcknowledgmentFilter) []models.Acknowledgment); ok {
+		r0 = rf(filter)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.Acknowledgment)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
+	if rf, ok := ret.Get(1).(func(models.AcknowledgmentFilter) error); ok {
+		r1 = rf(filter)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -164,6 +164,33 @@ func (_m *AcknowledgmentStore) GetPendingForUser(userID uuid.UUID) ([]models.Ack
 
 	if rf, ok := ret.Get(1).(func(uuid.UUID) error); ok {
 		r1 = rf(userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetUsersByAcknowledgmentID provides a mock function with given fields: ackID
+func (_m *AcknowledgmentStore) GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error) {
+	ret := _m.Called(ackID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUsersByAcknowledgmentID")
+	}
+
+	var r0 []models.AcknowledgmentUser
+	var r1 error
+	if rf, ok := ret.Get(0).(func(uuid.UUID) ([]models.AcknowledgmentUser, error)); ok {
+		return rf(ackID)
+	}
+	if rf, ok := ret.Get(0).(func(uuid.UUID) []models.AcknowledgmentUser); ok {
+		r0 = rf(ackID)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]models.AcknowledgmentUser)
+	}
+	if rf, ok := ret.Get(1).(func(uuid.UUID) error); ok {
+		r1 = rf(ackID)
 	} else {
 		r1 = ret.Error(1)
 	}
