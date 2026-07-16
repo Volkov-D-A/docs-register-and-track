@@ -16,6 +16,18 @@ type LinkStore struct {
 	mock.Mock
 }
 
+// CreateAndCancelOrder provides a mock function with given fields: ctx, link
+func (_m *LinkStore) CreateAndCancelOrder(ctx context.Context, link *models.DocumentLink) error {
+	ret := _m.Called(ctx, link)
+	if len(ret) == 0 {
+		panic("no return value specified for CreateAndCancelOrder")
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *models.DocumentLink) error); ok {
+		return rf(ctx, link)
+	}
+	return ret.Error(0)
+}
+
 // Create provides a mock function with given fields: ctx, link
 func (_m *LinkStore) Create(ctx context.Context, link *models.DocumentLink) error {
 	ret := _m.Called(ctx, link)

@@ -91,13 +91,13 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 		CreatedAt:  time.Now(),
 	}
 
-	if err := s.repo.Create(ctx, link); err != nil {
-		return nil, fmt.Errorf("failed to create link: %w", err)
+	if linkType == "order_cancels" {
+		err = s.repo.CreateAndCancelOrder(ctx, link)
+	} else {
+		err = s.repo.Create(ctx, link)
 	}
-	if linkType == "order_cancels" && s.administrativeOrderRepo != nil {
-		if err := s.administrativeOrderRepo.CancelByLink(targetID, link.CreatedAt); err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, fmt.Errorf("failed to create link: %w", err)
 	}
 
 	// Логирование создания связи (для обоих документов)

@@ -202,6 +202,7 @@ type FileStorage interface {
 // LinkStore — интерфейс для работы со связями между документами в хранилище.
 type LinkStore interface {
 	Create(ctx context.Context, link *models.DocumentLink) error
+	CreateAndCancelOrder(ctx context.Context, link *models.DocumentLink) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.DocumentLink, error)
 	GetByDocumentID(ctx context.Context, docID uuid.UUID) ([]models.DocumentLink, error)

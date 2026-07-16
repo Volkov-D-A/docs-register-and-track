@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -13,6 +15,10 @@ import (
 // LinkRepository предоставляет методы для работы со связями между документами в БД.
 type LinkRepository struct {
 	db *database.DB
+}
+
+type linkSQLExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
 // NewLinkRepository создает новый экземпляр LinkRepository.
@@ -33,6 +39,43 @@ func (r *LinkRepository) Create(ctx context.Context, link *models.DocumentLink) 
 	return r.db.QueryRowContext(ctx, query,
 		link.SourceID, link.TargetID, link.LinkType, link.CreatedBy,
 	).Scan(&link.ID, &link.CreatedAt)
+}
+
+// CreateAndCancelOrder создаёт отменяющую связь и помечает целевой приказ отменённым в одной транзакции.
+func (r *LinkRepository) CreateAndCancelOrder(ctx context.Context, link *models.DocumentLink) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := tx.QueryRowContext(ctx, `
+		INSERT INTO document_links (source_document_id, target_document_id, link_type, created_by)
+		VALUES ($1, $2, $3, $4) RETURNING id, created_at
+	`, link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).Scan(&link.ID, &link.CreatedAt); err != nil {
+		return err
+	}
+	if err := cancelAdministrativeOrderByLink(ctx, tx, link.TargetID, link.CreatedAt); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func cancelAdministrativeOrderByLink(ctx context.Context, executor linkSQLExecutor, id uuid.UUID, cancelledAt time.Time) error {
+	if _, err := executor.ExecContext(ctx, `
+		UPDATE documents d SET updated_at = CURRENT_TIMESTAMP
+		FROM administrative_order_details ord
+		WHERE ord.document_id = d.id AND d.id = $1 AND d.kind = $2
+		  AND (ord.is_active = true OR ord.cancelled_at IS DISTINCT FROM $3)
+	`, id, models.DocumentKindAdministrativeOrder, cancelledAt); err != nil {
+		return fmt.Errorf("failed to update administrative order root cancellation timestamp: %w", err)
+	}
+	if _, err := executor.ExecContext(ctx, `
+		UPDATE administrative_order_details SET is_active = false, cancelled_at = $2 WHERE document_id = $1
+	`, id, cancelledAt); err != nil {
+		return fmt.Errorf("failed to cancel administrative order by link: %w", err)
+	}
+	return nil
 }
 
 // Delete — удалить связь по ID

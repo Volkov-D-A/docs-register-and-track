@@ -44,6 +44,31 @@ func TestLinkRepository_Create(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestLinkRepository_CreateAndCancelOrder(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewLinkRepository(&database.DB{DB: db})
+	link := &models.DocumentLink{SourceID: uuid.New(), TargetID: uuid.New(), LinkType: "order_cancels", CreatedBy: uuid.New()}
+	createdAt := time.Now()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO document_links`).
+		WithArgs(link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(uuid.New(), createdAt))
+	mock.ExpectExec(`UPDATE documents d`).
+		WithArgs(link.TargetID, models.DocumentKindAdministrativeOrder, createdAt).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE administrative_order_details`).
+		WithArgs(link.TargetID, createdAt).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err = repo.CreateAndCancelOrder(context.Background(), link)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestLinkRepository_Delete(t *testing.T) {
 	// Удаление связи между документами по её ID
 	db, mock, err := sqlmock.New()
