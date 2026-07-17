@@ -1,0 +1,23 @@
+# Disposable PostgreSQL instance for integration tests. It is intentionally
+# separate from docker-compose.yaml, which serves the local development stack.
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION}-alpine
+    environment:
+      POSTGRES_USER: docflow_integration
+      POSTGRES_PASSWORD: docflow_integration
+      POSTGRES_DB: docflow_test_outbox
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docflow_integration -d docflow_test_outbox"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    volumes:
+      # PostgreSQL 18+ stores data in a versioned subdirectory under this
+      # mount point; it also remains compatible with the development compose.
+      - integration_pgdata:/var/lib/postgresql
+
+volumes:
+  integration_pgdata:

@@ -356,12 +356,15 @@ func TestDatabaseConstraintsIntegration(t *testing.T) {
 			document_type, content, pages_count, created_by
 		) VALUES ('outgoing_letter', $1, $2, '04-04/1', DATE '2026-12-31', $3, 'duplicate number', 1, $4)
 	`, nomID, uuid.New(), models.DocumentTypeLetter, userID)
-	expectExecError(t, sqlDB, `
+	// idempotency_key has a database default, so direct writes remain safe even
+	// if an older client omits the column.
+	execSQL(t, sqlDB, `
 		INSERT INTO documents (
 			kind, nomenclature_id, registration_number, registration_date,
 			document_type, content, pages_count, created_by
 		) VALUES ('outgoing_letter', $1, '04-04/2', DATE '2026-05-28', $2, 'missing idempotency', 1, $3)
 	`, nomID, models.DocumentTypeLetter, userID)
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM documents WHERE created_by = $1 AND idempotency_key IS NOT NULL`, []any{userID}, 2)
 	expectExecError(t, sqlDB, `
 		INSERT INTO assignments (document_id, executor_id, content)
 		VALUES ($1, $2, 'invalid document')

@@ -621,7 +621,7 @@ Common targets:
 - `make build-linux`;
 - `make build-windows`.
 
-`make integration-test` requires non-production `DOCFLOW_INTEGRATION_ADMIN_DSN`. It creates disposable `docflow_test_*` database and refuses unsafe direct integration DSNs.
+`make integration-test` запускает изолированный PostgreSQL из `docker-compose.integration.yaml`, передаёт безопасный `DOCFLOW_INTEGRATION_DSN` для `docflow_test_outbox` и после тестов всегда удаляет контейнер и volume. Для ручной отладки доступны `make integration-db-up` и `make integration-db-down`.
 
 ## Performance Budgets
 
@@ -657,7 +657,7 @@ Go:
 
 - `go test ./...`;
 - focused unit tests in services/repositories/database;
-- guarded PostgreSQL integration tests through `tools/integrationtest`;
+- guarded PostgreSQL integration tests through `make integration-test`;
 - database constraints and idempotency covered in release-gated integration path.
 
 Frontend:

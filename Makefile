@@ -1,4 +1,4 @@
-.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
+.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test integration-test integration-db-up integration-db-down go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
@@ -11,6 +11,8 @@ RELEASE_EVIDENCE_DIR = build/release-evidence
 GOCACHE ?= /tmp/go-build-cache
 GOVULNCHECK ?= $(shell command -v govulncheck 2>/dev/null || echo "go run golang.org/x/vuln/cmd/govulncheck@latest")
 GO_PACKAGES = $(shell go list ./... | grep -v '/frontend/node_modules/')
+INTEGRATION_COMPOSE = docker compose -p docflow-integration -f docker-compose.integration.yaml
+INTEGRATION_DSN = postgres://docflow_integration:docflow_integration@127.0.0.1:55432/docflow_test_outbox?sslmode=disable
 
 # Ключ шифрования конфигурации (из .env → ENCRYPTION_KEY)
 LDFLAGS = -X 'github.com/Volkov-D-A/docs-register-and-track/internal/config.rawEncryptionKey=$(ENCRYPTION_KEY)'
@@ -49,6 +51,23 @@ clean:
 go-test:
 	$(MAKE) release-assets
 	GOCACHE=$(GOCACHE) go test $(GO_PACKAGES)
+
+# Запускает изолированный PostgreSQL, выполняет тесты с суффиксом Integration
+# и всегда удаляет контейнер вместе с тестовым volume.
+integration-test:
+	@set -eu; \
+		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
+		trap cleanup EXIT INT TERM; \
+		$(INTEGRATION_COMPOSE) up -d --wait; \
+		DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/repository -run Integration -count=1
+
+# Эти цели полезны при ручной отладке интеграционных тестов. Данные не
+# предназначены для сохранения: integration-db-down удаляет volume.
+integration-db-up:
+	$(INTEGRATION_COMPOSE) up -d --wait
+
+integration-db-down:
+	$(INTEGRATION_COMPOSE) down -v --remove-orphans
 
 go-vet:
 	GOCACHE=$(GOCACHE) go vet $(GO_PACKAGES)
