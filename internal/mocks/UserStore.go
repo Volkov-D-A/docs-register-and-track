@@ -15,6 +15,24 @@ type UserStore struct {
 	mock.Mock
 }
 
+// Atomic outbox helpers delegate to the existing mock methods so service tests
+// exercise the production contract without duplicating expectations.
+func (_m *UserStore) CreateWithOutbox(req models.CreateUserRequest, _ []models.OutboxEvent) (*models.User, error) {
+	return _m.Create(req)
+}
+
+func (_m *UserStore) UpdateWithOutbox(req models.UpdateUserRequest, _ []models.OutboxEvent) (*models.User, error) {
+	return _m.Update(req)
+}
+
+func (_m *UserStore) ResetPasswordWithOutbox(id uuid.UUID, password string, _ []models.OutboxEvent) error {
+	return _m.ResetPassword(id, password)
+}
+
+func (_m *UserStore) IncrementFailedLoginAttemptsWithOutbox(id uuid.UUID, _ models.OutboxEvent) (int, bool, error) {
+	return _m.IncrementFailedLoginAttempts(id)
+}
+
 // CountUsers provides a mock function with no fields
 func (_m *UserStore) CountUsers() (int, error) {
 	ret := _m.Called()

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -52,6 +51,10 @@ func (s *citizenAppealCommandStore) Create(req models.CreateCitizenAppealDocRequ
 	return &models.CitizenAppealDocument{ID: uuid.New()}, nil
 }
 
+func (s *citizenAppealCommandStore) CreateWithJournal(req models.CreateCitizenAppealDocRequest, _ string, _ string) (*models.CitizenAppealDocument, error) {
+	return s.Create(req)
+}
+
 func (s *citizenAppealCommandStore) Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
 	s.updateReq = &req
 	if s.updateErr != nil {
@@ -61,6 +64,10 @@ func (s *citizenAppealCommandStore) Update(req models.UpdateCitizenAppealDocRequ
 		return s.updateResult, nil
 	}
 	return &models.CitizenAppealDocument{ID: req.ID}, nil
+}
+
+func (s *citizenAppealCommandStore) UpdateWithOutbox(req models.UpdateCitizenAppealDocRequest, _ []models.OutboxEvent) (*models.CitizenAppealDocument, error) {
+	return s.Update(req)
 }
 
 func (s *citizenAppealCommandStore) GetCount() (int, error) {
@@ -168,13 +175,6 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 		deps.refRepo.On("FindOrCreateOrganization", "Администрация").Return(&models.Organization{ID: correspondentOrgID, Name: "Администрация"}, nil).Once()
 		deps.refRepo.On("FindOrCreateResolutionExecutor", "Исполнитель 1").Return(&models.ResolutionExecutor{ID: uuid.New(), Name: "Исполнитель 1"}, nil).Once()
 		deps.refRepo.On("FindOrCreateResolutionExecutor", "Исполнитель 2").Return(&models.ResolutionExecutor{ID: uuid.New(), Name: "Исполнитель 2"}, nil).Once()
-		deps.journalRepo.On("Create", context.Background(), mock.MatchedBy(func(journalReq models.CreateJournalEntryRequest) bool {
-			return journalReq.DocumentID == documentID &&
-				journalReq.UserID == deps.user.ID &&
-				journalReq.Action == "CREATE" &&
-				journalReq.Details == "Обращение зарегистрировано. Номер: CA-11"
-		})).Return(uuid.New(), nil).Once()
-
 		result, err := deps.handler.Register(req)
 
 		require.NoError(t, err)
@@ -441,13 +441,6 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 		}
 
 		deps.refRepo.On("FindOrCreateOrganization", "Прокуратура").Return(&models.Organization{ID: correspondentOrgID, Name: "Прокуратура"}, nil).Once()
-		deps.journalRepo.On("Create", context.Background(), mock.MatchedBy(func(journalReq models.CreateJournalEntryRequest) bool {
-			return journalReq.DocumentID == documentID &&
-				journalReq.UserID == deps.user.ID &&
-				journalReq.Action == "UPDATE" &&
-				journalReq.Details == "Обращение отредактировано"
-		})).Return(uuid.New(), nil).Once()
-
 		result, err := deps.handler.Update(req)
 
 		require.NoError(t, err)

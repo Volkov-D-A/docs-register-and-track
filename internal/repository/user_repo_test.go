@@ -77,6 +77,25 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 	})
 }
 
+func TestUserRepositoryIncrementFailedLoginAttemptsWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewUserRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	userID := uuid.New()
+	event := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "user:" + userID.String() + ":locked", Payload: `{}`}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`UPDATE users SET failed_login_attempts`).WithArgs(userID).WillReturnRows(sqlmock.NewRows([]string{"failed_login_attempts", "is_active"}).AddRow(5, false))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	_, _, err = repo.IncrementFailedLoginAttemptsWithOutbox(userID, event)
+	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUserRepository_CreateInitialAdmin(t *testing.T) {
 	t.Run("creates user and admin permission in one transaction", func(t *testing.T) {
 		db, mock, err := sqlmock.New()

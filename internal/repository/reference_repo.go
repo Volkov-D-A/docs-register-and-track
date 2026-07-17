@@ -12,7 +12,25 @@ import (
 
 // ReferenceRepository предоставляет методы для работы со справочниками (типы документов, организации) в БД.
 type ReferenceRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
+}
+
+func (r *ReferenceRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
+
+func (r *ReferenceRepository) execWithOutbox(query string, args []interface{}, effects []models.OutboxEvent) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(query, args...); err != nil {
+		return err
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // NewReferenceRepository создает новый экземпляр ReferenceRepository.
@@ -144,6 +162,9 @@ func (r *ReferenceRepository) UpdateOrganization(id uuid.UUID, name string) erro
 	}
 	return nil
 }
+func (r *ReferenceRepository) UpdateOrganizationWithOutbox(id uuid.UUID, name string, effects []models.OutboxEvent) error {
+	return r.execWithOutbox(`UPDATE organizations SET name = $1 WHERE id = $2`, []interface{}{name, id}, effects)
+}
 
 // DeleteOrganization удаляет организацию.
 func (r *ReferenceRepository) DeleteOrganization(id uuid.UUID) error {
@@ -152,6 +173,9 @@ func (r *ReferenceRepository) DeleteOrganization(id uuid.UUID) error {
 		return fmt.Errorf("failed to delete organization: %w", err)
 	}
 	return nil
+}
+func (r *ReferenceRepository) DeleteOrganizationWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	return r.execWithOutbox(`DELETE FROM organizations WHERE id = $1`, []interface{}{id}, effects)
 }
 
 // MergeOrganizations переносит ссылки с одной организации на другую и удаляет исходную запись.
@@ -206,6 +230,43 @@ func (r *ReferenceRepository) MergeOrganizations(sourceID uuid.UUID, targetID uu
 		return fmt.Errorf("failed to commit organization merge transaction: %w", err)
 	}
 	return nil
+}
+
+func (r *ReferenceRepository) MergeOrganizationsWithOutbox(sourceID, targetID uuid.UUID, effects []models.OutboxEvent) error {
+	if sourceID == targetID {
+		return models.NewBadRequest("нельзя объединить организацию саму с собой")
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin organization merge transaction: %w", err)
+	}
+	defer tx.Rollback()
+	var name string
+	if err := tx.QueryRow(`SELECT name FROM organizations WHERE id = $1 FOR UPDATE`, sourceID).Scan(&name); err != nil {
+		if err == sql.ErrNoRows {
+			return models.NewBadRequest("исходная организация не найдена")
+		}
+		return err
+	}
+	if err := tx.QueryRow(`SELECT name FROM organizations WHERE id = $1 FOR UPDATE`, targetID).Scan(&name); err != nil {
+		if err == sql.ErrNoRows {
+			return models.NewBadRequest("целевая организация не найдена")
+		}
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE document_correspondent_registrations SET correspondent_org_id = $1 WHERE correspondent_org_id = $2`, targetID, sourceID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE outgoing_document_details SET recipient_org_id = $1 WHERE recipient_org_id = $2`, targetID, sourceID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM organizations WHERE id = $1`, sourceID); err != nil {
+		return err
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // === Исполнители резолюции ===
@@ -302,6 +363,9 @@ func (r *ReferenceRepository) UpdateResolutionExecutor(id uuid.UUID, name string
 	}
 	return nil
 }
+func (r *ReferenceRepository) UpdateResolutionExecutorWithOutbox(id uuid.UUID, name string, effects []models.OutboxEvent) error {
+	return r.execWithOutbox(`UPDATE resolution_executors SET name = $1 WHERE id = $2`, []interface{}{name, id}, effects)
+}
 
 // DeleteResolutionExecutor удаляет исполнителя резолюции.
 func (r *ReferenceRepository) DeleteResolutionExecutor(id uuid.UUID) error {
@@ -310,4 +374,7 @@ func (r *ReferenceRepository) DeleteResolutionExecutor(id uuid.UUID) error {
 		return fmt.Errorf("failed to delete resolution executor: %w", err)
 	}
 	return nil
+}
+func (r *ReferenceRepository) DeleteResolutionExecutorWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	return r.execWithOutbox(`DELETE FROM resolution_executors WHERE id = $1`, []interface{}{id}, effects)
 }

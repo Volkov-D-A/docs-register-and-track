@@ -7,8 +7,11 @@ import (
 
 // SettingsRepository предоставляет методы для работы с системными настройками в БД.
 type SettingsRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *SettingsRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 // NewSettingsRepository создает новый экземпляр SettingsRepository.
 func NewSettingsRepository(db *database.DB) *SettingsRepository {
@@ -57,4 +60,20 @@ func (r *SettingsRepository) Update(key, value string) error {
 		SET value = EXCLUDED.value, updated_at = NOW()
 	`, key, value)
 	return err
+}
+
+// UpdateWithOutbox records a setting change and its audit event atomically.
+func (r *SettingsRepository) UpdateWithOutbox(key, value string, effects []models.OutboxEvent) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, key, value); err != nil {
+		return err
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

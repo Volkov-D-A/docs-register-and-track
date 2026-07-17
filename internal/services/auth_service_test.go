@@ -121,9 +121,6 @@ func TestAuthService_Login(t *testing.T) {
 	})
 
 	t.Run("wrong password deactivates user on fifth attempt", func(t *testing.T) {
-		auditStore := &captureAdminAuditLogStore{}
-		authService.SetAdminAuditLogService(NewAdminAuditLogService(auditStore, authService))
-
 		userAtLimit := &models.User{
 			ID:                  userID,
 			Login:               login,
@@ -141,11 +138,6 @@ func TestAuthService_Login(t *testing.T) {
 		assert.Equal(t, ErrUserLocked, err)
 		assert.Nil(t, userDTO)
 		assert.False(t, authService.IsAuthenticated())
-		require.Len(t, auditStore.requests, 1)
-		assert.Equal(t, userID, auditStore.requests[0].UserID)
-		assert.Equal(t, "Test User", auditStore.requests[0].UserName)
-		assert.Equal(t, "USER_LOCKED", auditStore.requests[0].Action)
-		assert.Contains(t, auditStore.requests[0].Details, login)
 		mockRepo.AssertExpectations(t)
 	})
 

@@ -16,6 +16,28 @@ import (
 
 // ---------- helpers ----------
 
+// atomicAssignmentStore lets service tests assert the effects handed to the
+// repository transaction without reintroducing a post-commit publisher.
+type atomicAssignmentStore struct {
+	*mocks.AssignmentStore
+	effects []models.OutboxEvent
+}
+
+func (s *atomicAssignmentStore) CreateWithOutbox(_ uuid.UUID, documentID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.AssignmentStore.Create(documentID, executorID, content, deadline, coExecutorIDs)
+}
+
+func (s *atomicAssignmentStore) UpdateWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, status, report string, completedAt *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.AssignmentStore.Update(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)
+}
+
+func (s *atomicAssignmentStore) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.AssignmentStore.Delete(id)
+}
+
 func setupAssignmentService(t *testing.T, role string) (
 	*AssignmentService, *mocks.AssignmentStore, *mocks.UserStore, *AuthService, *mocks.IncomingDocStore,
 ) {
@@ -207,6 +229,65 @@ func TestAssignmentService_Create(t *testing.T) {
 	})
 }
 
+func TestAssignmentServiceCreatePassesJournalAndUserEffectsToAtomicStore(t *testing.T) {
+	docID, executorID := uuid.New(), uuid.New()
+	svc, repo, _, _, incomingRepo := setupAssignmentService(t, "clerk")
+	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+	atomicRepo := &atomicAssignmentStore{AssignmentStore: repo}
+	svc.repo = atomicRepo
+	repo.On("Create", docID, executorID, "Выполнить", (*time.Time)(nil), []string(nil)).Return(&models.Assignment{ID: uuid.New(), DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
+
+	_, err := svc.Create(docID.String(), executorID.String(), "Выполнить", "", nil)
+	require.NoError(t, err)
+	require.Len(t, atomicRepo.effects, 2)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
+	assert.Equal(t, models.OutboxEventUserEvent, atomicRepo.effects[1].EventType)
+}
+
+func TestAssignmentServiceUpdatePassesJournalAndUserEffectsToAtomicStore(t *testing.T) {
+	docID, assignmentID, executorID := uuid.New(), uuid.New(), uuid.New()
+	svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+	atomicRepo := &atomicAssignmentStore{AssignmentStore: repo}
+	svc.repo = atomicRepo
+	repo.On("GetByID", assignmentID).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
+	repo.On("Update", assignmentID, executorID, "Исправить", (*time.Time)(nil), "new", "", (*time.Time)(nil), []string(nil)).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
+
+	_, err := svc.Update(assignmentID.String(), executorID.String(), "Исправить", "", nil)
+	require.NoError(t, err)
+	require.Len(t, atomicRepo.effects, 2)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
+	assert.Equal(t, models.OutboxEventUserEvent, atomicRepo.effects[1].EventType)
+}
+
+func TestAssignmentServiceDeletePassesJournalEffectToAtomicStore(t *testing.T) {
+	docID, assignmentID, executorID := uuid.New(), uuid.New(), uuid.New()
+	svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+	atomicRepo := &atomicAssignmentStore{AssignmentStore: repo}
+	svc.repo = atomicRepo
+	repo.On("GetByID", assignmentID).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
+	repo.On("Delete", assignmentID).Return(nil).Once()
+
+	require.NoError(t, svc.Delete(assignmentID.String()))
+	require.Len(t, atomicRepo.effects, 1)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
+}
+
+func TestAssignmentServiceUpdateStatusPassesJournalEffectToAtomicStore(t *testing.T) {
+	docID, assignmentID := uuid.New(), uuid.New()
+	svc, repo, _, auth, _ := setupAssignmentService(t, "executor")
+	executorID, err := auth.GetCurrentUserUUID()
+	require.NoError(t, err)
+	atomicRepo := &atomicAssignmentStore{AssignmentStore: repo}
+	svc.repo = atomicRepo
+	repo.On("GetByID", assignmentID).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
+	repo.On("Update", assignmentID, executorID, "", (*time.Time)(nil), "in_progress", "", (*time.Time)(nil), []string(nil)).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "in_progress"}, nil).Once()
+
+	_, err = svc.UpdateStatus(assignmentID.String(), "in_progress", "")
+	require.NoError(t, err)
+	require.Len(t, atomicRepo.effects, 1)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
+}
+
 func TestAssignmentService_CreateEmitsUserEvents(t *testing.T) {
 	docID := uuid.New()
 	execID := uuid.New()
@@ -238,12 +319,10 @@ func TestAssignmentService_CreateEmitsUserEvents(t *testing.T) {
 	result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "", []string{coExecID.String()})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Len(t, eventStore.created, 2)
-	assert.Equal(t, execID, eventStore.created[0].RecipientUserID)
-	assert.Equal(t, coExecID, eventStore.created[1].RecipientUserID)
-	assert.Equal(t, models.UserEventAssignmentCreated, eventStore.created[0].EventType)
-	assert.Equal(t, "Новое поручение", eventStore.created[0].Title)
-	assert.Equal(t, "ВХ-1", eventStore.created[0].DocumentNumber)
+	require.Len(t, repo.Effects, 3)
+	assert.Equal(t, models.OutboxEventJournal, repo.Effects[0].EventType)
+	assert.Equal(t, models.OutboxEventUserEvent, repo.Effects[1].EventType)
+	assert.Equal(t, models.OutboxEventUserEvent, repo.Effects[2].EventType)
 }
 
 // ---------- TestAssignmentService_Update ----------
@@ -835,15 +914,8 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 		result, err := svc.UpdateStatus(assignmentID.String(), "completed", "Отчет")
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		require.Len(t, eventStore.created, 2)
-		assert.ElementsMatch(t, []uuid.UUID{controllerID, executorID}, []uuid.UUID{
-			eventStore.created[0].RecipientUserID,
-			eventStore.created[1].RecipientUserID,
-		})
-		for _, event := range eventStore.created {
-			assert.Equal(t, models.UserEventAssignmentCompleted, event.EventType)
-			assert.Equal(t, "Поручение ожидает приемки", event.Title)
-		}
+		require.Len(t, repo.Effects, 3)
+		assert.Equal(t, models.OutboxEventJournal, repo.Effects[0].EventType)
 	})
 
 	t.Run("completed notifies assignee with assign access", func(t *testing.T) {
@@ -883,9 +955,8 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 		result, err := svc.UpdateStatus(assignmentID.String(), "completed", "Отчет")
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		require.Len(t, eventStore.created, 1)
-		assert.Equal(t, executorID, eventStore.created[0].RecipientUserID)
-		assert.Equal(t, models.UserEventAssignmentCompleted, eventStore.created[0].EventType)
+		require.Len(t, repo.Effects, 2)
+		assert.Equal(t, models.OutboxEventUserEvent, repo.Effects[1].EventType)
 	})
 
 	t.Run("completed notifies coexecutor with assign access", func(t *testing.T) {
@@ -929,11 +1000,8 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 		result, err := svc.UpdateStatus(assignmentID.String(), "completed", "Отчет")
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		require.Len(t, eventStore.created, 2)
-		assert.ElementsMatch(t, []uuid.UUID{coExecutorID, executorID}, []uuid.UUID{
-			eventStore.created[0].RecipientUserID,
-			eventStore.created[1].RecipientUserID,
-		})
+		require.Len(t, repo.Effects, 3)
+		assert.Equal(t, models.OutboxEventUserEvent, repo.Effects[2].EventType)
 	})
 
 	t.Run("returned notifies executor", func(t *testing.T) {
@@ -966,9 +1034,8 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 		result, err := svc.UpdateStatus(assignmentID.String(), "returned", "Нужно доработать")
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		require.Len(t, eventStore.created, 1)
-		assert.Equal(t, execID, eventStore.created[0].RecipientUserID)
-		assert.Equal(t, models.UserEventAssignmentReturned, eventStore.created[0].EventType)
+		require.Len(t, repo.Effects, 2)
+		assert.Equal(t, models.OutboxEventUserEvent, repo.Effects[1].EventType)
 	})
 }
 

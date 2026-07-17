@@ -1,14 +1,12 @@
 package services
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
@@ -61,6 +59,10 @@ func (s *administrativeOrderServiceStore) MarkAcknowledgmentPerson(id uuid.UUID,
 	return s.marked, nil
 }
 
+func (s *administrativeOrderServiceStore) MarkAcknowledgmentPersonWithOutbox(id uuid.UUID, acknowledgedBy uuid.UUID, _ []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
+	return s.MarkAcknowledgmentPerson(id, acknowledgedBy)
+}
+
 func (s *administrativeOrderServiceStore) CancelByLink(id uuid.UUID, cancelledAt time.Time) error {
 	return nil
 }
@@ -101,7 +103,7 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 		documentID := uuid.New()
 		personID := uuid.New()
 		now := time.Now()
-		svc, store, docRepo, journalRepo, user := setupAdministrativeOrderService(
+		svc, store, docRepo, _, user := setupAdministrativeOrderService(
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
 		)
@@ -119,13 +121,6 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 			AcknowledgedBy:     &user.ID,
 			AcknowledgedByName: "Текущий пользователь",
 		}
-		journalRepo.On("Create", mock.Anything, mock.MatchedBy(func(req models.CreateJournalEntryRequest) bool {
-			return req.DocumentID == documentID &&
-				req.UserID == user.ID &&
-				req.Action == "ORDER_ACKNOWLEDGE" &&
-				req.Details == "Ознакомлен: Иван Иванов"
-		})).Return(uuid.New(), nil).Once()
-
 		result, err := svc.MarkAcknowledged(personID.String())
 
 		require.NoError(t, err)
@@ -200,7 +195,7 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 }
 
 func TestAdministrativeOrderService_MarkAcknowledged_JournalContext(t *testing.T) {
-	svc, store, docRepo, journalRepo, _ := setupAdministrativeOrderService(
+	svc, store, docRepo, _, _ := setupAdministrativeOrderService(
 		t,
 		allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
 	)
@@ -209,9 +204,6 @@ func TestAdministrativeOrderService_MarkAcknowledged_JournalContext(t *testing.T
 	docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder)
 	store.person = &models.AdministrativeOrderAcknowledgmentPerson{ID: personID, DocumentID: documentID, FullName: "Петр Петров"}
 	store.marked = store.person
-	journalRepo.On("Create", mock.MatchedBy(func(ctx context.Context) bool { return ctx != nil }), mock.Anything).
-		Return(uuid.New(), nil).Once()
-
 	result, err := svc.MarkAcknowledged(personID.String())
 
 	require.NoError(t, err)

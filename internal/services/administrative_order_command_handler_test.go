@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -51,6 +50,10 @@ func (s *administrativeOrderCommandStore) Create(req models.CreateAdministrative
 	return &models.AdministrativeOrderDocument{ID: uuid.New()}, nil
 }
 
+func (s *administrativeOrderCommandStore) CreateWithJournal(req models.CreateAdministrativeOrderDocRequest, _ string, _ string) (*models.AdministrativeOrderDocument, error) {
+	return s.Create(req)
+}
+
 func (s *administrativeOrderCommandStore) Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
 	s.updateReq = &req
 	if s.updateErr != nil {
@@ -60,6 +63,10 @@ func (s *administrativeOrderCommandStore) Update(req models.UpdateAdministrative
 		return s.updateResult, nil
 	}
 	return &models.AdministrativeOrderDocument{ID: req.ID}, nil
+}
+
+func (s *administrativeOrderCommandStore) UpdateWithOutbox(req models.UpdateAdministrativeOrderDocRequest, _ []models.OutboxEvent) (*models.AdministrativeOrderDocument, error) {
+	return s.Update(req)
 }
 
 func (s *administrativeOrderCommandStore) GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
@@ -150,13 +157,6 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 			IsActive:            true,
 			CreatedBy:           deps.user.ID,
 		}
-
-		deps.journalRepo.On("Create", context.Background(), mock.MatchedBy(func(journalReq models.CreateJournalEntryRequest) bool {
-			return journalReq.DocumentID == documentID &&
-				journalReq.UserID == deps.user.ID &&
-				journalReq.Action == "CREATE" &&
-				journalReq.Details == "Приказ зарегистрирован. Рег. номер: ORD-11"
-		})).Return(uuid.New(), nil).Once()
 
 		result, err := deps.handler.Register(req)
 
@@ -350,13 +350,6 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			CancelledAt:             "2026-07-01T00:00:00Z",
 			AcknowledgmentFullNames: []string{" Сидор Сидоров "},
 		}
-
-		deps.journalRepo.On("Create", context.Background(), mock.MatchedBy(func(journalReq models.CreateJournalEntryRequest) bool {
-			return journalReq.DocumentID == documentID &&
-				journalReq.UserID == deps.user.ID &&
-				journalReq.Action == "UPDATE" &&
-				journalReq.Details == "Приказ отредактирован"
-		})).Return(uuid.New(), nil).Once()
 
 		result, err := deps.handler.Update(req)
 

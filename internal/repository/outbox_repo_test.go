@@ -27,6 +27,16 @@ func TestOutboxRepositoryEnqueueTx(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestEnqueueOutboxEffectsRequiresConfiguredOutbox(t *testing.T) {
+	err := enqueueOutboxEffects(nil, nil, []models.OutboxEvent{{
+		EventType:        models.OutboxEventJournal,
+		DeduplicationKey: "required-effect",
+		Payload:          `{}`,
+	}})
+	require.ErrorIs(t, err, ErrOutboxNotConfigured)
+	require.NoError(t, enqueueOutboxEffects(nil, nil, nil))
+}
+
 func TestOutboxRepositoryClaimPending(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)

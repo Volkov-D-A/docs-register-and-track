@@ -14,8 +14,11 @@ import (
 
 // CitizenAppealRepository предоставляет методы для работы с обращениями граждан в БД.
 type CitizenAppealRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *CitizenAppealRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 // NewCitizenAppealRepository создает новый экземпляр CitizenAppealRepository.
 func NewCitizenAppealRepository(db *database.DB) *CitizenAppealRepository {
@@ -359,6 +362,12 @@ func (r *CitizenAppealRepository) GetByID(id uuid.UUID) (*models.CitizenAppealDo
 
 // Create создает новое обращения граждан в базе данных.
 func (r *CitizenAppealRepository) Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
+	return r.create(req, nil, "", "")
+}
+func (r *CitizenAppealRepository) CreateWithJournal(req models.CreateCitizenAppealDocRequest, action, detailsFormat string) (*models.CitizenAppealDocument, error) {
+	return r.create(req, nil, action, detailsFormat)
+}
+func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.CitizenAppealDocument, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -432,6 +441,18 @@ func (r *CitizenAppealRepository) Create(req models.CreateCitizenAppealDocReques
 	if err := replaceResolutions(tx, id, req.Resolutions); err != nil {
 		return nil, err
 	}
+	if journalAction != "" {
+		if r.outbox == nil {
+			return nil, fmt.Errorf("outbox repository is required for document journal")
+		}
+		payload := fmt.Sprintf(`{"documentId":"%s","userId":"%s","action":%q,"details":%q}`, id, req.CreatedBy, journalAction, fmt.Sprintf(journalDetailsFormat, req.RegistrationNumber))
+		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "citizen-appeal:" + id.String() + ":create:journal", Payload: payload}); err != nil {
+			return nil, err
+		}
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
@@ -442,6 +463,12 @@ func (r *CitizenAppealRepository) Create(req models.CreateCitizenAppealDocReques
 
 // Update обновляет данные существующего обращения граждан.
 func (r *CitizenAppealRepository) Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
+	return r.update(req, nil)
+}
+func (r *CitizenAppealRepository) UpdateWithOutbox(req models.UpdateCitizenAppealDocRequest, effects []models.OutboxEvent) (*models.CitizenAppealDocument, error) {
+	return r.update(req, effects)
+}
+func (r *CitizenAppealRepository) update(req models.UpdateCitizenAppealDocRequest, effects []models.OutboxEvent) (*models.CitizenAppealDocument, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -494,6 +521,9 @@ func (r *CitizenAppealRepository) Update(req models.UpdateCitizenAppealDocReques
 		return nil, err
 	}
 	if err := replaceResolutions(tx, req.ID, req.Resolutions); err != nil {
+		return nil, err
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
 		return nil, err
 	}
 

@@ -49,6 +49,12 @@ type OutgoingLetterCommandHandler struct {
 	journal *JournalService
 	access  *DocumentAccessService
 }
+type outgoingDocumentOutboxStore interface {
+	UpdateWithOutbox(models.UpdateOutgoingDocRequest, []models.OutboxEvent) (*models.OutgoingDocument, error)
+}
+type outgoingDocumentJournalStore interface {
+	CreateWithJournal(models.CreateOutgoingDocRequest, string, string) (*models.OutgoingDocument, error)
+}
 
 // Kind возвращает системный вид документа, поддерживаемый handler'ом.
 func (h *OutgoingLetterCommandHandler) Kind() models.DocumentKind {
@@ -119,7 +125,7 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 		return nil, err
 	}
 
-	res, err := h.repo.Create(models.CreateOutgoingDocRequest{
+	createReq := models.CreateOutgoingDocRequest{
 		NomenclatureID:      nomID,
 		IdempotencyKey:      idempotencyKey,
 		AdminNumberOverride: adminOverride,
@@ -133,15 +139,13 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 		SenderSignatory:     req.SenderSignatory,
 		SenderExecutor:      req.SenderExecutor,
 		Addressee:           req.Addressee,
-	})
-	if err == nil {
-		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
-			DocumentID: res.ID,
-			UserID:     createdBy,
-			Action:     "CREATE",
-			Details:    fmt.Sprintf("Документ зарегистрирован. Рег. номер: %s", res.OutgoingNumber),
-		})
 	}
+	var res *models.OutgoingDocument
+	store, ok := h.repo.(outgoingDocumentJournalStore)
+	if !ok {
+		return nil, fmt.Errorf("outgoing document store must support atomic journal operations")
+	}
+	res, err = store.CreateWithJournal(createReq, "CREATE", "Документ зарегистрирован. Рег. номер: %s")
 	return dto.MapOutgoingDocument(res), err
 }
 
@@ -184,7 +188,7 @@ func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 		return nil, fmt.Errorf("ошибка организации получателя: %w", err)
 	}
 
-	res, err := h.repo.Create(models.CreateOutgoingDocRequest{
+	createReq := models.CreateOutgoingDocRequest{
 		NomenclatureID:      nomID,
 		IdempotencyKey:      uuid.New(),
 		AdminNumberOverride: adminOverride,
@@ -197,15 +201,13 @@ func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 		SenderSignatory:     adminDraftPlaceholder,
 		SenderExecutor:      adminDraftPlaceholder,
 		Addressee:           adminDraftPlaceholder,
-	})
-	if err == nil {
-		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
-			DocumentID: res.ID,
-			UserID:     createdBy,
-			Action:     "ADMIN_DRAFT_CREATE",
-			Details:    fmt.Sprintf("Создан административный черновик. Рег. номер: %s", res.OutgoingNumber),
-		})
 	}
+	var res *models.OutgoingDocument
+	store, ok := h.repo.(outgoingDocumentJournalStore)
+	if !ok {
+		return nil, fmt.Errorf("outgoing document store must support atomic journal operations")
+	}
+	res, err = store.CreateWithJournal(createReq, "ADMIN_DRAFT_CREATE", "Создан административный черновик. Рег. номер: %s")
 	return dto.MapOutgoingDocument(res), err
 }
 
@@ -233,7 +235,7 @@ func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (
 		return nil, models.NewBadRequest("неверный формат даты исходящего документа")
 	}
 
-	res, err := h.repo.Update(models.UpdateOutgoingDocRequest{
+	updateReq := models.UpdateOutgoingDocRequest{
 		ID:              uid,
 		DocumentTypeID:  docTypeID,
 		RecipientOrgID:  recipientOrg.ID,
@@ -243,16 +245,18 @@ func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (
 		SenderSignatory: req.SenderSignatory,
 		SenderExecutor:  req.SenderExecutor,
 		Addressee:       req.Addressee,
-	})
-	if err == nil {
-		currentUserID, _ := h.auth.GetCurrentUserUUID()
-		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
-			DocumentID: uid,
-			UserID:     currentUserID,
-			Action:     "UPDATE",
-			Details:    "Документ отредактирован",
-		})
 	}
+	var res *models.OutgoingDocument
+	store, ok := h.repo.(outgoingDocumentOutboxStore)
+	if !ok {
+		return nil, fmt.Errorf("outgoing document store must support atomic outbox operations")
+	}
+	currentUserID, _ := h.auth.GetCurrentUserUUID()
+	event, buildErr := NewJournalOutboxEvent("outgoing:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Документ отредактирован"})
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	res, err = store.UpdateWithOutbox(updateReq, []models.OutboxEvent{event})
 	return dto.MapOutgoingDocument(res), err
 }
 

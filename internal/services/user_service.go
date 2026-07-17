@@ -3,6 +3,8 @@ package services
 import (
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
@@ -13,6 +15,18 @@ type UserService struct {
 	userRepo     UserStore
 	auth         *AuthService
 	auditService *AdminAuditLogService
+}
+type userOutboxStore interface {
+	CreateWithOutbox(models.CreateUserRequest, []models.OutboxEvent) (*models.User, error)
+	UpdateWithOutbox(models.UpdateUserRequest, []models.OutboxEvent) (*models.User, error)
+	ResetPasswordWithOutbox(uuid.UUID, string, []models.OutboxEvent) error
+}
+
+var errUserOutboxStoreRequired = fmt.Errorf("user store must support atomic outbox operations")
+
+func (s *UserService) auditEffect(key, action, details string) (models.OutboxEvent, error) {
+	userID, userName := s.auth.GetCurrentAuditInfo()
+	return NewAdminAuditOutboxEvent(key, models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: action, Details: details})
 }
 
 // NewUserService создает новый экземпляр UserService.
@@ -50,13 +64,21 @@ func (s *UserService) CreateUser(req models.CreateUserRequest) (*dto.User, error
 	}
 	req.PasswordChangeRequired = true
 
-	res, err := s.userRepo.Create(req)
+	details := fmt.Sprintf("Создан пользователь «%s» (%s)", req.FullName, req.Login)
+	var res *models.User
+	var err error
+	store, ok := s.userRepo.(userOutboxStore)
+	if !ok {
+		return nil, errUserOutboxStoreRequired
+	}
+	event, buildErr := s.auditEffect("user:"+uuid.NewString()+":create", "USER_CREATE", details)
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	res, err = store.CreateWithOutbox(req, []models.OutboxEvent{event})
 	if err != nil {
 		return nil, err
 	}
-
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "USER_CREATE", fmt.Sprintf("Создан пользователь «%s» (%s)", req.FullName, req.Login))
 
 	userDTO := dto.MapUser(res)
 	userDTO.TemporaryPassword = temporaryPassword
@@ -68,13 +90,21 @@ func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*dto.User, error
 	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
-	res, err := s.userRepo.Update(req)
+	details := fmt.Sprintf("Обновлен пользователь «%s»", req.FullName)
+	var res *models.User
+	var err error
+	store, ok := s.userRepo.(userOutboxStore)
+	if !ok {
+		return nil, errUserOutboxStoreRequired
+	}
+	event, buildErr := s.auditEffect("user:"+req.ID+":update:"+uuid.NewString(), "USER_UPDATE", details)
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	res, err = store.UpdateWithOutbox(req, []models.OutboxEvent{event})
 	if err != nil {
 		return nil, activeAdministratorInvariantConflict(err)
 	}
-
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "USER_UPDATE", fmt.Sprintf("Обновлен пользователь «%s»", req.FullName))
 
 	return dto.MapUser(res), nil
 }
@@ -98,17 +128,24 @@ func (s *UserService) ResetPassword(userID string, newPassword string) error {
 		return models.NewNotFound("пользователь не найден")
 	}
 
-	if err := s.userRepo.ResetPassword(uid, newPassword); err != nil {
-		return err
-	}
-
 	targetUserName := user.FullName
 	if targetUserName == "" {
 		targetUserName = user.Login
 	}
+	details := fmt.Sprintf("Сброшен пароль пользователя «%s»", targetUserName)
+	store, ok := s.userRepo.(userOutboxStore)
+	if !ok {
+		return errUserOutboxStoreRequired
+	}
+	event, buildErr := s.auditEffect("user:"+uid.String()+":password-reset:"+uuid.NewString(), "USER_PASSWORD_RESET", details)
+	if buildErr != nil {
+		return buildErr
+	}
+	err = store.ResetPasswordWithOutbox(uid, newPassword, []models.OutboxEvent{event})
+	if err != nil {
+		return err
+	}
 
-	adminID, adminName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(adminID, adminName, "USER_PASSWORD_RESET", fmt.Sprintf("Сброшен пароль пользователя «%s»", targetUserName))
 	return nil
 }
 

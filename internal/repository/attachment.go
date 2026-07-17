@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"time"
@@ -24,8 +25,16 @@ func (r *AttachmentRepository) OutboxEnabled() bool                { return r.ou
 // cleanup. The consumer may safely retry because DeleteFile and DeleteMarked
 // are both idempotent for an already marked row.
 func (r *AttachmentRepository) MarkDeletingWithOutbox(attachment models.Attachment) error {
+	return r.markDeletingWithOutbox(attachment, nil)
+}
+
+func (r *AttachmentRepository) MarkDeletingWithEffects(attachment models.Attachment, effects []models.OutboxEvent) error {
+	return r.markDeletingWithOutbox(attachment, effects)
+}
+
+func (r *AttachmentRepository) markDeletingWithOutbox(attachment models.Attachment, effects []models.OutboxEvent) error {
 	if r.outbox == nil {
-		return r.MarkDeleting(attachment.ID)
+		return ErrOutboxNotConfigured
 	}
 	payload, err := json.Marshal(models.AttachmentDeletePayload{AttachmentID: attachment.ID, StoragePath: attachment.StoragePath})
 	if err != nil {
@@ -47,6 +56,11 @@ func (r *AttachmentRepository) MarkDeletingWithOutbox(attachment models.Attachme
 	}); err != nil {
 		return err
 	}
+	for _, effect := range effects {
+		if err := r.outbox.EnqueueTx(tx, effect); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 
@@ -63,6 +77,21 @@ func (r *AttachmentRepository) Create(a *models.Attachment) error {
 		RETURNING id, uploaded_at`,
 		a.DocumentID, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy,
 	).Scan(&a.ID, &a.UploadedAt)
+}
+
+func (r *AttachmentRepository) CreateWithOutbox(a *models.Attachment, effects []models.OutboxEvent) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := tx.QueryRow(`INSERT INTO attachments (document_id, filename, storage_path, file_size, content_type, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, uploaded_at`, a.DocumentID, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy).Scan(&a.ID, &a.UploadedAt); err != nil {
+		return err
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // MarkDeleting durable records the intent to delete before the object is
@@ -83,6 +112,44 @@ func (r *AttachmentRepository) MarkDeletingMultiple(ids []uuid.UUID) error {
 		SET deletion_requested_at = CURRENT_TIMESTAMP
 		WHERE id = ANY($1) AND deletion_requested_at IS NULL`, pq.Array(ids))
 	return err
+}
+
+// MarkDeletingMultipleWithOutbox makes the whole batch visible as deleting,
+// schedules every object cleanup and records the administrative audit together.
+func (r *AttachmentRepository) MarkDeletingMultipleWithOutbox(attachments []models.Attachment, effects []models.OutboxEvent) error {
+	if len(attachments) == 0 {
+		return nil
+	}
+	if r.outbox == nil {
+		return fmt.Errorf("outbox repository is required for bulk attachment deletion")
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	ids := make([]uuid.UUID, 0, len(attachments))
+	for _, attachment := range attachments {
+		ids = append(ids, attachment.ID)
+	}
+	if _, err := tx.Exec(`UPDATE attachments SET deletion_requested_at = CURRENT_TIMESTAMP WHERE id = ANY($1) AND deletion_requested_at IS NULL`, pq.Array(ids)); err != nil {
+		return err
+	}
+	for _, attachment := range attachments {
+		payload, err := json.Marshal(models.AttachmentDeletePayload{AttachmentID: attachment.ID, StoragePath: attachment.StoragePath})
+		if err != nil {
+			return err
+		}
+		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventFileDelete, DeduplicationKey: "attachment:" + attachment.ID.String() + ":delete", Payload: string(payload)}); err != nil {
+			return err
+		}
+	}
+	for _, effect := range effects {
+		if err := r.outbox.EnqueueTx(tx, effect); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // DeleteMarked removes only an attachment whose durable deletion intent was

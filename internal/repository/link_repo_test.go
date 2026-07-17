@@ -44,6 +44,36 @@ func TestLinkRepository_Create(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestLinkRepositoryCreateWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewLinkRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
+	link := &models.DocumentLink{ID: uuid.New(), SourceID: uuid.New(), TargetID: uuid.New(), LinkType: "reply", CreatedBy: uuid.New()}
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "link:" + link.ID.String(), Payload: `{"action":"LINK_CREATE"}`}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO document_links`).
+		WithArgs(link.ID, link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Now()))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	err = repo.CreateWithOutbox(context.Background(), link, []models.OutboxEvent{event})
+	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestLinkRepositoryAtomicMethodsRequireOutbox(t *testing.T) {
+	repo := NewLinkRepository(nil)
+	link := &models.DocumentLink{ID: uuid.New()}
+	require.ErrorIs(t, repo.CreateWithOutbox(context.Background(), link, nil), ErrOutboxNotConfigured)
+	require.ErrorIs(t, repo.CreateAndCancelOrderWithOutbox(context.Background(), link, nil), ErrOutboxNotConfigured)
+	require.ErrorIs(t, repo.DeleteWithOutbox(context.Background(), uuid.New(), nil), ErrOutboxNotConfigured)
+}
+
 func TestLinkRepository_CreateAndCancelOrder(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -66,6 +96,35 @@ func TestLinkRepository_CreateAndCancelOrder(t *testing.T) {
 
 	err = repo.CreateAndCancelOrder(context.Background(), link)
 	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestLinkRepositoryCreateAndCancelOrderWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewLinkRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
+	link := &models.DocumentLink{ID: uuid.New(), SourceID: uuid.New(), TargetID: uuid.New(), LinkType: "order_cancels", CreatedBy: uuid.New()}
+	createdAt := time.Now()
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "link:" + link.ID.String(), Payload: `{"action":"LINK_CREATE"}`}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO document_links`).
+		WithArgs(link.ID, link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(createdAt))
+	mock.ExpectExec(`UPDATE documents d`).
+		WithArgs(link.TargetID, models.DocumentKindAdministrativeOrder, createdAt).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE administrative_order_details`).
+		WithArgs(link.TargetID, createdAt).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	err = repo.CreateAndCancelOrderWithOutbox(context.Background(), link, []models.OutboxEvent{event})
+	require.ErrorIs(t, err, assert.AnError)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

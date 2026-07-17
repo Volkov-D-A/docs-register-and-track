@@ -150,7 +150,7 @@ func TestDB_MigratorCloseKeepsSharedDatabaseOpen(t *testing.T) {
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	total, err := countAvailableMigrations(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 14, total)
+	assert.Equal(t, 15, total)
 }
 
 func TestActiveAdministratorInvariantMigration(t *testing.T) {

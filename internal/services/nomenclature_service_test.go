@@ -37,7 +37,7 @@ func setupNomenclatureService(t *testing.T, role string) (*NomenclatureService, 
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
-	svc := NewNomenclatureService(nomRepo, auth, nil)
+	svc := NewNomenclatureService(&atomicNomenclatureStore{NomenclatureStore: nomRepo}, auth, nil)
 	return svc, nomRepo, auth
 }
 
@@ -61,7 +61,27 @@ func setupNomenclatureServiceWithRoles(t *testing.T, roles []string) (*Nomenclat
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewNomenclatureService(nomRepo, auth, nil), nomRepo, auth
+	return NewNomenclatureService(&atomicNomenclatureStore{NomenclatureStore: nomRepo}, auth, nil), nomRepo, auth
+}
+
+type atomicNomenclatureStore struct {
+	*mocks.NomenclatureStore
+	effects []models.OutboxEvent
+}
+
+func (s *atomicNomenclatureStore) CreateWithOutbox(name, index string, year int, kindCode, separator, numberingMode string, startNumber int, effects []models.OutboxEvent) (*models.Nomenclature, error) {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.NomenclatureStore.Create(name, index, year, kindCode, separator, numberingMode, startNumber)
+}
+
+func (s *atomicNomenclatureStore) UpdateWithOutbox(id uuid.UUID, name, index string, year int, kindCode, separator, numberingMode string, isActive bool, effects []models.OutboxEvent) (*models.Nomenclature, error) {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.NomenclatureStore.Update(id, name, index, year, kindCode, separator, numberingMode, isActive)
+}
+
+func (s *atomicNomenclatureStore) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.NomenclatureStore.Delete(id)
 }
 
 func TestNomenclatureService_GetAll(t *testing.T) {
@@ -179,6 +199,17 @@ func TestNomenclatureService_Create(t *testing.T) {
 		assert.Contains(t, err.Error(), "db create error")
 		assert.Nil(t, result)
 	})
+}
+
+func TestNomenclatureServiceCreatePassesAuditEffectToAtomicStore(t *testing.T) {
+	svc, repo, _ := setupNomenclatureService(t, "admin")
+	repo.On("Create", "Тест", "01-01", 2026, "incoming_letter", "/", "index_and_number", 1).Return(&models.Nomenclature{ID: uuid.New(), Name: "Тест"}, nil).Once()
+
+	_, err := svc.Create("Тест", "01-01", 2026, "incoming_letter", "/", "index_and_number", 1)
+	require.NoError(t, err)
+	atomicRepo := svc.repo.(*atomicNomenclatureStore)
+	require.Len(t, atomicRepo.effects, 1)
+	assert.Equal(t, models.OutboxEventAudit, atomicRepo.effects[0].EventType)
 }
 
 func TestNomenclatureService_Update(t *testing.T) {

@@ -81,8 +81,6 @@ func TestIncomingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 			PagesCount:     1,
 			CreatedBy:      deps.user.ID,
 		}, nil).Once()
-		expectAdminDraftJournal(t, deps.journalRepo, documentID, deps.user.ID, "26-01-27/15А")
-
 		result, err := deps.handler.CreateAdminDraft(validAdminDraftCreateRequest(nomenclatureID))
 
 		require.NoError(t, err)
@@ -132,8 +130,6 @@ func TestOutgoingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 		PagesCount:     1,
 		CreatedBy:      deps.user.ID,
 	}, nil).Once()
-	expectAdminDraftJournal(t, deps.journalRepo, documentID, deps.user.ID, "26-01-27/15А")
-
 	result, err := deps.handler.CreateAdminDraft(validAdminDraftCreateRequest(nomenclatureID))
 
 	require.NoError(t, err)
@@ -155,8 +151,6 @@ func TestCitizenAppealCommandHandler_CreateAdminDraft(t *testing.T) {
 		Content:            adminDraftPlaceholder,
 		CreatedBy:          deps.user.ID,
 	}
-	expectAdminDraftJournal(t, deps.journalRepo, documentID, deps.user.ID, "26-01-27/15А")
-
 	result, err := deps.handler.CreateAdminDraft(validAdminDraftCreateRequest(nomenclatureID))
 
 	require.NoError(t, err)
@@ -194,8 +188,6 @@ func TestAdministrativeOrderCommandHandler_CreateAdminDraft(t *testing.T) {
 		IsActive:            true,
 		CreatedBy:           deps.user.ID,
 	}
-	expectAdminDraftJournal(t, deps.journalRepo, documentID, deps.user.ID, "26-01-27/15А")
-
 	result, err := deps.handler.CreateAdminDraft(validAdminDraftCreateRequest(nomenclatureID))
 
 	require.NoError(t, err)

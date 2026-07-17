@@ -17,6 +17,11 @@ type UserSubstitutionService struct {
 	auth         *AuthService
 	auditService *AdminAuditLogService
 }
+type userSubstitutionOutboxStore interface {
+	ReplaceForPrincipalWithOutbox(uuid.UUID, *uuid.UUID, *time.Time, *time.Time, bool, *uuid.UUID, []models.OutboxEvent) (*models.UserSubstitution, error)
+}
+
+var errUserSubstitutionOutboxStoreRequired = fmt.Errorf("user substitution store must support atomic outbox operations")
 
 // NewUserSubstitutionService создает сервис замещений.
 func NewUserSubstitutionService(repo UserSubstitutionStore, userRepo UserStore, auth *AuthService, auditService *AdminAuditLogService) *UserSubstitutionService {
@@ -98,7 +103,21 @@ func (s *UserSubstitutionService) saveForPrincipal(principalID uuid.UUID, req mo
 		return nil, models.NewNotFound("пользователь не найден")
 	}
 	if req.SubstituteUserID == "" {
-		res, err := s.repo.ReplaceForPrincipal(principalID, nil, nil, nil, false, nil)
+		var res *models.UserSubstitution
+		if requireAdmin {
+			store, ok := s.repo.(userSubstitutionOutboxStore)
+			if !ok {
+				return nil, errUserSubstitutionOutboxStoreRequired
+			}
+			actorID, actorName := s.auth.GetCurrentAuditInfo()
+			event, buildErr := NewAdminAuditOutboxEvent("user-substitution:"+principalID.String()+":clear", models.CreateAdminAuditLogRequest{UserID: actorID, UserName: actorName, Action: "USER_SUBSTITUTION_UPDATE", Details: fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName)})
+			if buildErr != nil {
+				return nil, buildErr
+			}
+			res, err = store.ReplaceForPrincipalWithOutbox(principalID, nil, nil, nil, false, nil, []models.OutboxEvent{event})
+		} else {
+			res, err = s.repo.ReplaceForPrincipal(principalID, nil, nil, nil, false, nil)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -118,15 +137,25 @@ func (s *UserSubstitutionService) saveForPrincipal(principalID uuid.UUID, req mo
 	if actorID != uuid.Nil {
 		createdBy = &actorID
 	}
-	res, err := s.repo.ReplaceForPrincipal(principalID, substituteID, startsAt, endsAt, req.IsActive, createdBy)
+	var res *models.UserSubstitution
+	if requireAdmin {
+		store, ok := s.repo.(userSubstitutionOutboxStore)
+		if !ok {
+			return nil, errUserSubstitutionOutboxStoreRequired
+		}
+		details := fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName)
+		event, buildErr := NewAdminAuditOutboxEvent("user-substitution:"+principalID.String()+":update:"+uuid.NewString(), models.CreateAdminAuditLogRequest{UserID: actorID, UserName: actorName, Action: "USER_SUBSTITUTION_UPDATE", Details: details})
+		if buildErr != nil {
+			return nil, buildErr
+		}
+		res, err = store.ReplaceForPrincipalWithOutbox(principalID, substituteID, startsAt, endsAt, req.IsActive, createdBy, []models.OutboxEvent{event})
+	} else {
+		res, err = s.repo.ReplaceForPrincipal(principalID, substituteID, startsAt, endsAt, req.IsActive, createdBy)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	if requireAdmin && s.auditService != nil {
-		details := fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName)
-		s.auditService.LogAction(actorID, actorName, "USER_SUBSTITUTION_UPDATE", details)
-	}
 	return dto.MapUserSubstitution(res), nil
 }
 

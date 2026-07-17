@@ -14,8 +14,11 @@ import (
 
 // OutgoingDocumentRepository предоставляет методы для работы с исходящими документами в БД.
 type OutgoingDocumentRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *OutgoingDocumentRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 // NewOutgoingDocumentRepository создает новый экземпляр OutgoingDocumentRepository.
 func NewOutgoingDocumentRepository(db *database.DB) *OutgoingDocumentRepository {
@@ -251,6 +254,21 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 
 // Create создает новый исходящий документ в базе данных.
 func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error) {
+	return r.create(req, nil, "", "")
+}
+
+func (r *OutgoingDocumentRepository) CreateWithOutbox(req models.CreateOutgoingDocRequest, effects []models.OutboxEvent) (*models.OutgoingDocument, error) {
+	return r.create(req, effects, "", "")
+}
+
+// CreateWithJournal records document registration and its journal entry in one
+// transaction. The repository creates the document ID and registration number,
+// so it is the only layer that can build this event before commit.
+func (r *OutgoingDocumentRepository) CreateWithJournal(req models.CreateOutgoingDocRequest, action, detailsFormat string) (*models.OutgoingDocument, error) {
+	return r.create(req, nil, action, detailsFormat)
+}
+
+func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.OutgoingDocument, error) {
 	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
@@ -316,6 +334,18 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 	); err != nil {
 		return nil, fmt.Errorf("failed to create outgoing document details: %w", err)
 	}
+	if journalAction != "" {
+		if r.outbox == nil {
+			return nil, fmt.Errorf("outbox repository is required for document journal")
+		}
+		payload := fmt.Sprintf(`{"documentId":"%s","userId":"%s","action":%q,"details":%q}`, id, req.CreatedBy, journalAction, fmt.Sprintf(journalDetailsFormat, req.OutgoingNumber))
+		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "outgoing:" + id.String() + ":create:journal", Payload: payload}); err != nil {
+			return nil, err
+		}
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
@@ -326,6 +356,14 @@ func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest)
 
 // Update обновляет данные существующего исходящего документа.
 func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error) {
+	return r.update(req, nil)
+}
+
+func (r *OutgoingDocumentRepository) UpdateWithOutbox(req models.UpdateOutgoingDocRequest, effects []models.OutboxEvent) (*models.OutgoingDocument, error) {
+	return r.update(req, effects)
+}
+
+func (r *OutgoingDocumentRepository) update(req models.UpdateOutgoingDocRequest, effects []models.OutboxEvent) (*models.OutgoingDocument, error) {
 	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
@@ -363,6 +401,9 @@ func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest)
 		req.RecipientOrgID, req.Addressee, req.ID,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update outgoing document details: %w", err)
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
 	}
 
 	if err := tx.Commit(); err != nil {

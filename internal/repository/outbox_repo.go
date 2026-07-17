@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,11 +12,33 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
+// ErrOutboxNotConfigured prevents an atomic business operation from silently
+// succeeding without its required side effects.
+var ErrOutboxNotConfigured = errors.New("outbox repository is not configured")
+
 // OutboxRepository persists side-effect requests in the same transaction as
 // their business change. Delivery is implemented separately by a worker.
 type OutboxRepository struct{ db *database.DB }
 
 func NewOutboxRepository(db *database.DB) *OutboxRepository { return &OutboxRepository{db: db} }
+
+// enqueueOutboxEffects enforces the atomic contract only when the caller has
+// required effects. Plain repository methods pass nil and retain their legacy
+// no-outbox behaviour; *WithOutbox methods must not silently lose effects.
+func enqueueOutboxEffects(outbox *OutboxRepository, tx *sql.Tx, effects []models.OutboxEvent) error {
+	if len(effects) == 0 {
+		return nil
+	}
+	if outbox == nil {
+		return ErrOutboxNotConfigured
+	}
+	for _, effect := range effects {
+		if err := outbox.EnqueueTx(tx, effect); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (r *OutboxRepository) EnqueueTx(tx *sql.Tx, event models.OutboxEvent) error {
 	if event.EventType == "" || event.DeduplicationKey == "" || event.Payload == "" {

@@ -14,8 +14,11 @@ import (
 
 // UserRepository предоставляет методы для работы с пользователями в БД.
 type UserRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *UserRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 const initialSetupAdvisoryLockID int64 = 78652402
 
@@ -197,6 +200,38 @@ func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, err
 	return r.GetByID(userID)
 }
 
+func (r *UserRepository) CreateWithOutbox(req models.CreateUserRequest, effects []models.OutboxEvent) (*models.User, error) {
+	if err := security.ValidatePassword(req.Password); err != nil {
+		return nil, models.NewBadRequestWrapped(err.Error(), err)
+	}
+	hash, err := security.HashPassword(req.Password)
+	if err != nil {
+		return nil, err
+	}
+	var depID *uuid.UUID
+	if req.DepartmentID != "" {
+		if id, parseErr := uuid.Parse(req.DepartmentID); parseErr == nil {
+			depID = &id
+		}
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+	var id uuid.UUID
+	if err := tx.QueryRow(`INSERT INTO users (login, password_hash, full_name, department_id, is_document_participant, password_changed_at, password_change_required) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6) RETURNING id`, req.Login, hash, req.FullName, depID, req.IsDocumentParticipant, req.PasswordChangeRequired).Scan(&id); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetByID(id)
+}
+
 // CreateInitialAdmin создаёт первого администратора и его системное право в одной транзакции.
 // Межпроцессная advisory lock предотвращает параллельное выполнение первичной настройки.
 func (r *UserRepository) CreateInitialAdmin(passwordHash string) error {
@@ -283,6 +318,34 @@ func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, err
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	return r.GetByID(uid)
+}
+
+func (r *UserRepository) UpdateWithOutbox(req models.UpdateUserRequest, effects []models.OutboxEvent) (*models.User, error) {
+	uid, err := uuid.Parse(req.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID: %w", err)
+	}
+	var depID *uuid.UUID
+	if req.DepartmentID != "" {
+		if id, parseErr := uuid.Parse(req.DepartmentID); parseErr == nil {
+			depID = &id
+		}
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE users SET login=$1, full_name=$2, is_active=$3, department_id=$4, is_document_participant=$5, failed_login_attempts=CASE WHEN is_active=false AND $3=true THEN 0 ELSE failed_login_attempts END, updated_at=CURRENT_TIMESTAMP WHERE id=$6`, req.Login, req.FullName, req.IsActive, depID, req.IsDocumentParticipant, uid); err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
 	return r.GetByID(uid)
 }
 
@@ -485,6 +548,36 @@ func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) err
 	return r.UpdatePassword(userID, hash)
 }
 
+func (r *UserRepository) ResetPasswordWithOutbox(userID uuid.UUID, newPassword string, effects []models.OutboxEvent) error {
+	if err := security.ValidatePassword(newPassword); err != nil {
+		return models.NewBadRequestWrapped(err.Error(), err)
+	}
+	hash, err := security.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.Exec(`UPDATE users SET password_hash=$1, failed_login_attempts=0, password_changed_at=CURRENT_TIMESTAMP, password_change_required=false, updated_at=CURRENT_TIMESTAMP WHERE id=$2`, hash, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return models.NewNotFound("пользователь не найден")
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // UpdateProfile обновляет данные профиля пользователя (логин, ФИО).
 func (r *UserRepository) UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error {
 	_, err := r.db.Exec(`
@@ -519,6 +612,30 @@ func (r *UserRepository) IncrementFailedLoginAttempts(userID uuid.UUID) (int, bo
 		return 0, false, fmt.Errorf("failed to increment failed login attempts: %w", err)
 	}
 
+	return attempts, isActive, nil
+}
+
+// IncrementFailedLoginAttemptsWithOutbox writes the lock audit only for the
+// transition that reaches the lock threshold, in the same transaction.
+func (r *UserRepository) IncrementFailedLoginAttemptsWithOutbox(userID uuid.UUID, lockEffect models.OutboxEvent) (int, bool, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, false, err
+	}
+	defer tx.Rollback()
+	var attempts int
+	var isActive bool
+	if err := tx.QueryRow(`UPDATE users SET failed_login_attempts = failed_login_attempts + 1, is_active = CASE WHEN failed_login_attempts + 1 >= 5 THEN false ELSE is_active END, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING failed_login_attempts, is_active`, userID).Scan(&attempts, &isActive); err != nil {
+		return 0, false, fmt.Errorf("failed to increment failed login attempts: %w", err)
+	}
+	if attempts == 5 && !isActive && r.outbox != nil {
+		if err := r.outbox.EnqueueTx(tx, lockEffect); err != nil {
+			return 0, false, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, false, err
+	}
 	return attempts, isActive, nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -120,6 +121,24 @@ func TestNomenclatureRepository_Create(t *testing.T) {
 	require.NotNil(t, item)
 	assert.Equal(t, id, item.ID)
 	assert.Equal(t, 7, item.NextNumber)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestNomenclatureRepositoryCreateWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewNomenclatureRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	event := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "nomenclature:test:create", Payload: `{}`}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO nomenclature`).WithArgs("Дело", "01-01", 2026, "incoming_letter", "/", "manual_only", 1).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	_, err = repo.CreateWithOutbox("Дело", "01-01", 2026, "incoming_letter", "/", "manual_only", 1, []models.OutboxEvent{event})
+	require.ErrorIs(t, err, assert.AnError)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

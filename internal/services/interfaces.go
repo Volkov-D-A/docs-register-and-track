@@ -223,7 +223,6 @@ type AcknowledgmentStore interface {
 	GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error)
 	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
 	MarkViewed(ackID, userID uuid.UUID) error
-	MarkConfirmed(ackID, userID uuid.UUID) error
 	Delete(id uuid.UUID) error
 }
 

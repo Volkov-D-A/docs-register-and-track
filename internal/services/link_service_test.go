@@ -54,8 +54,30 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore Docu
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, nil, incRepo, outRepo)
 	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
-	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, nil, accessSvc, auth, journalSvc)
+	svc := NewLinkService(&atomicLinkStore{LinkStore: linkRepo}, incRepo, outRepo, nil, nil, accessSvc, auth, journalSvc)
 	return svc, linkRepo, incRepo, outRepo, auth
+}
+
+// atomicLinkStore records effects that production persists with the link in
+// one transaction, while delegating the business operation to the generated mock.
+type atomicLinkStore struct {
+	*mocks.LinkStore
+	effects []models.OutboxEvent
+}
+
+func (s *atomicLinkStore) CreateWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.LinkStore.Create(ctx, link)
+}
+
+func (s *atomicLinkStore) DeleteWithOutbox(ctx context.Context, id uuid.UUID, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.LinkStore.Delete(ctx, id)
+}
+
+func (s *atomicLinkStore) CreateAndCancelOrderWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.LinkStore.CreateAndCancelOrder(ctx, link)
 }
 
 type kindActionDocumentAccessStore struct {
@@ -211,6 +233,24 @@ func TestLinkService_LinkDocuments(t *testing.T) {
 	})
 }
 
+func TestLinkServiceLinkDocumentsPassesJournalEffectsToAtomicStore(t *testing.T) {
+	sourceID, targetID := uuid.New(), uuid.New()
+	svc, repo, incRepo, outRepo, _ := setupLinkService(t, "clerk")
+	atomicRepo := &atomicLinkStore{LinkStore: repo}
+	svc.repo = atomicRepo
+	incRepo.On("GetByID", sourceID).Return(&models.IncomingDocument{ID: sourceID}, nil).Once()
+	incRepo.On("GetByID", targetID).Return((*models.IncomingDocument)(nil), nil).Once()
+	outRepo.On("GetByID", targetID).Return(&models.OutgoingDocument{ID: targetID}, nil).Once()
+	repo.On("Create", context.Background(), mock.AnythingOfType("*models.DocumentLink")).Return(nil).Once()
+
+	_, err := svc.LinkDocuments(sourceID.String(), targetID.String(), "ответ")
+	require.NoError(t, err)
+	require.Len(t, atomicRepo.effects, 2)
+	for _, effect := range atomicRepo.effects {
+		assert.Equal(t, models.OutboxEventJournal, effect.EventType)
+	}
+}
+
 func TestLinkService_UnlinkDocument(t *testing.T) {
 	// Разрыв (удаление) связи между документами
 	linkID := uuid.New()
@@ -261,6 +301,25 @@ func TestLinkService_UnlinkDocument(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrForbidden)
 	})
+}
+
+func TestLinkServiceUnlinkDocumentPassesJournalEffectsToAtomicStore(t *testing.T) {
+	linkID, sourceID, targetID := uuid.New(), uuid.New(), uuid.New()
+	svc, repo, incRepo, outRepo, _ := setupLinkService(t, "clerk")
+	atomicRepo := &atomicLinkStore{LinkStore: repo}
+	svc.repo = atomicRepo
+	incRepo.On("GetByID", sourceID).Return(&models.IncomingDocument{ID: sourceID}, nil).Once()
+	incRepo.On("GetByID", targetID).Return((*models.IncomingDocument)(nil), nil).Once()
+	outRepo.On("GetByID", targetID).Return(&models.OutgoingDocument{ID: targetID}, nil).Once()
+	repo.On("GetByID", context.Background(), linkID).Return(&models.DocumentLink{ID: linkID, SourceID: sourceID, SourceKind: models.DocumentKindIncomingLetter, TargetID: targetID, TargetKind: models.DocumentKindOutgoingLetter}, nil).Once()
+	repo.On("Delete", context.Background(), linkID).Return(nil).Once()
+
+	err := svc.UnlinkDocument(linkID.String())
+	require.NoError(t, err)
+	require.Len(t, atomicRepo.effects, 2)
+	for _, effect := range atomicRepo.effects {
+		assert.Equal(t, models.OutboxEventJournal, effect.EventType)
+	}
 }
 
 func TestValidateDocumentLinkType(t *testing.T) {

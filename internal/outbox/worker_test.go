@@ -18,9 +18,11 @@ import (
 type fileDeleterStub struct {
 	path string
 	err  error
+	ctx  context.Context
 }
 
-func (s *fileDeleterStub) DeleteFile(_ context.Context, path string) error {
+func (s *fileDeleterStub) DeleteFile(ctx context.Context, path string) error {
+	s.ctx = ctx
 	s.path = path
 	return s.err
 }
@@ -74,7 +76,7 @@ func TestWorkerProcessOnceDeliversAdministrativeAudit(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
 			AddRow(id, models.OutboxEventAudit, "audit-key", `{"UserID":"`+userID.String()+`","UserName":"Admin","Action":"SETTINGS_UPDATE","Details":"changed"}`, now, now, nil, nil, 1, nil, now))
 	mock.ExpectCommit()
-	mock.ExpectQuery(`INSERT INTO admin_audit_log`).WithArgs(userID, "Admin", "SETTINGS_UPDATE", "changed").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+	mock.ExpectQuery(`INSERT INTO admin_audit_log`).WithArgs(userID, "Admin", "SETTINGS_UPDATE", "changed", "audit-key").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
 	mock.ExpectExec(`UPDATE event_outbox SET processed_at = CURRENT_TIMESTAMP`).WithArgs(id).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	require.NoError(t, worker.ProcessOnce())
@@ -100,6 +102,8 @@ func TestWorkerProcessOnceDeletesAttachmentObjectAndMarkedRow(t *testing.T) {
 
 	require.NoError(t, worker.ProcessOnce())
 	require.Equal(t, "attachments/report.pdf", storage.path)
+	_, hasDeadline := storage.ctx.Deadline()
+	require.True(t, hasDeadline)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

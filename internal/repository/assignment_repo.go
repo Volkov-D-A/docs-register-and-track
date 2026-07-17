@@ -15,7 +15,46 @@ import (
 
 // AssignmentRepository предоставляет методы для работы с поручениями в БД.
 type AssignmentRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
+}
+
+func (r *AssignmentRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
+
+// CreateWithOutbox persists the assignment and all supplied effects in one
+// transaction. It is used by production services that require no post-commit gap.
+func (r *AssignmentRepository) CreateWithOutbox(id, documentID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
+	if r.outbox == nil {
+		return nil, ErrOutboxNotConfigured
+	}
+	var createdAt, updatedAt time.Time
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+	err = tx.QueryRow(`INSERT INTO assignments (id, document_id, executor_id, content, deadline, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at, updated_at`, id, documentID, executorID, content, deadline, "new").Scan(&createdAt, &updatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create assignment: %w", err)
+	}
+	for _, coExecID := range coExecutorIDs {
+		uid, err := uuid.Parse(coExecID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid co-executor ID %s: %w", coExecID, err)
+		}
+		if _, err = tx.Exec("INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)", id, uid); err != nil {
+			return nil, err
+		}
+	}
+	for _, effect := range effects {
+		if err := r.outbox.EnqueueTx(tx, effect); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return r.GetByID(id)
 }
 
 // NewAssignmentRepository создает новый экземпляр AssignmentRepository.
@@ -145,10 +184,65 @@ func (r *AssignmentRepository) Update(
 	return r.GetByID(id)
 }
 
+func (r *AssignmentRepository) UpdateWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, status, report string, completedAt *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
+	if r.outbox == nil {
+		return nil, ErrOutboxNotConfigured
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if _, err = tx.Exec(`UPDATE assignments SET executor_id=$1, content=$2, deadline=$3, status=$4, report=$5, completed_at=$6, updated_at=NOW() WHERE id=$7`, executorID, content, deadline, status, report, completedAt, id); err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec("DELETE FROM assignment_co_executors WHERE assignment_id = $1", id); err != nil {
+		return nil, err
+	}
+	for _, value := range coExecutorIDs {
+		uid, parseErr := uuid.Parse(value)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		if _, err = tx.Exec("INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)", id, uid); err != nil {
+			return nil, err
+		}
+	}
+	for _, effect := range effects {
+		if err = r.outbox.EnqueueTx(tx, effect); err != nil {
+			return nil, err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetByID(id)
+}
+
 // Delete удаляет поручение по его ID.
 func (r *AssignmentRepository) Delete(id uuid.UUID) error {
 	_, err := r.db.Exec("DELETE FROM assignments WHERE id = $1", id)
 	return err
+}
+
+func (r *AssignmentRepository) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	if r.outbox == nil {
+		return ErrOutboxNotConfigured
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.Exec("DELETE FROM assignments WHERE id = $1", id); err != nil {
+		return err
+	}
+	for _, effect := range effects {
+		if err = r.outbox.EnqueueTx(tx, effect); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // GetByID возвращает поручение по его ID.

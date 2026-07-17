@@ -31,9 +31,11 @@ type Worker struct {
 }
 
 const (
-	maxAttempts    = 10
-	maxRetryDelay  = time.Hour
-	queueAlertSize = 100
+	maxAttempts       = 10
+	maxRetryDelay     = time.Hour
+	queueAlertSize    = 100
+	staleClaimTimeout = 5 * time.Minute
+	consumerTimeout   = 30 * time.Second
 )
 
 func NewWorker(outbox *repository.OutboxRepository, events *repository.UserEventRepository, journal *repository.JournalRepository, audit *repository.AdminAuditLogRepository, attachments *repository.AttachmentRepository, storage FileDeleter) *Worker {
@@ -41,13 +43,16 @@ func NewWorker(outbox *repository.OutboxRepository, events *repository.UserEvent
 }
 
 func (w *Worker) Run(ctx context.Context) {
-	if err := w.outbox.ReleaseStaleClaims(time.Now().Add(-5 * time.Minute)); err != nil {
-		slog.Warn("failed to release stale outbox claims", "error", err)
-	}
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
-		if err := w.ProcessOnce(); err != nil {
+		// A crashed process can leave a claimed task behind. Reaping on every
+		// polling iteration, rather than just at startup, also recovers claims
+		// from a stalled concurrent worker.
+		if err := w.outbox.ReleaseStaleClaims(time.Now().Add(-staleClaimTimeout)); err != nil {
+			slog.Warn("failed to release stale outbox claims", "error", err)
+		}
+		if err := w.ProcessOnceContext(ctx); err != nil {
 			slog.Warn("outbox processing failed", "error", err)
 		}
 		w.observeRequiredAudit()
@@ -95,12 +100,18 @@ func (w *Worker) observeRequiredAudit() {
 }
 
 func (w *Worker) ProcessOnce() error {
+	return w.ProcessOnceContext(context.Background())
+}
+
+// ProcessOnceContext delivers one claimed batch while propagating shutdown
+// and per-consumer deadlines to operations that support a context.
+func (w *Worker) ProcessOnceContext(ctx context.Context) error {
 	events, err := w.outbox.ClaimPending(50)
 	if err != nil {
 		return err
 	}
 	for _, event := range events {
-		if err := w.process(event); err != nil {
+		if err := w.process(ctx, event); err != nil {
 			if markErr := w.outbox.MarkFailed(event.ID, event.Attempts, retryDelay(event.Attempts), maxAttempts, err.Error()); markErr != nil {
 				return markErr
 			}
@@ -124,7 +135,10 @@ func retryDelay(attempts int) time.Duration {
 	return delay
 }
 
-func (w *Worker) process(event models.OutboxEvent) error {
+func (w *Worker) process(parent context.Context, event models.OutboxEvent) error {
+	ctx, cancel := context.WithTimeout(parent, consumerTimeout)
+	defer cancel()
+
 	switch event.EventType {
 	case models.OutboxEventUserEvent:
 		var payload userEventPayload
@@ -137,14 +151,14 @@ func (w *Worker) process(event models.OutboxEvent) error {
 		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
 			return fmt.Errorf("invalid journal payload: %w", err)
 		}
-		_, err := w.journal.Create(context.Background(), payload)
+		_, err := w.journal.CreateFromOutbox(ctx, payload, event.DeduplicationKey)
 		return err
 	case models.OutboxEventAudit:
 		var payload models.CreateAdminAuditLogRequest
 		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
 			return fmt.Errorf("invalid admin_audit payload: %w", err)
 		}
-		_, err := w.audit.Create(payload)
+		_, err := w.audit.CreateFromOutbox(payload, event.DeduplicationKey)
 		return err
 	case models.OutboxEventFileDelete:
 		if w.storage == nil || w.attachments == nil {
@@ -157,7 +171,7 @@ func (w *Worker) process(event models.OutboxEvent) error {
 		if payload.AttachmentID == uuid.Nil || payload.StoragePath == "" {
 			return fmt.Errorf("invalid attachment_delete payload")
 		}
-		if err := w.storage.DeleteFile(context.Background(), payload.StoragePath); err != nil {
+		if err := w.storage.DeleteFile(ctx, payload.StoragePath); err != nil {
 			return err
 		}
 		return w.attachments.DeleteMarked(payload.AttachmentID)

@@ -46,6 +46,12 @@ type AdministrativeOrderCommandHandler struct {
 	journal *JournalService
 	access  *DocumentAccessService
 }
+type administrativeOrderOutboxStore interface {
+	UpdateWithOutbox(models.UpdateAdministrativeOrderDocRequest, []models.OutboxEvent) (*models.AdministrativeOrderDocument, error)
+}
+type administrativeOrderJournalStore interface {
+	CreateWithJournal(models.CreateAdministrativeOrderDocRequest, string, string) (*models.AdministrativeOrderDocument, error)
+}
 
 // NewAdministrativeOrderCommandHandler создает handler команд приказов.
 func NewAdministrativeOrderCommandHandler(
@@ -120,7 +126,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 		return nil, ErrNotAuthenticated
 	}
 
-	res, err := h.repo.Create(models.CreateAdministrativeOrderDocRequest{
+	createReq := models.CreateAdministrativeOrderDocRequest{
 		NomenclatureID:          nomID,
 		IdempotencyKey:          idempotencyKey,
 		AdminNumberOverride:     adminOverride,
@@ -133,15 +139,12 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 		IsActive:                req.IsActive,
 		CancelledAt:             cancelledAt,
 		AcknowledgmentFullNames: normalizeFullNames(req.AcknowledgmentFullNames),
-	})
-	if err == nil {
-		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
-			DocumentID: res.ID,
-			UserID:     createdBy,
-			Action:     "CREATE",
-			Details:    fmt.Sprintf("Приказ зарегистрирован. Рег. номер: %s", res.OrderNumber),
-		})
 	}
+	store, ok := h.repo.(administrativeOrderJournalStore)
+	if !ok {
+		return nil, fmt.Errorf("administrative order store must support atomic journal operations")
+	}
+	res, err := store.CreateWithJournal(createReq, "CREATE", "Приказ зарегистрирован. Рег. номер: %s")
 	return dto.MapAdministrativeOrderDocument(res), err
 }
 
@@ -179,7 +182,7 @@ func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreat
 		return nil, ErrNotAuthenticated
 	}
 
-	res, err := h.repo.Create(models.CreateAdministrativeOrderDocRequest{
+	createReq := models.CreateAdministrativeOrderDocRequest{
 		NomenclatureID:          nomID,
 		IdempotencyKey:          uuid.New(),
 		AdminNumberOverride:     adminOverride,
@@ -189,15 +192,12 @@ func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreat
 		ExecutionController:     adminDraftPlaceholder,
 		IsActive:                true,
 		AcknowledgmentFullNames: []string{},
-	})
-	if err == nil {
-		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
-			DocumentID: res.ID,
-			UserID:     createdBy,
-			Action:     "ADMIN_DRAFT_CREATE",
-			Details:    fmt.Sprintf("Создан административный черновик. Рег. номер: %s", res.OrderNumber),
-		})
 	}
+	store, ok := h.repo.(administrativeOrderJournalStore)
+	if !ok {
+		return nil, fmt.Errorf("administrative order store must support atomic journal operations")
+	}
+	res, err := store.CreateWithJournal(createReq, "ADMIN_DRAFT_CREATE", "Создан административный черновик. Рег. номер: %s")
 	return dto.MapAdministrativeOrderDocument(res), err
 }
 
@@ -231,7 +231,7 @@ func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdate
 		return nil, err
 	}
 
-	res, err := h.repo.Update(models.UpdateAdministrativeOrderDocRequest{
+	updateReq := models.UpdateAdministrativeOrderDocRequest{
 		ID:                      uid,
 		OrderDate:               orderDate,
 		Title:                   strings.TrimSpace(req.Title),
@@ -240,16 +240,17 @@ func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdate
 		IsActive:                req.IsActive,
 		CancelledAt:             cancelledAt,
 		AcknowledgmentFullNames: normalizeFullNames(req.AcknowledgmentFullNames),
-	})
-	if err == nil {
-		currentUserID, _ := h.auth.GetCurrentUserUUID()
-		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
-			DocumentID: uid,
-			UserID:     currentUserID,
-			Action:     "UPDATE",
-			Details:    "Приказ отредактирован",
-		})
 	}
+	store, ok := h.repo.(administrativeOrderOutboxStore)
+	if !ok {
+		return nil, fmt.Errorf("administrative order store must support atomic outbox operations")
+	}
+	currentUserID, _ := h.auth.GetCurrentUserUUID()
+	event, buildErr := NewJournalOutboxEvent("administrative-order:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Приказ отредактирован"})
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	res, err := store.UpdateWithOutbox(updateReq, []models.OutboxEvent{event})
 	return dto.MapAdministrativeOrderDocument(res), err
 }
 

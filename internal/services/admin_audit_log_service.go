@@ -11,12 +11,9 @@ import (
 
 // AdminAuditLogService предоставляет бизнес-логику для журнала действий администраторов.
 type AdminAuditLogService struct {
-	repo   AdminAuditLogStore
-	auth   *AuthService
-	outbox *OutboxPublisher
+	repo AdminAuditLogStore
+	auth *AuthService
 }
-
-func (s *AdminAuditLogService) SetOutboxPublisher(publisher *OutboxPublisher) { s.outbox = publisher }
 
 // NewAdminAuditLogService создает новый экземпляр AdminAuditLogService.
 func NewAdminAuditLogService(repo AdminAuditLogStore, auth *AuthService) *AdminAuditLogService {
@@ -63,12 +60,6 @@ func (s *AdminAuditLogService) LogAction(userID uuid.UUID, userName, action, det
 		UserName: userName,
 		Action:   action,
 		Details:  details,
-	}
-	if s.outbox != nil {
-		if err := s.outbox.PublishAdminAudit("admin-audit:"+uuid.NewString(), req); err != nil {
-			slog.Error("failed to enqueue administrative audit", "action", action, "error", err)
-		}
-		return
 	}
 	if _, err := s.repo.Create(req); err != nil {
 		slog.Error("failed to write administrative audit", "action", action, "error", err)

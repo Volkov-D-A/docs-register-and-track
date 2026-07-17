@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 func TestUserSubstitutionRepository_GetByPrincipalID(t *testing.T) {
@@ -113,4 +114,26 @@ func TestUserSubstitutionRepository_ReplaceForPrincipal(t *testing.T) {
 		assert.Equal(t, substituteID, result.SubstituteUserID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+func TestUserSubstitutionRepositoryReplaceForPrincipalWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewUserSubstitutionRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
+	principalID, substituteID := uuid.New(), uuid.New()
+	event := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "substitution:" + principalID.String(), Payload: `{"action":"update"}`}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO user_substitutions`).
+		WithArgs(principalID, substituteID, (*time.Time)(nil), (*time.Time)(nil), true, (*uuid.UUID)(nil)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	_, err = repo.ReplaceForPrincipalWithOutbox(principalID, &substituteID, nil, nil, true, nil, []models.OutboxEvent{event})
+	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

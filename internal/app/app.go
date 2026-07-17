@@ -75,6 +75,18 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	outboxRepo := repository.NewOutboxRepository(db)
 	acknowledgmentRepo.SetOutbox(outboxRepo)
 	attachmentRepo.SetOutbox(outboxRepo)
+	assignmentRepo.SetOutbox(outboxRepo)
+	linkRepo.SetOutbox(outboxRepo)
+	nomenclatureRepo.SetOutbox(outboxRepo)
+	departmentRepo.SetOutbox(outboxRepo)
+	userSubstitutionRepo.SetOutbox(outboxRepo)
+	referenceRepo.SetOutbox(outboxRepo)
+	userRepo.SetOutbox(outboxRepo)
+	settingsRepo.SetOutbox(outboxRepo)
+	outgoingDocRepo.SetOutbox(outboxRepo)
+	incomingDocRepo.SetOutbox(outboxRepo)
+	citizenAppealRepo.SetOutbox(outboxRepo)
+	administrativeOrderRepo.SetOutbox(outboxRepo)
 
 	operationLifecycle := services.NewOperationLifecycle(5 * time.Minute)
 
@@ -91,7 +103,6 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	}
 
 	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
-	adminAuditLogService.SetOutboxPublisher(services.NewOutboxPublisher(outboxRepo))
 	outboxAdminService := services.NewOutboxAdminService(outboxRepo, authService)
 	authService.SetAdminAuditLogService(adminAuditLogService)
 	settingsService := services.NewSettingsService(db, settingsRepo, authService, adminAuditLogService)
@@ -104,7 +115,6 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	documentKindService := services.NewDocumentKindService(documentAccessService)
 	journalService := services.NewJournalService(journalRepo, authService, documentAccessService)
 	journalService.SetOperationLifecycle(operationLifecycle)
-	journalService.SetOutboxPublisher(services.NewOutboxPublisher(outboxRepo))
 	documentKindQueryRegistry := services.NewDocumentKindQueryRegistry(
 		services.NewIncomingLetterQueryHandler(incomingDocRepo),
 		services.NewOutgoingLetterQueryHandler(outgoingDocRepo),
@@ -123,7 +133,6 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	userEventService := services.NewUserEventService(userEventRepo, authService)
 	administrativeOrderService := services.NewAdministrativeOrderService(administrativeOrderRepo, authService, documentAccessService, journalService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, journalService, documentAccessService, userEventService)
-	assignmentService.SetOutboxPublisher(services.NewOutboxPublisher(outboxRepo))
 	assignmentService.SetSubstitutionStore(userSubstitutionRepo)
 	departmentService := services.NewDepartmentService(departmentRepo, authService, adminAuditLogService)
 
@@ -147,7 +156,6 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, administrativeOrderRepo, documentAccessService, authService, journalService)
 	linkService.SetOperationLifecycle(operationLifecycle)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, journalService, documentAccessService, userEventService)
-	acknowledgmentService.SetOutboxPublisher(services.NewOutboxPublisher(outboxRepo))
 	acknowledgmentService.SetSubstitutionStore(userSubstitutionRepo)
 	systemService := services.NewSystemService(db)
 	releaseNoteService, err := services.NewReleaseNoteService(params.ReleaseNotesSource)

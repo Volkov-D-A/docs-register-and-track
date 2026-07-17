@@ -15,8 +15,11 @@ import (
 
 // AdministrativeOrderRepository предоставляет методы для работы с приказами в БД.
 type AdministrativeOrderRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *AdministrativeOrderRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 // NewAdministrativeOrderRepository создает новый экземпляр AdministrativeOrderRepository.
 func NewAdministrativeOrderRepository(db *database.DB) *AdministrativeOrderRepository {
@@ -236,6 +239,12 @@ func (r *AdministrativeOrderRepository) GetByID(id uuid.UUID) (*models.Administr
 
 // Create создает приказ.
 func (r *AdministrativeOrderRepository) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
+	return r.create(req, nil, "", "")
+}
+func (r *AdministrativeOrderRepository) CreateWithJournal(req models.CreateAdministrativeOrderDocRequest, action, detailsFormat string) (*models.AdministrativeOrderDocument, error) {
+	return r.create(req, nil, action, detailsFormat)
+}
+func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOrderDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.AdministrativeOrderDocument, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -305,6 +314,18 @@ func (r *AdministrativeOrderRepository) Create(req models.CreateAdministrativeOr
 	if err := replaceAdministrativeOrderAcknowledgmentPeopleTx(tx, id, req.AcknowledgmentFullNames, nil); err != nil {
 		return nil, err
 	}
+	if journalAction != "" {
+		if r.outbox == nil {
+			return nil, fmt.Errorf("outbox repository is required for document journal")
+		}
+		payload := fmt.Sprintf(`{"documentId":"%s","userId":"%s","action":%q,"details":%q}`, id, req.CreatedBy, journalAction, fmt.Sprintf(journalDetailsFormat, req.OrderNumber))
+		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "administrative-order:" + id.String() + ":create:journal", Payload: payload}); err != nil {
+			return nil, err
+		}
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
@@ -315,6 +336,12 @@ func (r *AdministrativeOrderRepository) Create(req models.CreateAdministrativeOr
 
 // Update обновляет приказ.
 func (r *AdministrativeOrderRepository) Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
+	return r.update(req, nil)
+}
+func (r *AdministrativeOrderRepository) UpdateWithOutbox(req models.UpdateAdministrativeOrderDocRequest, effects []models.OutboxEvent) (*models.AdministrativeOrderDocument, error) {
+	return r.update(req, effects)
+}
+func (r *AdministrativeOrderRepository) update(req models.UpdateAdministrativeOrderDocRequest, effects []models.OutboxEvent) (*models.AdministrativeOrderDocument, error) {
 	existingPeople, err := r.GetAcknowledgmentPeople(req.ID)
 	if err != nil {
 		return nil, err
@@ -350,6 +377,9 @@ func (r *AdministrativeOrderRepository) Update(req models.UpdateAdministrativeOr
 	}
 
 	if err := replaceAdministrativeOrderAcknowledgmentPeopleTx(tx, req.ID, req.AcknowledgmentFullNames, existingPeople); err != nil {
+		return nil, err
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
 		return nil, err
 	}
 
@@ -388,6 +418,29 @@ func (r *AdministrativeOrderRepository) MarkAcknowledgmentPerson(id uuid.UUID, a
 		person.DocumentID = documentID
 	}
 	return person, nil
+}
+
+// MarkAcknowledgmentPersonWithOutbox stores the acknowledgement and its
+// document-journal event in the same transaction.
+func (r *AdministrativeOrderRepository) MarkAcknowledgmentPersonWithOutbox(id, acknowledgedBy uuid.UUID, effects []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var documentID uuid.UUID
+	if err := tx.QueryRow(`UPDATE administrative_order_acknowledgment_people SET acknowledged_at = COALESCE(acknowledged_at, CURRENT_TIMESTAMP), acknowledged_by = COALESCE(acknowledged_by, $2) WHERE id = $1 RETURNING document_id`, id, acknowledgedBy).Scan(&documentID); err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to mark administrative order acknowledgment: %w", err)
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetAcknowledgmentPersonByID(id)
 }
 
 // GetAcknowledgmentPersonByID возвращает строку листа ознакомления по ID.

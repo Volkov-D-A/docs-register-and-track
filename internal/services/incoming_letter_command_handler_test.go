@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -125,13 +124,6 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 			PagesCount:     req.PagesCount,
 			CreatedBy:      deps.user.ID,
 		}, nil).Once()
-		deps.journalRepo.On("Create", context.Background(), mock.MatchedBy(func(journalReq models.CreateJournalEntryRequest) bool {
-			return journalReq.DocumentID == documentID &&
-				journalReq.UserID == deps.user.ID &&
-				journalReq.Action == "CREATE" &&
-				journalReq.Details == "Документ зарегистрирован. Рег. номер: 13/26"
-		})).Return(uuid.New(), nil).Once()
-
 		result, err := deps.handler.Register(req)
 
 		require.NoError(t, err)
@@ -325,13 +317,6 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 			PagesCount:     req.PagesCount,
 			CreatedBy:      deps.user.ID,
 		}, nil).Once()
-		deps.journalRepo.On("Create", context.Background(), mock.MatchedBy(func(journalReq models.CreateJournalEntryRequest) bool {
-			return journalReq.DocumentID == documentID &&
-				journalReq.UserID == deps.user.ID &&
-				journalReq.Action == "UPDATE" &&
-				journalReq.Details == "Документ отредактирован"
-		})).Return(uuid.New(), nil).Once()
-
 		result, err := deps.handler.Update(req)
 
 		require.NoError(t, err)

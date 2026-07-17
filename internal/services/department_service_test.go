@@ -36,7 +36,7 @@ func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *moc
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
-	svc := NewDepartmentService(depRepo, auth, nil)
+	svc := NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth, nil)
 	return svc, depRepo, auth
 }
 
@@ -60,7 +60,27 @@ func setupDepartmentServiceWithRoles(t *testing.T, roles []string) (*DepartmentS
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewDepartmentService(depRepo, auth, nil), depRepo, auth
+	return NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth, nil), depRepo, auth
+}
+
+type atomicDepartmentStore struct {
+	*mocks.DepartmentStore
+	effects []models.OutboxEvent
+}
+
+func (s *atomicDepartmentStore) CreateWithOutbox(name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.DepartmentStore.Create(name, nomenclatureIDs)
+}
+
+func (s *atomicDepartmentStore) UpdateWithOutbox(id uuid.UUID, name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.DepartmentStore.Update(id, name, nomenclatureIDs)
+}
+
+func (s *atomicDepartmentStore) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.DepartmentStore.Delete(id)
 }
 
 func TestDepartmentService_GetAllDepartments(t *testing.T) {

@@ -35,7 +35,7 @@ func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
-	svc := NewReferenceService(refRepo, auth, nil)
+	svc := NewReferenceService(&atomicReferenceStore{ReferenceStore: refRepo}, auth, nil)
 	return svc, refRepo, userRepo, auth
 }
 
@@ -59,7 +59,36 @@ func setupReferenceServiceWithRoles(t *testing.T, roles []string) (*ReferenceSer
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewReferenceService(refRepo, auth, nil), refRepo, userRepo, auth
+	return NewReferenceService(&atomicReferenceStore{ReferenceStore: refRepo}, auth, nil), refRepo, userRepo, auth
+}
+
+type atomicReferenceStore struct {
+	*mocks.ReferenceStore
+	effects []models.OutboxEvent
+}
+
+func (s *atomicReferenceStore) record(effects []models.OutboxEvent) {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+}
+func (s *atomicReferenceStore) UpdateOrganizationWithOutbox(id uuid.UUID, name string, effects []models.OutboxEvent) error {
+	s.record(effects)
+	return s.ReferenceStore.UpdateOrganization(id, name)
+}
+func (s *atomicReferenceStore) DeleteOrganizationWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	s.record(effects)
+	return s.ReferenceStore.DeleteOrganization(id)
+}
+func (s *atomicReferenceStore) MergeOrganizationsWithOutbox(sourceID, targetID uuid.UUID, effects []models.OutboxEvent) error {
+	s.record(effects)
+	return s.ReferenceStore.MergeOrganizations(sourceID, targetID)
+}
+func (s *atomicReferenceStore) UpdateResolutionExecutorWithOutbox(id uuid.UUID, name string, effects []models.OutboxEvent) error {
+	s.record(effects)
+	return s.ReferenceStore.UpdateResolutionExecutor(id, name)
+}
+func (s *atomicReferenceStore) DeleteResolutionExecutorWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	s.record(effects)
+	return s.ReferenceStore.DeleteResolutionExecutor(id)
 }
 
 // === Типы документов ===
@@ -214,6 +243,18 @@ func TestReferenceService_UpdateOrganization(t *testing.T) {
 		err := svc.UpdateOrganization(idStr, "Тест")
 		require.NoError(t, err)
 	})
+}
+
+func TestReferenceServiceUpdateOrganizationPassesAuditEffectToAtomicStore(t *testing.T) {
+	organizationID := uuid.New()
+	svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
+	repo.On("UpdateOrganization", organizationID, "Новая организация").Return(nil).Once()
+
+	err := svc.UpdateOrganization(organizationID.String(), "Новая организация")
+	require.NoError(t, err)
+	atomicRepo := svc.repo.(*atomicReferenceStore)
+	require.Len(t, atomicRepo.effects, 1)
+	assert.Equal(t, models.OutboxEventAudit, atomicRepo.effects[0].EventType)
 }
 
 func TestReferenceService_DeleteOrganization(t *testing.T) {

@@ -2,11 +2,8 @@ package services
 
 import (
 	"encoding/json"
-	"log/slog"
 
 	"github.com/google/uuid"
-
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 func userEventMetadata(values map[string]string) string {
@@ -101,22 +98,4 @@ func eventActorExcluded(auth *AuthService) map[uuid.UUID]struct{} {
 		excluded[*actorID] = struct{}{}
 	}
 	return excluded
-}
-
-func createUserEventIfEnabled(events *UserEventService, req models.CreateUserEventRequest) {
-	if events == nil {
-		return
-	}
-	if _, err := events.create(req); err != nil {
-		slog.Warn(
-			"failed to create user event",
-			"error", err,
-			"recipient_user_id", req.RecipientUserID,
-			"document_id", req.DocumentID,
-			"document_kind", req.DocumentKind,
-			"entity_type", req.EntityType,
-			"entity_id", req.EntityID,
-			"event_type", req.EventType,
-		)
-	}
 }

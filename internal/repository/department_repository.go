@@ -11,8 +11,11 @@ import (
 
 // DepartmentRepository предоставляет методы для работы со справочником подразделений (отделов) в БД.
 type DepartmentRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *DepartmentRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 // NewDepartmentRepository создает новый экземпляр DepartmentRepository.
 func NewDepartmentRepository(db *database.DB) *DepartmentRepository {
@@ -111,6 +114,14 @@ func (r *DepartmentRepository) GetNomenclatureIDs(departmentID uuid.UUID) ([]str
 
 // Create создает новое подразделение и связывает его с указанными номенклатурами.
 func (r *DepartmentRepository) Create(name string, nomenclatureIDs []string) (*models.Department, error) {
+	return r.create(name, nomenclatureIDs, nil)
+}
+
+func (r *DepartmentRepository) CreateWithOutbox(name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
+	return r.create(name, nomenclatureIDs, effects)
+}
+
+func (r *DepartmentRepository) create(name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
 	id := uuid.New()
 
 	tx, err := r.db.Begin()
@@ -148,6 +159,9 @@ func (r *DepartmentRepository) Create(name string, nomenclatureIDs []string) (*m
 		}
 	}
 
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -161,6 +175,14 @@ func (r *DepartmentRepository) Create(name string, nomenclatureIDs []string) (*m
 
 // Update обновляет данные существующего подразделения.
 func (r *DepartmentRepository) Update(id uuid.UUID, name string, nomenclatureIDs []string) (*models.Department, error) {
+	return r.update(id, name, nomenclatureIDs, nil)
+}
+
+func (r *DepartmentRepository) UpdateWithOutbox(id uuid.UUID, name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
+	return r.update(id, name, nomenclatureIDs, effects)
+}
+
+func (r *DepartmentRepository) update(id uuid.UUID, name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err
@@ -206,6 +228,9 @@ func (r *DepartmentRepository) Update(id uuid.UUID, name string, nomenclatureIDs
 		}
 	}
 
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -229,4 +254,27 @@ func (r *DepartmentRepository) Delete(id uuid.UUID) error {
 		return models.NewNotFound("подразделение не найдено")
 	}
 	return nil
+}
+
+func (r *DepartmentRepository) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.Exec(`DELETE FROM departments WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return models.NewNotFound("подразделение не найдено")
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

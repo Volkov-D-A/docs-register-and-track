@@ -14,8 +14,11 @@ import (
 
 // LinkRepository предоставляет методы для работы со связями между документами в БД.
 type LinkRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *LinkRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 type linkSQLExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
@@ -41,6 +44,26 @@ func (r *LinkRepository) Create(ctx context.Context, link *models.DocumentLink) 
 	).Scan(&link.ID, &link.CreatedAt)
 }
 
+func (r *LinkRepository) CreateWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error {
+	if r.outbox == nil {
+		return ErrOutboxNotConfigured
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := tx.QueryRowContext(ctx, `INSERT INTO document_links (id, source_document_id, target_document_id, link_type, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING created_at`, link.ID, link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).Scan(&link.CreatedAt); err != nil {
+		return err
+	}
+	for _, effect := range effects {
+		if err := r.outbox.EnqueueTx(tx, effect); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // CreateAndCancelOrder создаёт отменяющую связь и помечает целевой приказ отменённым в одной транзакции.
 func (r *LinkRepository) CreateAndCancelOrder(ctx context.Context, link *models.DocumentLink) error {
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -57,6 +80,29 @@ func (r *LinkRepository) CreateAndCancelOrder(ctx context.Context, link *models.
 	}
 	if err := cancelAdministrativeOrderByLink(ctx, tx, link.TargetID, link.CreatedAt); err != nil {
 		return err
+	}
+	return tx.Commit()
+}
+
+func (r *LinkRepository) CreateAndCancelOrderWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error {
+	if r.outbox == nil {
+		return ErrOutboxNotConfigured
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := tx.QueryRowContext(ctx, `INSERT INTO document_links (id, source_document_id, target_document_id, link_type, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING created_at`, link.ID, link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).Scan(&link.CreatedAt); err != nil {
+		return err
+	}
+	if err := cancelAdministrativeOrderByLink(ctx, tx, link.TargetID, link.CreatedAt); err != nil {
+		return err
+	}
+	for _, effect := range effects {
+		if err := r.outbox.EnqueueTx(tx, effect); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }
@@ -83,6 +129,26 @@ func (r *LinkRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM document_links WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
+}
+
+func (r *LinkRepository) DeleteWithOutbox(ctx context.Context, id uuid.UUID, effects []models.OutboxEvent) error {
+	if r.outbox == nil {
+		return ErrOutboxNotConfigured
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM document_links WHERE id = $1`, id); err != nil {
+		return err
+	}
+	for _, effect := range effects {
+		if err := r.outbox.EnqueueTx(tx, effect); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // GetByID — получить связь по ID

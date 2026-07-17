@@ -35,14 +35,29 @@ func TestAdminAuditLogRepository_Create(t *testing.T) {
 	}
 	expectedID := uuid.New()
 
-	mock.ExpectQuery(`INSERT INTO admin_audit_log \(user_id, user_name, action, details\)`).
-		WithArgs(req.UserID, req.UserName, req.Action, req.Details).
+	mock.ExpectQuery(`INSERT INTO admin_audit_log`).
+		WithArgs(req.UserID, req.UserName, req.Action, req.Details, "").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(expectedID))
 
 	id, err := repo.Create(req)
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedID, id)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdminAuditLogRepository_CreateFromOutboxTreatsDuplicateAsDelivered(t *testing.T) {
+	repo, mock, cleanup := setupAdminAuditLogRepository(t)
+	defer cleanup()
+
+	req := models.CreateAdminAuditLogRequest{UserID: uuid.New(), UserName: "Администратор", Action: "TEST", Details: "retry"}
+	mock.ExpectQuery(`INSERT INTO admin_audit_log`).
+		WithArgs(req.UserID, req.UserName, req.Action, req.Details, "audit:retry:1").
+		WillReturnError(sql.ErrNoRows)
+
+	id, err := repo.CreateFromOutbox(req, "audit:retry:1")
+	require.NoError(t, err)
+	assert.Equal(t, uuid.Nil, id)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -1,9 +1,6 @@
 package services
 
 import (
-	"bytes"
-	"errors"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -239,36 +236,4 @@ func TestUserEventService_CreateValidation(t *testing.T) {
 	require.Error(t, err)
 	requireAppError(t, err, "VALIDATION_ERROR", 400, "не указан документ события")
 	assert.Nil(t, event)
-}
-
-func TestCreateUserEventIfEnabledLogsCreateError(t *testing.T) {
-	var out bytes.Buffer
-	previousLogger := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&out, nil)))
-	t.Cleanup(func() {
-		slog.SetDefault(previousLogger)
-	})
-
-	store := &fakeUserEventStore{createErr: errors.New("db unavailable")}
-	events := NewUserEventService(store, nil)
-	documentID := uuid.New()
-	entityID := uuid.New()
-
-	createUserEventIfEnabled(events, models.CreateUserEventRequest{
-		RecipientUserID: uuid.New(),
-		DocumentID:      documentID,
-		DocumentKind:    string(models.DocumentKindIncomingLetter),
-		EntityType:      models.UserEventEntityAssignment,
-		EntityID:        entityID,
-		EventType:       models.UserEventAssignmentCreated,
-		Title:           "Новое поручение",
-		Message:         "Текст события",
-	})
-
-	logLine := out.String()
-	require.Contains(t, logLine, "failed to create user event")
-	require.Contains(t, logLine, "db unavailable")
-	require.Contains(t, logLine, documentID.String())
-	require.Contains(t, logLine, entityID.String())
-	require.Len(t, store.created, 1)
 }

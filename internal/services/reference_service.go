@@ -15,6 +15,20 @@ type ReferenceService struct {
 	auth         *AuthService
 	auditService *AdminAuditLogService
 }
+type referenceOutboxStore interface {
+	UpdateOrganizationWithOutbox(uuid.UUID, string, []models.OutboxEvent) error
+	DeleteOrganizationWithOutbox(uuid.UUID, []models.OutboxEvent) error
+	MergeOrganizationsWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) error
+	UpdateResolutionExecutorWithOutbox(uuid.UUID, string, []models.OutboxEvent) error
+	DeleteResolutionExecutorWithOutbox(uuid.UUID, []models.OutboxEvent) error
+}
+
+var errReferenceOutboxStoreRequired = fmt.Errorf("reference store must support atomic outbox operations")
+
+func (s *ReferenceService) auditEffect(key, action, details string) (models.OutboxEvent, error) {
+	userID, userName := s.auth.GetCurrentAuditInfo()
+	return NewAdminAuditOutboxEvent(key, models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: action, Details: details})
+}
 
 // NewReferenceService создает новый экземпляр ReferenceService.
 func NewReferenceService(repo ReferenceStore, auth *AuthService, auditService *AdminAuditLogService) *ReferenceService {
@@ -96,12 +110,20 @@ func (s *ReferenceService) UpdateOrganization(id string, name string) error {
 	if err != nil {
 		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
 	}
-	if err := s.repo.UpdateOrganization(uid, name); err != nil {
+	details := fmt.Sprintf("Обновлена организация «%s»", name)
+	store, ok := s.repo.(referenceOutboxStore)
+	if !ok {
+		return errReferenceOutboxStoreRequired
+	}
+	event, buildErr := s.auditEffect("organization:"+uid.String()+":update:"+uuid.NewString(), "ORG_UPDATE", details)
+	if buildErr != nil {
+		return buildErr
+	}
+	err = store.UpdateOrganizationWithOutbox(uid, name, []models.OutboxEvent{event})
+	if err != nil {
 		return err
 	}
 
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "ORG_UPDATE", fmt.Sprintf("Обновлена организация «%s»", name))
 	return nil
 }
 
@@ -114,12 +136,20 @@ func (s *ReferenceService) DeleteOrganization(id string) error {
 	if err != nil {
 		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
 	}
-	if err := s.repo.DeleteOrganization(uid); err != nil {
+	details := fmt.Sprintf("Удалена организация (ID: %s)", id)
+	store, ok := s.repo.(referenceOutboxStore)
+	if !ok {
+		return errReferenceOutboxStoreRequired
+	}
+	event, buildErr := s.auditEffect("organization:"+uid.String()+":delete", "ORG_DELETE", details)
+	if buildErr != nil {
+		return buildErr
+	}
+	err = store.DeleteOrganizationWithOutbox(uid, []models.OutboxEvent{event})
+	if err != nil {
 		return err
 	}
 
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "ORG_DELETE", fmt.Sprintf("Удалена организация (ID: %s)", id))
 	return nil
 }
 
@@ -139,12 +169,20 @@ func (s *ReferenceService) MergeOrganizations(sourceID string, targetID string) 
 	if sourceUID == targetUID {
 		return models.NewBadRequest("нельзя объединить организацию саму с собой")
 	}
-	if err := s.repo.MergeOrganizations(sourceUID, targetUID); err != nil {
+	details := fmt.Sprintf("Объединены организации: %s -> %s", sourceID, targetID)
+	store, ok := s.repo.(referenceOutboxStore)
+	if !ok {
+		return errReferenceOutboxStoreRequired
+	}
+	event, buildErr := s.auditEffect("organization:"+sourceUID.String()+":merge:"+targetUID.String(), "ORG_MERGE", details)
+	if buildErr != nil {
+		return buildErr
+	}
+	err = store.MergeOrganizationsWithOutbox(sourceUID, targetUID, []models.OutboxEvent{event})
+	if err != nil {
 		return err
 	}
 
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "ORG_MERGE", fmt.Sprintf("Объединены организации: %s -> %s", sourceID, targetID))
 	return nil
 }
 
@@ -186,12 +224,20 @@ func (s *ReferenceService) UpdateResolutionExecutor(id string, name string) erro
 	if err != nil {
 		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
 	}
-	if err := s.repo.UpdateResolutionExecutor(uid, name); err != nil {
+	details := fmt.Sprintf("Обновлен исполнитель резолюции «%s»", name)
+	store, ok := s.repo.(referenceOutboxStore)
+	if !ok {
+		return errReferenceOutboxStoreRequired
+	}
+	event, buildErr := s.auditEffect("resolution-executor:"+uid.String()+":update:"+uuid.NewString(), "RESEXEC_UPDATE", details)
+	if buildErr != nil {
+		return buildErr
+	}
+	err = store.UpdateResolutionExecutorWithOutbox(uid, name, []models.OutboxEvent{event})
+	if err != nil {
 		return err
 	}
 
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "RESEXEC_UPDATE", fmt.Sprintf("Обновлен исполнитель резолюции «%s»", name))
 	return nil
 }
 
@@ -204,11 +250,19 @@ func (s *ReferenceService) DeleteResolutionExecutor(id string) error {
 	if err != nil {
 		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
 	}
-	if err := s.repo.DeleteResolutionExecutor(uid); err != nil {
+	details := fmt.Sprintf("Удален исполнитель резолюции (ID: %s)", id)
+	store, ok := s.repo.(referenceOutboxStore)
+	if !ok {
+		return errReferenceOutboxStoreRequired
+	}
+	event, buildErr := s.auditEffect("resolution-executor:"+uid.String()+":delete", "RESEXEC_DELETE", details)
+	if buildErr != nil {
+		return buildErr
+	}
+	err = store.DeleteResolutionExecutorWithOutbox(uid, []models.OutboxEvent{event})
+	if err != nil {
 		return err
 	}
 
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "RESEXEC_DELETE", fmt.Sprintf("Удален исполнитель резолюции (ID: %s)", id))
 	return nil
 }

@@ -52,6 +52,35 @@ func TestAcknowledgmentRepository_Create(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAcknowledgmentRepositoryCreateWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
+	now := time.Now()
+	ack := &models.Acknowledgment{
+		ID:         uuid.New(),
+		DocumentID: uuid.New(),
+		CreatorID:  uuid.New(),
+		Content:    "Тест",
+		CreatedAt:  now,
+		Users:      []models.AcknowledgmentUser{{ID: uuid.New(), UserID: uuid.New(), CreatedAt: now}},
+	}
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "ack:" + ack.ID.String(), Payload: `{"action":"ACK_CREATE"}`}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO acknowledgments`).WithArgs(ack.ID, ack.DocumentID, ack.CreatorID, ack.Content, ack.CreatedAt).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO acknowledgment_users`).WithArgs(ack.Users[0].ID, ack.ID, ack.Users[0].UserID, ack.Users[0].CreatedAt).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	err = repo.CreateWithOutbox(ack, []models.OutboxEvent{event})
+	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestAcknowledgmentRepository_GetByID(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
@@ -163,6 +192,27 @@ func TestAcknowledgmentRepository_MarkViewed(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAcknowledgmentRepositoryMarkViewedWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
+	ackID, userID := uuid.New(), uuid.New()
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "ack:" + ackID.String() + ":viewed", Payload: `{"action":"ACK_VIEW"}`}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE acknowledgment_users SET viewed_at = \$1 WHERE acknowledgment_id = \$2 AND user_id = \$3 AND viewed_at IS NULL`).
+		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	err = repo.MarkViewedWithOutbox(ackID, userID, []models.OutboxEvent{event})
+	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestAcknowledgmentRepository_MarkViewedReturnsForbiddenWhenUserRowMissing(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -193,6 +243,26 @@ func TestAcknowledgmentRepository_Delete(t *testing.T) {
 
 	err = repo.Delete(ackID)
 	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAcknowledgmentRepositoryDeleteWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
+	ackID := uuid.New()
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "ack:" + ackID.String() + ":delete", Payload: `{"action":"ACK_DELETE"}`}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`DELETE FROM acknowledgments WHERE id = \$1`).WithArgs(ackID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	err = repo.DeleteWithOutbox(ackID, []models.OutboxEvent{event})
+	require.ErrorIs(t, err, assert.AnError)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -262,71 +332,6 @@ func TestAcknowledgmentRepository_GetPendingForUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, acks, 1)
 	assert.Equal(t, "Ознакомиться", acks[0].Content)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestAcknowledgmentRepository_MarkConfirmed(t *testing.T) {
-	// Подтверждение факта ознакомления пользователем
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
-	ackID := uuid.New()
-	userID := uuid.New()
-
-	mock.ExpectBegin()
-
-	mock.ExpectExec(`UPDATE acknowledgment_users SET confirmed_at = \$1, viewed_at = COALESCE\(viewed_at, \$1\) WHERE acknowledgment_id = \$2 AND user_id = \$3`).
-		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(1, 1))
-
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM acknowledgment_users WHERE acknowledgment_id = \$1 AND confirmed_at IS NULL`).
-		WithArgs(ackID).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
-	mock.ExpectExec(`UPDATE acknowledgments SET completed_at = \$1 WHERE id = \$2`).
-		WithArgs(sqlmock.AnyArg(), ackID).WillReturnResult(sqlmock.NewResult(1, 1))
-
-	mock.ExpectCommit()
-
-	err = repo.MarkConfirmed(ackID, userID)
-	require.NoError(t, err)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestAcknowledgmentRepository_MarkConfirmedReturnsForbiddenWhenUserRowMissing(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
-	ackID := uuid.New()
-	userID := uuid.New()
-
-	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE acknowledgment_users SET confirmed_at = \$1, viewed_at = COALESCE\(viewed_at, \$1\) WHERE acknowledgment_id = \$2 AND user_id = \$3`).
-		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery(`SELECT EXISTS\(SELECT 1 FROM acknowledgment_users WHERE acknowledgment_id = \$1 AND user_id = \$2\)`).
-		WithArgs(ackID, userID).WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
-	mock.ExpectRollback()
-
-	err = repo.MarkConfirmed(ackID, userID)
-	require.ErrorIs(t, err, models.ErrForbidden)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestAcknowledgmentRepository_MarkConfirmedIsIdempotent(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
-	ackID, userID := uuid.New(), uuid.New()
-	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE acknowledgment_users`).WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery(`SELECT EXISTS\(SELECT 1 FROM acknowledgment_users WHERE acknowledgment_id = \$1 AND user_id = \$2\)`).
-		WithArgs(ackID, userID).WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
-	mock.ExpectRollback()
-	err = repo.MarkConfirmed(ackID, userID)
-	require.ErrorIs(t, err, models.ErrAlreadyConfirmed)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

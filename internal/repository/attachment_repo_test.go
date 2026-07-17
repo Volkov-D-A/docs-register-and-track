@@ -52,6 +52,27 @@ func TestAttachmentRepository_Create(t *testing.T) {
 	})
 }
 
+func TestAttachmentRepositoryCreateWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	repo, mock := setupAttachmentRepo(t)
+	repo.SetOutbox(NewOutboxRepository(repo.db))
+	attachment := &models.Attachment{DocumentID: uuid.New(), Filename: "test.txt", StoragePath: "objects/test.txt", FileSize: 1, ContentType: "text/plain", UploadedBy: uuid.New()}
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "attachment:test:upload:journal", Payload: `{}`}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO attachments`).WithArgs(attachment.DocumentID, attachment.Filename, attachment.StoragePath, attachment.FileSize, attachment.ContentType, attachment.UploadedBy).WillReturnRows(sqlmock.NewRows([]string{"id", "uploaded_at"}).AddRow(uuid.New(), time.Now()))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	require.ErrorIs(t, repo.CreateWithOutbox(attachment, []models.OutboxEvent{event}), assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAttachmentRepositoryMarkDeletingWithOutboxRequiresOutbox(t *testing.T) {
+	repo, _ := setupAttachmentRepo(t)
+	err := repo.MarkDeletingWithOutbox(models.Attachment{ID: uuid.New(), StoragePath: "objects/test.txt"})
+	require.ErrorIs(t, err, ErrOutboxNotConfigured)
+}
+
 func TestAttachmentRepository_DeletionSaga(t *testing.T) {
 	repo, mock := setupAttachmentRepo(t)
 	attachmentID := uuid.New()

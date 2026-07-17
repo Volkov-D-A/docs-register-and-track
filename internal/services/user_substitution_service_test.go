@@ -2,6 +2,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,23 @@ func setupUserSubstitutionService(t *testing.T, currentUser *models.User) (*User
 		userRepo.On("GetByID", currentUser.ID).Return(currentUser, nil).Maybe()
 	}
 	return NewUserSubstitutionService(store, userRepo, auth, nil), store, userRepo, auth
+}
+
+type atomicUserSubstitutionStore struct {
+	*userSubstitutionStoreStub
+	effects []models.OutboxEvent
+}
+
+func (s *atomicUserSubstitutionStore) ReplaceForPrincipalWithOutbox(
+	principalUserID uuid.UUID,
+	substituteUserID *uuid.UUID,
+	startsAt, endsAt *time.Time,
+	isActive bool,
+	createdBy *uuid.UUID,
+	effects []models.OutboxEvent,
+) (*models.UserSubstitution, error) {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.userSubstitutionStoreStub.ReplaceForPrincipal(principalUserID, substituteUserID, startsAt, endsAt, isActive, createdBy)
 }
 
 func TestUserSubstitutionService_UpdateMySubstitution(t *testing.T) {
@@ -102,6 +120,29 @@ func TestUserSubstitutionService_UpdateMySubstitution(t *testing.T) {
 		require.Len(t, store.replaceCalls, 1)
 		assert.Nil(t, store.replaceCalls[0].substituteUserID)
 	})
+}
+
+func TestUserSubstitutionServiceUpdateUserSubstitutionPassesAuditEffectToAtomicStore(t *testing.T) {
+	departmentID := uuid.New()
+	admin := &models.User{ID: uuid.New(), FullName: "Администратор", IsActive: true}
+	principal := &models.User{ID: uuid.New(), FullName: "Основной пользователь", IsActive: true, IsDocumentParticipant: true, DepartmentID: &departmentID}
+	substitute := &models.User{ID: uuid.New(), IsActive: true, DepartmentID: &departmentID}
+	svc, store, userRepo, _ := setupUserSubstitutionService(t, admin)
+	atomicStore := &atomicUserSubstitutionStore{userSubstitutionStoreStub: store}
+	svc.repo = atomicStore
+	userRepo.On("GetByID", principal.ID).Return(principal, nil).Once()
+	userRepo.On("GetByID", substitute.ID).Return(substitute, nil).Once()
+
+	result, err := svc.UpdateUserSubstitution(models.UpdateUserSubstitutionRequest{
+		PrincipalUserID:  principal.ID.String(),
+		SubstituteUserID: substitute.ID.String(),
+		IsActive:         true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, atomicStore.effects, 1)
+	assert.Equal(t, models.OutboxEventAudit, atomicStore.effects[0].EventType)
 }
 
 func TestUserService_GetSubstitutionCandidates(t *testing.T) {

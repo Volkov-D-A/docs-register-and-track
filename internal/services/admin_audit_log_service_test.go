@@ -3,11 +3,8 @@ package services
 import (
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 
 	"github.com/google/uuid"
@@ -62,18 +59,4 @@ func TestAdminAuditLogService_GetAll_ForbiddenWithoutAdminRole(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, models.ErrForbidden, err)
 	assert.Nil(t, result)
-}
-
-func TestAdminAuditLogServiceLogActionQueuesOutboxEvent(t *testing.T) {
-	svc, _ := setupAdminAuditLogServiceWithRoles(t, []string{"admin"})
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-	svc.SetOutboxPublisher(NewOutboxPublisher(repository.NewOutboxRepository(&database.DB{DB: db})))
-
-	mock.ExpectBegin()
-	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventAudit, sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectCommit()
-	svc.LogAction(uuid.New(), "Администратор", "SETTINGS_UPDATE", "Изменена настройка")
-	require.NoError(t, mock.ExpectationsWereMet())
 }

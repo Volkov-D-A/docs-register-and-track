@@ -503,6 +503,26 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestOutgoingDocumentRepositoryUpdateWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	req := models.UpdateOutgoingDocRequest{ID: uuid.New(), DocumentTypeID: models.DocumentTypeLetter, Content: "новый текст"}
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "outgoing:" + req.ID.String() + ":update", Payload: `{}`}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE documents SET`).WithArgs(req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindOutgoingLetter).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`UPDATE outgoing_document_details SET`).WithArgs(req.OutgoingDate, req.SenderSignatory, req.SenderExecutor, req.RecipientOrgID, req.Addressee, req.ID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	_, err = repo.UpdateWithOutbox(req, []models.OutboxEvent{event})
+	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestOutgoingDocumentRepository_UpdateErrors(t *testing.T) {
 	t.Run("invalid document type", func(t *testing.T) {
 		db, _, err := sqlmock.New()

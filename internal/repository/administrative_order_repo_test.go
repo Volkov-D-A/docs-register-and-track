@@ -393,6 +393,28 @@ func TestAdministrativeOrderRepository_MarkAcknowledgmentPerson(t *testing.T) {
 	})
 }
 
+func TestAdministrativeOrderRepositoryMarkAcknowledgmentPersonWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
+	personID, documentID, acknowledgedBy := uuid.New(), uuid.New(), uuid.New()
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "order-ack:" + personID.String(), Payload: `{"action":"ACK_CONFIRM"}`}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`UPDATE administrative_order_acknowledgment_people`).
+		WithArgs(personID, acknowledgedBy).
+		WillReturnRows(sqlmock.NewRows([]string{"document_id"}).AddRow(documentID))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	_, err = repo.MarkAcknowledgmentPersonWithOutbox(personID, acknowledgedBy, []models.OutboxEvent{event})
+	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestAdministrativeOrderRepository_CancelByLink(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		db, mock, err := sqlmock.New()

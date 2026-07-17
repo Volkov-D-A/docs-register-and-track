@@ -32,6 +32,7 @@ func setupAckService(t *testing.T, role string) (
 	_, err := auth.Login(user.Login, password)
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+	userRepo.On("GetAll").Return([]models.User{}, nil).Maybe()
 
 	journalRepo := mocks.NewJournalStore(t)
 	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
@@ -46,8 +47,34 @@ func setupAckService(t *testing.T, role string) (
 	}, nil).Maybe()
 	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
 
-	svc := NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc, accessSvc)
+	svc := NewAcknowledgmentService(&atomicAcknowledgmentStore{AcknowledgmentStore: ackRepo}, userRepo, auth, journalSvc, accessSvc)
 	return svc, ackRepo, userRepo, auth, incomingRepo
+}
+
+type atomicAcknowledgmentStore struct {
+	*mocks.AcknowledgmentStore
+	effects             []models.OutboxEvent
+	confirmationEffects models.AcknowledgmentConfirmationEffects
+}
+
+func (s *atomicAcknowledgmentStore) CreateWithOutbox(ack *models.Acknowledgment, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.AcknowledgmentStore.Create(ack)
+}
+
+func (s *atomicAcknowledgmentStore) MarkViewedWithOutbox(ackID, userID uuid.UUID, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.AcknowledgmentStore.MarkViewed(ackID, userID)
+}
+
+func (s *atomicAcknowledgmentStore) DeleteWithOutbox(ackID uuid.UUID, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.AcknowledgmentStore.Delete(ackID)
+}
+
+func (s *atomicAcknowledgmentStore) MarkConfirmedWithEffects(ackID, userID uuid.UUID, effects models.AcknowledgmentConfirmationEffects) error {
+	s.confirmationEffects = effects
+	return s.AcknowledgmentStore.MarkConfirmed(ackID, userID)
 }
 
 func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
@@ -68,7 +95,7 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	}, nil).Maybe()
 	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
 
-	return NewAcknowledgmentService(ackRepo, userRepo, auth, journalSvc, accessSvc)
+	return NewAcknowledgmentService(&atomicAcknowledgmentStore{AcknowledgmentStore: ackRepo}, userRepo, auth, journalSvc, accessSvc)
 }
 
 func TestAcknowledgmentService_Create(t *testing.T) {
@@ -121,13 +148,26 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 	})
 }
 
-func TestAcknowledgmentService_CreateEmitsUserEvents(t *testing.T) {
+func TestAcknowledgmentServiceCreatePassesJournalAndUserEffectsToAtomicStore(t *testing.T) {
+	docID, recipientID := uuid.New(), uuid.New()
+	svc, repo, _, _, incomingRepo := setupAckService(t, "clerk")
+	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+	atomicRepo := &atomicAcknowledgmentStore{AcknowledgmentStore: repo}
+	svc.repo = atomicRepo
+	repo.On("Create", mock.AnythingOfType("*models.Acknowledgment")).Return(nil).Once()
+
+	_, err := svc.Create(docID.String(), "текст", []string{recipientID.String()})
+	require.NoError(t, err)
+	require.Len(t, atomicRepo.effects, 2)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
+	assert.Equal(t, models.OutboxEventUserEvent, atomicRepo.effects[1].EventType)
+}
+
+func TestAcknowledgmentService_CreatePassesUserEventsToAtomicStore(t *testing.T) {
 	docID := uuid.New()
 	user1 := uuid.New()
 	user2 := uuid.New()
-	svc, repo, _, auth, incomingRepo := setupAckService(t, "clerk")
-	eventStore := &fakeUserEventStore{}
-	svc.events = NewUserEventService(eventStore, auth)
+	svc, repo, _, _, incomingRepo := setupAckService(t, "clerk")
 	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
 		ID:             docID,
 		NomenclatureID: uuid.New(),
@@ -138,10 +178,10 @@ func TestAcknowledgmentService_CreateEmitsUserEvents(t *testing.T) {
 	result, err := svc.Create(docID.String(), "text", []string{user1.String(), user2.String()})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Len(t, eventStore.created, 2)
-	assert.Equal(t, user1, eventStore.created[0].RecipientUserID)
-	assert.Equal(t, user2, eventStore.created[1].RecipientUserID)
-	assert.Equal(t, models.UserEventAcknowledgmentCreated, eventStore.created[0].EventType)
+	atomicRepo := svc.repo.(*atomicAcknowledgmentStore)
+	require.Len(t, atomicRepo.effects, 3)
+	assert.Equal(t, models.OutboxEventUserEvent, atomicRepo.effects[1].EventType)
+	assert.Equal(t, models.OutboxEventUserEvent, atomicRepo.effects[2].EventType)
 }
 
 func TestAcknowledgmentService_GetList(t *testing.T) {
@@ -344,6 +384,22 @@ func TestAcknowledgmentService_MarkViewed(t *testing.T) {
 	})
 }
 
+func TestAcknowledgmentServiceMarkViewedPassesJournalEffectToAtomicStore(t *testing.T) {
+	ackID := uuid.New()
+	svc, repo, _, auth, _ := setupAckService(t, "executor")
+	userID, err := uuid.Parse(auth.GetCurrentUserID())
+	require.NoError(t, err)
+	atomicRepo := &atomicAcknowledgmentStore{AcknowledgmentStore: repo}
+	svc.repo = atomicRepo
+	repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: uuid.New()}, nil).Once()
+	repo.On("MarkViewed", ackID, userID).Return(nil).Once()
+
+	err = svc.MarkViewed(ackID.String())
+	require.NoError(t, err)
+	require.Len(t, atomicRepo.effects, 1)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
+}
+
 func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 	// Подтверждение прочтения / выполнения требуемых действий по ознакомлению
 	ackID := uuid.New()
@@ -394,6 +450,7 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 	t.Run("already confirmed is successful without side effects", func(t *testing.T) {
 		svc, repo, _, auth, _ := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: uuid.New(), DocumentKind: string(models.DocumentKindIncomingLetter)}, nil).Once()
 		repo.On("MarkConfirmed", ackID, userUUID).Return(models.ErrAlreadyConfirmed).Once()
 
 		err := svc.MarkConfirmed(ackID.String())
@@ -401,22 +458,37 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 	})
 }
 
-func TestAcknowledgmentService_MarkConfirmedEmitsUserEvent(t *testing.T) {
+func TestAcknowledgmentServiceMarkConfirmedPassesUserEventsToAtomicStore(t *testing.T) {
+	ackID, documentID, creatorID := uuid.New(), uuid.New(), uuid.New()
+	svc, repo, _, auth, incomingRepo := setupAckService(t, "executor")
+	userID, err := uuid.Parse(auth.GetCurrentUserID())
+	require.NoError(t, err)
+	atomicRepo := &atomicAcknowledgmentStore{AcknowledgmentStore: repo}
+	svc.repo = atomicRepo
+	incomingRepo.On("GetByID", documentID).Return(&models.IncomingDocument{ID: documentID, NomenclatureID: uuid.New(), IncomingNumber: "ВХ-3"}, nil).Maybe()
+	repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: documentID, DocumentKind: string(models.DocumentKindIncomingLetter), CreatorID: creatorID}, nil).Once()
+	repo.On("MarkConfirmed", ackID, userID).Return(nil).Once()
+
+	err = svc.MarkConfirmed(ackID.String())
+	require.NoError(t, err)
+	require.Len(t, atomicRepo.confirmationEffects.UserEvents, 1)
+	assert.Equal(t, creatorID, atomicRepo.confirmationEffects.UserEvents[0].RecipientUserID)
+	assert.Equal(t, models.UserEventAcknowledgmentConfirmed, atomicRepo.confirmationEffects.UserEvents[0].EventType)
+}
+
+func TestAcknowledgmentService_MarkConfirmedPassesUserEventToAtomicStore(t *testing.T) {
 	ackID := uuid.New()
 	docID := uuid.New()
 
 	t.Run("notifies creator", func(t *testing.T) {
 		creatorID := uuid.New()
-		svc, repo, userRepo, auth, incomingRepo := setupAckService(t, "executor")
-		eventStore := &fakeUserEventStore{}
-		svc.events = NewUserEventService(eventStore, auth)
+		svc, repo, _, auth, incomingRepo := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
 		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
 			ID:             docID,
 			NomenclatureID: uuid.New(),
 			IncomingNumber: "ВХ-3",
 		}, nil).Maybe()
-		userRepo.On("GetAll").Return([]models.User{}, nil).Once()
 		repo.On("MarkConfirmed", ackID, userUUID).Return(nil).Once()
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
@@ -427,22 +499,20 @@ func TestAcknowledgmentService_MarkConfirmedEmitsUserEvent(t *testing.T) {
 
 		err := svc.MarkConfirmed(ackID.String())
 		require.NoError(t, err)
-		require.Len(t, eventStore.created, 1)
-		assert.Equal(t, creatorID, eventStore.created[0].RecipientUserID)
-		assert.Equal(t, models.UserEventAcknowledgmentConfirmed, eventStore.created[0].EventType)
+		atomicRepo := svc.repo.(*atomicAcknowledgmentStore)
+		require.Len(t, atomicRepo.confirmationEffects.UserEvents, 1)
+		assert.Equal(t, creatorID, atomicRepo.confirmationEffects.UserEvents[0].RecipientUserID)
+		assert.Equal(t, models.UserEventAcknowledgmentConfirmed, atomicRepo.confirmationEffects.UserEvents[0].EventType)
 	})
 
 	t.Run("notifies creator when creator confirms own acknowledgment", func(t *testing.T) {
-		svc, repo, userRepo, auth, incomingRepo := setupAckService(t, "executor")
-		eventStore := &fakeUserEventStore{}
-		svc.events = NewUserEventService(eventStore, auth)
+		svc, repo, _, auth, incomingRepo := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.GetCurrentUserID())
 		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
 			ID:             docID,
 			NomenclatureID: uuid.New(),
 			IncomingNumber: "ВХ-3",
 		}, nil).Maybe()
-		userRepo.On("GetAll").Return([]models.User{}, nil).Once()
 		repo.On("MarkConfirmed", ackID, userUUID).Return(nil).Once()
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
@@ -453,9 +523,10 @@ func TestAcknowledgmentService_MarkConfirmedEmitsUserEvent(t *testing.T) {
 
 		err := svc.MarkConfirmed(ackID.String())
 		require.NoError(t, err)
-		require.Len(t, eventStore.created, 1)
-		assert.Equal(t, userUUID, eventStore.created[0].RecipientUserID)
-		assert.Equal(t, models.UserEventAcknowledgmentConfirmed, eventStore.created[0].EventType)
+		atomicRepo := svc.repo.(*atomicAcknowledgmentStore)
+		require.Len(t, atomicRepo.confirmationEffects.UserEvents, 1)
+		assert.Equal(t, userUUID, atomicRepo.confirmationEffects.UserEvents[0].RecipientUserID)
+		assert.Equal(t, models.UserEventAcknowledgmentConfirmed, atomicRepo.confirmationEffects.UserEvents[0].EventType)
 	})
 }
 
@@ -498,4 +569,18 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, models.ErrForbidden, err)
 	})
+}
+
+func TestAcknowledgmentServiceDeletePassesJournalEffectToAtomicStore(t *testing.T) {
+	ackID := uuid.New()
+	svc, repo, _, _, _ := setupAckService(t, "clerk")
+	atomicRepo := &atomicAcknowledgmentStore{AcknowledgmentStore: repo}
+	svc.repo = atomicRepo
+	repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: uuid.New()}, nil).Once()
+	repo.On("Delete", ackID).Return(nil).Once()
+
+	err := svc.Delete(ackID.String())
+	require.NoError(t, err)
+	require.Len(t, atomicRepo.effects, 1)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
 }

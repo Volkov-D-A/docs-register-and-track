@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 
@@ -19,13 +20,22 @@ func NewJournalRepository(db *database.DB) *JournalRepository {
 }
 
 func (r *JournalRepository) Create(ctx context.Context, req models.CreateJournalEntryRequest) (uuid.UUID, error) {
+	return r.create(ctx, req, "")
+}
+func (r *JournalRepository) CreateFromOutbox(ctx context.Context, req models.CreateJournalEntryRequest, key string) (uuid.UUID, error) {
+	return r.create(ctx, req, key)
+}
+func (r *JournalRepository) create(ctx context.Context, req models.CreateJournalEntryRequest, key string) (uuid.UUID, error) {
 	query := `
-		INSERT INTO document_journal (document_id, user_id, action, details)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO document_journal (document_id, user_id, action, details, outbox_deduplication_key)
+		VALUES ($1, $2, $3, $4, NULLIF($5, '')) ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING
 		RETURNING id
 	`
 	var id uuid.UUID
-	err := r.db.QueryRowContext(ctx, query, req.DocumentID, req.UserID, req.Action, req.Details).Scan(&id)
+	err := r.db.QueryRowContext(ctx, query, req.DocumentID, req.UserID, req.Action, req.Details, key).Scan(&id)
+	if err == sql.ErrNoRows && key != "" {
+		return uuid.Nil, nil
+	}
 	return id, err
 }
 

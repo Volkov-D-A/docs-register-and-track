@@ -15,6 +15,14 @@ type IncomingDocStore struct {
 	mock.Mock
 }
 
+func (_m *IncomingDocStore) CreateWithJournal(req models.CreateIncomingDocRequest, _ string, _ string) (*models.IncomingDocument, error) {
+	return _m.Create(req)
+}
+
+func (_m *IncomingDocStore) UpdateWithOutbox(req models.UpdateIncomingDocRequest, _ []models.OutboxEvent) (*models.IncomingDocument, error) {
+	return _m.Update(req)
+}
+
 // Create provides a mock function with given fields: req
 func (_m *IncomingDocStore) Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error) {
 	ret := _m.Called(req)

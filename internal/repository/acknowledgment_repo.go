@@ -27,6 +27,14 @@ func NewAcknowledgmentRepository(db *database.DB) *AcknowledgmentRepository {
 
 // Create создает новую задачу на ознакомление в БД.
 func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
+	return r.create(a, nil)
+}
+
+func (r *AcknowledgmentRepository) CreateWithOutbox(a *models.Acknowledgment, effects []models.OutboxEvent) error {
+	return r.create(a, effects)
+}
+
+func (r *AcknowledgmentRepository) create(a *models.Acknowledgment, effects []models.OutboxEvent) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
@@ -53,6 +61,9 @@ func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
 		if err != nil {
 			return fmt.Errorf("failed to create acknowledgment user: %w", err)
 		}
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
 	}
 
 	return tx.Commit()
@@ -284,14 +295,46 @@ func (r *AcknowledgmentRepository) MarkViewed(ackID, userID uuid.UUID) error {
 	return nil
 }
 
-// MarkConfirmed отмечает задачу на ознакомление как подтвержденную (выполненную) пользователем.
-func (r *AcknowledgmentRepository) MarkConfirmed(ackID, userID uuid.UUID) error {
-	return r.markConfirmed(ackID, userID, nil)
+// MarkViewedWithOutbox changes the acknowledgement state and persists its
+// journal event in one database transaction.
+func (r *AcknowledgmentRepository) MarkViewedWithOutbox(ackID, userID uuid.UUID, effects []models.OutboxEvent) error {
+	return r.markViewed(ackID, userID, effects)
+}
+
+func (r *AcknowledgmentRepository) markViewed(ackID, userID uuid.UUID, effects []models.OutboxEvent) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	query := `
+		UPDATE acknowledgment_users
+		SET viewed_at = $1
+		WHERE acknowledgment_id = $2 AND user_id = $3 AND viewed_at IS NULL
+	`
+	res, err := tx.Exec(query, time.Now(), ackID, userID)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return models.ErrForbidden
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // MarkConfirmedWithEffects persists already calculated notifications in the
 // same transaction as the first confirmation.
 func (r *AcknowledgmentRepository) MarkConfirmedWithEffects(ackID, userID uuid.UUID, effects models.AcknowledgmentConfirmationEffects) error {
+	if r.outbox == nil {
+		return ErrOutboxNotConfigured
+	}
 	return r.markConfirmed(ackID, userID, effects.UserEvents)
 }
 
@@ -353,29 +396,27 @@ func (r *AcknowledgmentRepository) markConfirmed(ackID, userID uuid.UUID, userEv
 			return err
 		}
 	}
-	if r.outbox != nil {
-		var documentID uuid.UUID
-		if err := tx.QueryRow(`SELECT document_id FROM acknowledgments WHERE id = $1`, ackID).Scan(&documentID); err != nil {
-			return err
-		}
-		payload, err := json.Marshal(models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: "ACK_CONFIRM", Details: "Ознакомление подтверждено"})
+	var documentID uuid.UUID
+	if err := tx.QueryRow(`SELECT document_id FROM acknowledgments WHERE id = $1`, ackID).Scan(&documentID); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: "ACK_CONFIRM", Details: "Ознакомление подтверждено"})
+	if err != nil {
+		return err
+	}
+	if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "ack:" + ackID.String() + ":confirmed:" + userID.String() + ":journal", Payload: string(payload)}); err != nil {
+		return err
+	}
+	for _, request := range userEvents {
+		payload, err := json.Marshal(struct {
+			Request models.CreateUserEventRequest `json:"request"`
+		}{Request: request})
 		if err != nil {
 			return err
 		}
-		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "ack:" + ackID.String() + ":confirmed:" + userID.String() + ":journal", Payload: string(payload)}); err != nil {
+		key := "ack:" + ackID.String() + ":confirmed:" + userID.String() + ":event:" + request.RecipientUserID.String()
+		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventUserEvent, DeduplicationKey: key, Payload: string(payload)}); err != nil {
 			return err
-		}
-		for _, request := range userEvents {
-			payload, err := json.Marshal(struct {
-				Request models.CreateUserEventRequest `json:"request"`
-			}{Request: request})
-			if err != nil {
-				return err
-			}
-			key := "ack:" + ackID.String() + ":confirmed:" + userID.String() + ":event:" + request.RecipientUserID.String()
-			if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventUserEvent, DeduplicationKey: key, Payload: string(payload)}); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -425,7 +466,26 @@ func (r *AcknowledgmentRepository) GetAllActive(filter models.AcknowledgmentFilt
 
 // Delete удаляет задачу на ознакомление по её ID.
 func (r *AcknowledgmentRepository) Delete(id uuid.UUID) error {
-	query := `DELETE FROM acknowledgments WHERE id = $1`
-	_, err := r.db.Exec(query, id)
+	_, err := r.db.Exec(`DELETE FROM acknowledgments WHERE id = $1`, id)
 	return err
+}
+
+// DeleteWithOutbox removes an acknowledgement and its side effects atomically.
+func (r *AcknowledgmentRepository) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	return r.delete(id, effects)
+}
+
+func (r *AcknowledgmentRepository) delete(id uuid.UUID, effects []models.OutboxEvent) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM acknowledgments WHERE id = $1`, id); err != nil {
+		return err
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

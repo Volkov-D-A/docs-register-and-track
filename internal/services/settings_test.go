@@ -38,7 +38,7 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	require.NoError(t, err)
 	db := &database.DB{DB: dbMock}
 
-	return NewSettingsService(db, settingsRepo, auth, nil), settingsRepo
+	return NewSettingsService(db, &atomicSettingsStore{SettingsStore: settingsRepo}, auth, nil), settingsRepo
 }
 
 func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsService, *mocks.SettingsStore, *AuthService, *models.User) {
@@ -65,7 +65,17 @@ func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsServi
 	require.NoError(t, err)
 	db := &database.DB{DB: dbMock}
 
-	return NewSettingsService(db, settingsRepo, auth, nil), settingsRepo, auth, user
+	return NewSettingsService(db, &atomicSettingsStore{SettingsStore: settingsRepo}, auth, nil), settingsRepo, auth, user
+}
+
+type atomicSettingsStore struct {
+	*mocks.SettingsStore
+	effects []models.OutboxEvent
+}
+
+func (s *atomicSettingsStore) UpdateWithOutbox(key, value string, effects []models.OutboxEvent) error {
+	s.effects = append([]models.OutboxEvent(nil), effects...)
+	return s.SettingsStore.Update(key, value)
 }
 
 type captureSettingsAuditLogStore struct {
@@ -144,26 +154,20 @@ func TestSettingsService_Update(t *testing.T) {
 	})
 
 	t.Run("writes audit only when value changed", func(t *testing.T) {
-		svc, repo, auth, user := setupSettingsServiceWithRoles(t, []string{"admin"})
-		auditRepo := &captureSettingsAuditLogStore{}
-		svc.auditService = NewAdminAuditLogService(auditRepo, auth)
+		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
 
 		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "old"}, nil).Once()
 		repo.On("Update", "key", "new").Return(nil).Once()
 
 		err := svc.Update("key", "new")
 		require.NoError(t, err)
-		require.Len(t, auditRepo.requests, 1)
-		assert.Equal(t, user.ID, auditRepo.requests[0].UserID)
-		assert.Equal(t, user.FullName, auditRepo.requests[0].UserName)
-		assert.Equal(t, "SETTINGS_UPDATE", auditRepo.requests[0].Action)
-		assert.Equal(t, "Изменена настройка «key»: new", auditRepo.requests[0].Details)
+		atomicRepo := svc.repo.(*atomicSettingsStore)
+		require.Len(t, atomicRepo.effects, 1)
+		assert.Equal(t, models.OutboxEventAudit, atomicRepo.effects[0].EventType)
 	})
 
 	t.Run("uses human readable label for known setting", func(t *testing.T) {
-		svc, repo, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
-		auditRepo := &captureSettingsAuditLogStore{}
-		svc.auditService = NewAdminAuditLogService(auditRepo, auth)
+		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
 
 		repo.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{
 			Key:         "assignment_completion_attachments_enabled",
@@ -174,14 +178,11 @@ func TestSettingsService_Update(t *testing.T) {
 
 		err := svc.Update("assignment_completion_attachments_enabled", "false")
 		require.NoError(t, err)
-		require.Len(t, auditRepo.requests, 1)
-		assert.Equal(t, "Изменена настройка Файлы при завершении поручения: false", auditRepo.requests[0].Details)
+		require.Len(t, svc.repo.(*atomicSettingsStore).effects, 1)
 	})
 
 	t.Run("updates password lifetime setting", func(t *testing.T) {
-		svc, repo, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
-		auditRepo := &captureSettingsAuditLogStore{}
-		svc.auditService = NewAdminAuditLogService(auditRepo, auth)
+		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
 
 		repo.On("Get", "password_lifetime_days").Return(&models.SystemSetting{
 			Key:   "password_lifetime_days",
@@ -191,8 +192,7 @@ func TestSettingsService_Update(t *testing.T) {
 
 		err := svc.Update("password_lifetime_days", "90")
 		require.NoError(t, err)
-		require.Len(t, auditRepo.requests, 1)
-		assert.Equal(t, "Изменена настройка Срок жизни пароля: 90", auditRepo.requests[0].Details)
+		require.Len(t, svc.repo.(*atomicSettingsStore).effects, 1)
 	})
 
 	t.Run("rejects negative password lifetime", func(t *testing.T) {

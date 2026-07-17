@@ -86,6 +86,12 @@ type CitizenAppealCommandHandler struct {
 	journal *JournalService
 	access  *DocumentAccessService
 }
+type citizenAppealOutboxStore interface {
+	UpdateWithOutbox(models.UpdateCitizenAppealDocRequest, []models.OutboxEvent) (*models.CitizenAppealDocument, error)
+}
+type citizenAppealJournalStore interface {
+	CreateWithJournal(models.CreateCitizenAppealDocRequest, string, string) (*models.CitizenAppealDocument, error)
+}
 
 // NewCitizenAppealCommandHandler создает handler команд обращений граждан.
 func NewCitizenAppealCommandHandler(
@@ -170,7 +176,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 		return nil, ErrNotAuthenticated
 	}
 
-	res, err := h.repo.Create(models.CreateCitizenAppealDocRequest{
+	createReq := models.CreateCitizenAppealDocRequest{
 		NomenclatureID:       nomID,
 		IdempotencyKey:       idempotencyKey,
 		AdminNumberOverride:  adminOverride,
@@ -189,15 +195,12 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 		ReceivedFromPOS:      req.ReceivedFromPOS,
 		Correspondents:       correspondents,
 		Resolutions:          resolutions,
-	})
-	if err == nil {
-		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
-			DocumentID: res.ID,
-			UserID:     createdBy,
-			Action:     "CREATE",
-			Details:    fmt.Sprintf("Обращение зарегистрировано. Номер: %s", res.RegistrationNumber),
-		})
 	}
+	store, ok := h.repo.(citizenAppealJournalStore)
+	if !ok {
+		return nil, fmt.Errorf("citizen appeal store must support atomic journal operations")
+	}
+	res, err := store.CreateWithJournal(createReq, "CREATE", "Обращение зарегистрировано. Номер: %s")
 	return dto.MapCitizenAppealDocument(res), err
 }
 
@@ -236,7 +239,7 @@ func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateReque
 		return nil, ErrNotAuthenticated
 	}
 
-	res, err := h.repo.Create(models.CreateCitizenAppealDocRequest{
+	createReq := models.CreateCitizenAppealDocRequest{
 		NomenclatureID:       nomID,
 		IdempotencyKey:       uuid.New(),
 		AdminNumberOverride:  adminOverride,
@@ -250,15 +253,12 @@ func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateReque
 		ApplicantCategory:    adminDraftPlaceholder,
 		AppealPagesCount:     1,
 		AttachmentPagesCount: 0,
-	})
-	if err == nil {
-		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
-			DocumentID: res.ID,
-			UserID:     createdBy,
-			Action:     "ADMIN_DRAFT_CREATE",
-			Details:    fmt.Sprintf("Создан административный черновик. Рег. номер: %s", res.RegistrationNumber),
-		})
 	}
+	store, ok := h.repo.(citizenAppealJournalStore)
+	if !ok {
+		return nil, fmt.Errorf("citizen appeal store must support atomic journal operations")
+	}
+	res, err := store.CreateWithJournal(createReq, "ADMIN_DRAFT_CREATE", "Создан административный черновик. Рег. номер: %s")
 	return dto.MapCitizenAppealDocument(res), err
 }
 
@@ -304,7 +304,7 @@ func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*d
 		return nil, err
 	}
 
-	res, err := h.repo.Update(models.UpdateCitizenAppealDocRequest{
+	updateReq := models.UpdateCitizenAppealDocRequest{
 		ID:                   uid,
 		RegistrationNumber:   registrationNumber,
 		RegistrationDate:     registrationDate,
@@ -320,16 +320,17 @@ func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*d
 		ReceivedFromPOS:      req.ReceivedFromPOS,
 		Correspondents:       correspondents,
 		Resolutions:          resolutions,
-	})
-	if err == nil {
-		currentUserID, _ := h.auth.GetCurrentUserUUID()
-		h.journal.LogAction(nil, models.CreateJournalEntryRequest{
-			DocumentID: uid,
-			UserID:     currentUserID,
-			Action:     "UPDATE",
-			Details:    "Обращение отредактировано",
-		})
 	}
+	store, ok := h.repo.(citizenAppealOutboxStore)
+	if !ok {
+		return nil, fmt.Errorf("citizen appeal store must support atomic outbox operations")
+	}
+	currentUserID, _ := h.auth.GetCurrentUserUUID()
+	event, buildErr := NewJournalOutboxEvent("citizen-appeal:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Обращение отредактировано"})
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	res, err := store.UpdateWithOutbox(updateReq, []models.OutboxEvent{event})
 	return dto.MapCitizenAppealDocument(res), err
 }
 

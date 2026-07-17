@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -85,5 +86,22 @@ func TestSettingsRepository_Update(t *testing.T) {
 
 	err = repo.Update("test_key", "new_val")
 	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSettingsRepositoryUpdateWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewSettingsRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	event := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "setting:test:update", Payload: `{}`}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO system_settings`).WithArgs("test_key", "new_val").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	require.ErrorIs(t, repo.UpdateWithOutbox("test_key", "new_val", []models.OutboxEvent{event}), assert.AnError)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -17,6 +17,14 @@ type NomenclatureService struct {
 	auditService *AdminAuditLogService
 }
 
+type nomenclatureOutboxStore interface {
+	CreateWithOutbox(string, string, int, string, string, string, int, []models.OutboxEvent) (*models.Nomenclature, error)
+	UpdateWithOutbox(uuid.UUID, string, string, int, string, string, string, bool, []models.OutboxEvent) (*models.Nomenclature, error)
+	DeleteWithOutbox(uuid.UUID, []models.OutboxEvent) error
+}
+
+var errNomenclatureOutboxStoreRequired = fmt.Errorf("nomenclature store must support atomic outbox operations")
+
 // NewNomenclatureService создает новый экземпляр NomenclatureService.
 func NewNomenclatureService(repo NomenclatureStore, auth *AuthService, auditService *AdminAuditLogService) *NomenclatureService {
 	return &NomenclatureService{repo: repo, auth: auth, auditService: auditService}
@@ -50,13 +58,21 @@ func (s *NomenclatureService) Create(name, index string, year int, kindCode, sep
 		startNumber = 1
 	}
 
-	res, err := s.repo.Create(name, index, year, kindCode, separator, numberingMode, startNumber)
+	userID, userName := s.auth.GetCurrentAuditInfo()
+	var res *models.Nomenclature
+	var err error
+	store, ok := s.repo.(nomenclatureOutboxStore)
+	if !ok {
+		return nil, errNomenclatureOutboxStoreRequired
+	}
+	event, buildErr := NewAdminAuditOutboxEvent("nomenclature:"+uuid.NewString()+":create", models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "NOMENCLATURE_CREATE", Details: fmt.Sprintf("Создано дело «%s» (%s), вид: %s, год: %d, стартовый номер: %d", name, index, kindCode, year, startNumber)})
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	res, err = store.CreateWithOutbox(name, index, year, kindCode, separator, numberingMode, startNumber, []models.OutboxEvent{event})
 	if err != nil {
 		return nil, err
 	}
-
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "NOMENCLATURE_CREATE", fmt.Sprintf("Создано дело «%s» (%s), вид: %s, год: %d, стартовый номер: %d", name, index, kindCode, year, startNumber))
 
 	return dto.MapNomenclature(res), nil
 }
@@ -70,13 +86,20 @@ func (s *NomenclatureService) Update(id string, name, index string, year int, ki
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID номенклатуры", err)
 	}
-	res, err := s.repo.Update(uid, name, index, year, kindCode, separator, numberingMode, isActive)
+	userID, userName := s.auth.GetCurrentAuditInfo()
+	var res *models.Nomenclature
+	store, ok := s.repo.(nomenclatureOutboxStore)
+	if !ok {
+		return nil, errNomenclatureOutboxStoreRequired
+	}
+	event, buildErr := NewAdminAuditOutboxEvent("nomenclature:"+uid.String()+":update:"+uuid.NewString(), models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "NOMENCLATURE_UPDATE", Details: fmt.Sprintf("Обновлено дело «%s» (%s)", name, index)})
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	res, err = store.UpdateWithOutbox(uid, name, index, year, kindCode, separator, numberingMode, isActive, []models.OutboxEvent{event})
 	if err != nil {
 		return nil, err
 	}
-
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "NOMENCLATURE_UPDATE", fmt.Sprintf("Обновлено дело «%s» (%s)", name, index))
 
 	return dto.MapNomenclature(res), nil
 }
@@ -90,11 +113,18 @@ func (s *NomenclatureService) Delete(id string) error {
 	if err != nil {
 		return models.NewBadRequestWrapped("неверный ID номенклатуры", err)
 	}
-	if err := s.repo.Delete(uid); err != nil {
+	userID, userName := s.auth.GetCurrentAuditInfo()
+	store, ok := s.repo.(nomenclatureOutboxStore)
+	if !ok {
+		return errNomenclatureOutboxStoreRequired
+	}
+	event, buildErr := NewAdminAuditOutboxEvent("nomenclature:"+uid.String()+":delete", models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "NOMENCLATURE_DELETE", Details: fmt.Sprintf("Удалено дело (ID: %s)", id)})
+	if buildErr != nil {
+		return buildErr
+	}
+	err = store.DeleteWithOutbox(uid, []models.OutboxEvent{event})
+	if err != nil {
 		return err
 	}
-
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "NOMENCLATURE_DELETE", fmt.Sprintf("Удалено дело (ID: %s)", id))
 	return nil
 }

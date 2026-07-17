@@ -223,6 +223,57 @@ func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM documents WHERE created_by = $1 AND kind = 'outgoing_letter'`, []any{userID}, workers+1)
 }
 
+// TestOutboxClaimConcurrencyIntegration verifies the mutual exclusion that a
+// sqlmock test cannot prove: two independent workers connected to PostgreSQL
+// must not receive the same outbox row.
+func TestOutboxClaimConcurrencyIntegration(t *testing.T) {
+	sqlDB := openSafeIntegrationDB(t)
+	defer sqlDB.Close()
+
+	db := &database.DB{DB: sqlDB}
+	outbox := NewOutboxRepository(db)
+	event := models.OutboxEvent{
+		EventType:        models.OutboxEventJournal,
+		DeduplicationKey: "integration-claim-" + uuid.NewString(),
+		Payload:          `{"DocumentID":"00000000-0000-0000-0000-000000000000","UserID":"00000000-0000-0000-0000-000000000000","Action":"TEST","Details":"concurrent claim"}`,
+	}
+	if err := outbox.Enqueue(event); err != nil {
+		t.Fatalf("enqueue event: %v", err)
+	}
+
+	start := make(chan struct{})
+	results := make(chan []models.OutboxEvent, 2)
+	errs := make(chan error, 2)
+	var workers sync.WaitGroup
+	for range 2 {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			claimed, err := outbox.ClaimPending(1)
+			errs <- err
+			results <- claimed
+		}()
+	}
+	close(start)
+	workers.Wait()
+	close(errs)
+	close(results)
+
+	claimedCount := 0
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("claim pending: %v", err)
+		}
+	}
+	for claimed := range results {
+		claimedCount += len(claimed)
+	}
+	if claimedCount != 1 {
+		t.Fatalf("total claimed events = %d, want 1", claimedCount)
+	}
+}
+
 func TestJournalRetentionFKIntegration(t *testing.T) {
 	sqlDB := openSafeIntegrationDB(t)
 	defer sqlDB.Close()

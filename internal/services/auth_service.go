@@ -37,6 +37,9 @@ type AuthService struct {
 	currentUserID uuid.UUID
 	mu            sync.RWMutex
 }
+type userLockOutboxStore interface {
+	IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error)
+}
 
 // NewAuthService создает новый экземпляр AuthService.
 func NewAuthService(db *database.DB, userRepo UserStore) *AuthService {
@@ -86,14 +89,11 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 	}
 
 	if !security.VerifyPassword(user.PasswordHash, password) {
-		attempts, isActive, err := s.userRepo.IncrementFailedLoginAttempts(user.ID)
+		_, isActive, err := s.incrementFailedLoginAttempts(user)
 		if err != nil {
 			return nil, err
 		}
 		if !isActive {
-			if attempts == 5 {
-				s.logUserLock(user)
-			}
 			return nil, ErrUserLocked
 		}
 		return nil, ErrInvalidCredentials
@@ -175,24 +175,6 @@ func (s *AuthService) ensureCompatibleSchema() error {
 		return migrationCompatibilityAppError(err)
 	}
 	return nil
-}
-
-func (s *AuthService) logUserLock(user *models.User) {
-	if s.auditService == nil || user == nil {
-		return
-	}
-
-	userName := user.FullName
-	if userName == "" {
-		userName = user.Login
-	}
-
-	s.auditService.LogAction(
-		user.ID,
-		userName,
-		"USER_LOCKED",
-		fmt.Sprintf("Пользователь «%s» (%s) автоматически заблокирован после 5 неверных попыток входа", userName, user.Login),
-	)
 }
 
 // Logout — выход
@@ -302,14 +284,11 @@ func (s *AuthService) ChangeRequiredPassword(login, oldPassword, newPassword str
 	}
 
 	if !security.VerifyPassword(user.PasswordHash, oldPassword) {
-		attempts, isActive, err := s.userRepo.IncrementFailedLoginAttempts(user.ID)
+		_, isActive, err := s.incrementFailedLoginAttempts(user)
 		if err != nil {
 			return err
 		}
 		if !isActive {
-			if attempts == 5 {
-				s.logUserLock(user)
-			}
 			return ErrUserLocked
 		}
 		return ErrInvalidCredentials
@@ -328,6 +307,22 @@ func (s *AuthService) ChangeRequiredPassword(login, oldPassword, newPassword str
 	}
 
 	return s.userRepo.UpdatePassword(user.ID, newHash)
+}
+
+func (s *AuthService) incrementFailedLoginAttempts(user *models.User) (int, bool, error) {
+	store, ok := s.userRepo.(userLockOutboxStore)
+	if !ok {
+		return 0, false, fmt.Errorf("user store must support atomic lock outbox operation")
+	}
+	name := user.FullName
+	if name == "" {
+		name = user.Login
+	}
+	event, err := NewAdminAuditOutboxEvent("user:"+user.ID.String()+":locked", models.CreateAdminAuditLogRequest{UserID: user.ID, UserName: name, Action: "USER_LOCKED", Details: fmt.Sprintf("Пользователь «%s» (%s) автоматически заблокирован после 5 неверных попыток входа", name, user.Login)})
+	if err != nil {
+		return 0, false, err
+	}
+	return store.IncrementFailedLoginAttemptsWithOutbox(user.ID, event)
 }
 
 // UpdateProfile — обновление профиля текущего пользователя

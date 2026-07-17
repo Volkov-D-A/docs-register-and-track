@@ -16,6 +16,9 @@ type AdministrativeOrderService struct {
 	access  *DocumentAccessService
 	journal *JournalService
 }
+type administrativeOrderAcknowledgmentOutboxStore interface {
+	MarkAcknowledgmentPersonWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error)
+}
 
 // NewAdministrativeOrderService создает сервис приказов.
 func NewAdministrativeOrderService(
@@ -55,20 +58,21 @@ func (s *AdministrativeOrderService) MarkAcknowledged(personIDStr string) (*dto.
 		return nil, models.ErrUnauthorized
 	}
 
-	updated, err := s.repo.MarkAcknowledgmentPerson(personID, userID)
+	store, ok := s.repo.(administrativeOrderAcknowledgmentOutboxStore)
+	if !ok {
+		return nil, fmt.Errorf("administrative order store must support atomic outbox operations")
+	}
+	event, buildErr := NewJournalOutboxEvent("administrative-order:"+person.DocumentID.String()+":acknowledge:"+personID.String(), models.CreateJournalEntryRequest{DocumentID: person.DocumentID, UserID: userID, Action: "ORDER_ACKNOWLEDGE", Details: fmt.Sprintf("Ознакомлен: %s", person.FullName)})
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	updated, err := store.MarkAcknowledgmentPersonWithOutbox(personID, userID, []models.OutboxEvent{event})
 	if err != nil {
 		return nil, err
 	}
 	if updated == nil {
 		return nil, models.NewNotFound("строка ознакомления не найдена")
 	}
-
-	s.journal.LogAction(nil, models.CreateJournalEntryRequest{
-		DocumentID: updated.DocumentID,
-		UserID:     userID,
-		Action:     "ORDER_ACKNOWLEDGE",
-		Details:    fmt.Sprintf("Ознакомлен: %s", updated.FullName),
-	})
 
 	mapped := dto.MapAdministrativeOrderAcknowledgmentPeople([]models.AdministrativeOrderAcknowledgmentPerson{*updated})
 	if len(mapped) == 0 {

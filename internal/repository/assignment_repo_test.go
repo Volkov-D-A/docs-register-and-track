@@ -87,6 +87,33 @@ func TestAssignmentRepository_Delete(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAssignmentRepositoryDeleteWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewAssignmentRepository(&database.DB{DB: db})
+	outbox := NewOutboxRepository(&database.DB{DB: db})
+	repo.SetOutbox(outbox)
+	assignmentID := uuid.New()
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "assignment:test:deleted:journal", Payload: `{}`}
+	mock.ExpectBegin()
+	mock.ExpectExec(`DELETE FROM assignments WHERE id = \$1`).WithArgs(assignmentID).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	require.ErrorIs(t, repo.DeleteWithOutbox(assignmentID, []models.OutboxEvent{event}), assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAssignmentRepositoryAtomicMethodsRequireOutbox(t *testing.T) {
+	repo := NewAssignmentRepository(nil)
+	_, err := repo.CreateWithOutbox(uuid.New(), uuid.New(), uuid.New(), "тест", nil, nil, nil)
+	require.ErrorIs(t, err, ErrOutboxNotConfigured)
+	_, err = repo.UpdateWithOutbox(uuid.New(), uuid.New(), "тест", nil, "new", "", nil, nil, nil)
+	require.ErrorIs(t, err, ErrOutboxNotConfigured)
+	require.ErrorIs(t, repo.DeleteWithOutbox(uuid.New(), nil), ErrOutboxNotConfigured)
+}
+
 func TestAssignmentRepository_Create(t *testing.T) {
 	// Создание нового поручения с привязкой соисполнителей
 	db, mock, err := sqlmock.New()

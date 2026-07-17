@@ -19,6 +19,11 @@ type SettingsService struct {
 	authService  *AuthService
 	auditService *AdminAuditLogService
 }
+type settingsOutboxStore interface {
+	UpdateWithOutbox(string, string, []models.OutboxEvent) error
+}
+
+var errSettingsOutboxStoreRequired = errors.New("settings store must support atomic outbox operations")
 
 // NewSettingsService создает новый экземпляр SettingsService.
 func NewSettingsService(db *database.DB, repo SettingsStore, authService *AuthService, auditService *AdminAuditLogService) *SettingsService {
@@ -52,12 +57,20 @@ func (s *SettingsService) Update(key, value string) error {
 		return nil
 	}
 
-	if err := s.repo.Update(key, value); err != nil {
+	userID, userName := s.authService.GetCurrentAuditInfo()
+	details := fmt.Sprintf("Изменена настройка %s: %s", s.getSettingAuditLabel(key, current), value)
+	store, ok := s.repo.(settingsOutboxStore)
+	if !ok {
+		return errSettingsOutboxStoreRequired
+	}
+	event, buildErr := NewAdminAuditOutboxEvent("setting:"+key+":update:"+value, models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "SETTINGS_UPDATE", Details: details})
+	if buildErr != nil {
+		return buildErr
+	}
+	err = store.UpdateWithOutbox(key, value, []models.OutboxEvent{event})
+	if err != nil {
 		return err
 	}
-
-	userID, userName := s.authService.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "SETTINGS_UPDATE", fmt.Sprintf("Изменена настройка %s: %s", s.getSettingAuditLabel(key, current), value))
 	return nil
 }
 

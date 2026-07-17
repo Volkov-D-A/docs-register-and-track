@@ -36,6 +36,9 @@ type AttachmentService struct {
 
 type attachmentOutboxStore interface {
 	MarkDeletingWithOutbox(attachment models.Attachment) error
+	MarkDeletingWithEffects(attachment models.Attachment, effects []models.OutboxEvent) error
+	CreateWithOutbox(*models.Attachment, []models.OutboxEvent) error
+	MarkDeletingMultipleWithOutbox([]models.Attachment, []models.OutboxEvent) error
 	OutboxEnabled() bool
 }
 
@@ -233,18 +236,21 @@ func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachm
 		UploadedBy:  userID,
 	}
 
-	if err := s.repo.Create(attachment); err != nil {
+	outboxRepo, ok := s.repo.(attachmentOutboxStore)
+	if !ok || !outboxRepo.OutboxEnabled() {
+		_ = s.fileStorage.DeleteFile(ctx, objectName)
+		return nil, fmt.Errorf("attachment store must support atomic outbox operations")
+	}
+	event, buildErr := NewJournalOutboxEvent("attachment:"+objectName+":upload:journal", models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: "FILE_UPLOAD", Details: fmt.Sprintf("Добавлен файл: %s", filename)})
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	err = outboxRepo.CreateWithOutbox(attachment, []models.OutboxEvent{event})
+	if err != nil {
 		// Попытка откатить (удалить) файл из хранилища, если сохранение в БД не удалось
 		_ = s.fileStorage.DeleteFile(ctx, objectName)
 		return nil, err
 	}
-
-	s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
-		DocumentID: documentID,
-		UserID:     userID,
-		Action:     "FILE_UPLOAD",
-		Details:    fmt.Sprintf("Добавлен файл: %s", filename),
-	})
 
 	attachment.UploadedByName = currentUser.FullName
 
@@ -305,7 +311,7 @@ func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error
 
 // Delete — удалить вложение
 func (s *AttachmentService) Delete(idStr string) error {
-	ctx, release := serviceOperationContext(s.lifecycle)
+	_, release := serviceOperationContext(s.lifecycle)
 	defer release()
 
 	// Проверка прав доступа
@@ -328,31 +334,16 @@ func (s *AttachmentService) Delete(idStr string) error {
 
 	// First commit the deletion intent. From this point the attachment is hidden
 	// from reads, so a later database failure cannot leave a visible broken link.
-	usesOutbox := false
-	if outboxRepo, ok := s.repo.(attachmentOutboxStore); ok && outboxRepo.OutboxEnabled() {
-		if err := outboxRepo.MarkDeletingWithOutbox(*attachment); err != nil {
-			return err
-		}
-		usesOutbox = true
-	} else if err := s.repo.MarkDeleting(id); err != nil {
-		return err
+	outboxRepo, ok := s.repo.(attachmentOutboxStore)
+	if !ok || !outboxRepo.OutboxEnabled() {
+		return fmt.Errorf("attachment store must support atomic outbox operations")
 	}
-
-	if !usesOutbox {
-		if err := s.finalizeDeletion(ctx, *attachment); err != nil {
-			return err
-		}
-	}
-
 	currentUserID, _ := s.authService.GetCurrentUserUUID()
-	s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
-		DocumentID: attachment.DocumentID,
-		UserID:     currentUserID,
-		Action:     "FILE_DELETE",
-		Details:    fmt.Sprintf("Удален файл: %s", attachment.Filename),
-	})
-
-	return nil
+	event, buildErr := NewJournalOutboxEvent("attachment:"+attachment.ID.String()+":delete:journal", models.CreateJournalEntryRequest{DocumentID: attachment.DocumentID, UserID: currentUserID, Action: "FILE_DELETE", Details: fmt.Sprintf("Удален файл: %s", attachment.Filename)})
+	if buildErr != nil {
+		return buildErr
+	}
+	return outboxRepo.MarkDeletingWithEffects(*attachment, []models.OutboxEvent{event})
 }
 
 // DownloadToDisk — сохранить файл в папку «Загрузки» пользователя и вернуть полный путь
@@ -576,7 +567,7 @@ func (s *AttachmentService) OpenFolder(path string) error {
 
 // BulkDeleteOlderThan — массовое удаление файлов, загруженных до указанной даты
 func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
-	ctx, release := serviceOperationContext(s.lifecycle)
+	_, release := serviceOperationContext(s.lifecycle)
 	defer release()
 
 	// Проверка прав доступа
@@ -597,52 +588,24 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	if len(attachments) == 0 {
 		return 0, nil
 	}
-	if outboxRepo, ok := s.repo.(attachmentOutboxStore); ok && outboxRepo.OutboxEnabled() {
-		for _, attachment := range attachments {
-			if err := outboxRepo.MarkDeletingWithOutbox(attachment); err != nil {
-				return 0, fmt.Errorf("failed to queue attachment deletion: %w", err)
-			}
-		}
-		currentUserID, _ := s.authService.GetCurrentUserUUID()
-		var currentUserName string
-		if u, err := s.authService.GetCurrentUser(); err == nil {
-			currentUserName = u.FullName
-		}
-		s.auditService.LogAction(currentUserID, currentUserName, "FILES_BULK_DELETE", fmt.Sprintf("Массовое удаление файлов: поставлено в очередь %d, загруженных до %s", len(attachments), date.Format("02.01.2006")))
-		return len(attachments), nil
+	outboxRepo, ok := s.repo.(attachmentOutboxStore)
+	if !ok || !outboxRepo.OutboxEnabled() {
+		return 0, fmt.Errorf("attachment store must support atomic outbox operations")
 	}
-
-	ids := make([]uuid.UUID, 0, len(attachments))
-	for _, att := range attachments {
-		ids = append(ids, att.ID)
-	}
-	if err := s.repo.MarkDeletingMultiple(ids); err != nil {
-		return 0, fmt.Errorf("failed to mark attachment records for deletion: %w", err)
-	}
-
-	deletedCount := 0
-
-	for _, att := range attachments {
-		if err := ctx.Err(); err != nil {
-			return deletedCount, err
-		}
-		if err := s.finalizeDeletion(ctx, att); err != nil {
-			// Логируем ошибку, но продолжаем удаление других файлов
-			fmt.Printf("Failed to finalize deletion of file %s: %v\n", att.StoragePath, err)
-			continue
-		}
-		deletedCount++
-	}
-
 	currentUserID, _ := s.authService.GetCurrentUserUUID()
 	var currentUserName string
 	if u, err := s.authService.GetCurrentUser(); err == nil {
 		currentUserName = u.FullName
 	}
-	details := fmt.Sprintf("Массовое удаление файлов: удалено %d, загруженных до %s", deletedCount, date.Format("02.01.2006"))
-	s.auditService.LogAction(currentUserID, currentUserName, "FILES_BULK_DELETE", details)
-
-	return deletedCount, nil
+	details := fmt.Sprintf("Массовое удаление файлов: поставлено в очередь %d, загруженных до %s", len(attachments), date.Format("02.01.2006"))
+	event, buildErr := NewAdminAuditOutboxEvent("attachments:bulk-delete:"+date.UTC().Format(time.RFC3339Nano), models.CreateAdminAuditLogRequest{UserID: currentUserID, UserName: currentUserName, Action: "FILES_BULK_DELETE", Details: details})
+	if buildErr != nil {
+		return 0, buildErr
+	}
+	if err := outboxRepo.MarkDeletingMultipleWithOutbox(attachments, []models.OutboxEvent{event}); err != nil {
+		return 0, fmt.Errorf("failed to queue attachment deletion: %w", err)
+	}
+	return len(attachments), nil
 }
 
 // ProcessPendingDeletions retries deletion intents left by a failed database or

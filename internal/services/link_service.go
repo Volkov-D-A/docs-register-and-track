@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -23,6 +24,14 @@ type LinkService struct {
 	journal                 *JournalService
 	lifecycle               *OperationLifecycle
 }
+
+type linkOutboxStore interface {
+	CreateWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error
+	DeleteWithOutbox(ctx context.Context, id uuid.UUID, effects []models.OutboxEvent) error
+	CreateAndCancelOrderWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error
+}
+
+var errLinkOutboxStoreRequired = fmt.Errorf("link store must support atomic outbox operations")
 
 // NewLinkService создает новый экземпляр LinkService.
 func NewLinkService(
@@ -49,6 +58,18 @@ func NewLinkService(
 
 func (s *LinkService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
 	s.lifecycle = lifecycle
+}
+
+func linkJournalEffects(link *models.DocumentLink, userID uuid.UUID, action, details string) ([]models.OutboxEvent, error) {
+	effects := make([]models.OutboxEvent, 0, 2)
+	for _, documentID := range []uuid.UUID{link.SourceID, link.TargetID} {
+		event, err := NewJournalOutboxEvent("link:"+link.ID.String()+":"+action+":"+documentID.String(), models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: action, Details: details})
+		if err != nil {
+			return nil, err
+		}
+		effects = append(effects, event)
+	}
+	return effects, nil
 }
 
 // LinkDocuments создает связь указанного типа между двумя документами.
@@ -82,6 +103,7 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 		return nil, err
 	}
 	link := &models.DocumentLink{
+		ID:         uuid.New(),
 		SourceKind: sourceDoc.Kind,
 		SourceID:   sourceID,
 		TargetKind: targetDoc.Kind,
@@ -91,31 +113,22 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 		CreatedAt:  time.Now(),
 	}
 
+	repo, ok := s.repo.(linkOutboxStore)
+	if !ok {
+		return nil, errLinkOutboxStoreRequired
+	}
+	effects, buildErr := linkJournalEffects(link, userID, "LINK_CREATE", "Создана связь с другим документом")
+	if buildErr != nil {
+		return nil, buildErr
+	}
 	if linkType == "order_cancels" {
-		err = s.repo.CreateAndCancelOrder(ctx, link)
+		err = repo.CreateAndCancelOrderWithOutbox(ctx, link, effects)
 	} else {
-		err = s.repo.Create(ctx, link)
+		err = repo.CreateWithOutbox(ctx, link, effects)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create link: %w", err)
 	}
-
-	// Логирование создания связи (для обоих документов)
-	// Логирование создания связи (для обоих документов)
-	// Упрощенный лог (без номеров, просто факт)
-	// Упрощенный лог (без номеров, просто факт)
-	s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
-		DocumentID: sourceID,
-		UserID:     userID,
-		Action:     "LINK_CREATE",
-		Details:    "Создана связь с другим документом",
-	})
-	s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
-		DocumentID: targetID,
-		UserID:     userID,
-		Action:     "LINK_CREATE",
-		Details:    "Создана связь с другим документом",
-	})
 
 	return dto.MapDocumentLink(link), nil
 }
@@ -141,23 +154,16 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 		return err
 	}
 
-	err = s.repo.Delete(ctx, id)
-	if err == nil {
-		currentUserID, _ := s.authService.GetCurrentUserUUID()
-		s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
-			DocumentID: link.SourceID,
-			UserID:     currentUserID,
-			Action:     "LINK_DELETE",
-			Details:    "Удалена связь с документом",
-		})
-		s.journal.LogAction(ctx, models.CreateJournalEntryRequest{
-			DocumentID: link.TargetID,
-			UserID:     currentUserID,
-			Action:     "LINK_DELETE",
-			Details:    "Удалена связь с документом",
-		})
+	currentUserID, _ := s.authService.GetCurrentUserUUID()
+	repo, ok := s.repo.(linkOutboxStore)
+	if !ok {
+		return errLinkOutboxStoreRequired
 	}
-	return err
+	effects, buildErr := linkJournalEffects(link, currentUserID, "LINK_DELETE", "Удалена связь с документом")
+	if buildErr != nil {
+		return buildErr
+	}
+	return repo.DeleteWithOutbox(ctx, id, effects)
 }
 
 // GetDocumentLinks возвращает список всех прямых связей для указанного документа.

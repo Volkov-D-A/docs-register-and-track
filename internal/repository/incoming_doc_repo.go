@@ -14,8 +14,11 @@ import (
 
 // IncomingDocumentRepository предоставляет методы для работы с входящими документами в БД.
 type IncomingDocumentRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *IncomingDocumentRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 // NewIncomingDocumentRepository создает новый экземпляр IncomingDocumentRepository.
 func NewIncomingDocumentRepository(db *database.DB) *IncomingDocumentRepository {
@@ -591,6 +594,12 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 
 // Create создает новый входящий документ в базе данных.
 func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error) {
+	return r.create(req, nil, "", "")
+}
+func (r *IncomingDocumentRepository) CreateWithJournal(req models.CreateIncomingDocRequest, action, detailsFormat string) (*models.IncomingDocument, error) {
+	return r.create(req, nil, action, detailsFormat)
+}
+func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.IncomingDocument, error) {
 	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
@@ -661,6 +670,18 @@ func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest)
 	if err := replaceResolution(tx, id, req.Resolution, req.ResolutionAuthor, req.ResolutionExecutors); err != nil {
 		return nil, err
 	}
+	if journalAction != "" {
+		if r.outbox == nil {
+			return nil, fmt.Errorf("outbox repository is required for document journal")
+		}
+		payload := fmt.Sprintf(`{"documentId":"%s","userId":"%s","action":%q,"details":%q}`, id, req.CreatedBy, journalAction, fmt.Sprintf(journalDetailsFormat, req.IncomingNumber))
+		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "incoming:" + id.String() + ":create:journal", Payload: payload}); err != nil {
+			return nil, err
+		}
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
@@ -671,6 +692,12 @@ func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest)
 
 // Update обновляет данные существующего входящего документа.
 func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error) {
+	return r.update(req, nil)
+}
+func (r *IncomingDocumentRepository) UpdateWithOutbox(req models.UpdateIncomingDocRequest, effects []models.OutboxEvent) (*models.IncomingDocument, error) {
+	return r.update(req, effects)
+}
+func (r *IncomingDocumentRepository) update(req models.UpdateIncomingDocRequest, effects []models.OutboxEvent) (*models.IncomingDocument, error) {
 	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
@@ -710,6 +737,9 @@ func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest)
 		return nil, err
 	}
 	if err := replaceResolution(tx, req.ID, req.Resolution, req.ResolutionAuthor, req.ResolutionExecutors); err != nil {
+		return nil, err
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
 		return nil, err
 	}
 

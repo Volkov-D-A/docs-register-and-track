@@ -13,8 +13,11 @@ import (
 
 // NomenclatureRepository предоставляет методы для работы со справочником номенклатуры дел в БД.
 type NomenclatureRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *NomenclatureRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 // NewNomenclatureRepository создает новый экземпляр NomenclatureRepository.
 func NewNomenclatureRepository(db *database.DB) *NomenclatureRepository {
@@ -105,6 +108,29 @@ func (r *NomenclatureRepository) Create(name, index string, year int, kindCode, 
 	return r.GetByID(id)
 }
 
+// CreateWithOutbox persists the nomenclature item and audit effects atomically.
+func (r *NomenclatureRepository) CreateWithOutbox(name, index string, year int, kindCode, separator, numberingMode string, startNumber int, effects []models.OutboxEvent) (*models.Nomenclature, error) {
+	if startNumber < 1 {
+		startNumber = 1
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var id uuid.UUID
+	if err := tx.QueryRow(`INSERT INTO nomenclature (name, index, year, kind_code, separator, numbering_mode, next_number) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`, name, index, year, kindCode, separator, numberingMode, startNumber).Scan(&id); err != nil {
+		return nil, fmt.Errorf("failed to create nomenclature: %w", err)
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetByID(id)
+}
+
 // Update обновляет данные существующего дела в номенклатуре.
 func (r *NomenclatureRepository) Update(id uuid.UUID, name, index string, year int, kindCode, separator, numberingMode string, isActive bool) (*models.Nomenclature, error) {
 	_, err := r.db.Exec(`
@@ -117,6 +143,25 @@ func (r *NomenclatureRepository) Update(id uuid.UUID, name, index string, year i
 	return r.GetByID(id)
 }
 
+// UpdateWithOutbox persists the edit and audit effects atomically.
+func (r *NomenclatureRepository) UpdateWithOutbox(id uuid.UUID, name, index string, year int, kindCode, separator, numberingMode string, isActive bool, effects []models.OutboxEvent) (*models.Nomenclature, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE nomenclature SET name = $1, index = $2, year = $3, kind_code = $4, separator = $5, numbering_mode = $6, is_active = $7, updated_at = $8 WHERE id = $9`, name, index, year, kindCode, separator, numberingMode, isActive, time.Now(), id); err != nil {
+		return nil, fmt.Errorf("failed to update nomenclature: %w", err)
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetByID(id)
+}
+
 // Delete удаляет запись из номенклатуры дел по её ID.
 func (r *NomenclatureRepository) Delete(id uuid.UUID) error {
 	_, err := r.db.Exec(`DELETE FROM nomenclature WHERE id = $1`, id)
@@ -124,6 +169,22 @@ func (r *NomenclatureRepository) Delete(id uuid.UUID) error {
 		return fmt.Errorf("failed to delete nomenclature: %w", err)
 	}
 	return nil
+}
+
+// DeleteWithOutbox removes the item and persists audit effects atomically.
+func (r *NomenclatureRepository) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM nomenclature WHERE id = $1`, id); err != nil {
+		return fmt.Errorf("failed to delete nomenclature: %w", err)
+	}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // GetNextNumber — получить и инкрементировать следующий номер.

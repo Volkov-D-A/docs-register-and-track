@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -30,16 +31,33 @@ func TestJournalRepository_Create(t *testing.T) {
 		Details:    "Тестовое описание действия",
 	}
 
-	query := `INSERT INTO document_journal \(document_id, user_id, action, details\) VALUES \(\$1, \$2, \$3, \$4\) RETURNING id`
+	query := `INSERT INTO document_journal .*outbox_deduplication_key.*RETURNING id`
 
 	newID := uuid.New()
 	mock.ExpectQuery(query).
-		WithArgs(req.DocumentID, req.UserID, req.Action, req.Details).
+		WithArgs(req.DocumentID, req.UserID, req.Action, req.Details, "").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(newID))
 
 	id, err := repo.Create(ctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, newID, id)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestJournalRepository_CreateFromOutboxTreatsDuplicateAsDelivered(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewJournalRepository(&database.DB{DB: db})
+	req := models.CreateJournalEntryRequest{DocumentID: uuid.New(), UserID: uuid.New(), Action: "TEST", Details: "retry"}
+	mock.ExpectQuery(`INSERT INTO document_journal`).
+		WithArgs(req.DocumentID, req.UserID, req.Action, req.Details, "journal:retry:1").
+		WillReturnError(sql.ErrNoRows)
+
+	id, err := repo.CreateFromOutbox(context.Background(), req, "journal:retry:1")
+	require.NoError(t, err)
+	assert.Equal(t, uuid.Nil, id)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
