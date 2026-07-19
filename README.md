@@ -8,7 +8,7 @@ Wails desktop application for registering and tracking documents. The app uses:
 - MinIO for attachments;
 - Seq for technical logs.
 
-This repository currently contains both application code and audit/release evidence. The current production candidate is not ready until the critical blockers in `audit/08_docs_release/KNOWN_ISSUES.md` are closed or formally accepted.
+The repository keeps application code and a compact maintained documentation set. Review findings and their current status are tracked in [`docs/bugs.md`](docs/bugs.md); production readiness is determined by the release gate plus environment-specific smoke and recovery checks.
 
 ## Local Development
 
@@ -71,22 +71,13 @@ Encrypted config values use `ENC:` and require `ENCRYPTION_KEY` to be supplied a
 
 ## Release And Operations
 
-Maintained runbooks:
+Maintained project documentation:
 
-- [Release build runbook](docs/release_runbook.md)
-- [Release checklist](docs/release_checklist.md)
-- [Production smoke test](docs/smoke_test.md)
-- [Migration rollback runbook](docs/migration_rollback_runbook.md)
-- [Backup and restore runbook](docs/backup_restore_runbook.md)
-- [Diagnostics runbook](docs/diagnostics_runbook.md)
-- [Install policy](docs/install_policy.md)
-- [Secret policy](docs/secret_policy.md)
-- [Known issues for release candidate](docs/known_issues.md)
-
-Audit release artifacts:
-
-- [Known issues](audit/08_docs_release/KNOWN_ISSUES.md)
-- [Final summary](audit/FINAL_SUMMARY.md)
+- [Technical reference](docs/tech_docs.md)
+- [Review findings and fixes](docs/bugs.md)
+- [Setup and backup/restore instructions](docs/instructions.md)
+- [Release notes source](docs/releases.yaml)
+- [Optimization notes](docs/opti.md)
 
 Release must be performed from a clean worktree and must not rely on hidden local state except approved secret injection.
 
@@ -96,22 +87,7 @@ Minimum automated gate before producing artifacts:
 make release-gate
 ```
 
-Equivalent expanded commands:
-
-```bash
-cd frontend
-npm ci
-npm run build
-cd ..
-make release-assets
-GOCACHE=/tmp/go-build-cache go test ./...
-go vet ./...
-govulncheck ./...
-cd frontend
-npm audit --audit-level=critical
-```
-
-`make release-gate` also generates local dependency inventories under `build/release-evidence/`. That directory is ignored by Git and should be attached to release evidence when needed.
+The gate checks the release environment and generated release asset, Go tests/vet/vulnerability scan, clean frontend dependency installation, frontend lint/test/build and critical npm vulnerabilities. Integration tests, DB performance checks, target-OS smoke and backup restore are separate checks described in the technical reference.
 
 ## Production Build
 
@@ -148,10 +124,10 @@ Use:
 
 - `backup_smb_tar.sh`
 - `restore_smb_tar.sh`
-- [docs/backup_restore_runbook.md](docs/backup_restore_runbook.md)
+- [setup and backup/restore instructions](docs/instructions.md)
 
 Release requires a successful manual test restore of PostgreSQL and MinIO from an actual backup archive or production-like backup set.
 
 ## Diagnostics
 
-For operator-facing startup and runtime failures, use [docs/diagnostics_runbook.md](docs/diagnostics_runbook.md). Several diagnostics improvements remain tracked as open issues; the runbook records current behavior and expected release checks.
+Operator-facing startup behavior, logging and recovery constraints are described in the [technical reference](docs/tech_docs.md). Remaining diagnostics and security debt are tracked in [review findings](docs/bugs.md).

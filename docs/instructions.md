@@ -77,21 +77,3 @@ password=...
 SMB_CREDENTIALS_FILE=/etc/docflow/smb.credentials
 SMB_VERS=3.0
 SMB_SEC=ntlmssp
-
-# Создание и восстановление backup
-
-Новая резервная копия считается завершённой только при наличии пары
-`backup_<timestamp>_<nanoseconds>.tar.gz` и одноимённого файла `.manifest`.
-Restore до распаковки проверяет manifest, размер, SHA-256 и структуру архива:
-
-```bash
-sudo ./backup_smb_tar.sh
-sudo ./restore_smb_tar.sh backup_20260719_120000_123456789.tar.gz
-```
-
-Старые архивы без manifest по умолчанию отклоняются. Их восстановление допускается
-только как осознанная аварийная операция без проверки целостности:
-
-```bash
-sudo ./restore_smb_tar.sh backup_20260304_120000.tar.gz --allow-legacy-without-manifest
-```

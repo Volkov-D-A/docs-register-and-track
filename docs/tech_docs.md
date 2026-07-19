@@ -1,6 +1,6 @@
 # Техническая документация проекта
 
-Дата обновления: 2026-06-02  
+Дата обновления: 2026-07-19
 Статус: основной справочник для дальнейшей разработки
 
 ## Назначение
@@ -18,15 +18,15 @@
 - журнал действий по документам и административный аудит;
 - статистика по документам, поручениям и системе.
 
-Этот документ фиксирует правила, которые нужно учитывать при любых будущих изменениях. Если код и этот документ расходятся, сначала проверьте актуальные runbook/audit-документы и обновите документацию вместе с изменением поведения.
+Этот документ фиксирует правила, которые нужно учитывать при будущих изменениях. Источником фактического поведения остаются код, миграции и manifest-файлы; при расхождении техническая документация обновляется вместе с кодом. Операционные заметки намеренно консолидированы в небольшом наборе файлов в `docs/`, отдельный каталог audit/runbook в репозитории не поддерживается.
 
 ## Технологический Стек
 
 Backend:
 
 - Go module `github.com/Volkov-D-A/docs-register-and-track`;
-- Go `1.26.3`;
-- Wails v2.12.0;
+- Go `1.26.5`;
+- Wails v2.13.0;
 - PostgreSQL через `database/sql`, `lib/pq`;
 - миграции через `golang-migrate`;
 - MinIO через `minio-go`;
@@ -35,14 +35,14 @@ Backend:
 
 Frontend:
 
-- React 18;
-- TypeScript 6;
-- Vite 8;
-- Ant Design 6;
-- Zustand;
-- dayjs;
-- `@xyflow/react` для графа связей;
-- `@ant-design/plots` для статистики.
+- React 19.2.7;
+- TypeScript 6.0.3;
+- Vite 8.1.4;
+- Ant Design 6.5.1;
+- Zustand 5.0.14;
+- dayjs 1.11.21;
+- `@xyflow/react` 12.11.2 для графа связей;
+- `@ant-design/plots` 2.6.8 для статистики.
 
 Инфраструктура и сборка:
 
@@ -58,14 +58,11 @@ Wails desktop app
 ├── main.go
 │   ├── загружает config
 │   ├── инициализирует slog/Seq
-│   ├── подключает PostgreSQL
-│   ├── создает repositories
-│   ├── создает services
-│   ├── подключает MinIO
-│   ├── настраивает lifecycle/shutdown
-│   └── bind-ит Go services в Wails bridge
+│   ├── встраивает frontend и release notes
+│   └── запускает Wails с options из internal/app
 │
 ├── internal/
+│   ├── app/           composition root, Wails bindings и shutdown
 │   ├── config/        config loading, encrypted secrets
 │   ├── database/      PostgreSQL connection, embedded migrations
 │   ├── models/        domain entities, requests, app errors
@@ -73,6 +70,7 @@ Wails desktop app
 │   ├── repository/    SQL persistence and transactions
 │   ├── services/      auth, permissions, business workflows, Wails API
 │   ├── storage/       MinIO object storage
+│   ├── outbox/        delivery worker для событий и удаления файлов
 │   ├── logger/        slog, Seq, Wails adapter
 │   ├── startupdiag/   startup diagnostics
 │   └── releaseassets/ embedded release notes
@@ -89,9 +87,9 @@ Wails desktop app
 │   └── theme/         Ant Design theme provider
 │
 ├── frontend/wailsjs/  generated Wails bindings
-├── docs/              maintained runbooks and technical docs
-├── audit/             audit evidence and remediation trace
-└── tools/             release/test/evidence tooling
+├── docs/              технический справочник, замечания и release notes
+├── scripts/           общие helpers backup/restore
+└── tools/             release gate, release generator и DB performance tooling
 ```
 
 ## Слой Frontend
@@ -120,6 +118,7 @@ Frontend не должен:
 - `frontend/src/modules/documentKinds/*` - конфиги форм, фильтров, колонок и mapping по видам документов;
 - `frontend/src/utils/appError.ts` - единая frontend-адаптация structured backend errors;
 - `frontend/src/utils/dirtyForm.ts` - подтверждение закрытия dirty forms;
+- `frontend/src/utils/latestRequest.ts` - защита состояния от устаревших async-ответов;
 - `frontend/src/features/settings/ReferenceDirectoriesTab.tsx` - вынесенный feature component справочников.
 
 Крупные страницы (`SettingsPage`, `StatisticsPage`, `DocumentViewModal`, `AssignmentsPage`) нужно декомпозировать постепенно при функциональных изменениях. Не делать большой refactor без поведенческой причины и smoke/test coverage.
@@ -129,7 +128,7 @@ Frontend не должен:
 Wails bridge:
 
 - serializes calls между React и Go;
-- exposing происходит через `Bind` в `main.go`;
+- exposing происходит через `Bind` в `internal/app/app.go`;
 - frontend использует generated bindings в `frontend/wailsjs`;
 - backend errors проходят через `ErrorFormatter`.
 
@@ -179,7 +178,9 @@ Production error envelope для frontend:
 - registration number allocation and document create must stay in one transaction;
 - constraints and indexes are part of business safety, not optional decoration;
 - migrations are embedded and must remain deterministic;
-- dirty/newer schema state must block unsafe use.
+- dirty/newer schema state must block unsafe use;
+- startup connect/ping ограничен контекстом; обычные SQL-операции имеют deadline;
+- PostgreSQL connections используют `connect_timeout`, `statement_timeout` и `lock_timeout`.
 
 Критичные migration rules:
 
@@ -196,10 +197,10 @@ MinIO хранит physical attachment objects. PostgreSQL хранит attachme
 
 Правила:
 
-- attachment upload/delete must keep PostgreSQL metadata and MinIO object consistent where possible;
+- upload сначала пишет объект, затем metadata и journal-outbox; ошибка БД запускает compensating delete объекта;
+- delete сначала атомарно скрывает metadata и ставит `attachment_delete` в outbox, worker повторяет удаление MinIO и финализацию строки;
 - при рассинхронизации восстанавливать PostgreSQL и MinIO только из согласованного backup-набора;
-- max production attachment size: 15 MB;
-- allowed production extensions: `.pdf,.doc,.docx,.odt,.xls,.xlsx,.ods`;
+- размер и расширения задаются системными настройками; fallback: 15 MB и `.pdf,.doc,.docx,.odt,.xls,.xlsx,.ods`;
 - attachment downloads to local disk must not overwrite existing files;
 - MinIO startup bucket check has timeout;
 - file operations must participate in operation lifecycle cancellation.
@@ -237,7 +238,8 @@ MinIO хранит physical attachment objects. PostgreSQL хранит attachme
 - technical logs минимизируют ФИО и business identifiers;
 - technical logs используют `app_user_id`, а не ФИО;
 - Wails binding errors не должны писать полный raw error text;
-- `document_journal` и `admin_audit_log` хранятся весь жизненный цикл проекта и не удаляются приложением.
+- `document_journal` и `admin_audit_log` хранятся весь жизненный цикл проекта и не удаляются приложением;
+- обязательные journal/admin-audit эффекты доставляются через transactional outbox с retry, terminal failure и административным requeue.
 
 ## Конфигурация И Секреты
 
@@ -254,10 +256,10 @@ Production должен использовать `DOCFLOW_CONFIG_PATH` или ex
 Secrets:
 
 - production secrets never committed;
-- `ENCRYPTION_KEY` supplied through approved release environment or restricted `.env`;
+- `ENCRYPTION_KEY` читается из runtime environment или подставляется в бинарник через ldflags;
 - PostgreSQL/MinIO secrets should use `ENC:` encrypted values;
 - `ENCRYPTION_KEY` currently embedded through Go ldflags, so release artifacts are sensitive;
-- `.env`, `config.json`, CIFS credentials file should be `0600` or strict ACL equivalent;
+- `.env`, `config.json`, `/etc/docflow/backup.env` и CIFS credentials file должны иметь `0600` или эквивалентный строгий ACL;
 - generated release evidence and logs must not contain passwords, tokens or full encrypted secret material.
 
 Example configs:
@@ -418,18 +420,18 @@ Legacy/UX profile labels:
 
 ## Атомарные Операции
 
-Должны оставаться атомарными:
+Должны оставаться атомарными внутри PostgreSQL:
 
-- first-run setup: migrations, admin user, `admin` permission;
+- first-run setup после применения миграций: admin user и `admin` permission;
 - document registration: idempotency check, number allocation, `next_number`, `documents`, detail table, children, journal;
 - document update with child data;
 - assignment create/update with co-executors;
 - acknowledgment create/update with user list;
 - full replacement of user access profile;
-- attachment upload: MinIO object plus metadata row;
-- attachment delete: metadata row plus object;
-- migration apply/rollback;
-- backup/restore PostgreSQL plus MinIO from consistent backup set.
+- attachment metadata и journal event после успешной загрузки объекта;
+- attachment delete intent и outbox event.
+
+Операции между PostgreSQL, MinIO и SMB не могут быть общей SQL-транзакцией. Для них используются compensation, outbox/saga и атомарная публикация backup archive + manifest.
 
 ## Идемпотентность
 
@@ -442,8 +444,7 @@ Legacy/UX profile labels:
 - saving existing system setting value;
 - marking release notes as viewed;
 - saving theme;
-- fetching lists/cards/statistics;
-- backup verification through manual test restore.
+- fetching lists/cards/statistics.
 
 ## Ошибки И UX Copy
 
@@ -475,7 +476,7 @@ Important current terminology:
 - no `N/A`; use `Нет данных`;
 - success/error messages should name action and entity.
 
-Future UI changes should be checked against `audit/07_ux_texts/TERMS_GLOSSARY.md` if present and current audit UX artifacts.
+Новые термины следует сверять с существующими подписями и этим разделом; отдельный audit-глоссарий в репозитории не поддерживается.
 
 ## Frontend Development Rules
 
@@ -493,8 +494,8 @@ Future UI changes should be checked against `audit/07_ux_texts/TERMS_GLOSSARY.md
 ```bash
 cd frontend
 npm test
+npm run lint
 npm run build
-npm run smoke:prod
 ```
 
 ## Backend Development Rules
@@ -510,8 +511,8 @@ npm run smoke:prod
 - After backend changes run:
 
 ```bash
-GOCACHE=/tmp/go-build-cache go test ./...
-go vet ./...
+make go-test
+make go-vet
 ```
 
 ## Database Development Rules
@@ -520,7 +521,7 @@ go vet ./...
 - Migrations must be embedded and compatible with release build.
 - For constraints/index changes, add focused tests where practical.
 - Do not add performance indexes just because a query has a seq scan on small baseline data.
-- Use `docs/db_performance_evidence.md` and `make db-performance-check` for production-like plan evidence.
+- Для production-like планов используйте `make db-performance-check`; локальный результат пишется в ignored-каталог `build/performance/` и при необходимости сохраняется вне репозитория.
 - Any new performance index needs before/after `EXPLAIN (ANALYZE, BUFFERS)` and write-latency consideration.
 - Keep rollback impact explicit for destructive `down` migrations.
 
@@ -530,8 +531,7 @@ Backup/restore contract:
 
 - PostgreSQL and MinIO are backed up together;
 - Seq logs are excluded;
-- RPO: 1 day;
-- RTO: 1-2 days;
+- целевые RPO 1 день и RTO 1-2 дня требуют подтверждения production-процессом;
 - retention: 15 days;
 - offsite copy is handled by the approved production process.
 
@@ -542,13 +542,16 @@ Scripts:
 
 Rules:
 
-- scripts read `.env` from the documented absolute cron/deployment path;
-- `.env` must be outside Git and `0600`;
-- use `SMB_CREDENTIALS_FILE` where possible;
-- password must not appear in process arguments;
+- scripts строго разбирают root-owned `/etc/docflow/backup.env` либо путь из `DOCFLOW_BACKUP_ENV_FILE`, не исполняя файл как shell-код;
+- backup config и `SMB_CREDENTIALS_FILE` должны находиться вне Git, не быть symlink и иметь режим `0600`;
+- archive и manifest сначала создаются под скрытыми временными именами на том же SMB mount, сбрасываются через `fsync` и публикуются атомарным rename;
+- manifest v1 является commit marker и содержит имя архива, время, размер, SHA-256, имя БД и bucket;
+- restore до распаковки проверяет безопасное имя, manifest, размер, SHA-256 и `tar -tzf`;
+- legacy archive без manifest доступен только с явным `--allow-legacy-without-manifest`;
 - restore must validate PostgreSQL before mirroring MinIO;
 - if PostgreSQL restore/validation fails, MinIO restore must not run;
-- release requires manual PostgreSQL+MinIO test restore evidence.
+- release requires manual PostgreSQL+MinIO test restore evidence;
+- текущая передача части MinIO credentials в Docker shell command остаётся известным security debt из `docs/bugs.md`.
 
 ## Release And Versioning
 
@@ -560,14 +563,8 @@ Version source:
 
 Release must be from a clean worktree. Before production approval:
 
-- no open critical blockers;
-- release gate output attached;
-- artifact checksums attached;
-- target OS smoke attached;
-- backup/restore smoke attached;
-- DB performance evidence attached or explicitly accepted;
-- UX safety smoke attached or explicitly accepted;
-- long-running smoke attached or explicitly accepted;
+- release gate output должен быть сохранён вне репозитория;
+- checksum артефактов, target OS smoke и backup/restore test должны быть подтверждены production-процессом;
 - clean `git status --short` at tag.
 
 Current release gate:
@@ -582,17 +579,12 @@ It runs/checks:
 - generated release asset freshness;
 - Go tests;
 - Go vet;
-- disposable PostgreSQL integration tests;
 - `govulncheck`;
 - `npm ci`;
 - frontend lint/test/build;
-- production build smoke;
-- UX safety checklist validation;
-- long-running checklist validation;
-- DB performance checklist validation;
-- performance baseline generation;
 - `npm audit --audit-level=critical`;
-- license report and dependency inventories.
+
+`release-gate` не запускает integration tests, DB performance benchmark, target OS smoke или backup restore: это отдельные автоматические/ручные проверки.
 
 ## Supported Make Targets
 
@@ -604,6 +596,7 @@ Common targets:
 - `make dev` - Wails dev;
 - `make release-assets` - generate embedded release assets;
 - `make release-assets-check` - verify generated release assets;
+- `make check-release-env` - проверить наличие release key;
 - `make go-test`;
 - `make go-vet`;
 - `make integration-test`;
@@ -611,12 +604,9 @@ Common targets:
 - `make frontend-build`;
 - `make frontend-lint`;
 - `make frontend-test`;
-- `make frontend-smoke`;
-- `make ux-smoke-check`;
-- `make long-running-smoke-check`;
 - `make db-performance-check`;
-- `make performance-baseline`;
-- `make security-gate`;
+- `make npm-audit`;
+- `make govulncheck`;
 - `make release-gate`;
 - `make build-linux`;
 - `make build-windows`.
@@ -625,7 +615,7 @@ Common targets:
 
 ## Performance Budgets
 
-Production SLO:
+Текущие целевые ориентиры производительности (не являются автоматическими release gates):
 
 - startup to login: <= 5 seconds;
 - main list open/search/filter: <= 2 seconds;
@@ -635,7 +625,7 @@ Production SLO:
 - binary warning threshold: 100 MB;
 - route chunk warning threshold: 1.6 MB.
 
-Expected baseline:
+Расчётные эксплуатационные предположения, требующие проверки на целевом контуре:
 
 - up to 1000 documents/year;
 - up to 20 users;
@@ -646,44 +636,38 @@ Expected baseline:
 
 Performance evidence:
 
-- `make performance-baseline`;
-- `docs/performance_baseline.md`;
-- `docs/db_performance_evidence.md`;
-- target OS manual timings before release.
+- `make db-performance-check` формирует локальные результаты в `build/performance/`;
+- target OS timings и принятые evidence хранятся вне репозитория согласно production-процессу.
 
 ## Testing Strategy
 
 Go:
 
-- `go test ./...`;
+- `make go-test`;
 - focused unit tests in services/repositories/database;
 - guarded PostgreSQL integration tests through `make integration-test`;
-- database constraints and idempotency covered in release-gated integration path.
+- database constraints and idempotency covered через отдельный `make integration-test`.
 
 Frontend:
 
 - TypeScript compile;
 - Node test runner for helper tests;
 - production build smoke for Vite `dist`;
-- ESLint gate with accepted warning debt.
+- ESLint gate.
 
 Release evidence:
 
-- UX safety checklist;
-- long-running checklist;
-- DB performance evidence;
-- performance baseline;
-- backup/restore smoke;
-- target OS install smoke.
+- output `make release-gate`;
+- при необходимости output `make integration-test` и `make db-performance-check`;
+- ручной backup/restore test и target OS install smoke.
 
-Rule: a change is not production-ready just because local unit tests pass. Release-impacting changes must be reflected in maintained runbooks/checklists when they alter operator behavior, release evidence, or recovery procedure.
+Rule: a change is not production-ready just because local unit tests pass. Release-impacting changes должны отражаться в поддерживаемой документации, если меняют поведение оператора, recovery procedure или состав проверок.
 
 ## Security And Dependency Rules
 
 - Keep `govulncheck` in release gate.
 - Keep `npm audit --audit-level=critical` in release gate.
-- Keep license report and dependency inventory in release gate.
-- Unknown or disallowed licenses must block release until resolved or explicitly accepted by policy.
+- Dependency inventories и license review при необходимости выполняются отдельным production-процессом; текущий `release-gate` их не генерирует.
 - Do not commit secrets.
 - Treat release artifacts as sensitive because `ENCRYPTION_KEY` is embedded through ldflags.
 - Keep technical logs free of passwords, tokens and full encrypted secret material.
@@ -715,30 +699,25 @@ Target OS smoke must include:
 
 ## Known Release State
 
-As of this document:
+Текущая согласованная версия release metadata: `1.0.6` в `docs/releases.yaml`, generated release asset и `wails.json`.
 
-- no open critical blockers are tracked;
-- no open major issues are tracked;
-- no postponed minor issues are tracked;
-- production approval still requires clean-clone release gate, target OS smoke, backup/restore test restore and release evidence.
-
-Do not interpret "no open issues" as automatic production readiness. The release process is evidence-based.
+Актуальные результаты ревью и статусы исправлений ведутся в `docs/bugs.md`; этот справочник не утверждает отсутствие открытых проблем. Production approval требует clean-worktree release gate, target OS smoke и реального backup/restore test.
 
 ## Practical Change Checklist
 
 Before starting:
 
 - identify affected layer: frontend, service, repository, storage, migration, release/ops;
-- check this document and the relevant runbook;
+- check this document, `docs/bugs.md` и относящиеся к изменению инструкции;
 - prefer existing patterns and local helpers.
 
 Before finishing:
 
 - run focused tests for changed code;
 - run `git diff --check`;
-- for frontend behavior, run `npm test`, `npm run build`, `npm run smoke:prod`;
-- for backend behavior, run `GOCACHE=/tmp/go-build-cache go test ./...`;
-- update docs/runbooks if behavior, release evidence, recovery or operator actions changed;
+- for frontend behavior, run `npm test`, `npm run lint`, `npm run build`;
+- for backend behavior, run `make go-test` and focused package tests;
+- update maintained docs if behavior, recovery or operator actions changed;
 - avoid unrelated refactors.
 
 High-risk changes requiring extra care:
