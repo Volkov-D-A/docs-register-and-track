@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs, Typography } from 'antd';
-import { DatabaseOutlined, FileSearchOutlined, BookOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined } from '@ant-design/icons';
+import { DatabaseOutlined, FileSearchOutlined, BookOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined, InboxOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../store/useAuthStore';
 import NomenclatureTab from '../features/settings/NomenclatureTab';
 import DepartmentsTab from '../features/settings/DepartmentsTab';
@@ -9,6 +9,7 @@ import SystemSettingsTab from '../features/settings/SystemSettingsTab';
 import StorageTab from '../features/settings/StorageTab';
 import MigrationsTab from '../features/settings/MigrationsTab';
 import AuditLogTab from '../features/settings/AuditLogTab';
+import OutboxTab from '../features/settings/OutboxTab';
 
 const { Title } = Typography;
 
@@ -31,6 +32,7 @@ const SettingsPage: React.FC = () => {
       { key: 'storage', label: 'Хранилище', icon: <CloudServerOutlined />, children: <StorageTab /> },
       { key: 'migrations', label: 'Миграции', icon: <DatabaseOutlined />, children: <MigrationsTab /> },
       { key: 'auditLog', label: 'Журнал', icon: <FileSearchOutlined />, children: <AuditLogTab /> },
+      { key: 'outbox', label: 'Очередь событий', icon: <InboxOutlined />, children: <OutboxTab /> },
     ] : []),
   ];
 
