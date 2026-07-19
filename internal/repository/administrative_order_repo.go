@@ -83,6 +83,11 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 
 		where = append(where, "("+strings.Join(accessClauses, " OR ")+")")
 	}
+	if len(accessibleIDs) == 0 && len(filter.AllowedNomenclatureIDs) > 0 {
+		where = append(where, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
+		args = append(args, pq.Array(filter.AllowedNomenclatureIDs))
+		argIdx++
+	}
 
 	if len(filter.NomenclatureIDs) > 0 {
 		where = append(where, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))

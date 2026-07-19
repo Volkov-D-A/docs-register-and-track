@@ -18,10 +18,11 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 )
 
 func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
-	sqlDB := openSafeIntegrationDB(t)
+	sqlDB := integrationdb.Open(t)
 	defer sqlDB.Close()
 
 	db := &database.DB{DB: sqlDB}
@@ -100,7 +101,7 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 }
 
 func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
-	sqlDB := openSafeIntegrationDB(t)
+	sqlDB := integrationdb.Open(t)
 	defer sqlDB.Close()
 
 	db := &database.DB{DB: sqlDB}
@@ -227,7 +228,7 @@ func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
 // sqlmock test cannot prove: two independent workers connected to PostgreSQL
 // must not receive the same outbox row.
 func TestOutboxClaimConcurrencyIntegration(t *testing.T) {
-	sqlDB := openSafeIntegrationDB(t)
+	sqlDB := integrationdb.Open(t)
 	defer sqlDB.Close()
 
 	db := &database.DB{DB: sqlDB}
@@ -275,7 +276,7 @@ func TestOutboxClaimConcurrencyIntegration(t *testing.T) {
 }
 
 func TestJournalRetentionFKIntegration(t *testing.T) {
-	sqlDB := openSafeIntegrationDB(t)
+	sqlDB := integrationdb.Open(t)
 	defer sqlDB.Close()
 
 	userID := uuid.New()
@@ -323,7 +324,7 @@ func TestJournalRetentionFKIntegration(t *testing.T) {
 }
 
 func TestDatabaseConstraintsIntegration(t *testing.T) {
-	sqlDB := openSafeIntegrationDB(t)
+	sqlDB := integrationdb.Open(t)
 	defer sqlDB.Close()
 
 	userID := uuid.New()
@@ -415,7 +416,7 @@ func TestValidateIntegrationDSNRequiresSafeDatabaseName(t *testing.T) {
 		"postgres://user:pass@localhost:5432/docflow_test_123?sslmode=disable",
 		"host=localhost port=5432 user=user password=pass dbname=docflow_regression sslmode=disable",
 	} {
-		if err := validateIntegrationDSN(dsn); err != nil {
+		if err := integrationdb.ValidateDSN(dsn); err != nil {
 			t.Fatalf("expected safe DSN %q, got error: %v", dsn, err)
 		}
 	}
@@ -425,7 +426,7 @@ func TestValidateIntegrationDSNRequiresSafeDatabaseName(t *testing.T) {
 		"host=localhost port=5432 user=user password=pass dbname=postgres sslmode=disable",
 		"host=localhost port=5432 user=user password=pass sslmode=disable",
 	} {
-		if err := validateIntegrationDSN(dsn); err == nil {
+		if err := integrationdb.ValidateDSN(dsn); err == nil {
 			t.Fatalf("expected unsafe DSN %q to be rejected", dsn)
 		}
 	}
@@ -508,7 +509,7 @@ func applyIntegrationMigrations(db *sql.DB) error {
 	return nil
 }
 
-func execSQL(t *testing.T, db *sql.DB, query string, args ...any) {
+func execSQL(t testing.TB, db *sql.DB, query string, args ...any) {
 	t.Helper()
 	if _, err := db.Exec(query, args...); err != nil {
 		t.Fatalf("exec %s: %v", strings.TrimSpace(query), err)

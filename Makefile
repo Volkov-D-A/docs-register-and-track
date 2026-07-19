@@ -1,4 +1,4 @@
-.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test integration-test integration-db-up integration-db-down go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
+.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
@@ -13,6 +13,7 @@ GOVULNCHECK ?= $(shell command -v govulncheck 2>/dev/null || echo "go run golang
 GO_PACKAGES = $(shell go list ./... | grep -v '/frontend/node_modules/')
 INTEGRATION_COMPOSE = docker compose -p docflow-integration -f docker-compose.integration.yaml
 INTEGRATION_DSN = postgres://docflow_integration:docflow_integration@127.0.0.1:55432/docflow_test_outbox?sslmode=disable
+PERFORMANCE_DIR = build/performance
 
 # Ключ шифрования конфигурации (из .env → ENCRYPTION_KEY)
 LDFLAGS = -X 'github.com/Volkov-D-A/docs-register-and-track/internal/config.rawEncryptionKey=$(ENCRYPTION_KEY)'
@@ -59,7 +60,18 @@ integration-test:
 		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \
 		$(INTEGRATION_COMPOSE) up -d --wait; \
-		DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/repository -run Integration -count=1
+		DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1
+
+# Generates a local baseline only. It intentionally has no pass/fail latency
+# threshold because Docker and developer hardware are not stable benchmark hosts.
+db-performance-check:
+	@set -eu; \
+		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
+		trap cleanup EXIT INT TERM; \
+		mkdir -p $(PERFORMANCE_DIR); \
+		$(INTEGRATION_COMPOSE) up -d --wait; \
+		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
+		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) | tee $(PERFORMANCE_DIR)/summary.txt
 
 # Эти цели полезны при ручной отладке интеграционных тестов. Данные не
 # предназначены для сохранения: integration-db-down удаляет volume.

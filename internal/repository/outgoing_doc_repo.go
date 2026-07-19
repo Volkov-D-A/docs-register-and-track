@@ -84,6 +84,14 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 
 		where = append(where, "("+strings.Join(accessClauses, " OR ")+")")
 	}
+	// A caller with only a nomenclature scope still must not see every
+	// document. The access clauses above combine nomenclature, assignment and
+	// acknowledgment visibility only when a user scope is present.
+	if len(accessibleIDs) == 0 && len(filter.AllowedNomenclatureIDs) > 0 {
+		where = append(where, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
+		args = append(args, pq.Array(filter.AllowedNomenclatureIDs))
+		argIdx++
+	}
 
 	if len(filter.NomenclatureIDs) > 0 {
 		where = append(where, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))

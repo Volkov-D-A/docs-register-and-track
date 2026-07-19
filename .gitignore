@@ -7,3 +7,4 @@ frontend/.test-build
 .gocache
 *code_review.md
 /build/release-evidence/
+/build/performance/
