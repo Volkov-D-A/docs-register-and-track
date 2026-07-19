@@ -49,12 +49,9 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore Docu
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 
-	journalRepo := mocks.NewJournalStore(t)
-	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, nil, incRepo, outRepo)
-	journalSvc := NewJournalService(journalRepo, auth, accessSvc)
 
-	svc := NewLinkService(&atomicLinkStore{LinkStore: linkRepo}, incRepo, outRepo, nil, nil, accessSvc, auth, journalSvc)
+	svc := NewLinkService(&atomicLinkStore{LinkStore: linkRepo}, incRepo, outRepo, nil, nil, accessSvc, auth)
 	return svc, linkRepo, incRepo, outRepo, auth
 }
 

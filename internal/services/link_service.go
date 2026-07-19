@@ -21,7 +21,6 @@ type LinkService struct {
 	administrativeOrderRepo AdministrativeOrderDocStore
 	access                  *DocumentAccessService
 	authService             *AuthService
-	journal                 *JournalService
 	lifecycle               *OperationLifecycle
 }
 
@@ -42,7 +41,6 @@ func NewLinkService(
 	administrativeOrderRepo AdministrativeOrderDocStore,
 	access *DocumentAccessService,
 	authService *AuthService,
-	journal *JournalService,
 ) *LinkService {
 	return &LinkService{
 		repo:                    repo,
@@ -52,7 +50,6 @@ func NewLinkService(
 		administrativeOrderRepo: administrativeOrderRepo,
 		access:                  access,
 		authService:             authService,
-		journal:                 journal,
 	}
 }
 

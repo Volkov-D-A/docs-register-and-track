@@ -15,7 +15,6 @@ type AcknowledgmentService struct {
 	repo          AcknowledgmentStore
 	userRepo      UserStore
 	auth          *AuthService
-	journal       *JournalService
 	access        *DocumentAccessService
 	events        *UserEventService
 	substitutions UserSubstitutionStore
@@ -41,7 +40,6 @@ func NewAcknowledgmentService(
 	repo AcknowledgmentStore,
 	userRepo UserStore,
 	auth *AuthService,
-	journal *JournalService,
 	access *DocumentAccessService,
 	events ...*UserEventService,
 ) *AcknowledgmentService {
@@ -49,7 +47,6 @@ func NewAcknowledgmentService(
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
-		journal:  journal,
 		access:   access,
 	}
 	if len(events) > 0 {

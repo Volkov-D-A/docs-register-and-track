@@ -16,7 +16,6 @@ type AssignmentService struct {
 	repo          AssignmentStore
 	userRepo      UserStore
 	auth          *AuthService
-	journal       *JournalService
 	access        *DocumentAccessService
 	events        *UserEventService
 	substitutions UserSubstitutionStore
@@ -33,7 +32,6 @@ func NewAssignmentService(
 	repo AssignmentStore,
 	userRepo UserStore,
 	auth *AuthService,
-	journal *JournalService,
 	access *DocumentAccessService,
 	events ...*UserEventService,
 ) *AssignmentService {
@@ -41,7 +39,6 @@ func NewAssignmentService(
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
-		journal:  journal,
 		access:   access,
 	}
 	if len(events) > 0 {

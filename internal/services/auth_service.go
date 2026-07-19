@@ -33,7 +33,6 @@ type AuthService struct {
 	userRepo      UserStore
 	settingsRepo  SettingsStore
 	accessRepo    DocumentAccessStore
-	auditService  *AdminAuditLogService
 	currentUserID uuid.UUID
 	mu            sync.RWMutex
 }
@@ -47,11 +46,6 @@ func NewAuthService(db *database.DB, userRepo UserStore) *AuthService {
 		db:       db,
 		userRepo: userRepo,
 	}
-}
-
-// SetAdminAuditLogService подключает журнал аудита администратора к сервису аутентификации.
-func (s *AuthService) SetAdminAuditLogService(auditService *AdminAuditLogService) {
-	s.auditService = auditService
 }
 
 // SetAccessStore подключает источник системных прав пользователя.

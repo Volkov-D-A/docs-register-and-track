@@ -60,9 +60,6 @@ func setupAssignmentService(t *testing.T, role string) (
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	journalRepo := mocks.NewJournalStore(t)
-	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth, nil)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
 	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
@@ -74,7 +71,7 @@ func setupAssignmentService(t *testing.T, role string) (
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
 
-	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc, accessSvc)
+	svc := NewAssignmentService(assignmentRepo, userRepo, auth, accessSvc)
 	return svc, assignmentRepo, userRepo, auth, incomingRepo
 }
 
@@ -103,9 +100,6 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
-	journalRepo := mocks.NewJournalStore(t)
-	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth, nil)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
 	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
@@ -117,7 +111,7 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
 
-	svc := NewAssignmentService(assignmentRepo, userRepo, auth, journalSvc, accessSvc)
+	svc := NewAssignmentService(assignmentRepo, userRepo, auth, accessSvc)
 	return svc, assignmentRepo
 }
 
@@ -455,9 +449,6 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		userRepo.On("GetByLogin", "exec").Return(executorUser, nil).Once()
 		authSvc.Login("exec", password)
 		userRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
-		journalRepo := mocks.NewJournalStore(t)
-		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-		journalSvc := NewJournalService(journalRepo, authSvc, nil)
 
 		incomingRepo := mocks.NewIncomingDocStore(t)
 		outgoingRepo := mocks.NewOutgoingDocStore(t)
@@ -469,7 +460,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		}, nil).Maybe()
 		repo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore("executor"), nil, incomingRepo, outgoingRepo)
-		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
+		svc2 := NewAssignmentService(repo, userRepo, authSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Update", assignmentID, execID, "Контент",
@@ -501,9 +492,6 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		userRepo.On("GetByLogin", "exec2").Return(executorUser, nil).Once()
 		authSvc.Login("exec2", password)
 		userRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
-		journalRepo := mocks.NewJournalStore(t)
-		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-		journalSvc := NewJournalService(journalRepo, authSvc, nil)
 
 		incomingRepo := mocks.NewIncomingDocStore(t)
 		outgoingRepo := mocks.NewOutgoingDocStore(t)
@@ -515,7 +503,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		}, nil).Maybe()
 		repo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore("executor"), nil, incomingRepo, outgoingRepo)
-		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
+		svc2 := NewAssignmentService(repo, userRepo, authSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("Update", assignmentID, execID, "Контент",
@@ -551,10 +539,6 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		require.NoError(t, err)
 		userRepo.On("GetByID", substituteUser.ID).Return(substituteUser, nil).Maybe()
 
-		journalRepo := mocks.NewJournalStore(t)
-		journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-		journalSvc := NewJournalService(journalRepo, authSvc, nil)
-
 		incomingRepo := mocks.NewIncomingDocStore(t)
 		outgoingRepo := mocks.NewOutgoingDocStore(t)
 		incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
@@ -565,7 +549,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		}, nil).Maybe()
 		repo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
-		svc2 := NewAssignmentService(repo, userRepo, authSvc, journalSvc, accessSvc)
+		svc2 := NewAssignmentService(repo, userRepo, authSvc, accessSvc)
 		svc2.SetSubstitutionStore(&userSubstitutionStoreStub{
 			isActive: map[[2]uuid.UUID]bool{
 				{substituteID, execID}: true,

@@ -12,9 +12,8 @@ import (
 
 // UserService предоставляет бизнес-логику для управления пользователями.
 type UserService struct {
-	userRepo     UserStore
-	auth         *AuthService
-	auditService *AdminAuditLogService
+	userRepo UserStore
+	auth     *AuthService
 }
 type userOutboxStore interface {
 	CreateWithOutbox(models.CreateUserRequest, []models.OutboxEvent) (*models.User, error)
@@ -30,11 +29,10 @@ func (s *UserService) auditEffect(key, action, details string) (models.OutboxEve
 }
 
 // NewUserService создает новый экземпляр UserService.
-func NewUserService(userRepo UserStore, auth *AuthService, auditService *AdminAuditLogService) *UserService {
+func NewUserService(userRepo UserStore, auth *AuthService) *UserService {
 	return &UserService{
-		userRepo:     userRepo,
-		auth:         auth,
-		auditService: auditService,
+		userRepo: userRepo,
+		auth:     auth,
 	}
 }
 

@@ -1,10 +1,7 @@
 package services
 
 import (
-	"context"
-
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 
 	"github.com/google/uuid"
 )
@@ -56,18 +53,4 @@ func (s *JournalService) GetByDocumentID(documentIDStr string) ([]dto.JournalEnt
 	}
 
 	return dto.MapJournalEntries(entries), nil
-}
-
-// LogAction — это внутренний вспомогательный метод для других сервисов, чтобы логировать действия (создать запись в журнале).
-func (s *JournalService) LogAction(ctx context.Context, req models.CreateJournalEntryRequest) error {
-	if ctx == nil && s.lifecycle != nil {
-		opCtx, release := s.lifecycle.OperationContext()
-		defer release()
-		ctx = opCtx
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	_, err := s.repo.Create(ctx, req)
-	return err
 }

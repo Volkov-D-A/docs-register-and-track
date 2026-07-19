@@ -12,10 +12,9 @@ import (
 
 // UserSubstitutionService управляет замещающими исполнителями пользователя.
 type UserSubstitutionService struct {
-	repo         UserSubstitutionStore
-	userRepo     UserStore
-	auth         *AuthService
-	auditService *AdminAuditLogService
+	repo     UserSubstitutionStore
+	userRepo UserStore
+	auth     *AuthService
 }
 type userSubstitutionOutboxStore interface {
 	ReplaceForPrincipalWithOutbox(uuid.UUID, *uuid.UUID, *time.Time, *time.Time, bool, *uuid.UUID, []models.OutboxEvent) (*models.UserSubstitution, error)
@@ -24,8 +23,8 @@ type userSubstitutionOutboxStore interface {
 var errUserSubstitutionOutboxStoreRequired = fmt.Errorf("user substitution store must support atomic outbox operations")
 
 // NewUserSubstitutionService создает сервис замещений.
-func NewUserSubstitutionService(repo UserSubstitutionStore, userRepo UserStore, auth *AuthService, auditService *AdminAuditLogService) *UserSubstitutionService {
-	return &UserSubstitutionService{repo: repo, userRepo: userRepo, auth: auth, auditService: auditService}
+func NewUserSubstitutionService(repo UserSubstitutionStore, userRepo UserStore, auth *AuthService) *UserSubstitutionService {
+	return &UserSubstitutionService{repo: repo, userRepo: userRepo, auth: auth}
 }
 
 func parseOptionalSubstitutionDate(value string) (*time.Time, error) {

@@ -92,10 +92,7 @@ func setupAdministrativeOrderService(t *testing.T, allowed map[models.DocumentKi
 		nil,
 		nil,
 	)
-	journalRepo := mocks.NewJournalStore(t)
-	journal := NewJournalService(journalRepo, auth, access)
-
-	return NewAdministrativeOrderService(store, auth, access, journal), store, docRepo, journalRepo, user
+	return NewAdministrativeOrderService(store, auth, access), store, docRepo, nil, user
 }
 
 func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {

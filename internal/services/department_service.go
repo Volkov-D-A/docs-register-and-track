@@ -10,9 +10,8 @@ import (
 
 // DepartmentService предоставляет бизнес-логику для работы с подразделениями.
 type DepartmentService struct {
-	repo         DepartmentStore
-	auth         *AuthService
-	auditService *AdminAuditLogService
+	repo DepartmentStore
+	auth *AuthService
 }
 type departmentOutboxStore interface {
 	CreateWithOutbox(string, []string, []models.OutboxEvent) (*models.Department, error)
@@ -23,11 +22,10 @@ type departmentOutboxStore interface {
 var errDepartmentOutboxStoreRequired = fmt.Errorf("department store must support atomic outbox operations")
 
 // NewDepartmentService создает новый экземпляр DepartmentService.
-func NewDepartmentService(repo DepartmentStore, auth *AuthService, auditService *AdminAuditLogService) *DepartmentService {
+func NewDepartmentService(repo DepartmentStore, auth *AuthService) *DepartmentService {
 	return &DepartmentService{
-		repo:         repo,
-		auth:         auth,
-		auditService: auditService,
+		repo: repo,
+		auth: auth,
 	}
 }
 

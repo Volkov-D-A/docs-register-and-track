@@ -34,9 +34,6 @@ func setupAckService(t *testing.T, role string) (
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	userRepo.On("GetAll").Return([]models.User{}, nil).Maybe()
 
-	journalRepo := mocks.NewJournalStore(t)
-	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth, nil)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
 	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
@@ -47,7 +44,7 @@ func setupAckService(t *testing.T, role string) (
 	}, nil).Maybe()
 	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
 
-	svc := NewAcknowledgmentService(&atomicAcknowledgmentStore{AcknowledgmentStore: ackRepo}, userRepo, auth, journalSvc, accessSvc)
+	svc := NewAcknowledgmentService(&atomicAcknowledgmentStore{AcknowledgmentStore: ackRepo}, userRepo, auth, accessSvc)
 	return svc, ackRepo, userRepo, auth, incomingRepo
 }
 
@@ -82,9 +79,6 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
-	journalRepo := mocks.NewJournalStore(t)
-	journalRepo.On("Create", mock.Anything, mock.Anything).Return(uuid.Nil, nil).Maybe()
-	journalSvc := NewJournalService(journalRepo, auth, nil)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
 	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
@@ -95,7 +89,7 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	}, nil).Maybe()
 	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
 
-	return NewAcknowledgmentService(&atomicAcknowledgmentStore{AcknowledgmentStore: ackRepo}, userRepo, auth, journalSvc, accessSvc)
+	return NewAcknowledgmentService(&atomicAcknowledgmentStore{AcknowledgmentStore: ackRepo}, userRepo, auth, accessSvc)
 }
 
 func TestAcknowledgmentService_Create(t *testing.T) {
@@ -324,7 +318,7 @@ func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 			ID: documentID, NomenclatureID: uuid.New(),
 		}, nil).Once()
 		access := NewDocumentAccessService(auth, nil, nil, repo, accessStore, nil, incomingRepo, nil)
-		svc := NewAcknowledgmentService(repo, userRepo, auth, nil, access)
+		svc := NewAcknowledgmentService(repo, userRepo, auth, access)
 		repo.On("GetAllActive", models.AcknowledgmentFilter{
 			AllowedDocumentKinds: []string{string(models.DocumentKindIncomingLetter)},
 		}).Return([]models.Acknowledgment{{ID: ackID, DocumentID: documentID}}, nil).Once()

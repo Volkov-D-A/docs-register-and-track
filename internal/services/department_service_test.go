@@ -36,7 +36,7 @@ func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *moc
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
-	svc := NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth, nil)
+	svc := NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth)
 	return svc, depRepo, auth
 }
 
@@ -60,7 +60,7 @@ func setupDepartmentServiceWithRoles(t *testing.T, roles []string) (*DepartmentS
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth, nil), depRepo, auth
+	return NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth), depRepo, auth
 }
 
 type atomicDepartmentStore struct {
@@ -124,7 +124,7 @@ func TestDepartmentService_GetAllDepartments(t *testing.T) {
 		auth := NewAuthService(nil, userRepo)
 		auth.currentUserID = user.ID
 		userRepo.On("GetByID", user.ID).Return(user, nil).Once()
-		svc := NewDepartmentService(depRepo, auth, nil)
+		svc := NewDepartmentService(depRepo, auth)
 
 		result, err := svc.GetAllDepartments()
 

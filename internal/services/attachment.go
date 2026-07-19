@@ -26,8 +26,6 @@ type AttachmentService struct {
 	repo            AttachmentStore
 	settingsService *SettingsService
 	authService     *AuthService
-	journal         *JournalService
-	auditService    *AdminAuditLogService
 	fileStorage     FileStorage
 	access          *DocumentAccessService
 	lifecycle       *OperationLifecycle
@@ -56,13 +54,11 @@ type objectNameLister interface {
 }
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
-func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, journal *JournalService, auditService *AdminAuditLogService, fs FileStorage, access *DocumentAccessService) *AttachmentService {
+func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, fs FileStorage, access *DocumentAccessService) *AttachmentService {
 	return &AttachmentService{
 		repo:            repo,
 		settingsService: settingsService,
 		authService:     authService,
-		journal:         journal,
-		auditService:    auditService,
 		fileStorage:     fs,
 		access:          access,
 	}

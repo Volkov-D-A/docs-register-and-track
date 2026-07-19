@@ -22,7 +22,7 @@ func setupUserSubstitutionService(t *testing.T, currentUser *models.User) (*User
 		auth.currentUserID = currentUser.ID
 		userRepo.On("GetByID", currentUser.ID).Return(currentUser, nil).Maybe()
 	}
-	return NewUserSubstitutionService(store, userRepo, auth, nil), store, userRepo, auth
+	return NewUserSubstitutionService(store, userRepo, auth), store, userRepo, auth
 }
 
 type atomicUserSubstitutionStore struct {

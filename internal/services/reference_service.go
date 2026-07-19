@@ -11,9 +11,8 @@ import (
 
 // ReferenceService предоставляет бизнес-логику для работы со справочниками (типы документов, организации).
 type ReferenceService struct {
-	repo         ReferenceStore
-	auth         *AuthService
-	auditService *AdminAuditLogService
+	repo ReferenceStore
+	auth *AuthService
 }
 type referenceOutboxStore interface {
 	UpdateOrganizationWithOutbox(uuid.UUID, string, []models.OutboxEvent) error
@@ -31,8 +30,8 @@ func (s *ReferenceService) auditEffect(key, action, details string) (models.Outb
 }
 
 // NewReferenceService создает новый экземпляр ReferenceService.
-func NewReferenceService(repo ReferenceStore, auth *AuthService, auditService *AdminAuditLogService) *ReferenceService {
-	return &ReferenceService{repo: repo, auth: auth, auditService: auditService}
+func NewReferenceService(repo ReferenceStore, auth *AuthService) *ReferenceService {
+	return &ReferenceService{repo: repo, auth: auth}
 }
 
 func (s *ReferenceService) requireReferenceManagement() error {

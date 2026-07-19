@@ -35,7 +35,7 @@ func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
-	svc := NewReferenceService(&atomicReferenceStore{ReferenceStore: refRepo}, auth, nil)
+	svc := NewReferenceService(&atomicReferenceStore{ReferenceStore: refRepo}, auth)
 	return svc, refRepo, userRepo, auth
 }
 
@@ -59,7 +59,7 @@ func setupReferenceServiceWithRoles(t *testing.T, roles []string) (*ReferenceSer
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewReferenceService(&atomicReferenceStore{ReferenceStore: refRepo}, auth, nil), refRepo, userRepo, auth
+	return NewReferenceService(&atomicReferenceStore{ReferenceStore: refRepo}, auth), refRepo, userRepo, auth
 }
 
 type atomicReferenceStore struct {

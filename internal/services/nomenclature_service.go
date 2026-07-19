@@ -12,9 +12,8 @@ import (
 
 // NomenclatureService предоставляет бизнес-логику для работы с номенклатурой дел.
 type NomenclatureService struct {
-	repo         NomenclatureStore
-	auth         *AuthService
-	auditService *AdminAuditLogService
+	repo NomenclatureStore
+	auth *AuthService
 }
 
 type nomenclatureOutboxStore interface {
@@ -26,8 +25,8 @@ type nomenclatureOutboxStore interface {
 var errNomenclatureOutboxStoreRequired = fmt.Errorf("nomenclature store must support atomic outbox operations")
 
 // NewNomenclatureService создает новый экземпляр NomenclatureService.
-func NewNomenclatureService(repo NomenclatureStore, auth *AuthService, auditService *AdminAuditLogService) *NomenclatureService {
-	return &NomenclatureService{repo: repo, auth: auth, auditService: auditService}
+func NewNomenclatureService(repo NomenclatureStore, auth *AuthService) *NomenclatureService {
+	return &NomenclatureService{repo: repo, auth: auth}
 }
 
 // GetAll возвращает все дела номенклатуры за указанный год и по указанному виду документа.

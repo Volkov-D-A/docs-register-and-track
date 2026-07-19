@@ -37,7 +37,7 @@ func setupNomenclatureService(t *testing.T, role string) (*NomenclatureService, 
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 
-	svc := NewNomenclatureService(&atomicNomenclatureStore{NomenclatureStore: nomRepo}, auth, nil)
+	svc := NewNomenclatureService(&atomicNomenclatureStore{NomenclatureStore: nomRepo}, auth)
 	return svc, nomRepo, auth
 }
 
@@ -61,7 +61,7 @@ func setupNomenclatureServiceWithRoles(t *testing.T, roles []string) (*Nomenclat
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewNomenclatureService(&atomicNomenclatureStore{NomenclatureStore: nomRepo}, auth, nil), nomRepo, auth
+	return NewNomenclatureService(&atomicNomenclatureStore{NomenclatureStore: nomRepo}, auth), nomRepo, auth
 }
 
 type atomicNomenclatureStore struct {

@@ -11,10 +11,9 @@ import (
 
 // AdministrativeOrderService предоставляет дополнительные операции по приказам.
 type AdministrativeOrderService struct {
-	repo    AdministrativeOrderDocStore
-	auth    *AuthService
-	access  *DocumentAccessService
-	journal *JournalService
+	repo   AdministrativeOrderDocStore
+	auth   *AuthService
+	access *DocumentAccessService
 }
 type administrativeOrderAcknowledgmentOutboxStore interface {
 	MarkAcknowledgmentPersonWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error)
@@ -25,13 +24,11 @@ func NewAdministrativeOrderService(
 	repo AdministrativeOrderDocStore,
 	auth *AuthService,
 	access *DocumentAccessService,
-	journal *JournalService,
 ) *AdministrativeOrderService {
 	return &AdministrativeOrderService{
-		repo:    repo,
-		auth:    auth,
-		access:  access,
-		journal: journal,
+		repo:   repo,
+		auth:   auth,
+		access: access,
 	}
 }
 

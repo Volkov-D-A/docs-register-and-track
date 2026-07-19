@@ -38,7 +38,7 @@ func TestUserService_GetAllUsers(t *testing.T) {
 	mockRepo := mocks.NewUserStore(t)
 	authRepo := mocks.NewUserStore(t)
 	authService := NewAuthService(nil, authRepo)
-	userService := NewUserService(mockRepo, authService, nil)
+	userService := NewUserService(mockRepo, authService)
 
 	login := "testuser"
 	password := "CorrectPassw0rd!"
@@ -127,7 +127,7 @@ func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore
 	auth.Login(user.Login, password)
 	authRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewUserService(mockRepo, auth, nil), mockRepo
+	return NewUserService(mockRepo, auth), mockRepo
 }
 
 func setupUserServiceWithRoles(t *testing.T, roles []string) (*UserService, *mocks.UserStore, *AuthService) {
@@ -150,7 +150,7 @@ func setupUserServiceWithRoles(t *testing.T, roles []string) (*UserService, *moc
 	require.NoError(t, err)
 	authRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewUserService(mockRepo, auth, nil), mockRepo, auth
+	return NewUserService(mockRepo, auth), mockRepo, auth
 }
 
 func TestUserService_CreateUser(t *testing.T) {
@@ -229,19 +229,10 @@ func TestUserService_ResetPassword(t *testing.T) {
 
 	t.Run("success admin", func(t *testing.T) {
 		svc, repo := setupUserService(t, "admin")
-		auditRepo := new(adminAuditLogStoreMock)
-		svc.auditService = NewAdminAuditLogService(auditRepo, svc.auth)
 
 		targetUser := &models.User{ID: uid, FullName: "Иван Петров", Login: "ipetrov"}
 		repo.On("GetByID", uid).Return(targetUser, nil).Once()
 		repo.On("ResetPassword", uid, "NewPass123!").Return(nil).Once()
-		auditRepo.
-			On("Create", mock.MatchedBy(func(req models.CreateAdminAuditLogRequest) bool {
-				return req.Action == "USER_PASSWORD_RESET" &&
-					req.Details == "Сброшен пароль пользователя «Иван Петров»"
-			})).
-			Return(uuid.New(), nil).
-			Once()
 
 		err := svc.ResetPassword(uid.String(), "NewPass123!")
 		require.NoError(t, err)
@@ -292,7 +283,7 @@ func TestUserService_GetExecutors(t *testing.T) {
 	t.Run("rejects unauthenticated user", func(t *testing.T) {
 		repo := mocks.NewUserStore(t)
 		auth := NewAuthService(nil, mocks.NewUserStore(t))
-		svc := NewUserService(repo, auth, nil)
+		svc := NewUserService(repo, auth)
 
 		result, err := svc.GetExecutors()
 
@@ -307,7 +298,7 @@ func TestUserService_GetExecutors(t *testing.T) {
 		auth := NewAuthService(nil, authRepo)
 		auth.currentUserID = user.ID
 		authRepo.On("GetByID", user.ID).Return(user, nil).Once()
-		svc := NewUserService(repo, auth, nil)
+		svc := NewUserService(repo, auth)
 
 		result, err := svc.GetExecutors()
 
