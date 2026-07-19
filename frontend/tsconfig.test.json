@@ -15,6 +15,7 @@
   "include": [
     "src/utils/appError.ts",
     "src/utils/dirtyForm.ts",
+    "src/utils/latestRequest.ts",
     "test/**/*.test.ts"
   ]
 }

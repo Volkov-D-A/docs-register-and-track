@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { App, Button, notification } from 'antd';
 import { FileOutlined } from '@ant-design/icons';
 import { useDocumentKindAccess } from './useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
+import { LatestRequest } from '../utils/latestRequest';
 
 type UseAttachmentsOptions = {
     documentId: string;
@@ -19,25 +20,44 @@ export const useAttachments = ({ documentId, documentKind, readOnly }: UseAttach
     const [uploading, setUploading] = useState(false);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
     const [api, contextHolder] = notification.useNotification();
+    const latestListRequestRef = useRef(new LatestRequest());
+    const activeDocumentRef = useRef(documentId);
+    activeDocumentRef.current = documentId;
 
     const loadFiles = useCallback(async () => {
-        setLoading(true);
-        try {
-            const { GetList } = await import('../../wailsjs/go/services/AttachmentService');
-            const list = await GetList(documentId);
-            setFiles(list || []);
-        } catch (error: unknown) {
-            console.error(error);
-            message.error(formatAppError(error, 'Не удалось загрузить файлы'));
-        } finally {
-            setLoading(false);
+        if (!documentId || activeDocumentRef.current !== documentId) {
+            return;
         }
+        setLoading(true);
+        await latestListRequestRef.current.run(
+            async () => {
+                const { GetList } = await import('../../wailsjs/go/services/AttachmentService');
+                return GetList(documentId);
+            },
+            {
+                isRelevant: () => activeDocumentRef.current === documentId,
+                onSuccess: (list) => setFiles(list || []),
+                onError: (error) => {
+                    console.error(error);
+                    message.error(formatAppError(error, 'Не удалось загрузить файлы'));
+                },
+                onSettled: () => setLoading(false),
+            },
+        );
     }, [documentId, message]);
 
     useEffect(() => {
+        const latestListRequest = latestListRequestRef.current;
         if (documentId) {
+            setFiles([]);
             void loadFiles();
+        } else {
+            latestListRequest.invalidate();
+            setFiles([]);
+            setLoading(false);
         }
+
+        return () => latestListRequest.invalidate();
     }, [documentId, loadFiles]);
 
     const uploadFile = useCallback(async () => {

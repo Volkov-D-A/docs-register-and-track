@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button, Popconfirm, Modal, Select, Tag, Switch, Space, Empty, Spin, App } from 'antd';
 import { LinkOutlined, DeleteOutlined, PlusOutlined, ApartmentOutlined, UnlockOutlined, LockOutlined } from '@ant-design/icons';
 import { LinkDocuments, UnlinkDocument, GetDocumentLinks, models } from '../../types/link';
@@ -8,6 +8,7 @@ import { GetList } from '../../../wailsjs/go/services/DocumentQueryService';
 import { DOCUMENT_KIND_ADMINISTRATIVE_ORDER, DOCUMENT_KIND_OUTGOING_LETTER, isAdministrativeOrderKind } from '../../constants/documentKinds';
 import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentLabel } from '../../config/documentLinkConfig';
 import { useDocumentKindAccess } from '../../hooks/useDocumentKindAccess';
+import { LatestRequest } from '../../utils/latestRequest';
 
 /**
  * Свойства вкладки связей документа.
@@ -43,6 +44,12 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchLoading, setSearchLoading] = useState(false);
     const [targetOptions, setTargetOptions] = useState<{ value: string; label: string }[]>([]);
+    const latestSearchRequestRef = useRef(new LatestRequest());
+    const latestLinksRequestRef = useRef(new LatestRequest());
+    const activeSearchRef = useRef('');
+    const activeDocumentRef = useRef(documentId);
+    activeSearchRef.current = `${targetKind}\u0000${searchTerm}`;
+    activeDocumentRef.current = documentId;
     const canManageLinks = accessReady && hasAction(documentKind, 'link');
     const creatableKinds = useMemo(
         () => accessReady ? kinds.filter((kind) => hasAction(kind.code, 'create')) : [],
@@ -76,6 +83,8 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
                 && selectableTargetKinds.some((kind) => kind.code === DOCUMENT_KIND_ADMINISTRATIVE_ORDER)
                 ? DOCUMENT_KIND_ADMINISTRATIVE_ORDER
                 : selectableTargetKinds[0].code;
+            activeSearchRef.current = `${preferredKind}\u0000`;
+            latestSearchRequestRef.current.invalidate();
             setTargetKind(preferredKind);
             setTargetId('');
             setSearchTerm('');
@@ -90,9 +99,13 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
     }, [availableLinkTypes, linkType]);
 
     const performSearch = useCallback(async (query: string) => {
+        const searchKey = `${targetKind}\u0000${query}`;
+        if (activeSearchRef.current !== searchKey) {
+            return;
+        }
         setSearchLoading(true);
-        try {
-            const res = await GetList(targetKind, {
+        await latestSearchRequestRef.current.run(
+            () => GetList(targetKind, {
                 page: 1,
                 pageSize: 20,
                 search: query,
@@ -109,28 +122,35 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
                 outgoingDateTo: '',
                 resolution: '',
                 noResolution: false,
-            } as any);
-            const items = res?.items || [];
-
-            const options = items.map((item: any) => {
-                const date = item.registrationDate;
-                const number = item.registrationNumber;
-                const content = item.content || '';
-                return {
-                    value: item.id,
-                    label: `${number} от ${dayjs(date).format('DD.MM.YYYY')} - ${content}`
-                };
-            });
-            setTargetOptions(options);
-        } catch (err) {
-            console.error("Search error:", err);
-            message.error("Ошибка поиска");
-        } finally {
-            setSearchLoading(false);
-        }
+            } as any),
+            {
+                isRelevant: () => activeSearchRef.current === searchKey,
+                onSuccess: (res) => {
+                    const items = res?.items || [];
+                    setTargetOptions(items.map((item: any) => {
+                        const date = item.registrationDate;
+                        const number = item.registrationNumber;
+                        const content = item.content || '';
+                        return {
+                            value: item.id,
+                            label: `${number} от ${dayjs(date).format('DD.MM.YYYY')} - ${content}`
+                        };
+                    }));
+                },
+                onError: (err) => {
+                    console.error("Search error:", err);
+                    message.error("Ошибка поиска");
+                },
+                onSettled: () => setSearchLoading(false),
+            },
+        );
     }, [message, targetKind]);
 
     useEffect(() => {
+        const latestSearchRequest = latestSearchRequestRef.current;
+        latestSearchRequest.invalidate();
+        setSearchLoading(false);
+        setTargetOptions([]);
         const timeoutId = setTimeout(() => {
             if (accessReady && searchTerm.length >= 2 && targetKind) {
                 performSearch(searchTerm);
@@ -138,11 +158,28 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
                 setTargetOptions([]);
             }
         }, 500);
-        return () => clearTimeout(timeoutId);
+        return () => {
+            clearTimeout(timeoutId);
+            latestSearchRequest.invalidate();
+        };
     }, [accessReady, performSearch, searchTerm, targetKind]);
 
     const handleSearch = (val: string) => {
+        activeSearchRef.current = `${targetKind}\u0000${val}`;
+        latestSearchRequestRef.current.invalidate();
+        setSearchLoading(false);
+        setTargetOptions([]);
         setSearchTerm(val);
+    };
+
+    const handleTargetKindChange = (val: string) => {
+        activeSearchRef.current = `${val}\u0000`;
+        latestSearchRequestRef.current.invalidate();
+        setSearchLoading(false);
+        setTargetKind(val);
+        setTargetId('');
+        setSearchTerm('');
+        setTargetOptions([]);
     };
 
     const openGraph = () => {
@@ -164,25 +201,36 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
     };
 
     const fetchLinks = useCallback(async () => {
-        if (!documentId || !canManageLinks) {
+        if (!documentId || !canManageLinks || activeDocumentRef.current !== documentId) {
             return;
         }
         setLoading(true);
-        try {
-            const data = await GetDocumentLinks(documentId);
-            setLinks(data || []);
-        } catch (error) {
-            console.error(error);
-            message.error("Не удалось загрузить связи");
-        } finally {
-            setLoading(false);
-        }
+        await latestLinksRequestRef.current.run(
+            () => GetDocumentLinks(documentId),
+            {
+                isRelevant: () => activeDocumentRef.current === documentId,
+                onSuccess: (data) => setLinks(data || []),
+                onError: (error) => {
+                    console.error(error);
+                    message.error("Не удалось загрузить связи");
+                },
+                onSettled: () => setLoading(false),
+            },
+        );
     }, [canManageLinks, documentId, message]);
 
     useEffect(() => {
+        const latestLinksRequest = latestLinksRequestRef.current;
         if (documentId && canManageLinks) {
-            fetchLinks();
+            setLinks([]);
+            void fetchLinks();
+        } else {
+            latestLinksRequest.invalidate();
+            setLinks([]);
+            setLoading(false);
         }
+
+        return () => latestLinksRequest.invalidate();
     }, [canManageLinks, documentId, fetchLinks]);
 
     const handleLink = async () => {
@@ -302,7 +350,7 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <Select value={linkType} onChange={setLinkType} style={{ width: '100%' }} options={availableLinkTypes} />
 
-                    <Select value={targetKind || undefined} onChange={(val) => { setTargetKind(val); setTargetId(''); setSearchTerm(''); setTargetOptions([]); }} style={{ width: '100%' }}>
+                    <Select value={targetKind || undefined} onChange={handleTargetKindChange} style={{ width: '100%' }}>
                         {selectableTargetKinds.map((kind) => (
                             <Select.Option key={kind.code} value={kind.code}>
                                 {getLinkedDocumentLabel(kind.code)} документ
