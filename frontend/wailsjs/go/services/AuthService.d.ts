@@ -39,8 +39,6 @@ export function RequireSystemPermission(arg1:string):Promise<void>;
 
 export function SetAccessStore(arg1:services.DocumentAccessStore):Promise<void>;
 
-export function SetAdminAuditLogService(arg1:services.AdminAuditLogService):Promise<void>;
-
 export function SetSettingsStore(arg1:services.SettingsStore):Promise<void>;
 
 export function UpdateProfile(arg1:models.UpdateProfileRequest):Promise<void>;

@@ -36,7 +36,16 @@ TMP_DIR="$(mktemp -d /tmp/restore_stage_XXXXXXXXXX)"
 chmod 700 "$TMP_DIR"
 ARCHIVE_PATH="$MOUNT_POINT/$ARCHIVE_NAME"
 MANIFEST_PATH="$ARCHIVE_PATH.manifest"
-REPORT_DIR="${RESTORE_REPORT_DIR:-$(pwd)/restore_reports}"
+# Restore is normally run with sudo. Keep operational reports outside the
+# source tree: Go tooling recursively scans the repository and must not depend
+# on permissions of root-owned runtime artifacts.
+REPORT_DIR="${RESTORE_REPORT_DIR:-/var/log/docflow/restore_reports}"
+case "$REPORT_DIR" in
+  "$SCRIPT_DIR"|"$SCRIPT_DIR"/*)
+    echo "Ошибка: RESTORE_REPORT_DIR должен находиться вне рабочей копии проекта."
+    exit 1
+    ;;
+esac
 REPORT_FILE="$REPORT_DIR/restore_$(date +%Y%m%d_%H%M%S).log"
 MOUNTED=0
 BACKUP_VERIFICATION=""

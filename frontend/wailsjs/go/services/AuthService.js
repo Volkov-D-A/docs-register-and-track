@@ -70,10 +70,6 @@ export function SetAccessStore(arg1) {
   return window['go']['services']['AuthService']['SetAccessStore'](arg1);
 }
 
-export function SetAdminAuditLogService(arg1) {
-  return window['go']['services']['AuthService']['SetAdminAuditLogService'](arg1);
-}
-
 export function SetSettingsStore(arg1) {
   return window['go']['services']['AuthService']['SetSettingsStore'](arg1);
 }

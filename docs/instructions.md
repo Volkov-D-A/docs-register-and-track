@@ -69,6 +69,7 @@ sudo apt install -y cifs-utils
 Перед запуском нужно один раз подготовить конфигурацию:
 sudo install -d -m 700 /etc/docflow
 sudo install -m 600 backup.env.example /etc/docflow/backup.env
+sudo install -d -m 700 /var/log/docflow
 sudo nano /etc/docflow/backup.env
 И создать /etc/docflow/smb.credentials с правами 600:
 username=...
