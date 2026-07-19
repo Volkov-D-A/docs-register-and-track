@@ -1,11 +1,13 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 
@@ -46,6 +48,36 @@ func TestConfigureConnectionPool(t *testing.T) {
 	configureConnectionPool(dbMock)
 
 	assert.Equal(t, defaultMaxOpenConns, dbMock.Stats().MaxOpenConnections)
+}
+
+func TestDB_DefaultOperationsHaveDeadline(t *testing.T) {
+	dbMock, mock, db := setupMockDB(t)
+	defer dbMock.Close()
+	db.operationTimeout = 10 * time.Millisecond
+
+	mock.ExpectExec(`SELECT pg_sleep`).WillDelayFor(100 * time.Millisecond).WillReturnResult(sqlmock.NewResult(0, 0))
+
+	_, err := db.Exec("SELECT pg_sleep(1)")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "canceling query")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDB_ContextDeadlineCanBeNarrower(t *testing.T) {
+	dbMock, mock, db := setupMockDB(t)
+	defer dbMock.Close()
+	db.operationTimeout = time.Second
+
+	mock.ExpectQuery(`SELECT pg_sleep`).WillDelayFor(100 * time.Millisecond).WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow(1))
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	var value int
+	err := db.QueryRowContext(ctx, "SELECT pg_sleep(1)").Scan(&value)
+	require.Error(t, err)
+	assert.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "canceling query")
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func addMigrateInitExpectations(mock sqlmock.Sqlmock) {

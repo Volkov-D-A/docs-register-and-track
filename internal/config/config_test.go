@@ -20,7 +20,7 @@ func TestDatabaseConfigConnectionString(t *testing.T) {
 		SSLMode:  "disable",
 	}
 
-	expected := "host=localhost port=5432 user=testuser password=testpassword dbname=testdb sslmode=disable"
+	expected := "host=localhost port=5432 user=testuser password=testpassword dbname=testdb sslmode=disable connect_timeout=10 statement_timeout=30000 lock_timeout=5000"
 	assert.Equal(t, expected, dbCfg.ConnectionString())
 }
 

@@ -6,12 +6,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
-	ConfigPathEnv         = "DOCFLOW_CONFIG_PATH"
-	defaultConfigFileName = "config.json"
-	defaultConfigDirName  = "config"
+	ConfigPathEnv             = "DOCFLOW_CONFIG_PATH"
+	defaultConfigFileName     = "config.json"
+	defaultConfigDirName      = "config"
+	defaultDBConnectTimeout   = 10 * time.Second
+	defaultDBStatementTimeout = 30 * time.Second
+	defaultDBLockTimeout      = 5 * time.Second
 )
 
 // Config хранит основную конфигурацию приложения.
@@ -64,8 +68,11 @@ func (d DatabaseConfig) ConnectionString() string {
 		password = decrypted
 	}
 	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d statement_timeout=%d lock_timeout=%d",
 		d.Host, d.Port, d.User, password, d.DBName, d.SSLMode,
+		int(defaultDBConnectTimeout/time.Second),
+		defaultDBStatementTimeout.Milliseconds(),
+		defaultDBLockTimeout.Milliseconds(),
 	)
 }
 

@@ -20,15 +20,18 @@ import (
 )
 
 const (
-	defaultMaxOpenConns    = 5
-	defaultMaxIdleConns    = 2
-	defaultConnMaxIdleTime = 5 * time.Minute
-	defaultConnMaxLifetime = 30 * time.Minute
+	defaultMaxOpenConns     = 5
+	defaultMaxIdleConns     = 2
+	defaultConnMaxIdleTime  = 5 * time.Minute
+	defaultConnMaxLifetime  = 30 * time.Minute
+	defaultStartupTimeout   = 10 * time.Second
+	defaultOperationTimeout = 30 * time.Second
 )
 
 // DB представляет собой обертку над подключением к базе данных SQL.
 type DB struct {
 	*sql.DB
+	operationTimeout time.Duration
 }
 
 // MigrationStatus содержит информацию о текущем состоянии миграций БД.
@@ -68,12 +71,92 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 	}
 	configureConnectionPool(db)
 
-	if err := db.Ping(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStartupTimeout)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &DB{db}, nil
+	return &DB{DB: db, operationTimeout: defaultOperationTimeout}, nil
+}
+
+// Query, QueryRow, Exec, Begin and Prepare keep the legacy repository API while
+// ensuring that pool waits and SQL operations cannot block indefinitely. New
+// code can pass a narrower deadline through the corresponding Context method.
+func (db *DB) Query(query string, args ...any) (*sql.Rows, error) {
+	return db.QueryContext(context.Background(), query, args...)
+}
+
+func (db *DB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	ctx, cancel := db.withOperationTimeout(ctx)
+	stopCancel := context.AfterFunc(ctx, cancel)
+	rows, err := db.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		stopCancel()
+		cancel()
+	}
+	// database/sql keeps ctx alive until rows are closed. When callers forget to
+	// close rows, the deadline still releases both the query and timer.
+	return rows, err
+}
+
+func (db *DB) QueryRow(query string, args ...any) *sql.Row {
+	return db.QueryRowContext(context.Background(), query, args...)
+}
+
+func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	ctx, cancel := db.withOperationTimeout(ctx)
+	context.AfterFunc(ctx, cancel)
+	return db.DB.QueryRowContext(ctx, query, args...)
+}
+
+func (db *DB) Exec(query string, args ...any) (sql.Result, error) {
+	return db.ExecContext(context.Background(), query, args...)
+}
+
+func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	ctx, cancel := db.withOperationTimeout(ctx)
+	defer cancel()
+	return db.DB.ExecContext(ctx, query, args...)
+}
+
+func (db *DB) Begin() (*sql.Tx, error) {
+	return db.BeginTx(context.Background(), nil)
+}
+
+func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	ctx, cancel := db.withOperationTimeout(ctx)
+	stopCancel := context.AfterFunc(ctx, cancel)
+	tx, err := db.DB.BeginTx(ctx, opts)
+	if err != nil {
+		stopCancel()
+		cancel()
+	}
+	// The context must remain valid for the transaction lifetime. database/sql
+	// rolls the transaction back automatically when the deadline is reached.
+	return tx, err
+}
+
+func (db *DB) Prepare(query string) (*sql.Stmt, error) {
+	return db.PrepareContext(context.Background(), query)
+}
+
+func (db *DB) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
+	ctx, cancel := db.withOperationTimeout(ctx)
+	defer cancel()
+	return db.DB.PrepareContext(ctx, query)
+}
+
+func (db *DB) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	timeout := db.operationTimeout
+	if timeout <= 0 {
+		timeout = defaultOperationTimeout
+	}
+	return context.WithTimeout(ctx, timeout)
 }
 
 func configureConnectionPool(db *sql.DB) {
