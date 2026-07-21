@@ -20,12 +20,9 @@ type DocumentAccessService struct {
 	outgoingRepo       OutgoingDocStore
 }
 
-type DocumentReadScope struct {
-	Restricted             bool
-	AllowedNomenclatureIDs []string
-	AccessibleByUserID     string
-	AccessibleByUserIDs    []string
-}
+// DocumentReadScope is kept as a service-level name for compatibility. The
+// model is also consumed by repositories to apply the same resolved scope.
+type DocumentReadScope = models.DocumentAccessScope
 
 // NewDocumentAccessService создает сервис проверки доступа к документам.
 func NewDocumentAccessService(

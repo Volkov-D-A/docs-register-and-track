@@ -120,62 +120,8 @@ func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models
 	args := []interface{}{}
 	argIdx := 1
 
-	accessibleIDs := accessibleUserIDs(filter.AccessibleByUserID, filter.AccessibleByUserIDs)
-	if len(accessibleIDs) > 0 {
-		accessClauses := make([]string, 0, 2)
-		if len(filter.AllowedNomenclatureIDs) > 0 {
-			accessClauses = append(accessClauses, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
-			args = append(args, pq.Array(filter.AllowedNomenclatureIDs))
-			argIdx++
-		}
-
-		useAccessArray := len(filter.AccessibleByUserIDs) > 0
-		assignmentUserPredicate := fmt.Sprintf("a.executor_id = $%d", argIdx)
-		coExecutorUserPredicate := fmt.Sprintf("ce.user_id = $%d", argIdx)
-		ackUserPredicate := fmt.Sprintf("au.user_id = $%d", argIdx+1)
-		assignmentArg := interface{}(filter.AccessibleByUserID)
-		ackArg := interface{}(filter.AccessibleByUserID)
-		if useAccessArray {
-			assignmentUserPredicate = fmt.Sprintf("a.executor_id = ANY($%d::uuid[])", argIdx)
-			coExecutorUserPredicate = fmt.Sprintf("ce.user_id = ANY($%d::uuid[])", argIdx)
-			ackUserPredicate = fmt.Sprintf("au.user_id = ANY($%d::uuid[])", argIdx+1)
-			assignmentArg = pq.Array(accessibleIDs)
-			ackArg = pq.Array(accessibleIDs)
-		}
-
-		accessClauses = append(accessClauses, fmt.Sprintf(`EXISTS (
-			SELECT 1
-			FROM assignments a
-			WHERE a.document_id = d.id
-			  AND (
-				%s
-				OR EXISTS (
-					SELECT 1
-					FROM assignment_co_executors ce
-					WHERE ce.assignment_id = a.id AND %s
-				)
-			  )
-		)`, assignmentUserPredicate, coExecutorUserPredicate))
-		args = append(args, assignmentArg)
-		argIdx++
-
-		accessClauses = append(accessClauses, fmt.Sprintf(`EXISTS (
-			SELECT 1
-			FROM acknowledgment_users au
-			JOIN acknowledgments a ON au.acknowledgment_id = a.id
-			WHERE %s
-			  AND a.document_id = d.id
-		)`, ackUserPredicate))
-		args = append(args, ackArg)
-		argIdx++
-
-		where = append(where, "("+strings.Join(accessClauses, " OR ")+")")
-	}
-	if len(accessibleIDs) == 0 && len(filter.AllowedNomenclatureIDs) > 0 {
-		where = append(where, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
-		args = append(args, pq.Array(filter.AllowedNomenclatureIDs))
-		argIdx++
-	}
+	scope := documentListAccessScope(filter.AccessScope, filter.AllowedNomenclatureIDs, filter.AccessibleByUserID, filter.AccessibleByUserIDs)
+	applyDocumentListAccess(&where, &args, &argIdx, scope)
 
 	if len(filter.NomenclatureIDs) > 0 {
 		where = append(where, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
@@ -287,15 +233,7 @@ func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models
 		return nil, fmt.Errorf("failed to count citizen appeals: %w", err)
 	}
 
-	if filter.PageSize <= 0 {
-		filter.PageSize = 20
-	}
-	if filter.PageSize > 100 {
-		filter.PageSize = 100
-	}
-	if filter.Page <= 0 {
-		filter.Page = 1
-	}
+	filter.Page, filter.PageSize = normalizePagination(filter.Page, filter.PageSize)
 	offset := (filter.Page - 1) * filter.PageSize
 
 	dataQuery := fmt.Sprintf(`%s

@@ -152,6 +152,8 @@ func TestDocumentQueryService_GetList(t *testing.T) {
 		assert.Equal(t, "abc", handler.lastFilter.Search)
 		assert.Empty(t, handler.lastFilter.AllowedNomenclatureIDs)
 		assert.Empty(t, handler.lastFilter.AccessibleByUserID)
+		require.NotNil(t, handler.lastFilter.AccessScope)
+		assert.False(t, handler.lastFilter.AccessScope.Restricted)
 	})
 
 	t.Run("applies restricted scope to filter", func(t *testing.T) {
@@ -171,6 +173,9 @@ func TestDocumentQueryService_GetList(t *testing.T) {
 		require.NotNil(t, res)
 		assert.Equal(t, []string{"nom-1", "nom-2"}, handler.lastFilter.AllowedNomenclatureIDs)
 		assert.Equal(t, user.ID.String(), handler.lastFilter.AccessibleByUserID)
+		require.NotNil(t, handler.lastFilter.AccessScope)
+		assert.True(t, handler.lastFilter.AccessScope.Restricted)
+		assert.Equal(t, []string{"nom-1", "nom-2"}, handler.lastFilter.AccessScope.AllowedNomenclatureIDs)
 	})
 
 	t.Run("returns forbidden for unsupported kind", func(t *testing.T) {
