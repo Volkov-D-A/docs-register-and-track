@@ -84,12 +84,15 @@ const IncomingPage: React.FC = () => {
     const {
         data,
         loading,
-        totalCount,
         page,
         pageSize,
         setPage,
         setPageSize,
         setSearch,
+        hasMore,
+        canGoBack,
+        goToNextPage,
+        goToPreviousPage,
         load,
         viewDocId,
         viewModalOpen,
@@ -268,8 +271,11 @@ const IncomingPage: React.FC = () => {
             loading={loading || !accessReady}
             page={page}
             pageSize={pageSize}
-            totalCount={totalCount}
-            onPageChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+            hasMore={hasMore}
+            canGoBack={canGoBack}
+            onPreviousPage={goToPreviousPage}
+            onNextPage={goToNextPage}
+            onPageSizeChange={setPageSize}
             viewModalOpen={viewModalOpen}
             onCloseViewModal={closeViewModal}
             viewDocId={viewDocId}

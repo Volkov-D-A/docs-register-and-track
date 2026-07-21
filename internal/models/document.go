@@ -321,6 +321,8 @@ type DocumentFilter struct {
 	OrderActiveStatus         string               `json:"orderActiveStatus,omitempty"`
 	Page                      int                  `json:"page"`
 	PageSize                  int                  `json:"pageSize"`
+	Cursor                    string               `json:"cursor,omitempty"`
+	CursorPagination          bool                 `json:"cursorPagination,omitempty"`
 }
 
 // OutgoingDocumentFilter описывает параметры фильтрации исходящих документов.
@@ -340,14 +342,18 @@ type OutgoingDocumentFilter struct {
 	RecipientName          string               `json:"recipientName,omitempty"`
 	Page                   int                  `json:"page"`
 	PageSize               int                  `json:"pageSize"`
+	Cursor                 string               `json:"cursor,omitempty"`
+	CursorPagination       bool                 `json:"cursorPagination,omitempty"`
 }
 
 // PagedResult — постраничный результат
 type PagedResult[T any] struct {
-	Items      []T `json:"items"`
-	TotalCount int `json:"totalCount"`
-	Page       int `json:"page"`
-	PageSize   int `json:"pageSize"`
+	Items      []T    `json:"items"`
+	TotalCount int    `json:"totalCount"`
+	Page       int    `json:"page"`
+	PageSize   int    `json:"pageSize"`
+	NextCursor string `json:"nextCursor,omitempty"`
+	HasMore    bool   `json:"hasMore"`
 }
 
 // GraphNode — узел графа визуализации связей

@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_documents_kind_nomenclature_created_at;

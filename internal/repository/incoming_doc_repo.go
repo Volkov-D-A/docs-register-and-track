@@ -441,32 +441,34 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		argIdx++
 	}
 
-	whereClause := strings.Join(where, " AND ")
-
-	// Подсчёт общего количества
 	var totalCount int
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*)
-		FROM documents d
-		JOIN incoming_document_details inc ON inc.document_id = d.id
-		WHERE %s
-	`, whereClause)
-	if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
-		return nil, fmt.Errorf("failed to count documents: %w", err)
+	if err := applyDocumentCursor(&where, &args, &argIdx, filter.CursorPagination, filter.Cursor); err != nil {
+		return nil, err
 	}
-
-	// Пагинация
 	filter.Page, filter.PageSize = normalizePagination(filter.Page, filter.PageSize)
-	offset := (filter.Page - 1) * filter.PageSize
+	whereClause := strings.Join(where, " AND ")
+	if !filter.CursorPagination {
+		countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM documents d
+			JOIN incoming_document_details inc ON inc.document_id = d.id WHERE %s`, whereClause)
+		if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
+			return nil, fmt.Errorf("failed to count documents: %w", err)
+		}
+	}
+	limit := filter.PageSize
+	if filter.CursorPagination {
+		limit++
+	}
 
 	// Основной запрос с использованием базового SELECT
 	dataQuery := fmt.Sprintf(`%s
 		WHERE %s
-		ORDER BY d.created_at DESC
-		LIMIT $%d OFFSET $%d
-	`, incomingDocSelectBase, whereClause, argIdx, argIdx+1)
-
-	args = append(args, filter.PageSize, offset)
+		ORDER BY d.created_at DESC, d.id DESC
+		LIMIT $%d%s
+	`, incomingDocSelectBase, whereClause, argIdx, map[bool]string{true: "", false: fmt.Sprintf(" OFFSET $%d", argIdx+1)}[filter.CursorPagination])
+	args = append(args, limit)
+	if !filter.CursorPagination {
+		args = append(args, (filter.Page-1)*filter.PageSize)
+	}
 
 	rows, err := r.db.Query(dataQuery, args...)
 	if err != nil {
@@ -487,6 +489,11 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows iteration error: %w", err)
 	}
+	hasMore := filter.CursorPagination && len(items) > filter.PageSize
+	if hasMore {
+		items = items[:filter.PageSize]
+		documentIDs = documentIDs[:filter.PageSize]
+	}
 	if len(documentIDs) > 0 {
 		correspondentsByDocumentID, err := loadDocumentCorrespondentsByDocumentIDs(r.db, documentIDs)
 		if err != nil {
@@ -502,11 +509,22 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		}
 	}
 
+	nextCursor := ""
+	if hasMore {
+		var err error
+		last := items[len(items)-1]
+		nextCursor, err = models.EncodeDocumentCursor(last.CreatedAt, last.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &models.PagedResult[models.IncomingDocument]{
 		Items:      items,
 		TotalCount: totalCount,
 		Page:       filter.Page,
 		PageSize:   filter.PageSize,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	}, nil
 }
 

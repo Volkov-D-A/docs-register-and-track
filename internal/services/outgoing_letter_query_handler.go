@@ -50,6 +50,8 @@ func (h *OutgoingLetterQueryHandler) GetList(filter models.DocumentFilter) (*dto
 		RecipientName:          filter.RecipientName,
 		Page:                   filter.Page,
 		PageSize:               filter.PageSize,
+		Cursor:                 filter.Cursor,
+		CursorPagination:       filter.CursorPagination,
 	}
 
 	res, err := h.repo.GetList(outgoingFilter)
@@ -62,5 +64,7 @@ func (h *OutgoingLetterQueryHandler) GetList(filter models.DocumentFilter) (*dto
 		TotalCount: res.TotalCount,
 		Page:       res.Page,
 		PageSize:   res.PageSize,
+		NextCursor: res.NextCursor,
+		HasMore:    res.HasMore,
 	}, nil
 }

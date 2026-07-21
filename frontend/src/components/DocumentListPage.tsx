@@ -18,8 +18,11 @@ type DocumentListPageProps = {
     loading: boolean;
     page: number;
     pageSize: number;
-    totalCount: number;
-    onPageChange: (page: number, pageSize: number) => void;
+    hasMore: boolean;
+    canGoBack: boolean;
+    onPreviousPage: () => void;
+    onNextPage: () => void;
+    onPageSizeChange: (pageSize: number) => void;
     viewModalOpen: boolean;
     onCloseViewModal: () => void;
     viewDocId: string;
@@ -40,8 +43,11 @@ const DocumentListPage: React.FC<DocumentListPageProps> = ({
     loading,
     page,
     pageSize,
-    totalCount,
-    onPageChange,
+    hasMore,
+    canGoBack,
+    onPreviousPage,
+    onNextPage,
+    onPageSizeChange,
     viewModalOpen,
     onCloseViewModal,
     viewDocId,
@@ -67,8 +73,11 @@ const DocumentListPage: React.FC<DocumentListPageProps> = ({
             loading={loading}
             page={page}
             pageSize={pageSize}
-            totalCount={totalCount}
-            onPageChange={onPageChange}
+            hasMore={hasMore}
+            canGoBack={canGoBack}
+            onPreviousPage={onPreviousPage}
+            onNextPage={onNextPage}
+            onPageSizeChange={onPageSizeChange}
         />
 
         <DocumentViewModal

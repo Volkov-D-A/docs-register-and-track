@@ -44,5 +44,7 @@ func (h *IncomingLetterQueryHandler) GetList(filter models.DocumentFilter) (*dto
 		TotalCount: res.TotalCount,
 		Page:       res.Page,
 		PageSize:   res.PageSize,
+		NextCursor: res.NextCursor,
+		HasMore:    res.HasMore,
 	}, nil
 }

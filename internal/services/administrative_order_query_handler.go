@@ -42,5 +42,7 @@ func (h *AdministrativeOrderQueryHandler) GetList(filter models.DocumentFilter) 
 		TotalCount: result.TotalCount,
 		Page:       result.Page,
 		PageSize:   result.PageSize,
+		NextCursor: result.NextCursor,
+		HasMore:    result.HasMore,
 	}, nil
 }

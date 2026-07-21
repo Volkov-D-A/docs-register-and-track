@@ -121,6 +121,8 @@ Frontend не должен:
 - `frontend/src/utils/latestRequest.ts` - защита состояния от устаревших async-ответов;
 - `frontend/src/features/settings/ReferenceDirectoriesTab.tsx` - вынесенный feature component справочников.
 
+Журналы документов используют cursor pagination: backend возвращает `nextCursor` и `hasMore`, а hook хранит историю курсоров для кнопок «Назад» и «Вперёд». Любое изменение фильтра, поиска или размера страницы сбрасывает историю. Поле `cursorPagination` включает этот режим; старый `page`-контракт остаётся для внутренних вызовов, которые ещё нуждаются в номере страницы и `totalCount`.
+
 Крупные страницы (`SettingsPage`, `StatisticsPage`, `DocumentViewModal`, `AssignmentsPage`) нужно декомпозировать постепенно при функциональных изменениях. Не делать большой refactor без поведенческой причины и smoke/test coverage.
 
 ## Слой Wails Bridge
@@ -521,7 +523,7 @@ make go-vet
 - Migrations must be embedded and compatible with release build.
 - For constraints/index changes, add focused tests where practical.
 - Do not add performance indexes just because a query has a seq scan on small baseline data.
-- Для production-like планов используйте `make db-performance-check`; локальный результат пишется в ignored-каталог `build/performance/` и при необходимости сохраняется вне репозитория.
+- Для production-like планов используйте `make db-performance-check`; по умолчанию он создаёт 10 000 документов, сравнивает глубокие OFFSET- и cursor-страницы поиска и сохраняет полный JSON-план. Размер и pagination-сценарий можно изменить через `PERFORMANCE_DOCUMENTS`, `PERFORMANCE_PAGE_SIZE` и `PERFORMANCE_DEEP_PAGE`, например `make db-performance-check PERFORMANCE_DOCUMENTS=50000 PERFORMANCE_DEEP_PAGE=1000`.
 - Any new performance index needs before/after `EXPLAIN (ANALYZE, BUFFERS)` and write-latency consideration.
 - Keep rollback impact explicit for destructive `down` migrations.
 

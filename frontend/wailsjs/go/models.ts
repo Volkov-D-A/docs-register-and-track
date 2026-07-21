@@ -1410,6 +1410,8 @@ export namespace dto {
 	    totalCount: number;
 	    page: number;
 	    pageSize: number;
+	    nextCursor?: string;
+	    hasMore: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_DocumentListItem_(source);
@@ -1421,6 +1423,8 @@ export namespace dto {
 	        this.totalCount = source["totalCount"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
+	        this.nextCursor = source["nextCursor"];
+	        this.hasMore = source["hasMore"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1897,6 +1901,8 @@ export namespace models {
 	    orderActiveStatus?: string;
 	    page: number;
 	    pageSize: number;
+	    cursor?: string;
+	    cursorPagination?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new DocumentFilter(source);
@@ -1931,6 +1937,8 @@ export namespace models {
 	        this.orderActiveStatus = source["orderActiveStatus"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
+	        this.cursor = source["cursor"];
+	        this.cursorPagination = source["cursorPagination"];
 	    }
 	}
 	export class DocumentStatistics {
@@ -2563,4 +2571,3 @@ export namespace services {
 	}
 
 }
-

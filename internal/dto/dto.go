@@ -458,6 +458,8 @@ type PagedResult[T any] struct {
 	TotalCount int `json:"totalCount"`
 	Page       int `json:"page"`
 	PageSize   int `json:"pageSize"`
+	NextCursor string `json:"nextCursor,omitempty"`
+	HasMore    bool   `json:"hasMore"`
 }
 
 // UserEvent описывает DTO персонального события пользователя.

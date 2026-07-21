@@ -30,8 +30,10 @@ export const useDocumentListPage = <TFilter,>({
     const userId = useAuthStore((state) => state.user?.id ?? null);
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    const [totalCount, setTotalCount] = useState(0);
-    const [page, setPage] = useState(1);
+    const [cursorHistory, setCursorHistory] = useState<string[]>(['']);
+    const [cursorIndex, setCursorIndex] = useState(0);
+    const [nextCursor, setNextCursor] = useState('');
+    const [hasMore, setHasMore] = useState(false);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState('');
     const [viewDocId, setViewDocId] = useState('');
@@ -41,6 +43,8 @@ export const useDocumentListPage = <TFilter,>({
     const onErrorRef = useRef(onError);
     const requestIdRef = useRef(0);
     const depsKey = useMemo(() => JSON.stringify(deps), [deps]);
+    const page = cursorIndex + 1;
+    const cursor = cursorHistory[cursorIndex] || '';
 
     filtersRef.current = filters;
     buildFilterRef.current = buildFilter;
@@ -58,7 +62,8 @@ export const useDocumentListPage = <TFilter,>({
     const load = useCallback(async () => {
         if (!isAuthenticated || !enabled) {
             setData([]);
-            setTotalCount(0);
+            setHasMore(false);
+            setNextCursor('');
             setLoading(false);
             return;
         }
@@ -66,20 +71,22 @@ export const useDocumentListPage = <TFilter,>({
         const requestId = ++requestIdRef.current;
         setLoading(true);
         try {
-            const result = await GetList(
-                kindCode,
-                buildFilterRef.current({
+            const result = await GetList(kindCode, {
+                ...buildFilterRef.current({
                     search,
                     page,
                     pageSize,
                     filters: filtersRef.current,
-                }) as any,
-            );
+                }),
+                cursor,
+                cursorPagination: true,
+            } as any);
             if (requestId !== requestIdRef.current) {
                 return;
             }
             setData(result?.items || []);
-            setTotalCount(result?.totalCount || 0);
+            setHasMore(Boolean(result?.hasMore));
+            setNextCursor(result?.nextCursor || '');
         } catch (error) {
             if (requestId === requestIdRef.current) {
                 onErrorRef.current?.(error);
@@ -89,7 +96,7 @@ export const useDocumentListPage = <TFilter,>({
                 setLoading(false);
             }
         }
-    }, [enabled, isAuthenticated, kindCode, page, pageSize, search]);
+    }, [cursor, enabled, isAuthenticated, kindCode, page, pageSize, search]);
 
     useEffect(() => {
         void load();
@@ -99,25 +106,54 @@ export const useDocumentListPage = <TFilter,>({
         if (!isAuthenticated) {
             requestIdRef.current += 1;
             setData([]);
-            setTotalCount(0);
+            setCursorHistory(['']);
+            setCursorIndex(0);
+            setHasMore(false);
+            setNextCursor('');
             setViewDocId('');
             setViewModalOpen(false);
-            setPage(1);
             setSearch('');
             setLoading(false);
         }
     }, [isAuthenticated]);
 
+    const setPage = useCallback((nextPage: number) => {
+        if (nextPage === 1) {
+            setCursorHistory(['']);
+            setCursorIndex(0);
+            setHasMore(false);
+            setNextCursor('');
+        }
+    }, []);
+
+    const setDocumentPageSize = useCallback((nextPageSize: number) => {
+        setPageSize(nextPageSize);
+        setPage(1);
+    }, [setPage]);
+
+    const goToNextPage = useCallback(() => {
+        if (!hasMore || !nextCursor) return;
+        setCursorHistory((history) => [...history.slice(0, cursorIndex + 1), nextCursor]);
+        setCursorIndex((index) => index + 1);
+    }, [cursorIndex, hasMore, nextCursor]);
+
+    const goToPreviousPage = useCallback(() => {
+        if (cursorIndex > 0) setCursorIndex((index) => index - 1);
+    }, [cursorIndex]);
+
     return {
         data,
         loading,
-        totalCount,
         page,
         pageSize,
         search,
         setPage,
-        setPageSize,
+        setPageSize: setDocumentPageSize,
         setSearch,
+        hasMore,
+        canGoBack: cursorIndex > 0,
+        goToNextPage,
+        goToPreviousPage,
         load,
         viewDocId,
         viewModalOpen,

@@ -14,6 +14,9 @@ GO_PACKAGES = $(shell go list ./... | grep -v '/frontend/node_modules/')
 INTEGRATION_COMPOSE = docker compose -p docflow-integration -f docker-compose.integration.yaml
 INTEGRATION_DSN = postgres://docflow_integration:docflow_integration@127.0.0.1:55432/docflow_test_outbox?sslmode=disable
 PERFORMANCE_DIR = build/performance
+PERFORMANCE_DOCUMENTS ?= 10000
+PERFORMANCE_PAGE_SIZE ?= 50
+PERFORMANCE_DEEP_PAGE ?= 0
 
 # Ключ шифрования конфигурации (из .env → ENCRYPTION_KEY)
 LDFLAGS = -X 'github.com/Volkov-D-A/docs-register-and-track/internal/config.rawEncryptionKey=$(ENCRYPTION_KEY)'
@@ -71,7 +74,7 @@ db-performance-check:
 		mkdir -p $(PERFORMANCE_DIR); \
 		$(INTEGRATION_COMPOSE) up -d --wait; \
 		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
-		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) | tee $(PERFORMANCE_DIR)/summary.txt
+		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -deep-page $(PERFORMANCE_DEEP_PAGE) | tee $(PERFORMANCE_DIR)/summary.txt
 
 # Эти цели полезны при ручной отладке интеграционных тестов. Данные не
 # предназначены для сохранения: integration-db-down удаляет volume.

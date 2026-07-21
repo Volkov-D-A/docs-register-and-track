@@ -374,6 +374,29 @@ func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
+	t.Run("cursor pagination skips count and returns continuation", func(t *testing.T) {
+		firstID, secondID := uuid.New(), uuid.New()
+		rows := sqlmock.NewRows([]string{
+			"id", "nomenclature_id", "nomenclature_name",
+			"outgoing_number", "outgoing_date",
+			"document_type", "document_type_name", "content", "pages_count",
+			"sender_signatory", "sender_executor",
+			"recipient_org_id", "recipient_org_name", "addressee",
+			"created_by", "created_by_name", "created_at", "updated_at",
+		}).
+			AddRow(firstID, uuid.New(), "01-01", "ИСХ-002", now, models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст", 0, "", "", uuid.New(), "", "", uuid.New(), "", now, now).
+			AddRow(secondID, uuid.New(), "01-01", "ИСХ-001", now.Add(-time.Second), models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст", 0, "", "", uuid.New(), "", "", uuid.New(), "", now.Add(-time.Second), now)
+		mock.ExpectQuery(`SELECT(.*)FROM documents d(.*)LIMIT \$[0-9]+`).WillReturnRows(rows)
+
+		res, err := repo.GetList(models.OutgoingDocumentFilter{PageSize: 1, CursorPagination: true})
+		require.NoError(t, err)
+		require.Len(t, res.Items, 1)
+		assert.True(t, res.HasMore)
+		assert.NotEmpty(t, res.NextCursor)
+		assert.Zero(t, res.TotalCount)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
 	t.Run("data database error", func(t *testing.T) {
 		filter := models.OutgoingDocumentFilter{}
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN outgoing_document_details out ON out.document_id = d.id(.*)`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
