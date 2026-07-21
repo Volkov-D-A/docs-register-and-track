@@ -63,17 +63,19 @@ type DocumentAccessScope struct {
 
 ## 2. Устранить N+1-запросы
 
+**Статус на 21 июля 2026 года: N+1 в карточках графа, получателях ознакомлений и pending-выборках устранён.** Graph cards загружаются не более чем одним запросом на вид документа; старые lightweight stores используют совместимый fallback. `GetByDocumentID` и `GetPendingForUser` теперь загружают получателей одним `WHERE acknowledgment_id = ANY($1)`, а pending-задачи для активных замещений — одним запросом по массиву subject IDs. Recursive CTE графа требует отдельной работы: эта оптимизация не меняет его обход и лимиты.
+
 ### Граф связей документов
 
-`LinkService.GetDocumentFlow` после получения графа отдельно загружает карточку каждого узла: `internal/services/link_service.go:256-317`. Комментарий в коде прямо отмечает N запросов. Следует добавить bulk API `GetCardsByIDs`, сгруппировать IDs по виду документа и выполнить не более одного запроса на вид.
+`LinkService.GetDocumentFlow` группирует IDs по виду документа и загружает карточки пакетно через `GetByIDs`: не более одного основного запроса на вид плюс необходимые bulk details. Это заменило отдельную загрузку каждой карточки.
 
 Recursive CTE в `internal/repository/link_repo.go:123-163` включает `depth` в строку `UNION`. Один и тот же edge может повторяться на разных глубинах до финального `DISTINCT`, что создаёт комбинаторный рост на плотном графе. Лучше хранить массив посещённых node/edge IDs, отбрасывать циклы внутри рекурсии и ограничить не только depth, но и максимальное число узлов результата.
 
 ### Ознакомления и замещения
 
-`AcknowledgmentRepository.GetAllActive` отдельно вызывает `GetUsers` для каждой записи: `internal/repository/acknowledgment_repo.go:371-375`. Получателей следует загружать одним запросом `WHERE acknowledgment_id = ANY($1)` и собирать в map.
+N+1 находился в `GetByDocumentID` и `GetPendingForUser`, а не в `GetAllActive`. Получатели теперь загружаются одним запросом `WHERE acknowledgment_id = ANY($1)` и собираются в map.
 
-В `AcknowledgmentService.GetPending` замещения проверяются отдельными запросами по каждому subject ID: `internal/services/acknowledgment_service.go:200-214`, `internal/services/acknowledgment_service.go:234-249`. Репозиторию нужен bulk-метод для массива пользователей и периода.
+Pending-задачи для замещений получаются одним `GetPendingForUsers`, который возвращает записи, сгруппированные по subject ID; это сохраняет корректный выбор пользователя при подтверждении ознакомления.
 
 До и после изменения следует считать число SQL-запросов на одну Wails-операцию; это более надёжный acceptance criterion, чем оценка «на глаз».
 

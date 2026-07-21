@@ -180,6 +180,52 @@ func (r *AdministrativeOrderRepository) GetByID(id uuid.UUID) (*models.Administr
 	return doc, nil
 }
 
+// GetByIDs loads graph card data and acknowledgement people in batches.
+func (r *AdministrativeOrderRepository) GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error) {
+	if len(ids) == 0 {
+		return []models.AdministrativeOrderDocument{}, nil
+	}
+	rows, err := r.db.Query(`
+		SELECT
+			d.id, d.nomenclature_id, n.index || ' — ' || n.name AS nomenclature_name,
+			ord.order_number, ord.order_date, ord.title,
+			ord.execution_controller, ord.execution_deadline, ord.is_active, ord.cancelled_at,
+			d.created_by, u.full_name AS created_by_name,
+			d.created_at, d.updated_at
+		FROM documents d
+		JOIN administrative_order_details ord ON ord.document_id = d.id
+		JOIN nomenclature n ON d.nomenclature_id = n.id
+		JOIN users u ON d.created_by = u.id
+		WHERE d.id = ANY($1) AND d.kind = $2
+		ORDER BY d.id
+	`, pq.Array(ids), models.DocumentKindAdministrativeOrder)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get administrative orders by IDs: %w", err)
+	}
+	defer rows.Close()
+	items := make([]models.AdministrativeOrderDocument, 0, len(ids))
+	documentIDs := make([]uuid.UUID, 0, len(ids))
+	for rows.Next() {
+		doc, err := scanAdministrativeOrder(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *doc)
+		documentIDs = append(documentIDs, doc.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	people, err := r.getAcknowledgmentPeopleByDocumentIDs(documentIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].AcknowledgmentPeople = people[items[i].ID]
+	}
+	return items, nil
+}
+
 // Create создает приказ.
 func (r *AdministrativeOrderRepository) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
 	return r.create(req, nil, "", "")

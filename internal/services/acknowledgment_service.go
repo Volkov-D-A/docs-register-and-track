@@ -32,6 +32,9 @@ type acknowledgmentDeleteOutboxStore interface {
 type acknowledgmentCreateOutboxStore interface {
 	CreateWithOutbox(*models.Acknowledgment, []models.OutboxEvent) error
 }
+type acknowledgmentPendingBulkStore interface {
+	GetPendingForUsers([]uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error)
+}
 
 var errAcknowledgmentOutboxStoreRequired = errors.New("acknowledgment store must support atomic outbox operations")
 
@@ -96,6 +99,22 @@ func acknowledgmentListContainsUser(acknowledgments []models.Acknowledgment, ack
 	return false
 }
 
+func (s *AcknowledgmentService) pendingForSubjects(subjectIDs []uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
+	if bulkStore, ok := s.repo.(acknowledgmentPendingBulkStore); ok {
+		return bulkStore.GetPendingForUsers(subjectIDs)
+	}
+
+	result := make(map[uuid.UUID][]models.Acknowledgment, len(subjectIDs))
+	for _, subjectID := range subjectIDs {
+		pending, err := s.repo.GetPendingForUser(subjectID)
+		if err != nil {
+			return nil, err
+		}
+		result[subjectID] = pending
+	}
+	return result, nil
+}
+
 func (s *AcknowledgmentService) resolveAcknowledgmentSubjectUserID(ackID uuid.UUID) (uuid.UUID, error) {
 	currentUserID, err := s.auth.GetCurrentUserUUID()
 	if err != nil {
@@ -108,12 +127,12 @@ func (s *AcknowledgmentService) resolveAcknowledgmentSubjectUserID(ackID uuid.UU
 	if err != nil {
 		return uuid.Nil, err
 	}
+	pendingBySubject, err := s.pendingForSubjects(principalIDs)
+	if err != nil {
+		return uuid.Nil, err
+	}
 	for _, subjectID := range principalIDs {
-		pending, err := s.repo.GetPendingForUser(subjectID)
-		if err != nil {
-			return uuid.Nil, err
-		}
-		if acknowledgmentListContainsUser(pending, ackID) {
+		if acknowledgmentListContainsUser(pendingBySubject[subjectID], ackID) {
 			return subjectID, nil
 		}
 	}
@@ -216,14 +235,14 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 	if err != nil {
 		return nil, err
 	}
+	pendingBySubject, err := s.pendingForSubjects(subjectIDs)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]models.Acknowledgment, 0)
 	seen := make(map[uuid.UUID]struct{})
 	for _, subjectID := range subjectIDs {
-		res, err := s.repo.GetPendingForUser(subjectID)
-		if err != nil {
-			return nil, err
-		}
-		for _, ack := range res {
+		for _, ack := range pendingBySubject[subjectID] {
 			if _, ok := seen[ack.ID]; ok {
 				continue
 			}
@@ -248,14 +267,14 @@ func (s *AcknowledgmentService) GetCurrentUserPendingByDocument(documentID strin
 		return nil, err
 	}
 
+	pendingBySubject, err := s.pendingForSubjects(subjectIDs)
+	if err != nil {
+		return nil, err
+	}
 	filtered := make([]models.Acknowledgment, 0)
 	seen := make(map[uuid.UUID]struct{})
 	for _, subjectID := range subjectIDs {
-		res, err := s.repo.GetPendingForUser(subjectID)
-		if err != nil {
-			return nil, err
-		}
-		for _, ack := range res {
+		for _, ack := range pendingBySubject[subjectID] {
 			if ack.DocumentID != docUUID {
 				continue
 			}

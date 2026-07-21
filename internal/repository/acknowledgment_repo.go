@@ -117,38 +117,45 @@ func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]mode
 		}
 		a.DocumentNumber = docNumber
 
-		// Загрузка пользователей
-		users, err := r.GetUsersByAcknowledgmentID(a.ID)
-		if err != nil {
-			return nil, err
-		}
-		a.Users = users
-
 		result = append(result, a)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return result, nil
+	return r.attachAcknowledgmentUsers(result)
 }
 
 // GetUsersByAcknowledgmentID возвращает список пользователей, связанных с задачей на ознакомление.
 func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error) {
+	usersByAcknowledgmentID, err := r.GetUsersByAcknowledgmentIDs([]uuid.UUID{ackID})
+	if err != nil {
+		return nil, err
+	}
+	return usersByAcknowledgmentID[ackID], nil
+}
+
+// GetUsersByAcknowledgmentIDs returns recipients grouped by acknowledgement.
+// It keeps list queries at two SQL round trips regardless of list size.
+func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentIDs(ackIDs []uuid.UUID) (map[uuid.UUID][]models.AcknowledgmentUser, error) {
+	result := make(map[uuid.UUID][]models.AcknowledgmentUser, len(ackIDs))
+	if len(ackIDs) == 0 {
+		return result, nil
+	}
 	query := `
 		SELECT 
 			au.id, au.acknowledgment_id, au.user_id, au.viewed_at, au.confirmed_at, au.created_at,
 			u.full_name as user_name
 		FROM acknowledgment_users au
 		JOIN users u ON au.user_id = u.id
-		WHERE au.acknowledgment_id = $1
+		WHERE au.acknowledgment_id = ANY($1)
+		ORDER BY au.acknowledgment_id, au.created_at, au.id
 	`
-	rows, err := r.db.Query(query, ackID)
+	rows, err := r.db.Query(query, pq.Array(ackIDs))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	result := make([]models.AcknowledgmentUser, 0)
 	for rows.Next() {
 		var au models.AcknowledgmentUser
 		err := rows.Scan(
@@ -159,12 +166,27 @@ func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentID(ackID uuid.UUID) (
 			return nil, err
 		}
 
-		result = append(result, au)
+		result[au.AcknowledgmentID] = append(result[au.AcknowledgmentID], au)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return result, nil
+}
+
+func (r *AcknowledgmentRepository) attachAcknowledgmentUsers(items []models.Acknowledgment) ([]models.Acknowledgment, error) {
+	ackIDs := make([]uuid.UUID, 0, len(items))
+	for _, item := range items {
+		ackIDs = append(ackIDs, item.ID)
+	}
+	usersByAcknowledgmentID, err := r.GetUsersByAcknowledgmentIDs(ackIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].Users = usersByAcknowledgmentID[items[i].ID]
+	}
+	return items, nil
 }
 
 // GetPendingForUser возвращает список невыполненных задач на ознакомление для конкретного пользователя.
@@ -201,17 +223,61 @@ func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models
 		}
 		a.DocumentNumber = docNumber
 
-		// Загрузка пользователей для контекста
-		users, err := r.GetUsersByAcknowledgmentID(a.ID)
-		if err != nil {
-			return nil, err
-		}
-		a.Users = users
-
 		result = append(result, a)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	return r.attachAcknowledgmentUsers(result)
+}
+
+// GetPendingForUsers returns pending acknowledgements grouped by recipient
+// subject. This supports active substitutions without one query per subject.
+func (r *AcknowledgmentRepository) GetPendingForUsers(userIDs []uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
+	result := make(map[uuid.UUID][]models.Acknowledgment, len(userIDs))
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+	rows, err := r.db.Query(`
+		SELECT
+			au.user_id,
+			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
+			u.full_name AS creator_name,
+			d.registration_number AS doc_number
+		FROM acknowledgment_users au
+		JOIN acknowledgments a ON au.acknowledgment_id = a.id
+		JOIN documents d ON d.id = a.document_id
+		JOIN users u ON a.creator_id = u.id
+		WHERE au.user_id = ANY($1) AND au.confirmed_at IS NULL
+		ORDER BY a.created_at DESC
+	`, pq.Array(userIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	all := make([]models.Acknowledgment, 0)
+	subjects := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var subjectID uuid.UUID
+		var item models.Acknowledgment
+		var docNumber string
+		if err := rows.Scan(&subjectID, &item.ID, &item.DocumentID, &item.DocumentKind, &item.CreatorID, &item.Content, &item.CreatedAt, &item.CompletedAt, &item.CreatorName, &docNumber); err != nil {
+			return nil, err
+		}
+		item.DocumentNumber = docNumber
+		subjects = append(subjects, subjectID)
+		all = append(all, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	withUsers, err := r.attachAcknowledgmentUsers(all)
+	if err != nil {
+		return nil, err
+	}
+	for i, item := range withUsers {
+		result[subjects[i]] = append(result[subjects[i]], item)
 	}
 	return result, nil
 }

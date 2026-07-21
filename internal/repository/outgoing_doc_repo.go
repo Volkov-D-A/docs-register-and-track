@@ -195,6 +195,44 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 	return &doc, nil
 }
 
+// GetByIDs loads graph card data in one query for outgoing documents.
+func (r *OutgoingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocument, error) {
+	if len(ids) == 0 {
+		return []models.OutgoingDocument{}, nil
+	}
+	rows, err := r.db.Query(`
+		SELECT
+			d.id, d.nomenclature_id, n.index || ' — ' || n.name AS nomenclature_name,
+			out.outgoing_number, out.outgoing_date,
+			d.document_type, d.document_type AS document_type_name,
+			d.content, d.pages_count,
+			out.sender_signatory, out.sender_executor,
+			out.recipient_org_id, ro.name AS recipient_org_name, out.addressee,
+			d.created_by, u.full_name AS created_by_name,
+			d.created_at, d.updated_at
+		FROM documents d
+		JOIN outgoing_document_details out ON out.document_id = d.id
+		JOIN nomenclature n ON d.nomenclature_id = n.id
+		JOIN organizations ro ON out.recipient_org_id = ro.id
+		JOIN users u ON d.created_by = u.id
+		WHERE d.id = ANY($1) AND d.kind = $2
+		ORDER BY d.id
+	`, pq.Array(ids), models.DocumentKindOutgoingLetter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get outgoing documents by IDs: %w", err)
+	}
+	defer rows.Close()
+	items := make([]models.OutgoingDocument, 0, len(ids))
+	for rows.Next() {
+		var doc models.OutgoingDocument
+		if err := rows.Scan(&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName, &doc.OutgoingNumber, &doc.OutgoingDate, &doc.DocumentTypeID, &doc.DocumentTypeName, &doc.Content, &doc.PagesCount, &doc.SenderSignatory, &doc.SenderExecutor, &doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee, &doc.CreatedBy, &doc.CreatedByName, &doc.CreatedAt, &doc.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, doc)
+	}
+	return items, rows.Err()
+}
+
 // Create создает новый исходящий документ в базе данных.
 func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error) {
 	return r.create(req, nil, "", "")

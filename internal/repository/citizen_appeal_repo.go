@@ -303,6 +303,44 @@ func (r *CitizenAppealRepository) GetByID(id uuid.UUID) (*models.CitizenAppealDo
 	return doc, nil
 }
 
+// GetByIDs loads graph card data in batches rather than one query per node.
+func (r *CitizenAppealRepository) GetByIDs(ids []uuid.UUID) ([]models.CitizenAppealDocument, error) {
+	if len(ids) == 0 {
+		return []models.CitizenAppealDocument{}, nil
+	}
+	rows, err := r.db.Query(citizenAppealSelectBase+` WHERE d.id = ANY($1) AND d.kind = $2 ORDER BY d.id`, pq.Array(ids), models.DocumentKindCitizenAppeal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get citizen appeals by IDs: %w", err)
+	}
+	defer rows.Close()
+	items := make([]models.CitizenAppealDocument, 0, len(ids))
+	documentIDs := make([]uuid.UUID, 0, len(ids))
+	for rows.Next() {
+		doc, err := scanCitizenAppealDoc(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *doc)
+		documentIDs = append(documentIDs, doc.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	correspondents, err := loadDocumentCorrespondentsByDocumentIDs(r.db, documentIDs)
+	if err != nil {
+		return nil, err
+	}
+	resolutions, err := loadDocumentResolutionsByDocumentIDs(r.db, documentIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].Correspondents = correspondents[items[i].ID]
+		items[i].Resolutions = resolutions[items[i].ID]
+	}
+	return items, nil
+}
+
 // Create создает новое обращения граждан в базе данных.
 func (r *CitizenAppealRepository) Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
 	return r.create(req, nil, "", "")

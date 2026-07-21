@@ -535,6 +535,44 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 	return doc, nil
 }
 
+// GetByIDs loads graph card data in batches rather than one query per node.
+func (r *IncomingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.IncomingDocument, error) {
+	if len(ids) == 0 {
+		return []models.IncomingDocument{}, nil
+	}
+	rows, err := r.db.Query(incomingDocSelectBase+` WHERE d.id = ANY($1) ORDER BY d.id`, pq.Array(ids))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get incoming documents by IDs: %w", err)
+	}
+	defer rows.Close()
+	items := make([]models.IncomingDocument, 0, len(ids))
+	documentIDs := make([]uuid.UUID, 0, len(ids))
+	for rows.Next() {
+		doc, err := scanIncomingDoc(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *doc)
+		documentIDs = append(documentIDs, doc.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	correspondents, err := loadDocumentCorrespondentsByDocumentIDs(r.db, documentIDs)
+	if err != nil {
+		return nil, err
+	}
+	resolutions, err := loadFirstDocumentResolutionsByDocumentIDs(r.db, documentIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].Correspondents = correspondents[items[i].ID]
+		applyResolution(&items[i], resolutions[items[i].ID])
+	}
+	return items, nil
+}
+
 // Create создает новый входящий документ в базе данных.
 func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error) {
 	return r.create(req, nil, "", "")

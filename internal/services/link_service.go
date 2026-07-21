@@ -32,6 +32,21 @@ type linkOutboxStore interface {
 
 var errLinkOutboxStoreRequired = fmt.Errorf("link store must support atomic outbox operations")
 
+// Optional bulk interfaces preserve compatibility with lightweight stores in
+// tests while production repositories avoid one card query per graph node.
+type incomingGraphCardStore interface {
+	GetByIDs([]uuid.UUID) ([]models.IncomingDocument, error)
+}
+type outgoingGraphCardStore interface {
+	GetByIDs([]uuid.UUID) ([]models.OutgoingDocument, error)
+}
+type citizenAppealGraphCardStore interface {
+	GetByIDs([]uuid.UUID) ([]models.CitizenAppealDocument, error)
+}
+type administrativeOrderGraphCardStore interface {
+	GetByIDs([]uuid.UUID) ([]models.AdministrativeOrderDocument, error)
+}
+
 // NewLinkService создает новый экземпляр LinkService.
 func NewLinkService(
 	repo LinkStore,
@@ -248,6 +263,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 		docIDs[l.SourceID] = string(l.SourceKind)
 		docIDs[l.TargetID] = string(l.TargetKind)
 	}
+	graphCards := s.loadGraphCards(docIDs)
 
 	// Получение деталей документов
 	nodes := []models.GraphNode{}
@@ -265,8 +281,17 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 
 		switch models.NormalizeDocumentKind(docType) {
 		case models.DocumentKindIncomingLetter:
-			doc, err := s.incomingDocRepo.GetByID(id)
-			if err == nil && doc != nil {
+			if doc, ok := graphCards.incoming[id]; ok {
+				label = doc.IncomingNumber
+				subject = doc.Content
+				dateStr = doc.IncomingDate.Format("02.01.2006")
+				if len(doc.Correspondents) > 0 {
+					sender = doc.Correspondents[0].CorrespondentName
+				}
+				if sender == "" {
+					sender = "Неизвестно"
+				}
+			} else if doc, err := s.incomingDocRepo.GetByID(id); err == nil && doc != nil {
 				label = doc.IncomingNumber
 				subject = doc.Content
 				dateStr = doc.IncomingDate.Format("02.01.2006")
@@ -278,8 +303,15 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 				}
 			}
 		case models.DocumentKindOutgoingLetter:
-			doc, err := s.outgoingDocRepo.GetByID(id)
-			if err == nil && doc != nil {
+			if doc, ok := graphCards.outgoing[id]; ok {
+				label = doc.OutgoingNumber
+				subject = doc.Content
+				dateStr = doc.OutgoingDate.Format("02.01.2006")
+				recipient = doc.RecipientOrgName
+				if recipient == "" {
+					recipient = "Неизвестно"
+				}
+			} else if doc, err := s.outgoingDocRepo.GetByID(id); err == nil && doc != nil {
 				label = doc.OutgoingNumber
 				subject = doc.Content
 				dateStr = doc.OutgoingDate.Format("02.01.2006")
@@ -289,7 +321,15 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 				}
 			}
 		case models.DocumentKindCitizenAppeal:
-			if s.citizenAppealDocRepo != nil {
+			if doc, ok := graphCards.citizenAppeal[id]; ok {
+				label = doc.RegistrationNumber
+				subject = doc.Content
+				dateStr = doc.RegistrationDate.Format("02.01.2006")
+				sender = doc.ApplicantFullName
+				if sender == "" {
+					sender = "Неизвестно"
+				}
+			} else if s.citizenAppealDocRepo != nil {
 				doc, err := s.citizenAppealDocRepo.GetByID(id)
 				if err == nil && doc != nil {
 					label = doc.RegistrationNumber
@@ -302,7 +342,14 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 				}
 			}
 		case models.DocumentKindAdministrativeOrder:
-			if s.administrativeOrderRepo != nil {
+			if doc, ok := graphCards.administrativeOrder[id]; ok {
+				label = doc.OrderNumber
+				subject = doc.Title
+				dateStr = doc.OrderDate.Format("02.01.2006")
+				sender = doc.ExecutionController
+				active := doc.IsActive
+				isActive = &active
+			} else if s.administrativeOrderRepo != nil {
 				doc, err := s.administrativeOrderRepo.GetByID(id)
 				if err == nil && doc != nil {
 					label = doc.OrderNumber
@@ -368,6 +415,53 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 	})
 
 	return &models.GraphData{Nodes: nodes, Edges: edges}, nil
+}
+
+type graphCards struct {
+	incoming            map[uuid.UUID]models.IncomingDocument
+	outgoing            map[uuid.UUID]models.OutgoingDocument
+	citizenAppeal       map[uuid.UUID]models.CitizenAppealDocument
+	administrativeOrder map[uuid.UUID]models.AdministrativeOrderDocument
+}
+
+func (s *LinkService) loadGraphCards(documentKinds map[uuid.UUID]string) graphCards {
+	result := graphCards{
+		incoming: make(map[uuid.UUID]models.IncomingDocument), outgoing: make(map[uuid.UUID]models.OutgoingDocument),
+		citizenAppeal: make(map[uuid.UUID]models.CitizenAppealDocument), administrativeOrder: make(map[uuid.UUID]models.AdministrativeOrderDocument),
+	}
+	idsByKind := map[models.DocumentKind][]uuid.UUID{}
+	for id, kindCode := range documentKinds {
+		idsByKind[models.NormalizeDocumentKind(kindCode)] = append(idsByKind[models.NormalizeDocumentKind(kindCode)], id)
+	}
+	if store, ok := s.incomingDocRepo.(incomingGraphCardStore); ok {
+		if cards, err := store.GetByIDs(idsByKind[models.DocumentKindIncomingLetter]); err == nil {
+			for _, card := range cards {
+				result.incoming[card.ID] = card
+			}
+		}
+	}
+	if store, ok := s.outgoingDocRepo.(outgoingGraphCardStore); ok {
+		if cards, err := store.GetByIDs(idsByKind[models.DocumentKindOutgoingLetter]); err == nil {
+			for _, card := range cards {
+				result.outgoing[card.ID] = card
+			}
+		}
+	}
+	if store, ok := s.citizenAppealDocRepo.(citizenAppealGraphCardStore); ok {
+		if cards, err := store.GetByIDs(idsByKind[models.DocumentKindCitizenAppeal]); err == nil {
+			for _, card := range cards {
+				result.citizenAppeal[card.ID] = card
+			}
+		}
+	}
+	if store, ok := s.administrativeOrderRepo.(administrativeOrderGraphCardStore); ok {
+		if cards, err := store.GetByIDs(idsByKind[models.DocumentKindAdministrativeOrder]); err == nil {
+			for _, card := range cards {
+				result.administrativeOrder[card.ID] = card
+			}
+		}
+	}
+	return result
 }
 
 func validateDocumentLinkType(sourceKind, targetKind models.DocumentKind, linkType string) error {

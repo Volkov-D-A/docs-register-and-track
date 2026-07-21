@@ -149,7 +149,8 @@ func TestAcknowledgmentRepository_GetByDocumentID(t *testing.T) {
 	rows := sqlmock.NewRows([]string{
 		"id", "document_id", "kind", "creator_id", "content", "created_at", "completed_at",
 		"creator_name", "doc_number",
-	}).AddRow(ackID, docID, "incoming", uuid.New(), "Ознакомиться", now, nil, "Создатель", "ВХ-1")
+	}).AddRow(ackID, docID, "incoming", uuid.New(), "Ознакомиться", now, nil, "Создатель", "ВХ-1").
+		AddRow(uuid.New(), docID, "incoming", uuid.New(), "Второе ознакомление", now, nil, "Создатель", "ВХ-1")
 
 	mock.ExpectQuery(expectedQuery).WithArgs(docID).WillReturnRows(rows)
 
@@ -158,17 +159,18 @@ func TestAcknowledgmentRepository_GetByDocumentID(t *testing.T) {
 			u.full_name as user_name
 		FROM acknowledgment_users au
 		JOIN users u ON au.user_id = u.id
-		WHERE au.acknowledgment_id = $1`
+		WHERE au.acknowledgment_id = ANY($1)
+		ORDER BY au.acknowledgment_id, au.created_at, au.id`
 
 	usersRows := sqlmock.NewRows([]string{
 		"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name",
 	}).AddRow(uuid.New(), ackID, uuid.New(), nil, nil, now, "Читатель")
 
-	mock.ExpectQuery(regexp.QuoteMeta(usersQuery)).WithArgs(ackID).WillReturnRows(usersRows)
+	mock.ExpectQuery(regexp.QuoteMeta(usersQuery)).WithArgs(sqlmock.AnyArg()).WillReturnRows(usersRows)
 
 	acks, err := repo.GetByDocumentID(docID)
 	require.NoError(t, err)
-	require.Len(t, acks, 1)
+	require.Len(t, acks, 2)
 	assert.Equal(t, ackID, acks[0].ID)
 	assert.Len(t, acks[0].Users, 1)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -282,13 +284,14 @@ func TestAcknowledgmentRepository_GetUsersByAcknowledgmentID(t *testing.T) {
 			u.full_name as user_name
 		FROM acknowledgment_users au
 		JOIN users u ON au.user_id = u.id
-		WHERE au.acknowledgment_id = \$1`
+		WHERE au.acknowledgment_id = ANY\(\$1\)
+		ORDER BY au.acknowledgment_id, au.created_at, au.id`
 
 	rows := sqlmock.NewRows([]string{
 		"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name",
 	}).AddRow(uuid.New(), ackID, userID, now, nil, now, "Читатель")
 
-	mock.ExpectQuery(query).WithArgs(ackID).WillReturnRows(rows)
+	mock.ExpectQuery(query).WithArgs(sqlmock.AnyArg()).WillReturnRows(rows)
 
 	users, err := repo.GetUsersByAcknowledgmentID(ackID)
 	require.NoError(t, err)
@@ -322,7 +325,8 @@ func TestAcknowledgmentRepository_GetPendingForUser(t *testing.T) {
 			u.full_name as user_name
 		FROM acknowledgment_users au
 		JOIN users u ON au.user_id = u.id
-		WHERE au.acknowledgment_id = \$1`
+		WHERE au.acknowledgment_id = ANY\(\$1\)
+		ORDER BY au.acknowledgment_id, au.created_at, au.id`
 
 	mock.ExpectQuery(usersQuery).WithArgs(sqlmock.AnyArg()).WillReturnRows(
 		sqlmock.NewRows([]string{"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name"}),
@@ -332,6 +336,34 @@ func TestAcknowledgmentRepository_GetPendingForUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, acks, 1)
 	assert.Equal(t, "Ознакомиться", acks[0].Content)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAcknowledgmentRepository_GetPendingForUsers(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	userID := uuid.New()
+	principalID := uuid.New()
+	ackID := uuid.New()
+	now := time.Now()
+
+	mock.ExpectQuery(`SELECT(.*)au.user_id(.*)WHERE au.user_id = ANY\(\$1\) AND au.confirmed_at IS NULL`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"user_id", "id", "document_id", "kind", "creator_id", "content", "created_at", "completed_at", "creator_name", "doc_number",
+		}).AddRow(principalID, ackID, uuid.New(), "incoming_letter", uuid.New(), "Ознакомиться", now, nil, "Создатель", "ВХ-1"))
+	mock.ExpectQuery(`SELECT(.*)FROM acknowledgment_users au(.*)WHERE au.acknowledgment_id = ANY\(\$1\)`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name"}))
+
+	items, err := repo.GetPendingForUsers([]uuid.UUID{userID, principalID})
+	require.NoError(t, err)
+	require.Len(t, items[principalID], 1)
+	assert.Equal(t, ackID, items[principalID][0].ID)
+	assert.Empty(t, items[userID])
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
