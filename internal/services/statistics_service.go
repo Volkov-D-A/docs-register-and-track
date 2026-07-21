@@ -4,12 +4,17 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
+
+// statisticsQueryConcurrency keeps one statistics request from occupying the
+// whole database pool (which is intentionally small for the desktop app).
+const statisticsQueryConcurrency = 2
 
 // StatisticsService предоставляет бизнес-логику раздела статистики.
 type StatisticsService struct {
@@ -36,21 +41,28 @@ func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics,
 
 	year, yearStart, yearEnd := currentYearRange()
 
-	total, err := s.repo.GetDocumentTotalByYear(yearStart, yearEnd)
-	if err != nil {
-		return nil, err
-	}
-
-	byKind, err := s.repo.GetMonthlyDocumentCountsByKind(yearStart, yearEnd)
-	if err != nil {
+	var total int
+	var byKind, byRegistrar []models.StatisticsSeriesPoint
+	if err := runStatisticsQueries(
+		func() error {
+			var err error
+			total, err = s.repo.GetDocumentTotalByYear(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			byKind, err = s.repo.GetMonthlyDocumentCountsByKind(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			byRegistrar, err = s.repo.GetMonthlyDocumentCountsByRegistrar(yearStart, yearEnd)
+			return err
+		},
+	); err != nil {
 		return nil, err
 	}
 	byKind = completeMonthlySeries(withDocumentKindLabels(byKind), documentKindCategories())
-
-	byRegistrar, err := s.repo.GetMonthlyDocumentCountsByRegistrar(yearStart, yearEnd)
-	if err != nil {
-		return nil, err
-	}
 	byRegistrar = completeMonthlySeries(withMonthPeriods(byRegistrar), categoriesFromPoints(byRegistrar))
 
 	return &models.DocumentStatistics{
@@ -136,29 +148,37 @@ func (s *StatisticsService) GetAssignmentStatistics() (*models.AssignmentStatist
 
 	year, yearStart, yearEnd := currentYearRange()
 
-	monthlyTotals, err := s.repo.GetAssignmentMonthlyOverview(yearStart, yearEnd)
-	if err != nil {
+	var monthlyTotals []models.AssignmentMonthlyPoint
+	var monthlyByExecutor []models.StatisticsSeriesPoint
+	var overdueRating, statusCounts []models.StatisticsReportRow
+	if err := runStatisticsQueries(
+		func() error {
+			var err error
+			monthlyTotals, err = s.repo.GetAssignmentMonthlyOverview(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			monthlyByExecutor, err = s.repo.GetAssignmentMonthlyByExecutor(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			overdueRating, err = s.repo.GetAssignmentOverdueRating(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			statusCounts, err = s.repo.GetAssignmentStatusCounts()
+			return err
+		},
+	); err != nil {
 		return nil, err
 	}
 	for i := range monthlyTotals {
 		monthlyTotals[i].Period = monthLabel(monthlyTotals[i].Month)
 	}
-
-	monthlyByExecutor, err := s.repo.GetAssignmentMonthlyByExecutor(yearStart, yearEnd)
-	if err != nil {
-		return nil, err
-	}
 	monthlyByExecutor = completeMonthlySeries(withMonthPeriods(monthlyByExecutor), categoriesFromPoints(monthlyByExecutor))
-
-	overdueRating, err := s.repo.GetAssignmentOverdueRating(yearStart, yearEnd)
-	if err != nil {
-		return nil, err
-	}
-
-	statusCounts, err := s.repo.GetAssignmentStatusCounts()
-	if err != nil {
-		return nil, err
-	}
 	statusCounts = withAssignmentStatusLabels(statusCounts)
 
 	return &models.AssignmentStatistics{
@@ -168,6 +188,45 @@ func (s *StatisticsService) GetAssignmentStatistics() (*models.AssignmentStatist
 		OverdueRating:     overdueRating,
 		StatusCounts:      statusCounts,
 	}, nil
+}
+
+// runStatisticsQueries runs independent database queries with a deliberately
+// small concurrency limit. Repositories do not yet accept contexts, so after
+// an error it stops scheduling new work but lets already-running queries end.
+func runStatisticsQueries(tasks ...func() error) error {
+	semaphore := make(chan struct{}, statisticsQueryConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+
+	for _, task := range tasks {
+		semaphore <- struct{}{}
+
+		mu.Lock()
+		shouldStop := firstErr != nil
+		mu.Unlock()
+		if shouldStop {
+			<-semaphore
+			break
+		}
+
+		wg.Add(1)
+		go func(task func() error) {
+			defer wg.Done()
+			defer func() { <-semaphore }()
+
+			if err := task(); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+			}
+		}(task)
+	}
+
+	wg.Wait()
+	return firstErr
 }
 
 // GetAssignmentReport возвращает отчет по поручениям за период.

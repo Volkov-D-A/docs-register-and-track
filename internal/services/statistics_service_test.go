@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -151,6 +152,39 @@ func TestStatisticsService_GetDocumentStatistics(t *testing.T) {
 	assert.Len(t, stats.DocumentsByRegistrarMonthly, 12)
 	assert.Equal(t, "Фев", stats.DocumentsByRegistrarMonthly[1].Period)
 	assert.Equal(t, 3, stats.DocumentsByRegistrarMonthly[1].Value)
+}
+
+func TestRunStatisticsQueries_LimitsConcurrentQueries(t *testing.T) {
+	started := make(chan struct{}, statisticsQueryConcurrency)
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	var active, maximum atomic.Int32
+
+	task := func() error {
+		current := active.Add(1)
+		for {
+			observed := maximum.Load()
+			if current <= observed || maximum.CompareAndSwap(observed, current) {
+				break
+			}
+		}
+		started <- struct{}{}
+		<-release
+		active.Add(-1)
+		return nil
+	}
+
+	go func() {
+		done <- runStatisticsQueries(task, task, task, task)
+	}()
+
+	<-started
+	<-started
+	assert.EqualValues(t, statisticsQueryConcurrency, maximum.Load())
+
+	close(release)
+	require.NoError(t, <-done)
+	assert.EqualValues(t, 0, active.Load())
 }
 
 func TestStatisticsService_GetDocumentReport(t *testing.T) {

@@ -47,20 +47,34 @@ const DashboardPage: React.FC = () => {
         }
         setLoading(true);
         try {
-            const { GetActivity } = await import('../../wailsjs/go/services/DashboardService');
-            const data = await GetActivity();
-            setStats(data);
+            const activityPromise = import('../../wailsjs/go/services/DashboardService')
+                .then(({ GetActivity }) => GetActivity());
+            const acknowledgmentsPromise = (async (): Promise<any[]> => {
+                if (profile !== 'clerk' && profile !== 'mixed' && profile !== 'executor') {
+                    return [];
+                }
+                const { GetPendingForCurrentUser, GetAllActive } = await import('../../wailsjs/go/services/AcknowledgmentService');
+                return profile === 'clerk' || profile === 'mixed'
+                    ? GetAllActive()
+                    : GetPendingForCurrentUser();
+            })();
+            const [activityResult, acknowledgmentsResult] = await Promise.allSettled([
+                activityPromise,
+                acknowledgmentsPromise,
+            ]);
 
-            // Загрузка ожидающих ознакомлений
-            const { GetPendingForCurrentUser, GetAllActive } = await import('../../wailsjs/go/services/AcknowledgmentService');
-
-            let acks: any[] = [];
-            if (profile === 'clerk' || profile === 'mixed') {
-                acks = await GetAllActive();
-            } else if (profile === 'executor') {
-                acks = await GetPendingForCurrentUser();
+            if (activityResult.status === 'rejected') {
+                throw activityResult.reason;
             }
-            setPendingAcks(acks || []);
+            setStats(activityResult.value);
+
+            if (acknowledgmentsResult.status === 'fulfilled') {
+                setPendingAcks(acknowledgmentsResult.value || []);
+            } else {
+                setPendingAcks([]);
+                console.error(acknowledgmentsResult.reason);
+                message.warning(formatAppError(acknowledgmentsResult.reason, 'Не удалось загрузить ознакомления'));
+            }
         } catch (err: unknown) {
             console.error(err);
             message.error(formatAppError(err, 'Ошибка загрузки дашборда'));
