@@ -34,6 +34,10 @@ export function HasSystemPermission(arg1) {
   return window['go']['services']['AuthService']['HasSystemPermission'](arg1);
 }
 
+export function HasSystemPermissionFor(arg1, arg2) {
+  return window['go']['services']['AuthService']['HasSystemPermissionFor'](arg1, arg2);
+}
+
 export function InitialSetup(arg1) {
   return window['go']['services']['AuthService']['InitialSetup'](arg1);
 }
@@ -68,6 +72,14 @@ export function RequireSystemPermission(arg1) {
 
 export function SetAccessStore(arg1) {
   return window['go']['services']['AuthService']['SetAccessStore'](arg1);
+}
+
+export function SetOperationMetrics(arg1) {
+  return window['go']['services']['AuthService']['SetOperationMetrics'](arg1);
+}
+
+export function SetSchemaReadyCallback(arg1) {
+  return window['go']['services']['AuthService']['SetSchemaReadyCallback'](arg1);
 }
 
 export function SetSettingsStore(arg1) {

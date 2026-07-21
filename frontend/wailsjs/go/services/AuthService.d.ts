@@ -3,6 +3,7 @@
 import {uuid} from '../models';
 import {dto} from '../models';
 import {services} from '../models';
+import {observability} from '../models';
 import {models} from '../models';
 
 export function ChangePassword(arg1:string,arg2:string):Promise<void>;
@@ -21,6 +22,8 @@ export function HasAnySystemPermission(arg1:Array<string>):Promise<boolean>;
 
 export function HasSystemPermission(arg1:string):Promise<boolean>;
 
+export function HasSystemPermissionFor(arg1:uuid.UUID,arg2:string):Promise<boolean>;
+
 export function InitialSetup(arg1:string):Promise<void>;
 
 export function IsAuthenticated():Promise<boolean>;
@@ -38,6 +41,10 @@ export function RequireAuthenticated():Promise<void>;
 export function RequireSystemPermission(arg1:string):Promise<void>;
 
 export function SetAccessStore(arg1:services.DocumentAccessStore):Promise<void>;
+
+export function SetOperationMetrics(arg1:observability.Registry):Promise<void>;
+
+export function SetSchemaReadyCallback(arg1:any):Promise<void>;
 
 export function SetSettingsStore(arg1:services.SettingsStore):Promise<void>;
 

@@ -14,6 +14,10 @@ export function SetOperationLifecycle(arg1) {
   return window['go']['services']['DocumentRegistrationService']['SetOperationLifecycle'](arg1);
 }
 
+export function SetOperationMetrics(arg1) {
+  return window['go']['services']['DocumentRegistrationService']['SetOperationMetrics'](arg1);
+}
+
 export function Update(arg1, arg2) {
   return window['go']['services']['DocumentRegistrationService']['Update'](arg1, arg2);
 }

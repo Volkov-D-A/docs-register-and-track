@@ -3,6 +3,7 @@
 import {models} from '../models';
 import {dto} from '../models';
 import {services} from '../models';
+import {observability} from '../models';
 
 export function GetDocumentFlow(arg1:string):Promise<models.GraphData>;
 
@@ -11,5 +12,7 @@ export function GetDocumentLinks(arg1:string):Promise<Array<dto.DocumentLink>>;
 export function LinkDocuments(arg1:string,arg2:string,arg3:string):Promise<dto.DocumentLink>;
 
 export function SetOperationLifecycle(arg1:services.OperationLifecycle):Promise<void>;
+
+export function SetOperationMetrics(arg1:observability.Registry):Promise<void>;
 
 export function UnlinkDocument(arg1:string):Promise<void>;

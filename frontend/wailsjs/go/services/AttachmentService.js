@@ -10,10 +10,6 @@ export function Delete(arg1) {
   return window['go']['services']['AttachmentService']['Delete'](arg1);
 }
 
-export function Download(arg1) {
-  return window['go']['services']['AttachmentService']['Download'](arg1);
-}
-
 export function DownloadToDisk(arg1) {
   return window['go']['services']['AttachmentService']['DownloadToDisk'](arg1);
 }
@@ -40,6 +36,10 @@ export function ReconcileStorage() {
 
 export function SetOperationLifecycle(arg1) {
   return window['go']['services']['AttachmentService']['SetOperationLifecycle'](arg1);
+}
+
+export function SetOperationMetrics(arg1) {
+  return window['go']['services']['AttachmentService']['SetOperationMetrics'](arg1);
 }
 
 export function Startup(arg1) {

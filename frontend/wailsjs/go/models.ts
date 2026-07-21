@@ -1276,20 +1276,6 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class DownloadResponse {
-	    filename: string;
-	    content: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new DownloadResponse(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.filename = source["filename"];
-	        this.content = source["content"];
-	    }
-	}
 	
 	export class JournalEntry {
 	    id: string;
@@ -1374,6 +1360,8 @@ export namespace dto {
 	    totalCount: number;
 	    page: number;
 	    pageSize: number;
+	    nextCursor?: string;
+	    hasMore: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_Assignment_(source);
@@ -1385,6 +1373,8 @@ export namespace dto {
 	        this.totalCount = source["totalCount"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
+	        this.nextCursor = source["nextCursor"];
+	        this.hasMore = source["hasMore"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1508,6 +1498,8 @@ export namespace dto {
 	    totalCount: number;
 	    page: number;
 	    pageSize: number;
+	    nextCursor?: string;
+	    hasMore: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_UserEvent_(source);
@@ -1519,6 +1511,8 @@ export namespace dto {
 	        this.totalCount = source["totalCount"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
+	        this.nextCursor = source["nextCursor"];
+	        this.hasMore = source["hasMore"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1871,6 +1865,24 @@ export namespace models {
 	        this.fullName = source["fullName"];
 	        this.departmentId = source["departmentId"];
 	        this.isDocumentParticipant = source["isDocumentParticipant"];
+	    }
+	}
+	export class DocumentAccessScope {
+	    Restricted: boolean;
+	    AllowedNomenclatureIDs: string[];
+	    AccessibleByUserID: string;
+	    AccessibleByUserIDs: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentAccessScope(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Restricted = source["Restricted"];
+	        this.AllowedNomenclatureIDs = source["AllowedNomenclatureIDs"];
+	        this.AccessibleByUserID = source["AccessibleByUserID"];
+	        this.AccessibleByUserIDs = source["AccessibleByUserIDs"];
 	    }
 	}
 	export class DocumentFilter {
@@ -2504,6 +2516,23 @@ export namespace models {
 
 }
 
+export namespace observability {
+	
+	export class Registry {
+	
+	
+	    static createFrom(source: any = {}) {
+	        return new Registry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	
+	    }
+	}
+
+}
+
 export namespace services {
 	
 	export class AdminNumberOverrideRequest {
@@ -2571,3 +2600,4 @@ export namespace services {
 	}
 
 }
+

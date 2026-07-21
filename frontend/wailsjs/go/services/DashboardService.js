@@ -5,3 +5,7 @@
 export function GetActivity() {
   return window['go']['services']['DashboardService']['GetActivity']();
 }
+
+export function SetOperationMetrics(arg1) {
+  return window['go']['services']['DashboardService']['SetOperationMetrics'](arg1);
+}

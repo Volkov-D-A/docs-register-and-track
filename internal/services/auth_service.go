@@ -37,6 +37,7 @@ type AuthService struct {
 	currentUserID uuid.UUID
 	mu            sync.RWMutex
 	metrics       *observability.Registry
+	onSchemaReady func()
 }
 type userLockOutboxStore interface {
 	IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error)
@@ -61,6 +62,10 @@ func (s *AuthService) SetSettingsStore(settingsRepo SettingsStore) {
 }
 
 func (s *AuthService) SetOperationMetrics(metrics *observability.Registry) { s.metrics = metrics }
+
+// SetSchemaReadyCallback registers startup work that depends on migrations.
+// It is invoked only after InitialSetup has created the initial administrator.
+func (s *AuthService) SetSchemaReadyCallback(callback func()) { s.onSchemaReady = callback }
 
 // isTableNotExistsError проверяет, является ли ошибка «таблица не существует» (PostgreSQL 42P01).
 func isTableNotExistsError(err error) bool {
@@ -520,6 +525,9 @@ func (s *AuthService) InitialSetup(password string) error {
 			return err
 		}
 		return fmt.Errorf("ошибка создания администратора: %w", err)
+	}
+	if s.onSchemaReady != nil {
+		s.onSchemaReady()
 	}
 
 	return nil

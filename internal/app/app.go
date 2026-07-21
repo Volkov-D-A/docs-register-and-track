@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"sync"
 	"time"
 
 	wailslogger "github.com/wailsapp/wails/v2/pkg/logger"
@@ -146,17 +147,44 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 			Err:        err,
 		}
 	}
+	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, minioService, documentAccessService)
+	attachmentService.SetOperationLifecycle(operationLifecycle)
+	attachmentService.SetOperationMetrics(metrics)
 	outboxWorker := outbox.NewWorker(outboxRepo, userEventRepo, journalRepo, adminAuditLogRepo, attachmentRepo, minioService)
 	outboxWorker.SetMetrics(metrics)
+	var backgroundMu sync.RWMutex
+	var backgroundContext context.Context
+	var backgroundStartOnce sync.Once
+	startBackgroundServices := func() {
+		backgroundMu.RLock()
+		ctx := backgroundContext
+		backgroundMu.RUnlock()
+		if ctx == nil {
+			return
+		}
+		migrationStatus, err := db.GetMigrationStatus(database.DefaultMigrationsPath)
+		if err != nil {
+			slog.Warn("background outbox processing was not started because migration status is unavailable", "error", err)
+			return
+		}
+		if !migrationStatus.UpToDate {
+			slog.Info("background outbox processing is deferred until migrations are applied", "current_version", migrationStatus.CurrentVersion, "required_version", migrationStatus.TotalAvailable)
+			return
+		}
+		backgroundStartOnce.Do(func() {
+			go outboxWorker.Run(ctx)
+			if err := attachmentService.ProcessPendingDeletions(ctx); err != nil {
+				slog.Warn("pending attachment deletions will be retried later", "error", err)
+			}
+		})
+	}
+	authService.SetSchemaReadyCallback(startBackgroundServices)
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, documentAccessService)
 	dashboardService.SetOperationMetrics(metrics)
 	statisticsService := services.NewStatisticsService(statisticsRepo, authService, minioService)
 	statisticsService.SetOperationLifecycle(operationLifecycle)
 	statisticsService.SetOperationMetrics(metrics)
-	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, minioService, documentAccessService)
-	attachmentService.SetOperationLifecycle(operationLifecycle)
-	attachmentService.SetOperationMetrics(metrics)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, administrativeOrderRepo, documentAccessService, authService)
 	linkService.SetOperationLifecycle(operationLifecycle)
 	linkService.SetOperationMetrics(metrics)
@@ -197,10 +225,10 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 		OnStartup: func(ctx context.Context) {
 			go observability.LogPeriodically(ctx, metrics, slog.Default(), time.Minute)
 			attachmentService.Startup(ctx)
-			go outboxWorker.Run(ctx)
-			if err := attachmentService.ProcessPendingDeletions(ctx); err != nil {
-				slog.Warn("pending attachment deletions will be retried later", "error", err)
-			}
+			backgroundMu.Lock()
+			backgroundContext = ctx
+			backgroundMu.Unlock()
+			startBackgroundServices()
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {

@@ -33,3 +33,7 @@ export function GetSystemStatistics() {
 export function SetOperationLifecycle(arg1) {
   return window['go']['services']['StatisticsService']['SetOperationLifecycle'](arg1);
 }
+
+export function SetOperationMetrics(arg1) {
+  return window['go']['services']['StatisticsService']['SetOperationMetrics'](arg1);
+}

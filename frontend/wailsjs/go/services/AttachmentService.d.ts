@@ -4,12 +4,11 @@ import {dto} from '../models';
 import {context} from '../models';
 import {models} from '../models';
 import {services} from '../models';
+import {observability} from '../models';
 
 export function BulkDeleteOlderThan(arg1:string):Promise<number>;
 
 export function Delete(arg1:string):Promise<void>;
-
-export function Download(arg1:string):Promise<dto.DownloadResponse>;
 
 export function DownloadToDisk(arg1:string):Promise<string>;
 
@@ -24,6 +23,8 @@ export function ProcessPendingDeletions(arg1:context.Context):Promise<void>;
 export function ReconcileStorage():Promise<models.AttachmentStorageReconciliation>;
 
 export function SetOperationLifecycle(arg1:services.OperationLifecycle):Promise<void>;
+
+export function SetOperationMetrics(arg1:observability.Registry):Promise<void>;
 
 export function Startup(arg1:context.Context):Promise<void>;
 

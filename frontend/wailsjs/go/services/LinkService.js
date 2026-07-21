@@ -18,6 +18,10 @@ export function SetOperationLifecycle(arg1) {
   return window['go']['services']['LinkService']['SetOperationLifecycle'](arg1);
 }
 
+export function SetOperationMetrics(arg1) {
+  return window['go']['services']['LinkService']['SetOperationMetrics'](arg1);
+}
+
 export function UnlinkDocument(arg1) {
   return window['go']['services']['LinkService']['UnlinkDocument'](arg1);
 }
