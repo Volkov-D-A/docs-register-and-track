@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -77,6 +78,24 @@ func TestDB_ContextDeadlineCanBeNarrower(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
 	assert.Contains(t, err.Error(), "canceling query")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDB_RecordsExecutionAndPoolMetrics(t *testing.T) {
+	dbMock, mock, db := setupMockDB(t)
+	defer dbMock.Close()
+	metrics := observability.NewRegistry(10)
+	db.SetMetrics(metrics)
+
+	mock.ExpectExec(`UPDATE documents`).WillReturnResult(sqlmock.NewResult(0, 1))
+	_, err := db.Exec("UPDATE documents SET updated_at = NOW()")
+	require.NoError(t, err)
+
+	operations := metrics.Snapshot()
+	require.Len(t, operations, 1)
+	assert.Equal(t, "database.exec", operations[0].Name)
+	assert.EqualValues(t, 1, operations[0].Count)
+	assert.NotEmpty(t, metrics.Gauges())
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

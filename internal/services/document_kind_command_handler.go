@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
 
 // DocumentKindCommandHandler описывает write-обработчик конкретного вида документа.
@@ -50,6 +51,7 @@ func (r *DocumentKindCommandRegistry) Get(kind models.DocumentKind) (DocumentKin
 type DocumentRegistrationService struct {
 	registry  *DocumentKindCommandRegistry
 	lifecycle *OperationLifecycle
+	metrics   *observability.Registry
 }
 
 // NewDocumentRegistrationService создает новый экземпляр DocumentRegistrationService.
@@ -61,90 +63,100 @@ func (s *DocumentRegistrationService) SetOperationLifecycle(lifecycle *Operation
 	s.lifecycle = lifecycle
 }
 
+func (s *DocumentRegistrationService) SetOperationMetrics(metrics *observability.Registry) {
+	s.metrics = metrics
+}
+
 // Register делегирует регистрацию документа обработчику по kindCode.
 func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, error) {
-	ctx, release := serviceOperationContext(s.lifecycle)
-	defer release()
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+	return measureOperation(s.metrics, "documents.register", func() (any, error) {
+		ctx, release := serviceOperationContext(s.lifecycle)
+		defer release()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 
-	kind := models.DocumentKind(kindCode)
-	handler, err := s.registry.Get(kind)
-	if err != nil {
-		return nil, models.ErrForbidden
-	}
+		kind := models.DocumentKind(kindCode)
+		handler, err := s.registry.Get(kind)
+		if err != nil {
+			return nil, models.ErrForbidden
+		}
 
-	normalizedReq, err := normalizeRegisterRequest(kind, req)
-	if err != nil {
-		return nil, err
-	}
+		normalizedReq, err := normalizeRegisterRequest(kind, req)
+		if err != nil {
+			return nil, err
+		}
 
-	result, err := handler.RegisterDocument(normalizedReq)
-	if err != nil {
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+		result, err := handler.RegisterDocument(normalizedReq)
+		if err != nil {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return result, nil
+	})
 }
 
 // Update делегирует обновление документа обработчику по kindCode.
 func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, error) {
-	ctx, release := serviceOperationContext(s.lifecycle)
-	defer release()
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+	return measureOperation(s.metrics, "documents.update", func() (any, error) {
+		ctx, release := serviceOperationContext(s.lifecycle)
+		defer release()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 
-	kind := models.DocumentKind(kindCode)
-	handler, err := s.registry.Get(kind)
-	if err != nil {
-		return nil, models.ErrForbidden
-	}
+		kind := models.DocumentKind(kindCode)
+		handler, err := s.registry.Get(kind)
+		if err != nil {
+			return nil, models.ErrForbidden
+		}
 
-	normalizedReq, err := normalizeUpdateRequest(kind, req)
-	if err != nil {
-		return nil, err
-	}
+		normalizedReq, err := normalizeUpdateRequest(kind, req)
+		if err != nil {
+			return nil, err
+		}
 
-	result, err := handler.UpdateDocument(normalizedReq)
-	if err != nil {
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+		result, err := handler.UpdateDocument(normalizedReq)
+		if err != nil {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return result, nil
+	})
 }
 
 // CreateAdminDraft создает административный черновик с зарезервированным номером.
 func (s *DocumentRegistrationService) CreateAdminDraft(kindCode string, req AdminDraftCreateRequest) (any, error) {
-	ctx, release := serviceOperationContext(s.lifecycle)
-	defer release()
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+	return measureOperation(s.metrics, "documents.create_admin_draft", func() (any, error) {
+		ctx, release := serviceOperationContext(s.lifecycle)
+		defer release()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 
-	kind := models.DocumentKind(kindCode)
-	handler, err := s.registry.Get(kind)
-	if err != nil {
-		return nil, models.ErrForbidden
-	}
-	draftHandler, ok := handler.(AdminDraftCommandHandler)
-	if !ok {
-		return nil, models.ErrForbidden
-	}
+		kind := models.DocumentKind(kindCode)
+		handler, err := s.registry.Get(kind)
+		if err != nil {
+			return nil, models.ErrForbidden
+		}
+		draftHandler, ok := handler.(AdminDraftCommandHandler)
+		if !ok {
+			return nil, models.ErrForbidden
+		}
 
-	result, err := draftHandler.CreateAdminDraft(req)
-	if err != nil {
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+		result, err := draftHandler.CreateAdminDraft(req)
+		if err != nil {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return result, nil
+	})
 }
 
 func normalizeRegisterRequest(kind models.DocumentKind, req any) (any, error) {

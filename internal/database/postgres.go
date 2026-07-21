@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -17,6 +18,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
 
 const (
@@ -32,6 +34,9 @@ const (
 type DB struct {
 	*sql.DB
 	operationTimeout time.Duration
+	metrics          *observability.Registry
+	poolMu           sync.Mutex
+	lastPoolStats    sql.DBStats
 }
 
 // MigrationStatus содержит информацию о текущем состоянии миграций БД.
@@ -89,9 +94,11 @@ func (db *DB) Query(query string, args ...any) (*sql.Rows, error) {
 }
 
 func (db *DB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	started := time.Now()
 	ctx, cancel := db.withOperationTimeout(ctx)
 	stopCancel := context.AfterFunc(ctx, cancel)
 	rows, err := db.DB.QueryContext(ctx, query, args...)
+	db.observe("database.query", started, err)
 	if err != nil {
 		stopCancel()
 		cancel()
@@ -106,9 +113,15 @@ func (db *DB) QueryRow(query string, args ...any) *sql.Row {
 }
 
 func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	started := time.Now()
 	ctx, cancel := db.withOperationTimeout(ctx)
 	context.AfterFunc(ctx, cancel)
-	return db.DB.QueryRowContext(ctx, query, args...)
+	row := db.DB.QueryRowContext(ctx, query, args...)
+	// database/sql defers the actual row error until Scan. This duration still
+	// captures dispatch and connection-pool wait; Scan failures are observed by
+	// repository-level operation metrics.
+	db.observe("database.query_row", started, nil)
+	return row
 }
 
 func (db *DB) Exec(query string, args ...any) (sql.Result, error) {
@@ -116,9 +129,12 @@ func (db *DB) Exec(query string, args ...any) (sql.Result, error) {
 }
 
 func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	started := time.Now()
 	ctx, cancel := db.withOperationTimeout(ctx)
 	defer cancel()
-	return db.DB.ExecContext(ctx, query, args...)
+	result, err := db.DB.ExecContext(ctx, query, args...)
+	db.observe("database.exec", started, err)
+	return result, err
 }
 
 func (db *DB) Begin() (*sql.Tx, error) {
@@ -126,9 +142,11 @@ func (db *DB) Begin() (*sql.Tx, error) {
 }
 
 func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	started := time.Now()
 	ctx, cancel := db.withOperationTimeout(ctx)
 	stopCancel := context.AfterFunc(ctx, cancel)
 	tx, err := db.DB.BeginTx(ctx, opts)
+	db.observe("database.begin", started, err)
 	if err != nil {
 		stopCancel()
 		cancel()
@@ -143,9 +161,44 @@ func (db *DB) Prepare(query string) (*sql.Stmt, error) {
 }
 
 func (db *DB) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
+	started := time.Now()
 	ctx, cancel := db.withOperationTimeout(ctx)
 	defer cancel()
-	return db.DB.PrepareContext(ctx, query)
+	stmt, err := db.DB.PrepareContext(ctx, query)
+	db.observe("database.prepare", started, err)
+	return stmt, err
+}
+
+// SetMetrics attaches the application's optional in-process metrics registry.
+// It is safe to call during startup before repositories begin serving requests.
+func (db *DB) SetMetrics(metrics *observability.Registry) {
+	if db == nil {
+		return
+	}
+	db.metrics = metrics
+}
+
+func (db *DB) observe(name string, started time.Time, err error) {
+	if db == nil || db.metrics == nil {
+		return
+	}
+	db.metrics.Observe(name, time.Since(started), err)
+	db.observePoolStats()
+}
+
+func (db *DB) observePoolStats() {
+	stats := db.DB.Stats()
+	db.poolMu.Lock()
+	previous := db.lastPoolStats
+	db.lastPoolStats = stats
+	db.poolMu.Unlock()
+
+	db.metrics.SetGauge("database.pool.max_open", float64(stats.MaxOpenConnections))
+	db.metrics.SetGauge("database.pool.open", float64(stats.OpenConnections))
+	db.metrics.SetGauge("database.pool.in_use", float64(stats.InUse))
+	db.metrics.SetGauge("database.pool.idle", float64(stats.Idle))
+	db.metrics.SetGauge("database.pool.wait_count_delta", float64(stats.WaitCount-previous.WaitCount))
+	db.metrics.SetGauge("database.pool.wait_milliseconds_delta", float64((stats.WaitDuration-previous.WaitDuration).Microseconds())/1000)
 }
 
 func (db *DB) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/google/uuid"
 )
@@ -28,6 +29,7 @@ type Worker struct {
 	attachments       *repository.AttachmentRepository
 	storage           FileDeleter
 	lastRequiredAudit models.RequiredAuditStats
+	metrics           *observability.Registry
 }
 
 const (
@@ -41,6 +43,8 @@ const (
 func NewWorker(outbox *repository.OutboxRepository, events *repository.UserEventRepository, journal *repository.JournalRepository, audit *repository.AdminAuditLogRepository, attachments *repository.AttachmentRepository, storage FileDeleter) *Worker {
 	return &Worker{outbox: outbox, events: events, journal: journal, audit: audit, attachments: attachments, storage: storage}
 }
+
+func (w *Worker) SetMetrics(metrics *observability.Registry) { w.metrics = metrics }
 
 func (w *Worker) Run(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
@@ -77,6 +81,11 @@ func (w *Worker) observeQueue() {
 	if stats.Pending >= queueAlertSize {
 		slog.Warn("outbox queue exceeds alert threshold", "pending", stats.Pending, "threshold", queueAlertSize)
 	}
+	if w.metrics != nil {
+		w.metrics.SetGauge("outbox.pending", float64(stats.Pending))
+		w.metrics.SetGauge("outbox.processing", float64(stats.Processing))
+		w.metrics.SetGauge("outbox.failed", float64(stats.Failed))
+	}
 }
 
 // observeRequiredAudit emits a state-change alert for effects that represent
@@ -112,6 +121,9 @@ func (w *Worker) ProcessOnceContext(ctx context.Context) error {
 	}
 	for _, event := range events {
 		if err := w.process(ctx, event); err != nil {
+			if w.metrics != nil {
+				w.metrics.AddCounter("outbox.retries", 1)
+			}
 			if markErr := w.outbox.MarkFailed(event.ID, event.Attempts, retryDelay(event.Attempts), maxAttempts, err.Error()); markErr != nil {
 				return markErr
 			}
@@ -119,6 +131,9 @@ func (w *Worker) ProcessOnceContext(ctx context.Context) error {
 		}
 		if err := w.outbox.MarkProcessed(event.ID); err != nil {
 			return err
+		}
+		if w.metrics != nil {
+			w.metrics.AddCounter("outbox.processed", 1)
 		}
 	}
 	return nil

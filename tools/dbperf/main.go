@@ -39,12 +39,16 @@ type metric struct {
 	Samples              int             `json:"samples"`
 	MedianMilliseconds   float64         `json:"medianMilliseconds"`
 	P95Milliseconds      float64         `json:"p95Milliseconds"`
+	P99Milliseconds      float64         `json:"p99Milliseconds"`
 	ExplainMilliseconds  float64         `json:"explainMilliseconds"`
 	PlanningMilliseconds float64         `json:"planningMilliseconds"`
 	ActualRows           float64         `json:"actualRows"`
 	SharedHitBlocks      float64         `json:"sharedHitBlocks"`
 	SharedReadBlocks     float64         `json:"sharedReadBlocks"`
 	PoolWaitCount        int64           `json:"poolWaitCount"`
+	PoolWaitMilliseconds float64         `json:"poolWaitMilliseconds"`
+	PoolOpenConnections  int             `json:"poolOpenConnections"`
+	PoolInUse            int             `json:"poolInUse"`
 	Plan                 explainDocument `json:"plan"`
 }
 
@@ -212,7 +216,7 @@ func measure(name string, db *sql.DB, operation func() error, explainSQL string,
 	sort.Float64s(durations)
 	plan := explain(db, explainSQL, args...)
 	stats := db.Stats()
-	return metric{Name: name, Samples: samples, MedianMilliseconds: percentile(durations, 0.5), P95Milliseconds: percentile(durations, 0.95), ExplainMilliseconds: plan.ExecutionTime, PlanningMilliseconds: plan.PlanningTime, ActualRows: number(plan.Plan["Actual Rows"]), SharedHitBlocks: planValue(plan.Plan, "Shared Hit Blocks"), SharedReadBlocks: planValue(plan.Plan, "Shared Read Blocks"), PoolWaitCount: stats.WaitCount, Plan: plan}
+	return metric{Name: name, Samples: samples, MedianMilliseconds: percentile(durations, 0.5), P95Milliseconds: percentile(durations, 0.95), P99Milliseconds: percentile(durations, 0.99), ExplainMilliseconds: plan.ExecutionTime, PlanningMilliseconds: plan.PlanningTime, ActualRows: number(plan.Plan["Actual Rows"]), SharedHitBlocks: planValue(plan.Plan, "Shared Hit Blocks"), SharedReadBlocks: planValue(plan.Plan, "Shared Read Blocks"), PoolWaitCount: stats.WaitCount, PoolWaitMilliseconds: float64(stats.WaitDuration.Microseconds()) / 1000, PoolOpenConnections: stats.OpenConnections, PoolInUse: stats.InUse, Plan: plan}
 }
 
 func explain(db *sql.DB, query string, args ...any) explainDocument {

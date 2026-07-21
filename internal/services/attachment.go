@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"mime"
 	"os"
 	"os/exec"
@@ -29,6 +30,7 @@ type AttachmentService struct {
 	access          *DocumentAccessService
 	lifecycle       *OperationLifecycle
 	uiContext       context.Context
+	metrics         *observability.Registry
 }
 
 type attachmentOutboxStore interface {
@@ -67,6 +69,8 @@ func (s *AttachmentService) SetOperationLifecycle(lifecycle *OperationLifecycle)
 	s.lifecycle = lifecycle
 }
 
+func (s *AttachmentService) SetOperationMetrics(metrics *observability.Registry) { s.metrics = metrics }
+
 // ReconcileStorage compares database metadata and MinIO without modifying
 // either side. It is intentionally available only to administrators.
 func (s *AttachmentService) ReconcileStorage() (*models.AttachmentStorageReconciliation, error) {
@@ -91,7 +95,12 @@ func (s *AttachmentService) ReconcileStorage() (*models.AttachmentStorageReconci
 	if err != nil {
 		return nil, err
 	}
-	return reconcileAttachmentStorage(databasePaths, objectPaths), nil
+	result := reconcileAttachmentStorage(databasePaths, objectPaths)
+	if s.metrics != nil {
+		s.metrics.SetGauge("attachments.reconciliation.missing", float64(len(result.MissingObjects)))
+		s.metrics.SetGauge("attachments.reconciliation.orphan", float64(len(result.OrphanObjects)))
+	}
+	return result, nil
 }
 
 func reconcileAttachmentStorage(databasePaths, objectPaths []string) *models.AttachmentStorageReconciliation {
@@ -125,22 +134,24 @@ func (s *AttachmentService) Startup(ctx context.Context) { s.uiContext = ctx }
 // Upload lets the user choose files in the native OS dialog and streams each
 // selected file to MinIO. No renderer-provided path or base64 payload is trusted.
 func (s *AttachmentService) Upload(documentIDStr string) ([]dto.Attachment, error) {
-	if s.uiContext == nil {
-		return nil, fmt.Errorf("file picker is not initialized")
-	}
-	paths, err := wailsruntime.OpenMultipleFilesDialog(s.uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для вложения"})
-	if err != nil {
-		return nil, fmt.Errorf("failed to choose files: %w", err)
-	}
-	attachments := make([]dto.Attachment, 0, len(paths))
-	for _, path := range paths {
-		attachment, err := s.uploadPath(documentIDStr, path)
-		if err != nil {
-			return nil, err
+	return measureOperation(s.metrics, "attachments.upload", func() ([]dto.Attachment, error) {
+		if s.uiContext == nil {
+			return nil, fmt.Errorf("file picker is not initialized")
 		}
-		attachments = append(attachments, *attachment)
-	}
-	return attachments, nil
+		paths, err := wailsruntime.OpenMultipleFilesDialog(s.uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для вложения"})
+		if err != nil {
+			return nil, fmt.Errorf("failed to choose files: %w", err)
+		}
+		attachments := make([]dto.Attachment, 0, len(paths))
+		for _, path := range paths {
+			attachment, err := s.uploadPath(documentIDStr, path)
+			if err != nil {
+				return nil, err
+			}
+			attachments = append(attachments, *attachment)
+		}
+		return attachments, nil
+	})
 }
 
 func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachment, error) {
@@ -248,21 +259,30 @@ func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachm
 	}
 
 	attachment.UploadedByName = currentUser.FullName
+	if s.metrics != nil {
+		s.metrics.AddCounter("attachments.upload.bytes", float64(attachment.FileSize))
+	}
 
 	return dto.MapAttachment(attachment), nil
 }
 
 // GetList — получить вложения документа
 func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, error) {
-	documentID, err := uuid.Parse(documentIDStr)
-	if err != nil {
-		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
-	}
-	if err := s.access.RequireReadAnyType(documentID); err != nil {
-		return nil, err
-	}
-	res, err := s.repo.GetByDocumentID(documentID)
-	return dto.MapAttachments(res), err
+	return measureOperation(s.metrics, "attachments.get_list", func() ([]dto.Attachment, error) {
+		documentID, err := uuid.Parse(documentIDStr)
+		if err != nil {
+			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
+		}
+		if err := s.access.RequireReadAnyType(documentID); err != nil {
+			return nil, err
+		}
+		res, err := s.repo.GetByDocumentID(documentID)
+		attachments := dto.MapAttachments(res)
+		if err == nil && s.metrics != nil {
+			s.metrics.AddCounter("attachments.list.items", float64(len(attachments)))
+		}
+		return attachments, err
+	})
 }
 
 // Delete — удалить вложение
@@ -304,54 +324,59 @@ func (s *AttachmentService) Delete(idStr string) error {
 
 // DownloadToDisk — сохранить файл в папку «Загрузки» пользователя и вернуть полный путь
 func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
-	ctx, release := serviceOperationContext(s.lifecycle)
-	defer release()
+	return measureOperation(s.metrics, "attachments.download", func() (string, error) {
+		ctx, release := serviceOperationContext(s.lifecycle)
+		defer release()
 
-	if err := s.access.RequireDomainRead(); err != nil {
-		return "", err
-	}
+		if err := s.access.RequireDomainRead(); err != nil {
+			return "", err
+		}
 
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		return "", models.NewBadRequestWrapped("неверный ID файла", err)
-	}
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			return "", models.NewBadRequestWrapped("неверный ID файла", err)
+		}
 
-	// Получение метаданных
-	attachment, err := s.repo.GetByID(id)
-	if err != nil {
-		return "", err
-	}
-	if attachment == nil {
-		return "", nil
-	}
-	if err := s.access.RequireReadAnyType(attachment.DocumentID); err != nil {
-		return "", err
-	}
+		// Получение метаданных
+		attachment, err := s.repo.GetByID(id)
+		if err != nil {
+			return "", err
+		}
+		if attachment == nil {
+			return "", nil
+		}
+		if err := s.access.RequireReadAnyType(attachment.DocumentID); err != nil {
+			return "", err
+		}
 
-	// Получение содержимого
-	// Определение пути для сохранения
-	currentUser, err := user.Current()
-	if err != nil {
-		return "", fmt.Errorf("failed to get current user: %v", err)
-	}
+		// Получение содержимого
+		// Определение пути для сохранения
+		currentUser, err := user.Current()
+		if err != nil {
+			return "", fmt.Errorf("failed to get current user: %v", err)
+		}
 
-	// Формирование пути к папке "Downloads"
-	downloadDir := filepath.Join(currentUser.HomeDir, "Downloads")
+		// Формирование пути к папке "Downloads"
+		downloadDir := filepath.Join(currentUser.HomeDir, "Downloads")
 
-	// Создание директории, если не существует
-	if err := os.MkdirAll(downloadDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create download directory: %v", err)
-	}
+		// Создание директории, если не существует
+		if err := os.MkdirAll(downloadDir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create download directory: %v", err)
+		}
 
-	maxSize, _ := s.settingsService.GetMaxFileSize()
-	fullPath, err := writeDownloadFileFromStorage(downloadDir, attachment.Filename, func(file *os.File) error {
-		return s.fileStorage.DownloadFileToWriter(ctx, attachment.StoragePath, file, maxSize)
+		maxSize, _ := s.settingsService.GetMaxFileSize()
+		fullPath, err := writeDownloadFileFromStorage(downloadDir, attachment.Filename, func(file *os.File) error {
+			return s.fileStorage.DownloadFileToWriter(ctx, attachment.StoragePath, file, maxSize)
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to write file: %v", err)
+		}
+
+		if s.metrics != nil {
+			s.metrics.AddCounter("attachments.download.bytes", float64(attachment.FileSize))
+		}
+		return fullPath, nil
 	})
-	if err != nil {
-		return "", fmt.Errorf("failed to write file: %v", err)
-	}
-
-	return fullPath, nil
 }
 
 func writeDownloadFileFromStorage(downloadDir, filename string, write func(*os.File) error) (string, error) {

@@ -15,6 +15,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
@@ -35,6 +36,7 @@ type AuthService struct {
 	accessRepo    DocumentAccessStore
 	currentUserID uuid.UUID
 	mu            sync.RWMutex
+	metrics       *observability.Registry
 }
 type userLockOutboxStore interface {
 	IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error)
@@ -58,6 +60,8 @@ func (s *AuthService) SetSettingsStore(settingsRepo SettingsStore) {
 	s.settingsRepo = settingsRepo
 }
 
+func (s *AuthService) SetOperationMetrics(metrics *observability.Registry) { s.metrics = metrics }
+
 // isTableNotExistsError проверяет, является ли ошибка «таблица не существует» (PostgreSQL 42P01).
 func isTableNotExistsError(err error) bool {
 	var pqErr *pq.Error
@@ -69,53 +73,55 @@ func isTableNotExistsError(err error) bool {
 
 // Login — вход пользователя (Wails binding)
 func (s *AuthService) Login(login, password string) (*dto.User, error) {
-	if err := s.ensureCompatibleSchema(); err != nil {
-		return nil, err
-	}
+	return measureOperation(s.metrics, "auth.login", func() (*dto.User, error) {
+		if err := s.ensureCompatibleSchema(); err != nil {
+			return nil, err
+		}
 
-	user, err := s.userRepo.GetByLogin(login)
-	if err != nil {
-		return nil, err
-	}
-
-	if user == nil {
-		return nil, ErrInvalidCredentials
-	}
-
-	if !security.VerifyPassword(user.PasswordHash, password) {
-		_, isActive, err := s.incrementFailedLoginAttempts(user)
+		user, err := s.userRepo.GetByLogin(login)
 		if err != nil {
 			return nil, err
 		}
-		if !isActive {
-			return nil, ErrUserLocked
+
+		if user == nil {
+			return nil, ErrInvalidCredentials
 		}
-		return nil, ErrInvalidCredentials
-	}
 
-	if !user.IsActive {
-		if user.FailedLoginAttempts >= 5 {
-			return nil, ErrUserLocked
+		if !security.VerifyPassword(user.PasswordHash, password) {
+			_, isActive, err := s.incrementFailedLoginAttempts(user)
+			if err != nil {
+				return nil, err
+			}
+			if !isActive {
+				return nil, ErrUserLocked
+			}
+			return nil, ErrInvalidCredentials
 		}
-		return nil, ErrUserNotActive
-	}
 
-	if user.FailedLoginAttempts > 0 {
-		if err := s.userRepo.ResetFailedLoginAttempts(user.ID); err != nil {
-			return nil, err
+		if !user.IsActive {
+			if user.FailedLoginAttempts >= 5 {
+				return nil, ErrUserLocked
+			}
+			return nil, ErrUserNotActive
 		}
-		user.FailedLoginAttempts = 0
-	}
 
-	if s.isPasswordChangeRequired(user) {
-		return nil, ErrPasswordChangeRequired
-	}
+		if user.FailedLoginAttempts > 0 {
+			if err := s.userRepo.ResetFailedLoginAttempts(user.ID); err != nil {
+				return nil, err
+			}
+			user.FailedLoginAttempts = 0
+		}
 
-	s.mu.Lock()
-	s.currentUserID = user.ID
-	s.mu.Unlock()
+		if s.isPasswordChangeRequired(user) {
+			return nil, ErrPasswordChangeRequired
+		}
 
-	return dto.MapUser(user), nil
+		s.mu.Lock()
+		s.currentUserID = user.ID
+		s.mu.Unlock()
+
+		return dto.MapUser(user), nil
+	})
 }
 
 func (s *AuthService) isPasswordChangeRequired(user *models.User) bool {
@@ -173,10 +179,12 @@ func (s *AuthService) ensureCompatibleSchema() error {
 
 // Logout — выход
 func (s *AuthService) Logout() error {
-	s.mu.Lock()
-	s.currentUserID = uuid.Nil
-	s.mu.Unlock()
-	return nil
+	return measureOperationError(s.metrics, "auth.logout", func() error {
+		s.mu.Lock()
+		s.currentUserID = uuid.Nil
+		s.mu.Unlock()
+		return nil
+	})
 }
 
 // GetCurrentUser — получить текущего пользователя
@@ -257,75 +265,79 @@ func (s *AuthService) getActiveCurrentUser() (*models.User, error) {
 
 // ChangePassword — смена пароля
 func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
-	userID, err := s.GetCurrentUserUUID()
-	if err != nil {
-		return err
-	}
+	return measureOperationError(s.metrics, "auth.change_password", func() error {
+		userID, err := s.GetCurrentUserUUID()
+		if err != nil {
+			return err
+		}
 
-	dbUser, err := s.userRepo.GetByID(userID)
-	if err != nil {
-		return err
-	}
-	if dbUser == nil {
-		return ErrNotAuthenticated
-	}
+		dbUser, err := s.userRepo.GetByID(userID)
+		if err != nil {
+			return err
+		}
+		if dbUser == nil {
+			return ErrNotAuthenticated
+		}
 
-	if !security.VerifyPassword(dbUser.PasswordHash, oldPassword) {
-		return ErrWrongPassword
-	}
+		if !security.VerifyPassword(dbUser.PasswordHash, oldPassword) {
+			return ErrWrongPassword
+		}
 
-	if err := security.ValidatePassword(newPassword); err != nil {
-		return wrapPasswordPolicyError(err)
-	}
+		if err := security.ValidatePassword(newPassword); err != nil {
+			return wrapPasswordPolicyError(err)
+		}
 
-	newHash, err := security.HashPassword(newPassword)
-	if err != nil {
-		return err
-	}
+		newHash, err := security.HashPassword(newPassword)
+		if err != nil {
+			return err
+		}
 
-	return s.userRepo.UpdatePassword(userID, newHash)
+		return s.userRepo.UpdatePassword(userID, newHash)
+	})
 }
 
 // ChangeRequiredPassword меняет пароль до полноценного входа, когда пароль истек или требуется первичная смена.
 func (s *AuthService) ChangeRequiredPassword(login, oldPassword, newPassword string) error {
-	user, err := s.userRepo.GetByLogin(login)
-	if err != nil {
-		return err
-	}
-	if user == nil {
-		return ErrInvalidCredentials
-	}
-	if !user.IsActive {
-		if user.FailedLoginAttempts >= 5 {
-			return ErrUserLocked
-		}
-		return ErrUserNotActive
-	}
-
-	if !security.VerifyPassword(user.PasswordHash, oldPassword) {
-		_, isActive, err := s.incrementFailedLoginAttempts(user)
+	return measureOperationError(s.metrics, "auth.change_required_password", func() error {
+		user, err := s.userRepo.GetByLogin(login)
 		if err != nil {
 			return err
 		}
-		if !isActive {
-			return ErrUserLocked
+		if user == nil {
+			return ErrInvalidCredentials
 		}
-		return ErrInvalidCredentials
-	}
+		if !user.IsActive {
+			if user.FailedLoginAttempts >= 5 {
+				return ErrUserLocked
+			}
+			return ErrUserNotActive
+		}
 
-	if !s.isPasswordChangeRequired(user) {
-		return models.NewConflict("смена пароля сейчас не требуется")
-	}
-	if err := security.ValidatePassword(newPassword); err != nil {
-		return wrapPasswordPolicyError(err)
-	}
+		if !security.VerifyPassword(user.PasswordHash, oldPassword) {
+			_, isActive, err := s.incrementFailedLoginAttempts(user)
+			if err != nil {
+				return err
+			}
+			if !isActive {
+				return ErrUserLocked
+			}
+			return ErrInvalidCredentials
+		}
 
-	newHash, err := security.HashPassword(newPassword)
-	if err != nil {
-		return err
-	}
+		if !s.isPasswordChangeRequired(user) {
+			return models.NewConflict("смена пароля сейчас не требуется")
+		}
+		if err := security.ValidatePassword(newPassword); err != nil {
+			return wrapPasswordPolicyError(err)
+		}
 
-	return s.userRepo.UpdatePassword(user.ID, newHash)
+		newHash, err := security.HashPassword(newPassword)
+		if err != nil {
+			return err
+		}
+
+		return s.userRepo.UpdatePassword(user.ID, newHash)
+	})
 }
 
 func (s *AuthService) incrementFailedLoginAttempts(user *models.User) (int, bool, error) {

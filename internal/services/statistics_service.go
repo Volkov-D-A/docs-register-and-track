@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
 
 // statisticsQueryConcurrency keeps one statistics request from occupying the
@@ -22,6 +23,7 @@ type StatisticsService struct {
 	auth      *AuthService
 	storage   StorageInfoProvider
 	lifecycle *OperationLifecycle
+	metrics   *observability.Registry
 }
 
 // NewStatisticsService создает новый экземпляр StatisticsService.
@@ -33,161 +35,171 @@ func (s *StatisticsService) SetOperationLifecycle(lifecycle *OperationLifecycle)
 	s.lifecycle = lifecycle
 }
 
+func (s *StatisticsService) SetOperationMetrics(metrics *observability.Registry) { s.metrics = metrics }
+
 // GetDocumentStatistics возвращает обзорную статистику по всем документам за текущий год.
 func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics, error) {
-	if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
-		return nil, err
-	}
+	return measureOperation(s.metrics, "statistics.get_documents", func() (*models.DocumentStatistics, error) {
+		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
+			return nil, err
+		}
 
-	year, yearStart, yearEnd := currentYearRange()
+		year, yearStart, yearEnd := currentYearRange()
 
-	var total int
-	var byKind, byRegistrar []models.StatisticsSeriesPoint
-	if err := runStatisticsQueries(
-		func() error {
-			var err error
-			total, err = s.repo.GetDocumentTotalByYear(yearStart, yearEnd)
-			return err
-		},
-		func() error {
-			var err error
-			byKind, err = s.repo.GetMonthlyDocumentCountsByKind(yearStart, yearEnd)
-			return err
-		},
-		func() error {
-			var err error
-			byRegistrar, err = s.repo.GetMonthlyDocumentCountsByRegistrar(yearStart, yearEnd)
-			return err
-		},
-	); err != nil {
-		return nil, err
-	}
-	byKind = completeMonthlySeries(withDocumentKindLabels(byKind), documentKindCategories())
-	byRegistrar = completeMonthlySeries(withMonthPeriods(byRegistrar), categoriesFromPoints(byRegistrar))
+		var total int
+		var byKind, byRegistrar []models.StatisticsSeriesPoint
+		if err := runStatisticsQueries(
+			func() error {
+				var err error
+				total, err = s.repo.GetDocumentTotalByYear(yearStart, yearEnd)
+				return err
+			},
+			func() error {
+				var err error
+				byKind, err = s.repo.GetMonthlyDocumentCountsByKind(yearStart, yearEnd)
+				return err
+			},
+			func() error {
+				var err error
+				byRegistrar, err = s.repo.GetMonthlyDocumentCountsByRegistrar(yearStart, yearEnd)
+				return err
+			},
+		); err != nil {
+			return nil, err
+		}
+		byKind = completeMonthlySeries(withDocumentKindLabels(byKind), documentKindCategories())
+		byRegistrar = completeMonthlySeries(withMonthPeriods(byRegistrar), categoriesFromPoints(byRegistrar))
 
-	return &models.DocumentStatistics{
-		Year:                        year,
-		TotalYear:                   total,
-		DocumentsByKindMonthly:      byKind,
-		DocumentsByRegistrarMonthly: byRegistrar,
-	}, nil
+		return &models.DocumentStatistics{
+			Year:                        year,
+			TotalYear:                   total,
+			DocumentsByKindMonthly:      byKind,
+			DocumentsByRegistrarMonthly: byRegistrar,
+		}, nil
+	})
 }
 
 // GetDocumentReport возвращает документный отчет за период.
 func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy, kindCode, nomenclatureID, userID string) (*models.DocumentStatisticsReport, error) {
-	if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
-		return nil, err
-	}
-	if groupBy == "" {
-		groupBy = "kind"
-	}
-	if groupBy != "kind" && groupBy != "nomenclature" && groupBy != "user" {
-		return nil, models.NewBadRequest("неподдерживаемая группировка статистики документов")
-	}
-	if kindCode != "" {
-		if _, ok := models.GetDocumentKindSpec(models.DocumentKind(kindCode)); !ok {
-			return nil, models.NewBadRequest("неизвестный вид документа")
+	return measureOperation(s.metrics, "statistics.get_document_report", func() (*models.DocumentStatisticsReport, error) {
+		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
+			return nil, err
 		}
-	}
-	if err := validateOptionalUUID(nomenclatureID, "некорректная номенклатура"); err != nil {
-		return nil, err
-	}
-	if err := validateOptionalUUID(userID, "некорректный пользователь"); err != nil {
-		return nil, err
-	}
+		if groupBy == "" {
+			groupBy = "kind"
+		}
+		if groupBy != "kind" && groupBy != "nomenclature" && groupBy != "user" {
+			return nil, models.NewBadRequest("неподдерживаемая группировка статистики документов")
+		}
+		if kindCode != "" {
+			if _, ok := models.GetDocumentKindSpec(models.DocumentKind(kindCode)); !ok {
+				return nil, models.NewBadRequest("неизвестный вид документа")
+			}
+		}
+		if err := validateOptionalUUID(nomenclatureID, "некорректная номенклатура"); err != nil {
+			return nil, err
+		}
+		if err := validateOptionalUUID(userID, "некорректный пользователь"); err != nil {
+			return nil, err
+		}
 
-	startDate, endDate, err := parseStatisticsDateRange(startDateStr, endDateStr)
-	if err != nil {
-		return nil, err
-	}
+		startDate, endDate, err := parseStatisticsDateRange(startDateStr, endDateStr)
+		if err != nil {
+			return nil, err
+		}
 
-	rows, err := s.repo.GetDocumentReport(startDate, endDate, groupBy, kindCode, nomenclatureID, userID)
-	if err != nil {
-		return nil, err
-	}
-	if groupBy == "kind" {
-		rows = withDocumentKindReportLabels(rows)
-	}
+		rows, err := s.repo.GetDocumentReport(startDate, endDate, groupBy, kindCode, nomenclatureID, userID)
+		if err != nil {
+			return nil, err
+		}
+		if groupBy == "kind" {
+			rows = withDocumentKindReportLabels(rows)
+		}
 
-	return &models.DocumentStatisticsReport{
-		StartDate: startDate.Format("2006-01-02"),
-		EndDate:   endDate.Format("2006-01-02"),
-		GroupBy:   groupBy,
-		Rows:      rows,
-		Total:     sumReportRows(rows),
-	}, nil
+		return &models.DocumentStatisticsReport{
+			StartDate: startDate.Format("2006-01-02"),
+			EndDate:   endDate.Format("2006-01-02"),
+			GroupBy:   groupBy,
+			Rows:      rows,
+			Total:     sumReportRows(rows),
+		}, nil
+	})
 }
 
 // GetDocumentFilterOptions возвращает значения фильтров для документной статистики.
 func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisticsFilters, error) {
-	if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
-		return nil, err
-	}
+	return measureOperation(s.metrics, "statistics.get_document_filters", func() (*models.DocumentStatisticsFilters, error) {
+		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
+			return nil, err
+		}
 
-	nomenclature, err := s.repo.GetNomenclatureOptions()
-	if err != nil {
-		return nil, err
-	}
-	users, err := s.repo.GetUserOptions()
-	if err != nil {
-		return nil, err
-	}
+		nomenclature, err := s.repo.GetNomenclatureOptions()
+		if err != nil {
+			return nil, err
+		}
+		users, err := s.repo.GetUserOptions()
+		if err != nil {
+			return nil, err
+		}
 
-	return &models.DocumentStatisticsFilters{
-		Kinds:        documentKindOptions(),
-		Nomenclature: nomenclature,
-		Users:        users,
-	}, nil
+		return &models.DocumentStatisticsFilters{
+			Kinds:        documentKindOptions(),
+			Nomenclature: nomenclature,
+			Users:        users,
+		}, nil
+	})
 }
 
 // GetAssignmentStatistics возвращает обзорную статистику по всем поручениям.
 func (s *StatisticsService) GetAssignmentStatistics() (*models.AssignmentStatistics, error) {
-	if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
-		return nil, err
-	}
+	return measureOperation(s.metrics, "statistics.get_assignments", func() (*models.AssignmentStatistics, error) {
+		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
+			return nil, err
+		}
 
-	year, yearStart, yearEnd := currentYearRange()
+		year, yearStart, yearEnd := currentYearRange()
 
-	var monthlyTotals []models.AssignmentMonthlyPoint
-	var monthlyByExecutor []models.StatisticsSeriesPoint
-	var overdueRating, statusCounts []models.StatisticsReportRow
-	if err := runStatisticsQueries(
-		func() error {
-			var err error
-			monthlyTotals, err = s.repo.GetAssignmentMonthlyOverview(yearStart, yearEnd)
-			return err
-		},
-		func() error {
-			var err error
-			monthlyByExecutor, err = s.repo.GetAssignmentMonthlyByExecutor(yearStart, yearEnd)
-			return err
-		},
-		func() error {
-			var err error
-			overdueRating, err = s.repo.GetAssignmentOverdueRating(yearStart, yearEnd)
-			return err
-		},
-		func() error {
-			var err error
-			statusCounts, err = s.repo.GetAssignmentStatusCounts()
-			return err
-		},
-	); err != nil {
-		return nil, err
-	}
-	for i := range monthlyTotals {
-		monthlyTotals[i].Period = monthLabel(monthlyTotals[i].Month)
-	}
-	monthlyByExecutor = completeMonthlySeries(withMonthPeriods(monthlyByExecutor), categoriesFromPoints(monthlyByExecutor))
-	statusCounts = withAssignmentStatusLabels(statusCounts)
+		var monthlyTotals []models.AssignmentMonthlyPoint
+		var monthlyByExecutor []models.StatisticsSeriesPoint
+		var overdueRating, statusCounts []models.StatisticsReportRow
+		if err := runStatisticsQueries(
+			func() error {
+				var err error
+				monthlyTotals, err = s.repo.GetAssignmentMonthlyOverview(yearStart, yearEnd)
+				return err
+			},
+			func() error {
+				var err error
+				monthlyByExecutor, err = s.repo.GetAssignmentMonthlyByExecutor(yearStart, yearEnd)
+				return err
+			},
+			func() error {
+				var err error
+				overdueRating, err = s.repo.GetAssignmentOverdueRating(yearStart, yearEnd)
+				return err
+			},
+			func() error {
+				var err error
+				statusCounts, err = s.repo.GetAssignmentStatusCounts()
+				return err
+			},
+		); err != nil {
+			return nil, err
+		}
+		for i := range monthlyTotals {
+			monthlyTotals[i].Period = monthLabel(monthlyTotals[i].Month)
+		}
+		monthlyByExecutor = completeMonthlySeries(withMonthPeriods(monthlyByExecutor), categoriesFromPoints(monthlyByExecutor))
+		statusCounts = withAssignmentStatusLabels(statusCounts)
 
-	return &models.AssignmentStatistics{
-		Year:              year,
-		MonthlyTotals:     monthlyTotals,
-		MonthlyByExecutor: monthlyByExecutor,
-		OverdueRating:     overdueRating,
-		StatusCounts:      statusCounts,
-	}, nil
+		return &models.AssignmentStatistics{
+			Year:              year,
+			MonthlyTotals:     monthlyTotals,
+			MonthlyByExecutor: monthlyByExecutor,
+			OverdueRating:     overdueRating,
+			StatusCounts:      statusCounts,
+		}, nil
+	})
 }
 
 // runStatisticsQueries runs independent database queries with a deliberately
@@ -231,83 +243,89 @@ func runStatisticsQueries(tasks ...func() error) error {
 
 // GetAssignmentReport возвращает отчет по поручениям за период.
 func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string, onlyOverdue bool, userID string) (*models.AssignmentStatisticsReport, error) {
-	if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
-		return nil, err
-	}
-	if err := validateOptionalUUID(userID, "некорректный пользователь"); err != nil {
-		return nil, err
-	}
+	return measureOperation(s.metrics, "statistics.get_assignment_report", func() (*models.AssignmentStatisticsReport, error) {
+		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
+			return nil, err
+		}
+		if err := validateOptionalUUID(userID, "некорректный пользователь"); err != nil {
+			return nil, err
+		}
 
-	startDate, endDate, err := parseStatisticsDateRange(startDateStr, endDateStr)
-	if err != nil {
-		return nil, err
-	}
+		startDate, endDate, err := parseStatisticsDateRange(startDateStr, endDateStr)
+		if err != nil {
+			return nil, err
+		}
 
-	rows, err := s.repo.GetAssignmentReport(startDate, endDate, onlyOverdue, userID)
-	if err != nil {
-		return nil, err
-	}
+		rows, err := s.repo.GetAssignmentReport(startDate, endDate, onlyOverdue, userID)
+		if err != nil {
+			return nil, err
+		}
 
-	return &models.AssignmentStatisticsReport{
-		StartDate:   startDate.Format("2006-01-02"),
-		EndDate:     endDate.Format("2006-01-02"),
-		OnlyOverdue: onlyOverdue,
-		UserID:      userID,
-		Rows:        rows,
-		Total:       sumReportRows(rows),
-	}, nil
+		return &models.AssignmentStatisticsReport{
+			StartDate:   startDate.Format("2006-01-02"),
+			EndDate:     endDate.Format("2006-01-02"),
+			OnlyOverdue: onlyOverdue,
+			UserID:      userID,
+			Rows:        rows,
+			Total:       sumReportRows(rows),
+		}, nil
+	})
 }
 
 // GetAssignmentFilterOptions возвращает значения фильтров для статистики поручений.
 func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStatisticsFilters, error) {
-	if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
-		return nil, err
-	}
+	return measureOperation(s.metrics, "statistics.get_assignment_filters", func() (*models.AssignmentStatisticsFilters, error) {
+		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
+			return nil, err
+		}
 
-	users, err := s.repo.GetUserOptions()
-	if err != nil {
-		return nil, err
-	}
+		users, err := s.repo.GetUserOptions()
+		if err != nil {
+			return nil, err
+		}
 
-	return &models.AssignmentStatisticsFilters{Users: users}, nil
+		return &models.AssignmentStatisticsFilters{Users: users}, nil
+	})
 }
 
 // GetSystemStatistics возвращает системную статистику.
 func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, error) {
-	ctx, release := serviceOperationContext(s.lifecycle)
-	defer release()
+	return measureOperation(s.metrics, "statistics.get_system", func() (*models.SystemStatistics, error) {
+		ctx, release := serviceOperationContext(s.lifecycle)
+		defer release()
 
-	if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
-		return nil, err
-	}
-
-	userCount, err := s.repo.GetSystemUserCount()
-	if err != nil {
-		return nil, err
-	}
-	documentCount, err := s.repo.GetSystemDocumentCount()
-	if err != nil {
-		return nil, err
-	}
-
-	result := &models.SystemStatistics{
-		UserCount:      userCount,
-		TotalDocuments: documentCount,
-		DBSize:         s.repo.GetDBSize(),
-		StorageSize:    "N/A",
-	}
-
-	if s.storage != nil {
-		objectCount, totalSize, err := s.storage.GetStorageInfo(ctx)
-		if err != nil {
-			slog.Warn("failed to get storage statistics", "error", err)
-		} else {
-			result.StorageObjects = objectCount
-			result.StorageSize = totalSize
+		if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
+			return nil, err
 		}
-	}
 
-	return result, nil
+		userCount, err := s.repo.GetSystemUserCount()
+		if err != nil {
+			return nil, err
+		}
+		documentCount, err := s.repo.GetSystemDocumentCount()
+		if err != nil {
+			return nil, err
+		}
+
+		result := &models.SystemStatistics{
+			UserCount:      userCount,
+			TotalDocuments: documentCount,
+			DBSize:         s.repo.GetDBSize(),
+			StorageSize:    "N/A",
+		}
+
+		if s.storage != nil {
+			objectCount, totalSize, err := s.storage.GetStorageInfo(ctx)
+			if err != nil {
+				slog.Warn("failed to get storage statistics", "error", err)
+			} else {
+				result.StorageObjects = objectCount
+				result.StorageSize = totalSize
+			}
+		}
+
+		return result, nil
+	})
 }
 
 func (s *StatisticsService) requirePermission(permission string) error {

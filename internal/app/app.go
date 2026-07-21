@@ -16,6 +16,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
@@ -49,6 +50,8 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 			db.Close()
 		}
 	}()
+	metrics := observability.NewRegistry(256)
+	db.SetMetrics(metrics)
 
 	userRepo := repository.NewUserRepository(db)
 	userSubstitutionRepo := repository.NewUserSubstitutionRepository(db)
@@ -90,6 +93,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	operationLifecycle := services.NewOperationLifecycle(5 * time.Minute)
 
 	authService := services.NewAuthService(db, userRepo)
+	authService.SetOperationMetrics(metrics)
 	authService.SetAccessStore(documentAccessRepo)
 	authService.SetSettingsStore(settingsRepo)
 
@@ -116,6 +120,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 		services.NewAdministrativeOrderQueryHandler(administrativeOrderRepo),
 	)
 	documentQueryService := services.NewDocumentQueryService(documentKindQueryRegistry, documentAccessService)
+	documentQueryService.SetOperationMetrics(metrics)
 	documentKindCommandRegistry := services.NewDocumentKindCommandRegistry(
 		services.NewIncomingLetterCommandHandler(incomingDocRepo, nomenclatureRepo, referenceRepo, authService, journalService, documentAccessService),
 		services.NewOutgoingLetterCommandHandler(outgoingDocRepo, referenceRepo, nomenclatureRepo, authService, journalService, documentAccessService),
@@ -124,6 +129,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	)
 	documentRegistrationService := services.NewDocumentRegistrationService(documentKindCommandRegistry)
 	documentRegistrationService.SetOperationLifecycle(operationLifecycle)
+	documentRegistrationService.SetOperationMetrics(metrics)
 	userEventService := services.NewUserEventService(userEventRepo, authService)
 	administrativeOrderService := services.NewAdministrativeOrderService(administrativeOrderRepo, authService, documentAccessService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, documentAccessService, userEventService)
@@ -141,14 +147,19 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 		}
 	}
 	outboxWorker := outbox.NewWorker(outboxRepo, userEventRepo, journalRepo, adminAuditLogRepo, attachmentRepo, minioService)
+	outboxWorker.SetMetrics(metrics)
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, documentAccessService)
+	dashboardService.SetOperationMetrics(metrics)
 	statisticsService := services.NewStatisticsService(statisticsRepo, authService, minioService)
 	statisticsService.SetOperationLifecycle(operationLifecycle)
+	statisticsService.SetOperationMetrics(metrics)
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, minioService, documentAccessService)
 	attachmentService.SetOperationLifecycle(operationLifecycle)
+	attachmentService.SetOperationMetrics(metrics)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, administrativeOrderRepo, documentAccessService, authService)
 	linkService.SetOperationLifecycle(operationLifecycle)
+	linkService.SetOperationMetrics(metrics)
 	acknowledgmentService := services.NewAcknowledgmentService(acknowledgmentRepo, userRepo, authService, documentAccessService, userEventService)
 	acknowledgmentService.SetSubstitutionStore(userSubstitutionRepo)
 	systemService := services.NewSystemService(db)
@@ -184,6 +195,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 		LogLevel:       wailslogger.ERROR,
 		ErrorFormatter: formatBackendError,
 		OnStartup: func(ctx context.Context) {
+			go observability.LogPeriodically(ctx, metrics, slog.Default(), time.Minute)
 			attachmentService.Startup(ctx)
 			go outboxWorker.Run(ctx)
 			if err := attachmentService.ProcessPendingDeletions(ctx); err != nil {
@@ -197,6 +209,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 			if err := operationLifecycle.Shutdown(shutdownCtx); err != nil {
 				slog.Warn("shutdown continued before all backend operations finished", "error", err)
 			}
+			metrics.LogSnapshot(slog.Default())
 			db.Close()
 			if params.CloseLogger != nil {
 				params.CloseLogger()
