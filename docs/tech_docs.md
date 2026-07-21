@@ -123,6 +123,8 @@ Frontend не должен:
 
 Журналы документов используют cursor pagination: backend возвращает `nextCursor` и `hasMore`, а hook хранит историю курсоров для кнопок «Назад» и «Вперёд». Любое изменение фильтра, поиска или размера страницы сбрасывает историю. Поле `cursorPagination` включает этот режим; старый `page`-контракт остаётся для внутренних вызовов, которые ещё нуждаются в номере страницы и `totalCount`.
 
+Для защищённых backend-операций `AuthService.RequireAuthenticated` и `GetCurrentUserUUID` используют лёгкий `SessionPrincipal`; полный `GetCurrentUser` следует вызывать только когда действительно нужны данные профиля, подразделения или участие в документообороте.
+
 Крупные страницы (`SettingsPage`, `StatisticsPage`, `DocumentViewModal`, `AssignmentsPage`) нужно декомпозировать постепенно при функциональных изменениях. Не делать большой refactor без поведенческой причины и smoke/test coverage.
 
 ## Слой Wails Bridge

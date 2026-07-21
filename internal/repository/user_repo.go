@@ -88,6 +88,20 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 	return r.getUserByCondition("WHERE u.id = $1", id)
 }
 
+// GetSessionPrincipal reads only the state required to validate a local
+// session. Do not replace GetByID with it where a profile is required.
+func (r *UserRepository) GetSessionPrincipal(id uuid.UUID) (*models.SessionPrincipal, error) {
+	principal := &models.SessionPrincipal{}
+	err := r.db.QueryRow(`SELECT id, is_active FROM users WHERE id = $1`, id).Scan(&principal.ID, &principal.IsActive)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session principal: %w", err)
+	}
+	return principal, nil
+}
+
 // GetAll возвращает список всех пользователей.
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`

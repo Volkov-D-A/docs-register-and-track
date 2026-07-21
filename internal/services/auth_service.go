@@ -191,18 +191,43 @@ func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 // GetCurrentUserUUID возвращает ID активного текущего пользователя.
 // При удалении или деактивации пользователя локальная сессия отзывается.
 func (s *AuthService) GetCurrentUserUUID() (uuid.UUID, error) {
-	user, err := s.getActiveCurrentUser()
+	principal, err := s.getActiveSessionPrincipal()
 	if err != nil {
 		return uuid.Nil, err
 	}
-	return user.ID, nil
+	return principal.ID, nil
 }
 
 // RequireAuthenticated проверяет, что текущая сессия принадлежит активному пользователю.
 // Используется на границах защищённых операций, где недостаточно наличия UUID в памяти.
 func (s *AuthService) RequireAuthenticated() error {
-	_, err := s.getActiveCurrentUser()
+	_, err := s.getActiveSessionPrincipal()
 	return err
+}
+
+func (s *AuthService) getActiveSessionPrincipal() (*models.SessionPrincipal, error) {
+	s.mu.RLock()
+	userID := s.currentUserID
+	s.mu.RUnlock()
+
+	if userID == uuid.Nil {
+		return nil, ErrNotAuthenticated
+	}
+
+	principal, err := s.userRepo.GetSessionPrincipal(userID)
+	if err != nil {
+		return nil, err
+	}
+	if principal == nil || !principal.IsActive {
+		s.mu.Lock()
+		if s.currentUserID == userID {
+			s.currentUserID = uuid.Nil
+		}
+		s.mu.Unlock()
+		return nil, ErrNotAuthenticated
+	}
+
+	return principal, nil
 }
 
 func (s *AuthService) getActiveCurrentUser() (*models.User, error) {
@@ -370,11 +395,18 @@ func (s *AuthService) GetCurrentAuditInfo() (uuid.UUID, string) {
 
 // HasSystemPermission проверяет прямое системное право текущего пользователя.
 func (s *AuthService) HasSystemPermission(permission string) bool {
-	userID, err := s.GetCurrentUserUUID()
-	if err != nil || s.accessRepo == nil {
+	principal, err := s.getActiveSessionPrincipal()
+	if err != nil {
 		return false
 	}
+	return s.HasSystemPermissionFor(principal.ID, permission)
+}
 
+// HasSystemPermissionFor checks a permission for an already validated user.
+func (s *AuthService) HasSystemPermissionFor(userID uuid.UUID, permission string) bool {
+	if s.accessRepo == nil {
+		return false
+	}
 	allowed, err := s.accessRepo.HasSystemPermission(permission, userID.String())
 	if err != nil {
 		return false
@@ -384,10 +416,11 @@ func (s *AuthService) HasSystemPermission(permission string) bool {
 
 // RequireSystemPermission возвращает nil если у текущего пользователя есть указанное системное право.
 func (s *AuthService) RequireSystemPermission(permission string) error {
-	if err := s.RequireAuthenticated(); err != nil {
+	principal, err := s.getActiveSessionPrincipal()
+	if err != nil {
 		return err
 	}
-	if !s.HasSystemPermission(permission) {
+	if !s.HasSystemPermissionFor(principal.ID, permission) {
 		return models.ErrForbidden
 	}
 	return nil
@@ -395,8 +428,12 @@ func (s *AuthService) RequireSystemPermission(permission string) error {
 
 // HasAnySystemPermission проверяет наличие хотя бы одного системного права у текущего пользователя.
 func (s *AuthService) HasAnySystemPermission(permissions ...string) bool {
+	principal, err := s.getActiveSessionPrincipal()
+	if err != nil {
+		return false
+	}
 	for _, permission := range permissions {
-		if s.HasSystemPermission(permission) {
+		if s.HasSystemPermissionFor(principal.ID, permission) {
 			return true
 		}
 	}
@@ -405,13 +442,19 @@ func (s *AuthService) HasAnySystemPermission(permissions ...string) bool {
 
 // RequireAnySystemPermission возвращает nil если у текущего пользователя есть хотя бы одно системное право.
 func (s *AuthService) RequireAnySystemPermission(permissions ...string) error {
-	if err := s.RequireAuthenticated(); err != nil {
+	principal, err := s.getActiveSessionPrincipal()
+	if err != nil {
 		return err
 	}
-	if !s.HasAnySystemPermission(permissions...) {
+	for _, permission := range permissions {
+		if s.HasSystemPermissionFor(principal.ID, permission) {
+			return nil
+		}
+	}
+	if len(permissions) > 0 {
 		return models.ErrForbidden
 	}
-	return nil
+	return models.ErrForbidden
 }
 
 // NeedsInitialSetup — проверяет, нужна ли первоначальная настройка.

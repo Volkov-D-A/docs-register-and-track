@@ -165,6 +165,32 @@ func (_m *UserStore) GetByID(id uuid.UUID) (*models.User, error) {
 	return r0, r1
 }
 
+// GetSessionPrincipal provides a mock function with given fields: id.
+// Legacy tests that only arrange GetByID remain compatible; production uses
+// the lightweight repository query instead.
+func (_m *UserStore) GetSessionPrincipal(id uuid.UUID) (*models.SessionPrincipal, error) {
+	for _, call := range _m.ExpectedCalls {
+		if call.Method == "GetSessionPrincipal" {
+			ret := _m.MethodCalled("GetSessionPrincipal", id)
+			var principal *models.SessionPrincipal
+			if rf, ok := ret.Get(0).(func(uuid.UUID) *models.SessionPrincipal); ok {
+				principal = rf(id)
+			} else if ret.Get(0) != nil {
+				principal = ret.Get(0).(*models.SessionPrincipal)
+			}
+			if rf, ok := ret.Get(1).(func(uuid.UUID) error); ok {
+				return principal, rf(id)
+			}
+			return principal, ret.Error(1)
+		}
+	}
+	user, err := _m.GetByID(id)
+	if err != nil || user == nil {
+		return nil, err
+	}
+	return &models.SessionPrincipal{ID: user.ID, IsActive: user.IsActive}, nil
+}
+
 // GetByLogin provides a mock function with given fields: login
 func (_m *UserStore) GetByLogin(login string) (*models.User, error) {
 	ret := _m.Called(login)

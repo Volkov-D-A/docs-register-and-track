@@ -24,6 +24,13 @@ type User struct {
 	Department             *Department `json:"department,omitempty"`
 }
 
+// SessionPrincipal is the minimum state needed to validate an in-memory
+// session. It deliberately excludes profile, department and permissions.
+type SessionPrincipal struct {
+	ID       uuid.UUID
+	IsActive bool
+}
+
 // CreateUserRequest описывает полезную нагрузку для создания нового пользователя.
 type CreateUserRequest struct {
 	Login                  string `json:"login"`

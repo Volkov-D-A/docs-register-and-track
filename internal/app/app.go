@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	wailslogger "github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -95,11 +94,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	authService.SetSettingsStore(settingsRepo)
 
 	logger.GetAppUserID = func() string {
-		uid, _ := authService.GetCurrentAuditInfo()
-		if uid == uuid.Nil {
-			return ""
-		}
-		return uid.String()
+		return authService.GetCurrentUserID()
 	}
 
 	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)

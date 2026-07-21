@@ -77,6 +77,33 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 	})
 }
 
+func TestUserRepository_GetSessionPrincipal(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewUserRepository(&database.DB{DB: db})
+	userID := uuid.New()
+
+	t.Run("returns only active session state", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT id, is_active FROM users WHERE id = \$1`).WithArgs(userID).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "is_active"}).AddRow(userID, true))
+		principal, err := repo.GetSessionPrincipal(userID)
+		require.NoError(t, err)
+		require.NotNil(t, principal)
+		assert.Equal(t, userID, principal.ID)
+		assert.True(t, principal.IsActive)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("returns nil for deleted user", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT id, is_active FROM users WHERE id = \$1`).WithArgs(userID).WillReturnError(sql.ErrNoRows)
+		principal, err := repo.GetSessionPrincipal(userID)
+		require.NoError(t, err)
+		assert.Nil(t, principal)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
 func TestUserRepositoryIncrementFailedLoginAttemptsWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)

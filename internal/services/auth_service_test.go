@@ -358,6 +358,35 @@ func TestAuthService_GetCurrentUser(t *testing.T) {
 	})
 }
 
+func TestAuthService_SessionPrincipalChecks(t *testing.T) {
+	user, password := newTestUser()
+
+	t.Run("current user UUID uses lightweight principal", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := authService.Login(user.Login, password)
+		require.NoError(t, err)
+		mockRepo.On("GetSessionPrincipal", user.ID).Return(&models.SessionPrincipal{ID: user.ID, IsActive: true}, nil).Once()
+
+		userID, err := authService.GetCurrentUserUUID()
+		require.NoError(t, err)
+		assert.Equal(t, user.ID, userID)
+	})
+
+	t.Run("inactive principal revokes session", func(t *testing.T) {
+		mockRepo := mocks.NewUserStore(t)
+		authService := NewAuthService(nil, mockRepo)
+		mockRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
+		_, err := authService.Login(user.Login, password)
+		require.NoError(t, err)
+		mockRepo.On("GetSessionPrincipal", user.ID).Return(&models.SessionPrincipal{ID: user.ID, IsActive: false}, nil).Once()
+
+		assert.ErrorIs(t, authService.RequireAuthenticated(), ErrNotAuthenticated)
+		assert.False(t, authService.IsAuthenticated())
+	})
+}
+
 // ---------- TestAuthService_ChangePassword ----------
 
 func TestAuthService_ChangePassword(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 type UserStore interface {
 	GetByLogin(login string) (*models.User, error)
 	GetByID(id uuid.UUID) (*models.User, error)
+	GetSessionPrincipal(id uuid.UUID) (*models.SessionPrincipal, error)
 	GetAll() ([]models.User, error)
 	Create(req models.CreateUserRequest) (*models.User, error)
 	Update(req models.UpdateUserRequest) (*models.User, error)
