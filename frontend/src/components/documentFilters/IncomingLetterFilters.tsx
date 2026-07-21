@@ -1,10 +1,6 @@
 import React from 'react';
-import { Button, Col, DatePicker, Input, Row, Typography } from 'antd';
-import { ClearOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
-
-const { Text } = Typography;
-const { RangePicker } = DatePicker;
+import { Col, Input, Row } from 'antd';
+import { ClearFiltersButton, DateRangeFilter, FilterFieldLabel } from './filterPrimitives';
 
 type IncomingLetterFiltersProps = {
     hasFilters: boolean;
@@ -50,65 +46,35 @@ const IncomingLetterFilters: React.FC<IncomingLetterFiltersProps> = ({
     <div>
         <Row gutter={16}>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Вх. номер</Text>
+                <FilterFieldLabel label="Вх. номер">
                     <Input size="small" value={filterIncomingNumber} onChange={e => onIncomingNumberChange(e.target.value)} placeholder="Рег. номер" allowClear />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Регистрационный номер корреспондента</Text>
+                <FilterFieldLabel label="Регистрационный номер корреспондента">
                     <Input size="small" value={filterOutgoingNumber} onChange={e => onOutgoingNumberChange(e.target.value)} placeholder="Номер у корреспондента" allowClear />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Корреспондент</Text>
+                <FilterFieldLabel label="Корреспондент">
                     <Input size="small" value={filterSenderName} onChange={e => onSenderNameChange(e.target.value)} placeholder="Название организации" allowClear />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={6} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 8 }}>
-                {hasFilters && (
-                    <Button size="small" icon={<ClearOutlined />} onClick={onClear}>Сбросить фильтры</Button>
-                )}
+                <ClearFiltersButton visible={hasFilters} onClick={onClear} />
             </Col>
         </Row>
         <Row gutter={16}>
             <Col span={12}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Дата получения (диапазон)</Text>
-                    <RangePicker
-                        size="small"
-                        style={{ width: '100%' }}
-                        format="DD.MM.YYYY"
-                        value={filterDateFrom && filterDateTo ? [dayjs(filterDateFrom), dayjs(filterDateTo)] : null}
-                        onChange={(dates) => onDateRangeChange(
-                            dates?.[0]?.format('YYYY-MM-DD') || '',
-                            dates?.[1]?.format('YYYY-MM-DD') || '',
-                        )}
-                    />
-                </div>
+                <DateRangeFilter label="Дата получения (диапазон)" from={filterDateFrom} to={filterDateTo} onChange={onDateRangeChange} />
             </Col>
             <Col span={12}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Дата корреспондента (диапазон)</Text>
-                    <RangePicker
-                        size="small"
-                        style={{ width: '100%' }}
-                        format="DD.MM.YYYY"
-                        value={filterOutDateFrom && filterOutDateTo ? [dayjs(filterOutDateFrom), dayjs(filterOutDateTo)] : null}
-                        onChange={(dates) => onOutgoingDateRangeChange(
-                            dates?.[0]?.format('YYYY-MM-DD') || '',
-                            dates?.[1]?.format('YYYY-MM-DD') || '',
-                        )}
-                    />
-                </div>
+                <DateRangeFilter label="Дата корреспондента (диапазон)" from={filterOutDateFrom} to={filterOutDateTo} onChange={onOutgoingDateRangeChange} />
             </Col>
         </Row>
         <Row gutter={16}>
             <Col span={8}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Резолюция</Text>
+                <FilterFieldLabel label="Резолюция">
                     <Input
                         size="small"
                         value={filterResolution}
@@ -117,7 +83,7 @@ const IncomingLetterFilters: React.FC<IncomingLetterFiltersProps> = ({
                         allowClear
                         disabled={filterNoResolution}
                     />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={8} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 8 }}>
                 <label style={{ fontSize: 12, cursor: 'pointer' }}>

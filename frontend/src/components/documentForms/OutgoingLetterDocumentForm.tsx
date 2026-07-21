@@ -1,8 +1,7 @@
 import React from 'react';
-import { Col, DatePicker, Form, Input, InputNumber, Row, Select } from 'antd';
+import { Col, DatePicker, Form, Input, Row, Select } from 'antd';
 import locale from 'antd/es/date-picker/locale/ru_RU';
-
-const { TextArea } = Input;
+import { DocumentContentField, ManualRegistrationNumberField, PagesCountField } from './formBlocks';
 
 type Option = {
     value: string;
@@ -52,15 +51,11 @@ const OutgoingLetterDocumentForm: React.FC<OutgoingLetterDocumentFormProps> = ({
                         </Form.Item>
                     </Col>
                     <Col span={12}>
-                        <Form.Item name="pagesCount" label="Кол-во листов">
-                            <InputNumber style={{ width: '100%' }} min={1} />
-                        </Form.Item>
+                        <PagesCountField />
                     </Col>
                 </Row>
                 {selectedRegisterNomenclature?.numberingMode === 'manual_only' && (
-                    <Form.Item name="registrationNumber" label="Регистрационный номер" rules={[{ required: true, message: 'Введите номер вручную' }]}>
-                        <Input placeholder="Введите номер документа" />
-                    </Form.Item>
+                    <ManualRegistrationNumberField />
                 )}
             </>
         )}
@@ -73,9 +68,7 @@ const OutgoingLetterDocumentForm: React.FC<OutgoingLetterDocumentFormProps> = ({
                         </Form.Item>
                     </Col>
                     <Col span={12}>
-                        <Form.Item name="pagesCount" label="Кол-во листов">
-                            <InputNumber style={{ width: '100%' }} min={1} />
-                        </Form.Item>
+                        <PagesCountField />
                     </Col>
                 </Row>
                 <Row gutter={16}>
@@ -120,9 +113,7 @@ const OutgoingLetterDocumentForm: React.FC<OutgoingLetterDocumentFormProps> = ({
             </Col>
         </Row>
 
-        <Form.Item name="content" label="Содержание" rules={[{ required: true }]}>
-            <TextArea rows={4} />
-        </Form.Item>
+        <DocumentContentField rows={4} />
     </Form>
 );
 

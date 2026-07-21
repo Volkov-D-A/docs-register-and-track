@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GetList } from '../../wailsjs/go/services/DocumentQueryService';
 import { useAuthStore } from '../store/useAuthStore';
+import { useLatestRequest } from './useLatestRequest';
 
 type BuildFilter<TFilter> = (params: {
     search: string;
@@ -41,7 +42,7 @@ export const useDocumentListPage = <TFilter,>({
     const filtersRef = useRef(filters);
     const buildFilterRef = useRef(buildFilter);
     const onErrorRef = useRef(onError);
-    const requestIdRef = useRef(0);
+    const { run: runLatestRequest, invalidate: invalidateLatestRequest } = useLatestRequest();
     const depsKey = useMemo(() => JSON.stringify(deps), [deps]);
     const page = cursorIndex + 1;
     const cursor = cursorHistory[cursorIndex] || '';
@@ -68,10 +69,8 @@ export const useDocumentListPage = <TFilter,>({
             return;
         }
 
-        const requestId = ++requestIdRef.current;
         setLoading(true);
-        try {
-            const result = await GetList(kindCode, {
+        await runLatestRequest(async () => GetList(kindCode, {
                 ...buildFilterRef.current({
                     search,
                     page,
@@ -80,23 +79,16 @@ export const useDocumentListPage = <TFilter,>({
                 }),
                 cursor,
                 cursorPagination: true,
-            } as any);
-            if (requestId !== requestIdRef.current) {
-                return;
-            }
-            setData(result?.items || []);
-            setHasMore(Boolean(result?.hasMore));
-            setNextCursor(result?.nextCursor || '');
-        } catch (error) {
-            if (requestId === requestIdRef.current) {
-                onErrorRef.current?.(error);
-            }
-        } finally {
-            if (requestId === requestIdRef.current) {
-                setLoading(false);
-            }
-        }
-    }, [cursor, enabled, isAuthenticated, kindCode, page, pageSize, search]);
+            } as any), {
+            onSuccess: (result) => {
+                setData(result?.items || []);
+                setHasMore(Boolean(result?.hasMore));
+                setNextCursor(result?.nextCursor || '');
+            },
+            onError: (error) => onErrorRef.current?.(error),
+            onSettled: () => setLoading(false),
+        });
+    }, [cursor, enabled, isAuthenticated, kindCode, page, pageSize, runLatestRequest, search]);
 
     useEffect(() => {
         void load();
@@ -104,7 +96,7 @@ export const useDocumentListPage = <TFilter,>({
 
     useEffect(() => {
         if (!isAuthenticated) {
-            requestIdRef.current += 1;
+            invalidateLatestRequest();
             setData([]);
             setCursorHistory(['']);
             setCursorIndex(0);
@@ -115,7 +107,7 @@ export const useDocumentListPage = <TFilter,>({
             setSearch('');
             setLoading(false);
         }
-    }, [isAuthenticated]);
+    }, [invalidateLatestRequest, isAuthenticated]);
 
     const setPage = useCallback((nextPage: number) => {
         if (nextPage === 1) {

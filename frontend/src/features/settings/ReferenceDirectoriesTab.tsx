@@ -1,14 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, App, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tabs, Typography } from 'antd';
 import { BankOutlined, DeleteOutlined, EditOutlined, SolutionOutlined, SwapOutlined } from '@ant-design/icons';
 
 import { formatAppError } from '../../utils/appError';
 import { confirmDiscardFormChanges } from '../../utils/dirtyForm';
+import { useDirectoryCrud } from '../../hooks/useDirectoryCrud';
 
 const OrganizationsTab: React.FC = () => {
   const { message, modal } = App.useApp();
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -16,39 +15,29 @@ const OrganizationsTab: React.FC = () => {
   const [form] = Form.useForm();
   const [mergeForm] = Form.useForm();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data, loading, execute } = useDirectoryCrud<any>({
+    load: async () => {
       const { GetOrganizations } = await import('../../../wailsjs/go/services/ReferenceService');
-      const items = await GetOrganizations();
-      setData(items || []);
-    } catch (err: any) {
-      message.error(formatAppError(err));
-    }
-    setLoading(false);
-  }, [message]);
-
-  useEffect(() => { load(); }, [load]);
+      return GetOrganizations();
+    },
+    onError: (err) => message.error(formatAppError(err)),
+  });
 
   const onSave = async (values: any) => {
     if (loading) {
       return;
     }
-    setLoading(true);
-    try {
+    const saved = await execute(async () => {
       if (editItem) {
         const { UpdateOrganization } = await import('../../../wailsjs/go/services/ReferenceService');
         await UpdateOrganization(editItem.id, values.name);
       }
+    });
+    if (saved) {
       message.success('Организация обновлена');
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
-      await load();
-    } catch (err: any) {
-      message.error(formatAppError(err));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -56,16 +45,12 @@ const OrganizationsTab: React.FC = () => {
     if (loading) {
       return;
     }
-    setLoading(true);
-    try {
+    const deleted = await execute(async () => {
       const { DeleteOrganization } = await import('../../../wailsjs/go/services/ReferenceService');
       await DeleteOrganization(id);
+    });
+    if (deleted) {
       message.success('Организация удалена');
-      await load();
-    } catch (err: any) {
-      message.error(formatAppError(err));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -73,19 +58,15 @@ const OrganizationsTab: React.FC = () => {
     if (loading || !mergeItem) {
       return;
     }
-    setLoading(true);
-    try {
+    const merged = await execute(async () => {
       const { MergeOrganizations } = await import('../../../wailsjs/go/services/ReferenceService');
       await MergeOrganizations(mergeItem.id, values.targetId);
+    });
+    if (merged) {
       message.success('Организации объединены');
       setMergeModalOpen(false);
       mergeForm.resetFields();
       setMergeItem(null);
-      await load();
-    } catch (err: any) {
-      message.error(formatAppError(err));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -191,45 +172,33 @@ const OrganizationsTab: React.FC = () => {
 
 const ResolutionExecutorsTab: React.FC = () => {
   const { message, modal } = App.useApp();
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [form] = Form.useForm();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data, loading, execute } = useDirectoryCrud<any>({
+    load: async () => {
       const { GetResolutionExecutors } = await import('../../../wailsjs/go/services/ReferenceService');
-      const items = await GetResolutionExecutors();
-      setData(items || []);
-    } catch (err: any) {
-      message.error(formatAppError(err));
-    }
-    setLoading(false);
-  }, [message]);
-
-  useEffect(() => { load(); }, [load]);
+      return GetResolutionExecutors();
+    },
+    onError: (err) => message.error(formatAppError(err)),
+  });
 
   const onSave = async (values: any) => {
     if (loading) {
       return;
     }
-    setLoading(true);
-    try {
+    const saved = await execute(async () => {
       if (editItem) {
         const { UpdateResolutionExecutor } = await import('../../../wailsjs/go/services/ReferenceService');
         await UpdateResolutionExecutor(editItem.id, values.name);
       }
+    });
+    if (saved) {
       message.success('Исполнитель резолюции обновлён');
       setModalOpen(false);
       form.resetFields();
       setEditItem(null);
-      await load();
-    } catch (err: any) {
-      message.error(formatAppError(err));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -237,16 +206,12 @@ const ResolutionExecutorsTab: React.FC = () => {
     if (loading) {
       return;
     }
-    setLoading(true);
-    try {
+    const deleted = await execute(async () => {
       const { DeleteResolutionExecutor } = await import('../../../wailsjs/go/services/ReferenceService');
       await DeleteResolutionExecutor(id);
+    });
+    if (deleted) {
       message.success('Исполнитель резолюции удалён');
-      await load();
-    } catch (err: any) {
-      message.error(formatAppError(err));
-    } finally {
-      setLoading(false);
     }
   };
 

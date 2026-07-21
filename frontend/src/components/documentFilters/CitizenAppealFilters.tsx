@@ -1,10 +1,6 @@
 import React from 'react';
-import { Button, Col, DatePicker, Input, Row, Select, Typography } from 'antd';
-import { ClearOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
-
-const { Text } = Typography;
-const { RangePicker } = DatePicker;
+import { Col, Input, Row, Select } from 'antd';
+import { ClearFiltersButton, DateRangeFilter, FilterFieldLabel } from './filterPrimitives';
 
 const appealTypeOptions = [
     { value: 'предложение', label: 'Предложение' },
@@ -56,20 +52,17 @@ const CitizenAppealFilters: React.FC<CitizenAppealFiltersProps> = ({
     <div>
         <Row gutter={16}>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Номер документа</Text>
+                <FilterFieldLabel label="Номер документа">
                     <Input size="small" value={filterRegistrationNumber} onChange={e => onRegistrationNumberChange(e.target.value)} allowClear />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>ФИО обратившегося</Text>
+                <FilterFieldLabel label="ФИО обратившегося">
                     <Input size="small" value={filterApplicantName} onChange={e => onApplicantNameChange(e.target.value)} allowClear />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Вид обращения</Text>
+                <FilterFieldLabel label="Вид обращения">
                     <Select
                         size="small"
                         value={filterAppealType || undefined}
@@ -78,50 +71,23 @@ const CitizenAppealFilters: React.FC<CitizenAppealFiltersProps> = ({
                         options={appealTypeOptions}
                         style={{ width: '100%' }}
                     />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={6} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 8 }}>
-                {hasFilters && (
-                    <Button size="small" icon={<ClearOutlined />} onClick={onClear}>Сбросить фильтры</Button>
-                )}
+                <ClearFiltersButton visible={hasFilters} onClick={onClear} />
             </Col>
         </Row>
         <Row gutter={16}>
             <Col span={12}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Дата регистрации</Text>
-                    <RangePicker
-                        size="small"
-                        style={{ width: '100%' }}
-                        format="DD.MM.YYYY"
-                        value={filterRegistrationDateFrom && filterRegistrationDateTo ? [dayjs(filterRegistrationDateFrom), dayjs(filterRegistrationDateTo)] : null}
-                        onChange={(dates) => onRegistrationDateRangeChange(
-                            dates?.[0]?.format('YYYY-MM-DD') || '',
-                            dates?.[1]?.format('YYYY-MM-DD') || '',
-                        )}
-                    />
-                </div>
+                <DateRangeFilter label="Дата регистрации" from={filterRegistrationDateFrom} to={filterRegistrationDateTo} onChange={onRegistrationDateRangeChange} />
             </Col>
             <Col span={12}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Дата обращения</Text>
-                    <RangePicker
-                        size="small"
-                        style={{ width: '100%' }}
-                        format="DD.MM.YYYY"
-                        value={filterAppealDateFrom && filterAppealDateTo ? [dayjs(filterAppealDateFrom), dayjs(filterAppealDateTo)] : null}
-                        onChange={(dates) => onAppealDateRangeChange(
-                            dates?.[0]?.format('YYYY-MM-DD') || '',
-                            dates?.[1]?.format('YYYY-MM-DD') || '',
-                        )}
-                    />
-                </div>
+                <DateRangeFilter label="Дата обращения" from={filterAppealDateFrom} to={filterAppealDateTo} onChange={onAppealDateRangeChange} />
             </Col>
         </Row>
         <Row gutter={16}>
             <Col span={8}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Резолюция</Text>
+                <FilterFieldLabel label="Резолюция">
                     <Input
                         size="small"
                         value={filterResolution}
@@ -129,7 +95,7 @@ const CitizenAppealFilters: React.FC<CitizenAppealFiltersProps> = ({
                         allowClear
                         disabled={filterNoResolution}
                     />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={8} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 8 }}>
                 <label style={{ fontSize: 12, cursor: 'pointer' }}>

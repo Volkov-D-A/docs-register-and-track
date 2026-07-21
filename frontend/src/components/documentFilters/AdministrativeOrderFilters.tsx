@@ -1,10 +1,6 @@
 import React from 'react';
-import { Button, Checkbox, Col, DatePicker, Input, Row, Select, Typography } from 'antd';
-import { ClearOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
-
-const { Text } = Typography;
-const { RangePicker } = DatePicker;
+import { Checkbox, Col, Input, Row, Select } from 'antd';
+import { ClearFiltersButton, DateRangeFilter, FilterFieldLabel } from './filterPrimitives';
 
 type AdministrativeOrderFiltersProps = {
     hasFilters: boolean;
@@ -40,35 +36,20 @@ const AdministrativeOrderFilters: React.FC<AdministrativeOrderFiltersProps> = ({
     <div>
         <Row gutter={16}>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Номер</Text>
+                <FilterFieldLabel label="Номер">
                     <Input size="small" value={filterOrderNumber} onChange={e => onOrderNumberChange(e.target.value)} placeholder="Номер приказа" allowClear />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Контроль</Text>
+                <FilterFieldLabel label="Контроль">
                     <Input size="small" value={filterExecutionController} onChange={e => onExecutionControllerChange(e.target.value)} placeholder="ФИО" allowClear />
-                </div>
+                </FilterFieldLabel>
             </Col>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Дата</Text>
-                    <RangePicker
-                        size="small"
-                        style={{ width: '100%' }}
-                        format="DD.MM.YYYY"
-                        value={filterDateFrom && filterDateTo ? [dayjs(filterDateFrom), dayjs(filterDateTo)] : null}
-                        onChange={(dates) => onDateRangeChange(
-                            dates?.[0]?.format('YYYY-MM-DD') || '',
-                            dates?.[1]?.format('YYYY-MM-DD') || '',
-                        )}
-                    />
-                </div>
+                <DateRangeFilter label="Дата" from={filterDateFrom} to={filterDateTo} onChange={onDateRangeChange} />
             </Col>
             <Col span={6}>
-                <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Статус</Text>
+                <FilterFieldLabel label="Статус">
                     <Select
                         size="small"
                         style={{ width: '100%' }}
@@ -80,7 +61,7 @@ const AdministrativeOrderFilters: React.FC<AdministrativeOrderFiltersProps> = ({
                             { value: 'inactive', label: 'Не действующие' },
                         ]}
                     />
-                </div>
+                </FilterFieldLabel>
             </Col>
         </Row>
         <Row gutter={16}>
@@ -90,7 +71,7 @@ const AdministrativeOrderFilters: React.FC<AdministrativeOrderFiltersProps> = ({
         </Row>
         {hasFilters && (
             <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
-                <Button size="small" icon={<ClearOutlined />} onClick={onClear}>Сбросить фильтры</Button>
+                <ClearFiltersButton visible={hasFilters} onClick={onClear} />
             </div>
         )}
     </div>

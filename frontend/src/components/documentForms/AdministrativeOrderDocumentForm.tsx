@@ -2,6 +2,7 @@ import React from 'react';
 import { Col, DatePicker, Form, Input, Row, Select, Switch, Tag } from 'antd';
 import locale from 'antd/es/date-picker/locale/ru_RU';
 import dayjs from 'dayjs';
+import { ManualRegistrationNumberField } from './formBlocks';
 
 const { TextArea } = Input;
 
@@ -65,9 +66,7 @@ const AdministrativeOrderDocumentForm: React.FC<AdministrativeOrderDocumentFormP
             )}
 
             {!isEdit && selectedRegisterNomenclature?.numberingMode === 'manual_only' && (
-                <Form.Item name="registrationNumber" label="Регистрационный номер" rules={[{ required: true, message: 'Введите номер вручную' }]}>
-                    <Input placeholder="Введите номер приказа" />
-                </Form.Item>
+                <ManualRegistrationNumberField placeholder="Введите номер приказа" />
             )}
 
             <Form.Item name="title" label="Заголовок" rules={[{ required: true, message: 'Введите заголовок' }]}>

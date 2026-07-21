@@ -1,7 +1,8 @@
 import React from 'react';
-import { Button, Col, DatePicker, Form, Input, InputNumber, Row, Select, Tooltip } from 'antd';
+import { Button, Col, DatePicker, Form, Input, Row, Select, Tooltip } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import locale from 'antd/es/date-picker/locale/ru_RU';
+import { DocumentContentField, ManualRegistrationNumberField, PagesCountField } from './formBlocks';
 
 const { TextArea } = Input;
 
@@ -64,9 +65,7 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
             </Row>
         )}
         {!isEdit && selectedRegisterNomenclature?.numberingMode === 'manual_only' && (
-            <Form.Item name="registrationNumber" label="Регистрационный номер" rules={[{ required: true, message: 'Введите номер вручную' }]}>
-                <Input placeholder="Введите номер документа" />
-            </Form.Item>
+            <ManualRegistrationNumberField />
         )}
         {isEdit && (
             <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
@@ -156,14 +155,10 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
                 </Form.Item>
             </Col>
             <Col span={12}>
-                <Form.Item name="pagesCount" label="Кол-во листов" rules={[{ required: true, message: 'Укажите кол-во' }]}>
-                    <InputNumber min={1} style={{ width: '100%' }} />
-                </Form.Item>
+                <PagesCountField required />
             </Col>
         </Row>
-        <Form.Item name="content" label="Содержание" rules={[{ required: true }]}>
-            <TextArea rows={3} />
-        </Form.Item>
+        <DocumentContentField />
         <Form.Item name="resolution" label="Резолюция">
             <TextArea rows={2} placeholder="Текст резолюции" />
         </Form.Item>
