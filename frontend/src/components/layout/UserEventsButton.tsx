@@ -10,6 +10,7 @@ import {
     MarkRead,
 } from '../../../wailsjs/go/services/UserEventService';
 import { emitUserEventsReceived, onUserEventsDocumentRead } from '../../events/userEvents';
+import { CoalescedRequest } from '../../utils/coalescedRequest';
 
 const { Text } = Typography;
 const USER_EVENTS_POLL_INTERVAL_MS = 30000;
@@ -37,6 +38,7 @@ const UserEventsButton: React.FC<UserEventsButtonProps> = ({ onOpenEvent }) => {
     const [events, setEvents] = useState<dto.UserEvent[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const knownEventIDsRef = useRef<Set<string>>(new Set());
+    const eventsRequestRef = useRef(new CoalescedRequest<{ events: dto.UserEvent[]; unreadCount: number }>());
 
     const rememberLoadedEvents = useCallback((loadedEvents: dto.UserEvent[], notifyNewEvents: boolean) => {
         const loadedEventIDs = loadedEvents
@@ -60,25 +62,23 @@ const UserEventsButton: React.FC<UserEventsButtonProps> = ({ onOpenEvent }) => {
         if (showLoading) {
             setLoading(true);
         }
-        return Promise.all([
-            GetCurrentUserEvents(models.UserEventFilter.createFrom({ page: 1, pageSize: 20 })),
-            GetUnreadCount(),
-        ])
-            .then(([result, count]) => {
-                const loadedEvents = result?.items || [];
+        return eventsRequestRef.current.refresh(async () => {
+            const [result, unreadCount] = await Promise.all([
+                GetCurrentUserEvents(models.UserEventFilter.createFrom({ page: 1, pageSize: 20 })), GetUnreadCount(),
+            ]);
+            return { events: result?.items || [], unreadCount };
+        }, {
+            onSuccess: ({ events: loadedEvents, unreadCount }) => {
                 rememberLoadedEvents(loadedEvents, notifyNewEvents);
                 setEvents(loadedEvents);
-                setUnreadCount(count);
-            })
-            .catch((error) => {
-                console.error('GetCurrentUserEvents error:', error);
-            })
-            .finally(() => {
-                if (showLoading) {
-                    setLoading(false);
-                }
-            });
+                setUnreadCount(unreadCount);
+            },
+            onError: (error) => console.error('GetCurrentUserEvents error:', error),
+            onSettled: () => setLoading(false),
+        });
     }, [rememberLoadedEvents]);
+
+    useEffect(() => () => eventsRequestRef.current.invalidate(), []);
 
     const loadUnreadCount = useCallback(() => (
         GetUnreadCount()

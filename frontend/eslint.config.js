@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'wailsjs'],
+    ignores: ['dist', 'wailsjs', '.test-build'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

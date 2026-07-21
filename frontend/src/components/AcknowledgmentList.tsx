@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Table, Button, Tag, Space, Popconfirm, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EyeOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -7,6 +7,7 @@ import AcknowledgmentModal from './AcknowledgmentModal';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
 import { isAcknowledgmentUserEvent, onUserEventsReceived } from '../events/userEvents';
+import { CoalescedRequest } from '../utils/coalescedRequest';
 
 /**
  * Свойства компонента AcknowledgmentList.
@@ -25,6 +26,7 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
+    const acknowledgmentsRequestRef = useRef(new CoalescedRequest<any[]>());
     const { user } = useAuthStore();
     const { hasAction, ready: accessReady } = useDocumentKindAccess();
     const canManageAcknowledgments = accessReady && hasAction(documentKind, 'acknowledge');
@@ -32,16 +34,17 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
     const load = useCallback(async () => {
         if (!documentId || !canManageAcknowledgments) return;
         setLoading(true);
-        try {
+        return acknowledgmentsRequestRef.current.refresh(async () => {
             const { GetList } = await import('../../wailsjs/go/services/AcknowledgmentService');
-            const result = await GetList(documentId);
-            setData(result || []);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+            return (await GetList(documentId)) || [];
+        }, {
+            onSuccess: setData,
+            onError: console.error,
+            onSettled: () => setLoading(false),
+        });
     }, [canManageAcknowledgments, documentId]);
+
+    useEffect(() => () => acknowledgmentsRequestRef.current.invalidate(), []);
 
     useEffect(() => { load(); }, [load]);
 

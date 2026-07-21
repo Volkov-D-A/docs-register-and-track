@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Typography, Table, Button, Input, Select, DatePicker,
     Space, Row, Col, Tag, Popconfirm, Tooltip, Switch, App
@@ -18,6 +18,7 @@ import { formatAppError } from '../utils/appError';
 import { onAssignmentsChanged } from '../events/assignmentEvents';
 import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvents';
 import { dto, models } from '../../wailsjs/go/models';
+import { CoalescedRequest } from '../utils/coalescedRequest';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -56,6 +57,7 @@ const AssignmentsPage: React.FC = () => {
 
     // Refs
     const [executors, setExecutors] = useState<dto.User[]>([]);
+    const assignmentListRequestRef = useRef(new CoalescedRequest<{ items: dto.Assignment[]; totalCount: number }>());
 
     const loadUsers = async () => {
         try {
@@ -70,17 +72,11 @@ const AssignmentsPage: React.FC = () => {
             return;
         }
         setLoading(true);
-        try {
+        return assignmentListRequestRef.current.refresh(async () => {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
 
-            let executorId = '';
             const canViewAll = hasAnyAction('assign');
-
-            if (canViewAll) {
-                executorId = filterExecutorId;
-            } else {
-                executorId = user?.id || '';
-            }
+            const executorId = canViewAll ? filterExecutorId : user?.id || '';
 
             const result = await GetList(models.AssignmentFilter.createFrom({
                 page,
@@ -93,13 +89,12 @@ const AssignmentsPage: React.FC = () => {
                 showFinished: showFinished,
                 overdueOnly: filterOverdue,
             }));
-            setData(result?.items || []);
-            setTotalCount(result?.totalCount || 0);
-        } catch (err: unknown) {
-            message.error(formatAppError(err));
-        } finally {
-            setLoading(false);
-        }
+            return { items: result?.items || [], totalCount: result?.totalCount || 0 };
+        }, {
+            onSuccess: ({ items, totalCount }) => { setData(items); setTotalCount(totalCount); },
+            onError: (err) => message.error(formatAppError(err)),
+            onSettled: () => setLoading(false),
+        });
     }, [
         accessReady,
         filterDateFrom,
@@ -115,6 +110,8 @@ const AssignmentsPage: React.FC = () => {
         showFinished,
         user?.id,
     ]);
+
+    useEffect(() => () => assignmentListRequestRef.current.invalidate(), []);
 
     useEffect(() => {
         if (accessReady) {

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { App } from 'antd';
 import { useDocumentKindAccess } from './useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
 import { emitAssignmentsChanged } from '../events/assignmentEvents';
 import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvents';
 import { dto, models } from '../../wailsjs/go/models';
+import { CoalescedRequest } from '../utils/coalescedRequest';
 
 type UseAssignmentsOptions = {
     documentId: string;
@@ -17,6 +18,7 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
     const canManageAssignments = accessReady && hasAction(documentKind, 'assign');
     const [data, setData] = useState<dto.Assignment[]>([]);
     const [loading, setLoading] = useState(false);
+    const assignmentsRequestRef = useRef(new CoalescedRequest<dto.Assignment[]>());
 
     const load = useCallback(async () => {
         if (!documentId || !accessReady) {
@@ -24,7 +26,7 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
             return;
         }
         setLoading(true);
-        try {
+        return assignmentsRequestRef.current.refresh(async () => {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
             const result = await GetList(models.AssignmentFilter.createFrom({
                 documentId,
@@ -33,13 +35,15 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
                 showFinished: true,
                 overdueOnly: false,
             }));
-            setData(result?.items || []);
-        } catch (error: unknown) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
+            return result?.items || [];
+        }, {
+            onSuccess: setData,
+            onError: console.error,
+            onSettled: () => setLoading(false),
+        });
     }, [accessReady, documentId]);
+
+    useEffect(() => () => assignmentsRequestRef.current.invalidate(), []);
 
     useEffect(() => {
         void load();

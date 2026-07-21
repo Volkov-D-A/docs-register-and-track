@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Typography, Card, Row, Col, Tag, Spin, App,
     Button, Empty
@@ -13,6 +13,7 @@ import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 
 import DocumentViewModal from '../components/DocumentViewModal';
 import { formatAppError } from '../utils/appError';
+import { CoalescedRequest } from '../utils/coalescedRequest';
 import { onAssignmentsChanged } from '../events/assignmentEvents';
 import {
     isAcknowledgmentUserEvent,
@@ -33,6 +34,7 @@ const DashboardPage: React.FC = () => {
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [pendingAcks, setPendingAcks] = useState<any[]>([]);
+    const dashboardRequestRef = useRef(new CoalescedRequest<{ activity: any; acknowledgments: any[]; acknowledgmentsError?: unknown }>());
 
     // Состояние модального окна просмотра
     const [viewDocId, setViewDocId] = useState('');
@@ -41,12 +43,12 @@ const DashboardPage: React.FC = () => {
 
     const profile = resolveUserProfile(accessSummary?.systemPermissions || user?.systemPermissions, readableKinds, user?.isDocumentParticipant);
 
-    const loadStats = useCallback(async () => {
+    const loadStats = useCallback(() => {
         if (!accessReady) {
-            return;
+            return Promise.resolve();
         }
         setLoading(true);
-        try {
+        return dashboardRequestRef.current.refresh(async () => {
             const activityPromise = import('../../wailsjs/go/services/DashboardService')
                 .then(({ GetActivity }) => GetActivity());
             const acknowledgmentsPromise = (async (): Promise<any[]> => {
@@ -58,30 +60,26 @@ const DashboardPage: React.FC = () => {
                     ? GetAllActive()
                     : GetPendingForCurrentUser();
             })();
-            const [activityResult, acknowledgmentsResult] = await Promise.allSettled([
-                activityPromise,
-                acknowledgmentsPromise,
-            ]);
-
-            if (activityResult.status === 'rejected') {
-                throw activityResult.reason;
+            const activity = await activityPromise;
+            try {
+                return { activity, acknowledgments: (await acknowledgmentsPromise) || [] };
+            } catch (acknowledgmentsError: unknown) {
+                return { activity, acknowledgments: [], acknowledgmentsError };
             }
-            setStats(activityResult.value);
-
-            if (acknowledgmentsResult.status === 'fulfilled') {
-                setPendingAcks(acknowledgmentsResult.value || []);
-            } else {
-                setPendingAcks([]);
-                console.error(acknowledgmentsResult.reason);
-                message.warning(formatAppError(acknowledgmentsResult.reason, 'Не удалось загрузить ознакомления'));
-            }
-        } catch (err: unknown) {
-            console.error(err);
-            message.error(formatAppError(err, 'Ошибка загрузки дашборда'));
-        } finally {
-            setLoading(false);
-        }
+        }, {
+            onSuccess: ({ activity, acknowledgments, acknowledgmentsError }) => {
+                setStats(activity); setPendingAcks(acknowledgments);
+                if (acknowledgmentsError) {
+                    console.error(acknowledgmentsError);
+                    message.warning(formatAppError(acknowledgmentsError, 'Не удалось загрузить ознакомления'));
+                }
+            },
+            onError: (err) => { console.error(err); message.error(formatAppError(err, 'Ошибка загрузки дашборда')); },
+            onSettled: () => setLoading(false),
+        });
     }, [accessReady, message, profile]);
+
+    useEffect(() => () => dashboardRequestRef.current.invalidate(), []);
 
     useEffect(() => {
         if (accessReady) {
