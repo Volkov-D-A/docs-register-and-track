@@ -387,12 +387,6 @@ type Attachment struct {
 	UploadedAt     time.Time `json:"uploadedAt"`
 }
 
-// DownloadResponse описывает DTO ответа при скачивании файла.
-type DownloadResponse struct {
-	Filename string `json:"filename"`
-	Content  string `json:"content"` // base64
-}
-
 // Assignment описывает DTO поручения.
 type Assignment struct {
 	ID           string `json:"id"`
@@ -454,10 +448,10 @@ type AcknowledgmentUser struct {
 
 // PagedResult описывает DTO постраничного результата.
 type PagedResult[T any] struct {
-	Items      []T `json:"items"`
-	TotalCount int `json:"totalCount"`
-	Page       int `json:"page"`
-	PageSize   int `json:"pageSize"`
+	Items      []T    `json:"items"`
+	TotalCount int    `json:"totalCount"`
+	Page       int    `json:"page"`
+	PageSize   int    `json:"pageSize"`
 	NextCursor string `json:"nextCursor,omitempty"`
 	HasMore    bool   `json:"hasMore"`
 }

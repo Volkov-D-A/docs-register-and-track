@@ -30,36 +30,6 @@ func (_m *FileStorage) DeleteFile(ctx context.Context, objectName string) error 
 	return r0
 }
 
-// DownloadFile provides a mock function with given fields: ctx, objectName
-func (_m *FileStorage) DownloadFile(ctx context.Context, objectName string, maxSize int64) ([]byte, error) {
-	ret := _m.Called(ctx, objectName, maxSize)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DownloadFile")
-	}
-
-	var r0 []byte
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]byte, error)); ok {
-		return rf(ctx, objectName)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []byte); ok {
-		r0 = rf(ctx, objectName)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, objectName)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // UploadFile provides a mock function with given fields: ctx, objectName, data, contentType
 func (_m *FileStorage) UploadFile(ctx context.Context, objectName string, data io.Reader, size int64, contentType string) error {
 	ret := _m.Called(ctx, objectName, data, size, contentType)

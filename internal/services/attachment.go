@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
@@ -264,45 +263,6 @@ func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, err
 	}
 	res, err := s.repo.GetByDocumentID(documentID)
 	return dto.MapAttachments(res), err
-}
-
-// Download — получить содержимое файла в формате base64
-func (s *AttachmentService) Download(idStr string) (*dto.DownloadResponse, error) {
-	ctx, release := serviceOperationContext(s.lifecycle)
-	defer release()
-
-	if err := s.access.RequireDomainRead(); err != nil {
-		return nil, err
-	}
-
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		return nil, models.NewBadRequestWrapped("неверный ID файла", err)
-	}
-
-	// Получение метаданных файла
-	attachment, err := s.repo.GetByID(id)
-	if err != nil {
-		return nil, err
-	}
-	if attachment == nil {
-		return nil, nil
-	}
-	if err := s.access.RequireReadAnyType(attachment.DocumentID); err != nil {
-		return nil, err
-	}
-
-	// Получение содержимого из файлового хранилища
-	maxSize, _ := s.settingsService.GetMaxFileSize()
-	content, err := s.fileStorage.DownloadFile(ctx, attachment.StoragePath, maxSize)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get file content: %v", err)
-	}
-
-	return &dto.DownloadResponse{
-		Filename: attachment.Filename,
-		Content:  base64.StdEncoding.EncodeToString(content),
-	}, nil
 }
 
 // Delete — удалить вложение

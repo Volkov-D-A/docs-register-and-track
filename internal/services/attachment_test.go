@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
@@ -331,35 +330,6 @@ func TestAttachmentService_GetList(t *testing.T) {
 		result, err := svc.GetList("not-a-uuid")
 		require.Error(t, err)
 		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
-		assert.Nil(t, result)
-	})
-}
-
-func TestAttachmentService_Download(t *testing.T) {
-	// Скачивание (выгрузка) содержимого файла вложения
-	attID := uuid.New()
-
-	t.Run("success", func(t *testing.T) {
-		svc, repo, settingsRepo, fileStorage, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-		att := &models.Attachment{ID: attID, Filename: "file.pdf", StoragePath: "minio/path", DocumentID: uuid.New()}
-		content := []byte("pdf-content")
-
-		repo.On("GetByID", attID).Return(att, nil).Once()
-		settingsRepo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil).Once()
-		fileStorage.On("DownloadFile", mock.Anything, att.StoragePath, int64(10*1024*1024)).Return(content, nil).Once()
-
-		result, err := svc.Download(attID.String())
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		assert.Equal(t, "file.pdf", result.Filename)
-		assert.Equal(t, base64.StdEncoding.EncodeToString(content), result.Content)
-	})
-
-	t.Run("invalid ID", func(t *testing.T) {
-		svc, _, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
-		result, err := svc.Download("not-a-uuid")
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID файла")
 		assert.Nil(t, result)
 	})
 }

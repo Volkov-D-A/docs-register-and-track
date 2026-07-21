@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -64,15 +63,6 @@ func (m *MinioService) UploadFile(ctx context.Context, objectName string, data i
 	}
 
 	return nil
-}
-
-// DownloadFile скачивает файл из MinIO и возвращает его содержимое.
-func (m *MinioService) DownloadFile(ctx context.Context, objectName string, maxSize int64) ([]byte, error) {
-	var data bytes.Buffer
-	if err := m.DownloadFileToWriter(ctx, objectName, &data, maxSize); err != nil {
-		return nil, err
-	}
-	return data.Bytes(), nil
 }
 
 // DownloadFileToWriter streams a bounded object directly to writer.
