@@ -5,7 +5,5 @@ frontend/.test-build
 /config
 .env
 .gocache
-*code_review.md
 /build/release-evidence/
 /build/performance/
-/build/bin/
