@@ -2330,6 +2330,7 @@ export namespace models {
 	    dbSize: string;
 	    storageObjects: number;
 	    storageSize: string;
+	    // Go type: time
 	    storageRefreshedAt: any;
 	    storageRefreshInProgress: boolean;
 	
@@ -2344,9 +2345,27 @@ export namespace models {
 	        this.dbSize = source["dbSize"];
 	        this.storageObjects = source["storageObjects"];
 	        this.storageSize = source["storageSize"];
-	        this.storageRefreshedAt = source["storageRefreshedAt"];
+	        this.storageRefreshedAt = this.convertValues(source["storageRefreshedAt"], null);
 	        this.storageRefreshInProgress = source["storageRefreshInProgress"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class UpdateProfileRequest {
 	    login: string;
@@ -2604,3 +2623,4 @@ export namespace services {
 	}
 
 }
+
