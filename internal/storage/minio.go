@@ -190,6 +190,27 @@ func (m *MinioService) RefreshStorageInfo(ctx context.Context) (objectCount int,
 	return m.GetStorageInfo(ctx)
 }
 
+// RefreshStorageUsage performs a complete object scan and returns an exact
+// byte count for the persisted aggregate. It deliberately bypasses the
+// display cache used by GetStorageInfo.
+func (m *MinioService) RefreshStorageUsage(ctx context.Context) (objectCount int, totalBytes int64, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	refreshCtx, cancel := context.WithTimeout(ctx, storageInfoRefreshTimeout)
+	defer cancel()
+	objectCh := m.client.ListObjects(refreshCtx, m.bucketName, minio.ListObjectsOptions{Recursive: true})
+	for obj := range objectCh {
+		if obj.Err != nil {
+			return 0, 0, fmt.Errorf("failed to list objects in minio: %w", obj.Err)
+		}
+		objectCount++
+		totalBytes += obj.Size
+	}
+	m.invalidateStorageInfo()
+	return objectCount, totalBytes, nil
+}
+
 func (m *MinioService) scanStorageInfoFromMinio(ctx context.Context) (objectCount int, totalSize string, err error) {
 	var count int
 	var size int64

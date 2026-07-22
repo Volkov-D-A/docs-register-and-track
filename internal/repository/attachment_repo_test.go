@@ -39,9 +39,12 @@ func TestAttachmentRepository_Create(t *testing.T) {
 	expectedUploadedAt := time.Now()
 
 	t.Run("success", func(t *testing.T) {
+		mock.ExpectBegin()
 		mock.ExpectQuery(`INSERT INTO attachments \(document_id, filename, storage_path, file_size, content_type, uploaded_by\)`).
 			WithArgs(attachment.DocumentID, attachment.Filename, attachment.StoragePath, attachment.FileSize, attachment.ContentType, attachment.UploadedBy).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "uploaded_at"}).AddRow(expectedID, expectedUploadedAt))
+		mock.ExpectExec(`UPDATE storage_statistics`).WithArgs(attachment.FileSize).WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
 
 		err := repo.Create(attachment)
 
@@ -52,6 +55,24 @@ func TestAttachmentRepository_Create(t *testing.T) {
 	})
 }
 
+func TestAttachmentRepositoryDeleteMarkedAndDecrementStorageStatistics(t *testing.T) {
+	repo, mock := setupAttachmentRepo(t)
+	attachmentID := uuid.New()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT file_size FROM attachments WHERE id = \$1 AND deletion_requested_at IS NOT NULL FOR UPDATE`).
+		WithArgs(attachmentID).
+		WillReturnRows(sqlmock.NewRows([]string{"file_size"}).AddRow(42))
+	mock.ExpectExec(`DELETE FROM attachments WHERE id = \$1 AND deletion_requested_at IS NOT NULL`).
+		WithArgs(attachmentID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`UPDATE storage_statistics`).WithArgs(42).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	require.NoError(t, repo.DeleteMarkedAndDecrementStorageStatistics(attachmentID))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestAttachmentRepositoryCreateWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
 	repo, mock := setupAttachmentRepo(t)
 	repo.SetOutbox(NewOutboxRepository(repo.db))
@@ -60,6 +81,7 @@ func TestAttachmentRepositoryCreateWithOutboxRollsBackOnEnqueueFailure(t *testin
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO attachments`).WithArgs(attachment.DocumentID, attachment.Filename, attachment.StoragePath, attachment.FileSize, attachment.ContentType, attachment.UploadedBy).WillReturnRows(sqlmock.NewRows([]string{"id", "uploaded_at"}).AddRow(uuid.New(), time.Now()))
+	mock.ExpectExec(`UPDATE storage_statistics`).WithArgs(attachment.FileSize).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
 	mock.ExpectRollback()
 

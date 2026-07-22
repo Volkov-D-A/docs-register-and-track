@@ -50,6 +50,10 @@ type attachmentStoragePathStore interface {
 	GetAllStoragePaths() ([]string, error)
 }
 
+type attachmentStorageStatisticsFinalizer interface {
+	DeleteMarkedAndDecrementStorageStatistics(id uuid.UUID) error
+}
+
 type objectNameLister interface {
 	ListObjectNames(ctx context.Context) ([]string, error)
 }
@@ -616,6 +620,12 @@ func (s *AttachmentService) ProcessPendingDeletions(ctx context.Context) error {
 func (s *AttachmentService) finalizeDeletion(ctx context.Context, attachment models.Attachment) error {
 	if err := s.fileStorage.DeleteFile(ctx, attachment.StoragePath); err != nil {
 		return fmt.Errorf("failed to delete file from storage: %w", err)
+	}
+	if finalizer, ok := s.repo.(attachmentStorageStatisticsFinalizer); ok {
+		if err := finalizer.DeleteMarkedAndDecrementStorageStatistics(attachment.ID); err != nil {
+			return fmt.Errorf("failed to delete attachment record and update storage statistics: %w", err)
+		}
+		return nil
 	}
 	if err := s.repo.DeleteMarked(attachment.ID); err != nil {
 		return fmt.Errorf("failed to delete attachment record from db: %w", err)

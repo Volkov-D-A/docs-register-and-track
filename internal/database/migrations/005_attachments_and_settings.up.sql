@@ -21,7 +21,7 @@ CREATE INDEX idx_attachments_pending_deletion
 CREATE TABLE storage_statistics (
     id BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
     object_count BIGINT NOT NULL DEFAULT 0 CHECK (object_count >= 0),
-    total_size VARCHAR(64) NOT NULL DEFAULT 'N/A',
+    total_bytes BIGINT NOT NULL DEFAULT 0 CHECK (total_bytes >= 0),
     refreshed_at TIMESTAMP WITH TIME ZONE,
     refresh_token UUID,
     refresh_lease_until TIMESTAMP WITH TIME ZONE

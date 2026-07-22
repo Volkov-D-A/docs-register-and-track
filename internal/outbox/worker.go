@@ -189,7 +189,7 @@ func (w *Worker) process(parent context.Context, event models.OutboxEvent) error
 		if err := w.storage.DeleteFile(ctx, payload.StoragePath); err != nil {
 			return err
 		}
-		return w.attachments.DeleteMarked(payload.AttachmentID)
+		return w.attachments.DeleteMarkedAndDecrementStorageStatistics(payload.AttachmentID)
 	default:
 		return fmt.Errorf("unsupported outbox event type %q", event.EventType)
 	}

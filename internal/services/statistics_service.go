@@ -322,8 +322,11 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 				slog.Warn("failed to get persisted storage statistics", "error", err)
 			} else {
 				result.StorageObjects = snapshot.ObjectCount
-				result.StorageSize = snapshot.TotalSize
-				result.StorageRefreshedAt = snapshot.RefreshedAt
+				result.StorageSize = formatStorageSize(snapshot.TotalBytes)
+				if !snapshot.RefreshedAt.IsZero() {
+					refreshedAt := snapshot.RefreshedAt
+					result.StorageRefreshedAt = &refreshedAt
+				}
 				if snapshot.RefreshedAt.IsZero() || time.Since(snapshot.RefreshedAt) >= storageStatisticsRefreshInterval {
 					token := uuid.New()
 					started, leaseErr := s.repo.TryStartStorageStatisticsRefresh(token, time.Now().Add(storageStatisticsLeaseDuration))
@@ -347,7 +350,7 @@ func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
 	ctx, release := serviceOperationContext(s.lifecycle)
 	defer release()
 
-	objectCount, totalSize, err := s.storage.RefreshStorageInfo(ctx)
+	objectCount, totalBytes, err := s.storage.RefreshStorageUsage(ctx)
 	if err != nil {
 		slog.Warn("failed to refresh storage statistics", "error", err)
 		if releaseErr := s.repo.ReleaseStorageStatisticsRefresh(token); releaseErr != nil {
@@ -358,10 +361,28 @@ func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
 
 	if err := s.repo.SaveStorageStatisticsSnapshot(token, models.StorageStatisticsSnapshot{
 		ObjectCount: objectCount,
-		TotalSize:   totalSize,
+		TotalBytes:  totalBytes,
 		RefreshedAt: time.Now(),
 	}); err != nil {
 		slog.Warn("failed to save refreshed storage statistics", "error", err)
+	}
+}
+
+func formatStorageSize(bytes int64) string {
+	const (
+		kb = int64(1024)
+		mb = kb * 1024
+		gb = mb * 1024
+	)
+	switch {
+	case bytes >= gb:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(gb))
+	case bytes >= mb:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(mb))
+	case bytes >= kb:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(kb))
+	default:
+		return fmt.Sprintf("%d B", bytes)
 	}
 }
 

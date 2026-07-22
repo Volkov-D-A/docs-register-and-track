@@ -125,16 +125,16 @@ func (s *fakeStatisticsStore) ReleaseStorageStatisticsRefresh(_ uuid.UUID) error
 
 type fakeStatisticsStorage struct {
 	objectCount int
-	totalSize   string
+	totalBytes  int64
 	err         error
 }
 
 func (s *fakeStatisticsStorage) GetStorageInfo(ctx context.Context) (int, string, error) {
-	return s.objectCount, s.totalSize, s.err
+	return s.objectCount, formatStorageSize(s.totalBytes), s.err
 }
 
-func (s *fakeStatisticsStorage) RefreshStorageInfo(ctx context.Context) (int, string, error) {
-	return s.GetStorageInfo(ctx)
+func (s *fakeStatisticsStorage) RefreshStorageUsage(ctx context.Context) (int, int64, error) {
+	return s.objectCount, s.totalBytes, s.err
 }
 
 func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsService, *fakeStatisticsStore, *fakeStatisticsStorage, *AuthService) {
@@ -146,7 +146,7 @@ func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsSer
 	userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(permissions...))
 	store := &fakeStatisticsStore{dbSize: "42 MB"}
-	storage := &fakeStatisticsStorage{objectCount: 5, totalSize: "10 MB"}
+	storage := &fakeStatisticsStorage{objectCount: 5, totalBytes: 10 * 1024 * 1024}
 
 	return NewStatisticsService(store, auth, storage), store, storage, auth
 }
@@ -314,7 +314,7 @@ func TestStatisticsService_GetSystemStatistics(t *testing.T) {
 	store.systemUserCount = 4
 	store.systemDocumentCount = 11
 	store.dbSize = "128 MB"
-	store.storageSnapshot = models.StorageStatisticsSnapshot{ObjectCount: 9, TotalSize: "256 MB", RefreshedAt: time.Now()}
+	store.storageSnapshot = models.StorageStatisticsSnapshot{ObjectCount: 9, TotalBytes: 256 * 1024 * 1024, RefreshedAt: time.Now()}
 
 	stats, err := svc.GetSystemStatistics()
 
@@ -324,7 +324,7 @@ func TestStatisticsService_GetSystemStatistics(t *testing.T) {
 	assert.Equal(t, 11, stats.TotalDocuments)
 	assert.Equal(t, "128 MB", stats.DBSize)
 	assert.Equal(t, 9, stats.StorageObjects)
-	assert.Equal(t, "256 MB", stats.StorageSize)
+	assert.Equal(t, "256.0 MB", stats.StorageSize)
 
 	store.storageSnapshotErr = errors.New("storage failed")
 	stats, err = svc.GetSystemStatistics()
@@ -337,21 +337,21 @@ func TestStatisticsService_GetSystemStatisticsStartsStaleStorageRefreshInBackgro
 	svc, store, storage, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
 	store.storageSnapshot = models.StorageStatisticsSnapshot{
 		ObjectCount: 3,
-		TotalSize:   "3 MB",
+		TotalBytes:  3 * 1024 * 1024,
 		RefreshedAt: time.Now().Add(-storageStatisticsRefreshInterval - time.Second),
 	}
 	store.refreshLeaseGranted = true
 	storage.objectCount = 8
-	storage.totalSize = "8 MB"
+	storage.totalBytes = 8 * 1024 * 1024
 
 	stats, err := svc.GetSystemStatistics()
 
 	require.NoError(t, err)
 	assert.Equal(t, 3, stats.StorageObjects)
-	assert.Equal(t, "3 MB", stats.StorageSize)
+	assert.Equal(t, "3.0 MB", stats.StorageSize)
 	assert.True(t, stats.StorageRefreshInProgress)
 	require.Eventually(t, func() bool {
-		return store.storageSnapshot.ObjectCount == 8 && store.storageSnapshot.TotalSize == "8 MB" && !store.refreshLeaseActive
+		return store.storageSnapshot.ObjectCount == 8 && store.storageSnapshot.TotalBytes == 8*1024*1024 && !store.refreshLeaseActive
 	}, time.Second, 10*time.Millisecond)
 }
 

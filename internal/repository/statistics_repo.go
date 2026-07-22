@@ -395,10 +395,10 @@ func (r *StatisticsRepository) GetStorageStatisticsSnapshot() (models.StorageSta
 	var snapshot models.StorageStatisticsSnapshot
 	var refreshedAt sql.NullTime
 	err := r.db.QueryRow(`
-		SELECT object_count, total_size, refreshed_at
+		SELECT object_count, total_bytes, refreshed_at
 		FROM storage_statistics
 		WHERE id = true
-	`).Scan(&snapshot.ObjectCount, &snapshot.TotalSize, &refreshedAt)
+	`).Scan(&snapshot.ObjectCount, &snapshot.TotalBytes, &refreshedAt)
 	if err != nil {
 		return models.StorageStatisticsSnapshot{}, fmt.Errorf("failed to get storage statistics snapshot: %w", err)
 	}
@@ -430,10 +430,10 @@ func (r *StatisticsRepository) TryStartStorageStatisticsRefresh(token uuid.UUID,
 func (r *StatisticsRepository) SaveStorageStatisticsSnapshot(token uuid.UUID, snapshot models.StorageStatisticsSnapshot) error {
 	result, err := r.db.Exec(`
 		UPDATE storage_statistics
-		SET object_count = $1, total_size = $2, refreshed_at = $3,
+		SET object_count = $1, total_bytes = $2, refreshed_at = $3,
 			refresh_token = NULL, refresh_lease_until = NULL
 		WHERE id = true AND refresh_token = $4
-	`, snapshot.ObjectCount, snapshot.TotalSize, snapshot.RefreshedAt, token)
+	`, snapshot.ObjectCount, snapshot.TotalBytes, snapshot.RefreshedAt, token)
 	if err != nil {
 		return fmt.Errorf("failed to save storage statistics snapshot: %w", err)
 	}
@@ -445,6 +445,18 @@ func (r *StatisticsRepository) SaveStorageStatisticsSnapshot(token uuid.UUID, sn
 		return fmt.Errorf("storage statistics refresh lease was lost")
 	}
 	return nil
+}
+
+// IncrementStorageStatistics updates the shared aggregate atomically. It is
+// called inside the attachment creation transaction.
+func incrementStorageStatisticsTx(tx *sql.Tx, bytes int64) error {
+	_, err := tx.Exec(`
+		UPDATE storage_statistics
+		SET object_count = object_count + 1,
+			total_bytes = total_bytes + $1
+		WHERE id = true
+	`, bytes)
+	return err
 }
 
 func (r *StatisticsRepository) ReleaseStorageStatisticsRefresh(token uuid.UUID) error {

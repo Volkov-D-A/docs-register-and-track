@@ -71,12 +71,23 @@ func NewAttachmentRepository(db *database.DB) *AttachmentRepository {
 
 // Create сохраняет новое вложение в БД.
 func (r *AttachmentRepository) Create(a *models.Attachment) error {
-	return r.db.QueryRow(
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := tx.QueryRow(
 		`INSERT INTO attachments (document_id, filename, storage_path, file_size, content_type, uploaded_by)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, uploaded_at`,
 		a.DocumentID, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy,
-	).Scan(&a.ID, &a.UploadedAt)
+	).Scan(&a.ID, &a.UploadedAt); err != nil {
+		return err
+	}
+	if err := incrementStorageStatisticsTx(tx, a.FileSize); err != nil {
+		return fmt.Errorf("failed to increment storage statistics: %w", err)
+	}
+	return tx.Commit()
 }
 
 func (r *AttachmentRepository) CreateWithOutbox(a *models.Attachment, effects []models.OutboxEvent) error {
@@ -87,6 +98,9 @@ func (r *AttachmentRepository) CreateWithOutbox(a *models.Attachment, effects []
 	defer tx.Rollback()
 	if err := tx.QueryRow(`INSERT INTO attachments (document_id, filename, storage_path, file_size, content_type, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, uploaded_at`, a.DocumentID, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy).Scan(&a.ID, &a.UploadedAt); err != nil {
 		return err
+	}
+	if err := incrementStorageStatisticsTx(tx, a.FileSize); err != nil {
+		return fmt.Errorf("failed to increment storage statistics: %w", err)
 	}
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
 		return err
@@ -157,6 +171,37 @@ func (r *AttachmentRepository) MarkDeletingMultipleWithOutbox(attachments []mode
 func (r *AttachmentRepository) DeleteMarked(id uuid.UUID) error {
 	_, err := r.db.Exec("DELETE FROM attachments WHERE id = $1 AND deletion_requested_at IS NOT NULL", id)
 	return err
+}
+
+// DeleteMarkedAndDecrementStorageStatistics finalizes one deletion and updates
+// the aggregate in the same transaction. Retried outbox events see no marked
+// row and therefore cannot decrement the aggregate twice.
+func (r *AttachmentRepository) DeleteMarkedAndDecrementStorageStatistics(id uuid.UUID) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var size int64
+	err = tx.QueryRow(`SELECT file_size FROM attachments WHERE id = $1 AND deletion_requested_at IS NOT NULL FOR UPDATE`, id).Scan(&size)
+	if err == sql.ErrNoRows {
+		return tx.Commit()
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM attachments WHERE id = $1 AND deletion_requested_at IS NOT NULL`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`
+		UPDATE storage_statistics
+		SET object_count = GREATEST(object_count - 1, 0),
+			total_bytes = GREATEST(total_bytes - $1, 0)
+		WHERE id = true
+	`, size); err != nil {
+		return fmt.Errorf("failed to decrement storage statistics: %w", err)
+	}
+	return tx.Commit()
 }
 
 // GetByID возвращает метаданные вложения (без контента) по ID.
@@ -257,7 +302,7 @@ func (r *AttachmentRepository) GetPendingDeletion() ([]models.Attachment, error)
 }
 
 func (r *AttachmentRepository) GetAllStoragePaths() ([]string, error) {
-	rows, err := r.db.Query(`SELECT storage_path FROM attachments`)
+	rows, err := r.db.Query(`SELECT storage_path FROM attachments WHERE deletion_requested_at IS NULL`)
 	if err != nil {
 		return nil, err
 	}

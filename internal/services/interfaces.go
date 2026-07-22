@@ -266,7 +266,7 @@ type StatisticsStore interface {
 // StorageInfoProvider — интерфейс для получения информации о файловом хранилище.
 type StorageInfoProvider interface {
 	GetStorageInfo(ctx context.Context) (objectCount int, totalSize string, err error)
-	RefreshStorageInfo(ctx context.Context) (objectCount int, totalSize string, err error)
+	RefreshStorageUsage(ctx context.Context) (objectCount int, totalBytes int64, err error)
 }
 
 // JournalStore — интерфейс для работы с журналом действий.
