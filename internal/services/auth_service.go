@@ -363,7 +363,7 @@ func (s *AuthService) incrementFailedLoginAttempts(user *models.User) (int, bool
 	if name == "" {
 		name = user.Login
 	}
-	event, err := NewAdminAuditOutboxEvent("user:"+user.ID.String()+":locked", models.CreateAdminAuditLogRequest{UserID: user.ID, UserName: name, Action: "USER_LOCKED", Details: fmt.Sprintf("Пользователь «%s» (%s) автоматически заблокирован после 5 неверных попыток входа", name, user.Login)})
+	event, err := NewAdminAuditOutboxEvent("user:"+user.ID.String()+":locked:"+uuid.NewString(), models.CreateAdminAuditLogRequest{UserID: user.ID, UserName: name, Action: "USER_LOCKED", Details: fmt.Sprintf("Пользователь «%s» (%s) автоматически заблокирован после 5 неверных попыток входа", name, user.Login)})
 	if err != nil {
 		return 0, false, err
 	}

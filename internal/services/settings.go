@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
@@ -73,7 +75,7 @@ func (s *SettingsService) Update(key, value string) error {
 	if !ok {
 		return errSettingsOutboxStoreRequired
 	}
-	event, buildErr := NewAdminAuditOutboxEvent("setting:"+key+":update:"+value, models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "SETTINGS_UPDATE", Details: details})
+	event, buildErr := NewAdminAuditOutboxEvent("setting:"+key+":update:"+uuid.NewString(), models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "SETTINGS_UPDATE", Details: details})
 	if buildErr != nil {
 		return buildErr
 	}

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -24,6 +25,30 @@ func TestOutboxRepositoryEnqueueTx(t *testing.T) {
 	require.NoError(t, repo.EnqueueTx(tx, models.OutboxEvent{EventType: "user_event", DeduplicationKey: "ack:1:confirmed:2", Payload: `{"version":1}`}))
 	mock.ExpectCommit()
 	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutboxRepositoryEnqueueTxRejectsMismatchedDuplicate(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewOutboxRepository(&database.DB{DB: db})
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	require.NoError(t, err)
+	mock.ExpectExec(`INSERT INTO event_outbox`).
+		WithArgs(models.OutboxEventAudit, "duplicate-key", `{"action":"new"}`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = repo.EnqueueTx(tx, models.OutboxEvent{
+		EventType:        models.OutboxEventAudit,
+		DeduplicationKey: "duplicate-key",
+		Payload:          `{"action":"new"}`,
+	})
+	require.ErrorIs(t, err, ErrOutboxDeduplicationConflict)
+	require.True(t, errors.Is(err, ErrOutboxDeduplicationConflict))
+	mock.ExpectRollback()
+	require.NoError(t, tx.Rollback())
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

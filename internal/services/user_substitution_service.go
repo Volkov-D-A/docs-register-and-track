@@ -109,7 +109,7 @@ func (s *UserSubstitutionService) saveForPrincipal(principalID uuid.UUID, req mo
 				return nil, errUserSubstitutionOutboxStoreRequired
 			}
 			actorID, actorName := s.auth.GetCurrentAuditInfo()
-			event, buildErr := NewAdminAuditOutboxEvent("user-substitution:"+principalID.String()+":clear", models.CreateAdminAuditLogRequest{UserID: actorID, UserName: actorName, Action: "USER_SUBSTITUTION_UPDATE", Details: fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName)})
+			event, buildErr := NewAdminAuditOutboxEvent("user-substitution:"+principalID.String()+":clear:"+uuid.NewString(), models.CreateAdminAuditLogRequest{UserID: actorID, UserName: actorName, Action: "USER_SUBSTITUTION_UPDATE", Details: fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName)})
 			if buildErr != nil {
 				return nil, buildErr
 			}

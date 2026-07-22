@@ -16,6 +16,11 @@ import (
 // succeeding without its required side effects.
 var ErrOutboxNotConfigured = errors.New("outbox repository is not configured")
 
+// ErrOutboxDeduplicationConflict indicates that a producer reused an
+// idempotency key for a different event. Silently accepting such a collision
+// would commit the business change without its required side effect.
+var ErrOutboxDeduplicationConflict = errors.New("outbox deduplication key belongs to a different event")
+
 // OutboxRepository persists side-effect requests in the same transaction as
 // their business change. Delivery is implemented separately by a worker.
 type OutboxRepository struct{ db *database.DB }
@@ -44,10 +49,24 @@ func (r *OutboxRepository) EnqueueTx(tx *sql.Tx, event models.OutboxEvent) error
 	if event.EventType == "" || event.DeduplicationKey == "" || event.Payload == "" {
 		return fmt.Errorf("outbox event type, deduplication key and payload are required")
 	}
-	_, err := tx.Exec(`INSERT INTO event_outbox (event_type, deduplication_key, payload)
-		VALUES ($1, $2, $3::jsonb) ON CONFLICT (deduplication_key) DO NOTHING`,
+	result, err := tx.Exec(`INSERT INTO event_outbox (event_type, deduplication_key, payload)
+		VALUES ($1, $2, $3::jsonb)
+		ON CONFLICT (deduplication_key) DO UPDATE
+		SET deduplication_key = EXCLUDED.deduplication_key
+		WHERE event_outbox.event_type = EXCLUDED.event_type
+		  AND event_outbox.payload = EXCLUDED.payload`,
 		event.EventType, event.DeduplicationKey, event.Payload)
-	return err
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read outbox enqueue result: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("%w: %s", ErrOutboxDeduplicationConflict, event.DeduplicationKey)
+	}
+	return nil
 }
 
 func (r *OutboxRepository) Enqueue(event models.OutboxEvent) error {
