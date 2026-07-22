@@ -183,6 +183,13 @@ func (m *MinioService) GetStorageInfo(ctx context.Context) (objectCount int, tot
 	}
 }
 
+// RefreshStorageInfo invalidates this process's short-lived cache and performs
+// a new bucket scan. Cross-process coordination is handled by the caller.
+func (m *MinioService) RefreshStorageInfo(ctx context.Context) (objectCount int, totalSize string, err error) {
+	m.invalidateStorageInfo()
+	return m.GetStorageInfo(ctx)
+}
+
 func (m *MinioService) scanStorageInfoFromMinio(ctx context.Context) (objectCount int, totalSize string, err error) {
 	var count int
 	var size int64

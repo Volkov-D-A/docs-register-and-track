@@ -17,6 +17,11 @@ import (
 // whole database pool (which is intentionally small for the desktop app).
 const statisticsQueryConcurrency = 2
 
+const (
+	storageStatisticsRefreshInterval = 24 * time.Hour
+	storageStatisticsLeaseDuration   = 2 * time.Minute
+)
+
 // StatisticsService предоставляет бизнес-логику раздела статистики.
 type StatisticsService struct {
 	repo      StatisticsStore
@@ -291,9 +296,6 @@ func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStat
 // GetSystemStatistics возвращает системную статистику.
 func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, error) {
 	return measureOperation(s.metrics, "statistics.get_system", func() (*models.SystemStatistics, error) {
-		ctx, release := serviceOperationContext(s.lifecycle)
-		defer release()
-
 		if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
 			return nil, err
 		}
@@ -315,17 +317,52 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 		}
 
 		if s.storage != nil {
-			objectCount, totalSize, err := s.storage.GetStorageInfo(ctx)
+			snapshot, err := s.repo.GetStorageStatisticsSnapshot()
 			if err != nil {
-				slog.Warn("failed to get storage statistics", "error", err)
+				slog.Warn("failed to get persisted storage statistics", "error", err)
 			} else {
-				result.StorageObjects = objectCount
-				result.StorageSize = totalSize
+				result.StorageObjects = snapshot.ObjectCount
+				result.StorageSize = snapshot.TotalSize
+				result.StorageRefreshedAt = snapshot.RefreshedAt
+				if snapshot.RefreshedAt.IsZero() || time.Since(snapshot.RefreshedAt) >= storageStatisticsRefreshInterval {
+					token := uuid.New()
+					started, leaseErr := s.repo.TryStartStorageStatisticsRefresh(token, time.Now().Add(storageStatisticsLeaseDuration))
+					if leaseErr != nil {
+						slog.Warn("failed to start storage statistics refresh", "error", leaseErr)
+					} else {
+						result.StorageRefreshInProgress = true
+						if started {
+							go s.refreshStorageStatistics(token)
+						}
+					}
+				}
 			}
 		}
 
 		return result, nil
 	})
+}
+
+func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+
+	objectCount, totalSize, err := s.storage.RefreshStorageInfo(ctx)
+	if err != nil {
+		slog.Warn("failed to refresh storage statistics", "error", err)
+		if releaseErr := s.repo.ReleaseStorageStatisticsRefresh(token); releaseErr != nil {
+			slog.Warn("failed to release storage statistics refresh lease", "error", releaseErr)
+		}
+		return
+	}
+
+	if err := s.repo.SaveStorageStatisticsSnapshot(token, models.StorageStatisticsSnapshot{
+		ObjectCount: objectCount,
+		TotalSize:   totalSize,
+		RefreshedAt: time.Now(),
+	}); err != nil {
+		slog.Warn("failed to save refreshed storage statistics", "error", err)
+	}
 }
 
 func (s *StatisticsService) requirePermission(permission string) error {

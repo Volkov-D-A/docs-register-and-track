@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // StatisticsOption описывает пункт фильтра для статистических отчетов.
 type StatisticsOption struct {
 	Value string `json:"value"`
@@ -80,9 +82,19 @@ type AssignmentStatisticsReport struct {
 
 // SystemStatistics описывает системную статистику.
 type SystemStatistics struct {
-	UserCount      int    `json:"userCount"`
-	TotalDocuments int    `json:"totalDocuments"`
-	DBSize         string `json:"dbSize"`
-	StorageObjects int    `json:"storageObjects"`
-	StorageSize    string `json:"storageSize"`
+	UserCount                int       `json:"userCount"`
+	TotalDocuments           int       `json:"totalDocuments"`
+	DBSize                   string    `json:"dbSize"`
+	StorageObjects           int       `json:"storageObjects"`
+	StorageSize              string    `json:"storageSize"`
+	StorageRefreshedAt       time.Time `json:"storageRefreshedAt"`
+	StorageRefreshInProgress bool      `json:"storageRefreshInProgress"`
+}
+
+// StorageStatisticsSnapshot is the persisted result of the last complete
+// object-storage scan. The lease fields are intentionally not exposed to UI.
+type StorageStatisticsSnapshot struct {
+	ObjectCount int
+	TotalSize   string
+	RefreshedAt time.Time
 }

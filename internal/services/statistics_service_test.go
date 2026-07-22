@@ -30,6 +30,10 @@ type fakeStatisticsStore struct {
 	systemUserCount     int
 	systemDocumentCount int
 	dbSize              string
+	storageSnapshot     models.StorageStatisticsSnapshot
+	refreshLeaseGranted bool
+	refreshLeaseActive  bool
+	storageSnapshotErr  error
 	err                 error
 
 	lastDocumentReportGroupBy string
@@ -96,6 +100,29 @@ func (s *fakeStatisticsStore) GetDBSize() string {
 	return s.dbSize
 }
 
+func (s *fakeStatisticsStore) GetStorageStatisticsSnapshot() (models.StorageStatisticsSnapshot, error) {
+	return s.storageSnapshot, s.storageSnapshotErr
+}
+
+func (s *fakeStatisticsStore) TryStartStorageStatisticsRefresh(_ uuid.UUID, _ time.Time) (bool, error) {
+	if s.err != nil || !s.refreshLeaseGranted || s.refreshLeaseActive {
+		return false, s.err
+	}
+	s.refreshLeaseActive = true
+	return true, nil
+}
+
+func (s *fakeStatisticsStore) SaveStorageStatisticsSnapshot(_ uuid.UUID, snapshot models.StorageStatisticsSnapshot) error {
+	s.storageSnapshot = snapshot
+	s.refreshLeaseActive = false
+	return s.err
+}
+
+func (s *fakeStatisticsStore) ReleaseStorageStatisticsRefresh(_ uuid.UUID) error {
+	s.refreshLeaseActive = false
+	return s.err
+}
+
 type fakeStatisticsStorage struct {
 	objectCount int
 	totalSize   string
@@ -104,6 +131,10 @@ type fakeStatisticsStorage struct {
 
 func (s *fakeStatisticsStorage) GetStorageInfo(ctx context.Context) (int, string, error) {
 	return s.objectCount, s.totalSize, s.err
+}
+
+func (s *fakeStatisticsStorage) RefreshStorageInfo(ctx context.Context) (int, string, error) {
+	return s.GetStorageInfo(ctx)
 }
 
 func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsService, *fakeStatisticsStore, *fakeStatisticsStorage, *AuthService) {
@@ -279,12 +310,11 @@ func TestStatisticsService_GetAssignmentReportAndFilters(t *testing.T) {
 }
 
 func TestStatisticsService_GetSystemStatistics(t *testing.T) {
-	svc, store, storage, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
+	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
 	store.systemUserCount = 4
 	store.systemDocumentCount = 11
 	store.dbSize = "128 MB"
-	storage.objectCount = 9
-	storage.totalSize = "256 MB"
+	store.storageSnapshot = models.StorageStatisticsSnapshot{ObjectCount: 9, TotalSize: "256 MB", RefreshedAt: time.Now()}
 
 	stats, err := svc.GetSystemStatistics()
 
@@ -296,11 +326,33 @@ func TestStatisticsService_GetSystemStatistics(t *testing.T) {
 	assert.Equal(t, 9, stats.StorageObjects)
 	assert.Equal(t, "256 MB", stats.StorageSize)
 
-	storage.err = errors.New("storage failed")
+	store.storageSnapshotErr = errors.New("storage failed")
 	stats, err = svc.GetSystemStatistics()
 	require.NoError(t, err)
 	assert.Equal(t, "N/A", stats.StorageSize)
 	assert.Zero(t, stats.StorageObjects)
+}
+
+func TestStatisticsService_GetSystemStatisticsStartsStaleStorageRefreshInBackground(t *testing.T) {
+	svc, store, storage, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
+	store.storageSnapshot = models.StorageStatisticsSnapshot{
+		ObjectCount: 3,
+		TotalSize:   "3 MB",
+		RefreshedAt: time.Now().Add(-storageStatisticsRefreshInterval - time.Second),
+	}
+	store.refreshLeaseGranted = true
+	storage.objectCount = 8
+	storage.totalSize = "8 MB"
+
+	stats, err := svc.GetSystemStatistics()
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, stats.StorageObjects)
+	assert.Equal(t, "3 MB", stats.StorageSize)
+	assert.True(t, stats.StorageRefreshInProgress)
+	require.Eventually(t, func() bool {
+		return store.storageSnapshot.ObjectCount == 8 && store.storageSnapshot.TotalSize == "8 MB" && !store.refreshLeaseActive
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestParseStatisticsDateRange(t *testing.T) {

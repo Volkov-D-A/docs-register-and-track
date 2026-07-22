@@ -17,7 +17,19 @@ CREATE INDEX idx_attachments_pending_deletion
     ON attachments (deletion_requested_at)
     WHERE deletion_requested_at IS NOT NULL;
 
--- 13. System Settings
+-- 13. Cached Storage Statistics
+CREATE TABLE storage_statistics (
+    id BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+    object_count BIGINT NOT NULL DEFAULT 0 CHECK (object_count >= 0),
+    total_size VARCHAR(64) NOT NULL DEFAULT 'N/A',
+    refreshed_at TIMESTAMP WITH TIME ZONE,
+    refresh_token UUID,
+    refresh_lease_until TIMESTAMP WITH TIME ZONE
+);
+
+INSERT INTO storage_statistics (id) VALUES (true);
+
+-- 14. System Settings
 CREATE TABLE IF NOT EXISTS system_settings (
     key VARCHAR(100) PRIMARY KEY,
     value TEXT NOT NULL,

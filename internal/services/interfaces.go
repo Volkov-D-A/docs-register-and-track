@@ -257,11 +257,16 @@ type StatisticsStore interface {
 	GetSystemUserCount() (int, error)
 	GetSystemDocumentCount() (int, error)
 	GetDBSize() string
+	GetStorageStatisticsSnapshot() (models.StorageStatisticsSnapshot, error)
+	TryStartStorageStatisticsRefresh(token uuid.UUID, leaseUntil time.Time) (bool, error)
+	SaveStorageStatisticsSnapshot(token uuid.UUID, snapshot models.StorageStatisticsSnapshot) error
+	ReleaseStorageStatisticsRefresh(token uuid.UUID) error
 }
 
 // StorageInfoProvider — интерфейс для получения информации о файловом хранилище.
 type StorageInfoProvider interface {
 	GetStorageInfo(ctx context.Context) (objectCount int, totalSize string, err error)
+	RefreshStorageInfo(ctx context.Context) (objectCount int, totalSize string, err error)
 }
 
 // JournalStore — интерфейс для работы с журналом действий.

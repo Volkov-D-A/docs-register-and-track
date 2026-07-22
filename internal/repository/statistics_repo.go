@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
@@ -386,6 +388,75 @@ func (r *StatisticsRepository) GetDBSize() string {
 		return "N/A"
 	}
 	return size
+}
+
+// GetStorageStatisticsSnapshot returns the last complete MinIO bucket scan.
+func (r *StatisticsRepository) GetStorageStatisticsSnapshot() (models.StorageStatisticsSnapshot, error) {
+	var snapshot models.StorageStatisticsSnapshot
+	var refreshedAt sql.NullTime
+	err := r.db.QueryRow(`
+		SELECT object_count, total_size, refreshed_at
+		FROM storage_statistics
+		WHERE id = true
+	`).Scan(&snapshot.ObjectCount, &snapshot.TotalSize, &refreshedAt)
+	if err != nil {
+		return models.StorageStatisticsSnapshot{}, fmt.Errorf("failed to get storage statistics snapshot: %w", err)
+	}
+	if refreshedAt.Valid {
+		snapshot.RefreshedAt = refreshedAt.Time
+	}
+	return snapshot, nil
+}
+
+// TryStartStorageStatisticsRefresh obtains a database-backed lease, so only
+// one desktop instance can scan the bucket at a time.
+func (r *StatisticsRepository) TryStartStorageStatisticsRefresh(token uuid.UUID, leaseUntil time.Time) (bool, error) {
+	result, err := r.db.Exec(`
+		UPDATE storage_statistics
+		SET refresh_token = $1, refresh_lease_until = $2
+		WHERE id = true
+		  AND (refresh_lease_until IS NULL OR refresh_lease_until < CURRENT_TIMESTAMP)
+	`, token, leaseUntil)
+	if err != nil {
+		return false, fmt.Errorf("failed to acquire storage statistics refresh lease: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to check storage statistics refresh lease: %w", err)
+	}
+	return affected == 1, nil
+}
+
+func (r *StatisticsRepository) SaveStorageStatisticsSnapshot(token uuid.UUID, snapshot models.StorageStatisticsSnapshot) error {
+	result, err := r.db.Exec(`
+		UPDATE storage_statistics
+		SET object_count = $1, total_size = $2, refreshed_at = $3,
+			refresh_token = NULL, refresh_lease_until = NULL
+		WHERE id = true AND refresh_token = $4
+	`, snapshot.ObjectCount, snapshot.TotalSize, snapshot.RefreshedAt, token)
+	if err != nil {
+		return fmt.Errorf("failed to save storage statistics snapshot: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to confirm storage statistics snapshot save: %w", err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("storage statistics refresh lease was lost")
+	}
+	return nil
+}
+
+func (r *StatisticsRepository) ReleaseStorageStatisticsRefresh(token uuid.UUID) error {
+	_, err := r.db.Exec(`
+		UPDATE storage_statistics
+		SET refresh_token = NULL, refresh_lease_until = NULL
+		WHERE id = true AND refresh_token = $1
+	`, token)
+	if err != nil {
+		return fmt.Errorf("failed to release storage statistics refresh lease: %w", err)
+	}
+	return nil
 }
 
 func scanOptions(rows *sql.Rows) ([]models.StatisticsOption, error) {

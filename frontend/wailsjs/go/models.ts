@@ -2330,6 +2330,8 @@ export namespace models {
 	    dbSize: string;
 	    storageObjects: number;
 	    storageSize: string;
+	    storageRefreshedAt: any;
+	    storageRefreshInProgress: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SystemStatistics(source);
@@ -2342,6 +2344,8 @@ export namespace models {
 	        this.dbSize = source["dbSize"];
 	        this.storageObjects = source["storageObjects"];
 	        this.storageSize = source["storageSize"];
+	        this.storageRefreshedAt = source["storageRefreshedAt"];
+	        this.storageRefreshInProgress = source["storageRefreshInProgress"];
 	    }
 	}
 	export class UpdateProfileRequest {
@@ -2600,4 +2604,3 @@ export namespace services {
 	}
 
 }
-
