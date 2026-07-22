@@ -4,8 +4,12 @@ CREATE TABLE IF NOT EXISTS document_journal (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     action VARCHAR(100) NOT NULL, -- 'CREATE', 'UPDATE', 'DELETE', 'STATUS_CHANGE', etc.
     details TEXT,
+    outbox_deduplication_key VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_document_journal_doc_id ON document_journal(document_id);
 CREATE INDEX IF NOT EXISTS idx_document_journal_created_at ON document_journal(created_at DESC);
+CREATE UNIQUE INDEX idx_document_journal_outbox_dedup
+    ON document_journal (outbox_deduplication_key)
+    WHERE outbox_deduplication_key IS NOT NULL;

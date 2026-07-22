@@ -33,6 +33,9 @@ CREATE UNIQUE INDEX idx_documents_kind_registration_number_year
     ON documents (kind, registration_number, EXTRACT(YEAR FROM registration_date));
 CREATE INDEX idx_documents_created_at ON documents (created_at);
 CREATE INDEX idx_documents_kind_created_at ON documents (kind, created_at DESC);
+-- Matches the actual document-list scope and ORDER BY created_at DESC.
+CREATE INDEX idx_documents_kind_nomenclature_created_at
+    ON documents (kind, nomenclature_id, created_at DESC);
 CREATE UNIQUE INDEX idx_documents_created_by_kind_idempotency
     ON documents (created_by, kind, idempotency_key);
 

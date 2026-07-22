@@ -1,3 +1,5 @@
+DROP INDEX IF EXISTS idx_documents_kind_nomenclature_created_at;
+
 DROP TABLE IF EXISTS document_links;
 
 DROP TABLE IF EXISTS administrative_order_acknowledgment_people;

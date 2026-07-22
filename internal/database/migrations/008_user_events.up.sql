@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS user_events (
     title TEXT NOT NULL,
     message TEXT NOT NULL,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    outbox_deduplication_key VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     read_at TIMESTAMP WITH TIME ZONE
 );
@@ -28,3 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_user_events_entity
 CREATE INDEX IF NOT EXISTS idx_user_events_document_recipient_unread
     ON user_events (document_id, recipient_user_id)
     WHERE read_at IS NULL;
+
+CREATE UNIQUE INDEX idx_user_events_outbox_deduplication
+    ON user_events (outbox_deduplication_key)
+    WHERE outbox_deduplication_key IS NOT NULL;

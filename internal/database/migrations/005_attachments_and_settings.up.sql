@@ -7,10 +7,15 @@ CREATE TABLE IF NOT EXISTS attachments (
     content_type VARCHAR(100),
     storage_path VARCHAR(512) NOT NULL,
     uploaded_by UUID NOT NULL REFERENCES users (id),
-    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    -- Durable deletion intent while the object is removed from MinIO.
+    deletion_requested_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX idx_attachments_document ON attachments (document_id);
+CREATE INDEX idx_attachments_pending_deletion
+    ON attachments (deletion_requested_at)
+    WHERE deletion_requested_at IS NOT NULL;
 
 -- 13. System Settings
 CREATE TABLE IF NOT EXISTS system_settings (

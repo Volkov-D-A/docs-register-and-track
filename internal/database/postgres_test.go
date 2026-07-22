@@ -201,11 +201,11 @@ func TestDB_MigratorCloseKeepsSharedDatabaseOpen(t *testing.T) {
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	total, err := countAvailableMigrations(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 16, total)
+	assert.Equal(t, 10, total)
 }
 
 func TestActiveAdministratorInvariantMigration(t *testing.T) {
-	migration, err := embeddedMigrations.ReadFile("migrations/010_active_admin_invariant.up.sql")
+	migration, err := embeddedMigrations.ReadFile("migrations/001_core_users.up.sql")
 	require.NoError(t, err)
 	sql := string(migration)
 
