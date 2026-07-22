@@ -29,6 +29,10 @@ const MigrationsTab: React.FC = () => {
 
   useEffect(() => { void loadStatus(); }, [loadStatus]);
 
+  const schemaNeedsUpdate = Boolean(
+    status && !status.upToDate && !status.schemaTooNew && !status.dirty,
+  );
+
   const onRunMigrations = () => {
     if (running) {
       return;
@@ -77,7 +81,7 @@ const MigrationsTab: React.FC = () => {
         acknowledgedDataLoss: values.acknowledgedDataLoss,
         confirmation: values.confirmation,
       });
-      message.success('Откат миграции выполнен');
+      message.warning('Откат выполнен. Обычная работа заблокирована до повторного применения миграций.');
       setRollbackModalOpen(false);
       await loadStatus();
     } catch (error: unknown) {
@@ -129,6 +133,11 @@ const MigrationsTab: React.FC = () => {
                 <Tag icon={<WarningOutlined />} color="warning">Требуется обновление</Tag>
               )}
             </div>
+            {schemaNeedsUpdate ? (
+              <Typography.Text type="warning">
+                Прикладные операции заблокированы до применения доступных миграций.
+              </Typography.Text>
+            ) : null}
           </Space>
         ) : (
           <Typography.Text type="secondary">Не удалось получить статус</Typography.Text>
@@ -150,7 +159,7 @@ const MigrationsTab: React.FC = () => {
           icon={<DeleteOutlined />}
           onClick={onRollback}
           loading={rollingBack}
-          disabled={!status?.currentVersion || status?.schemaTooNew}
+          disabled={!status?.currentVersion || !status?.upToDate}
         >
           Откатить последнюю миграцию
         </Button>

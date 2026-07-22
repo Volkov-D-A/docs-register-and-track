@@ -78,10 +78,6 @@ export function SetOperationMetrics(arg1) {
   return window['go']['services']['AuthService']['SetOperationMetrics'](arg1);
 }
 
-export function SetSchemaReadyCallback(arg1) {
-  return window['go']['services']['AuthService']['SetSchemaReadyCallback'](arg1);
-}
-
 export function SetSettingsStore(arg1) {
   return window['go']['services']['AuthService']['SetSettingsStore'](arg1);
 }

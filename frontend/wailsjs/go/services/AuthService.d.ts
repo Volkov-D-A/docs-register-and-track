@@ -44,8 +44,6 @@ export function SetAccessStore(arg1:services.DocumentAccessStore):Promise<void>;
 
 export function SetOperationMetrics(arg1:observability.Registry):Promise<void>;
 
-export function SetSchemaReadyCallback(arg1:any):Promise<void>;
-
 export function SetSettingsStore(arg1:services.SettingsStore):Promise<void>;
 
 export function UpdateProfile(arg1:models.UpdateProfileRequest):Promise<void>;

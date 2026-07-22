@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -14,11 +15,20 @@ const rollbackMigrationConfirmationPhrase = "ОТКАТ МИГРАЦИИ"
 
 // SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {
-	db           *database.DB
-	repo         SettingsStore
-	authService  *AuthService
-	auditService *AdminAuditLogService
+	db              migrationDatabase
+	repo            SettingsStore
+	authService     *AuthService
+	auditService    *AdminAuditLogService
+	schemaLifecycle SchemaLifecycle
+	migrationMu     sync.Mutex
 }
+
+type migrationDatabase interface {
+	RunMigrations(string) error
+	GetMigrationStatus(string) (*database.MigrationStatus, error)
+	RollbackMigration(string) error
+}
+
 type settingsOutboxStore interface {
 	UpdateWithOutbox(string, string, []models.OutboxEvent) error
 }
@@ -26,7 +36,7 @@ type settingsOutboxStore interface {
 var errSettingsOutboxStoreRequired = errors.New("settings store must support atomic outbox operations")
 
 // NewSettingsService создает новый экземпляр SettingsService.
-func NewSettingsService(db *database.DB, repo SettingsStore, authService *AuthService, auditService *AdminAuditLogService) *SettingsService {
+func NewSettingsService(db migrationDatabase, repo SettingsStore, authService *AuthService, auditService *AdminAuditLogService) *SettingsService {
 	return &SettingsService{
 		db:           db,
 		repo:         repo,
@@ -87,7 +97,10 @@ func validateSystemSettingValue(key, value string) error {
 
 // RunMigrations запускает миграции БД (только admin).
 func (s *SettingsService) RunMigrations() error {
-	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+	s.migrationMu.Lock()
+	defer s.migrationMu.Unlock()
+
+	if err := s.authService.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для управления миграциями")
 	}
 	if err := s.db.RunMigrations(database.DefaultMigrationsPath); err != nil {
@@ -96,12 +109,15 @@ func (s *SettingsService) RunMigrations() error {
 
 	userID, userName := s.authService.GetCurrentAuditInfo()
 	s.auditService.LogAction(userID, userName, "MIGRATION_RUN", "Применены миграции БД")
+	if s.schemaLifecycle != nil {
+		s.schemaLifecycle.ReconcileSchema()
+	}
 	return nil
 }
 
 // GetMigrationStatus возвращает текущий статус миграций БД (только admin).
 func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error) {
-	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+	if err := s.authService.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
 		return nil, models.NewForbidden("Недостаточно прав для просмотра статуса миграций")
 	}
 	return s.db.GetMigrationStatus(database.DefaultMigrationsPath)
@@ -109,12 +125,29 @@ func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error
 
 // RollbackMigration откатывает последнюю миграцию БД (только admin).
 func (s *SettingsService) RollbackMigration(req models.RollbackMigrationRequest) error {
-	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+	s.migrationMu.Lock()
+	defer s.migrationMu.Unlock()
+
+	if err := s.authService.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для отката миграций")
 	}
 	if err := validateRollbackMigrationRequest(req); err != nil {
 		return err
 	}
+	if s.schemaLifecycle != nil {
+		if err := s.schemaLifecycle.CheckReady(); err != nil {
+			return err
+		}
+		if err := s.schemaLifecycle.PrepareRollback(); err != nil {
+			return models.NewConflictWrapped("Не удалось остановить фоновые процессы перед откатом миграции", err)
+		}
+	}
+	rollbackSucceeded := false
+	defer func() {
+		if s.schemaLifecycle != nil {
+			s.schemaLifecycle.CompleteRollback(rollbackSucceeded)
+		}
+	}()
 
 	userID, userName := s.authService.GetCurrentAuditInfo()
 	s.auditService.LogAction(
@@ -129,6 +162,7 @@ func (s *SettingsService) RollbackMigration(req models.RollbackMigrationRequest)
 	}
 
 	s.auditService.LogAction(userID, userName, "MIGRATION_ROLLBACK", fmt.Sprintf("Откачена последняя миграция БД; backup: %s", strings.TrimSpace(req.BackupReference)))
+	rollbackSucceeded = true
 	return nil
 }
 

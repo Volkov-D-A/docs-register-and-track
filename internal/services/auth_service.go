@@ -30,14 +30,14 @@ var (
 
 // AuthService предоставляет бизнес-логику для аутентификации и авторизации пользователей.
 type AuthService struct {
-	db            *database.DB
-	userRepo      UserStore
-	settingsRepo  SettingsStore
-	accessRepo    DocumentAccessStore
-	currentUserID uuid.UUID
-	mu            sync.RWMutex
-	metrics       *observability.Registry
-	onSchemaReady func()
+	db              *database.DB
+	userRepo        UserStore
+	settingsRepo    SettingsStore
+	accessRepo      DocumentAccessStore
+	currentUserID   uuid.UUID
+	mu              sync.RWMutex
+	metrics         *observability.Registry
+	schemaLifecycle SchemaLifecycle
 }
 type userLockOutboxStore interface {
 	IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error)
@@ -62,10 +62,6 @@ func (s *AuthService) SetSettingsStore(settingsRepo SettingsStore) {
 }
 
 func (s *AuthService) SetOperationMetrics(metrics *observability.Registry) { s.metrics = metrics }
-
-// SetSchemaReadyCallback registers startup work that depends on migrations.
-// It is invoked only after InitialSetup has created the initial administrator.
-func (s *AuthService) SetSchemaReadyCallback(callback func()) { s.onSchemaReady = callback }
 
 // isTableNotExistsError проверяет, является ли ошибка «таблица не существует» (PostgreSQL 42P01).
 func isTableNotExistsError(err error) bool {
@@ -204,6 +200,9 @@ func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 // GetCurrentUserUUID возвращает ID активного текущего пользователя.
 // При удалении или деактивации пользователя локальная сессия отзывается.
 func (s *AuthService) GetCurrentUserUUID() (uuid.UUID, error) {
+	if err := s.checkSchemaReady(); err != nil {
+		return uuid.Nil, err
+	}
 	principal, err := s.getActiveSessionPrincipal()
 	if err != nil {
 		return uuid.Nil, err
@@ -214,8 +213,18 @@ func (s *AuthService) GetCurrentUserUUID() (uuid.UUID, error) {
 // RequireAuthenticated проверяет, что текущая сессия принадлежит активному пользователю.
 // Используется на границах защищённых операций, где недостаточно наличия UUID в памяти.
 func (s *AuthService) RequireAuthenticated() error {
+	if err := s.checkSchemaReady(); err != nil {
+		return err
+	}
 	_, err := s.getActiveSessionPrincipal()
 	return err
+}
+
+func (s *AuthService) checkSchemaReady() error {
+	if s.schemaLifecycle == nil {
+		return nil
+	}
+	return s.schemaLifecycle.CheckReady()
 }
 
 func (s *AuthService) getActiveSessionPrincipal() (*models.SessionPrincipal, error) {
@@ -433,6 +442,13 @@ func (s *AuthService) HasSystemPermissionFor(userID uuid.UUID, permission string
 
 // RequireSystemPermission возвращает nil если у текущего пользователя есть указанное системное право.
 func (s *AuthService) RequireSystemPermission(permission string) error {
+	if err := s.checkSchemaReady(); err != nil {
+		return err
+	}
+	return s.requireSystemPermissionWithoutSchemaCheck(permission)
+}
+
+func (s *AuthService) requireSystemPermissionWithoutSchemaCheck(permission string) error {
 	principal, err := s.getActiveSessionPrincipal()
 	if err != nil {
 		return err
@@ -459,6 +475,9 @@ func (s *AuthService) HasAnySystemPermission(permissions ...string) bool {
 
 // RequireAnySystemPermission возвращает nil если у текущего пользователя есть хотя бы одно системное право.
 func (s *AuthService) RequireAnySystemPermission(permissions ...string) error {
+	if err := s.checkSchemaReady(); err != nil {
+		return err
+	}
 	principal, err := s.getActiveSessionPrincipal()
 	if err != nil {
 		return err
@@ -526,8 +545,8 @@ func (s *AuthService) InitialSetup(password string) error {
 		}
 		return fmt.Errorf("ошибка создания администратора: %w", err)
 	}
-	if s.onSchemaReady != nil {
-		s.onSchemaReady()
+	if s.schemaLifecycle != nil {
+		s.schemaLifecycle.ReconcileSchema()
 	}
 
 	return nil

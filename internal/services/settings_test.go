@@ -519,6 +519,44 @@ func TestSettingsService_RunMigrations(t *testing.T) {
 	})
 }
 
+func TestSettingsService_RunMigrationsReconcilesSchemaLifecycle(t *testing.T) {
+	t.Run("successful migration", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		db := &fakeMigrationDatabase{}
+		lifecycle := &fakeSchemaLifecycle{}
+		svc.db = db
+		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+
+		require.NoError(t, svc.RunMigrations())
+		assert.Equal(t, 1, db.runCalls)
+		assert.Equal(t, 1, lifecycle.reconcileCalls)
+	})
+
+	t.Run("failed migration", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		db := &fakeMigrationDatabase{runErr: assert.AnError}
+		lifecycle := &fakeSchemaLifecycle{}
+		svc.db = db
+		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+
+		require.Error(t, svc.RunMigrations())
+		assert.Equal(t, 1, db.runCalls)
+		assert.Zero(t, lifecycle.reconcileCalls)
+	})
+
+	t.Run("forbidden migration", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "executor")
+		db := &fakeMigrationDatabase{}
+		lifecycle := &fakeSchemaLifecycle{}
+		svc.db = db
+		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+
+		require.Error(t, svc.RunMigrations())
+		assert.Zero(t, db.runCalls)
+		assert.Zero(t, lifecycle.reconcileCalls)
+	})
+}
+
 func TestSettingsService_GetMigrationStatus(t *testing.T) {
 	// Получение состояния всех миграций базы данных
 	t.Run("forbidden non-admin", func(t *testing.T) {
@@ -591,5 +629,65 @@ func TestSettingsService_RollbackMigration(t *testing.T) {
 		if err != nil {
 			assert.NotContains(t, err.Error(), "Недостаточно прав")
 		}
+	})
+}
+
+func TestSettingsService_RollbackCoordinatesSchemaLifecycle(t *testing.T) {
+	validReq := models.RollbackMigrationRequest{
+		BackupCompleted:      true,
+		BackupReference:      "smb://backup/docflow/2026-07-22_120000.tar",
+		AcknowledgedDataLoss: true,
+		Confirmation:         rollbackMigrationConfirmationPhrase,
+	}
+
+	t.Run("successful rollback", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		db := &fakeMigrationDatabase{}
+		lifecycle := &fakeSchemaLifecycle{}
+		svc.db = db
+		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+
+		require.NoError(t, svc.RollbackMigration(validReq))
+		assert.Equal(t, 1, lifecycle.prepareCalls)
+		assert.Equal(t, 1, db.rollbackCalls)
+		assert.Equal(t, []bool{true}, lifecycle.completeResults)
+	})
+
+	t.Run("worker stop failure prevents rollback", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		db := &fakeMigrationDatabase{}
+		lifecycle := &fakeSchemaLifecycle{prepareRollbackErr: assert.AnError}
+		svc.db = db
+		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+
+		require.Error(t, svc.RollbackMigration(validReq))
+		assert.Equal(t, 1, lifecycle.prepareCalls)
+		assert.Zero(t, db.rollbackCalls)
+		assert.Empty(t, lifecycle.completeResults)
+	})
+
+	t.Run("failed rollback restores lifecycle", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		db := &fakeMigrationDatabase{rollbackErr: assert.AnError}
+		lifecycle := &fakeSchemaLifecycle{}
+		svc.db = db
+		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+
+		require.Error(t, svc.RollbackMigration(validReq))
+		assert.Equal(t, 1, lifecycle.prepareCalls)
+		assert.Equal(t, 1, db.rollbackCalls)
+		assert.Equal(t, []bool{false}, lifecycle.completeResults)
+	})
+
+	t.Run("maintenance mode prevents another rollback", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		db := &fakeMigrationDatabase{}
+		lifecycle := &fakeSchemaLifecycle{checkReadyErr: models.NewConflict("schema maintenance")}
+		svc.db = db
+		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+
+		require.Error(t, svc.RollbackMigration(validReq))
+		assert.Zero(t, lifecycle.prepareCalls)
+		assert.Zero(t, db.rollbackCalls)
 	})
 }

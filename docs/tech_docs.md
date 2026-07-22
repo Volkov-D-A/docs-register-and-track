@@ -190,8 +190,12 @@ Production error envelope для frontend:
 
 - migrations лежат в `internal/database/migrations`;
 - runtime UI migration management сохраняется в production для пользователя с `admin`;
+- schema-dependent background services запускаются общим lifecycle только при `UpToDate` и совместимой схеме;
+- успешный запуск миграций повторно сверяет схему и запускает outbox worker без перезапуска приложения;
 - rollback считается destructive operation;
 - rollback требует fresh PostgreSQL+MinIO backup, backup reference, data-loss acknowledgment, control phrase and audit entries;
+- перед rollback schema-dependent worker останавливается, а обычные защищённые операции блокируются до успешного повторного применения миграций;
+- в режиме обслуживания администратору остаются доступны аутентификация, статус миграций и их применение для восстановления;
 - older binary against newer DB schema must be blocked;
 - dirty schema means stop using app and follow recovery procedure.
 
@@ -216,7 +220,14 @@ MinIO хранит physical attachment objects. PostgreSQL хранит attachme
 - app root context;
 - per-operation timeout;
 - shutdown cancel/wait coordination;
-- Wails `OnShutdown` сначала отменяет/ждет active operations, затем закрывает DB/logger.
+- Wails `OnShutdown` сначала останавливает schema-dependent background services,
+  затем отменяет/ждет active operations и закрывает DB/logger.
+
+Отдельный schema lifecycle управляет outbox worker и другими фоновыми задачами,
+которым нужна полностью актуальная схема. Он обеспечивает единственный экземпляр
+worker, останавливает его перед rollback и включает maintenance gate для обычных
+защищённых операций. Повторная успешная миграция снимает gate и запускает worker
+без рестарта приложения.
 
 Покрытые зоны:
 

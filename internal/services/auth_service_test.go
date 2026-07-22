@@ -686,6 +686,8 @@ func TestAuthService_InitialSetup(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := NewAuthService(nil, mockRepo)
 		authService.SetAccessStore(newRoleMappedDocumentAccessStore())
+		lifecycle := &fakeSchemaLifecycle{}
+		ConfigureSchemaLifecycle(authService, &SettingsService{}, lifecycle)
 
 		// Проверка существования таблиц; сам count и создание выполняются атомарно в bootstrap-операции.
 		mockRepo.On("CountUsers").Return(0, nil).Once()
@@ -693,12 +695,15 @@ func TestAuthService_InitialSetup(t *testing.T) {
 
 		err := authService.InitialSetup(goodPassword)
 		require.NoError(t, err)
+		assert.Equal(t, 1, lifecycle.reconcileCalls)
 	})
 
 	t.Run("already setup", func(t *testing.T) {
 		mockRepo := mocks.NewUserStore(t)
 		authService := NewAuthService(nil, mockRepo)
 		authService.SetAccessStore(newRoleMappedDocumentAccessStore())
+		lifecycle := &fakeSchemaLifecycle{}
+		ConfigureSchemaLifecycle(authService, &SettingsService{}, lifecycle)
 
 		// Параллельная настройка обнаруживается внутри атомарной bootstrap-операции.
 		mockRepo.On("CountUsers").Return(0, nil).Once()
@@ -707,6 +712,7 @@ func TestAuthService_InitialSetup(t *testing.T) {
 		err := authService.InitialSetup(goodPassword)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "уже выполнена")
+		assert.Zero(t, lifecycle.reconcileCalls)
 	})
 
 	t.Run("weak password", func(t *testing.T) {
@@ -719,4 +725,26 @@ func TestAuthService_InitialSetup(t *testing.T) {
 		require.Error(t, err)
 		requireAppError(t, err, "VALIDATION_ERROR", 400, "минимум 8 символов")
 	})
+}
+
+func TestAuthServiceSchemaLifecycleGate(t *testing.T) {
+	mockRepo := mocks.NewUserStore(t)
+	user, password := newTestUser()
+	authService := loginUser(t, mockRepo, user, password)
+	authService.SetAccessStore(newRoleMappedDocumentAccessStore("admin"))
+	lifecycle := &fakeSchemaLifecycle{checkReadyErr: models.NewConflict("schema maintenance")}
+	ConfigureSchemaLifecycle(authService, &SettingsService{}, lifecycle)
+
+	require.Error(t, authService.RequireAuthenticated())
+	_, err := authService.GetCurrentUserUUID()
+	require.Error(t, err)
+	require.Error(t, authService.RequireSystemPermission(models.SystemPermissionAdmin))
+	require.Error(t, authService.RequireAnySystemPermission(models.SystemPermissionAdmin))
+
+	// Migration management must remain available so an administrator can bring
+	// the schema back to the version required by the current binary.
+	require.NoError(t, authService.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin))
+	current, err := authService.GetCurrentUser()
+	require.NoError(t, err)
+	assert.Equal(t, user.ID.String(), current.ID)
 }
