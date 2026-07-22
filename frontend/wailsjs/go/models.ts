@@ -2333,7 +2333,7 @@ export namespace models {
 	    storageObjects: number;
 	    storageSize: string;
 	    // Go type: time
-	    storageRefreshedAt: any;
+	    storageRefreshedAt?: any;
 	    storageRefreshInProgress: boolean;
 	
 	    static createFrom(source: any = {}) {
