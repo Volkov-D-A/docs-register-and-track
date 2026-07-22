@@ -168,7 +168,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 			return
 		}
 		if !migrationStatus.UpToDate {
-			slog.Info("background outbox processing is deferred until migrations are applied", "current_version", migrationStatus.CurrentVersion, "required_version", migrationStatus.TotalAvailable)
+			slog.Info("background outbox processing is deferred until migrations are applied", "current_version", migrationStatus.CurrentVersion, "required_version", migrationStatus.LatestAvailableVersion)
 			return
 		}
 		backgroundStartOnce.Do(func() {

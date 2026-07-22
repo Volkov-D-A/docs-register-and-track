@@ -15,7 +15,7 @@ func TestEmbeddedMigrationsLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read migration status: %v", err)
 	}
-	if !status.UpToDate || !status.Compatible || status.TotalAvailable == 0 {
+	if !status.UpToDate || !status.Compatible || status.AvailableCount == 0 || status.LatestAvailableVersion == 0 {
 		t.Fatalf("unexpected migrated status: %+v", status)
 	}
 	if err := db.RollbackMigration(database.DefaultMigrationsPath); err != nil {

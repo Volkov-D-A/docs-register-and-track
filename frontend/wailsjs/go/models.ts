@@ -3,7 +3,8 @@ export namespace database {
 	export class MigrationStatus {
 	    currentVersion: number;
 	    dirty: boolean;
-	    totalAvailable: number;
+	    availableCount: number;
+	    latestAvailableVersion: number;
 	    upToDate: boolean;
 	    schemaTooNew: boolean;
 	    compatible: boolean;
@@ -16,7 +17,8 @@ export namespace database {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.currentVersion = source["currentVersion"];
 	        this.dirty = source["dirty"];
-	        this.totalAvailable = source["totalAvailable"];
+	        this.availableCount = source["availableCount"];
+	        this.latestAvailableVersion = source["latestAvailableVersion"];
 	        this.upToDate = source["upToDate"];
 	        this.schemaTooNew = source["schemaTooNew"];
 	        this.compatible = source["compatible"];

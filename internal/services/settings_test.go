@@ -301,18 +301,18 @@ func TestMigrationCompatibilityAppError(t *testing.T) {
 		{
 			name: "schema too new",
 			err: &database.MigrationCompatibilityError{
-				CurrentVersion: 8,
-				TotalAvailable: 7,
-				SchemaTooNew:   true,
+				CurrentVersion:         8,
+				LatestAvailableVersion: 7,
+				SchemaTooNew:           true,
 			},
 			msg: "Версия схемы БД (8) новее миграций",
 		},
 		{
 			name: "dirty schema",
 			err: &database.MigrationCompatibilityError{
-				CurrentVersion: 7,
-				TotalAvailable: 7,
-				Dirty:          true,
+				CurrentVersion:         7,
+				LatestAvailableVersion: 7,
+				Dirty:                  true,
 			},
 			msg: "Миграция БД версии 7 завершилась с ошибкой",
 		},

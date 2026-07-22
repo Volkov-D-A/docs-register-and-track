@@ -199,9 +199,74 @@ func TestDB_MigratorCloseKeepsSharedDatabaseOpen(t *testing.T) {
 }
 
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
-	total, err := countAvailableMigrations(DefaultMigrationsPath)
+	catalog, err := inspectMigrationCatalog(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 10, total)
+	assert.Equal(t, 10, catalog.AvailableCount)
+	assert.Equal(t, uint(10), catalog.LatestAvailableVersion)
+}
+
+func TestInspectMigrationCatalog(t *testing.T) {
+	writeFiles := func(t *testing.T, names ...string) string {
+		t.Helper()
+		dir := t.TempDir()
+		for _, name := range names {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("SELECT 1;"), 0o600))
+		}
+		return dir
+	}
+
+	t.Run("sequential versions", func(t *testing.T) {
+		dir := writeFiles(t,
+			"001_first.up.sql", "001_first.down.sql",
+			"002_second.up.sql", "002_second.down.sql",
+			"003_third.up.sql", "003_third.down.sql",
+		)
+
+		catalog, err := inspectMigrationCatalog(dir)
+		require.NoError(t, err)
+		assert.Equal(t, 3, catalog.AvailableCount)
+		assert.Equal(t, uint(3), catalog.LatestAvailableVersion)
+	})
+
+	t.Run("version gap", func(t *testing.T) {
+		dir := writeFiles(t, "001_first.up.sql", "002_second.up.sql", "004_fourth.up.sql")
+
+		catalog, err := inspectMigrationCatalog(dir)
+		require.NoError(t, err)
+		assert.Equal(t, 3, catalog.AvailableCount)
+		assert.Equal(t, uint(4), catalog.LatestAvailableVersion)
+	})
+
+	t.Run("duplicate version and direction", func(t *testing.T) {
+		dir := writeFiles(t, "001_first.up.sql", "001_duplicate.up.sql")
+
+		_, err := inspectMigrationCatalog(dir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate migration version 1 direction up")
+	})
+
+	t.Run("invalid SQL filename", func(t *testing.T) {
+		dir := writeFiles(t, "notes.up.sql")
+
+		_, err := inspectMigrationCatalog(dir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid migration filename")
+	})
+
+	t.Run("unsupported migration extension", func(t *testing.T) {
+		dir := writeFiles(t, "001_first.up.json")
+
+		_, err := inspectMigrationCatalog(dir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "must use the .up.sql or .down.sql suffix")
+	})
+
+	t.Run("empty directory", func(t *testing.T) {
+		catalog, err := inspectMigrationCatalog(t.TempDir())
+		require.NoError(t, err)
+		assert.Zero(t, catalog.AvailableCount)
+		assert.Zero(t, catalog.LatestAvailableVersion)
+	})
 }
 
 func TestActiveAdministratorInvariantMigration(t *testing.T) {
@@ -224,7 +289,7 @@ func TestMigrationCompatibilityErrorError(t *testing.T) {
 	}{
 		{
 			name: "schema too new",
-			err:  &MigrationCompatibilityError{CurrentVersion: 9, TotalAvailable: 8, SchemaTooNew: true},
+			err:  &MigrationCompatibilityError{CurrentVersion: 9, LatestAvailableVersion: 8, SchemaTooNew: true},
 			want: "database schema version 9 is newer than embedded migrations 8",
 		},
 		{
@@ -256,23 +321,29 @@ func TestMigrationStatus_applyCompatibility(t *testing.T) {
 	}{
 		{
 			name:       "current schema matches embedded migrations",
-			status:     MigrationStatus{CurrentVersion: 7, TotalAvailable: 7},
+			status:     MigrationStatus{CurrentVersion: 7, LatestAvailableVersion: 7},
+			upToDate:   true,
+			compatible: true,
+		},
+		{
+			name:       "version gap does not make current schema look newer",
+			status:     MigrationStatus{CurrentVersion: 4, AvailableCount: 3, LatestAvailableVersion: 4},
 			upToDate:   true,
 			compatible: true,
 		},
 		{
 			name:       "old schema can be migrated by current binary",
-			status:     MigrationStatus{CurrentVersion: 5, TotalAvailable: 7},
+			status:     MigrationStatus{CurrentVersion: 5, LatestAvailableVersion: 7},
 			compatible: true,
 		},
 		{
 			name:         "newer schema is not up to date for old binary",
-			status:       MigrationStatus{CurrentVersion: 8, TotalAvailable: 7},
+			status:       MigrationStatus{CurrentVersion: 8, LatestAvailableVersion: 7},
 			schemaTooNew: true,
 		},
 		{
 			name:   "dirty schema is not compatible",
-			status: MigrationStatus{CurrentVersion: 7, TotalAvailable: 7, Dirty: true},
+			status: MigrationStatus{CurrentVersion: 7, LatestAvailableVersion: 7, Dirty: true},
 		},
 	}
 

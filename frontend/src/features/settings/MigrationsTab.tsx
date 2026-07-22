@@ -111,7 +111,11 @@ const MigrationsTab: React.FC = () => {
             </div>
             <div>
               <Typography.Text strong>Доступно миграций: </Typography.Text>
-              <Typography.Text>{status.totalAvailable}</Typography.Text>
+              <Typography.Text>{status.availableCount}</Typography.Text>
+            </div>
+            <div>
+              <Typography.Text strong>Последняя доступная версия: </Typography.Text>
+              <Typography.Text>{status.latestAvailableVersion || 0}</Typography.Text>
             </div>
             <div>
               <Typography.Text strong>Статус: </Typography.Text>

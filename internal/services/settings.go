@@ -229,7 +229,7 @@ func migrationCompatibilityAppError(err error) error {
 		return models.NewConflict(fmt.Sprintf(
 			"Версия схемы БД (%d) новее миграций, встроенных в приложение (%d). Запустите совместимую версию приложения или выполните утвержденную процедуру обновления.",
 			compatibilityErr.CurrentVersion,
-			compatibilityErr.TotalAvailable,
+			compatibilityErr.LatestAvailableVersion,
 		))
 	}
 	if compatibilityErr.Dirty {

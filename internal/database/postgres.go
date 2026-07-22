@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
@@ -41,26 +42,27 @@ type DB struct {
 
 // MigrationStatus содержит информацию о текущем состоянии миграций БД.
 type MigrationStatus struct {
-	CurrentVersion uint `json:"currentVersion"`
-	Dirty          bool `json:"dirty"`
-	TotalAvailable int  `json:"totalAvailable"`
-	UpToDate       bool `json:"upToDate"`
-	SchemaTooNew   bool `json:"schemaTooNew"`
-	Compatible     bool `json:"compatible"`
+	CurrentVersion         uint `json:"currentVersion"`
+	Dirty                  bool `json:"dirty"`
+	AvailableCount         int  `json:"availableCount"`
+	LatestAvailableVersion uint `json:"latestAvailableVersion"`
+	UpToDate               bool `json:"upToDate"`
+	SchemaTooNew           bool `json:"schemaTooNew"`
+	Compatible             bool `json:"compatible"`
 }
 
 // MigrationCompatibilityError reports a schema state that the current binary
 // must not operate against.
 type MigrationCompatibilityError struct {
-	CurrentVersion uint
-	TotalAvailable int
-	Dirty          bool
-	SchemaTooNew   bool
+	CurrentVersion         uint
+	LatestAvailableVersion uint
+	Dirty                  bool
+	SchemaTooNew           bool
 }
 
 func (e *MigrationCompatibilityError) Error() string {
 	if e.SchemaTooNew {
-		return fmt.Sprintf("database schema version %d is newer than embedded migrations %d", e.CurrentVersion, e.TotalAvailable)
+		return fmt.Sprintf("database schema version %d is newer than embedded migrations %d", e.CurrentVersion, e.LatestAvailableVersion)
 	}
 	if e.Dirty {
 		return fmt.Sprintf("database schema version %d is dirty", e.CurrentVersion)
@@ -240,15 +242,16 @@ func (db *DB) RunMigrations(migrationsPath string) error {
 	return nil
 }
 
-// GetMigrationStatus возвращает текущую версию миграций и количество доступных миграций.
+// GetMigrationStatus возвращает текущую версию и каталог доступных миграций.
 func (db *DB) GetMigrationStatus(migrationsPath string) (*MigrationStatus, error) {
 	status := &MigrationStatus{}
 
-	totalAvailable, err := countAvailableMigrations(migrationsPath)
+	catalog, err := inspectMigrationCatalog(migrationsPath)
 	if err != nil {
 		return nil, err
 	}
-	status.TotalAvailable = totalAvailable
+	status.AvailableCount = catalog.AvailableCount
+	status.LatestAvailableVersion = catalog.LatestAvailableVersion
 
 	// Получение текущей версии из БД
 	m, err := db.newMigrator(migrationsPath)
@@ -281,10 +284,10 @@ func (db *DB) CheckMigrationCompatibility(migrationsPath string) error {
 	}
 	if status.SchemaTooNew || status.Dirty {
 		return &MigrationCompatibilityError{
-			CurrentVersion: status.CurrentVersion,
-			TotalAvailable: status.TotalAvailable,
-			Dirty:          status.Dirty,
-			SchemaTooNew:   status.SchemaTooNew,
+			CurrentVersion:         status.CurrentVersion,
+			LatestAvailableVersion: status.LatestAvailableVersion,
+			Dirty:                  status.Dirty,
+			SchemaTooNew:           status.SchemaTooNew,
 		}
 	}
 	return nil
@@ -355,19 +358,58 @@ func (db *DB) newMigrationDatabaseDriver() (*postgres.Postgres, error) {
 	return driver, nil
 }
 
-func countAvailableMigrations(migrationsPath string) (int, error) {
+type migrationCatalog struct {
+	AvailableCount         int
+	LatestAvailableVersion uint
+}
+
+func inspectMigrationCatalog(migrationsPath string) (migrationCatalog, error) {
 	entries, err := readMigrationDir(migrationsPath)
 	if err != nil {
-		return 0, err
+		return migrationCatalog{}, err
 	}
 
-	total := 0
+	catalog := migrationCatalog{}
+	seen := make(map[uint]map[source.Direction]string)
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".up.sql") {
-			total++
+		if e.IsDir() {
+			continue
+		}
+
+		name := e.Name()
+		migration, parseErr := source.DefaultParse(name)
+		if parseErr != nil {
+			if strings.HasSuffix(name, ".sql") {
+				return migrationCatalog{}, fmt.Errorf("invalid migration filename %q: %w", name, parseErr)
+			}
+			continue
+		}
+		if !strings.HasSuffix(name, ".up.sql") && !strings.HasSuffix(name, ".down.sql") {
+			return migrationCatalog{}, fmt.Errorf("migration file %q must use the .up.sql or .down.sql suffix", name)
+		}
+
+		if seen[migration.Version] == nil {
+			seen[migration.Version] = make(map[source.Direction]string)
+		}
+		if previous, exists := seen[migration.Version][migration.Direction]; exists {
+			return migrationCatalog{}, fmt.Errorf(
+				"duplicate migration version %d direction %s in %q and %q",
+				migration.Version,
+				migration.Direction,
+				previous,
+				name,
+			)
+		}
+		seen[migration.Version][migration.Direction] = name
+
+		if migration.Direction == source.Up {
+			catalog.AvailableCount++
+			if migration.Version > catalog.LatestAvailableVersion {
+				catalog.LatestAvailableVersion = migration.Version
+			}
 		}
 	}
-	return total, nil
+	return catalog, nil
 }
 
 func readMigrationDir(migrationsPath string) ([]fs.DirEntry, error) {
@@ -416,7 +458,7 @@ func closeMigrator(m *migrate.Migrate) {
 }
 
 func (s *MigrationStatus) applyCompatibility() {
-	s.SchemaTooNew = int(s.CurrentVersion) > s.TotalAvailable
-	s.UpToDate = int(s.CurrentVersion) == s.TotalAvailable && !s.Dirty
+	s.SchemaTooNew = s.CurrentVersion > s.LatestAvailableVersion
+	s.UpToDate = s.CurrentVersion == s.LatestAvailableVersion && !s.Dirty
 	s.Compatible = !s.Dirty && !s.SchemaTooNew
 }
