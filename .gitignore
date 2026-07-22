@@ -7,3 +7,4 @@ frontend/.test-build
 .gocache
 /build/release-evidence/
 /build/performance/
+/build/bin/
