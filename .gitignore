@@ -8,3 +8,4 @@ frontend/.test-build
 *code_review.md
 /build/release-evidence/
 /build/performance/
+/build/bin/
