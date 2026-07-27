@@ -16,7 +16,11 @@ export function GetDocumentReport(arg1:string,arg2:string,arg3:string,arg4:strin
 
 export function GetDocumentStatistics():Promise<models.DocumentStatistics>;
 
+export function GetStorageStatisticsStatus():Promise<models.StorageStatisticsStatus>;
+
 export function GetSystemStatistics():Promise<models.SystemStatistics>;
+
+export function RetryStorageStatisticsRefresh():Promise<models.StorageStatisticsStatus>;
 
 export function SetOperationLifecycle(arg1:services.OperationLifecycle):Promise<void>;
 

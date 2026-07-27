@@ -26,8 +26,16 @@ export function GetDocumentStatistics() {
   return window['go']['services']['StatisticsService']['GetDocumentStatistics']();
 }
 
+export function GetStorageStatisticsStatus() {
+  return window['go']['services']['StatisticsService']['GetStorageStatisticsStatus']();
+}
+
 export function GetSystemStatistics() {
   return window['go']['services']['StatisticsService']['GetSystemStatistics']();
+}
+
+export function RetryStorageStatisticsRefresh() {
+  return window['go']['services']['StatisticsService']['RetryStorageStatisticsRefresh']();
 }
 
 export function SetOperationLifecycle(arg1) {

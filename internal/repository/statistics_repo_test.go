@@ -383,3 +383,43 @@ func TestStatisticsRepositoryStorageRefreshWaitsForActiveMutation(t *testing.T) 
 	require.False(t, started)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestStatisticsRepositoryStorageRefreshRecord(t *testing.T) {
+	repo, mock, cleanup := setupStatisticsRepository(t)
+	defer cleanup()
+
+	refreshedAt := time.Now().Add(-time.Hour)
+	failedAt := time.Now()
+	mock.ExpectQuery(`SELECT s.object_count, s.total_bytes, s.refreshed_at`).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"object_count", "total_bytes", "refreshed_at", "refresh_active", "mutation_active", "last_error", "failed_at",
+		}).AddRow(4, int64(4096), refreshedAt, false, true, "refresh failed", failedAt))
+
+	record, err := repo.GetStorageStatisticsRefreshRecord()
+	require.NoError(t, err)
+	assert.Equal(t, 4, record.Snapshot.ObjectCount)
+	assert.Equal(t, int64(4096), record.Snapshot.TotalBytes)
+	assert.Equal(t, refreshedAt, record.Snapshot.RefreshedAt)
+	assert.False(t, record.RefreshActive)
+	assert.True(t, record.MutationActive)
+	assert.Equal(t, "refresh failed", record.LastError)
+	assert.Equal(t, failedAt, record.FailedAt)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestStatisticsRepositoryRecordsAndClearsRefreshFailure(t *testing.T) {
+	repo, mock, cleanup := setupStatisticsRepository(t)
+	defer cleanup()
+
+	token := uuid.New()
+	failedAt := time.Now()
+	mock.ExpectExec(`refresh_last_error = \$2, refresh_failed_at = \$3`).
+		WithArgs(token, "failed", failedAt).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	require.NoError(t, repo.FailStorageStatisticsRefresh(token, "failed", failedAt))
+
+	mock.ExpectExec(`SET refresh_last_error = NULL, refresh_failed_at = NULL`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	require.NoError(t, repo.ClearStorageStatisticsRefreshError())
+	require.NoError(t, mock.ExpectationsWereMet())
+}

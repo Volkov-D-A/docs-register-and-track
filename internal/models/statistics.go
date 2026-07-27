@@ -98,3 +98,33 @@ type StorageStatisticsSnapshot struct {
 	TotalBytes  int64
 	RefreshedAt time.Time
 }
+
+type StorageStatisticsRefreshState string
+
+const (
+	StorageStatisticsRefreshIdle    StorageStatisticsRefreshState = "idle"
+	StorageStatisticsRefreshPending StorageStatisticsRefreshState = "pending"
+	StorageStatisticsRefreshRunning StorageStatisticsRefreshState = "running"
+	StorageStatisticsRefreshFailed  StorageStatisticsRefreshState = "failed"
+)
+
+// StorageStatisticsStatus is a lightweight view used while the UI waits for
+// a background MinIO scan. It deliberately excludes unrelated system counts.
+type StorageStatisticsStatus struct {
+	StorageObjects int                           `json:"storageObjects"`
+	StorageSize    string                        `json:"storageSize"`
+	RefreshedAt    *time.Time                    `json:"refreshedAt,omitempty"`
+	State          StorageStatisticsRefreshState `json:"state"`
+	LastError      string                        `json:"lastError,omitempty"`
+	FailedAt       *time.Time                    `json:"failedAt,omitempty"`
+}
+
+// StorageStatisticsRefreshRecord is the persisted snapshot plus coordination
+// state used by StatisticsService to decide whether a scan should be started.
+type StorageStatisticsRefreshRecord struct {
+	Snapshot       StorageStatisticsSnapshot
+	RefreshActive  bool
+	MutationActive bool
+	LastError      string
+	FailedAt       time.Time
+}

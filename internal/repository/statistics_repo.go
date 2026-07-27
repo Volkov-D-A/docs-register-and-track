@@ -390,22 +390,42 @@ func (r *StatisticsRepository) GetDBSize() string {
 	return size
 }
 
-// GetStorageStatisticsSnapshot returns the last complete MinIO bucket scan.
-func (r *StatisticsRepository) GetStorageStatisticsSnapshot() (models.StorageStatisticsSnapshot, error) {
-	var snapshot models.StorageStatisticsSnapshot
-	var refreshedAt sql.NullTime
+func (r *StatisticsRepository) GetStorageStatisticsRefreshRecord() (models.StorageStatisticsRefreshRecord, error) {
+	var record models.StorageStatisticsRefreshRecord
+	var refreshedAt, failedAt sql.NullTime
+	var lastError sql.NullString
 	err := r.db.QueryRow(`
-		SELECT object_count, total_bytes, refreshed_at
-		FROM storage_statistics
-		WHERE id = true
-	`).Scan(&snapshot.ObjectCount, &snapshot.TotalBytes, &refreshedAt)
+		SELECT s.object_count, s.total_bytes, s.refreshed_at,
+			(s.refresh_lease_until IS NOT NULL AND s.refresh_lease_until >= CURRENT_TIMESTAMP),
+			EXISTS (
+				SELECT 1 FROM storage_statistics_mutations m
+				WHERE m.lease_until >= CURRENT_TIMESTAMP
+			),
+			s.refresh_last_error, s.refresh_failed_at
+		FROM storage_statistics s
+		WHERE s.id = true
+	`).Scan(
+		&record.Snapshot.ObjectCount,
+		&record.Snapshot.TotalBytes,
+		&refreshedAt,
+		&record.RefreshActive,
+		&record.MutationActive,
+		&lastError,
+		&failedAt,
+	)
 	if err != nil {
-		return models.StorageStatisticsSnapshot{}, fmt.Errorf("failed to get storage statistics snapshot: %w", err)
+		return models.StorageStatisticsRefreshRecord{}, fmt.Errorf("failed to get storage statistics refresh state: %w", err)
 	}
 	if refreshedAt.Valid {
-		snapshot.RefreshedAt = refreshedAt.Time
+		record.Snapshot.RefreshedAt = refreshedAt.Time
 	}
-	return snapshot, nil
+	if lastError.Valid {
+		record.LastError = lastError.String
+	}
+	if failedAt.Valid {
+		record.FailedAt = failedAt.Time
+	}
+	return record, nil
 }
 
 // TryStartStorageStatisticsRefresh obtains a database-backed lease, so only
@@ -458,7 +478,8 @@ func (r *StatisticsRepository) SaveStorageStatisticsSnapshot(token uuid.UUID, sn
 	result, err := r.db.Exec(`
 		UPDATE storage_statistics
 		SET object_count = $1, total_bytes = $2, refreshed_at = $3,
-			refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL
+			refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL,
+			refresh_last_error = NULL, refresh_failed_at = NULL
 		WHERE id = true AND refresh_token = $4
 		  AND refresh_revision = mutation_revision
 	`, snapshot.ObjectCount, snapshot.TotalBytes, snapshot.RefreshedAt, token)
@@ -475,6 +496,31 @@ func (r *StatisticsRepository) SaveStorageStatisticsSnapshot(token uuid.UUID, sn
 	return nil
 }
 
+func (r *StatisticsRepository) FailStorageStatisticsRefresh(token uuid.UUID, message string, failedAt time.Time) error {
+	_, err := r.db.Exec(`
+		UPDATE storage_statistics
+		SET refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL,
+			refresh_last_error = $2, refresh_failed_at = $3
+		WHERE id = true AND refresh_token = $1
+	`, token, message, failedAt)
+	if err != nil {
+		return fmt.Errorf("failed to record storage statistics refresh failure: %w", err)
+	}
+	return nil
+}
+
+func (r *StatisticsRepository) ClearStorageStatisticsRefreshError() error {
+	_, err := r.db.Exec(`
+		UPDATE storage_statistics
+		SET refresh_last_error = NULL, refresh_failed_at = NULL
+		WHERE id = true
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to clear storage statistics refresh failure: %w", err)
+	}
+	return nil
+}
+
 // IncrementStorageStatistics updates the shared aggregate atomically. It is
 // called inside the attachment creation transaction.
 func incrementStorageStatisticsTx(tx *sql.Tx, bytes int64) error {
@@ -485,18 +531,6 @@ func incrementStorageStatisticsTx(tx *sql.Tx, bytes int64) error {
 		WHERE id = true
 	`, bytes)
 	return err
-}
-
-func (r *StatisticsRepository) ReleaseStorageStatisticsRefresh(token uuid.UUID) error {
-	_, err := r.db.Exec(`
-		UPDATE storage_statistics
-		SET refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL
-		WHERE id = true AND refresh_token = $1
-	`, token)
-	if err != nil {
-		return fmt.Errorf("failed to release storage statistics refresh lease: %w", err)
-	}
-	return nil
 }
 
 func scanOptions(rows *sql.Rows) ([]models.StatisticsOption, error) {

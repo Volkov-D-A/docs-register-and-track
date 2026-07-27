@@ -33,6 +33,9 @@ type fakeStatisticsStore struct {
 	storageSnapshot     models.StorageStatisticsSnapshot
 	refreshLeaseGranted bool
 	refreshLeaseActive  bool
+	mutationActive      bool
+	refreshLastError    string
+	refreshFailedAt     time.Time
 	storageSnapshotErr  error
 	err                 error
 
@@ -100,12 +103,18 @@ func (s *fakeStatisticsStore) GetDBSize() string {
 	return s.dbSize
 }
 
-func (s *fakeStatisticsStore) GetStorageStatisticsSnapshot() (models.StorageStatisticsSnapshot, error) {
-	return s.storageSnapshot, s.storageSnapshotErr
+func (s *fakeStatisticsStore) GetStorageStatisticsRefreshRecord() (models.StorageStatisticsRefreshRecord, error) {
+	return models.StorageStatisticsRefreshRecord{
+		Snapshot:       s.storageSnapshot,
+		RefreshActive:  s.refreshLeaseActive,
+		MutationActive: s.mutationActive,
+		LastError:      s.refreshLastError,
+		FailedAt:       s.refreshFailedAt,
+	}, s.storageSnapshotErr
 }
 
 func (s *fakeStatisticsStore) TryStartStorageStatisticsRefresh(_ uuid.UUID, _ time.Time) (bool, error) {
-	if s.err != nil || !s.refreshLeaseGranted || s.refreshLeaseActive {
+	if s.err != nil || !s.refreshLeaseGranted || s.refreshLeaseActive || s.mutationActive {
 		return false, s.err
 	}
 	s.refreshLeaseActive = true
@@ -115,11 +124,21 @@ func (s *fakeStatisticsStore) TryStartStorageStatisticsRefresh(_ uuid.UUID, _ ti
 func (s *fakeStatisticsStore) SaveStorageStatisticsSnapshot(_ uuid.UUID, snapshot models.StorageStatisticsSnapshot) error {
 	s.storageSnapshot = snapshot
 	s.refreshLeaseActive = false
+	s.refreshLastError = ""
+	s.refreshFailedAt = time.Time{}
 	return s.err
 }
 
-func (s *fakeStatisticsStore) ReleaseStorageStatisticsRefresh(_ uuid.UUID) error {
+func (s *fakeStatisticsStore) FailStorageStatisticsRefresh(_ uuid.UUID, message string, failedAt time.Time) error {
 	s.refreshLeaseActive = false
+	s.refreshLastError = message
+	s.refreshFailedAt = failedAt
+	return s.err
+}
+
+func (s *fakeStatisticsStore) ClearStorageStatisticsRefreshError() error {
+	s.refreshLastError = ""
+	s.refreshFailedAt = time.Time{}
 	return s.err
 }
 
@@ -352,6 +371,71 @@ func TestStatisticsService_GetSystemStatisticsStartsStaleStorageRefreshInBackgro
 	assert.True(t, stats.StorageRefreshInProgress)
 	require.Eventually(t, func() bool {
 		return store.storageSnapshot.ObjectCount == 8 && store.storageSnapshot.TotalBytes == 8*1024*1024 && !store.refreshLeaseActive
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestStatisticsServiceStorageStatusWaitsForMutationThenPublishesRefresh(t *testing.T) {
+	svc, store, storage, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
+	store.storageSnapshot = models.StorageStatisticsSnapshot{ObjectCount: 2, TotalBytes: 2048}
+	store.mutationActive = true
+	store.refreshLeaseGranted = true
+	storage.objectCount = 7
+	storage.totalBytes = 7 * 1024
+
+	status, err := svc.GetStorageStatisticsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, models.StorageStatisticsRefreshPending, status.State)
+	assert.Equal(t, 2, status.StorageObjects)
+
+	store.mutationActive = false
+	status, err = svc.GetStorageStatisticsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, models.StorageStatisticsRefreshRunning, status.State)
+	require.Eventually(t, func() bool {
+		return store.storageSnapshot.ObjectCount == 7 && !store.refreshLeaseActive
+	}, time.Second, 10*time.Millisecond)
+
+	status, err = svc.GetStorageStatisticsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, models.StorageStatisticsRefreshIdle, status.State)
+	assert.Equal(t, 7, status.StorageObjects)
+	assert.Equal(t, "7.0 KB", status.StorageSize)
+	require.NotNil(t, status.RefreshedAt)
+}
+
+func TestStatisticsServiceStorageStatusDoesNotRunUnrelatedSystemQueries(t *testing.T) {
+	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
+	store.storageSnapshot = models.StorageStatisticsSnapshot{ObjectCount: 4, TotalBytes: 4096, RefreshedAt: time.Now()}
+	store.err = errors.New("system count queries must not run")
+
+	status, err := svc.GetStorageStatisticsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, models.StorageStatisticsRefreshIdle, status.State)
+	assert.Equal(t, 4, status.StorageObjects)
+}
+
+func TestStatisticsServiceStorageStatusExposesFailureAndRetriesExplicitly(t *testing.T) {
+	svc, store, storage, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
+	store.refreshLeaseGranted = true
+	storage.err = errors.New("minio unavailable")
+
+	status, err := svc.GetStorageStatisticsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, models.StorageStatisticsRefreshRunning, status.State)
+	require.Eventually(t, func() bool { return store.refreshLastError != "" }, time.Second, 10*time.Millisecond)
+
+	status, err = svc.GetStorageStatisticsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, models.StorageStatisticsRefreshFailed, status.State)
+	assert.Equal(t, storageStatisticsRefreshError, status.LastError)
+	require.NotNil(t, status.FailedAt)
+
+	storage.err = nil
+	status, err = svc.RetryStorageStatisticsRefresh()
+	require.NoError(t, err)
+	assert.Equal(t, models.StorageStatisticsRefreshRunning, status.State)
+	require.Eventually(t, func() bool {
+		return store.refreshLastError == "" && !store.storageSnapshot.RefreshedAt.IsZero()
 	}, time.Second, 10*time.Millisecond)
 }
 

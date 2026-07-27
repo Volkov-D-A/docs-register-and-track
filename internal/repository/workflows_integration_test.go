@@ -153,6 +153,35 @@ func TestStorageStatisticsRejectsSnapshotsOverlappingMutationsIntegration(t *tes
 	}
 }
 
+func TestStorageStatisticsRefreshFailureLifecycleIntegration(t *testing.T) {
+	sqlDB := integrationdb.Open(t)
+	statistics := NewStatisticsRepository(&database.DB{DB: sqlDB})
+	token := uuid.New()
+
+	started, err := statistics.TryStartStorageStatisticsRefresh(token, time.Now().Add(time.Minute))
+	if err != nil || !started {
+		t.Fatalf("start refresh: started=%v err=%v", started, err)
+	}
+	failedAt := time.Now().UTC().Truncate(time.Microsecond)
+	if err := statistics.FailStorageStatisticsRefresh(token, "storage unavailable", failedAt); err != nil {
+		t.Fatalf("record refresh failure: %v", err)
+	}
+	record, err := statistics.GetStorageStatisticsRefreshRecord()
+	if err != nil {
+		t.Fatalf("get failed refresh state: %v", err)
+	}
+	if record.RefreshActive || record.LastError != "storage unavailable" || !record.FailedAt.Equal(failedAt) {
+		t.Fatalf("unexpected failed refresh state: %+v", record)
+	}
+	if err := statistics.ClearStorageStatisticsRefreshError(); err != nil {
+		t.Fatalf("clear refresh failure: %v", err)
+	}
+	record, err = statistics.GetStorageStatisticsRefreshRecord()
+	if err != nil || record.LastError != "" || !record.FailedAt.IsZero() {
+		t.Fatalf("unexpected cleared refresh state: record=%+v err=%v", record, err)
+	}
+}
+
 func TestAttachmentDeletionSagaIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	db := &database.DB{DB: sqlDB}

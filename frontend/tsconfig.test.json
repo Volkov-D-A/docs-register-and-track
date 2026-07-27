@@ -16,6 +16,7 @@
     "src/utils/appError.ts",
     "src/utils/dirtyForm.ts",
     "src/utils/latestRequest.ts",
+    "src/utils/storageStatusPolling.ts",
     "test/**/*.test.ts"
   ]
 }

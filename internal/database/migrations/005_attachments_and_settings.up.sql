@@ -26,7 +26,9 @@ CREATE TABLE storage_statistics (
     refresh_token UUID,
     refresh_lease_until TIMESTAMP WITH TIME ZONE,
     mutation_revision BIGINT NOT NULL DEFAULT 0 CHECK (mutation_revision >= 0),
-    refresh_revision BIGINT
+    refresh_revision BIGINT,
+    refresh_last_error TEXT,
+    refresh_failed_at TIMESTAMP WITH TIME ZONE
 );
 
 INSERT INTO storage_statistics (id) VALUES (true);

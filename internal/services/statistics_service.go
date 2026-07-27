@@ -20,6 +20,7 @@ const statisticsQueryConcurrency = 2
 const (
 	storageStatisticsRefreshInterval = 24 * time.Hour
 	storageStatisticsLeaseDuration   = 2 * time.Minute
+	storageStatisticsRefreshError    = "Не удалось выполнить сверку хранилища. Повторите попытку."
 )
 
 // StatisticsService предоставляет бизнес-логику раздела статистики.
@@ -317,33 +318,109 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 		}
 
 		if s.storage != nil {
-			snapshot, err := s.repo.GetStorageStatisticsSnapshot()
+			record, err := s.repo.GetStorageStatisticsRefreshRecord()
 			if err != nil {
 				slog.Warn("failed to get persisted storage statistics", "error", err)
 			} else {
+				snapshot := record.Snapshot
 				result.StorageObjects = snapshot.ObjectCount
 				result.StorageSize = formatStorageSize(snapshot.TotalBytes)
 				if !snapshot.RefreshedAt.IsZero() {
 					refreshedAt := snapshot.RefreshedAt
 					result.StorageRefreshedAt = &refreshedAt
 				}
-				if snapshot.RefreshedAt.IsZero() || time.Since(snapshot.RefreshedAt) >= storageStatisticsRefreshInterval {
-					token := uuid.New()
-					started, leaseErr := s.repo.TryStartStorageStatisticsRefresh(token, time.Now().Add(storageStatisticsLeaseDuration))
-					if leaseErr != nil {
-						slog.Warn("failed to start storage statistics refresh", "error", leaseErr)
-					} else {
-						result.StorageRefreshInProgress = true
-						if started {
-							go s.refreshStorageStatistics(token)
-						}
-					}
+				status, statusErr := s.ensureStorageStatisticsStatus(record)
+				if statusErr != nil {
+					slog.Warn("failed to get storage statistics refresh status", "error", statusErr)
+				} else {
+					result.StorageRefreshInProgress = status.State == models.StorageStatisticsRefreshPending || status.State == models.StorageStatisticsRefreshRunning
 				}
 			}
 		}
 
 		return result, nil
 	})
+}
+
+// GetStorageStatisticsStatus returns only the storage snapshot and refresh
+// lifecycle, making it cheap enough for bounded UI polling.
+func (s *StatisticsService) GetStorageStatisticsStatus() (*models.StorageStatisticsStatus, error) {
+	if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
+		return nil, err
+	}
+	if s.storage == nil {
+		return &models.StorageStatisticsStatus{StorageSize: "N/A", State: models.StorageStatisticsRefreshIdle}, nil
+	}
+	record, err := s.repo.GetStorageStatisticsRefreshRecord()
+	if err != nil {
+		return nil, err
+	}
+	return s.ensureStorageStatisticsStatus(record)
+}
+
+// RetryStorageStatisticsRefresh acknowledges the last failure and starts a new
+// scan as soon as no attachment mutation is active.
+func (s *StatisticsService) RetryStorageStatisticsRefresh() (*models.StorageStatisticsStatus, error) {
+	if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
+		return nil, err
+	}
+	if s.storage == nil {
+		return &models.StorageStatisticsStatus{StorageSize: "N/A", State: models.StorageStatisticsRefreshIdle}, nil
+	}
+	if err := s.repo.ClearStorageStatisticsRefreshError(); err != nil {
+		return nil, err
+	}
+	record, err := s.repo.GetStorageStatisticsRefreshRecord()
+	if err != nil {
+		return nil, err
+	}
+	return s.ensureStorageStatisticsStatus(record)
+}
+
+func (s *StatisticsService) ensureStorageStatisticsStatus(record models.StorageStatisticsRefreshRecord) (*models.StorageStatisticsStatus, error) {
+	stale := record.Snapshot.RefreshedAt.IsZero() || time.Since(record.Snapshot.RefreshedAt) >= storageStatisticsRefreshInterval
+	if stale && !record.RefreshActive && !record.MutationActive && record.LastError == "" {
+		token := uuid.New()
+		started, err := s.repo.TryStartStorageStatisticsRefresh(token, time.Now().Add(storageStatisticsLeaseDuration))
+		if err != nil {
+			return nil, err
+		}
+		if started {
+			record.RefreshActive = true
+			go s.refreshStorageStatistics(token)
+		} else {
+			record, err = s.repo.GetStorageStatisticsRefreshRecord()
+			if err != nil {
+				return nil, err
+			}
+			stale = record.Snapshot.RefreshedAt.IsZero() || time.Since(record.Snapshot.RefreshedAt) >= storageStatisticsRefreshInterval
+		}
+	}
+
+	state := models.StorageStatisticsRefreshIdle
+	switch {
+	case record.RefreshActive:
+		state = models.StorageStatisticsRefreshRunning
+	case record.MutationActive || (stale && record.LastError == ""):
+		state = models.StorageStatisticsRefreshPending
+	case record.LastError != "":
+		state = models.StorageStatisticsRefreshFailed
+	}
+	status := &models.StorageStatisticsStatus{
+		StorageObjects: record.Snapshot.ObjectCount,
+		StorageSize:    formatStorageSize(record.Snapshot.TotalBytes),
+		State:          state,
+		LastError:      record.LastError,
+	}
+	if !record.Snapshot.RefreshedAt.IsZero() {
+		refreshedAt := record.Snapshot.RefreshedAt
+		status.RefreshedAt = &refreshedAt
+	}
+	if !record.FailedAt.IsZero() {
+		failedAt := record.FailedAt
+		status.FailedAt = &failedAt
+	}
+	return status, nil
 }
 
 func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
@@ -353,8 +430,8 @@ func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
 	objectCount, totalBytes, err := s.storage.RefreshStorageUsage(ctx)
 	if err != nil {
 		slog.Warn("failed to refresh storage statistics", "error", err)
-		if releaseErr := s.repo.ReleaseStorageStatisticsRefresh(token); releaseErr != nil {
-			slog.Warn("failed to release storage statistics refresh lease", "error", releaseErr)
+		if failureErr := s.repo.FailStorageStatisticsRefresh(token, storageStatisticsRefreshError, time.Now()); failureErr != nil {
+			slog.Warn("failed to record storage statistics refresh failure", "error", failureErr)
 		}
 		return
 	}
@@ -365,6 +442,9 @@ func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
 		RefreshedAt: time.Now(),
 	}); err != nil {
 		slog.Warn("failed to save refreshed storage statistics", "error", err)
+		if failureErr := s.repo.FailStorageStatisticsRefresh(token, storageStatisticsRefreshError, time.Now()); failureErr != nil {
+			slog.Warn("failed to record storage statistics snapshot failure", "error", failureErr)
+		}
 	}
 }
 

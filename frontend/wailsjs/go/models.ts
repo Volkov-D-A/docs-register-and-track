@@ -2289,6 +2289,48 @@ export namespace models {
 	
 	
 	
+	export class StorageStatisticsStatus {
+	    storageObjects: number;
+	    storageSize: string;
+	    // Go type: time
+	    refreshedAt?: any;
+	    state: string;
+	    lastError?: string;
+	    // Go type: time
+	    failedAt?: any;
+
+	    static createFrom(source: any = {}) {
+	        return new StorageStatisticsStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.storageObjects = source["storageObjects"];
+	        this.storageSize = source["storageSize"];
+	        this.refreshedAt = this.convertValues(source["refreshedAt"], null);
+	        this.state = source["state"];
+	        this.lastError = source["lastError"];
+	        this.failedAt = this.convertValues(source["failedAt"], null);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class SystemSetting {
 	    key: string;
 	    value: string;
@@ -2625,4 +2667,3 @@ export namespace services {
 	}
 
 }
-

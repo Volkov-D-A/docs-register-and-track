@@ -257,10 +257,11 @@ type StatisticsStore interface {
 	GetSystemUserCount() (int, error)
 	GetSystemDocumentCount() (int, error)
 	GetDBSize() string
-	GetStorageStatisticsSnapshot() (models.StorageStatisticsSnapshot, error)
+	GetStorageStatisticsRefreshRecord() (models.StorageStatisticsRefreshRecord, error)
 	TryStartStorageStatisticsRefresh(token uuid.UUID, leaseUntil time.Time) (bool, error)
 	SaveStorageStatisticsSnapshot(token uuid.UUID, snapshot models.StorageStatisticsSnapshot) error
-	ReleaseStorageStatisticsRefresh(token uuid.UUID) error
+	FailStorageStatisticsRefresh(token uuid.UUID, message string, failedAt time.Time) error
+	ClearStorageStatisticsRefreshError() error
 }
 
 // StorageInfoProvider — интерфейс для получения информации о файловом хранилище.
