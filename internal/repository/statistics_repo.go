@@ -411,28 +411,56 @@ func (r *StatisticsRepository) GetStorageStatisticsSnapshot() (models.StorageSta
 // TryStartStorageStatisticsRefresh obtains a database-backed lease, so only
 // one desktop instance can scan the bucket at a time.
 func (r *StatisticsRepository) TryStartStorageStatisticsRefresh(token uuid.UUID, leaseUntil time.Time) (bool, error) {
-	result, err := r.db.Exec(`
-		UPDATE storage_statistics
-		SET refresh_token = $1, refresh_lease_until = $2
-		WHERE id = true
-		  AND (refresh_lease_until IS NULL OR refresh_lease_until < CURRENT_TIMESTAMP)
-	`, token, leaseUntil)
+	tx, err := r.db.Begin()
 	if err != nil {
+		return false, fmt.Errorf("failed to begin storage statistics refresh: %w", err)
+	}
+	defer tx.Rollback()
+
+	var revision int64
+	var refreshActive bool
+	if err := tx.QueryRow(`
+		SELECT mutation_revision,
+			(refresh_lease_until IS NOT NULL AND refresh_lease_until >= CURRENT_TIMESTAMP)
+		FROM storage_statistics
+		WHERE id = true
+		FOR UPDATE
+	`).Scan(&revision, &refreshActive); err != nil {
+		return false, fmt.Errorf("failed to lock storage statistics refresh: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM storage_statistics_mutations WHERE lease_until < CURRENT_TIMESTAMP`); err != nil {
+		return false, fmt.Errorf("failed to reap stale storage mutations: %w", err)
+	}
+	var mutationActive bool
+	if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM storage_statistics_mutations)`).Scan(&mutationActive); err != nil {
+		return false, fmt.Errorf("failed to check active storage mutations: %w", err)
+	}
+	if refreshActive || mutationActive {
+		if err := tx.Commit(); err != nil {
+			return false, fmt.Errorf("failed to finish storage statistics refresh check: %w", err)
+		}
+		return false, nil
+	}
+	if _, err := tx.Exec(`
+		UPDATE storage_statistics
+		SET refresh_token = $1, refresh_lease_until = $2, refresh_revision = $3
+		WHERE id = true
+	`, token, leaseUntil, revision); err != nil {
 		return false, fmt.Errorf("failed to acquire storage statistics refresh lease: %w", err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("failed to check storage statistics refresh lease: %w", err)
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("failed to commit storage statistics refresh lease: %w", err)
 	}
-	return affected == 1, nil
+	return true, nil
 }
 
 func (r *StatisticsRepository) SaveStorageStatisticsSnapshot(token uuid.UUID, snapshot models.StorageStatisticsSnapshot) error {
 	result, err := r.db.Exec(`
 		UPDATE storage_statistics
 		SET object_count = $1, total_bytes = $2, refreshed_at = $3,
-			refresh_token = NULL, refresh_lease_until = NULL
+			refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL
 		WHERE id = true AND refresh_token = $4
+		  AND refresh_revision = mutation_revision
 	`, snapshot.ObjectCount, snapshot.TotalBytes, snapshot.RefreshedAt, token)
 	if err != nil {
 		return fmt.Errorf("failed to save storage statistics snapshot: %w", err)
@@ -462,7 +490,7 @@ func incrementStorageStatisticsTx(tx *sql.Tx, bytes int64) error {
 func (r *StatisticsRepository) ReleaseStorageStatisticsRefresh(token uuid.UUID) error {
 	_, err := r.db.Exec(`
 		UPDATE storage_statistics
-		SET refresh_token = NULL, refresh_lease_until = NULL
+		SET refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL
 		WHERE id = true AND refresh_token = $1
 	`, token)
 	if err != nil {

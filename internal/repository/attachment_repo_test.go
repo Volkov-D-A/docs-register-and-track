@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -266,4 +267,30 @@ func TestAttachmentRepository_GetPendingDeletion(t *testing.T) {
 	require.Len(t, attachments, 1)
 	assert.Equal(t, attachmentID, attachments[0].ID)
 	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAttachmentRepositoryStorageMutationInvalidatesRefresh(t *testing.T) {
+	repo, mock := setupAttachmentRepo(t)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT id FROM storage_statistics WHERE id = true FOR UPDATE`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(true))
+	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE lease_until < CURRENT_TIMESTAMP`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`INSERT INTO storage_statistics_mutations`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE storage_statistics`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	mutation, err := repo.BeginStorageMutation(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, mutation.Context())
+
+	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE token = \$1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	require.NoError(t, mutation.Finish())
+	require.NoError(t, mock.ExpectationsWereMet())
 }

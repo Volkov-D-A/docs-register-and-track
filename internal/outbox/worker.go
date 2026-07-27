@@ -186,10 +186,19 @@ func (w *Worker) process(parent context.Context, event models.OutboxEvent) error
 		if payload.AttachmentID == uuid.Nil || payload.StoragePath == "" {
 			return fmt.Errorf("invalid attachment_delete payload")
 		}
-		if err := w.storage.DeleteFile(ctx, payload.StoragePath); err != nil {
+		mutation, err := w.attachments.BeginStorageMutation(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to coordinate attachment deletion: %w", err)
+		}
+		if err := w.storage.DeleteFile(mutation.Context(), payload.StoragePath); err != nil {
+			_ = mutation.Finish()
 			return err
 		}
-		return w.attachments.DeleteMarkedAndDecrementStorageStatistics(payload.AttachmentID)
+		if err := w.attachments.DeleteMarkedAndDecrementStorageStatistics(payload.AttachmentID); err != nil {
+			_ = mutation.Finish()
+			return err
+		}
+		return mutation.Finish()
 	default:
 		return fmt.Errorf("unsupported outbox event type %q", event.EventType)
 	}

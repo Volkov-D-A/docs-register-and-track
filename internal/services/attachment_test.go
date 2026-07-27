@@ -2,9 +2,6 @@ package services
 
 import (
 	"context"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/coordination"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
 func setupAttachmentService(t *testing.T, role string) (
@@ -64,6 +66,28 @@ func setupAttachmentService(t *testing.T, role string) (
 type atomicAttachmentStore struct {
 	*mocks.AttachmentStore
 	effects []models.OutboxEvent
+}
+
+type storageMutationStub struct {
+	ctx      context.Context
+	finished bool
+}
+
+func (m *storageMutationStub) Context() context.Context { return m.ctx }
+func (m *storageMutationStub) Finish() error {
+	m.finished = true
+	return nil
+}
+
+type storageMutationCoordinatorStub struct {
+	started  bool
+	mutation *storageMutationStub
+}
+
+func (c *storageMutationCoordinatorStub) BeginStorageMutation(ctx context.Context) (coordination.StorageMutation, error) {
+	c.started = true
+	c.mutation = &storageMutationStub{ctx: ctx}
+	return c.mutation, nil
 }
 
 func (s *atomicAttachmentStore) OutboxEnabled() bool { return true }
@@ -298,10 +322,16 @@ func TestAttachmentServiceUploadPathStreamsSelectedFile(t *testing.T) {
 	svc, repo, settingsRepo, storage, incomingRepo, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
 	atomicRepo := &atomicAttachmentStore{AttachmentStore: repo}
 	svc.repo = atomicRepo
+	coordinator := &storageMutationCoordinatorStub{}
+	svc.storageMutations = coordinator
 	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 	settingsRepo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil).Once()
 	settingsRepo.On("Get", "allowed_file_types").Return(&models.SystemSetting{Key: "allowed_file_types", Value: ".txt"}, nil).Once()
-	storage.On("UploadFile", mock.Anything, mock.AnythingOfType("string"), mock.Anything, int64(13), "text/plain; charset=utf-8").Return(nil).Once()
+	storage.On("UploadFile", mock.Anything, mock.AnythingOfType("string"), mock.Anything, int64(13), "text/plain; charset=utf-8").
+		Run(func(mock.Arguments) {
+			assert.True(t, coordinator.started, "mutation must be registered before MinIO upload")
+		}).
+		Return(nil).Once()
 	repo.On("Create", mock.AnythingOfType("*models.Attachment")).Return(nil).Once()
 
 	attachment, err := svc.uploadPath(docID.String(), path)
@@ -309,6 +339,8 @@ func TestAttachmentServiceUploadPathStreamsSelectedFile(t *testing.T) {
 	assert.Equal(t, "test.txt", attachment.Filename)
 	require.Len(t, atomicRepo.effects, 1)
 	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
+	require.NotNil(t, coordinator.mutation)
+	assert.True(t, coordinator.mutation.finished)
 }
 
 func TestAttachmentService_GetList(t *testing.T) {

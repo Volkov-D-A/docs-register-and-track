@@ -97,11 +97,13 @@ func TestWorkerProcessOnceDeletesAttachmentObjectAndMarkedRow(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
 			AddRow(eventID, models.OutboxEventFileDelete, "attachment-key", payload, now, now, nil, nil, 1, nil, now))
 	mock.ExpectCommit()
+	expectStorageMutationBegin(mock)
 	mock.ExpectBegin()
 	mock.ExpectQuery(`SELECT file_size FROM attachments WHERE id = \$1 AND deletion_requested_at IS NOT NULL FOR UPDATE`).WithArgs(attachmentID).WillReturnRows(sqlmock.NewRows([]string{"file_size"}).AddRow(42))
 	mock.ExpectExec(`DELETE FROM attachments WHERE id = \$1 AND deletion_requested_at IS NOT NULL`).WithArgs(attachmentID).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE storage_statistics`).WithArgs(42).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
+	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE token = \$1`).WithArgs(sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE event_outbox SET processed_at = CURRENT_TIMESTAMP`).WithArgs(eventID).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	require.NoError(t, worker.ProcessOnce())
@@ -125,11 +127,27 @@ func TestWorkerProcessOnceRetriesAttachmentDeletionAfterStorageFailure(t *testin
 		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
 			AddRow(eventID, models.OutboxEventFileDelete, "attachment-key", payload, now, now, nil, nil, 1, nil, now))
 	mock.ExpectCommit()
+	expectStorageMutationBegin(mock)
+	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE token = \$1`).WithArgs(sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE event_outbox.*failed_at = CASE`).WithArgs(eventID, 1, 10, 1.0, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	require.NoError(t, worker.ProcessOnce())
 	require.Equal(t, "attachments/retry.pdf", storage.path)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func expectStorageMutationBegin(mock sqlmock.Sqlmock) {
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT id FROM storage_statistics WHERE id = true FOR UPDATE`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(true))
+	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE lease_until < CURRENT_TIMESTAMP`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`INSERT INTO storage_statistics_mutations`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE storage_statistics`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 }
 
 func TestWorkerRunReleasesStaleClaimsAndStopsOnContextCancellation(t *testing.T) {

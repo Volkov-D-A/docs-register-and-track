@@ -24,10 +24,20 @@ CREATE TABLE storage_statistics (
     total_bytes BIGINT NOT NULL DEFAULT 0 CHECK (total_bytes >= 0),
     refreshed_at TIMESTAMP WITH TIME ZONE,
     refresh_token UUID,
-    refresh_lease_until TIMESTAMP WITH TIME ZONE
+    refresh_lease_until TIMESTAMP WITH TIME ZONE,
+    mutation_revision BIGINT NOT NULL DEFAULT 0 CHECK (mutation_revision >= 0),
+    refresh_revision BIGINT
 );
 
 INSERT INTO storage_statistics (id) VALUES (true);
+
+CREATE TABLE storage_statistics_mutations (
+    token UUID PRIMARY KEY,
+    lease_until TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE INDEX idx_storage_statistics_mutations_lease
+    ON storage_statistics_mutations (lease_until);
 
 -- 14. System Settings
 CREATE TABLE IF NOT EXISTS system_settings (

@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"log/slog"
 	"mime"
 	"os"
 	"os/exec"
@@ -19,18 +17,24 @@ import (
 
 	"github.com/google/uuid"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/coordination"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
 
 // AttachmentService предоставляет бизнес-логику для работы с вложениями (файлами) документов.
 type AttachmentService struct {
-	repo            AttachmentStore
-	settingsService *SettingsService
-	authService     *AuthService
-	fileStorage     FileStorage
-	access          *DocumentAccessService
-	lifecycle       *OperationLifecycle
-	uiContext       context.Context
-	metrics         *observability.Registry
+	repo             AttachmentStore
+	settingsService  *SettingsService
+	authService      *AuthService
+	fileStorage      FileStorage
+	access           *DocumentAccessService
+	lifecycle        *OperationLifecycle
+	uiContext        context.Context
+	metrics          *observability.Registry
+	storageMutations coordination.StorageMutationCoordinator
 }
 
 type attachmentOutboxStore interface {
@@ -60,13 +64,17 @@ type objectNameLister interface {
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
 func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, fs FileStorage, access *DocumentAccessService) *AttachmentService {
-	return &AttachmentService{
+	service := &AttachmentService{
 		repo:            repo,
 		settingsService: settingsService,
 		authService:     authService,
 		fileStorage:     fs,
 		access:          access,
 	}
+	if coordinator, ok := repo.(coordination.StorageMutationCoordinator); ok {
+		service.storageMutations = coordinator
+	}
+	return service
 }
 
 func (s *AttachmentService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
@@ -227,6 +235,19 @@ func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachm
 	}
 
 	objectName := uuid.New().String() + ext
+	var mutation coordination.StorageMutation
+	if s.storageMutations != nil {
+		mutation, err = s.storageMutations.BeginStorageMutation(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to coordinate storage upload: %w", err)
+		}
+		ctx = mutation.Context()
+		defer func() {
+			if finishErr := mutation.Finish(); finishErr != nil {
+				slog.Warn("failed to finish storage upload coordination", "error", finishErr, "object", objectName)
+			}
+		}()
+	}
 	if err := s.fileStorage.UploadFile(ctx, objectName, file, info.Size(), contentType); err != nil {
 		return nil, fmt.Errorf("failed to upload file to storage: %v", err)
 	}
@@ -618,17 +639,35 @@ func (s *AttachmentService) ProcessPendingDeletions(ctx context.Context) error {
 }
 
 func (s *AttachmentService) finalizeDeletion(ctx context.Context, attachment models.Attachment) error {
+	var mutation coordination.StorageMutation
+	if s.storageMutations != nil {
+		var err error
+		mutation, err = s.storageMutations.BeginStorageMutation(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to coordinate storage deletion: %w", err)
+		}
+		ctx = mutation.Context()
+	}
+	finishWithError := func(err error) error {
+		if mutation != nil {
+			if finishErr := mutation.Finish(); finishErr != nil && err == nil {
+				return finishErr
+			}
+		}
+		return err
+	}
+
 	if err := s.fileStorage.DeleteFile(ctx, attachment.StoragePath); err != nil {
-		return fmt.Errorf("failed to delete file from storage: %w", err)
+		return finishWithError(fmt.Errorf("failed to delete file from storage: %w", err))
 	}
 	if finalizer, ok := s.repo.(attachmentStorageStatisticsFinalizer); ok {
 		if err := finalizer.DeleteMarkedAndDecrementStorageStatistics(attachment.ID); err != nil {
-			return fmt.Errorf("failed to delete attachment record and update storage statistics: %w", err)
+			return finishWithError(fmt.Errorf("failed to delete attachment record and update storage statistics: %w", err))
 		}
-		return nil
+		return finishWithError(nil)
 	}
 	if err := s.repo.DeleteMarked(attachment.ID); err != nil {
-		return fmt.Errorf("failed to delete attachment record from db: %w", err)
+		return finishWithError(fmt.Errorf("failed to delete attachment record from db: %w", err))
 	}
-	return nil
+	return finishWithError(nil)
 }

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sync"
@@ -104,6 +105,52 @@ func TestAtomicOutboxWorkflowsIntegration(t *testing.T) {
 	}
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM acknowledgments WHERE id = $1`, []any{ack.ID}, 1)
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE deduplication_key = 'ack-ok'`, nil, 1)
+}
+
+func TestStorageStatisticsRejectsSnapshotsOverlappingMutationsIntegration(t *testing.T) {
+	sqlDB := integrationdb.Open(t)
+	db := &database.DB{DB: sqlDB}
+	statistics := NewStatisticsRepository(db)
+	attachments := NewAttachmentRepository(db)
+
+	for _, tc := range []struct {
+		name       string
+		deltaCount int
+		deltaBytes int64
+		wantCount  int
+		wantBytes  int64
+	}{
+		{name: "upload", deltaCount: 1, deltaBytes: 10, wantCount: 11, wantBytes: 110},
+		{name: "delete", deltaCount: -1, deltaBytes: -10, wantCount: 9, wantBytes: 90},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			execSQL(t, sqlDB, `DELETE FROM storage_statistics_mutations`)
+			execSQL(t, sqlDB, `UPDATE storage_statistics SET object_count = 10, total_bytes = 100, refreshed_at = NULL, refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL WHERE id = true`)
+
+			refreshToken := uuid.New()
+			started, err := statistics.TryStartStorageStatisticsRefresh(refreshToken, time.Now().Add(time.Minute))
+			if err != nil || !started {
+				t.Fatalf("start refresh: started=%v err=%v", started, err)
+			}
+
+			mutation, err := attachments.BeginStorageMutation(context.Background())
+			if err != nil {
+				t.Fatalf("begin mutation: %v", err)
+			}
+			execSQL(t, sqlDB, `UPDATE storage_statistics SET object_count = object_count + $1, total_bytes = total_bytes + $2 WHERE id = true`, tc.deltaCount, tc.deltaBytes)
+
+			err = statistics.SaveStorageStatisticsSnapshot(refreshToken, models.StorageStatisticsSnapshot{ObjectCount: 10, TotalBytes: 100, RefreshedAt: time.Now()})
+			if err == nil {
+				t.Fatal("overlapping snapshot was accepted")
+			}
+			if err := mutation.Finish(); err != nil {
+				t.Fatalf("finish mutation: %v", err)
+			}
+
+			assertScalar(t, sqlDB, `SELECT object_count FROM storage_statistics WHERE id = true`, nil, tc.wantCount)
+			assertScalar(t, sqlDB, `SELECT total_bytes FROM storage_statistics WHERE id = true`, nil, int(tc.wantBytes))
+		})
+	}
 }
 
 func TestAttachmentDeletionSagaIntegration(t *testing.T) {

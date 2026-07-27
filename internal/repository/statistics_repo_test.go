@@ -11,6 +11,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/google/uuid"
 )
 
 func setupStatisticsRepository(t *testing.T) (*StatisticsRepository, sqlmock.Sqlmock, func()) {
@@ -329,5 +330,56 @@ func TestStatisticsRepository_SystemCountsAndDBSize(t *testing.T) {
 		WillReturnError(sql.ErrConnDone)
 	assert.Equal(t, "N/A", repo.GetDBSize())
 
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestStatisticsRepositoryStorageRefreshUsesMutationRevision(t *testing.T) {
+	repo, mock, cleanup := setupStatisticsRepository(t)
+	defer cleanup()
+
+	token := uuid.New()
+	leaseUntil := time.Now().Add(time.Minute)
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT mutation_revision`).
+		WillReturnRows(sqlmock.NewRows([]string{"mutation_revision", "refresh_active"}).AddRow(int64(7), false))
+	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE lease_until < CURRENT_TIMESTAMP`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`SELECT EXISTS \(SELECT 1 FROM storage_statistics_mutations\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectExec(`UPDATE storage_statistics`).
+		WithArgs(token, leaseUntil, int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	started, err := repo.TryStartStorageStatisticsRefresh(token, leaseUntil)
+	require.NoError(t, err)
+	require.True(t, started)
+
+	snapshot := models.StorageStatisticsSnapshot{ObjectCount: 4, TotalBytes: 40, RefreshedAt: time.Now()}
+	mock.ExpectExec(`refresh_revision = mutation_revision`).
+		WithArgs(snapshot.ObjectCount, snapshot.TotalBytes, snapshot.RefreshedAt, token).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = repo.SaveStorageStatisticsSnapshot(token, snapshot)
+	require.ErrorContains(t, err, "refresh lease was lost")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestStatisticsRepositoryStorageRefreshWaitsForActiveMutation(t *testing.T) {
+	repo, mock, cleanup := setupStatisticsRepository(t)
+	defer cleanup()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT mutation_revision`).
+		WillReturnRows(sqlmock.NewRows([]string{"mutation_revision", "refresh_active"}).AddRow(int64(8), false))
+	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE lease_until < CURRENT_TIMESTAMP`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`SELECT EXISTS \(SELECT 1 FROM storage_statistics_mutations\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectCommit()
+
+	started, err := repo.TryStartStorageStatisticsRefresh(uuid.New(), time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	require.False(t, started)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
