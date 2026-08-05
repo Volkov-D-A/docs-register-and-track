@@ -74,3 +74,28 @@ test('polling reports a bounded timeout while refresh remains pending', async ()
     assert.equal(calls, 3);
     assert.equal(result.timedOut, true);
 });
+
+test('polling aborted during an in-flight request does not apply its response', async () => {
+    const controller = new AbortController();
+    let resolveStatus!: (status: { state: string }) => void;
+    let markStarted!: () => void;
+    const status = new Promise<{ state: string }>((resolve) => { resolveStatus = resolve; });
+    const started = new Promise<void>((resolve) => { markStarted = resolve; });
+    const applied: string[] = [];
+
+    const run = pollStorageStatus(
+        async () => {
+            markStarted();
+            return status;
+        },
+        (result) => applied.push(result.state),
+        { intervalMs: 0, maxAttempts: 3, signal: controller.signal, delay: immediateDelay },
+    );
+    await started;
+    controller.abort();
+    resolveStatus({ state: 'idle' });
+    const result = await run;
+
+    assert.deepEqual(applied, []);
+    assert.equal(result.aborted, true);
+});

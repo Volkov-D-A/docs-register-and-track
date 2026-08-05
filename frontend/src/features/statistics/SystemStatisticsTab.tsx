@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Col, Row, Space, Spin, Statistic, Typography } from 'antd';
 import { CloudOutlined, DatabaseOutlined, HddOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
 import { models } from '../../../wailsjs/go/models';
@@ -9,6 +9,8 @@ import {
 } from '../../../wailsjs/go/services/StatisticsService';
 import { formatAppError } from '../../utils/appError';
 import { pollStorageStatus } from '../../utils/storageStatusPolling';
+import { useLatestRequest } from '../../hooks/useLatestRequest';
+import type { LatestRequestHandlers } from '../../utils/latestRequest';
 
 const STORAGE_POLL_INTERVAL_MS = 1500;
 const STORAGE_POLL_MAX_ATTEMPTS = 40;
@@ -35,70 +37,99 @@ const SystemStatisticsTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [pollTimedOut, setPollTimedOut] = useState(false);
+  const { run: runLatestSystem } = useLatestRequest();
+  const { run: runLatestStorage } = useLatestRequest();
+  const storageAbortRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
+  const startStorageRequest = useCallback(<T,>(
+    request: (signal: AbortSignal) => Promise<T>,
+    handlers: LatestRequestHandlers<T>,
+  ) => {
+    storageAbortRef.current?.abort();
+    const controller = new AbortController();
+    storageAbortRef.current = controller;
+    const promise = runLatestStorage(() => request(controller.signal), {
+      ...handlers,
+      isRelevant: () => !controller.signal.aborted && (handlers.isRelevant?.() ?? true),
+    });
+    return { controller, promise };
+  }, [runLatestStorage]);
+
+  useEffect(() => () => storageAbortRef.current?.abort(), []);
+
+  const loadSystem = useCallback(async () => {
     setLoading(true);
-    setPollTimedOut(false);
-    try {
-      const systemResult = await GetSystemStatistics();
-      const storageResult = await GetStorageStatisticsStatus();
-      setStats(systemResult);
-      setStorageStatus(storageResult);
-    } catch (err: unknown) {
-      message.error(formatAppError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [message]);
+    await runLatestSystem(GetSystemStatistics, {
+      onSuccess: setStats,
+      onError: (err) => message.error(formatAppError(err)),
+      onSettled: () => setLoading(false),
+    });
+  }, [message, runLatestSystem]);
 
-  useEffect(() => { void load(); }, [load]);
+  const loadStorageStatus = useCallback(async () => {
+    setRetrying(true);
+    setPollTimedOut(false);
+    await startStorageRequest(() => GetStorageStatisticsStatus(), {
+      onSuccess: setStorageStatus,
+      onError: (err) => message.error(formatAppError(err)),
+      onSettled: () => setRetrying(false),
+    }).promise;
+  }, [message, startStorageRequest]);
+
+  const load = useCallback(() => {
+    void loadSystem();
+    void loadStorageStatus();
+  }, [loadStorageStatus, loadSystem]);
+
+  useEffect(() => { load(); }, [load]);
 
   const shouldPoll = isRefreshActive(storageStatus?.state) && !pollTimedOut;
   useEffect(() => {
     if (!shouldPoll) return undefined;
-    const controller = new AbortController();
-    void pollStorageStatus(GetStorageStatisticsStatus, setStorageStatus, {
-      intervalMs: STORAGE_POLL_INTERVAL_MS,
-      maxAttempts: STORAGE_POLL_MAX_ATTEMPTS,
-      signal: controller.signal,
-    }).then((result) => {
-      if (result.timedOut && !controller.signal.aborted) {
-        setPollTimedOut(true);
-        message.warning('Сверка хранилища занимает больше ожидаемого. Можно повторить проверку состояния вручную.');
-      }
-    }).catch((err: unknown) => {
-      if (!controller.signal.aborted) {
+    const { controller, promise } = startStorageRequest((signal) => (
+      pollStorageStatus(GetStorageStatisticsStatus, () => {}, {
+        intervalMs: STORAGE_POLL_INTERVAL_MS,
+        maxAttempts: STORAGE_POLL_MAX_ATTEMPTS,
+        signal,
+      })
+    ), {
+      onSuccess: (result) => {
+        if (result.status) setStorageStatus(result.status);
+        if (result.timedOut) {
+          setPollTimedOut(true);
+          message.warning('Сверка хранилища занимает больше ожидаемого. Можно повторить проверку состояния вручную.');
+        }
+      },
+      onError: (err) => {
         setPollTimedOut(true);
         message.error(formatAppError(err));
-      }
+      },
     });
+    void promise;
     return () => controller.abort();
-  }, [message, shouldPoll]);
+  }, [message, shouldPoll, startStorageRequest]);
 
   const retryRefresh = useCallback(async () => {
     setRetrying(true);
     setPollTimedOut(false);
-    try {
-      setStorageStatus(await RetryStorageStatisticsRefresh());
-    } catch (err: unknown) {
-      message.error(formatAppError(err));
-    } finally {
-      setRetrying(false);
-    }
-  }, [message]);
+    await startStorageRequest(() => RetryStorageStatisticsRefresh(), {
+      onSuccess: setStorageStatus,
+      onError: (err) => message.error(formatAppError(err)),
+      onSettled: () => setRetrying(false),
+    }).promise;
+  }, [message, startStorageRequest]);
 
   const checkStorageStatus = useCallback(async () => {
     setRetrying(true);
-    try {
-      const result = await GetStorageStatisticsStatus();
-      setStorageStatus(result);
-      setPollTimedOut(false);
-    } catch (err: unknown) {
-      message.error(formatAppError(err));
-    } finally {
-      setRetrying(false);
-    }
-  }, [message]);
+    await startStorageRequest(() => GetStorageStatisticsStatus(), {
+      onSuccess: (result) => {
+        setStorageStatus(result);
+        setPollTimedOut(false);
+      },
+      onError: (err) => message.error(formatAppError(err)),
+      onSettled: () => setRetrying(false),
+    }).promise;
+  }, [message, startStorageRequest]);
 
   const storageObjects = storageStatus?.storageObjects ?? stats?.storageObjects ?? 0;
   const storageSize = storageStatus?.storageSize ?? stats?.storageSize ?? 'Нет данных';
