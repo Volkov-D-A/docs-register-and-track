@@ -1,4 +1,4 @@
-.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
+.PHONY: dev build-linux build-windows clean release-assets release-assets-check check-release-env check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
@@ -58,7 +58,13 @@ go-test:
 
 # Запускает изолированный PostgreSQL, выполняет тесты с суффиксом Integration
 # и всегда удаляет контейнер вместе с тестовым volume.
-integration-test:
+check-integration-env:
+	@command -v docker >/dev/null 2>&1 || (echo "docker is required for PostgreSQL integration tests" >&2; exit 1)
+	@docker compose version >/dev/null 2>&1 || (echo "docker compose is required for PostgreSQL integration tests" >&2; exit 1)
+	@docker info >/dev/null 2>&1 || (echo "docker daemon is not available for PostgreSQL integration tests" >&2; exit 1)
+	@test -n "$(POSTGRES_VERSION)" || (echo "POSTGRES_VERSION is required for PostgreSQL integration tests" >&2; exit 1)
+
+integration-test: check-integration-env
 	@set -eu; \
 		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \

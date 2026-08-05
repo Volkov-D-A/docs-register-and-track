@@ -87,6 +87,7 @@ print_header
 run_step "check-release-env" "Check release env" make --no-print-directory check-release-env
 run_step "release-assets-check" "Release assets check" make --no-print-directory release-assets-check
 run_step "go-test" "Go tests" make --no-print-directory go-test
+run_step "integration-test" "PostgreSQL integration" make --no-print-directory integration-test
 run_step "go-vet" "Go vet" make --no-print-directory go-vet
 run_step "govulncheck" "Go vulnerability check" make --no-print-directory govulncheck
 run_step "frontend-ci" "Frontend dependencies" make --no-print-directory frontend-ci

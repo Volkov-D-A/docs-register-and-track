@@ -608,13 +608,16 @@ It runs/checks:
 - required `ENCRYPTION_KEY`;
 - generated release asset freshness;
 - Go tests;
+- PostgreSQL integration tests on a disposable Docker Compose database;
 - Go vet;
 - `govulncheck`;
 - `npm ci`;
 - frontend lint/test/build;
 - `npm audit --audit-level=critical`;
 
-`release-gate` не запускает integration tests, DB performance benchmark, target OS smoke или backup restore: это отдельные автоматические/ручные проверки.
+Для `release-gate` обязательны Docker с Compose и заданный
+`POSTGRES_VERSION`. Gate не запускает DB performance benchmark, target OS
+smoke или backup restore: это отдельные автоматические/ручные проверки.
 
 ## Supported Make Targets
 
@@ -627,6 +630,7 @@ Common targets:
 - `make release-assets` - generate embedded release assets;
 - `make release-assets-check` - verify generated release assets;
 - `make check-release-env` - проверить наличие release key;
+- `make check-integration-env` - проверить Docker Compose и версию PostgreSQL;
 - `make go-test`;
 - `make go-vet`;
 - `make integration-test`;
@@ -641,7 +645,12 @@ Common targets:
 - `make build-linux`;
 - `make build-windows`.
 
-`make integration-test` запускает изолированный PostgreSQL из `docker-compose.integration.yaml`, передаёт безопасный `DOCFLOW_INTEGRATION_DSN` для `docflow_test_outbox` и после тестов всегда удаляет контейнер и volume. Для ручной отладки доступны `make integration-db-up` и `make integration-db-down`.
+`make integration-test` проверяет prerequisites, запускает изолированный
+PostgreSQL из `docker-compose.integration.yaml`, передаёт безопасный
+`DOCFLOW_INTEGRATION_DSN` для `docflow_test_outbox` и после тестов всегда
+удаляет контейнер и volume. Этот target входит в обязательный `release-gate`.
+Для ручной отладки доступны `make integration-db-up` и
+`make integration-db-down`.
 
 ## Performance Budgets
 
@@ -675,8 +684,9 @@ Go:
 
 - `make go-test`;
 - focused unit tests in services/repositories/database;
-- guarded PostgreSQL integration tests through `make integration-test`;
-- database constraints and idempotency covered через отдельный `make integration-test`.
+- PostgreSQL integration tests through обязательный release-gate stage
+  `make integration-test`;
+- database constraints and idempotency covered этим integration stage.
 
 Frontend:
 
@@ -688,7 +698,7 @@ Frontend:
 Release evidence:
 
 - output `make release-gate`;
-- при необходимости output `make integration-test` и `make db-performance-check`;
+- отдельный output `make db-performance-check` при необходимости;
 - ручной backup/restore test и target OS install smoke.
 
 Rule: a change is not production-ready just because local unit tests pass. Release-impacting changes должны отражаться в поддерживаемой документации, если меняют поведение оператора, recovery procedure или состав проверок.

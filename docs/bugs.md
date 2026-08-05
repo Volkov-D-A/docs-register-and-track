@@ -28,7 +28,7 @@ transactional outbox, backup/restore-скрипты, тесты, release gate и
 | 9 | Средний | Исправлено: UI получает состояние и результат фоновой сверки хранилища |
 | 10 | Средний | Исправлено: экраны статистики отклоняют устаревшие async-ответы |
 | 11 | Средний | Исправлено: обработанные outbox-события очищаются по retention |
-| 12 | Средний | Release gate не запускает существующие PostgreSQL integration-тесты |
+| 12 | Средний | Исправлено: release gate запускает PostgreSQL integration-тесты |
 | 13 | Средний | Критичные frontend-потоки не покрыты тестами |
 | 14 | Средний | Нет upgrade/concurrency/composition integration-тестов |
 | 15 | Низкий | Предыдущий TTL-кэш MinIO больше не используется production-кодом |
@@ -458,12 +458,13 @@ integration-тест границы retention, `SKIP LOCKED` при конкур
 строке, сохранения pending/processing/failed, конфликта ключа внутри окна и
 повторной доставки после purge без второго audit effect. `go test ./...`,
 `go vet ./...`, frontend tests, ESLint и production build проходят.
-Integration-тест в текущей среде не запущен: команда Docker отсутствует в WSL.
+PostgreSQL integration suite проходит на изолированной базе; контейнер, сеть и
+volume удаляются после проверки.
 
 ## 12. Release gate не запускает PostgreSQL integration-тесты
 
 **Приоритет:** средний
-**Статус:** открыто
+**Статус:** исправлено 5 августа 2026 года
 
 `make integration-test` существует (`Makefile:59-66`), но
 `tools/release-gate.sh:87-96` его не вызывает. Поэтому release gate может пройти
@@ -472,6 +473,25 @@ Integration-тест в текущей среде не запущен: кома�
 **Исправление:** добавить integration stage в обязательный release pipeline или
 явно разделить быстрый локальный gate и обязательный CI/release gate. Итоговый
 production approval не должен обходить этот stage.
+
+**Решение:** основной `release-gate` запускает `make integration-test` после
+обычных Go-тестов и до frontend-проверок. Target предварительно проверяет
+наличие Docker, Docker Compose и `POSTGRES_VERSION`, затем поднимает одноразовый
+PostgreSQL, выполняет все тесты с суффиксом `Integration` и независимо от исхода
+удаляет контейнер, сеть и volume. Отдельный облегчённый release gate не добавлен:
+production approval имеет один обязательный путь.
+
+Добавлен regression-тест, который проверяет наличие integration stage и его
+положение между Go и frontend stages. README и техническая документация теперь
+явно называют Docker/PostgreSQL integration обязательной частью release gate;
+DB performance, target-OS smoke и backup/restore остаются отдельными проверками.
+
+**Проверено:** `make integration-test` проходит на изолированном PostgreSQL;
+cleanup удаляет контейнер, сеть и volume. `bash -n tools/release-gate.sh`, Go
+tests/vet и frontend checks проходят. Полный `make release-gate` прошёл все 11
+stages и сохранил результат integration stage в общем каталоге release
+evidence; ошибка integration target учитывается общим механизмом failed steps и
+делает итоговый код gate ненулевым.
 
 ## 13. Критичные frontend-потоки не покрыты тестами
 

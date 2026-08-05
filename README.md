@@ -87,7 +87,12 @@ Minimum automated gate before producing artifacts:
 make release-gate
 ```
 
-The gate checks the release environment and generated release asset, Go tests/vet/vulnerability scan, clean frontend dependency installation, frontend lint/test/build and critical npm vulnerabilities. Integration tests, DB performance checks, target-OS smoke and backup restore are separate checks described in the technical reference.
+The gate checks the release environment and generated release asset, Go unit
+and PostgreSQL integration tests, Go vet/vulnerability scan, clean frontend
+dependency installation, frontend lint/test/build and critical npm
+vulnerabilities. Docker with Compose and `POSTGRES_VERSION` are required for
+the disposable integration database. DB performance checks, target-OS smoke
+and backup restore remain separate checks described in the technical reference.
 
 ## Production Build
 
