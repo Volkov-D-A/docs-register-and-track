@@ -14,7 +14,7 @@ type ModalLike = {
 };
 
 export const hasUnsavedFormChanges = (form: FormLike): boolean => (
-    typeof form?.isFieldsTouched === 'function' && form.isFieldsTouched(true)
+    typeof form?.isFieldsTouched === 'function' && form.isFieldsTouched()
 );
 
 export const confirmDiscardFormChanges = (

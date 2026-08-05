@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { App } from 'antd';
 import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
 import { formatAppError } from '../utils/appError';
@@ -46,6 +46,8 @@ export const useDocumentRegistrationActions = ({
     const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
     const [registerSubmitting, setRegisterSubmitting] = useState(false);
     const [editSubmitting, setEditSubmitting] = useState(false);
+    const registerSubmittingRef = useRef(false);
+    const editSubmittingRef = useRef(false);
 
     const linkDocument = useCallback(async (newDocument: any) => {
         if (!sourceId || targetKind !== kindCode || !sourceKind) {
@@ -71,9 +73,10 @@ export const useDocumentRegistrationActions = ({
     }, [clearDraftLink, draftLinkType, kindCode, linkCreatedDocument, sourceId, sourceKind, targetKind]);
 
     const registerDocument = useCallback(async ({ payload, successMessage, onSuccess }: RegisterDocumentOptions) => {
-        if (registerSubmitting) {
+        if (registerSubmittingRef.current) {
             return;
         }
+        registerSubmittingRef.current = true;
         setRegisterSubmitting(true);
         try {
             const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
@@ -90,14 +93,16 @@ export const useDocumentRegistrationActions = ({
         } catch (error: unknown) {
             message.error(formatAppError(error));
         } finally {
+            registerSubmittingRef.current = false;
             setRegisterSubmitting(false);
         }
-    }, [kindCode, linkDocument, message, registerIdempotencyKey, registerSubmitting]);
+    }, [kindCode, linkDocument, message, registerIdempotencyKey]);
 
     const updateDocument = useCallback(async ({ payload, successMessage, onSuccess }: UpdateDocumentOptions) => {
-        if (editSubmitting) {
+        if (editSubmittingRef.current) {
             return;
         }
+        editSubmittingRef.current = true;
         setEditSubmitting(true);
         try {
             const { Update } = await import('../../wailsjs/go/services/DocumentRegistrationService');
@@ -107,9 +112,10 @@ export const useDocumentRegistrationActions = ({
         } catch (error: unknown) {
             message.error(formatAppError(error));
         } finally {
+            editSubmittingRef.current = false;
             setEditSubmitting(false);
         }
-    }, [editSubmitting, kindCode, message]);
+    }, [kindCode, message]);
 
     return {
         registerSubmitting,

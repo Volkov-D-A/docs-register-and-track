@@ -38,6 +38,8 @@ Frontend:
 - React 19.2.7;
 - TypeScript 6.0.3;
 - Vite 8.1.4;
+- тесты: Node test runner для utilities, Vitest + jsdom + React Testing Library
+  для component/integration-сценариев;
 - Ant Design 6.5.1;
 - Zustand 5.0.14;
 - dayjs 1.11.21;
@@ -527,6 +529,12 @@ npm test
 npm run lint
 npm run build
 ```
+
+`npm test` сначала запускает типизированные utility-тесты из `frontend/test`,
+затем React component/integration-тесты из `frontend/test/components`. Для
+последних используются Vitest, `jsdom`, React Testing Library и mock Wails
+bridge из `frontend/test/componentTestUtils.tsx`; snapshots разметки не являются
+основой regression coverage.
 
 ## Backend Development Rules
 

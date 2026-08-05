@@ -29,7 +29,7 @@ transactional outbox, backup/restore-скрипты, тесты, release gate и
 | 10 | Средний | Исправлено: экраны статистики отклоняют устаревшие async-ответы |
 | 11 | Средний | Исправлено: обработанные outbox-события очищаются по retention |
 | 12 | Средний | Исправлено: release gate запускает PostgreSQL integration-тесты |
-| 13 | Средний | Критичные frontend-потоки не покрыты тестами |
+| 13 | Средний | Исправлено: критичные frontend-потоки покрыты component/integration-тестами |
 | 14 | Средний | Нет upgrade/concurrency/composition integration-тестов |
 | 15 | Низкий | Предыдущий TTL-кэш MinIO больше не используется production-кодом |
 | 16 | Низкий | После потокового refactor остались старые attachment API и fallback-пути |
@@ -496,7 +496,7 @@ evidence; ошибка integration target учитывается общим ме
 ## 13. Критичные frontend-потоки не покрыты тестами
 
 **Приоритет:** средний
-**Статус:** открыто
+**Статус:** исправлено 5 августа 2026 года
 
 Существующие frontend-тесты охватывают только четыре utility-файла:
 
@@ -515,6 +515,30 @@ evidence; ошибка integration target учитывается общим ме
 
 **Исправление:** подключить подходящий React test renderer и начать с критичных
 регрессий, а не с snapshot-тестов разметки.
+
+**Решение:** frontend test target разделён на быстрые utility-тесты Node и
+component/integration-тесты Vitest в `jsdom` с React Testing Library. Добавлены
+общая настройка DOM, оболочка Ant Design и управляемый mock Wails bridge. Один
+`npm test` последовательно запускает оба набора, поэтому новые UI-сценарии входят
+в существующие `make frontend-test`, `make frontend-ci` и release gate.
+
+Добавлены 15 тестов, которые проверяют permission-based visibility экранов
+статистики и настроек, отклонение устаревших ответов двух отчётов, polling и
+retry системной статистики, сверку хранилища, запуск миграций с подтверждением,
+повтор terminal outbox-события, регистрацию и валидацию исходящего документа,
+idempotency key, запрет двойной отправки и подтверждение закрытия изменённой
+формы. Это поведенческие тесты; snapshots разметки не используются.
+
+Тесты выявили и устранили две реальные ошибки: повторный быстрый submit мог
+обойти React state guard до следующего render, а проверка
+`isFieldsTouched(true)` считала форму изменённой только после касания всех её
+полей. Guards регистрации/редактирования теперь синхронно удерживаются через
+refs, а dirty-form проверяет касание любого поля.
+
+**Проверено:** 5 utility-тестов и 15 component/integration-тестов проходят;
+ESLint не сообщает ошибок или предупреждений, production build успешен,
+`npm audit` после совместимых обновлений `brace-expansion` и `postcss` сообщает
+0 уязвимостей.
 
 ## 14. Нет upgrade/concurrency/composition integration-тестов
 

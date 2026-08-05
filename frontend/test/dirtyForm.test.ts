@@ -16,7 +16,7 @@ describe('dirty form discard confirmation', () => {
     };
 
     assert.equal(hasUnsavedFormChanges(form), true);
-    assert.deepEqual(calls, [true]);
+    assert.deepEqual(calls, [undefined]);
   });
 
   it('discards clean forms without showing a confirmation', () => {
