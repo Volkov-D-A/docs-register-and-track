@@ -162,11 +162,27 @@ func TestWorkerRunReleasesStaleClaimsAndStopsOnContextCancellation(t *testing.T)
 	mock.ExpectCommit()
 	mock.ExpectQuery(`FROM event_outbox\s+WHERE event_type IN`).WithArgs(models.OutboxEventJournal, models.OutboxEventAudit).
 		WillReturnRows(sqlmock.NewRows([]string{"pending", "processing", "failed"}).AddRow(0, 0, 0))
-	mock.ExpectQuery(`SELECT\s+COUNT\(\*\) FILTER`).
-		WillReturnRows(sqlmock.NewRows([]string{"pending", "processing", "failed", "processed"}).AddRow(0, 0, 0, 0))
+	mock.ExpectQuery(`FROM event_outbox\s+WHERE processed_at IS NULL`).
+		WillReturnRows(sqlmock.NewRows([]string{"pending", "processing", "failed"}).AddRow(0, 0, 0))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	worker.Run(ctx)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestWorkerCleanupProcessedUsesRetentionAndBoundedBatches(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	wrapped := &database.DB{DB: db}
+	worker := NewWorker(repository.NewOutboxRepository(wrapped), nil, nil, nil, nil, nil)
+	now := time.Date(2026, time.August, 5, 12, 0, 0, 0, time.UTC)
+	worker.now = func() time.Time { return now }
+	cutoff := now.Add(-processedRetention)
+	mock.ExpectExec(`WITH expired AS \(.*DELETE FROM event_outbox`).WithArgs(cutoff, cleanupBatchSize).WillReturnResult(sqlmock.NewResult(0, cleanupBatchSize))
+	mock.ExpectExec(`WITH expired AS \(.*DELETE FROM event_outbox`).WithArgs(cutoff, cleanupBatchSize).WillReturnResult(sqlmock.NewResult(0, 25))
+
+	worker.cleanupProcessed(context.Background())
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

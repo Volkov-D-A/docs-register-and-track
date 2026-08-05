@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,6 +13,89 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 )
+
+func TestOutboxRetentionIntegration(t *testing.T) {
+	sqlDB := integrationdb.Open(t)
+	db := &database.DB{DB: sqlDB}
+	repo := NewOutboxRepository(db)
+	now := time.Date(2026, time.August, 5, 12, 0, 0, 0, time.UTC)
+	cutoff := now.Add(-90 * 24 * time.Hour)
+	userID := insertIntegrationUser(t, sqlDB, "outbox_retention_admin")
+	deliveredKey := "retention:delivered:audit"
+	auditRequest := models.CreateAdminAuditLogRequest{UserID: userID, UserName: "Retention Admin", Action: "RETENTION_TEST", Details: "delivered once"}
+	if _, err := NewAdminAuditLogRepository(db).CreateFromOutbox(auditRequest, deliveredKey); err != nil {
+		t.Fatalf("seed delivered audit: %v", err)
+	}
+
+	for _, row := range []struct {
+		key          string
+		processedAt  *time.Time
+		processingAt *time.Time
+		failedAt     *time.Time
+		payload      string
+	}{
+		{"retention:old:1", timePtr(cutoff.Add(-time.Second)), nil, nil, `{}`},
+		{"retention:old:2", timePtr(cutoff.Add(-time.Minute)), nil, nil, `{}`},
+		{deliveredKey, timePtr(cutoff.Add(-time.Hour)), nil, nil, `{"version":1}`},
+		{"retention:boundary", timePtr(cutoff), nil, nil, `{}`},
+		{"retention:new", timePtr(cutoff.Add(time.Second)), nil, nil, `{}`},
+		{"retention:pending", nil, nil, nil, `{}`},
+		{"retention:processing", nil, timePtr(now), nil, `{}`},
+		{"retention:failed", nil, nil, timePtr(now), `{}`},
+	} {
+		execSQL(t, sqlDB, `INSERT INTO event_outbox
+			(event_type, deduplication_key, payload, processed_at, processing_started_at, failed_at)
+			VALUES ($1, $2, $3::jsonb, $4, $5, $6)`, models.OutboxEventAudit, row.key, row.payload, row.processedAt, row.processingAt, row.failedAt)
+	}
+
+	lockTx, err := sqlDB.Begin()
+	if err != nil {
+		t.Fatalf("begin concurrent cleanup lock: %v", err)
+	}
+	var lockedID uuid.UUID
+	if err := lockTx.QueryRow(`SELECT id FROM event_outbox WHERE deduplication_key = $1 FOR UPDATE`, deliveredKey).Scan(&lockedID); err != nil {
+		_ = lockTx.Rollback()
+		t.Fatalf("lock expired outbox row: %v", err)
+	}
+	deleted, err := repo.DeleteProcessedBefore(context.Background(), cutoff, 2)
+	if err != nil || deleted != 2 {
+		_ = lockTx.Rollback()
+		t.Fatalf("first cleanup deleted=%d err=%v", deleted, err)
+	}
+	if err := lockTx.Rollback(); err != nil {
+		t.Fatalf("release concurrent cleanup lock: %v", err)
+	}
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE processed_at < $1`, []any{cutoff}, 1)
+	deleted, err = repo.DeleteProcessedBefore(context.Background(), cutoff, 2)
+	if err != nil || deleted != 1 {
+		t.Fatalf("second cleanup deleted=%d err=%v", deleted, err)
+	}
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE processed_at = $1`, []any{cutoff}, 1)
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE processed_at IS NULL`, nil, 3)
+
+	queueStats, err := repo.QueueStats()
+	if err != nil || queueStats != (models.OutboxStats{Pending: 1, Processing: 1, Failed: 1}) {
+		t.Fatalf("queue stats=%+v err=%v", queueStats, err)
+	}
+	stats, err := repo.Stats()
+	if err != nil || stats != (models.OutboxStats{Pending: 1, Processing: 1, Failed: 1, Processed: 2}) {
+		t.Fatalf("admin stats=%+v err=%v", stats, err)
+	}
+
+	err = repo.Enqueue(models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "retention:boundary", Payload: `{"changed":true}`})
+	if !errors.Is(err, ErrOutboxDeduplicationConflict) {
+		t.Fatalf("retained key accepted mismatched payload: %v", err)
+	}
+	if err := repo.Enqueue(models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: deliveredKey, Payload: `{"version":1}`}); err != nil {
+		t.Fatalf("enqueue after retention: %v", err)
+	}
+	if _, err := NewAdminAuditLogRepository(db).CreateFromOutbox(auditRequest, deliveredKey); err != nil {
+		t.Fatalf("redeliver after retention: %v", err)
+	}
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM admin_audit_log WHERE outbox_deduplication_key = $1`, []any{deliveredKey}, 1)
+}
+
+func timePtr(value time.Time) *time.Time { return &value }
 
 func TestDocumentListAccessScopeIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)

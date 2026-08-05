@@ -128,7 +128,7 @@ const OutboxTab: React.FC = () => {
         <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Ожидают" value={stats?.Pending ?? 0} /></Card></Col>
         <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="В обработке" value={stats?.Processing ?? 0} /></Card></Col>
         <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Не обработаны" value={stats?.Failed ?? 0} styles={{ content: { color: stats?.Failed ? '#cf1322' : undefined } }} /></Card></Col>
-        <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Обработано" value={stats?.Processed ?? 0} /></Card></Col>
+        <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Обработано за 90 дней" value={stats?.Processed ?? 0} /></Card></Col>
       </Row>
       <Alert
         type="info"

@@ -30,18 +30,23 @@ type Worker struct {
 	storage           FileDeleter
 	lastRequiredAudit models.RequiredAuditStats
 	metrics           *observability.Registry
+	now               func() time.Time
 }
 
 const (
-	maxAttempts       = 10
-	maxRetryDelay     = time.Hour
-	queueAlertSize    = 100
-	staleClaimTimeout = 5 * time.Minute
-	consumerTimeout   = 30 * time.Second
+	maxAttempts        = 10
+	maxRetryDelay      = time.Hour
+	queueAlertSize     = 100
+	staleClaimTimeout  = 5 * time.Minute
+	consumerTimeout    = 30 * time.Second
+	processedRetention = 90 * 24 * time.Hour
+	cleanupInterval    = time.Hour
+	cleanupBatchSize   = 1000
+	cleanupMaxBatches  = 10
 )
 
 func NewWorker(outbox *repository.OutboxRepository, events *repository.UserEventRepository, journal *repository.JournalRepository, audit *repository.AdminAuditLogRepository, attachments *repository.AttachmentRepository, storage FileDeleter) *Worker {
-	return &Worker{outbox: outbox, events: events, journal: journal, audit: audit, attachments: attachments, storage: storage}
+	return &Worker{outbox: outbox, events: events, journal: journal, audit: audit, attachments: attachments, storage: storage, now: time.Now}
 }
 
 func (w *Worker) SetMetrics(metrics *observability.Registry) { w.metrics = metrics }
@@ -49,7 +54,14 @@ func (w *Worker) SetMetrics(metrics *observability.Registry) { w.metrics = metri
 func (w *Worker) Run(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+	cleanupTicker := time.NewTicker(cleanupInterval)
+	defer cleanupTicker.Stop()
+	cleanupDue := true
 	for {
+		if cleanupDue && ctx.Err() == nil {
+			w.cleanupProcessed(ctx)
+			cleanupDue = false
+		}
 		// A crashed process can leave a claimed task behind. Reaping on every
 		// polling iteration, rather than just at startup, also recovers claims
 		// from a stalled concurrent worker.
@@ -65,12 +77,35 @@ func (w *Worker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-cleanupTicker.C:
+			cleanupDue = true
 		}
 	}
 }
 
+func (w *Worker) cleanupProcessed(ctx context.Context) {
+	cutoff := w.now().Add(-processedRetention)
+	var total int64
+	for range cleanupMaxBatches {
+		deleted, err := w.outbox.DeleteProcessedBefore(ctx, cutoff, cleanupBatchSize)
+		if err != nil {
+			if ctx.Err() == nil {
+				slog.Warn("failed to clean processed outbox events", "error", err)
+			}
+			return
+		}
+		total += deleted
+		if deleted < cleanupBatchSize {
+			break
+		}
+	}
+	if total > 0 {
+		slog.Info("cleaned processed outbox events", "deleted", total, "retention_days", int(processedRetention/(24*time.Hour)))
+	}
+}
+
 func (w *Worker) observeQueue() {
-	stats, err := w.outbox.Stats()
+	stats, err := w.outbox.QueueStats()
 	if err != nil {
 		slog.Warn("failed to read outbox queue state", "error", err)
 		return

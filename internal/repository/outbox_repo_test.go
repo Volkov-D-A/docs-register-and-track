@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -109,6 +110,46 @@ func TestOutboxRepositoryStats(t *testing.T) {
 	stats, err := repo.Stats()
 	require.NoError(t, err)
 	require.Equal(t, models.OutboxStats{Pending: 2, Processing: 1, Failed: 3, Processed: 4}, stats)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutboxRepositoryQueueStatsExcludesProcessedCount(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewOutboxRepository(&database.DB{DB: db})
+	mock.ExpectQuery(`FROM event_outbox\s+WHERE processed_at IS NULL`).
+		WillReturnRows(sqlmock.NewRows([]string{"pending", "processing", "failed"}).AddRow(2, 1, 3))
+	stats, err := repo.QueueStats()
+	require.NoError(t, err)
+	require.Equal(t, models.OutboxStats{Pending: 2, Processing: 1, Failed: 3}, stats)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutboxRepositoryDeleteProcessedBeforeUsesBoundaryAndBatchLimit(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewOutboxRepository(&database.DB{DB: db})
+	cutoff := time.Date(2026, time.August, 5, 12, 0, 0, 0, time.UTC)
+	mock.ExpectExec(`WITH expired AS \(.*processed_at < \$1.*FOR UPDATE SKIP LOCKED.*LIMIT \$2.*DELETE FROM event_outbox`).
+		WithArgs(cutoff, 1000).
+		WillReturnResult(sqlmock.NewResult(0, 37))
+
+	deleted, err := repo.DeleteProcessedBefore(context.Background(), cutoff, 1000)
+	require.NoError(t, err)
+	require.Equal(t, int64(37), deleted)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutboxRepositoryDeleteProcessedBeforeRejectsEmptyBatch(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewOutboxRepository(&database.DB{DB: db})
+	deleted, err := repo.DeleteProcessedBefore(context.Background(), time.Now(), 0)
+	require.NoError(t, err)
+	require.Zero(t, deleted)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

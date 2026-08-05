@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -163,6 +164,48 @@ func (r *OutboxRepository) Stats() (models.OutboxStats, error) {
 		COUNT(*) FILTER (WHERE processed_at IS NOT NULL)
 		FROM event_outbox`).Scan(&stats.Pending, &stats.Processing, &stats.Failed, &stats.Processed)
 	return stats, err
+}
+
+// QueueStats is the hot-path operational view used by the worker. Processed
+// rows are intentionally excluded so the five-second observation loop only
+// scans the bounded active queue.
+func (r *OutboxRepository) QueueStats() (models.OutboxStats, error) {
+	var stats models.OutboxStats
+	err := r.db.QueryRow(`SELECT
+		COUNT(*) FILTER (WHERE failed_at IS NULL AND processing_started_at IS NULL),
+		COUNT(*) FILTER (WHERE failed_at IS NULL AND processing_started_at IS NOT NULL),
+		COUNT(*) FILTER (WHERE failed_at IS NOT NULL)
+		FROM event_outbox
+		WHERE processed_at IS NULL`).Scan(&stats.Pending, &stats.Processing, &stats.Failed)
+	return stats, err
+}
+
+// DeleteProcessedBefore removes at most limit delivered events. SKIP LOCKED
+// lets cleanup from several application instances make progress without
+// waiting for one another. Events exactly on the retention boundary remain.
+func (r *OutboxRepository) DeleteProcessedBefore(ctx context.Context, before time.Time, limit int) (int64, error) {
+	if limit < 1 {
+		return 0, nil
+	}
+	result, err := r.db.ExecContext(ctx, `WITH expired AS (
+		SELECT id
+		FROM event_outbox
+		WHERE processed_at IS NOT NULL AND processed_at < $1
+		ORDER BY processed_at, id
+		FOR UPDATE SKIP LOCKED
+		LIMIT $2
+	)
+	DELETE FROM event_outbox e
+	USING expired
+	WHERE e.id = expired.id`, before, limit)
+	if err != nil {
+		return 0, fmt.Errorf("delete processed outbox events: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("read processed outbox cleanup result: %w", err)
+	}
+	return deleted, nil
 }
 
 func (r *OutboxRepository) RequiredAuditStats() (models.RequiredAuditStats, error) {
