@@ -31,7 +31,7 @@ transactional outbox, backup/restore-скрипты, тесты, release gate и
 | 12 | Средний | Исправлено: release gate запускает PostgreSQL integration-тесты |
 | 13 | Средний | Исправлено: критичные frontend-потоки покрыты component/integration-тестами |
 | 14 | Средний | Исправлено: composition root и lifecycle покрыты integration-тестами |
-| 15 | Низкий | Предыдущий TTL-кэш MinIO больше не используется production-кодом |
+| 15 | Низкий | Исправлено: неиспользуемый TTL-кэш MinIO удалён |
 | 16 | Низкий | После потокового refactor остались старые attachment API и fallback-пути |
 | 17 | Низкий | Сохраняется переходная модель document access без срока удаления |
 | 18 | Низкий | Ручной frontend wrapper связей дублирует Wails bindings |
@@ -594,7 +594,7 @@ volume.
 ## 15. Предыдущий TTL-кэш MinIO больше не используется production-кодом
 
 **Приоритет:** низкий
-**Статус:** открыто
+**Статус:** исправлено 6 августа 2026 года
 
 После перехода системной статистики на persisted snapshot production-код больше
 не вызывает:
@@ -609,6 +609,25 @@ unit-тестов. Это код предыдущей реализации, а �
 **Исправление:** удалить TTL/singleflight-кэш, связанные поля и тесты, сузить
 `StorageInfoProvider` до `RefreshStorageUsage`. Если кэш всё-таки нужен для
 другого потребителя, явно указать его и добавить production call site.
+
+**Решение:** из `MinioService` удалены `GetStorageInfo`, `RefreshStorageInfo`,
+TTL/singleflight-состояние, generation counter, invalidation на upload/delete и
+дублирующее форматирование размера. Оставлен единственный production scan
+`RefreshStorageUsage`, который возвращает точное число объектов и байтов для
+persisted snapshot. Его timeout переименован в `storageUsageRefreshTimeout`.
+
+`StorageInfoProvider` теперь содержит только `RefreshStorageUsage`; лишний метод
+удалён из service fake и composition-root fake. Удалены четыре unit-теста,
+проверявшие исключительно старый кэш. При race-прогоне обнаружена гонка в
+`fakeStatisticsStore`: background refresh и `Eventually` обращались к snapshot
+без синхронизации. Тестовый store защищён mutex, assertions читают состояние
+через тот же синхронизированный контракт; production-код этой гонкой затронут не
+был.
+
+**Проверено:** focused tests `internal/storage`, `internal/services` и
+`internal/app`, затронутые race-сценарии, полный `go test ./...`, `go vet ./...`
+и `make integration-test` проходят. Docker Compose после integration-прогона
+удалил контейнер, сеть и volume.
 
 ## 16. После attachment refactor остались старые API и fallback-пути
 

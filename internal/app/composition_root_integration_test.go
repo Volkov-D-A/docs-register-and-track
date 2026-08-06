@@ -32,10 +32,6 @@ func (compositionTestStorage) DownloadFileToWriter(context.Context, string, io.W
 
 func (compositionTestStorage) DeleteFile(context.Context, string) error { return nil }
 
-func (compositionTestStorage) GetStorageInfo(context.Context) (int, string, error) {
-	return 0, "0 B", nil
-}
-
 func (compositionTestStorage) RefreshStorageUsage(context.Context) (int, int64, error) {
 	return 0, 0, nil
 }

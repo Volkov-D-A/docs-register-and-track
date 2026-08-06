@@ -213,6 +213,9 @@ MinIO хранит physical attachment objects. PostgreSQL хранит attachme
 - размер и расширения задаются системными настройками; fallback: 15 MB и `.pdf,.doc,.docx,.odt,.xls,.xlsx,.ods`;
 - attachment downloads to local disk must not overwrite existing files;
 - MinIO startup bucket check has timeout;
+- системная статистика читает persisted storage snapshot из PostgreSQL; точная
+  сверка MinIO выполняется только через `RefreshStorageUsage`, координируется с
+  attachment mutations и сохраняет новый snapshot после полного scan;
 - file operations must participate in operation lifecycle cancellation.
 
 ## Operation Lifecycle И Shutdown
