@@ -30,7 +30,7 @@ transactional outbox, backup/restore-скрипты, тесты, release gate и
 | 11 | Средний | Исправлено: обработанные outbox-события очищаются по retention |
 | 12 | Средний | Исправлено: release gate запускает PostgreSQL integration-тесты |
 | 13 | Средний | Исправлено: критичные frontend-потоки покрыты component/integration-тестами |
-| 14 | Средний | Нет upgrade/concurrency/composition integration-тестов |
+| 14 | Средний | Исправлено: composition root и lifecycle покрыты integration-тестами |
 | 15 | Низкий | Предыдущий TTL-кэш MinIO больше не используется production-кодом |
 | 16 | Низкий | После потокового refactor остались старые attachment API и fallback-пути |
 | 17 | Низкий | Сохраняется переходная модель document access без срока удаления |
@@ -543,7 +543,7 @@ ESLint не сообщает ошибок или предупреждений, p
 ## 14. Нет upgrade/concurrency/composition integration-тестов
 
 **Приоритет:** средний
-**Статус:** открыто
+**Статус:** исправлено 6 августа 2026 года
 
 Текущий migration integration-тест создаёт чистую БД, откатывает последнюю
 миграцию и применяет её снова:
@@ -561,6 +561,35 @@ ESLint не сообщает ошибок или предупреждений, p
 
 **Исправление:** добавить отдельный набор upgrade fixtures и тестируемую фабрику
 background lifecycle без запуска GUI.
+
+**Актуальность после исправлений пунктов 1, 6 и 8:** замечание оставалось
+актуальным только для composition root. Обновление со старой опубликованной
+схемы не входит в принятый контракт разработки с чистой установкой (пункт 1).
+Запуск worker после миграции уже проверяется PostgreSQL integration-тестом
+background lifecycle, а пересечение сверки storage statistics с upload/delete —
+детерминированными repository integration-тестами.
+
+**Решение:** получение PostgreSQL, MinIO и локального theme service отделено от
+сборки графа через package-private фабрики зависимостей. Публичный
+`NewWailsOptions` и production-поведение не изменены. Composition root теперь
+можно собрать с реальной тестовой PostgreSQL и поддельным объектным хранилищем,
+не запуская GUI или MinIO.
+
+Добавлен `TestCompositionRootStartupAndShutdownIntegration`, который проверяет
+полный список Wails bindings, вызывает реальные `OnStartup` и `OnShutdown`,
+дожидается обработки audit outbox-события worker-ом, а затем подтверждает вызов
+закрытия логгера и закрытие database pool. Благодаря суффиксу `Integration` тест
+автоматически входит в `make integration-test` и обязательный release gate.
+
+Upgrade fixture нужно добавлять не к текущей изменяемой истории миграций, а при
+переходе к контракту сохранения пользовательских данных между выпусками; до
+этого он создавал бы ложную гарантию совместимости.
+
+**Проверено:** полный `go test ./...`, `go vet ./...` и race-тесты
+`internal/app` проходят. Новый PostgreSQL-сценарий компилируется и включён в
+обязательный integration target. Полный `make integration-test` прошёл, включая
+composition-root сценарий; после тестов Docker Compose удалил контейнер, сеть и
+volume.
 
 ## 15. Предыдущий TTL-кэш MinIO больше не используется production-кодом
 

@@ -660,6 +660,13 @@ PostgreSQL из `docker-compose.integration.yaml`, передаёт безопа
 Для ручной отладки доступны `make integration-db-up` и
 `make integration-db-down`.
 
+Integration coverage composition root собирает Wails options с реальной
+тестовой PostgreSQL и поддельным object storage, без запуска GUI и MinIO. Тест
+проверяет состав bindings, запуск outbox worker через `OnStartup` и остановку
+background services, закрытие database pool и logger callback через
+`OnShutdown`. Production `NewWailsOptions` использует те же package-private
+фабрики с реальными PostgreSQL, MinIO и theme service.
+
 ## Performance Budgets
 
 Текущие целевые ориентиры производительности (не являются автоматическими release gates):

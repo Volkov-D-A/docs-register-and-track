@@ -32,9 +32,34 @@ type WailsOptionsParams struct {
 	CloseLogger        func()
 }
 
+type applicationStorage interface {
+	services.FileStorage
+	services.StorageInfoProvider
+}
+
+type wailsOptionsDependencies struct {
+	connectDatabase func(config.DatabaseConfig) (*database.DB, error)
+	newStorage      func(config.MinioConfig) (applicationStorage, error)
+	newThemeService func() (*services.ThemeService, error)
+}
+
 // NewWailsOptions builds the desktop application graph and returns Wails options.
 func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.App, *startupdiag.Failure) {
-	db, err := database.Connect(cfg.Database)
+	return newWailsOptionsWithDependencies(cfg, params, wailsOptionsDependencies{
+		connectDatabase: database.Connect,
+		newStorage: func(cfg config.MinioConfig) (applicationStorage, error) {
+			return storage.NewMinioService(cfg)
+		},
+		newThemeService: services.NewThemeService,
+	})
+}
+
+func newWailsOptionsWithDependencies(
+	cfg *config.Config,
+	params WailsOptionsParams,
+	dependencies wailsOptionsDependencies,
+) (*options.App, *startupdiag.Failure) {
+	db, err := dependencies.connectDatabase(cfg.Database)
 	if err != nil {
 		return nil, &startupdiag.Failure{
 			Component:  "PostgreSQL",
@@ -136,7 +161,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 	assignmentService.SetSubstitutionStore(userSubstitutionRepo)
 	departmentService := services.NewDepartmentService(departmentRepo, authService)
 
-	minioService, err := storage.NewMinioService(cfg.Minio)
+	objectStorage, err := dependencies.newStorage(cfg.Minio)
 	if err != nil {
 		return nil, &startupdiag.Failure{
 			Component:  "MinIO",
@@ -146,10 +171,10 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 			Err:        err,
 		}
 	}
-	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, minioService, documentAccessService)
+	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, objectStorage, documentAccessService)
 	attachmentService.SetOperationLifecycle(operationLifecycle)
 	attachmentService.SetOperationMetrics(metrics)
-	outboxWorker := outbox.NewWorker(outboxRepo, userEventRepo, journalRepo, adminAuditLogRepo, attachmentRepo, minioService)
+	outboxWorker := outbox.NewWorker(outboxRepo, userEventRepo, journalRepo, adminAuditLogRepo, attachmentRepo, objectStorage)
 	outboxWorker.SetMetrics(metrics)
 	backgroundServices := newBackgroundLifecycle(
 		db,
@@ -160,7 +185,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 
 	dashboardService := services.NewDashboardService(dashboardRepo, authService, documentAccessService)
 	dashboardService.SetOperationMetrics(metrics)
-	statisticsService := services.NewStatisticsService(statisticsRepo, authService, minioService)
+	statisticsService := services.NewStatisticsService(statisticsRepo, authService, objectStorage)
 	statisticsService.SetOperationLifecycle(operationLifecycle)
 	statisticsService.SetOperationMetrics(metrics)
 	linkService := services.NewLinkService(linkRepo, incomingDocRepo, outgoingDocRepo, citizenAppealRepo, administrativeOrderRepo, documentAccessService, authService)
@@ -179,7 +204,7 @@ func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.Ap
 			Err:        err,
 		}
 	}
-	themeService, err := services.NewThemeService()
+	themeService, err := dependencies.newThemeService()
 	if err != nil {
 		return nil, &startupdiag.Failure{
 			Component:  "local theme state",
