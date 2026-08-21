@@ -2298,11 +2298,11 @@ export namespace models {
 	    lastError?: string;
 	    // Go type: time
 	    failedAt?: any;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new StorageStatisticsStatus(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.storageObjects = source["storageObjects"];
@@ -2312,7 +2312,7 @@ export namespace models {
 	        this.lastError = source["lastError"];
 	        this.failedAt = this.convertValues(source["failedAt"], null);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -2667,3 +2667,4 @@ export namespace services {
 	}
 
 }
+
