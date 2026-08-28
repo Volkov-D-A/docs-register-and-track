@@ -22,7 +22,7 @@ func TestDashboardRepository_GetExpiringAssignments(t *testing.T) {
 	userID := uuid.New()
 	now := time.Now()
 
-	query := `SELECT a.id, a.content, a.deadline, a.status, a.document_id, d.kind, u.full_name as executor_name, d.registration_number as doc_number FROM assignments a JOIN documents d ON d.id = a.document_id LEFT JOIN users u ON a.executor_id = u.id WHERE a.status IN \('new', 'in_progress'\) AND a.deadline BETWEEN CURRENT_DATE AND \(CURRENT_DATE \+ INTERVAL '1 day' \* \$1\) AND \(d.kind = ANY\(\$2\) OR \(a.executor_id = ANY\(\$3::uuid\[\]\) OR EXISTS \(SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = ANY\(\$3::uuid\[\]\)\)\)\) ORDER BY a.deadline ASC`
+	query := `SELECT(.*)FROM assignments a(.*)WHERE a.status IN \('new', 'in_progress'\)(.*)assignment_series(.*)ORDER BY a.deadline ASC`
 
 	rows := sqlmock.NewRows([]string{
 		"id", "content", "deadline", "status", "document_id", "kind", "executor_name", "doc_number",

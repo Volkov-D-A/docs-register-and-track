@@ -85,8 +85,8 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
 
     const addAttachments = async () => {
         try {
-            const { Upload: uploadAttachment } = await import('../../wailsjs/go/services/AttachmentService');
-            const uploaded = await uploadAttachment(documentId);
+            const { UploadForAssignment } = await import('../../wailsjs/go/services/AttachmentService');
+            const uploaded = await UploadForAssignment(assignmentId);
             if (uploaded.length > 0) message.success('Файлы прикреплены');
         } catch (err: unknown) { message.error(formatAppError(err)); }
     };

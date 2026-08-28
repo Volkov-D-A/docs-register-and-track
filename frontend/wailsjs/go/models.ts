@@ -1,5 +1,5 @@
 export namespace database {
-	
+
 	export class MigrationStatus {
 	    currentVersion: number;
 	    dirty: boolean;
@@ -8,11 +8,11 @@ export namespace database {
 	    upToDate: boolean;
 	    schemaTooNew: boolean;
 	    compatible: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new MigrationStatus(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.currentVersion = source["currentVersion"];
@@ -28,7 +28,7 @@ export namespace database {
 }
 
 export namespace dto {
-	
+
 	export class AccessSections {
 	    dashboard: boolean;
 	    incoming: boolean;
@@ -39,7 +39,7 @@ export namespace dto {
 	    references: boolean;
 	    statistics: boolean;
 	    settings: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new AccessSections(source);
 	    }
@@ -359,11 +359,11 @@ export namespace dto {
 	    createdAt: any;
 	    // Go type: time
 	    updatedAt: any;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Nomenclature(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -378,7 +378,7 @@ export namespace dto {
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -510,6 +510,10 @@ export namespace dto {
 	    // Go type: time
 	    completedAt?: any;
 	    canAct: boolean;
+	    seriesId?: string;
+	    iterationNumber?: number;
+	    // Go type: time
+	    plannedDeadline?: any;
 	    documentNumber?: string;
 	    documentSubject?: string;
 	    coExecutors?: User[];
@@ -536,6 +540,9 @@ export namespace dto {
 	        this.report = source["report"];
 	        this.completedAt = this.convertValues(source["completedAt"], null);
 	        this.canAct = source["canAct"];
+	        this.seriesId = source["seriesId"];
+	        this.iterationNumber = source["iterationNumber"];
+	        this.plannedDeadline = this.convertValues(source["plannedDeadline"], null);
 	        this.documentNumber = source["documentNumber"];
 	        this.documentSubject = source["documentSubject"];
 	        this.coExecutors = this.convertValues(source["coExecutors"], User);
@@ -562,9 +569,79 @@ export namespace dto {
 		    return a;
 		}
 	}
+	export class AssignmentSeries {
+	    id: string;
+	    documentId: string;
+	    documentKind: string;
+	    documentNumber?: string;
+	    executorId: string;
+	    executorName?: string;
+	    content: string;
+	    intervalUnit: string;
+	    intervalValue: number;
+	    dayRule: string;
+	    dayOfMonth?: number;
+	    currentAssignmentId?: string;
+	    currentIteration: number;
+	    active: boolean;
+	    // Go type: time
+	    cancelledAt?: any;
+	    coExecutors?: User[];
+	    coExecutorIds?: string[];
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+
+	    static createFrom(source: any = {}) {
+	        return new AssignmentSeries(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.documentId = source["documentId"];
+	        this.documentKind = source["documentKind"];
+	        this.documentNumber = source["documentNumber"];
+	        this.executorId = source["executorId"];
+	        this.executorName = source["executorName"];
+	        this.content = source["content"];
+	        this.intervalUnit = source["intervalUnit"];
+	        this.intervalValue = source["intervalValue"];
+	        this.dayRule = source["dayRule"];
+	        this.dayOfMonth = source["dayOfMonth"];
+	        this.currentAssignmentId = source["currentAssignmentId"];
+	        this.currentIteration = source["currentIteration"];
+	        this.active = source["active"];
+	        this.cancelledAt = this.convertValues(source["cancelledAt"], null);
+	        this.coExecutors = this.convertValues(source["coExecutors"], User);
+	        this.coExecutorIds = source["coExecutorIds"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Attachment {
 	    id: string;
 	    documentId: string;
+	    assignmentId?: string;
 	    filename: string;
 	    filepath: string;
 	    fileSize: number;
@@ -582,6 +659,7 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.documentId = source["documentId"];
+	        this.assignmentId = source["assignmentId"];
 	        this.filename = source["filename"];
 	        this.filepath = source["filepath"];
 	        this.fileSize = source["fileSize"];
@@ -1677,6 +1755,34 @@ export namespace models {
 	        this.overdue = source["overdue"];
 	    }
 	}
+	export class AssignmentSeriesRequest {
+	    documentId: string;
+	    executorId: string;
+	    content: string;
+	    firstDeadline: string;
+	    intervalUnit: string;
+	    intervalValue: number;
+	    dayRule: string;
+	    dayOfMonth: number;
+	    coExecutorIds: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new AssignmentSeriesRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.documentId = source["documentId"];
+	        this.executorId = source["executorId"];
+	        this.content = source["content"];
+	        this.firstDeadline = source["firstDeadline"];
+	        this.intervalUnit = source["intervalUnit"];
+	        this.intervalValue = source["intervalValue"];
+	        this.dayRule = source["dayRule"];
+	        this.dayOfMonth = source["dayOfMonth"];
+	        this.coExecutorIds = source["coExecutorIds"];
+	    }
+	}
 	export class StatisticsReportRow {
 	    key: string;
 	    name: string;
@@ -2667,4 +2773,3 @@ export namespace services {
 	}
 
 }
-

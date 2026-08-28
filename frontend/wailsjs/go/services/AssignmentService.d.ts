@@ -4,7 +4,11 @@ import {dto} from '../models';
 import {models} from '../models';
 import {services} from '../models';
 
+export function CancelSeries(arg1:string):Promise<void>;
+
 export function Create(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<string>):Promise<dto.Assignment>;
+
+export function CreateSeries(arg1:models.AssignmentSeriesRequest):Promise<dto.AssignmentSeries>;
 
 export function Delete(arg1:string):Promise<void>;
 
@@ -12,8 +16,14 @@ export function GetByID(arg1:string):Promise<dto.Assignment>;
 
 export function GetList(arg1:models.AssignmentFilter):Promise<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_Assignment_>;
 
+export function GetSeries(arg1:string):Promise<dto.AssignmentSeries>;
+
+export function GetSeriesHistory(arg1:string):Promise<Array<dto.Assignment>>;
+
 export function SetSubstitutionStore(arg1:services.UserSubstitutionStore):Promise<void>;
 
 export function Update(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<string>):Promise<dto.Assignment>;
+
+export function UpdateSeries(arg1:string,arg2:models.AssignmentSeriesRequest):Promise<dto.AssignmentSeries>;
 
 export function UpdateStatus(arg1:string,arg2:string,arg3:string):Promise<dto.Assignment>;

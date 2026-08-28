@@ -378,6 +378,7 @@ type DocumentLink struct {
 type Attachment struct {
 	ID             string    `json:"id"`
 	DocumentID     string    `json:"documentId"`
+	AssignmentID   string    `json:"assignmentId,omitempty"`
 	Filename       string    `json:"filename"`
 	Filepath       string    `json:"filepath"`
 	FileSize       int64     `json:"fileSize"`
@@ -396,12 +397,15 @@ type Assignment struct {
 	ExecutorID   string `json:"executorId"`
 	ExecutorName string `json:"executorName,omitempty"`
 
-	Content     string     `json:"content"`
-	Deadline    *time.Time `json:"deadline,omitempty"`
-	Status      string     `json:"status"`
-	Report      string     `json:"report,omitempty"`
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
-	CanAct      bool       `json:"canAct"`
+	Content         string     `json:"content"`
+	Deadline        *time.Time `json:"deadline,omitempty"`
+	Status          string     `json:"status"`
+	Report          string     `json:"report,omitempty"`
+	CompletedAt     *time.Time `json:"completedAt,omitempty"`
+	CanAct          bool       `json:"canAct"`
+	SeriesID        string     `json:"seriesId,omitempty"`
+	IterationNumber int        `json:"iterationNumber,omitempty"`
+	PlannedDeadline *time.Time `json:"plannedDeadline,omitempty"`
 
 	DocumentNumber  string `json:"documentNumber,omitempty"`
 	DocumentSubject string `json:"documentSubject,omitempty"`
@@ -411,6 +415,29 @@ type Assignment struct {
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// AssignmentSeries is returned only from manager-only series operations.
+type AssignmentSeries struct {
+	ID                  string     `json:"id"`
+	DocumentID          string     `json:"documentId"`
+	DocumentKind        string     `json:"documentKind"`
+	DocumentNumber      string     `json:"documentNumber,omitempty"`
+	ExecutorID          string     `json:"executorId"`
+	ExecutorName        string     `json:"executorName,omitempty"`
+	Content             string     `json:"content"`
+	IntervalUnit        string     `json:"intervalUnit"`
+	IntervalValue       int        `json:"intervalValue"`
+	DayRule             string     `json:"dayRule"`
+	DayOfMonth          int        `json:"dayOfMonth,omitempty"`
+	CurrentAssignmentID string     `json:"currentAssignmentId,omitempty"`
+	CurrentIteration    int        `json:"currentIteration"`
+	Active              bool       `json:"active"`
+	CancelledAt         *time.Time `json:"cancelledAt,omitempty"`
+	CoExecutors         []User     `json:"coExecutors,omitempty"`
+	CoExecutorIDs       []string   `json:"coExecutorIds,omitempty"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
 }
 
 // DashboardActivity описывает оперативные данные главного экрана.

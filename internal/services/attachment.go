@@ -35,6 +35,8 @@ type AttachmentService struct {
 	uiContext        context.Context
 	metrics          *observability.Registry
 	storageMutations coordination.StorageMutationCoordinator
+	assignments      AssignmentStore
+	substitutions    UserSubstitutionStore
 }
 
 type attachmentStoragePathStore interface {
@@ -65,6 +67,11 @@ func (s *AttachmentService) SetOperationLifecycle(lifecycle *OperationLifecycle)
 }
 
 func (s *AttachmentService) SetOperationMetrics(metrics *observability.Registry) { s.metrics = metrics }
+
+func (s *AttachmentService) SetAssignmentStore(store AssignmentStore) { s.assignments = store }
+func (s *AttachmentService) SetSubstitutionStore(store UserSubstitutionStore) {
+	s.substitutions = store
+}
 
 // ReconcileStorage compares database metadata and MinIO without modifying
 // either side. It is intentionally available only to administrators.
@@ -149,7 +156,68 @@ func (s *AttachmentService) Upload(documentIDStr string) ([]dto.Attachment, erro
 	})
 }
 
+// UploadForAssignment links completion evidence to one concrete iteration.
+func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) ([]dto.Attachment, error) {
+	return measureOperation(s.metrics, "attachments.upload.assignment", func() ([]dto.Attachment, error) {
+		if s.uiContext == nil {
+			return nil, fmt.Errorf("file picker is not initialized")
+		}
+		if s.assignments == nil {
+			return nil, fmt.Errorf("assignment store is not configured")
+		}
+		assignmentID, err := uuid.Parse(assignmentIDStr)
+		if err != nil {
+			return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
+		}
+		assignment, err := s.assignments.GetByID(assignmentID)
+		if err != nil {
+			return nil, err
+		}
+		if assignment == nil {
+			return nil, models.NewNotFound("поручение не найдено")
+		}
+		if assignment.SeriesID != nil && !assignment.IsSeriesCurrent {
+			return nil, models.ErrForbidden
+		}
+		currentUserID, err := s.authService.GetCurrentUserUUID()
+		if err != nil {
+			return nil, err
+		}
+		canAct := assignment.ExecutorID == currentUserID
+		if !canAct && s.substitutions != nil {
+			canAct, err = s.substitutions.IsActiveSubstitute(currentUserID, assignment.ExecutorID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		canUploadDirectly := s.access.RequireDocumentAction(assignment.DocumentID, "upload") == nil
+		if !canUploadDirectly && (!canAct || !s.settingsService.IsAssignmentCompletionAttachmentsEnabled()) {
+			return nil, models.ErrForbidden
+		}
+		if !canUploadDirectly && assignment.Status != "in_progress" {
+			return nil, models.NewConflict("файлы исполнения можно добавлять только для поручения в работе")
+		}
+		paths, err := wailsruntime.OpenMultipleFilesDialog(s.uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для отчёта об исполнении"})
+		if err != nil {
+			return nil, fmt.Errorf("failed to choose files: %w", err)
+		}
+		items := make([]dto.Attachment, 0, len(paths))
+		for _, path := range paths {
+			item, uploadErr := s.uploadPathLinked(assignment.DocumentID.String(), path, &assignmentID)
+			if uploadErr != nil {
+				return nil, uploadErr
+			}
+			items = append(items, *item)
+		}
+		return items, nil
+	})
+}
+
 func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachment, error) {
+	return s.uploadPathLinked(documentIDStr, path, nil)
+}
+
+func (s *AttachmentService) uploadPathLinked(documentIDStr, path string, assignmentID *uuid.UUID) (*dto.Attachment, error) {
 	ctx, release := serviceOperationContext(s.lifecycle)
 	defer release()
 
@@ -167,7 +235,7 @@ func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachm
 	}
 
 	canUploadDirectly := s.access.RequireDocumentAction(documentID, "upload") == nil
-	if !canUploadDirectly {
+	if assignmentID == nil && !canUploadDirectly {
 		if !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
 			return nil, models.NewForbidden("загрузка файлов при завершении поручения отключена в настройках")
 		}
@@ -242,12 +310,13 @@ func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachm
 	}
 
 	attachment := &models.Attachment{
-		DocumentID:  documentID,
-		Filename:    filename,
-		FileSize:    info.Size(),
-		ContentType: contentType,
-		StoragePath: objectName,
-		UploadedBy:  userID,
+		DocumentID:   documentID,
+		AssignmentID: assignmentID,
+		Filename:     filename,
+		FileSize:     info.Size(),
+		ContentType:  contentType,
+		StoragePath:  objectName,
+		UploadedBy:   userID,
 	}
 
 	event, buildErr := NewJournalOutboxEvent("attachment:"+objectName+":upload:journal", models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: "FILE_UPLOAD", Details: fmt.Sprintf("Добавлен файл: %s", filename)})
@@ -267,6 +336,41 @@ func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachm
 	}
 
 	return dto.MapAttachment(attachment), nil
+}
+
+type assignmentAttachmentStore interface {
+	GetByAssignmentID(uuid.UUID) ([]models.Attachment, error)
+}
+
+// GetAssignmentFiles is manager-only because it is used by the protected
+// history view of a recurring series.
+func (s *AttachmentService) GetAssignmentFiles(assignmentIDStr string) ([]dto.Attachment, error) {
+	assignmentID, err := uuid.Parse(assignmentIDStr)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
+	}
+	if s.assignments == nil {
+		return nil, fmt.Errorf("assignment store is not configured")
+	}
+	assignment, err := s.assignments.GetByID(assignmentID)
+	if err != nil {
+		return nil, err
+	}
+	if assignment == nil {
+		return nil, models.NewNotFound("поручение не найдено")
+	}
+	if err = s.access.RequireDocumentAction(assignment.DocumentID, "assign"); err != nil {
+		return nil, err
+	}
+	repo, ok := s.repo.(assignmentAttachmentStore)
+	if !ok {
+		return nil, fmt.Errorf("assignment attachment lookup is not supported")
+	}
+	items, err := repo.GetByAssignmentID(assignmentID)
+	if err != nil {
+		return nil, err
+	}
+	return dto.MapAttachments(items), nil
 }
 
 // GetList — получить вложения документа

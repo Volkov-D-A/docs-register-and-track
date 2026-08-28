@@ -27,6 +27,16 @@ type assignmentOutboxStore interface {
 	DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error
 }
 
+type assignmentSeriesStore interface {
+	CreateSeriesWithFirstAssignment(seriesID, assignmentID, documentID, executorID, createdBy uuid.UUID, content string, firstDeadline time.Time, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, coExecutorIDs []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error)
+	GetAssignmentSeries(id uuid.UUID) (*models.AssignmentSeries, error)
+	GetAssignmentSeriesByAssignment(id uuid.UUID) (*models.AssignmentSeries, error)
+	UpdateAssignmentSeries(id, executorID uuid.UUID, content, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, coExecutorIDs []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error)
+	CancelAssignmentSeries(id, actorID uuid.UUID, effects []models.OutboxEvent) error
+	FinishSeriesIterationWithNext(currentID, seriesID, nextID uuid.UUID, expectedSeriesUpdatedAt time.Time, report string, completedAt *time.Time, nextDeadline time.Time, nextIteration int, executorID uuid.UUID, content string, coExecutorIDs []string, currentEffects, nextEffects []models.OutboxEvent) (*models.Assignment, error)
+	GetAssignmentSeriesHistory(seriesID uuid.UUID) ([]models.Assignment, error)
+}
+
 // NewAssignmentService создает новый экземпляр AssignmentService.
 func NewAssignmentService(
 	repo AssignmentStore,
@@ -232,6 +242,200 @@ func (s *AssignmentService) Create(
 	return dto.MapAssignment(res), err
 }
 
+func validateAssignmentSeriesRequest(request models.AssignmentSeriesRequest, requireFirstDeadline bool) (uuid.UUID, string, string, int, int, error) {
+	executorID, err := uuid.Parse(request.ExecutorID)
+	if err != nil {
+		return uuid.Nil, "", "", 0, 0, models.NewBadRequestWrapped("неверный ID исполнителя", err)
+	}
+	content := strings.TrimSpace(request.Content)
+	if content == "" {
+		return uuid.Nil, "", "", 0, 0, models.NewBadRequest("текст поручения обязателен")
+	}
+	if request.IntervalUnit != "day" && request.IntervalUnit != "week" && request.IntervalUnit != "month" && request.IntervalUnit != "year" {
+		return uuid.Nil, "", "", 0, 0, models.NewBadRequest("неверная единица интервала серии")
+	}
+	if request.IntervalValue < 1 || request.IntervalValue > 3650 {
+		return uuid.Nil, "", "", 0, 0, models.NewBadRequest("значение интервала серии должно быть от 1 до 3650")
+	}
+	day := request.DayOfMonth
+	dayRule := request.DayRule
+	if request.IntervalUnit == "day" || request.IntervalUnit == "week" {
+		dayRule, day = "same_day", 0
+	} else if dayRule != "fixed" && dayRule != "last_day" {
+		return uuid.Nil, "", "", 0, 0, models.NewBadRequest("неверное правило календарного дня")
+	}
+	if dayRule == "fixed" && (day < 1 || day > 31) {
+		return uuid.Nil, "", "", 0, 0, models.NewBadRequest("день месяца должен быть от 1 до 31")
+	}
+	if dayRule == "last_day" || dayRule == "same_day" {
+		day = 0
+	}
+	if requireFirstDeadline && request.FirstDeadline == "" {
+		return uuid.Nil, "", "", 0, 0, models.NewBadRequest("укажите первый плановый срок")
+	}
+	return executorID, content, dayRule, request.IntervalValue, day, nil
+}
+
+func dateMatchesSeriesRule(value time.Time, dayRule string, dayOfMonth int) bool {
+	if dayRule == "last_day" {
+		return value.Day() == time.Date(value.Year(), value.Month()+1, 0, 0, 0, 0, 0, value.Location()).Day()
+	}
+	expected := dayOfMonth
+	last := time.Date(value.Year(), value.Month()+1, 0, 0, 0, 0, 0, value.Location()).Day()
+	if expected > last {
+		expected = last
+	}
+	return value.Day() == expected
+}
+
+func nextSeriesDeadline(current time.Time, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int) time.Time {
+	if intervalUnit == "day" {
+		return current.AddDate(0, 0, intervalValue)
+	}
+	if intervalUnit == "week" {
+		return current.AddDate(0, 0, intervalValue*7)
+	}
+	months := intervalValue
+	if intervalUnit == "year" {
+		months = intervalValue * 12
+	}
+	targetMonth := time.Date(current.Year(), current.Month()+time.Month(months), 1, 0, 0, 0, 0, current.Location())
+	last := time.Date(targetMonth.Year(), targetMonth.Month()+1, 0, 0, 0, 0, 0, current.Location()).Day()
+	day := dayOfMonth
+	if dayRule == "last_day" || day > last {
+		day = last
+	}
+	return time.Date(targetMonth.Year(), targetMonth.Month(), day, 0, 0, 0, 0, current.Location())
+}
+
+// CreateSeries creates the recurring template and its first ordinary iteration.
+func (s *AssignmentService) CreateSeries(request models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error) {
+	documentID, err := uuid.Parse(request.DocumentID)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
+	}
+	if err = s.access.RequireDocumentAction(documentID, "assign"); err != nil {
+		return nil, err
+	}
+	doc, err := s.access.RequireExists(documentID)
+	if err != nil {
+		return nil, err
+	}
+	executorID, content, dayRule, intervalValue, dayOfMonth, err := validateAssignmentSeriesRequest(request, true)
+	if err != nil {
+		return nil, err
+	}
+	firstDeadline, err := time.Parse("2006-01-02", request.FirstDeadline)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный формат первого срока", err)
+	}
+	if dayRule != "same_day" && !dateMatchesSeriesRule(firstDeadline, dayRule, dayOfMonth) {
+		return nil, models.NewBadRequest("первый срок не соответствует выбранному правилу расписания")
+	}
+	repo, ok := s.repo.(assignmentSeriesStore)
+	if !ok {
+		return nil, fmt.Errorf("assignment store must support series operations")
+	}
+	seriesID, assignmentID := uuid.New(), uuid.New()
+	actorID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, err
+	}
+	effects := make([]models.OutboxEvent, 0, 2+len(request.CoExecutorIDs))
+	journal, err := NewJournalOutboxEvent(assignmentOutboxKey(assignmentID, "series-created", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: documentID, UserID: actorID, Action: "ASSIGNMENT_SERIES_CREATE", Details: "Создана серия поручений и первая итерация"})
+	if err != nil {
+		return nil, err
+	}
+	effects = append(effects, journal)
+	assignment := &models.Assignment{ID: assignmentID, DocumentID: documentID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, ExecutorID: executorID, CoExecutorIDs: request.CoExecutorIDs, Status: "new", SeriesID: &seriesID, IterationNumber: 1}
+	for _, recipientID := range assignmentExecutorRecipientIDs(assignment) {
+		req := models.CreateUserEventRequest{RecipientUserID: recipientID, ActorUserID: eventActorID(s.auth), DocumentID: documentID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, EntityType: models.UserEventEntityAssignment, EntityID: assignmentID, EventType: models.UserEventAssignmentCreated, Title: "Новое поручение", Message: fmt.Sprintf("Вам назначено поручение по документу %s", documentNumberLabel(doc.RegistrationNumber)), Metadata: userEventMetadata(map[string]string{"status": "new"})}
+		event, buildErr := NewUserEventOutboxEvent(assignmentOutboxKey(assignmentID, "created", "", &recipientID, "user_event"), req)
+		if buildErr != nil {
+			return nil, buildErr
+		}
+		effects = append(effects, event)
+	}
+	result, err := repo.CreateSeriesWithFirstAssignment(seriesID, assignmentID, documentID, executorID, actorID, content, firstDeadline, request.IntervalUnit, intervalValue, dayRule, dayOfMonth, request.CoExecutorIDs, effects)
+	return dto.MapAssignmentSeries(result), err
+}
+
+func (s *AssignmentService) getManagedSeries(id string) (*models.AssignmentSeries, assignmentSeriesStore, error) {
+	seriesID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, nil, models.NewBadRequestWrapped("неверный ID серии", err)
+	}
+	repo, ok := s.repo.(assignmentSeriesStore)
+	if !ok {
+		return nil, nil, fmt.Errorf("assignment store must support series operations")
+	}
+	series, err := repo.GetAssignmentSeries(seriesID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if series == nil {
+		return nil, nil, models.NewNotFound("серия поручений не найдена")
+	}
+	if err = s.access.RequireDocumentAction(series.DocumentID, "assign"); err != nil {
+		return nil, nil, err
+	}
+	return series, repo, nil
+}
+
+func (s *AssignmentService) GetSeries(id string) (*dto.AssignmentSeries, error) {
+	series, _, err := s.getManagedSeries(id)
+	return dto.MapAssignmentSeries(series), err
+}
+
+func (s *AssignmentService) GetSeriesHistory(id string) ([]dto.Assignment, error) {
+	series, repo, err := s.getManagedSeries(id)
+	if err != nil {
+		return nil, err
+	}
+	items, err := repo.GetAssignmentSeriesHistory(series.ID)
+	if err != nil {
+		return nil, err
+	}
+	return dto.MapAssignments(items), nil
+}
+
+func (s *AssignmentService) UpdateSeries(id string, request models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error) {
+	series, repo, err := s.getManagedSeries(id)
+	if err != nil {
+		return nil, err
+	}
+	executorID, content, dayRule, intervalValue, dayOfMonth, err := validateAssignmentSeriesRequest(request, false)
+	if err != nil {
+		return nil, err
+	}
+	actorID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, err
+	}
+	event, err := NewJournalOutboxEvent("assignment-series:"+series.ID.String()+":"+time.Now().UTC().Format(time.RFC3339Nano)+":updated:journal", models.CreateJournalEntryRequest{DocumentID: series.DocumentID, UserID: actorID, Action: "ASSIGNMENT_SERIES_UPDATE", Details: "Параметры будущих итераций поручения изменены"})
+	if err != nil {
+		return nil, err
+	}
+	result, err := repo.UpdateAssignmentSeries(series.ID, executorID, content, request.IntervalUnit, intervalValue, dayRule, dayOfMonth, request.CoExecutorIDs, []models.OutboxEvent{event})
+	return dto.MapAssignmentSeries(result), err
+}
+
+func (s *AssignmentService) CancelSeries(id string) error {
+	series, repo, err := s.getManagedSeries(id)
+	if err != nil {
+		return err
+	}
+	actorID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return err
+	}
+	event, err := NewJournalOutboxEvent("assignment-series:"+series.ID.String()+":cancelled:journal", models.CreateJournalEntryRequest{DocumentID: series.DocumentID, UserID: actorID, Action: "ASSIGNMENT_SERIES_CANCEL", Details: "Серия поручений отменена; текущая итерация сохранена"})
+	if err != nil {
+		return err
+	}
+	return repo.CancelAssignmentSeries(series.ID, actorID, []models.OutboxEvent{event})
+}
+
 // Update — редактирование (админ)
 func (s *AssignmentService) Update(
 	id string,
@@ -380,7 +584,47 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 				effects = append(effects, event)
 			}
 		}
-		res, err = repo.UpdateWithOutbox(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, statusUpdate.report, statusUpdate.completedAt, existing.CoExecutorIDs, effects)
+		if status == "finished" && existing.SeriesID != nil {
+			seriesRepo, seriesOK := s.repo.(assignmentSeriesStore)
+			if !seriesOK {
+				return nil, fmt.Errorf("assignment store must support series operations")
+			}
+			series, seriesErr := seriesRepo.GetAssignmentSeries(*existing.SeriesID)
+			if seriesErr != nil {
+				return nil, seriesErr
+			}
+			if series == nil {
+				return nil, models.NewConflict("серия поручения не найдена")
+			}
+			baseDeadline := existing.PlannedDeadline
+			if baseDeadline == nil {
+				baseDeadline = existing.Deadline
+			}
+			if baseDeadline == nil {
+				return nil, models.NewConflict("для серийного поручения не задан плановый срок")
+			}
+			nextDeadline := nextSeriesDeadline(*baseDeadline, series.IntervalUnit, series.IntervalValue, series.DayRule, series.DayOfMonth)
+			nextID := uuid.New()
+			nextIteration := existing.IterationNumber + 1
+			nextEffects := make([]models.OutboxEvent, 0, 1+len(series.CoExecutorIDs))
+			nextJournal, buildErr := NewJournalOutboxEvent(assignmentOutboxKey(nextID, "series-iteration-created", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_SERIES_ITERATION_CREATE", Details: fmt.Sprintf("Автоматически создана итерация поручения №%d со сроком %s", nextIteration, nextDeadline.Format("02.01.2006"))})
+			if buildErr != nil {
+				return nil, buildErr
+			}
+			nextEffects = append(nextEffects, nextJournal)
+			nextAssignment := &models.Assignment{ID: nextID, DocumentID: existing.DocumentID, DocumentKind: existing.DocumentKind, DocumentNumber: existing.DocumentNumber, ExecutorID: series.ExecutorID, CoExecutorIDs: series.CoExecutorIDs, Status: "new", SeriesID: &series.ID, IterationNumber: nextIteration}
+			for _, recipientID := range assignmentExecutorRecipientIDs(nextAssignment) {
+				request := models.CreateUserEventRequest{RecipientUserID: recipientID, ActorUserID: eventActorID(s.auth), DocumentID: existing.DocumentID, DocumentKind: existing.DocumentKind, DocumentNumber: existing.DocumentNumber, EntityType: models.UserEventEntityAssignment, EntityID: nextID, EventType: models.UserEventAssignmentCreated, Title: "Новое поручение", Message: fmt.Sprintf("Вам назначено поручение по документу %s", documentNumberLabel(existing.DocumentNumber)), Metadata: userEventMetadata(map[string]string{"status": "new"})}
+				event, eventErr := NewUserEventOutboxEvent(assignmentOutboxKey(nextID, "created", "", &recipientID, "user_event"), request)
+				if eventErr != nil {
+					return nil, eventErr
+				}
+				nextEffects = append(nextEffects, event)
+			}
+			res, err = seriesRepo.FinishSeriesIterationWithNext(uid, series.ID, nextID, series.UpdatedAt, statusUpdate.report, statusUpdate.completedAt, nextDeadline, nextIteration, series.ExecutorID, series.Content, series.CoExecutorIDs, effects, nextEffects)
+		} else {
+			res, err = repo.UpdateWithOutbox(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, statusUpdate.report, statusUpdate.completedAt, existing.CoExecutorIDs, effects)
+		}
 	}
 	mapped := dto.MapAssignment(res)
 	if mapped != nil {
@@ -405,7 +649,11 @@ func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 	if res == nil {
 		return nil, models.NewNotFound("поручение не найдено")
 	}
-	if err := s.access.RequireDocumentAction(res.DocumentID, "assign"); err != nil {
+	manageErr := s.access.RequireDocumentAction(res.DocumentID, "assign")
+	if res.SeriesID != nil && !res.IsSeriesCurrent && manageErr != nil {
+		return nil, models.ErrForbidden
+	}
+	if manageErr != nil {
 		_, subjectIDs, subjectsErr := s.currentUserAndSubstitutionSubjectIDs()
 		if subjectsErr != nil {
 			return nil, subjectsErr
@@ -576,6 +824,9 @@ func (s *AssignmentService) Delete(id string) error {
 	}
 	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
 		return err
+	}
+	if existing.SeriesID != nil {
+		return models.NewConflict("итерацию серии нельзя удалить отдельно; отмените серию или завершите текущую итерацию")
 	}
 
 	// Завершенные поручения удалять нельзя

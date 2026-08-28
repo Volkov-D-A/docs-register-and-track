@@ -27,6 +27,7 @@ func (r *DashboardRepository) GetExpiringAssignments(filter models.DashboardAssi
 	where := []string{
 		"a.status IN ('new', 'in_progress')",
 		"a.deadline BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '1 day' * $1)",
+		"(a.series_id IS NULL OR EXISTS (SELECT 1 FROM assignment_series s WHERE s.id = a.series_id AND s.current_assignment_id = a.id))",
 	}
 	args := []interface{}{filter.Days}
 	argIdx := 2

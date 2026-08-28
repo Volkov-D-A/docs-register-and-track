@@ -252,12 +252,15 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 			a.id, a.document_id, d.kind,
 			a.executor_id, u_executor.full_name,
 			a.content, a.deadline, a.status, a.report, a.completed_at,
+			a.series_id, a.iteration_number, a.planned_deadline,
+			COALESCE(s.current_assignment_id = a.id, FALSE) AS is_series_current,
 			a.created_at, a.updated_at,
 			d.registration_number as doc_number,
 			d.content as doc_subject
 		FROM assignments a
 		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
+		LEFT JOIN assignment_series s ON s.id = a.series_id
 		WHERE a.id = $1
 	`
 
@@ -267,11 +270,15 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	var report sql.NullString
 	var docNumber sql.NullString
 	var docSubject sql.NullString
+	var seriesID uuid.NullUUID
+	var iterationNumber sql.NullInt64
+	var plannedDeadline sql.NullTime
 
 	err := r.db.QueryRow(query, id).Scan(
 		&a.ID, &a.DocumentID, &a.DocumentKind,
 		&a.ExecutorID, &a.ExecutorName,
 		&a.Content, &deadline, &a.Status, &report, &completedAt,
+		&seriesID, &iterationNumber, &plannedDeadline, &a.IsSeriesCurrent,
 		&a.CreatedAt, &a.UpdatedAt,
 		&docNumber, &docSubject,
 	)
@@ -288,6 +295,15 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	}
 	if completedAt.Valid {
 		a.CompletedAt = &completedAt.Time
+	}
+	if seriesID.Valid {
+		a.SeriesID = &seriesID.UUID
+	}
+	if iterationNumber.Valid {
+		a.IterationNumber = int(iterationNumber.Int64)
+	}
+	if plannedDeadline.Valid {
+		a.PlannedDeadline = &plannedDeadline.Time
 	}
 	if report.Valid {
 		a.Report = report.String
@@ -340,15 +356,18 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 			a.id, a.document_id, d.kind,
 			a.executor_id, u_executor.full_name,
 			a.content, a.deadline, a.status, a.report, a.completed_at,
+			a.series_id, a.iteration_number, a.planned_deadline,
+			COALESCE(s.current_assignment_id = a.id, FALSE) AS is_series_current,
 			a.created_at, a.updated_at,
 			d.registration_number as doc_number,
 			d.content as doc_subject
 		FROM assignments a
 		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
+		LEFT JOIN assignment_series s ON s.id = a.series_id
 	`
 
-	where := []string{"1=1"}
+	where := []string{"(a.series_id IS NULL OR s.current_assignment_id = a.id)"}
 	args := []interface{}{}
 	argIdx := 1
 
@@ -429,7 +448,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	query += " WHERE " + strings.Join(where, " AND ")
 
 	// Запрос количества
-	countQuery := "SELECT COUNT(*) FROM assignments a JOIN documents d ON d.id = a.document_id WHERE " + strings.Join(where, " AND ")
+	countQuery := "SELECT COUNT(*) FROM assignments a JOIN documents d ON d.id = a.document_id LEFT JOIN assignment_series s ON s.id = a.series_id WHERE " + strings.Join(where, " AND ")
 	var totalCount int
 	if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count assignments: %w", err)
@@ -467,11 +486,15 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		var report sql.NullString
 		var docNumber sql.NullString
 		var docSubject sql.NullString
+		var seriesID uuid.NullUUID
+		var iterationNumber sql.NullInt64
+		var plannedDeadline sql.NullTime
 
 		if err := rows.Scan(
 			&a.ID, &a.DocumentID, &a.DocumentKind,
 			&a.ExecutorID, &a.ExecutorName,
 			&a.Content, &deadline, &a.Status, &report, &completedAt,
+			&seriesID, &iterationNumber, &plannedDeadline, &a.IsSeriesCurrent,
 			&a.CreatedAt, &a.UpdatedAt,
 			&docNumber, &docSubject,
 		); err != nil {
@@ -483,6 +506,15 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		}
 		if completedAt.Valid {
 			a.CompletedAt = &completedAt.Time
+		}
+		if seriesID.Valid {
+			a.SeriesID = &seriesID.UUID
+		}
+		if iterationNumber.Valid {
+			a.IterationNumber = int(iterationNumber.Int64)
+		}
+		if plannedDeadline.Valid {
+			a.PlannedDeadline = &plannedDeadline.Time
 		}
 		if report.Valid {
 			a.Report = report.String

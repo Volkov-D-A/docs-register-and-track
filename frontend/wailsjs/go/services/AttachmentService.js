@@ -14,6 +14,10 @@ export function DownloadToDisk(arg1) {
   return window['go']['services']['AttachmentService']['DownloadToDisk'](arg1);
 }
 
+export function GetAssignmentFiles(arg1) {
+  return window['go']['services']['AttachmentService']['GetAssignmentFiles'](arg1);
+}
+
 export function GetList(arg1) {
   return window['go']['services']['AttachmentService']['GetList'](arg1);
 }
@@ -30,6 +34,10 @@ export function ReconcileStorage() {
   return window['go']['services']['AttachmentService']['ReconcileStorage']();
 }
 
+export function SetAssignmentStore(arg1) {
+  return window['go']['services']['AttachmentService']['SetAssignmentStore'](arg1);
+}
+
 export function SetOperationLifecycle(arg1) {
   return window['go']['services']['AttachmentService']['SetOperationLifecycle'](arg1);
 }
@@ -38,10 +46,18 @@ export function SetOperationMetrics(arg1) {
   return window['go']['services']['AttachmentService']['SetOperationMetrics'](arg1);
 }
 
+export function SetSubstitutionStore(arg1) {
+  return window['go']['services']['AttachmentService']['SetSubstitutionStore'](arg1);
+}
+
 export function Startup(arg1) {
   return window['go']['services']['AttachmentService']['Startup'](arg1);
 }
 
 export function Upload(arg1) {
   return window['go']['services']['AttachmentService']['Upload'](arg1);
+}
+
+export function UploadForAssignment(arg1) {
+  return window['go']['services']['AttachmentService']['UploadForAssignment'](arg1);
 }

@@ -12,6 +12,8 @@ export function Delete(arg1:string):Promise<void>;
 
 export function DownloadToDisk(arg1:string):Promise<string>;
 
+export function GetAssignmentFiles(arg1:string):Promise<Array<dto.Attachment>>;
+
 export function GetList(arg1:string):Promise<Array<dto.Attachment>>;
 
 export function OpenFile(arg1:string):Promise<void>;
@@ -20,10 +22,16 @@ export function OpenFolder(arg1:string):Promise<void>;
 
 export function ReconcileStorage():Promise<models.AttachmentStorageReconciliation>;
 
+export function SetAssignmentStore(arg1:services.AssignmentStore):Promise<void>;
+
 export function SetOperationLifecycle(arg1:services.OperationLifecycle):Promise<void>;
 
 export function SetOperationMetrics(arg1:observability.Registry):Promise<void>;
 
+export function SetSubstitutionStore(arg1:services.UserSubstitutionStore):Promise<void>;
+
 export function Startup(arg1:context.Context):Promise<void>;
 
 export function Upload(arg1:string):Promise<Array<dto.Attachment>>;
+
+export function UploadForAssignment(arg1:string):Promise<Array<dto.Attachment>>;

@@ -1,18 +1,20 @@
 import React from 'react';
 import { Button, Popconfirm, Space, Tag } from 'antd';
-import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, SyncOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 type BuildAssignmentColumnsParams = {
     canManageAssignments: boolean;
     onEdit: (assignment: any) => void;
     onDelete: (id: string) => void;
+    onManageSeries: (assignment: any) => void;
 };
 
 export const buildAssignmentColumns = ({
     canManageAssignments,
     onEdit,
     onDelete,
+    onManageSeries,
 }: BuildAssignmentColumnsParams) => [
     {
         title: 'Дата',
@@ -83,10 +85,11 @@ export const buildAssignmentColumns = ({
 
             return (
                 <Space size={2}>
-                    {canEdit && (
+                    {canManageAssignments && (
                         <>
-                            <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => onEdit(record)} />
-                            <Popconfirm
+                            {canEdit && <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => onEdit(record)} />}
+                            {record.seriesId && <Button size="small" title="Управление серией" icon={<SyncOutlined />} onClick={() => onManageSeries(record)} />}
+                            {canEdit && !record.seriesId && <Popconfirm
                                 title="Удалить поручение?"
                                 description="Это действие нельзя отменить. Поручение исчезнет из документа и списка исполнителя."
                                 okText="Удалить"
@@ -95,7 +98,7 @@ export const buildAssignmentColumns = ({
                                 onConfirm={() => onDelete(record.id)}
                             >
                                 <Button size="small" title="Удалить поручение" icon={<DeleteOutlined />} danger />
-                            </Popconfirm>
+                            </Popconfirm>}
                         </>
                     )}
                 </Space>

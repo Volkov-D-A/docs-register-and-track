@@ -4,6 +4,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import AssignmentModal from './AssignmentModal';
 import { useAssignments } from '../hooks/useAssignments';
 import { buildAssignmentColumns } from './assignmentListColumns';
+import AssignmentSeriesModal from './AssignmentSeriesModal';
 
 interface AssignmentListProps {
     documentId: string;
@@ -22,6 +23,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
     } = useAssignments({ documentId, documentKind });
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<any>(null);
+    const [seriesAssignment, setSeriesAssignment] = useState<any>(null);
 
     const columns = buildAssignmentColumns({
         canManageAssignments,
@@ -30,6 +32,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
             setModalOpen(true);
         },
         onDelete: deleteAssignment,
+        onManageSeries: setSeriesAssignment,
     });
 
     const handleAssignmentsChanged = async () => {
@@ -73,6 +76,14 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
                 documentId={documentId}
                 isEdit={!!editAssignment}
                 initialValues={editAssignment}
+            />
+
+            <AssignmentSeriesModal
+                open={!!seriesAssignment}
+                seriesId={seriesAssignment?.seriesId || ''}
+                documentId={documentId}
+                onCancel={() => setSeriesAssignment(null)}
+                onSuccess={handleAssignmentsChanged}
             />
         </div>
     );

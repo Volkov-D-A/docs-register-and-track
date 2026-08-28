@@ -32,12 +32,14 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 			"id", "document_id", "kind",
 			"executor_id", "full_name",
 			"content", "deadline", "status", "report", "completed_at",
+			"series_id", "iteration_number", "planned_deadline", "is_series_current",
 			"created_at", "updated_at",
 			"doc_number", "doc_subject",
 		}).AddRow(
 			assignID, uuid.New(), "incoming",
 			uuid.New(), "Иванов И.И.",
 			"Выполнить задачу", now, "new", nil, nil,
+			nil, nil, nil, false,
 			now, now,
 			"ВХ-1", "Тема",
 		)
@@ -152,9 +154,10 @@ func TestAssignmentRepository_Create(t *testing.T) {
 		"id", "document_id", "kind",
 		"executor_id", "full_name",
 		"content", "deadline", "status", "report", "completed_at",
+		"series_id", "iteration_number", "planned_deadline", "is_series_current",
 		"created_at", "updated_at",
 		"doc_number", "doc_subject",
-	}).AddRow(assignID, docID, "incoming", execID, "Иванов", "Текст", now, "new", nil, nil, now, now, "", "")
+	}).AddRow(assignID, docID, "incoming", execID, "Иванов", "Текст", now, "new", nil, nil, nil, nil, nil, false, now, now, "", "")
 
 	mock.ExpectQuery(expectedGetQuery).WithArgs(assignID).WillReturnRows(rows)
 	mock.ExpectQuery(`SELECT u.id, u.login, u.full_name FROM assignment_co_executors`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "full_name"}))
@@ -196,9 +199,10 @@ func TestAssignmentRepository_Update(t *testing.T) {
 		"id", "document_id", "kind",
 		"executor_id", "full_name",
 		"content", "deadline", "status", "report", "completed_at",
+		"series_id", "iteration_number", "planned_deadline", "is_series_current",
 		"created_at", "updated_at",
 		"doc_number", "doc_subject",
-	}).AddRow(assignID, uuid.New(), "incoming", execID, "Иванов", "Обновленный текст", now, "in_progress", "Отчет", now, now, now, "", "")
+	}).AddRow(assignID, uuid.New(), "incoming", execID, "Иванов", "Обновленный текст", now, "in_progress", "Отчет", now, nil, nil, nil, false, now, now, "", "")
 
 	mock.ExpectQuery(expectedGetQuery).WithArgs(assignID).WillReturnRows(rows)
 	mock.ExpectQuery(`SELECT(.*)FROM assignment_co_executors(.*)`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "full_name"}))
@@ -233,8 +237,9 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 	mock.ExpectQuery(query).WillReturnRows(sqlmock.NewRows([]string{
 		"id", "document_id", "kind", "executor_id", "full_name",
 		"content", "deadline", "status", "report", "completed_at",
+		"series_id", "iteration_number", "planned_deadline", "is_series_current",
 		"created_at", "updated_at", "doc_number", "doc_subject",
-	}).AddRow(uuid.New(), uuid.New(), "incoming", uuid.New(), "Executor", "Content", now, "new", nil, nil, now, now, "doc-1", "subj-1"))
+	}).AddRow(uuid.New(), uuid.New(), "incoming", uuid.New(), "Executor", "Content", now, "new", nil, nil, nil, nil, nil, false, now, now, "doc-1", "subj-1"))
 
 	// Co-executors fetching
 	mock.ExpectQuery(`SELECT(.*)FROM assignment_co_executors(.*)`).
@@ -296,6 +301,7 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "document_id", "kind", "executor_id", "full_name",
 				"content", "deadline", "status", "report", "completed_at",
+				"series_id", "iteration_number", "planned_deadline", "is_series_current",
 				"created_at", "updated_at", "doc_number", "doc_subject",
 			}))
 

@@ -21,6 +21,11 @@ type Assignment struct {
 	Report      string     `json:"report,omitempty"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 
+	SeriesID        *uuid.UUID `json:"-"`
+	IterationNumber int        `json:"iterationNumber,omitempty"`
+	PlannedDeadline *time.Time `json:"plannedDeadline,omitempty"`
+	IsSeriesCurrent bool       `json:"-"`
+
 	DocumentNumber  string `json:"documentNumber,omitempty"`
 	DocumentSubject string `json:"documentSubject,omitempty"`
 
@@ -30,6 +35,45 @@ type Assignment struct {
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// AssignmentSeries describes the template and calendar rule for future
+// iterations of a recurring assignment. Only users allowed to assign work for
+// the document may read or mutate this model through the service layer.
+type AssignmentSeries struct {
+	ID                  uuid.UUID  `json:"-"`
+	DocumentID          uuid.UUID  `json:"-"`
+	DocumentKind        string     `json:"documentKind"`
+	DocumentNumber      string     `json:"documentNumber,omitempty"`
+	ExecutorID          uuid.UUID  `json:"-"`
+	ExecutorName        string     `json:"executorName,omitempty"`
+	Content             string     `json:"content"`
+	IntervalUnit        string     `json:"intervalUnit"`
+	IntervalValue       int        `json:"intervalValue"`
+	DayRule             string     `json:"dayRule"` // fixed, last_day
+	DayOfMonth          int        `json:"dayOfMonth,omitempty"`
+	CurrentAssignmentID *uuid.UUID `json:"-"`
+	CurrentIteration    int        `json:"currentIteration"`
+	Active              bool       `json:"active"`
+	CreatedBy           uuid.UUID  `json:"-"`
+	CancelledBy         *uuid.UUID `json:"-"`
+	CancelledAt         *time.Time `json:"cancelledAt,omitempty"`
+	CoExecutors         []User     `json:"coExecutors,omitempty"`
+	CoExecutorIDs       []string   `json:"coExecutorIds,omitempty"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
+}
+
+type AssignmentSeriesRequest struct {
+	DocumentID    string   `json:"documentId"`
+	ExecutorID    string   `json:"executorId"`
+	Content       string   `json:"content"`
+	FirstDeadline string   `json:"firstDeadline"`
+	IntervalUnit  string   `json:"intervalUnit"`
+	IntervalValue int      `json:"intervalValue"`
+	DayRule       string   `json:"dayRule"`
+	DayOfMonth    int      `json:"dayOfMonth"`
+	CoExecutorIDs []string `json:"coExecutorIds"`
 }
 
 // AssignmentFilter описывает параметры фильтрации поручений.

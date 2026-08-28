@@ -172,6 +172,8 @@ func newWailsOptionsWithDependencies(
 		}
 	}
 	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, objectStorage, documentAccessService)
+	attachmentService.SetAssignmentStore(assignmentRepo)
+	attachmentService.SetSubstitutionStore(userSubstitutionRepo)
 	attachmentService.SetOperationLifecycle(operationLifecycle)
 	attachmentService.SetOperationMetrics(metrics)
 	outboxWorker := outbox.NewWorker(outboxRepo, userEventRepo, journalRepo, adminAuditLogRepo, attachmentRepo, objectStorage)

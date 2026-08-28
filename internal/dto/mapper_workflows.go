@@ -13,7 +13,11 @@ func MapAttachment(m *models.Attachment) *Attachment {
 	if m == nil {
 		return nil
 	}
-	return &Attachment{ID: m.ID.String(), DocumentID: m.DocumentID.String(), Filename: m.Filename, Filepath: m.Filepath, FileSize: m.FileSize, ContentType: m.ContentType, UploadedBy: m.UploadedBy.String(), UploadedByName: m.UploadedByName, UploadedAt: m.UploadedAt}
+	assignmentID := ""
+	if m.AssignmentID != nil {
+		assignmentID = m.AssignmentID.String()
+	}
+	return &Attachment{ID: m.ID.String(), DocumentID: m.DocumentID.String(), AssignmentID: assignmentID, Filename: m.Filename, Filepath: m.Filepath, FileSize: m.FileSize, ContentType: m.ContentType, UploadedBy: m.UploadedBy.String(), UploadedByName: m.UploadedByName, UploadedAt: m.UploadedAt}
 }
 
 func MapAssignment(m *models.Assignment) *Assignment {
@@ -29,7 +33,28 @@ func MapAssignment(m *models.Assignment) *Assignment {
 			}
 		}
 	}
-	return &Assignment{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, ExecutorID: m.ExecutorID.String(), ExecutorName: m.ExecutorName, Content: m.Content, Deadline: m.Deadline, Status: m.Status, Report: m.Report, CompletedAt: m.CompletedAt, DocumentNumber: m.DocumentNumber, DocumentSubject: m.DocumentSubject, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+	seriesID := ""
+	if m.SeriesID != nil {
+		seriesID = m.SeriesID.String()
+	}
+	return &Assignment{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, ExecutorID: m.ExecutorID.String(), ExecutorName: m.ExecutorName, Content: m.Content, Deadline: m.Deadline, Status: m.Status, Report: m.Report, CompletedAt: m.CompletedAt, SeriesID: seriesID, IterationNumber: m.IterationNumber, PlannedDeadline: m.PlannedDeadline, DocumentNumber: m.DocumentNumber, DocumentSubject: m.DocumentSubject, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+}
+
+func MapAssignmentSeries(m *models.AssignmentSeries) *AssignmentSeries {
+	if m == nil {
+		return nil
+	}
+	coExecutors := make([]User, 0, len(m.CoExecutors))
+	for i := range m.CoExecutors {
+		if mapped := MapUser(&m.CoExecutors[i]); mapped != nil {
+			coExecutors = append(coExecutors, *mapped)
+		}
+	}
+	currentID := ""
+	if m.CurrentAssignmentID != nil {
+		currentID = m.CurrentAssignmentID.String()
+	}
+	return &AssignmentSeries{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, DocumentNumber: m.DocumentNumber, ExecutorID: m.ExecutorID.String(), ExecutorName: m.ExecutorName, Content: m.Content, IntervalUnit: m.IntervalUnit, IntervalValue: m.IntervalValue, DayRule: m.DayRule, DayOfMonth: m.DayOfMonth, CurrentAssignmentID: currentID, CurrentIteration: m.CurrentIteration, Active: m.Active, CancelledAt: m.CancelledAt, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
 }
 
 func MapAcknowledgment(m *models.Acknowledgment) *Acknowledgment {

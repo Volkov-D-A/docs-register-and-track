@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
     SearchOutlined, EditOutlined, DeleteOutlined,
-    ClearOutlined, EyeOutlined
+    ClearOutlined, EyeOutlined, SyncOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
@@ -19,6 +19,7 @@ import { onAssignmentsChanged } from '../events/assignmentEvents';
 import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvents';
 import { dto, models } from '../../wailsjs/go/models';
 import { CoalescedRequest } from '../utils/coalescedRequest';
+import AssignmentSeriesModal from '../components/AssignmentSeriesModal';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -49,6 +50,7 @@ const AssignmentsPage: React.FC = () => {
     // Модальные окна
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<dto.Assignment | null>(null);
+    const [seriesAssignment, setSeriesAssignment] = useState<dto.Assignment | null>(null);
 
     // View Document
     const [viewDocId, setViewDocId] = useState<string>('');
@@ -262,10 +264,11 @@ const AssignmentsPage: React.FC = () => {
                         <Tooltip title="Просмотреть карточку документа">
                             <Button size="small" icon={<EyeOutlined />} onClick={() => handleViewDocument(r.documentId, r.documentKind)} />
                         </Tooltip>
-                        {canEdit && (
+                        {canManageAssignment && (
                             <>
-                                <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />
-                                <Popconfirm
+                                {canEdit && <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />}
+                                {(r as any).seriesId && <Button size="small" title="Управление серией" icon={<SyncOutlined />} onClick={() => setSeriesAssignment(r)} />}
+                                {canEdit && !(r as any).seriesId && <Popconfirm
                                     title="Удалить поручение?"
                                     description="Это действие нельзя отменить. Поручение исчезнет из документа и списка исполнителя."
                                     okText="Удалить"
@@ -274,7 +277,7 @@ const AssignmentsPage: React.FC = () => {
                                     onConfirm={() => onDelete(r.id)}
                                 >
                                     <Button size="small" title="Удалить поручение" icon={<DeleteOutlined />} danger />
-                                </Popconfirm>
+                                </Popconfirm>}
                             </>
                         )}
                     </Space>
@@ -395,6 +398,14 @@ const AssignmentsPage: React.FC = () => {
                 documentId={viewDocId}
                 documentKind={viewDocKind}
                 onAssignmentsChanged={load}
+            />
+
+            <AssignmentSeriesModal
+                open={!!seriesAssignment}
+                seriesId={(seriesAssignment as any)?.seriesId || ''}
+                documentId={seriesAssignment?.documentId || ''}
+                onCancel={() => setSeriesAssignment(null)}
+                onSuccess={load}
             />
         </div>
     );

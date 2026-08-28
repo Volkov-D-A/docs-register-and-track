@@ -74,7 +74,13 @@ func (r *AttachmentRepository) CreateWithOutbox(a *models.Attachment, effects []
 		return err
 	}
 	defer tx.Rollback()
-	if err := tx.QueryRow(`INSERT INTO attachments (document_id, filename, storage_path, file_size, content_type, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, uploaded_at`, a.DocumentID, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy).Scan(&a.ID, &a.UploadedAt); err != nil {
+	query := `INSERT INTO attachments (document_id, filename, storage_path, file_size, content_type, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, uploaded_at`
+	args := []any{a.DocumentID, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy}
+	if a.AssignmentID != nil {
+		query = `INSERT INTO attachments (document_id, assignment_id, filename, storage_path, file_size, content_type, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, uploaded_at`
+		args = []any{a.DocumentID, *a.AssignmentID, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy}
+	}
+	if err := tx.QueryRow(query, args...).Scan(&a.ID, &a.UploadedAt); err != nil {
 		return err
 	}
 	if err := incrementStorageStatisticsTx(tx, a.FileSize); err != nil {
@@ -84,6 +90,35 @@ func (r *AttachmentRepository) CreateWithOutbox(a *models.Attachment, effects []
 		return err
 	}
 	return tx.Commit()
+}
+
+func (r *AttachmentRepository) GetByAssignmentID(assignmentID uuid.UUID) ([]models.Attachment, error) {
+	rows, err := r.db.Query(`
+		SELECT a.id,a.document_id,a.assignment_id,a.filename,a.file_size,a.content_type,
+		       a.storage_path,a.uploaded_by,a.uploaded_at,COALESCE(u.full_name,'')
+		FROM attachments a LEFT JOIN users u ON u.id=a.uploaded_by
+		WHERE a.assignment_id=$1 AND a.deletion_requested_at IS NULL
+		ORDER BY a.uploaded_at DESC
+	`, assignmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]models.Attachment, 0)
+	for rows.Next() {
+		var item models.Attachment
+		var linked uuid.NullUUID
+		if err = rows.Scan(&item.ID, &item.DocumentID, &linked, &item.Filename, &item.FileSize,
+			&item.ContentType, &item.StoragePath, &item.UploadedBy, &item.UploadedAt,
+			&item.UploadedByName); err != nil {
+			return nil, err
+		}
+		if linked.Valid {
+			item.AssignmentID = &linked.UUID
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 // MarkDeletingMultipleWithOutbox makes the whole batch visible as deleting,
