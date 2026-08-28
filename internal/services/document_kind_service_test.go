@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -94,5 +95,34 @@ func TestDocumentKindService_GetCurrentAccessSummary(t *testing.T) {
 		assert.False(t, summary.Sections.Assignments)
 		assert.True(t, summary.Sections.Settings)
 		assert.ElementsMatch(t, []string{"admin"}, summary.SystemPermissions)
+	})
+}
+
+func TestDocumentKindService_GetCurrentAccessSummaryDuringSchemaMaintenance(t *testing.T) {
+	t.Parallel()
+
+	maintenanceErr := errors.New("schema maintenance")
+
+	t.Run("admin retains migration settings access", func(t *testing.T) {
+		service, auth := setupDocumentKindService(t, "admin", false)
+		defer auth.Logout()
+		auth.schemaLifecycle = &fakeSchemaLifecycle{checkReadyErr: maintenanceErr}
+
+		summary, err := service.GetCurrentAccessSummary()
+		require.NoError(t, err)
+		assert.True(t, summary.Sections.Settings)
+		assert.False(t, summary.Sections.Dashboard)
+		assert.Empty(t, summary.DocumentKinds)
+		assert.Equal(t, []string{models.SystemPermissionAdmin}, summary.SystemPermissions)
+	})
+
+	t.Run("non-admin remains blocked", func(t *testing.T) {
+		service, auth := setupDocumentKindService(t, "clerk", false)
+		defer auth.Logout()
+		auth.schemaLifecycle = &fakeSchemaLifecycle{checkReadyErr: maintenanceErr}
+
+		summary, err := service.GetCurrentAccessSummary()
+		assert.Nil(t, summary)
+		assert.ErrorIs(t, err, maintenanceErr)
 	})
 }

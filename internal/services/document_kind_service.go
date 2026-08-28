@@ -20,9 +20,6 @@ func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSumma
 	if s.access == nil || s.access.auth == nil {
 		return nil, models.ErrUnauthorized
 	}
-	if err := s.access.auth.RequireAuthenticated(); err != nil {
-		return nil, err
-	}
 
 	user, err := s.access.auth.GetCurrentUser()
 	if err != nil {
@@ -30,6 +27,25 @@ func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSumma
 	}
 	if user == nil {
 		return nil, models.ErrUnauthorized
+	}
+
+	if err := s.access.auth.checkSchemaReady(); err != nil {
+		// Migration administration must remain reachable while ordinary schema-
+		// dependent operations are suspended. Return the smallest useful access
+		// model only after re-checking the current session's admin permission
+		// without the lifecycle guard. SettingsService applies the same special
+		// authorization rule to migration status and execution.
+		if adminErr := s.access.auth.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); adminErr != nil {
+			return nil, err
+		}
+		return &dto.CurrentAccessSummary{
+			Sections: dto.AccessSections{
+				Settings: true,
+			},
+			DocumentKinds:     []dto.DocumentKindAccessSummary{},
+			RegistrationKinds: []string{},
+			SystemPermissions: []string{models.SystemPermissionAdmin},
+		}, nil
 	}
 
 	specs := models.AllDocumentKindSpecs()
