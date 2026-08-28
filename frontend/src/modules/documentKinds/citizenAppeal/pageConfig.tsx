@@ -21,7 +21,7 @@ export const citizenAppealPageConfig = {
         registrationDate: dayjs(),
         appealDate: dayjs(),
         appealType: 'заявление',
-        appealPagesCount: 1,
+        pagesCount: 1,
         attachmentPagesCount: 0,
         hasEnvelope: false,
         receivedFromPos: false,
@@ -53,7 +53,7 @@ export const citizenAppealPageConfig = {
                         Дата: {dayjs(record.appealDate).format('DD.MM.YYYY')}
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--app-text-muted)' }}>
-                        Листов: {record.appealPagesCount || 0} + {record.attachmentPagesCount || 0}
+                        Листов: {record.pagesCount ?? 0}, приложение: {record.attachmentPagesCount ?? 0}
                     </div>
                 </div>
             ),

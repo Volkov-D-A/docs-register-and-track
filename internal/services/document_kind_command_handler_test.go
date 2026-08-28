@@ -169,7 +169,7 @@ func TestDocumentRegistrationService_NormalizesRegisterRequests(t *testing.T) {
 				"registrationAddress":  "Адрес",
 				"appealType":           "жалоба",
 				"applicantCategory":    "гражданин",
-				"appealPagesCount":     1,
+				"pagesCount":           1,
 				"attachmentPagesCount": 2,
 				"hasEnvelope":          true,
 				"receivedFromPos":      false,
@@ -287,7 +287,7 @@ func TestDocumentRegistrationService_NormalizesUpdateRequests(t *testing.T) {
 				"registrationAddress":  "Адрес",
 				"appealType":           "жалоба",
 				"applicantCategory":    "гражданин",
-				"appealPagesCount":     1,
+				"pagesCount":           1,
 				"attachmentPagesCount": 2,
 			},
 			assertTyped: func(t *testing.T, req any) {

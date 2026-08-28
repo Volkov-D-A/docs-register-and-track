@@ -129,6 +129,7 @@ func validAdministrativeOrderRegisterRequest(nomenclatureID, idempotencyKey uuid
 		IdempotencyKey:          idempotencyKey.String(),
 		OrderDate:               "2026-06-03",
 		Title:                   " О назначении ответственного ",
+		PagesCount:              1,
 		ExecutionController:     " Контрольный отдел ",
 		ExecutionDeadline:       "2026-06-30",
 		IsActive:                true,
@@ -169,6 +170,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 		assert.Equal(t, deps.user.ID, deps.repo.createReq.CreatedBy)
 		assert.Equal(t, "ORD-10", deps.repo.createReq.OrderNumber)
 		assert.Equal(t, "О назначении ответственного", deps.repo.createReq.Title)
+		assert.Equal(t, 1, deps.repo.createReq.PagesCount)
 		assert.Equal(t, "Контрольный отдел", deps.repo.createReq.ExecutionController)
 		require.NotNil(t, deps.repo.createReq.ExecutionDeadline)
 		assert.Equal(t, time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC), *deps.repo.createReq.ExecutionDeadline)
@@ -345,6 +347,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			ID:                      documentID.String(),
 			OrderDate:               "2026-06-04",
 			Title:                   " Обновленный приказ ",
+			PagesCount:              1,
 			ExecutionController:     " Контроль ",
 			IsActive:                false,
 			CancelledAt:             "2026-07-01T00:00:00Z",
@@ -359,6 +362,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		assert.Equal(t, documentID.String(), result.ID)
 		assert.Equal(t, documentID, deps.repo.updateReq.ID)
 		assert.Equal(t, "Обновленный приказ", deps.repo.updateReq.Title)
+		assert.Equal(t, 1, deps.repo.updateReq.PagesCount)
 		assert.Equal(t, "Контроль", deps.repo.updateReq.ExecutionController)
 		assert.False(t, deps.repo.updateReq.IsActive)
 		require.NotNil(t, deps.repo.updateReq.CancelledAt)
@@ -519,6 +523,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			ID:                  documentID.String(),
 			OrderDate:           "2026-06-04",
 			Title:               "Обновленный приказ",
+			PagesCount:          1,
 			ExecutionController: "Контроль",
 			IsActive:            true,
 		})

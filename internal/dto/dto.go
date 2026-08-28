@@ -136,10 +136,11 @@ type IncomingDocument struct {
 	IncomingNumber string    `json:"incomingNumber"`
 	IncomingDate   time.Time `json:"incomingDate"`
 
-	DocumentTypeID   string `json:"documentTypeId"`
-	DocumentTypeName string `json:"documentTypeName,omitempty"`
-	Content          string `json:"content"`
-	PagesCount       int    `json:"pagesCount"`
+	DocumentTypeID       string `json:"documentTypeId"`
+	DocumentTypeName     string `json:"documentTypeName,omitempty"`
+	Content              string `json:"content"`
+	PagesCount           int    `json:"pagesCount"`
+	AttachmentPagesCount int    `json:"attachmentPagesCount"`
 
 	Correspondents []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
 
@@ -196,7 +197,6 @@ type CitizenAppealDocument struct {
 	RegistrationAddress  string `json:"registrationAddress"`
 	AppealType           string `json:"appealType"`
 	ApplicantCategory    string `json:"applicantCategory"`
-	AppealPagesCount     int    `json:"appealPagesCount"`
 	AttachmentPagesCount int    `json:"attachmentPagesCount"`
 	HasEnvelope          bool   `json:"hasEnvelope"`
 	ReceivedFromPOS      bool   `json:"receivedFromPos"`
@@ -222,10 +222,11 @@ type OutgoingDocument struct {
 	OutgoingNumber string    `json:"outgoingNumber"`
 	OutgoingDate   time.Time `json:"outgoingDate"`
 
-	DocumentTypeID   string `json:"documentTypeId"`
-	DocumentTypeName string `json:"documentTypeName,omitempty"`
-	Content          string `json:"content"`
-	PagesCount       int    `json:"pagesCount"`
+	DocumentTypeID       string `json:"documentTypeId"`
+	DocumentTypeName     string `json:"documentTypeName,omitempty"`
+	Content              string `json:"content"`
+	PagesCount           int    `json:"pagesCount"`
+	AttachmentPagesCount int    `json:"attachmentPagesCount"`
 
 	SenderSignatory string `json:"senderSignatory"`
 	SenderExecutor  string `json:"senderExecutor"`
@@ -343,7 +344,6 @@ type DocumentListItem struct {
 	RegistrationAddress         string                                    `json:"registrationAddress,omitempty"`
 	AppealType                  string                                    `json:"appealType,omitempty"`
 	ApplicantCategory           string                                    `json:"applicantCategory,omitempty"`
-	AppealPagesCount            int                                       `json:"appealPagesCount,omitempty"`
 	AttachmentPagesCount        int                                       `json:"attachmentPagesCount,omitempty"`
 	HasEnvelope                 bool                                      `json:"hasEnvelope,omitempty"`
 	ReceivedFromPOS             bool                                      `json:"receivedFromPos,omitempty"`

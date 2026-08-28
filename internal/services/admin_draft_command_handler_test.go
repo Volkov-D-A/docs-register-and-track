@@ -167,7 +167,7 @@ func TestCitizenAppealCommandHandler_CreateAdminDraft(t *testing.T) {
 	assert.Equal(t, adminDraftPlaceholder, req.RegistrationAddress)
 	assert.Equal(t, adminDraftPlaceholder, req.ApplicantCategory)
 	assert.Equal(t, AppealTypeApplication, req.AppealType)
-	assert.Equal(t, 1, req.AppealPagesCount)
+	assert.Equal(t, 1, req.PagesCount)
 	assert.Equal(t, 0, req.AttachmentPagesCount)
 	assertAdminDraftOverride(t, req.AdminNumberOverride)
 }

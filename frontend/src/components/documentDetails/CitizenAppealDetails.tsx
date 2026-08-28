@@ -96,7 +96,7 @@ const CitizenAppealDetails: React.FC<CitizenAppealDetailsProps> = ({ doc }) => (
         <DetailDivider />
 
         <Row gutter={16} style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
-            <Col span={8}>Листов: {doc.appealPagesCount} + {doc.attachmentPagesCount}</Col>
+            <Col span={8}>Листов: {doc.pagesCount}, приложение: {doc.attachmentPagesCount}</Col>
             <Col span={16} style={{ textAlign: 'right' }}>
                 Зарегистрировал: {doc.createdByName} <br /> ({dayjs(doc.createdAt).format('DD.MM.YYYY HH:mm')})
             </Col>

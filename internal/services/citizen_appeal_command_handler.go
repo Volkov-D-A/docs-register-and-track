@@ -33,7 +33,7 @@ type CitizenAppealRegisterRequest struct {
 	RegistrationAddress  string                              `json:"registrationAddress"`
 	AppealType           string                              `json:"appealType"`
 	ApplicantCategory    string                              `json:"applicantCategory"`
-	AppealPagesCount     int                                 `json:"appealPagesCount"`
+	PagesCount           int                                 `json:"pagesCount"`
 	AttachmentPagesCount int                                 `json:"attachmentPagesCount"`
 	HasEnvelope          bool                                `json:"hasEnvelope"`
 	ReceivedFromPOS      bool                                `json:"receivedFromPos"`
@@ -54,7 +54,7 @@ type CitizenAppealUpdateRequest struct {
 	RegistrationAddress  string                              `json:"registrationAddress"`
 	AppealType           string                              `json:"appealType"`
 	ApplicantCategory    string                              `json:"applicantCategory"`
-	AppealPagesCount     int                                 `json:"appealPagesCount"`
+	PagesCount           int                                 `json:"pagesCount"`
 	AttachmentPagesCount int                                 `json:"attachmentPagesCount"`
 	HasEnvelope          bool                                `json:"hasEnvelope"`
 	ReceivedFromPOS      bool                                `json:"receivedFromPos"`
@@ -158,7 +158,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 	if err := validateCitizenAppealRequiredFields(req.ApplicantFullName, req.RegistrationAddress, req.ApplicantCategory, req.Content); err != nil {
 		return nil, err
 	}
-	if err := validateCitizenAppealPages(req.AppealPagesCount, req.AttachmentPagesCount); err != nil {
+	if err := validatePageCounts(req.PagesCount, req.AttachmentPagesCount); err != nil {
 		return nil, err
 	}
 
@@ -189,7 +189,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 		RegistrationAddress:  strings.TrimSpace(req.RegistrationAddress),
 		AppealType:           appealType,
 		ApplicantCategory:    strings.TrimSpace(req.ApplicantCategory),
-		AppealPagesCount:     req.AppealPagesCount,
+		PagesCount:           req.PagesCount,
 		AttachmentPagesCount: req.AttachmentPagesCount,
 		HasEnvelope:          req.HasEnvelope,
 		ReceivedFromPOS:      req.ReceivedFromPOS,
@@ -251,7 +251,7 @@ func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateReque
 		RegistrationAddress:  adminDraftPlaceholder,
 		AppealType:           AppealTypeApplication,
 		ApplicantCategory:    adminDraftPlaceholder,
-		AppealPagesCount:     1,
+		PagesCount:           1,
 		AttachmentPagesCount: 0,
 	}
 	store, ok := h.repo.(citizenAppealJournalStore)
@@ -291,7 +291,7 @@ func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*d
 	if err := validateCitizenAppealRequiredFields(req.ApplicantFullName, req.RegistrationAddress, req.ApplicantCategory, req.Content); err != nil {
 		return nil, err
 	}
-	if err := validateCitizenAppealPages(req.AppealPagesCount, req.AttachmentPagesCount); err != nil {
+	if err := validatePageCounts(req.PagesCount, req.AttachmentPagesCount); err != nil {
 		return nil, err
 	}
 
@@ -314,7 +314,7 @@ func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*d
 		RegistrationAddress:  strings.TrimSpace(req.RegistrationAddress),
 		AppealType:           appealType,
 		ApplicantCategory:    strings.TrimSpace(req.ApplicantCategory),
-		AppealPagesCount:     req.AppealPagesCount,
+		PagesCount:           req.PagesCount,
 		AttachmentPagesCount: req.AttachmentPagesCount,
 		HasEnvelope:          req.HasEnvelope,
 		ReceivedFromPOS:      req.ReceivedFromPOS,
@@ -466,16 +466,6 @@ func validateCitizenAppealRequiredFields(applicantFullName, registrationAddress,
 	}
 	if strings.TrimSpace(content) == "" {
 		return models.NewBadRequest("укажите краткое содержание обращения")
-	}
-	return nil
-}
-
-func validateCitizenAppealPages(appealPagesCount, attachmentPagesCount int) error {
-	if appealPagesCount < 1 {
-		return models.NewBadRequest("укажите количество листов обращения")
-	}
-	if attachmentPagesCount < 0 {
-		return models.NewBadRequest("количество листов приложения не может быть отрицательным")
 	}
 	return nil
 }

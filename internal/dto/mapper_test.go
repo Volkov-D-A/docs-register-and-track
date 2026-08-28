@@ -655,12 +655,11 @@ func TestMapCitizenAppealDocument(t *testing.T) {
 			DocumentTypeID:       models.DocumentTypeCitizenAppeal,
 			DocumentTypeName:     models.DocumentTypeCitizenAppeal,
 			Content:              "Content",
-			PagesCount:           5,
 			ApplicantFullName:    "Иван Иванов",
 			RegistrationAddress:  "Address",
 			AppealType:           "жалоба",
 			ApplicantCategory:    "гражданин",
-			AppealPagesCount:     2,
+			PagesCount:           2,
 			AttachmentPagesCount: 3,
 			HasEnvelope:          true,
 			ReceivedFromPOS:      true,
@@ -782,6 +781,7 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 			OrderNumber:         "ORD-1",
 			OrderDate:           orderDate,
 			Title:               "Order title",
+			PagesCount:          4,
 			ExecutionController: "Controller",
 			ExecutionDeadline:   &deadline,
 			IsActive:            true,
@@ -810,7 +810,7 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 		assert.Equal(t, "ORD-1", dto.OrderNumber)
 		assert.Equal(t, models.DocumentTypeAdministrativeOrder, dto.DocumentTypeID)
 		assert.Equal(t, "Order title", dto.Content)
-		assert.Equal(t, 1, dto.PagesCount)
+		assert.Equal(t, 4, dto.PagesCount)
 		assert.Equal(t, "Controller", dto.ExecutionController)
 		require.NotNil(t, dto.ExecutionDeadline)
 		assert.Equal(t, deadline, *dto.ExecutionDeadline)

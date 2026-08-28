@@ -103,7 +103,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			out.outgoing_number, out.outgoing_date,
 			d.document_type, d.document_type as document_type_name,
-			d.content, d.pages_count,
+			d.content, d.pages_count, d.attachment_pages_count,
 			out.sender_signatory, out.sender_executor,
 			out.recipient_org_id, ro.name as recipient_org_name, out.addressee,
 			d.created_by, u.full_name as created_by_name,
@@ -135,7 +135,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 			&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 			&doc.OutgoingNumber, &doc.OutgoingDate,
 			&doc.DocumentTypeID, &doc.DocumentTypeName,
-			&doc.Content, &doc.PagesCount,
+			&doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount,
 			&doc.SenderSignatory, &doc.SenderExecutor,
 			&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
 			&doc.CreatedBy, &doc.CreatedByName,
@@ -182,7 +182,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			out.outgoing_number, out.outgoing_date,
 			d.document_type, d.document_type as document_type_name,
-			d.content, d.pages_count,
+			d.content, d.pages_count, d.attachment_pages_count,
 			out.sender_signatory, out.sender_executor,
 			out.recipient_org_id, ro.name as recipient_org_name, out.addressee,
 			d.created_by, u.full_name as created_by_name,
@@ -197,7 +197,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 		&doc.OutgoingNumber, &doc.OutgoingDate,
 		&doc.DocumentTypeID, &doc.DocumentTypeName,
-		&doc.Content, &doc.PagesCount,
+		&doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount,
 		&doc.SenderSignatory, &doc.SenderExecutor,
 		&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
 		&doc.CreatedBy, &doc.CreatedByName,
@@ -224,7 +224,7 @@ func (r *OutgoingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Outgoin
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name AS nomenclature_name,
 			out.outgoing_number, out.outgoing_date,
 			d.document_type, d.document_type AS document_type_name,
-			d.content, d.pages_count,
+			d.content, d.pages_count, d.attachment_pages_count,
 			out.sender_signatory, out.sender_executor,
 			out.recipient_org_id, ro.name AS recipient_org_name, out.addressee,
 			d.created_by, u.full_name AS created_by_name,
@@ -244,7 +244,7 @@ func (r *OutgoingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Outgoin
 	items := make([]models.OutgoingDocument, 0, len(ids))
 	for rows.Next() {
 		var doc models.OutgoingDocument
-		if err := rows.Scan(&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName, &doc.OutgoingNumber, &doc.OutgoingDate, &doc.DocumentTypeID, &doc.DocumentTypeName, &doc.Content, &doc.PagesCount, &doc.SenderSignatory, &doc.SenderExecutor, &doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee, &doc.CreatedBy, &doc.CreatedByName, &doc.CreatedAt, &doc.UpdatedAt); err != nil {
+		if err := rows.Scan(&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName, &doc.OutgoingNumber, &doc.OutgoingDate, &doc.DocumentTypeID, &doc.DocumentTypeName, &doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount, &doc.SenderSignatory, &doc.SenderExecutor, &doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee, &doc.CreatedBy, &doc.CreatedByName, &doc.CreatedAt, &doc.UpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, doc)
@@ -300,11 +300,11 @@ func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest,
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id
 	`,
-		models.DocumentKindOutgoingLetter, req.NomenclatureID, req.IdempotencyKey, req.OutgoingNumber, req.OutgoingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+		models.DocumentKindOutgoingLetter, req.NomenclatureID, req.IdempotencyKey, req.OutgoingNumber, req.OutgoingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
 		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
@@ -380,10 +380,11 @@ func (r *OutgoingDocumentRepository) update(req models.UpdateOutgoingDocRequest,
 			document_type = $1,
 			content = $2,
 			pages_count = $3,
+			attachment_pages_count = $4,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $4 AND kind = $5
+		WHERE id = $5 AND kind = $6
 	`,
-		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindOutgoingLetter,
+		req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.ID, models.DocumentKindOutgoingLetter,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update document root: %w", err)
 	}

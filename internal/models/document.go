@@ -81,17 +81,18 @@ func (k DocumentKind) IsAdministrativeOrder() bool {
 
 // Document — общая корневая сущность документа.
 type Document struct {
-	ID                 uuid.UUID    `json:"-"`
-	Kind               DocumentKind `json:"kind"`
-	NomenclatureID     uuid.UUID    `json:"-"`
-	RegistrationNumber string       `json:"registrationNumber"`
-	RegistrationDate   time.Time    `json:"registrationDate"`
-	DocumentTypeID     string       `json:"-"`
-	Content            string       `json:"content"`
-	PagesCount         int          `json:"pagesCount"`
-	CreatedBy          uuid.UUID    `json:"-"`
-	CreatedAt          time.Time    `json:"createdAt"`
-	UpdatedAt          time.Time    `json:"updatedAt"`
+	ID                   uuid.UUID    `json:"-"`
+	Kind                 DocumentKind `json:"kind"`
+	NomenclatureID       uuid.UUID    `json:"-"`
+	RegistrationNumber   string       `json:"registrationNumber"`
+	RegistrationDate     time.Time    `json:"registrationDate"`
+	DocumentTypeID       string       `json:"-"`
+	Content              string       `json:"content"`
+	PagesCount           int          `json:"pagesCount"`           // Листы основного документа.
+	AttachmentPagesCount int          `json:"attachmentPagesCount"` // Листы приложения.
+	CreatedBy            uuid.UUID    `json:"-"`
+	CreatedAt            time.Time    `json:"createdAt"`
+	UpdatedAt            time.Time    `json:"updatedAt"`
 }
 
 // IncomingDocument — входящий документ
@@ -105,10 +106,11 @@ type IncomingDocument struct {
 	IncomingDate   time.Time `json:"incomingDate"`
 
 	// О документе
-	DocumentTypeID   string `json:"-"`
-	DocumentTypeName string `json:"documentTypeName,omitempty"`
-	Content          string `json:"content"`
-	PagesCount       int    `json:"pagesCount"`
+	DocumentTypeID       string `json:"-"`
+	DocumentTypeName     string `json:"documentTypeName,omitempty"`
+	Content              string `json:"content"`
+	PagesCount           int    `json:"pagesCount"`
+	AttachmentPagesCount int    `json:"attachmentPagesCount"`
 
 	// Корреспондентские регистрации
 	Correspondents []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
@@ -172,7 +174,6 @@ type CitizenAppealDocument struct {
 	RegistrationAddress  string `json:"registrationAddress"`
 	AppealType           string `json:"appealType"`
 	ApplicantCategory    string `json:"applicantCategory"`
-	AppealPagesCount     int    `json:"appealPagesCount"`
 	AttachmentPagesCount int    `json:"attachmentPagesCount"`
 	HasEnvelope          bool   `json:"hasEnvelope"`
 	ReceivedFromPOS      bool   `json:"receivedFromPos"`
@@ -200,10 +201,11 @@ type OutgoingDocument struct {
 	OutgoingDate   time.Time `json:"outgoingDate"`
 
 	// О документе
-	DocumentTypeID   string `json:"-"`
-	DocumentTypeName string `json:"documentTypeName,omitempty"`
-	Content          string `json:"content"`
-	PagesCount       int    `json:"pagesCount"`
+	DocumentTypeID       string `json:"-"`
+	DocumentTypeName     string `json:"documentTypeName,omitempty"`
+	Content              string `json:"content"`
+	PagesCount           int    `json:"pagesCount"`
+	AttachmentPagesCount int    `json:"attachmentPagesCount"`
 
 	// Отправитель
 	SenderSignatory string `json:"senderSignatory"`
@@ -233,6 +235,7 @@ type AdministrativeOrderDocument struct {
 	OrderNumber string    `json:"orderNumber"`
 	OrderDate   time.Time `json:"orderDate"`
 	Title       string    `json:"title"`
+	PagesCount  int       `json:"pagesCount"`
 
 	ExecutionController string     `json:"executionController"`
 	ExecutionDeadline   *time.Time `json:"executionDeadline,omitempty"`
@@ -384,63 +387,67 @@ type GraphData struct {
 
 // CreateIncomingDocRequest — запрос на создание входящего документа (уровень репозитория).
 type CreateIncomingDocRequest struct {
-	NomenclatureID      uuid.UUID
-	IdempotencyKey      uuid.UUID
-	AdminNumberOverride *AdminNumberOverride
-	DocumentTypeID      string
-	CreatedBy           uuid.UUID
-	IncomingNumber      string
-	IncomingDate        time.Time
-	Correspondents      []DocumentCorrespondentRegistration
-	Content             string
-	PagesCount          int
-	SenderSignatory     string
-	Resolution          *string
-	ResolutionAuthor    *string
-	ResolutionExecutors *string
+	NomenclatureID       uuid.UUID
+	IdempotencyKey       uuid.UUID
+	AdminNumberOverride  *AdminNumberOverride
+	DocumentTypeID       string
+	CreatedBy            uuid.UUID
+	IncomingNumber       string
+	IncomingDate         time.Time
+	Correspondents       []DocumentCorrespondentRegistration
+	Content              string
+	PagesCount           int
+	AttachmentPagesCount int
+	SenderSignatory      string
+	Resolution           *string
+	ResolutionAuthor     *string
+	ResolutionExecutors  *string
 }
 
 // UpdateIncomingDocRequest — запрос на обновление входящего документа (уровень репозитория).
 type UpdateIncomingDocRequest struct {
-	ID                  uuid.UUID
-	DocumentTypeID      string
-	Correspondents      []DocumentCorrespondentRegistration
-	Content             string
-	PagesCount          int
-	SenderSignatory     string
-	Resolution          *string
-	ResolutionAuthor    *string
-	ResolutionExecutors *string
+	ID                   uuid.UUID
+	DocumentTypeID       string
+	Correspondents       []DocumentCorrespondentRegistration
+	Content              string
+	PagesCount           int
+	AttachmentPagesCount int
+	SenderSignatory      string
+	Resolution           *string
+	ResolutionAuthor     *string
+	ResolutionExecutors  *string
 }
 
 // CreateOutgoingDocRequest — запрос на создание исходящего документа (уровень репозитория).
 type CreateOutgoingDocRequest struct {
-	NomenclatureID      uuid.UUID
-	IdempotencyKey      uuid.UUID
-	AdminNumberOverride *AdminNumberOverride
-	DocumentTypeID      string
-	RecipientOrgID      uuid.UUID
-	CreatedBy           uuid.UUID
-	OutgoingNumber      string
-	OutgoingDate        time.Time
-	Content             string
-	PagesCount          int
-	SenderSignatory     string
-	SenderExecutor      string
-	Addressee           string
+	NomenclatureID       uuid.UUID
+	IdempotencyKey       uuid.UUID
+	AdminNumberOverride  *AdminNumberOverride
+	DocumentTypeID       string
+	RecipientOrgID       uuid.UUID
+	CreatedBy            uuid.UUID
+	OutgoingNumber       string
+	OutgoingDate         time.Time
+	Content              string
+	PagesCount           int
+	AttachmentPagesCount int
+	SenderSignatory      string
+	SenderExecutor       string
+	Addressee            string
 }
 
 // UpdateOutgoingDocRequest — запрос на обновление исходящего документа (уровень репозитория).
 type UpdateOutgoingDocRequest struct {
-	ID              uuid.UUID
-	DocumentTypeID  string
-	RecipientOrgID  uuid.UUID
-	OutgoingDate    time.Time
-	Content         string
-	PagesCount      int
-	SenderSignatory string
-	SenderExecutor  string
-	Addressee       string
+	ID                   uuid.UUID
+	DocumentTypeID       string
+	RecipientOrgID       uuid.UUID
+	OutgoingDate         time.Time
+	Content              string
+	PagesCount           int
+	AttachmentPagesCount int
+	SenderSignatory      string
+	SenderExecutor       string
+	Addressee            string
 }
 
 // CreateCitizenAppealDocRequest — запрос на создание обращения граждан.
@@ -457,7 +464,7 @@ type CreateCitizenAppealDocRequest struct {
 	RegistrationAddress  string
 	AppealType           string
 	ApplicantCategory    string
-	AppealPagesCount     int
+	PagesCount           int
 	AttachmentPagesCount int
 	HasEnvelope          bool
 	ReceivedFromPOS      bool
@@ -476,7 +483,7 @@ type UpdateCitizenAppealDocRequest struct {
 	RegistrationAddress  string
 	AppealType           string
 	ApplicantCategory    string
-	AppealPagesCount     int
+	PagesCount           int
 	AttachmentPagesCount int
 	HasEnvelope          bool
 	ReceivedFromPOS      bool
@@ -493,6 +500,7 @@ type CreateAdministrativeOrderDocRequest struct {
 	OrderNumber             string
 	OrderDate               time.Time
 	Title                   string
+	PagesCount              int
 	ExecutionController     string
 	ExecutionDeadline       *time.Time
 	IsActive                bool
@@ -516,6 +524,7 @@ type UpdateAdministrativeOrderDocRequest struct {
 	ID                      uuid.UUID
 	OrderDate               time.Time
 	Title                   string
+	PagesCount              int
 	ExecutionController     string
 	ExecutionDeadline       *time.Time
 	IsActive                bool

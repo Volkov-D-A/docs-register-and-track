@@ -30,7 +30,7 @@ const incomingDocSelectBase = `
 	SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
 		inc.incoming_number, inc.incoming_date,
 		d.document_type, d.document_type,
-		d.content, d.pages_count,
+		d.content, d.pages_count, d.attachment_pages_count,
 		inc.sender_signatory,
 		d.created_by, u.full_name,
 		d.created_at, d.updated_at
@@ -46,7 +46,7 @@ func scanIncomingDoc(scanner interface{ Scan(...interface{}) error }) (*models.I
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 		&doc.IncomingNumber, &doc.IncomingDate,
 		&doc.DocumentTypeID, &doc.DocumentTypeName,
-		&doc.Content, &doc.PagesCount,
+		&doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount,
 		&doc.SenderSignatory,
 		&doc.CreatedBy, &doc.CreatedByName,
 		&doc.CreatedAt, &doc.UpdatedAt,
@@ -630,11 +630,11 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id
 	`,
-		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
 		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
@@ -713,10 +713,11 @@ func (r *IncomingDocumentRepository) update(req models.UpdateIncomingDocRequest,
 			document_type = $1,
 			content = $2,
 			pages_count = $3,
+			attachment_pages_count = $4,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $4 AND kind = $5
+		WHERE id = $5 AND kind = $6
 	`,
-		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindIncomingLetter,
+		req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.ID, models.DocumentKindIncomingLetter,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update document root: %w", err)
 	}

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Button, Col, DatePicker, Form, Input, InputNumber, Row, Select, Switch, Tooltip } from 'antd';
+import { Button, Col, DatePicker, Form, Input, Row, Select, Switch, Tooltip } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import locale from 'antd/es/date-picker/locale/ru_RU';
+import { PagesCountField } from './formBlocks';
 
 const { TextArea } = Input;
 
@@ -122,14 +123,10 @@ const CitizenAppealDocumentForm: React.FC<CitizenAppealDocumentFormProps> = ({
                 </Form.Item>
             </Col>
             <Col span={6}>
-                <Form.Item name="appealPagesCount" label="Листов обращения" rules={[{ required: true, message: 'Укажите количество' }]}>
-                    <InputNumber min={1} style={{ width: '100%' }} />
-                </Form.Item>
+                <PagesCountField name="pagesCount" label="Количество листов" required min={1} />
             </Col>
             <Col span={6}>
-                <Form.Item name="attachmentPagesCount" label="Листов приложения" rules={[{ required: true, message: 'Укажите количество' }]}>
-                    <InputNumber min={0} style={{ width: '100%' }} />
-                </Form.Item>
+                <PagesCountField name="attachmentPagesCount" label="Количество листов приложения" required min={0} />
             </Col>
             <Col span={6}>
                 <Form.Item name="hasEnvelope" label="Конверт" valuePropName="checked">

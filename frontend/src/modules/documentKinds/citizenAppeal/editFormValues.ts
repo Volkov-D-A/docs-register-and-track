@@ -8,7 +8,7 @@ export const buildCitizenAppealEditFormValues = (record: any) => ({
     registrationAddress: record.registrationAddress,
     appealType: record.appealType,
     applicantCategory: record.applicantCategory,
-    appealPagesCount: record.appealPagesCount,
+    pagesCount: record.pagesCount,
     attachmentPagesCount: record.attachmentPagesCount,
     hasEnvelope: !!record.hasEnvelope,
     receivedFromPos: !!record.receivedFromPos,

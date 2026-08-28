@@ -40,19 +40,19 @@ func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *te
 
 	rows := sqlmock.NewRows([]string{
 		"id", "nomenclature_id", "nomenclature_name",
-		"order_number", "order_date", "title",
+		"order_number", "order_date", "title", "pages_count",
 		"execution_controller", "execution_deadline", "is_active", "cancelled_at",
 		"created_by", "created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01 — Приказы",
-		"ПР-001", now, "О внутреннем регламенте",
+		"ПР-001", now, "О внутреннем регламенте", 3,
 		"", nil, true, nil,
 		uuid.New(), "Регистратор",
 		now, now,
 	).AddRow(
 		docID2, uuid.New(), "01-01 — Приказы",
-		"ПР-002", now, "О втором регламенте",
+		"ПР-002", now, "О втором регламенте", 4,
 		"", nil, true, nil,
 		uuid.New(), "Регистратор",
 		now, now,
@@ -106,7 +106,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
-				"order_number", "order_date", "title",
+				"order_number", "order_date", "title", "pages_count",
 				"execution_controller", "execution_deadline", "is_active", "cancelled_at",
 				"created_by", "created_by_name",
 				"created_at", "updated_at",
@@ -135,7 +135,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
-				"order_number", "order_date", "title",
+				"order_number", "order_date", "title", "pages_count",
 				"execution_controller", "execution_deadline", "is_active", "cancelled_at",
 				"created_by", "created_by_name",
 				"created_at", "updated_at",
@@ -485,13 +485,13 @@ func administrativeOrderRows(docID uuid.UUID, now time.Time) *sqlmock.Rows {
 	cancelledAt := now.AddDate(0, 0, 1)
 	return sqlmock.NewRows([]string{
 		"id", "nomenclature_id", "nomenclature_name",
-		"order_number", "order_date", "title",
+		"order_number", "order_date", "title", "pages_count",
 		"execution_controller", "execution_deadline", "is_active", "cancelled_at",
 		"created_by", "created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "04-01 — Приказы",
-		"ПР-002", now, "О внесении изменений",
+		"ПР-002", now, "О внесении изменений", 5,
 		"Контрольный отдел", deadline, false, cancelledAt,
 		uuid.New(), "Регистратор",
 		now, now,
@@ -603,7 +603,7 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 			WillReturnRows(administrativeOrderAcknowledgmentPeopleRows(docID, now))
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE documents SET`).
-			WithArgs(req.OrderDate, req.Title, req.ID, models.DocumentKindAdministrativeOrder).
+			WithArgs(req.OrderDate, req.Title, req.PagesCount, req.ID, models.DocumentKindAdministrativeOrder).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`UPDATE administrative_order_details SET`).
 			WithArgs(
@@ -663,7 +663,7 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 			WillReturnRows(administrativeOrderAcknowledgmentPeopleRows(docID, now))
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE documents SET`).
-			WithArgs(req.OrderDate, req.Title, req.ID, models.DocumentKindAdministrativeOrder).
+			WithArgs(req.OrderDate, req.Title, req.PagesCount, req.ID, models.DocumentKindAdministrativeOrder).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`UPDATE administrative_order_details SET`).
 			WithArgs(
@@ -754,7 +754,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			}))
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE documents SET`).
-			WithArgs(req.OrderDate, req.Title, req.ID, models.DocumentKindAdministrativeOrder).
+			WithArgs(req.OrderDate, req.Title, req.PagesCount, req.ID, models.DocumentKindAdministrativeOrder).
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
@@ -788,7 +788,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			}))
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE documents SET`).
-			WithArgs(req.OrderDate, req.Title, req.ID, models.DocumentKindAdministrativeOrder).
+			WithArgs(req.OrderDate, req.Title, req.PagesCount, req.ID, models.DocumentKindAdministrativeOrder).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`UPDATE administrative_order_details SET`).
 			WithArgs(
@@ -851,6 +851,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 			req.OrderDate,
 			models.DocumentTypeAdministrativeOrder,
 			req.Title,
+			req.PagesCount,
 			req.CreatedBy,
 		).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 		mock.ExpectExec(`INSERT INTO administrative_order_details`).WithArgs(
@@ -922,6 +923,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 			req.OrderDate,
 			models.DocumentTypeAdministrativeOrder,
 			req.Title,
+			req.PagesCount,
 			req.CreatedBy,
 		).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 		mock.ExpectExec(`INSERT INTO administrative_order_details`).WithArgs(
@@ -1016,6 +1018,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 					req.OrderDate,
 					models.DocumentTypeAdministrativeOrder,
 					req.Title,
+					req.PagesCount,
 					req.CreatedBy,
 				).WillReturnError(tt.insertErr)
 				mock.ExpectRollback()

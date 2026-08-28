@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 export const buildAdministrativeOrderEditFormValues = (record: any) => ({
     orderDate: record.orderDate ? dayjs(record.orderDate) : undefined,
     title: record.title || record.content || '',
+    pagesCount: record.pagesCount,
     executionController: record.executionController || '',
     executionDeadline: record.executionDeadline ? dayjs(record.executionDeadline) : undefined,
     isActive: record.isActive !== false,

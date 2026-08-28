@@ -45,13 +45,16 @@ const OutgoingLetterDocumentForm: React.FC<OutgoingLetterDocumentFormProps> = ({
                     </Col>
                 </Row>
                 <Row gutter={16}>
-                    <Col span={12}>
+                    <Col span={8}>
                         <Form.Item name="documentTypeId" label="Тип документа" rules={[{ required: true }]}>
                             <Select options={docTypes.map((t: any) => ({ value: t.id, label: t.name }))} />
                         </Form.Item>
                     </Col>
-                    <Col span={12}>
-                        <PagesCountField />
+                    <Col span={8}>
+                        <PagesCountField label="Количество листов" required />
+                    </Col>
+                    <Col span={8}>
+                        <PagesCountField name="attachmentPagesCount" label="Количество листов приложения" required min={0} />
                     </Col>
                 </Row>
                 {selectedRegisterNomenclature?.numberingMode === 'manual_only' && (
@@ -62,13 +65,16 @@ const OutgoingLetterDocumentForm: React.FC<OutgoingLetterDocumentFormProps> = ({
         {isEdit && (
             <>
                 <Row gutter={16}>
-                    <Col span={12}>
+                    <Col span={8}>
                         <Form.Item name="outgoingDate" label="Исходящая дата" rules={[{ required: true }]}>
                             <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" locale={locale} />
                         </Form.Item>
                     </Col>
-                    <Col span={12}>
-                        <PagesCountField />
+                    <Col span={8}>
+                        <PagesCountField label="Количество листов" required />
+                    </Col>
+                    <Col span={8}>
+                        <PagesCountField name="attachmentPagesCount" label="Количество листов приложения" required min={0} />
                     </Col>
                 </Row>
                 <Row gutter={16}>

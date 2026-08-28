@@ -17,7 +17,7 @@ export const administrativeOrderPageConfig = {
     tableClassName: 'administrative-orders-table',
     registerModalTitle: 'Регистрация приказа',
     getEditModalTitle: () => 'Редактирование приказа',
-    registerInitialValues: { orderDate: dayjs(), isActive: true, acknowledgmentFullNames: [] },
+    registerInitialValues: { orderDate: dayjs(), pagesCount: 1, isActive: true, acknowledgmentFullNames: [] },
     buildColumns: ({ isExecutorOnly, openViewModal, onEdit }: ColumnFactoryParams) => [
         {
             title: 'Номер / Дата',
@@ -40,6 +40,7 @@ export const administrativeOrderPageConfig = {
             render: (_: any, record: any) => (
                 <div>
                     <div style={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>{record.title || record.content}</div>
+                    <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>Листов: {record.pagesCount ?? 0}</div>
                     <div style={{ marginTop: 4 }}>
                         <Tag color={record.isActive === false ? 'default' : 'green'}>
                             {record.isActive === false ? 'Не действующий' : 'Действующий'}

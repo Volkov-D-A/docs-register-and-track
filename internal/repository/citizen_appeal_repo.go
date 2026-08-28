@@ -30,10 +30,9 @@ const citizenAppealSelectBase = `
 		d.registration_number, d.registration_date,
 		ca.appeal_date,
 		d.document_type, d.document_type,
-		d.content, d.pages_count,
+		d.content, d.pages_count, d.attachment_pages_count,
 		ca.applicant_full_name, ca.registration_address,
 		ca.appeal_type, ca.applicant_category,
-		ca.appeal_pages_count, ca.attachment_pages_count,
 		ca.has_envelope, ca.received_from_pos,
 		d.created_by, u.full_name,
 		d.created_at, d.updated_at
@@ -49,10 +48,9 @@ func scanCitizenAppealDoc(scanner interface{ Scan(...interface{}) error }) (*mod
 		&doc.RegistrationNumber, &doc.RegistrationDate,
 		&doc.AppealDate,
 		&doc.DocumentTypeID, &doc.DocumentTypeName,
-		&doc.Content, &doc.PagesCount,
+		&doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount,
 		&doc.ApplicantFullName, &doc.RegistrationAddress,
 		&doc.AppealType, &doc.ApplicantCategory,
-		&doc.AppealPagesCount, &doc.AttachmentPagesCount,
 		&doc.HasEnvelope, &doc.ReceivedFromPOS,
 		&doc.CreatedBy, &doc.CreatedByName,
 		&doc.CreatedAt, &doc.UpdatedAt,
@@ -393,20 +391,15 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 	}
 	req.RegistrationNumber = registration.Number
 
-	pagesCount := req.AppealPagesCount + req.AttachmentPagesCount
-	if pagesCount <= 0 {
-		pagesCount = 1
-	}
-
 	var id uuid.UUID
 	err = tx.QueryRow(`
 		INSERT INTO documents (
-			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id
 	`,
 		models.DocumentKindCitizenAppeal, req.NomenclatureID, req.IdempotencyKey, req.RegistrationNumber, req.RegistrationDate,
-		models.DocumentTypeCitizenAppeal, req.Content, pagesCount, req.CreatedBy,
+		models.DocumentTypeCitizenAppeal, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
 		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
@@ -426,12 +419,12 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 	if _, err = tx.Exec(`
 		INSERT INTO citizen_appeal_details (
 			document_id, appeal_date, applicant_full_name, registration_address,
-			appeal_type, applicant_category, appeal_pages_count, attachment_pages_count,
+			appeal_type, applicant_category,
 			has_envelope, received_from_pos
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 	`,
 		id, req.AppealDate, req.ApplicantFullName, req.RegistrationAddress,
-		req.AppealType, req.ApplicantCategory, req.AppealPagesCount, req.AttachmentPagesCount,
+		req.AppealType, req.ApplicantCategory,
 		req.HasEnvelope, req.ReceivedFromPOS,
 	); err != nil {
 		return nil, fmt.Errorf("failed to create citizen appeal details: %w", err)
@@ -477,21 +470,17 @@ func (r *CitizenAppealRepository) update(req models.UpdateCitizenAppealDocReques
 	}
 	defer tx.Rollback()
 
-	pagesCount := req.AppealPagesCount + req.AttachmentPagesCount
-	if pagesCount <= 0 {
-		pagesCount = 1
-	}
-
 	if _, err = tx.Exec(`
 		UPDATE documents SET
 			registration_number = $1,
 			registration_date = $2,
 			content = $3,
 			pages_count = $4,
+			attachment_pages_count = $5,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $5 AND kind = $6
+		WHERE id = $6 AND kind = $7
 	`,
-		req.RegistrationNumber, req.RegistrationDate, req.Content, pagesCount,
+		req.RegistrationNumber, req.RegistrationDate, req.Content, req.PagesCount, req.AttachmentPagesCount,
 		req.ID, models.DocumentKindCitizenAppeal,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update citizen appeal root: %w", err)
@@ -504,15 +493,12 @@ func (r *CitizenAppealRepository) update(req models.UpdateCitizenAppealDocReques
 			registration_address = $3,
 			appeal_type = $4,
 			applicant_category = $5,
-			appeal_pages_count = $6,
-			attachment_pages_count = $7,
-			has_envelope = $8,
-			received_from_pos = $9
-		WHERE document_id = $10
+			has_envelope = $6,
+			received_from_pos = $7
+		WHERE document_id = $8
 	`,
 		req.AppealDate, req.ApplicantFullName, req.RegistrationAddress,
 		req.AppealType, req.ApplicantCategory,
-		req.AppealPagesCount, req.AttachmentPagesCount,
 		req.HasEnvelope, req.ReceivedFromPOS,
 		req.ID,
 	); err != nil {

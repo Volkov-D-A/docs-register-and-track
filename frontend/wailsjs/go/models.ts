@@ -687,7 +687,6 @@ export namespace dto {
 	    registrationAddress: string;
 	    appealType: string;
 	    applicantCategory: string;
-	    appealPagesCount: number;
 	    attachmentPagesCount: number;
 	    hasEnvelope: boolean;
 	    receivedFromPos: boolean;
@@ -722,7 +721,6 @@ export namespace dto {
 	        this.registrationAddress = source["registrationAddress"];
 	        this.appealType = source["appealType"];
 	        this.applicantCategory = source["applicantCategory"];
-	        this.appealPagesCount = source["appealPagesCount"];
 	        this.attachmentPagesCount = source["attachmentPagesCount"];
 	        this.hasEnvelope = source["hasEnvelope"];
 	        this.receivedFromPos = source["receivedFromPos"];
@@ -864,6 +862,7 @@ export namespace dto {
 	    documentTypeName?: string;
 	    content: string;
 	    pagesCount: number;
+	    attachmentPagesCount: number;
 	    senderSignatory: string;
 	    senderExecutor: string;
 	    recipientOrgId: string;
@@ -892,6 +891,7 @@ export namespace dto {
 	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
 	        this.pagesCount = source["pagesCount"];
+	        this.attachmentPagesCount = source["attachmentPagesCount"];
 	        this.senderSignatory = source["senderSignatory"];
 	        this.senderExecutor = source["senderExecutor"];
 	        this.recipientOrgId = source["recipientOrgId"];
@@ -933,6 +933,7 @@ export namespace dto {
 	    documentTypeName?: string;
 	    content: string;
 	    pagesCount: number;
+	    attachmentPagesCount: number;
 	    correspondents?: DocumentCorrespondentRegistration[];
 	    senderSignatory: string;
 	    resolution?: string;
@@ -962,6 +963,7 @@ export namespace dto {
 	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
 	        this.pagesCount = source["pagesCount"];
+	        this.attachmentPagesCount = source["attachmentPagesCount"];
 	        this.correspondents = this.convertValues(source["correspondents"], DocumentCorrespondentRegistration);
 	        this.senderSignatory = source["senderSignatory"];
 	        this.resolution = source["resolution"];
@@ -1153,7 +1155,6 @@ export namespace dto {
 	    registrationAddress?: string;
 	    appealType?: string;
 	    applicantCategory?: string;
-	    appealPagesCount?: number;
 	    attachmentPagesCount?: number;
 	    hasEnvelope?: boolean;
 	    receivedFromPos?: boolean;
@@ -1209,7 +1210,6 @@ export namespace dto {
 	        this.registrationAddress = source["registrationAddress"];
 	        this.appealType = source["appealType"];
 	        this.applicantCategory = source["applicantCategory"];
-	        this.appealPagesCount = source["appealPagesCount"];
 	        this.attachmentPagesCount = source["attachmentPagesCount"];
 	        this.hasEnvelope = source["hasEnvelope"];
 	        this.receivedFromPos = source["receivedFromPos"];
@@ -2667,4 +2667,3 @@ export namespace services {
 	}
 
 }
-

@@ -33,7 +33,7 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 			"id", "nomenclature_id", "nomenclature_name",
 			"incoming_number", "incoming_date",
 			"document_type", "document_type_name",
-			"content", "pages_count",
+			"content", "pages_count", "attachment_pages_count",
 			"sender_signatory",
 			"created_by", "created_by_name",
 			"created_at", "updated_at",
@@ -41,7 +41,7 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 			docID, uuid.New(), "01-01 — Дело 1",
 			"ВХ-123", now,
 			models.DocumentTypeLetter, models.DocumentTypeLetter,
-			"Содержание документа", 5,
+			"Содержание документа", 5, 2,
 			"Иванов И.И.",
 			uuid.New(), "Создатель",
 			now, now,
@@ -203,7 +203,7 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
 			AddRow("01-01", "/", "manual_only", 1, string(models.DocumentKindIncomingLetter)))
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
-		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.CreatedBy,
+		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 	mock.ExpectExec(`INSERT INTO incoming_document_details`).WithArgs(
 		docID, req.IncomingNumber, req.IncomingDate,
@@ -222,13 +222,13 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 		"id", "nomenclature_id", "nomenclature_name",
 		"incoming_number", "incoming_date",
 		"document_type", "document_type_name",
-		"content", "pages_count",
+		"content", "pages_count", "attachment_pages_count",
 		"sender_signatory",
 		"created_by", "created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01", "ВХ-001", now,
-		models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст", 0, "",
+		models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст", 0, 0, "",
 		uuid.New(), "", now, now,
 	)
 
@@ -336,6 +336,7 @@ func TestIncomingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
 				req.DocumentTypeID,
 				req.Content,
 				req.PagesCount,
+				req.AttachmentPagesCount,
 				req.CreatedBy,
 			).WillReturnError(tt.insertErr)
 			mock.ExpectRollback()
@@ -389,6 +390,7 @@ func TestIncomingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 		req.DocumentTypeID,
 		req.Content,
 		req.PagesCount,
+		req.AttachmentPagesCount,
 		req.CreatedBy,
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 	mock.ExpectExec(`INSERT INTO incoming_document_details`).WithArgs(
@@ -433,17 +435,17 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 			"id", "nomenclature_id", "nomenclature_name",
 			"incoming_number", "incoming_date",
 			"document_type", "document_type_name",
-			"content", "pages_count",
+			"content", "pages_count", "attachment_pages_count",
 			"sender_signatory",
 			"created_by", "created_by_name",
 			"created_at", "updated_at",
 		}).AddRow(
 			docID, uuid.New(), "01-01", "ВХ-001", now,
-			models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст", 0, "",
+			models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст", 0, 0, "",
 			uuid.New(), "", now, now,
 		).AddRow(
 			docID2, uuid.New(), "01-02", "ВХ-002", now,
-			models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст 2", 1, "",
+			models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст 2", 1, 0, "",
 			uuid.New(), "", now, now,
 		)
 		mock.ExpectQuery(regexp.QuoteMeta(incomingDocSelectBase)).WillReturnRows(rows)
@@ -512,7 +514,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 				"id", "nomenclature_id", "nomenclature_name",
 				"incoming_number", "incoming_date",
 				"document_type", "document_type_name",
-				"content", "pages_count",
+				"content", "pages_count", "attachment_pages_count",
 				"sender_signatory",
 				"created_by", "created_by_name",
 				"created_at", "updated_at",
@@ -541,7 +543,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 				"id", "nomenclature_id", "nomenclature_name",
 				"incoming_number", "incoming_date",
 				"document_type", "document_type_name",
-				"content", "pages_count",
+				"content", "pages_count", "attachment_pages_count",
 				"sender_signatory",
 				"created_by", "created_by_name",
 				"created_at", "updated_at",
@@ -580,7 +582,7 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE documents SET`).WithArgs(
-		req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindIncomingLetter,
+		req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.ID, models.DocumentKindIncomingLetter,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`UPDATE incoming_document_details SET`).WithArgs(
 		req.SenderSignatory,
@@ -599,13 +601,13 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 		"id", "nomenclature_id", "nomenclature_name",
 		"incoming_number", "incoming_date",
 		"document_type", "document_type_name",
-		"content", "pages_count",
+		"content", "pages_count", "attachment_pages_count",
 		"sender_signatory",
 		"created_by", "created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01", "ВХ-001", now,
-		models.DocumentTypeLetter, models.DocumentTypeLetter, "Обновленное содержание", 0, "",
+		models.DocumentTypeLetter, models.DocumentTypeLetter, "Обновленное содержание", 0, 0, "",
 		uuid.New(), "", now, now,
 	)
 
@@ -666,7 +668,7 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE documents SET`).
-			WithArgs(req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindIncomingLetter).
+			WithArgs(req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.ID, models.DocumentKindIncomingLetter).
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
@@ -691,7 +693,7 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE documents SET`).
-			WithArgs(req.DocumentTypeID, req.Content, req.PagesCount, req.ID, models.DocumentKindIncomingLetter).
+			WithArgs(req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.ID, models.DocumentKindIncomingLetter).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`UPDATE incoming_document_details SET`).
 			WithArgs(req.SenderSignatory, req.ID).

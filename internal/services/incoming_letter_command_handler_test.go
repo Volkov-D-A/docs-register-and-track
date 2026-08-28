@@ -61,14 +61,15 @@ func setupIncomingLetterCommandHandler(t *testing.T, allowed map[models.Document
 
 func validIncomingLetterRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) IncomingLetterRegisterRequest {
 	return IncomingLetterRegisterRequest{
-		NomenclatureID:     nomenclatureID.String(),
-		IdempotencyKey:     idempotencyKey.String(),
-		DocumentTypeID:     models.DocumentTypeLetter,
-		IncomingDate:       "2026-06-03",
-		Content:            "Incoming letter content",
-		PagesCount:         3,
-		SenderSignatory:    "Sender",
-		RegistrationNumber: "12/26",
+		NomenclatureID:       nomenclatureID.String(),
+		IdempotencyKey:       idempotencyKey.String(),
+		DocumentTypeID:       models.DocumentTypeLetter,
+		IncomingDate:         "2026-06-03",
+		Content:              "Incoming letter content",
+		PagesCount:           3,
+		AttachmentPagesCount: 2,
+		SenderSignatory:      "Sender",
+		RegistrationNumber:   "12/26",
 		Correspondents: []IncomingLetterCorrespondentRequest{
 			{
 				RegistrationNumber: "A-1",
@@ -105,6 +106,7 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 			require.Equal(t, "12/26", createReq.IncomingNumber)
 			require.Equal(t, "Incoming letter content", createReq.Content)
 			require.Equal(t, 3, createReq.PagesCount)
+			require.Equal(t, 2, createReq.AttachmentPagesCount)
 			require.NotNil(t, createReq.Resolution)
 			require.NotNil(t, createReq.ResolutionAuthor)
 			require.NotNil(t, createReq.ResolutionExecutors)
@@ -284,11 +286,12 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 			},
 		}
 		req := IncomingLetterUpdateRequest{
-			ID:              documentID.String(),
-			DocumentTypeID:  models.DocumentTypeLetter,
-			Content:         "Updated content",
-			PagesCount:      5,
-			SenderSignatory: "Updated sender",
+			ID:                   documentID.String(),
+			DocumentTypeID:       models.DocumentTypeLetter,
+			Content:              "Updated content",
+			PagesCount:           5,
+			AttachmentPagesCount: 3,
+			SenderSignatory:      "Updated sender",
 			Correspondents: []IncomingLetterCorrespondentRequest{
 				{
 					RegistrationNumber: "B-2",
@@ -304,6 +307,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 			require.Equal(t, models.DocumentTypeLetter, updateReq.DocumentTypeID)
 			require.Equal(t, "Updated content", updateReq.Content)
 			require.Equal(t, 5, updateReq.PagesCount)
+			require.Equal(t, 3, updateReq.AttachmentPagesCount)
 			require.Len(t, updateReq.Correspondents, 1)
 			correspondent := updateReq.Correspondents[0]
 			return correspondent.RegistrationNumber == "B-2" &&
@@ -415,6 +419,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 			ID:                  documentID.String(),
 			DocumentTypeID:      models.DocumentTypeLetter,
 			Content:             "Updated content",
+			PagesCount:          1,
 			Resolution:          "Рассмотреть",
 			ResolutionAuthor:    "Руководитель",
 			ResolutionExecutors: "Иванов; ; Петров",

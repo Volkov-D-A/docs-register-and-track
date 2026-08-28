@@ -2,7 +2,7 @@ import React from 'react';
 import { Col, DatePicker, Form, Input, Row, Select, Switch, Tag } from 'antd';
 import locale from 'antd/es/date-picker/locale/ru_RU';
 import dayjs from 'dayjs';
-import { ManualRegistrationNumberField } from './formBlocks';
+import { ManualRegistrationNumberField, PagesCountField } from './formBlocks';
 
 const { TextArea } = Input;
 
@@ -72,6 +72,8 @@ const AdministrativeOrderDocumentForm: React.FC<AdministrativeOrderDocumentFormP
             <Form.Item name="title" label="Заголовок" rules={[{ required: true, message: 'Введите заголовок' }]}>
                 <TextArea rows={3} />
             </Form.Item>
+
+            <PagesCountField label="Количество листов" required min={1} />
 
             <Row gutter={16}>
                 <Col span={12}>

@@ -18,7 +18,7 @@ export const incomingLetterPageConfig = {
     tableClassName: 'incoming-documents-table',
     registerModalTitle: 'Регистрация входящего документа',
     getEditModalTitle: (record: any) => `Редактирование: ${record?.incomingNumber || ''}`,
-    registerInitialValues: { incomingDate: dayjs(), pagesCount: 1, documentTypeId: DEFAULT_DOCUMENT_TYPE, correspondents: [{}] },
+    registerInitialValues: { incomingDate: dayjs(), pagesCount: 1, attachmentPagesCount: 0, documentTypeId: DEFAULT_DOCUMENT_TYPE, correspondents: [{}] },
     buildColumns: ({ isExecutorOnly, openViewModal, onEdit }: ColumnFactoryParams) => [
         {
             title: 'Номер / Дата',
@@ -67,6 +67,9 @@ export const incomingLetterPageConfig = {
             render: (_: any, record: any) => (
                 <div>
                     <div style={{ fontWeight: 500 }}>{record.content}</div>
+                    <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                        Листов: {record.pagesCount ?? 0}, приложение: {record.attachmentPagesCount ?? 0}
+                    </div>
                 </div>
             ),
         },

@@ -100,17 +100,18 @@ func (s *DocumentAccessService) GetDocument(documentID uuid.UUID) (*models.Docum
 		}
 		if incomingDoc != nil {
 			return &models.Document{
-				ID:                 incomingDoc.ID,
-				Kind:               models.DocumentKindIncomingLetter,
-				NomenclatureID:     incomingDoc.NomenclatureID,
-				RegistrationNumber: incomingDoc.IncomingNumber,
-				RegistrationDate:   incomingDoc.IncomingDate,
-				DocumentTypeID:     incomingDoc.DocumentTypeID,
-				Content:            incomingDoc.Content,
-				PagesCount:         incomingDoc.PagesCount,
-				CreatedBy:          incomingDoc.CreatedBy,
-				CreatedAt:          incomingDoc.CreatedAt,
-				UpdatedAt:          incomingDoc.UpdatedAt,
+				ID:                   incomingDoc.ID,
+				Kind:                 models.DocumentKindIncomingLetter,
+				NomenclatureID:       incomingDoc.NomenclatureID,
+				RegistrationNumber:   incomingDoc.IncomingNumber,
+				RegistrationDate:     incomingDoc.IncomingDate,
+				DocumentTypeID:       incomingDoc.DocumentTypeID,
+				Content:              incomingDoc.Content,
+				PagesCount:           incomingDoc.PagesCount,
+				AttachmentPagesCount: incomingDoc.AttachmentPagesCount,
+				CreatedBy:            incomingDoc.CreatedBy,
+				CreatedAt:            incomingDoc.CreatedAt,
+				UpdatedAt:            incomingDoc.UpdatedAt,
 			}, nil
 		}
 	}
@@ -122,17 +123,18 @@ func (s *DocumentAccessService) GetDocument(documentID uuid.UUID) (*models.Docum
 		}
 		if outgoingDoc != nil {
 			return &models.Document{
-				ID:                 outgoingDoc.ID,
-				Kind:               models.DocumentKindOutgoingLetter,
-				NomenclatureID:     outgoingDoc.NomenclatureID,
-				RegistrationNumber: outgoingDoc.OutgoingNumber,
-				RegistrationDate:   outgoingDoc.OutgoingDate,
-				DocumentTypeID:     outgoingDoc.DocumentTypeID,
-				Content:            outgoingDoc.Content,
-				PagesCount:         outgoingDoc.PagesCount,
-				CreatedBy:          outgoingDoc.CreatedBy,
-				CreatedAt:          outgoingDoc.CreatedAt,
-				UpdatedAt:          outgoingDoc.UpdatedAt,
+				ID:                   outgoingDoc.ID,
+				Kind:                 models.DocumentKindOutgoingLetter,
+				NomenclatureID:       outgoingDoc.NomenclatureID,
+				RegistrationNumber:   outgoingDoc.OutgoingNumber,
+				RegistrationDate:     outgoingDoc.OutgoingDate,
+				DocumentTypeID:       outgoingDoc.DocumentTypeID,
+				Content:              outgoingDoc.Content,
+				PagesCount:           outgoingDoc.PagesCount,
+				AttachmentPagesCount: outgoingDoc.AttachmentPagesCount,
+				CreatedBy:            outgoingDoc.CreatedBy,
+				CreatedAt:            outgoingDoc.CreatedAt,
+				UpdatedAt:            outgoingDoc.UpdatedAt,
 			}, nil
 		}
 	}

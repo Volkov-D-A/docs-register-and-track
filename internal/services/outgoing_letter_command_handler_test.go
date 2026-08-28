@@ -61,17 +61,18 @@ func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.Document
 
 func validOutgoingLetterRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) OutgoingLetterRegisterRequest {
 	return OutgoingLetterRegisterRequest{
-		NomenclatureID:     nomenclatureID.String(),
-		IdempotencyKey:     idempotencyKey.String(),
-		DocumentTypeID:     models.DocumentTypeLetter,
-		RecipientOrgName:   "ООО Получатель",
-		Addressee:          "Директору",
-		OutgoingDate:       "2026-06-03",
-		Content:            "Outgoing letter content",
-		PagesCount:         2,
-		SenderSignatory:    "Подписант",
-		SenderExecutor:     "Исполнитель",
-		RegistrationNumber: "OUT-12",
+		NomenclatureID:       nomenclatureID.String(),
+		IdempotencyKey:       idempotencyKey.String(),
+		DocumentTypeID:       models.DocumentTypeLetter,
+		RecipientOrgName:     "ООО Получатель",
+		Addressee:            "Директору",
+		OutgoingDate:         "2026-06-03",
+		Content:              "Outgoing letter content",
+		PagesCount:           2,
+		AttachmentPagesCount: 1,
+		SenderSignatory:      "Подписант",
+		SenderExecutor:       "Исполнитель",
+		RegistrationNumber:   "OUT-12",
 	}
 }
 
@@ -97,6 +98,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 			require.Equal(t, "OUT-12", createReq.OutgoingNumber)
 			require.Equal(t, "Outgoing letter content", createReq.Content)
 			require.Equal(t, 2, createReq.PagesCount)
+			require.Equal(t, 1, createReq.AttachmentPagesCount)
 			require.Equal(t, "Подписант", createReq.SenderSignatory)
 			require.Equal(t, "Исполнитель", createReq.SenderExecutor)
 			require.Equal(t, "Директору", createReq.Addressee)
@@ -242,15 +244,16 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			},
 		}
 		req := OutgoingLetterUpdateRequest{
-			ID:               documentID.String(),
-			DocumentTypeID:   models.DocumentTypeLetter,
-			RecipientOrgName: "АО Новый получатель",
-			Addressee:        "Главному инженеру",
-			OutgoingDate:     "2026-06-04",
-			Content:          "Updated outgoing content",
-			PagesCount:       4,
-			SenderSignatory:  "Новый подписант",
-			SenderExecutor:   "Новый исполнитель",
+			ID:                   documentID.String(),
+			DocumentTypeID:       models.DocumentTypeLetter,
+			RecipientOrgName:     "АО Новый получатель",
+			Addressee:            "Главному инженеру",
+			OutgoingDate:         "2026-06-04",
+			Content:              "Updated outgoing content",
+			PagesCount:           4,
+			AttachmentPagesCount: 2,
+			SenderSignatory:      "Новый подписант",
+			SenderExecutor:       "Новый исполнитель",
 		}
 
 		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return(&models.Organization{ID: recipientOrgID, Name: "АО Новый получатель"}, nil).Once()
@@ -260,6 +263,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			require.Equal(t, recipientOrgID, updateReq.RecipientOrgID)
 			require.Equal(t, "Updated outgoing content", updateReq.Content)
 			require.Equal(t, 4, updateReq.PagesCount)
+			require.Equal(t, 2, updateReq.AttachmentPagesCount)
 			require.Equal(t, "Новый подписант", updateReq.SenderSignatory)
 			require.Equal(t, "Новый исполнитель", updateReq.SenderExecutor)
 			require.Equal(t, "Главному инженеру", updateReq.Addressee)
@@ -360,6 +364,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			ID:               documentID.String(),
 			DocumentTypeID:   models.DocumentTypeLetter,
 			RecipientOrgName: "АО Новый получатель",
+			PagesCount:       1,
 		})
 
 		require.ErrorIs(t, err, expectedErr)
@@ -384,6 +389,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			ID:               documentID.String(),
 			DocumentTypeID:   models.DocumentTypeLetter,
 			RecipientOrgName: "АО Новый получатель",
+			PagesCount:       1,
 			OutgoingDate:     "04.06.2026",
 		})
 
@@ -411,6 +417,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			ID:               documentID.String(),
 			DocumentTypeID:   models.DocumentTypeLetter,
 			RecipientOrgName: "АО Новый получатель",
+			PagesCount:       1,
 			OutgoingDate:     "2026-06-04",
 		})
 

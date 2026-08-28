@@ -100,7 +100,7 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 	query := fmt.Sprintf(`
 		SELECT
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
-			ord.order_number, ord.order_date, ord.title,
+			ord.order_number, ord.order_date, ord.title, d.pages_count,
 			ord.execution_controller, ord.execution_deadline, ord.is_active, ord.cancelled_at,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
@@ -175,7 +175,7 @@ func (r *AdministrativeOrderRepository) GetByID(id uuid.UUID) (*models.Administr
 	row := r.db.QueryRow(`
 		SELECT
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
-			ord.order_number, ord.order_date, ord.title,
+			ord.order_number, ord.order_date, ord.title, d.pages_count,
 			ord.execution_controller, ord.execution_deadline, ord.is_active, ord.cancelled_at,
 			d.created_by, u.full_name as created_by_name,
 			d.created_at, d.updated_at
@@ -210,7 +210,7 @@ func (r *AdministrativeOrderRepository) GetByIDs(ids []uuid.UUID) ([]models.Admi
 	rows, err := r.db.Query(`
 		SELECT
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name AS nomenclature_name,
-			ord.order_number, ord.order_date, ord.title,
+			ord.order_number, ord.order_date, ord.title, d.pages_count,
 			ord.execution_controller, ord.execution_deadline, ord.is_active, ord.cancelled_at,
 			d.created_by, u.full_name AS created_by_name,
 			d.created_at, d.updated_at
@@ -283,7 +283,7 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 	err = tx.QueryRow(`
 		INSERT INTO documents (
 			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id
 	`,
 		models.DocumentKindAdministrativeOrder,
@@ -293,6 +293,7 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 		req.OrderDate,
 		models.DocumentTypeAdministrativeOrder,
 		req.Title,
+		req.PagesCount,
 		req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
@@ -368,9 +369,10 @@ func (r *AdministrativeOrderRepository) update(req models.UpdateAdministrativeOr
 		UPDATE documents SET
 			registration_date = $1,
 			content = $2,
+			pages_count = $3,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $3 AND kind = $4
-	`, req.OrderDate, req.Title, req.ID, models.DocumentKindAdministrativeOrder); err != nil {
+		WHERE id = $4 AND kind = $5
+	`, req.OrderDate, req.Title, req.PagesCount, req.ID, models.DocumentKindAdministrativeOrder); err != nil {
 		return nil, fmt.Errorf("failed to update administrative order root: %w", err)
 	}
 
@@ -590,7 +592,7 @@ func scanAdministrativeOrder(scanner administrativeOrderScanner) (*models.Admini
 	var cancelledAt sql.NullTime
 	if err := scanner.Scan(
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
-		&doc.OrderNumber, &doc.OrderDate, &doc.Title,
+		&doc.OrderNumber, &doc.OrderDate, &doc.Title, &doc.PagesCount,
 		&doc.ExecutionController, &deadline, &doc.IsActive, &cancelledAt,
 		&doc.CreatedBy, &doc.CreatedByName,
 		&doc.CreatedAt, &doc.UpdatedAt,

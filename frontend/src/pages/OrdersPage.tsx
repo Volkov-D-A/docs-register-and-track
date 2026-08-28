@@ -148,6 +148,7 @@ const OrdersPage: React.FC = () => {
     const buildPayload = (values: any) => ({
         orderDate: dateValue(values.orderDate),
         title: values.title || '',
+        pagesCount: values.pagesCount ?? 1,
         executionController: String(values.executionController || '').trim(),
         executionDeadline: dateValue(values.executionDeadline),
         isActive: values.isActive !== false,

@@ -13,31 +13,33 @@ import (
 
 // OutgoingLetterRegisterRequest описывает команду регистрации исходящего письма.
 type OutgoingLetterRegisterRequest struct {
-	NomenclatureID      string                      `json:"nomenclatureId"`
-	IdempotencyKey      string                      `json:"idempotencyKey"`
-	DocumentTypeID      string                      `json:"documentTypeId"`
-	RecipientOrgName    string                      `json:"recipientOrgName"`
-	Addressee           string                      `json:"addressee"`
-	OutgoingDate        string                      `json:"outgoingDate"`
-	Content             string                      `json:"content"`
-	PagesCount          int                         `json:"pagesCount"`
-	SenderSignatory     string                      `json:"senderSignatory"`
-	SenderExecutor      string                      `json:"senderExecutor"`
-	RegistrationNumber  string                      `json:"registrationNumber"`
-	AdminNumberOverride *AdminNumberOverrideRequest `json:"adminNumberOverride"`
+	NomenclatureID       string                      `json:"nomenclatureId"`
+	IdempotencyKey       string                      `json:"idempotencyKey"`
+	DocumentTypeID       string                      `json:"documentTypeId"`
+	RecipientOrgName     string                      `json:"recipientOrgName"`
+	Addressee            string                      `json:"addressee"`
+	OutgoingDate         string                      `json:"outgoingDate"`
+	Content              string                      `json:"content"`
+	PagesCount           int                         `json:"pagesCount"`
+	AttachmentPagesCount int                         `json:"attachmentPagesCount"`
+	SenderSignatory      string                      `json:"senderSignatory"`
+	SenderExecutor       string                      `json:"senderExecutor"`
+	RegistrationNumber   string                      `json:"registrationNumber"`
+	AdminNumberOverride  *AdminNumberOverrideRequest `json:"adminNumberOverride"`
 }
 
 // OutgoingLetterUpdateRequest описывает команду обновления исходящего письма.
 type OutgoingLetterUpdateRequest struct {
-	ID               string `json:"id"`
-	DocumentTypeID   string `json:"documentTypeId"`
-	RecipientOrgName string `json:"recipientOrgName"`
-	Addressee        string `json:"addressee"`
-	OutgoingDate     string `json:"outgoingDate"`
-	Content          string `json:"content"`
-	PagesCount       int    `json:"pagesCount"`
-	SenderSignatory  string `json:"senderSignatory"`
-	SenderExecutor   string `json:"senderExecutor"`
+	ID                   string `json:"id"`
+	DocumentTypeID       string `json:"documentTypeId"`
+	RecipientOrgName     string `json:"recipientOrgName"`
+	Addressee            string `json:"addressee"`
+	OutgoingDate         string `json:"outgoingDate"`
+	Content              string `json:"content"`
+	PagesCount           int    `json:"pagesCount"`
+	AttachmentPagesCount int    `json:"attachmentPagesCount"`
+	SenderSignatory      string `json:"senderSignatory"`
+	SenderExecutor       string `json:"senderExecutor"`
 }
 
 // OutgoingLetterCommandHandler инкапсулирует write-операции по исходящим письмам.
@@ -108,6 +110,9 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 	if !models.IsAllowedDocumentType(docTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
 	}
+	if err := validatePageCounts(req.PagesCount, req.AttachmentPagesCount); err != nil {
+		return nil, err
+	}
 
 	recipientOrg, err := h.refRepo.FindOrCreateOrganization(req.RecipientOrgName)
 	if err != nil {
@@ -126,19 +131,20 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 	}
 
 	createReq := models.CreateOutgoingDocRequest{
-		NomenclatureID:      nomID,
-		IdempotencyKey:      idempotencyKey,
-		AdminNumberOverride: adminOverride,
-		DocumentTypeID:      docTypeID,
-		RecipientOrgID:      recipientOrg.ID,
-		CreatedBy:           createdBy,
-		OutgoingNumber:      outgoingNumber,
-		OutgoingDate:        outDate,
-		Content:             req.Content,
-		PagesCount:          req.PagesCount,
-		SenderSignatory:     req.SenderSignatory,
-		SenderExecutor:      req.SenderExecutor,
-		Addressee:           req.Addressee,
+		NomenclatureID:       nomID,
+		IdempotencyKey:       idempotencyKey,
+		AdminNumberOverride:  adminOverride,
+		DocumentTypeID:       docTypeID,
+		RecipientOrgID:       recipientOrg.ID,
+		CreatedBy:            createdBy,
+		OutgoingNumber:       outgoingNumber,
+		OutgoingDate:         outDate,
+		Content:              req.Content,
+		PagesCount:           req.PagesCount,
+		AttachmentPagesCount: req.AttachmentPagesCount,
+		SenderSignatory:      req.SenderSignatory,
+		SenderExecutor:       req.SenderExecutor,
+		Addressee:            req.Addressee,
 	}
 	var res *models.OutgoingDocument
 	store, ok := h.repo.(outgoingDocumentJournalStore)
@@ -189,18 +195,19 @@ func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 	}
 
 	createReq := models.CreateOutgoingDocRequest{
-		NomenclatureID:      nomID,
-		IdempotencyKey:      uuid.New(),
-		AdminNumberOverride: adminOverride,
-		DocumentTypeID:      models.DocumentTypeLetter,
-		RecipientOrgID:      recipientOrg.ID,
-		CreatedBy:           createdBy,
-		OutgoingDate:        registrationDate,
-		Content:             adminDraftPlaceholder,
-		PagesCount:          1,
-		SenderSignatory:     adminDraftPlaceholder,
-		SenderExecutor:      adminDraftPlaceholder,
-		Addressee:           adminDraftPlaceholder,
+		NomenclatureID:       nomID,
+		IdempotencyKey:       uuid.New(),
+		AdminNumberOverride:  adminOverride,
+		DocumentTypeID:       models.DocumentTypeLetter,
+		RecipientOrgID:       recipientOrg.ID,
+		CreatedBy:            createdBy,
+		OutgoingDate:         registrationDate,
+		Content:              adminDraftPlaceholder,
+		PagesCount:           1,
+		AttachmentPagesCount: 0,
+		SenderSignatory:      adminDraftPlaceholder,
+		SenderExecutor:       adminDraftPlaceholder,
+		Addressee:            adminDraftPlaceholder,
 	}
 	var res *models.OutgoingDocument
 	store, ok := h.repo.(outgoingDocumentJournalStore)
@@ -224,6 +231,9 @@ func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (
 	if !models.IsAllowedDocumentType(docTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
 	}
+	if err := validatePageCounts(req.PagesCount, req.AttachmentPagesCount); err != nil {
+		return nil, err
+	}
 
 	recipientOrg, err := h.refRepo.FindOrCreateOrganization(req.RecipientOrgName)
 	if err != nil {
@@ -236,15 +246,16 @@ func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (
 	}
 
 	updateReq := models.UpdateOutgoingDocRequest{
-		ID:              uid,
-		DocumentTypeID:  docTypeID,
-		RecipientOrgID:  recipientOrg.ID,
-		OutgoingDate:    outDate,
-		Content:         req.Content,
-		PagesCount:      req.PagesCount,
-		SenderSignatory: req.SenderSignatory,
-		SenderExecutor:  req.SenderExecutor,
-		Addressee:       req.Addressee,
+		ID:                   uid,
+		DocumentTypeID:       docTypeID,
+		RecipientOrgID:       recipientOrg.ID,
+		OutgoingDate:         outDate,
+		Content:              req.Content,
+		PagesCount:           req.PagesCount,
+		AttachmentPagesCount: req.AttachmentPagesCount,
+		SenderSignatory:      req.SenderSignatory,
+		SenderExecutor:       req.SenderExecutor,
+		Addressee:            req.Addressee,
 	}
 	var res *models.OutgoingDocument
 	store, ok := h.repo.(outgoingDocumentOutboxStore)

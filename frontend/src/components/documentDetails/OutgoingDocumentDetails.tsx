@@ -45,6 +45,12 @@ const OutgoingDocumentDetails: React.FC<OutgoingDocumentDetailsProps> = ({ doc }
                 <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, maxHeight: 100, overflowY: 'auto', background: 'var(--app-subtle-surface)', padding: 8, borderRadius: 4 }}>{doc.content}</div>
             </div>
         </div>
+
+        <DetailDivider />
+
+        <Row gutter={16} style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+            <Col span={24}>Листов: {doc.pagesCount}, приложение: {doc.attachmentPagesCount}</Col>
+        </Row>
     </DetailStack>
 );
 

@@ -17,7 +17,7 @@ export const outgoingLetterPageConfig = {
     tableClassName: 'outgoing-documents-table',
     registerModalTitle: 'Регистрация исходящего документа',
     getEditModalTitle: () => 'Редактирование документа',
-    registerInitialValues: { outgoingDate: dayjs(), pagesCount: 1 },
+    registerInitialValues: { outgoingDate: dayjs(), pagesCount: 1, attachmentPagesCount: 0 },
     buildColumns: ({ isExecutorOnly, openViewModal, onEdit }: ColumnFactoryParams) => [
         {
             title: 'Номер / Дата',
@@ -52,6 +52,9 @@ export const outgoingLetterPageConfig = {
                 <div>
                     <div style={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>{record.content}</div>
                     <div style={{ fontSize: 13, color: 'var(--app-text-muted)' }}>{record.documentTypeName}</div>
+                    <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
+                        Листов: {record.pagesCount ?? 0}, приложение: {record.attachmentPagesCount ?? 0}
+                    </div>
                 </div>
             ),
         },

@@ -13,32 +13,34 @@ import (
 
 // IncomingLetterRegisterRequest описывает команду регистрации входящего письма.
 type IncomingLetterRegisterRequest struct {
-	NomenclatureID      string                               `json:"nomenclatureId"`
-	IdempotencyKey      string                               `json:"idempotencyKey"`
-	DocumentTypeID      string                               `json:"documentTypeId"`
-	IncomingDate        string                               `json:"incomingDate"`
-	Correspondents      []IncomingLetterCorrespondentRequest `json:"correspondents"`
-	Content             string                               `json:"content"`
-	PagesCount          int                                  `json:"pagesCount"`
-	SenderSignatory     string                               `json:"senderSignatory"`
-	Resolution          string                               `json:"resolution"`
-	ResolutionAuthor    string                               `json:"resolutionAuthor"`
-	ResolutionExecutors string                               `json:"resolutionExecutors"`
-	RegistrationNumber  string                               `json:"registrationNumber"`
-	AdminNumberOverride *AdminNumberOverrideRequest          `json:"adminNumberOverride"`
+	NomenclatureID       string                               `json:"nomenclatureId"`
+	IdempotencyKey       string                               `json:"idempotencyKey"`
+	DocumentTypeID       string                               `json:"documentTypeId"`
+	IncomingDate         string                               `json:"incomingDate"`
+	Correspondents       []IncomingLetterCorrespondentRequest `json:"correspondents"`
+	Content              string                               `json:"content"`
+	PagesCount           int                                  `json:"pagesCount"`
+	AttachmentPagesCount int                                  `json:"attachmentPagesCount"`
+	SenderSignatory      string                               `json:"senderSignatory"`
+	Resolution           string                               `json:"resolution"`
+	ResolutionAuthor     string                               `json:"resolutionAuthor"`
+	ResolutionExecutors  string                               `json:"resolutionExecutors"`
+	RegistrationNumber   string                               `json:"registrationNumber"`
+	AdminNumberOverride  *AdminNumberOverrideRequest          `json:"adminNumberOverride"`
 }
 
 // IncomingLetterUpdateRequest описывает команду обновления входящего письма.
 type IncomingLetterUpdateRequest struct {
-	ID                  string                               `json:"id"`
-	DocumentTypeID      string                               `json:"documentTypeId"`
-	Correspondents      []IncomingLetterCorrespondentRequest `json:"correspondents"`
-	Content             string                               `json:"content"`
-	PagesCount          int                                  `json:"pagesCount"`
-	SenderSignatory     string                               `json:"senderSignatory"`
-	Resolution          string                               `json:"resolution"`
-	ResolutionAuthor    string                               `json:"resolutionAuthor"`
-	ResolutionExecutors string                               `json:"resolutionExecutors"`
+	ID                   string                               `json:"id"`
+	DocumentTypeID       string                               `json:"documentTypeId"`
+	Correspondents       []IncomingLetterCorrespondentRequest `json:"correspondents"`
+	Content              string                               `json:"content"`
+	PagesCount           int                                  `json:"pagesCount"`
+	AttachmentPagesCount int                                  `json:"attachmentPagesCount"`
+	SenderSignatory      string                               `json:"senderSignatory"`
+	Resolution           string                               `json:"resolution"`
+	ResolutionAuthor     string                               `json:"resolutionAuthor"`
+	ResolutionExecutors  string                               `json:"resolutionExecutors"`
 }
 
 // IncomingLetterCorrespondentRequest описывает один набор реквизитов корреспондента.
@@ -116,6 +118,9 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 	if !models.IsAllowedDocumentType(docTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
 	}
+	if err := validatePageCounts(req.PagesCount, req.AttachmentPagesCount); err != nil {
+		return nil, err
+	}
 
 	if req.ResolutionExecutors != "" {
 		for _, name := range strings.Split(req.ResolutionExecutors, "; ") {
@@ -155,20 +160,21 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 	}
 
 	createReq := models.CreateIncomingDocRequest{
-		NomenclatureID:      nomID,
-		IdempotencyKey:      idempotencyKey,
-		AdminNumberOverride: adminOverride,
-		DocumentTypeID:      docTypeID,
-		CreatedBy:           createdBy,
-		IncomingNumber:      incomingNumberStr,
-		IncomingDate:        incDate,
-		Correspondents:      correspondents,
-		Content:             req.Content,
-		PagesCount:          req.PagesCount,
-		SenderSignatory:     req.SenderSignatory,
-		Resolution:          resPtr,
-		ResolutionAuthor:    resAuthorPtr,
-		ResolutionExecutors: resExecutorsPtr,
+		NomenclatureID:       nomID,
+		IdempotencyKey:       idempotencyKey,
+		AdminNumberOverride:  adminOverride,
+		DocumentTypeID:       docTypeID,
+		CreatedBy:            createdBy,
+		IncomingNumber:       incomingNumberStr,
+		IncomingDate:         incDate,
+		Correspondents:       correspondents,
+		Content:              req.Content,
+		PagesCount:           req.PagesCount,
+		AttachmentPagesCount: req.AttachmentPagesCount,
+		SenderSignatory:      req.SenderSignatory,
+		Resolution:           resPtr,
+		ResolutionAuthor:     resAuthorPtr,
+		ResolutionExecutors:  resExecutorsPtr,
 	}
 	store, ok := h.repo.(incomingDocumentJournalStore)
 	if !ok {
@@ -230,9 +236,10 @@ func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 			CorrespondentOrgID: org.ID,
 			Position:           1,
 		}},
-		Content:         adminDraftPlaceholder,
-		PagesCount:      1,
-		SenderSignatory: adminDraftPlaceholder,
+		Content:              adminDraftPlaceholder,
+		PagesCount:           1,
+		AttachmentPagesCount: 0,
+		SenderSignatory:      adminDraftPlaceholder,
 	}
 	store, ok := h.repo.(incomingDocumentJournalStore)
 	if !ok {
@@ -254,6 +261,9 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 	docTypeID := models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(docTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
+	}
+	if err := validatePageCounts(req.PagesCount, req.AttachmentPagesCount); err != nil {
+		return nil, err
 	}
 
 	if req.ResolutionExecutors != "" {
@@ -284,15 +294,16 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 	}
 
 	updateReq := models.UpdateIncomingDocRequest{
-		ID:                  uid,
-		DocumentTypeID:      docTypeID,
-		Correspondents:      correspondents,
-		Content:             req.Content,
-		PagesCount:          req.PagesCount,
-		SenderSignatory:     req.SenderSignatory,
-		Resolution:          resPtr,
-		ResolutionAuthor:    resAuthorPtr,
-		ResolutionExecutors: resExecutorsPtr,
+		ID:                   uid,
+		DocumentTypeID:       docTypeID,
+		Correspondents:       correspondents,
+		Content:              req.Content,
+		PagesCount:           req.PagesCount,
+		AttachmentPagesCount: req.AttachmentPagesCount,
+		SenderSignatory:      req.SenderSignatory,
+		Resolution:           resPtr,
+		ResolutionAuthor:     resAuthorPtr,
+		ResolutionExecutors:  resExecutorsPtr,
 	}
 	store, ok := h.repo.(incomingDocumentOutboxStore)
 	if !ok {

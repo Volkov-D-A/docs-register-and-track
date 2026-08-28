@@ -17,6 +17,7 @@ type AdministrativeOrderRegisterRequest struct {
 	IdempotencyKey          string                      `json:"idempotencyKey"`
 	OrderDate               string                      `json:"orderDate"`
 	Title                   string                      `json:"title"`
+	PagesCount              int                         `json:"pagesCount"`
 	ExecutionController     string                      `json:"executionController"`
 	ExecutionDeadline       string                      `json:"executionDeadline"`
 	IsActive                bool                        `json:"isActive"`
@@ -31,6 +32,7 @@ type AdministrativeOrderUpdateRequest struct {
 	ID                      string   `json:"id"`
 	OrderDate               string   `json:"orderDate"`
 	Title                   string   `json:"title"`
+	PagesCount              int      `json:"pagesCount"`
 	ExecutionController     string   `json:"executionController"`
 	ExecutionDeadline       string   `json:"executionDeadline"`
 	IsActive                bool     `json:"isActive"`
@@ -119,6 +121,9 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 	if err := validateOrderActivity(req.IsActive, cancelledAt); err != nil {
 		return nil, err
 	}
+	if err := validatePageCounts(req.PagesCount, 0); err != nil {
+		return nil, err
+	}
 
 	orderNumber := strings.TrimSpace(req.RegistrationNumber)
 	createdBy, err := h.auth.GetCurrentUserUUID()
@@ -134,6 +139,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 		OrderNumber:             orderNumber,
 		OrderDate:               orderDate,
 		Title:                   strings.TrimSpace(req.Title),
+		PagesCount:              req.PagesCount,
 		ExecutionController:     executionController,
 		ExecutionDeadline:       deadline,
 		IsActive:                req.IsActive,
@@ -189,6 +195,7 @@ func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreat
 		CreatedBy:               createdBy,
 		OrderDate:               registrationDate,
 		Title:                   adminDraftPlaceholder,
+		PagesCount:              1,
 		ExecutionController:     adminDraftPlaceholder,
 		IsActive:                true,
 		AcknowledgmentFullNames: []string{},
@@ -230,11 +237,15 @@ func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdate
 	if err := validateOrderActivity(req.IsActive, cancelledAt); err != nil {
 		return nil, err
 	}
+	if err := validatePageCounts(req.PagesCount, 0); err != nil {
+		return nil, err
+	}
 
 	updateReq := models.UpdateAdministrativeOrderDocRequest{
 		ID:                      uid,
 		OrderDate:               orderDate,
 		Title:                   strings.TrimSpace(req.Title),
+		PagesCount:              req.PagesCount,
 		ExecutionController:     executionController,
 		ExecutionDeadline:       deadline,
 		IsActive:                req.IsActive,

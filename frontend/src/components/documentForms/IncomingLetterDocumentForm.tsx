@@ -149,13 +149,16 @@ const IncomingLetterDocumentForm: React.FC<IncomingLetterDocumentFormProps> = ({
             )}
         </Form.List>
         <Row gutter={16}>
-            <Col span={12}>
+            <Col span={8}>
                 <Form.Item name="senderSignatory" label="Подписант" rules={[{ required: true, message: 'Укажите подписанта' }]}>
                     <Input />
                 </Form.Item>
             </Col>
-            <Col span={12}>
-                <PagesCountField required />
+            <Col span={8}>
+                <PagesCountField label="Количество листов" required />
+            </Col>
+            <Col span={8}>
+                <PagesCountField name="attachmentPagesCount" label="Количество листов приложения" required min={0} />
             </Col>
         </Row>
         <DocumentContentField />

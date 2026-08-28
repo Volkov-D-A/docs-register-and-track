@@ -9,6 +9,7 @@ export const buildIncomingLetterEditFormValues = (record: any) => ({
     })),
     content: record.content,
     pagesCount: record.pagesCount,
+    attachmentPagesCount: record.attachmentPagesCount,
     senderSignatory: record.senderSignatory,
     resolution: record.resolution || '',
     resolutionAuthor: record.resolutionAuthor || '',

@@ -28,6 +28,9 @@ const AdministrativeOrderDetails: React.FC<AdministrativeOrderDetailsProps> = ({
                 <Tag color={doc.isActive === false ? 'default' : 'green'}>{doc.isActive === false ? 'Не действующий' : 'Действующий'}</Tag>
             </Col>
         </Row>
+        <Row>
+            <Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Количество листов:</Text> {doc.pagesCount}</Col>
+        </Row>
         <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Дело:</Text> {doc.nomenclatureName}</Col></Row>
 
         <DetailDivider />

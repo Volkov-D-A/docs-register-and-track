@@ -26,7 +26,7 @@ func setupDocumentRepository(t *testing.T) (*DocumentRepository, sqlmock.Sqlmock
 func documentRepositoryRows(now time.Time, rows ...models.Document) *sqlmock.Rows {
 	result := sqlmock.NewRows([]string{
 		"id", "kind", "nomenclature_id", "registration_number", "registration_date",
-		"document_type", "content", "pages_count", "created_by", "created_at", "updated_at",
+		"document_type", "content", "pages_count", "attachment_pages_count", "created_by", "created_at", "updated_at",
 	})
 	for _, doc := range rows {
 		createdAt := doc.CreatedAt
@@ -46,6 +46,7 @@ func documentRepositoryRows(now time.Time, rows ...models.Document) *sqlmock.Row
 			doc.DocumentTypeID,
 			doc.Content,
 			doc.PagesCount,
+			doc.AttachmentPagesCount,
 			doc.CreatedBy,
 			createdAt,
 			updatedAt,

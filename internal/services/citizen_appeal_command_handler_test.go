@@ -120,7 +120,7 @@ func validCitizenAppealRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID)
 		RegistrationAddress:  " ул. Ленина, 1 ",
 		AppealType:           " Жалоба ",
 		ApplicantCategory:    " гражданин ",
-		AppealPagesCount:     2,
+		PagesCount:           2,
 		AttachmentPagesCount: 1,
 		HasEnvelope:          true,
 		ReceivedFromPOS:      true,
@@ -165,7 +165,7 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 			AppealType:           AppealTypeComplaint,
 			ApplicantCategory:    "гражданин",
 			Content:              "Содержание обращения",
-			AppealPagesCount:     2,
+			PagesCount:           2,
 			AttachmentPagesCount: 1,
 			HasEnvelope:          true,
 			ReceivedFromPOS:      true,
@@ -289,18 +289,18 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 		assert.Nil(t, deps.repo.createReq)
 	})
 
-	t.Run("rejects missing appeal pages", func(t *testing.T) {
+	t.Run("rejects missing document pages", func(t *testing.T) {
 		deps := setupCitizenAppealCommandHandler(
 			t,
 			allowDocumentActions(models.DocumentKindCitizenAppeal, "create"),
 		)
 		req := validCitizenAppealRegisterRequest(uuid.New(), uuid.New())
-		req.AppealPagesCount = 0
+		req.PagesCount = 0
 
 		result, err := deps.handler.Register(req)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "укажите количество листов обращения")
+		assert.Contains(t, err.Error(), "количество листов должно быть не меньше 1")
 		assert.Nil(t, result)
 		assert.Nil(t, deps.repo.createReq)
 	})
@@ -415,7 +415,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			AppealType:           AppealTypeApplication,
 			ApplicantCategory:    "пенсионер",
 			Content:              "Обновленное обращение",
-			AppealPagesCount:     3,
+			PagesCount:           3,
 			AttachmentPagesCount: 0,
 			CreatedBy:            deps.user.ID,
 		}
@@ -428,7 +428,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			RegistrationAddress:  " ул. Мира, 2 ",
 			AppealType:           "ЗАЯВЛЕНИЕ",
 			ApplicantCategory:    " пенсионер ",
-			AppealPagesCount:     3,
+			PagesCount:           3,
 			AttachmentPagesCount: 0,
 			Content:              " Обновленное обращение ",
 			Correspondents: []CitizenAppealCorrespondentRequest{
@@ -533,7 +533,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			RegistrationAddress:  "ул. Мира, 2",
 			AppealType:           AppealTypeApplication,
 			ApplicantCategory:    "пенсионер",
-			AppealPagesCount:     3,
+			PagesCount:           3,
 			AttachmentPagesCount: 0,
 			Content:              "Обновленное обращение",
 		})
@@ -567,7 +567,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			RegistrationAddress:  "ул. Мира, 2",
 			AppealType:           AppealTypeApplication,
 			ApplicantCategory:    "пенсионер",
-			AppealPagesCount:     3,
+			PagesCount:           3,
 			AttachmentPagesCount: 0,
 			Content:              "Обновленное обращение",
 		})
