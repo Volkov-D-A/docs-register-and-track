@@ -63,11 +63,6 @@ func setupAttachmentService(t *testing.T, role string) (
 	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, depRepo, assignmentRepo, ackRepo, userRepo, auth
 }
 
-type atomicAttachmentStore struct {
-	*mocks.AttachmentStore
-	effects []models.OutboxEvent
-}
-
 type storageMutationStub struct {
 	ctx      context.Context
 	finished bool
@@ -88,27 +83,6 @@ func (c *storageMutationCoordinatorStub) BeginStorageMutation(ctx context.Contex
 	c.started = true
 	c.mutation = &storageMutationStub{ctx: ctx}
 	return c.mutation, nil
-}
-
-func (s *atomicAttachmentStore) OutboxEnabled() bool { return true }
-func (s *atomicAttachmentStore) CreateWithOutbox(attachment *models.Attachment, effects []models.OutboxEvent) error {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.AttachmentStore.Create(attachment)
-}
-func (s *atomicAttachmentStore) MarkDeletingWithOutbox(attachment models.Attachment) error {
-	return s.AttachmentStore.MarkDeleting(attachment.ID)
-}
-func (s *atomicAttachmentStore) MarkDeletingWithEffects(attachment models.Attachment, effects []models.OutboxEvent) error {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.AttachmentStore.MarkDeleting(attachment.ID)
-}
-func (s *atomicAttachmentStore) MarkDeletingMultipleWithOutbox(attachments []models.Attachment, effects []models.OutboxEvent) error {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	ids := make([]uuid.UUID, 0, len(attachments))
-	for _, attachment := range attachments {
-		ids = append(ids, attachment.ID)
-	}
-	return s.AttachmentStore.MarkDeletingMultiple(ids)
 }
 
 func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
@@ -320,8 +294,6 @@ func TestAttachmentServiceUploadPathStreamsSelectedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.txt")
 	require.NoError(t, os.WriteFile(path, []byte("Hello, world!"), 0600))
 	svc, repo, settingsRepo, storage, incomingRepo, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-	atomicRepo := &atomicAttachmentStore{AttachmentStore: repo}
-	svc.repo = atomicRepo
 	coordinator := &storageMutationCoordinatorStub{}
 	svc.storageMutations = coordinator
 	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
@@ -332,13 +304,13 @@ func TestAttachmentServiceUploadPathStreamsSelectedFile(t *testing.T) {
 			assert.True(t, coordinator.started, "mutation must be registered before MinIO upload")
 		}).
 		Return(nil).Once()
-	repo.On("Create", mock.AnythingOfType("*models.Attachment")).Return(nil).Once()
+	repo.On("CreateWithOutbox", mock.AnythingOfType("*models.Attachment"), mock.MatchedBy(func(effects []models.OutboxEvent) bool {
+		return len(effects) == 1 && effects[0].EventType == models.OutboxEventJournal
+	})).Return(nil).Once()
 
 	attachment, err := svc.uploadPath(docID.String(), path)
 	require.NoError(t, err)
 	assert.Equal(t, "test.txt", attachment.Filename)
-	require.Len(t, atomicRepo.effects, 1)
-	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
 	require.NotNil(t, coordinator.mutation)
 	assert.True(t, coordinator.mutation.finished)
 }
@@ -366,79 +338,46 @@ func TestAttachmentService_GetList(t *testing.T) {
 	})
 }
 
-func TestWriteDownloadFileWithoutOverwrite(t *testing.T) {
-	downloadDir := t.TempDir()
-	originalPath := filepath.Join(downloadDir, "report.pdf")
-	require.NoError(t, os.WriteFile(originalPath, []byte("original"), 0644))
-
-	firstPath, err := writeDownloadFileWithoutOverwrite(downloadDir, "../report.pdf", []byte("first"))
-	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(downloadDir, "report (1).pdf"), firstPath)
-
-	secondPath, err := writeDownloadFileWithoutOverwrite(downloadDir, "report.pdf", []byte("second"))
-	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(downloadDir, "report (2).pdf"), secondPath)
-
-	originalContent, err := os.ReadFile(originalPath)
-	require.NoError(t, err)
-	assert.Equal(t, "original", string(originalContent))
-
-	firstContent, err := os.ReadFile(firstPath)
-	require.NoError(t, err)
-	assert.Equal(t, "first", string(firstContent))
-
-	secondContent, err := os.ReadFile(secondPath)
-	require.NoError(t, err)
-	assert.Equal(t, "second", string(secondContent))
-}
-
 func TestAttachmentService_Delete(t *testing.T) {
 	// Удаление файла вложения
 	attID := uuid.New()
 
 	t.Run("success clerk", func(t *testing.T) {
 		svc, repo, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-		atomicRepo := &atomicAttachmentStore{AttachmentStore: repo}
-		svc.repo = atomicRepo
 		att := &models.Attachment{
 			ID:          attID,
 			DocumentID:  uuid.New(),
 			StoragePath: "minio/path",
 		}
 		repo.On("GetByID", attID).Return(att, nil).Once()
-		repo.On("MarkDeleting", attID).Return(nil).Once()
+		repo.On("MarkDeletingWithEffects", *att, mock.MatchedBy(func(effects []models.OutboxEvent) bool {
+			return len(effects) == 1 && effects[0].EventType == models.OutboxEventJournal
+		})).Return(nil).Once()
 		err := svc.Delete(attID.String())
 		require.NoError(t, err)
-		require.Len(t, atomicRepo.effects, 1)
-		assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
 	})
 
 	t.Run("executor can delete with upload access", func(t *testing.T) {
 		svc, repo, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "executor")
-		atomicRepo := &atomicAttachmentStore{AttachmentStore: repo}
-		svc.repo = atomicRepo
 		att := &models.Attachment{
 			ID:          attID,
 			DocumentID:  uuid.New(),
 			StoragePath: "minio/path",
 		}
 		repo.On("GetByID", attID).Return(att, nil).Once()
-		repo.On("MarkDeleting", attID).Return(nil).Once()
+		repo.On("MarkDeletingWithEffects", *att, mock.Anything).Return(nil).Once()
 		err := svc.Delete(attID.String())
 		require.NoError(t, err)
 	})
 
 	t.Run("queues deletion intent without synchronous storage finalization", func(t *testing.T) {
 		svc, repo, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-		atomicRepo := &atomicAttachmentStore{AttachmentStore: repo}
-		svc.repo = atomicRepo
 		att := &models.Attachment{ID: attID, DocumentID: uuid.New(), StoragePath: "minio/path"}
 		repo.On("GetByID", attID).Return(att, nil).Once()
-		repo.On("MarkDeleting", attID).Return(nil).Once()
+		repo.On("MarkDeletingWithEffects", *att, mock.Anything).Return(nil).Once()
 
 		err := svc.Delete(attID.String())
 		require.NoError(t, err)
-		assert.Len(t, atomicRepo.effects, 1)
 	})
 }
 
@@ -469,17 +408,15 @@ func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
 func TestAttachmentService_BulkDeleteOlderThan(t *testing.T) {
 	t.Run("queues deletion and audit through atomic store", func(t *testing.T) {
 		svc, repo, _, _, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"admin"})
-		atomicRepo := &atomicAttachmentStore{AttachmentStore: repo}
-		svc.repo = atomicRepo
 		attachment := models.Attachment{ID: uuid.New(), StoragePath: "old.pdf"}
 		repo.On("GetOlderThan", mock.AnythingOfType("time.Time")).Return([]models.Attachment{attachment}, nil).Once()
-		repo.On("MarkDeletingMultiple", []uuid.UUID{attachment.ID}).Return(nil).Once()
+		repo.On("MarkDeletingMultipleWithOutbox", []models.Attachment{attachment}, mock.MatchedBy(func(effects []models.OutboxEvent) bool {
+			return len(effects) == 1 && effects[0].EventType == models.OutboxEventAudit
+		})).Return(nil).Once()
 
 		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
-		require.Len(t, atomicRepo.effects, 1)
-		assert.Equal(t, models.OutboxEventAudit, atomicRepo.effects[0].EventType)
 	})
 
 	t.Run("forbidden without admin role", func(t *testing.T) {
@@ -521,8 +458,6 @@ func TestAttachmentService_BulkDeleteOlderThan(t *testing.T) {
 
 	t.Run("queues all records for worker delivery", func(t *testing.T) {
 		svc, repo, _, _, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"admin"})
-		atomicRepo := &atomicAttachmentStore{AttachmentStore: repo}
-		svc.repo = atomicRepo
 		firstID := uuid.New()
 		secondID := uuid.New()
 		attachments := []models.Attachment{
@@ -530,39 +465,24 @@ func TestAttachmentService_BulkDeleteOlderThan(t *testing.T) {
 			{ID: secondID, StoragePath: "missing.pdf"},
 		}
 		repo.On("GetOlderThan", mock.AnythingOfType("time.Time")).Return(attachments, nil).Once()
-		repo.On("MarkDeletingMultiple", []uuid.UUID{firstID, secondID}).Return(nil).Once()
+		repo.On("MarkDeletingMultipleWithOutbox", attachments, mock.Anything).Return(nil).Once()
 
 		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
-		assert.Len(t, atomicRepo.effects, 1)
 	})
 
 	t.Run("queues record without synchronous storage finalization", func(t *testing.T) {
 		svc, repo, _, _, _, _, _, _, _, _, _ := setupAttachmentServiceWithRoles(t, []string{"admin"})
-		atomicRepo := &atomicAttachmentStore{AttachmentStore: repo}
-		svc.repo = atomicRepo
 		attachmentID := uuid.New()
 		attachments := []models.Attachment{{ID: attachmentID, StoragePath: "ok.pdf"}}
 		repo.On("GetOlderThan", mock.AnythingOfType("time.Time")).Return(attachments, nil).Once()
-		repo.On("MarkDeletingMultiple", []uuid.UUID{attachmentID}).Return(nil).Once()
+		repo.On("MarkDeletingMultipleWithOutbox", attachments, mock.Anything).Return(nil).Once()
 
 		count, err := svc.BulkDeleteOlderThan("2024-01-01T00:00:00Z")
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
-		assert.Len(t, atomicRepo.effects, 1)
 	})
-}
-
-func TestAttachmentService_ProcessPendingDeletions(t *testing.T) {
-	svc, repo, _, fileStorage, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-	attachment := models.Attachment{ID: uuid.New(), StoragePath: "retry.pdf"}
-	repo.On("GetPendingDeletion").Return([]models.Attachment{attachment}, nil).Once()
-	fileStorage.On("DeleteFile", mock.Anything, attachment.StoragePath).Return(nil).Once()
-	repo.On("DeleteMarked", attachment.ID).Return(nil).Once()
-
-	err := svc.ProcessPendingDeletions(context.Background())
-	require.NoError(t, err)
 }
 
 func TestReconcileAttachmentStorage(t *testing.T) {

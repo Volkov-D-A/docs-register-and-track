@@ -179,7 +179,7 @@ func newWailsOptionsWithDependencies(
 	backgroundServices := newBackgroundLifecycle(
 		db,
 		outboxWorker,
-		attachmentService.ProcessPendingDeletions,
+		nil,
 	)
 	services.ConfigureSchemaLifecycle(authService, settingsService, backgroundServices)
 

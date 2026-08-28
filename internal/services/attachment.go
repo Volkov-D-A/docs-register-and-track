@@ -37,25 +37,8 @@ type AttachmentService struct {
 	storageMutations coordination.StorageMutationCoordinator
 }
 
-type attachmentOutboxStore interface {
-	MarkDeletingWithOutbox(attachment models.Attachment) error
-	MarkDeletingWithEffects(attachment models.Attachment, effects []models.OutboxEvent) error
-	CreateWithOutbox(*models.Attachment, []models.OutboxEvent) error
-	MarkDeletingMultipleWithOutbox([]models.Attachment, []models.OutboxEvent) error
-	OutboxEnabled() bool
-}
-
-type attachmentDeletionScheduler interface {
-	EnqueuePendingDeletions() error
-	OutboxEnabled() bool
-}
-
 type attachmentStoragePathStore interface {
 	GetAllStoragePaths() ([]string, error)
-}
-
-type attachmentStorageStatisticsFinalizer interface {
-	DeleteMarkedAndDecrementStorageStatistics(id uuid.UUID) error
 }
 
 type objectNameLister interface {
@@ -267,16 +250,11 @@ func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachm
 		UploadedBy:  userID,
 	}
 
-	outboxRepo, ok := s.repo.(attachmentOutboxStore)
-	if !ok || !outboxRepo.OutboxEnabled() {
-		_ = s.fileStorage.DeleteFile(ctx, objectName)
-		return nil, fmt.Errorf("attachment store must support atomic outbox operations")
-	}
 	event, buildErr := NewJournalOutboxEvent("attachment:"+objectName+":upload:journal", models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: "FILE_UPLOAD", Details: fmt.Sprintf("Добавлен файл: %s", filename)})
 	if buildErr != nil {
 		return nil, buildErr
 	}
-	err = outboxRepo.CreateWithOutbox(attachment, []models.OutboxEvent{event})
+	err = s.repo.CreateWithOutbox(attachment, []models.OutboxEvent{event})
 	if err != nil {
 		// Попытка откатить (удалить) файл из хранилища, если сохранение в БД не удалось
 		_ = s.fileStorage.DeleteFile(ctx, objectName)
@@ -335,16 +313,12 @@ func (s *AttachmentService) Delete(idStr string) error {
 
 	// First commit the deletion intent. From this point the attachment is hidden
 	// from reads, so a later database failure cannot leave a visible broken link.
-	outboxRepo, ok := s.repo.(attachmentOutboxStore)
-	if !ok || !outboxRepo.OutboxEnabled() {
-		return fmt.Errorf("attachment store must support atomic outbox operations")
-	}
 	currentUserID, _ := s.authService.GetCurrentUserUUID()
 	event, buildErr := NewJournalOutboxEvent("attachment:"+attachment.ID.String()+":delete:journal", models.CreateJournalEntryRequest{DocumentID: attachment.DocumentID, UserID: currentUserID, Action: "FILE_DELETE", Details: fmt.Sprintf("Удален файл: %s", attachment.Filename)})
 	if buildErr != nil {
 		return buildErr
 	}
-	return outboxRepo.MarkDeletingWithEffects(*attachment, []models.OutboxEvent{event})
+	return s.repo.MarkDeletingWithEffects(*attachment, []models.OutboxEvent{event})
 }
 
 // DownloadToDisk — сохранить файл в папку «Загрузки» пользователя и вернуть полный путь
@@ -432,42 +406,6 @@ func writeDownloadFileFromStorage(downloadDir, filename string, write func(*os.F
 		}
 		return fullPath, nil
 	}
-	return "", fmt.Errorf("failed to choose unique download filename for %q", cleanFilename)
-}
-
-func writeDownloadFileWithoutOverwrite(downloadDir, filename string, content []byte) (string, error) {
-	cleanFilename := safeDownloadFilename(filename)
-	ext := filepath.Ext(cleanFilename)
-	base := strings.TrimSuffix(cleanFilename, ext)
-
-	for i := 0; i < 1000; i++ {
-		candidate := cleanFilename
-		if i > 0 {
-			candidate = fmt.Sprintf("%s (%d)%s", base, i, ext)
-		}
-
-		fullPath := filepath.Join(downloadDir, candidate)
-		file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-		if errors.Is(err, os.ErrExist) {
-			continue
-		}
-		if err != nil {
-			return "", err
-		}
-
-		if _, err := file.Write(content); err != nil {
-			_ = file.Close()
-			_ = os.Remove(fullPath)
-			return "", err
-		}
-		if err := file.Close(); err != nil {
-			_ = os.Remove(fullPath)
-			return "", err
-		}
-
-		return fullPath, nil
-	}
-
 	return "", fmt.Errorf("failed to choose unique download filename for %q", cleanFilename)
 }
 
@@ -594,10 +532,6 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	if len(attachments) == 0 {
 		return 0, nil
 	}
-	outboxRepo, ok := s.repo.(attachmentOutboxStore)
-	if !ok || !outboxRepo.OutboxEnabled() {
-		return 0, fmt.Errorf("attachment store must support atomic outbox operations")
-	}
 	currentUserID, _ := s.authService.GetCurrentUserUUID()
 	var currentUserName string
 	if u, err := s.authService.GetCurrentUser(); err == nil {
@@ -608,66 +542,8 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 	if buildErr != nil {
 		return 0, buildErr
 	}
-	if err := outboxRepo.MarkDeletingMultipleWithOutbox(attachments, []models.OutboxEvent{event}); err != nil {
+	if err := s.repo.MarkDeletingMultipleWithOutbox(attachments, []models.OutboxEvent{event}); err != nil {
 		return 0, fmt.Errorf("failed to queue attachment deletion: %w", err)
 	}
 	return len(attachments), nil
-}
-
-// ProcessPendingDeletions retries deletion intents left by a failed database or
-// storage operation. It is safe to invoke repeatedly: MinIO deletion is
-// idempotent and a row is only physically removed after it was marked.
-func (s *AttachmentService) ProcessPendingDeletions(ctx context.Context) error {
-	if scheduler, ok := s.repo.(attachmentDeletionScheduler); ok && scheduler.OutboxEnabled() {
-		return scheduler.EnqueuePendingDeletions()
-	}
-	attachments, err := s.repo.GetPendingDeletion()
-	if err != nil {
-		return fmt.Errorf("failed to get pending attachment deletions: %w", err)
-	}
-
-	var errs []error
-	for _, attachment := range attachments {
-		if err := ctx.Err(); err != nil {
-			return errors.Join(append(errs, err)...)
-		}
-		if err := s.finalizeDeletion(ctx, attachment); err != nil {
-			errs = append(errs, fmt.Errorf("attachment %s: %w", attachment.ID, err))
-		}
-	}
-	return errors.Join(errs...)
-}
-
-func (s *AttachmentService) finalizeDeletion(ctx context.Context, attachment models.Attachment) error {
-	var mutation coordination.StorageMutation
-	if s.storageMutations != nil {
-		var err error
-		mutation, err = s.storageMutations.BeginStorageMutation(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to coordinate storage deletion: %w", err)
-		}
-		ctx = mutation.Context()
-	}
-	finishWithError := func(err error) error {
-		if mutation != nil {
-			if finishErr := mutation.Finish(); finishErr != nil && err == nil {
-				return finishErr
-			}
-		}
-		return err
-	}
-
-	if err := s.fileStorage.DeleteFile(ctx, attachment.StoragePath); err != nil {
-		return finishWithError(fmt.Errorf("failed to delete file from storage: %w", err))
-	}
-	if finalizer, ok := s.repo.(attachmentStorageStatisticsFinalizer); ok {
-		if err := finalizer.DeleteMarkedAndDecrementStorageStatistics(attachment.ID); err != nil {
-			return finishWithError(fmt.Errorf("failed to delete attachment record and update storage statistics: %w", err))
-		}
-		return finishWithError(nil)
-	}
-	if err := s.repo.DeleteMarked(attachment.ID); err != nil {
-		return finishWithError(fmt.Errorf("failed to delete attachment record from db: %w", err))
-	}
-	return finishWithError(nil)
 }

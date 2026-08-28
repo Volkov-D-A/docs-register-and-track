@@ -32,7 +32,7 @@ transactional outbox, backup/restore-скрипты, тесты, release gate и
 | 13 | Средний | Исправлено: критичные frontend-потоки покрыты component/integration-тестами |
 | 14 | Средний | Исправлено: composition root и lifecycle покрыты integration-тестами |
 | 15 | Низкий | Исправлено: неиспользуемый TTL-кэш MinIO удалён |
-| 16 | Низкий | После потокового refactor остались старые attachment API и fallback-пути |
+| 16 | Низкий | Исправлено: удалены старые attachment API и fallback-пути |
 | 17 | Низкий | Сохраняется переходная модель document access без срока удаления |
 | 18 | Низкий | Ручной frontend wrapper связей дублирует Wails bindings |
 | 19 | Низкий | Release gate не проверяет актуальность Wails bindings |
@@ -632,7 +632,7 @@ persisted snapshot. Его timeout переименован в `storageUsageRefr
 ## 16. После attachment refactor остались старые API и fallback-пути
 
 **Приоритет:** низкий
-**Статус:** открыто
+**Статус:** исправлено 28 августа 2026 года
 
 `AttachmentStore` всё ещё требует plain методы `Create`, `MarkDeleting`,
 `MarkDeletingMultiple`, `DeleteMarked`, хотя production operations используют
@@ -653,6 +653,25 @@ Fallback в `ProcessPendingDeletions` недостижим для production rep
 **Исправление:** обновить test doubles под production-контракты, удалить plain
 mutation API и legacy finalization. Для миграции старых tombstones определить
 явную одноразовую процедуру и дату удаления compatibility-кода.
+
+**Решение:** atomic/outbox mutation-методы включены непосредственно в
+`AttachmentStore`; runtime type assertions и `OutboxEnabled` удалены. Plain
+методы `Create`, `MarkDeleting`, `MarkDeletingMultiple` и `DeleteMarked`, а
+также основанные на них mocks и тестовые адаптеры удалены. Тестовые doubles
+теперь проверяют фактически передаваемые outbox-события.
+
+Из сервиса и startup lifecycle удалены недостижимая прямая финализация и
+периодический перенос legacy tombstones. Это соответствует принятому контракту
+разработки только с чистой установкой. Рабочая атомарная финализация
+`DeleteMarkedAndDecrementStorageStatistics` сохранена в outbox worker.
+
+Удалены неиспользуемый buffered helper `writeDownloadFileWithoutOverwrite` и
+его отдельный unit-тест; актуальный потоковый download path и его защита от
+перезаписи сохранены. Wails bindings обновлены после удаления экспортированного
+compatibility-метода.
+
+**Проверено:** полный `go test ./...`, `go vet ./...`, frontend unit/component
+tests, ESLint и production build проходят.
 
 ## 17. Переходная модель document access не имеет срока удаления
 

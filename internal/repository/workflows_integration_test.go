@@ -199,15 +199,12 @@ func TestAttachmentDeletionSagaIntegration(t *testing.T) {
 	if _, err := attachments.GetByID(attachment.ID); err != sql.ErrNoRows {
 		t.Fatalf("tombstone visible, err=%v", err)
 	}
-	pending, err := attachments.GetPendingDeletion()
-	if err != nil || len(pending) != 1 {
-		t.Fatalf("pending attachments=%d err=%v", len(pending), err)
-	}
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM attachments WHERE id = $1 AND deletion_requested_at IS NOT NULL`, []any{attachment.ID}, 1)
 	if err := attachments.MarkDeletingWithOutbox(*attachment); err != nil {
 		t.Fatalf("retry marking deletion: %v", err)
 	}
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE deduplication_key = $1`, []any{"attachment:" + attachment.ID.String() + ":delete"}, 1)
-	if err := attachments.DeleteMarked(attachment.ID); err != nil {
+	if err := attachments.DeleteMarkedAndDecrementStorageStatistics(attachment.ID); err != nil {
 		t.Fatalf("delete marked metadata: %v", err)
 	}
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM attachments WHERE id = $1`, []any{attachment.ID}, 0)

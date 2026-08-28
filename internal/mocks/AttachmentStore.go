@@ -17,17 +17,17 @@ type AttachmentStore struct {
 	mock.Mock
 }
 
-// Create provides a mock function with given fields: a
-func (_m *AttachmentStore) Create(a *models.Attachment) error {
-	ret := _m.Called(a)
+// CreateWithOutbox provides a mock function with given fields: a, effects
+func (_m *AttachmentStore) CreateWithOutbox(a *models.Attachment, effects []models.OutboxEvent) error {
+	ret := _m.Called(a, effects)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Create")
+		panic("no return value specified for CreateWithOutbox")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*models.Attachment) error); ok {
-		r0 = rf(a)
+	if rf, ok := ret.Get(0).(func(*models.Attachment, []models.OutboxEvent) error); ok {
+		r0 = rf(a, effects)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -35,17 +35,17 @@ func (_m *AttachmentStore) Create(a *models.Attachment) error {
 	return r0
 }
 
-// DeleteMarked provides a mock function with given fields: id
-func (_m *AttachmentStore) DeleteMarked(id uuid.UUID) error {
-	ret := _m.Called(id)
+// MarkDeletingWithEffects provides a mock function with given fields: attachment, effects
+func (_m *AttachmentStore) MarkDeletingWithEffects(attachment models.Attachment, effects []models.OutboxEvent) error {
+	ret := _m.Called(attachment, effects)
 
 	if len(ret) == 0 {
-		panic("no return value specified for DeleteMarked")
+		panic("no return value specified for MarkDeletingWithEffects")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID) error); ok {
-		r0 = rf(id)
+	if rf, ok := ret.Get(0).(func(models.Attachment, []models.OutboxEvent) error); ok {
+		r0 = rf(attachment, effects)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -53,35 +53,17 @@ func (_m *AttachmentStore) DeleteMarked(id uuid.UUID) error {
 	return r0
 }
 
-// MarkDeleting provides a mock function with given fields: id
-func (_m *AttachmentStore) MarkDeleting(id uuid.UUID) error {
-	ret := _m.Called(id)
+// MarkDeletingMultipleWithOutbox provides a mock function with given fields: attachments, effects
+func (_m *AttachmentStore) MarkDeletingMultipleWithOutbox(attachments []models.Attachment, effects []models.OutboxEvent) error {
+	ret := _m.Called(attachments, effects)
 
 	if len(ret) == 0 {
-		panic("no return value specified for MarkDeleting")
+		panic("no return value specified for MarkDeletingMultipleWithOutbox")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID) error); ok {
-		r0 = rf(id)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// MarkDeletingMultiple provides a mock function with given fields: ids
-func (_m *AttachmentStore) MarkDeletingMultiple(ids []uuid.UUID) error {
-	ret := _m.Called(ids)
-
-	if len(ret) == 0 {
-		panic("no return value specified for MarkDeletingMultiple")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func([]uuid.UUID) error); ok {
-		r0 = rf(ids)
+	if rf, ok := ret.Get(0).(func([]models.Attachment, []models.OutboxEvent) error); ok {
+		r0 = rf(attachments, effects)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -172,33 +154,6 @@ func (_m *AttachmentStore) GetOlderThan(date time.Time) ([]models.Attachment, er
 
 	if rf, ok := ret.Get(1).(func(time.Time) error); ok {
 		r1 = rf(date)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetPendingDeletion provides a mock function with given fields:
-func (_m *AttachmentStore) GetPendingDeletion() ([]models.Attachment, error) {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetPendingDeletion")
-	}
-
-	var r0 []models.Attachment
-	var r1 error
-	if rf, ok := ret.Get(0).(func() ([]models.Attachment, error)); ok {
-		return rf()
-	}
-	if rf, ok := ret.Get(0).(func() []models.Attachment); ok {
-		r0 = rf()
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]models.Attachment)
-	}
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
 	} else {
 		r1 = ret.Error(1)
 	}

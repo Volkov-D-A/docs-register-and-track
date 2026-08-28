@@ -26,10 +26,6 @@ export function OpenFolder(arg1) {
   return window['go']['services']['AttachmentService']['OpenFolder'](arg1);
 }
 
-export function ProcessPendingDeletions(arg1) {
-  return window['go']['services']['AttachmentService']['ProcessPendingDeletions'](arg1);
-}
-
 export function ReconcileStorage() {
   return window['go']['services']['AttachmentService']['ReconcileStorage']();
 }

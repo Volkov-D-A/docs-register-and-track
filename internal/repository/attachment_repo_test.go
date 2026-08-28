@@ -23,7 +23,7 @@ func setupAttachmentRepo(t *testing.T) (*AttachmentRepository, sqlmock.Sqlmock) 
 	return repo, mock
 }
 
-func TestAttachmentRepository_Create(t *testing.T) {
+func TestAttachmentRepository_CreateWithOutbox(t *testing.T) {
 	// Сохранение нового вложения в БД
 	repo, mock := setupAttachmentRepo(t)
 
@@ -47,7 +47,7 @@ func TestAttachmentRepository_Create(t *testing.T) {
 		mock.ExpectExec(`UPDATE storage_statistics`).WithArgs(attachment.FileSize).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
-		err := repo.Create(attachment)
+		err := repo.CreateWithOutbox(attachment, nil)
 
 		require.NoError(t, err)
 		assert.Equal(t, expectedID, attachment.ID)
@@ -99,28 +99,6 @@ func TestAttachmentRepositoryMarkDeletingWithOutboxRequiresOutbox(t *testing.T) 
 func TestAttachmentRepository_DeletionSaga(t *testing.T) {
 	repo, mock := setupAttachmentRepo(t)
 	attachmentID := uuid.New()
-
-	t.Run("marks deletion before storage operation", func(t *testing.T) {
-		mock.ExpectExec(`UPDATE attachments\s+SET deletion_requested_at = CURRENT_TIMESTAMP\s+WHERE id = \$1 AND deletion_requested_at IS NULL`).
-			WithArgs(attachmentID).
-			WillReturnResult(sqlmock.NewResult(1, 1))
-
-		err := repo.MarkDeleting(attachmentID)
-
-		require.NoError(t, err)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("removes only a marked record", func(t *testing.T) {
-		mock.ExpectExec(`DELETE FROM attachments WHERE id = \$1 AND deletion_requested_at IS NOT NULL`).
-			WithArgs(attachmentID).
-			WillReturnResult(sqlmock.NewResult(1, 1))
-
-		err := repo.DeleteMarked(attachmentID)
-
-		require.NoError(t, err)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
 
 	t.Run("atomically marks and queues deletion", func(t *testing.T) {
 		outboxRepo := NewOutboxRepository(repo.db)
@@ -227,46 +205,39 @@ func TestAttachmentRepository_GetOlderThan(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAttachmentRepository_MarkDeletingMultiple(t *testing.T) {
+func TestAttachmentRepository_MarkDeletingMultipleWithOutbox(t *testing.T) {
 	repo, mock := setupAttachmentRepo(t)
 
 	t.Run("empty input", func(t *testing.T) {
-		err := repo.MarkDeletingMultiple(nil)
+		err := repo.MarkDeletingMultipleWithOutbox(nil, nil)
 
 		require.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("success", func(t *testing.T) {
-		ids := []uuid.UUID{uuid.New(), uuid.New()}
+		repo.SetOutbox(NewOutboxRepository(repo.db))
+		attachments := []models.Attachment{
+			{ID: uuid.New(), StoragePath: "objects/first.pdf"},
+			{ID: uuid.New(), StoragePath: "objects/second.pdf"},
+		}
 
-		mock.ExpectExec(`UPDATE attachments\s+SET deletion_requested_at = CURRENT_TIMESTAMP\s+WHERE id = ANY\(\$1\) AND deletion_requested_at IS NULL`).
+		mock.ExpectBegin()
+		mock.ExpectExec(`UPDATE attachments SET deletion_requested_at = CURRENT_TIMESTAMP WHERE id = ANY\(\$1\) AND deletion_requested_at IS NULL`).
 			WithArgs(sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 2))
+		for _, attachment := range attachments {
+			mock.ExpectExec(`INSERT INTO event_outbox`).
+				WithArgs(models.OutboxEventFileDelete, "attachment:"+attachment.ID.String()+":delete", sqlmock.AnyArg()).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+		}
+		mock.ExpectCommit()
 
-		err := repo.MarkDeletingMultiple(ids)
+		err := repo.MarkDeletingMultipleWithOutbox(attachments, nil)
 
 		require.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
-}
-
-func TestAttachmentRepository_GetPendingDeletion(t *testing.T) {
-	repo, mock := setupAttachmentRepo(t)
-	attachmentID := uuid.New()
-	documentID := uuid.New()
-	uploaderID := uuid.New()
-	uploadedAt := time.Now()
-
-	mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at\s+FROM attachments WHERE deletion_requested_at IS NOT NULL\s+ORDER BY deletion_requested_at ASC`).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "filename", "storage_path", "file_size", "content_type", "uploaded_by", "uploaded_at"}).
-			AddRow(attachmentID, documentID, "retry.pdf", "objects/retry.pdf", 42, "application/pdf", uploaderID, uploadedAt))
-
-	attachments, err := repo.GetPendingDeletion()
-	require.NoError(t, err)
-	require.Len(t, attachments, 1)
-	assert.Equal(t, attachmentID, attachments[0].ID)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestAttachmentRepositoryStorageMutationInvalidatesRefresh(t *testing.T) {
