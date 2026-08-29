@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button, Popconfirm, Modal, Select, Tag, Switch, Space, Empty, Spin, App } from 'antd';
 import { LinkOutlined, DeleteOutlined, PlusOutlined, ApartmentOutlined, UnlockOutlined, LockOutlined } from '@ant-design/icons';
-import { LinkDocuments, UnlinkDocument, GetDocumentLinks, models } from '../../types/link';
+import { GetDocumentLinks, LinkDocuments, UnlinkDocument } from '../../../wailsjs/go/services/LinkService';
+import { dto } from '../../../wailsjs/go/models';
 import { LinkGraph } from './LinkGraph';
 import dayjs from 'dayjs';
 import { GetList } from '../../../wailsjs/go/services/DocumentQueryService';
@@ -25,7 +26,7 @@ interface LinksTabProps {
 export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
     const { message } = App.useApp();
     const { hasAction, kinds, ready: accessReady } = useDocumentKindAccess();
-    const [links, setLinks] = useState<models.DocumentLink[]>([]);
+    const [links, setLinks] = useState<dto.DocumentLink[]>([]);
     const [loading, setLoading] = useState(false);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [isGraphVisible, setIsGraphVisible] = useState(false);
@@ -262,7 +263,7 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
     };
 
     // Determine the "other" document in the link to display
-    const renderLinkItem = (item: models.DocumentLink) => {
+    const renderLinkItem = (item: dto.DocumentLink) => {
         const isSource = item.sourceId === documentId;
         const otherType = isSource ? item.targetKind : item.sourceKind;
         const otherNumber = isSource ? item.targetNumber : item.sourceNumber;

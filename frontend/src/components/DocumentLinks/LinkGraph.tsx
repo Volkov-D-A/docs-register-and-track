@@ -16,7 +16,8 @@ import {
     useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { GetDocumentFlow, services } from '../../types/link';
+import { GetDocumentFlow } from '../../../wailsjs/go/services/LinkService';
+import { models } from '../../../wailsjs/go/models';
 import {
     DOCUMENT_KIND_ADMINISTRATIVE_ORDER,
     DOCUMENT_KIND_CITIZEN_APPEAL,
@@ -204,7 +205,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
     useEffect(() => {
         if (!rootId) return;
 
-        GetDocumentFlow(rootId).then((data: any) => {
+        GetDocumentFlow(rootId).then((data) => {
             // Transform to ReactFlow format
             // Check if there are any nodes
             if (!data.nodes || data.nodes.length === 0) {
@@ -219,7 +220,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                 return;
             }
 
-            const initialNodes: Node[] = data.nodes.map((n: services.GraphNode) => {
+            const initialNodes: Node[] = data.nodes.map((n: models.GraphNode) => {
                 const palette = getNodePalette(n.kindCode);
                 const isRootNode = n.id === rootId;
                 const documentLabel = getLinkedDocumentLabel(n.kindCode);
@@ -344,7 +345,7 @@ const LinkGraphContent = ({ rootId, isLocked }: LinkGraphProps) => {
                 };
             });
 
-            const initialEdges: Edge[] = data.edges.map((e: services.GraphEdge) => ({
+            const initialEdges: Edge[] = data.edges.map((e: models.GraphEdge) => ({
                 id: e.id,
                 source: e.source,
                 target: e.target,

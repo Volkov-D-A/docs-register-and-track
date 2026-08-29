@@ -34,8 +34,8 @@ transactional outbox, backup/restore-скрипты, тесты, release gate и
 | 15 | Низкий | Исправлено: неиспользуемый TTL-кэш MinIO удалён |
 | 16 | Низкий | Исправлено: удалены старые attachment API и fallback-пути |
 | 17 | Низкий | Исправлено: переходные document access API и fallback-пути удалены |
-| 18 | Низкий | Ручной frontend wrapper связей дублирует Wails bindings |
-| 19 | Низкий | Release gate не проверяет актуальность Wails bindings |
+| 18 | Низкий | Исправлено: frontend связей использует generated Wails bindings |
+| 19 | Низкий | Исправлено: release gate проверяет актуальность Wails bindings |
 | 20 | Низкий | Документация содержит устаревшие описания и противоречия |
 | 21 | Низкий | Комментарий графа связей описывает уже устранённый N+1 |
 
@@ -720,7 +720,7 @@ Production composition root, mocks, тестовые doubles, repository tests �
 ## 18. Ручной frontend wrapper связей дублирует Wails bindings
 
 **Приоритет:** низкий
-**Статус:** открыто
+**Статус:** исправлено 29 августа 2026 года
 
 `frontend/src/types/link.ts` вручную повторяет DTO, GraphData и методы
 `LinkService`, обращаясь напрямую к `window.go`. Те же методы и модели уже
@@ -736,10 +736,18 @@ Namespaces уже расходятся: generated service возвращает `
 **Исправление:** импортировать generated service и generated model types напрямую,
 удалить `frontend/src/types/link.ts`.
 
+**Решение:** `LinksTab` и `LinkGraph` переведены на прямые импорты generated
+`LinkService` и типов `dto.DocumentLink`, `models.GraphNode` и
+`models.GraphEdge`. У результата `GetDocumentFlow` удалена ручная аннотация
+`any`, поэтому его контракт теперь выводится из generated binding. Ручной
+`frontend/src/types/link.ts` удалён.
+
+**Проверено:** `npm run lint`, `npm run build` и `npm test` проходят.
+
 ## 19. Release gate не проверяет актуальность Wails bindings
 
 **Приоритет:** низкий
-**Статус:** открыто
+**Статус:** исправлено 29 августа 2026 года
 
 Документация требует регенерацию bindings после изменения public Go API, но
 Makefile проверяет свежесть только release assets. Нет команды, которая
@@ -752,6 +760,20 @@ Makefile проверяет свежесть только release assets. Нет
 
 **Исправление:** добавить детерминированную команду генерации и CI-проверку
 `generate → git diff --exit-code` для `frontend/wailsjs`.
+
+**Решение:** добавлены цели `wails-bindings` и `wails-bindings-check`.
+Генерация выполняется установленным Wails CLI только после проверки, что его
+версия совпадает с версией `github.com/wailsapp/wails/v2` из `go.mod`, а затем
+проверяются tracked и untracked изменения в `frontend/wailsjs`. Проверка
+включена в release gate после frontend build.
+
+Для генератора добавлен отдельный binding-only composition path: он передаёт
+Wails типы всех публичных сервисов, не подключаясь к PostgreSQL, MinIO и другим
+runtime-зависимостям. Integration-тест проверяет совпадение набора типов этого
+пути с production composition root.
+
+**Проверено:** повторная генерация bindings детерминирована; `go test ./...`,
+frontend lint, tests и production build проходят.
 
 ## 20. Документация содержит устаревшие описания и противоречия
 

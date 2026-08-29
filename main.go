@@ -24,6 +24,10 @@ var assets embed.FS
 var releaseNotesSource []byte
 
 func main() {
+	if runBindingsGenerator() {
+		return
+	}
+
 	// CLI-утилита: шифрование пароля для config.json
 	encryptFlag := flag.String("encrypt-password", "", "Зашифровать пароль для config.json и вывести результат")
 	flag.Parse()

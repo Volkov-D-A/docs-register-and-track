@@ -13,7 +13,7 @@ go list -u -m all
 Обновить все пакеты до последних минорных версий/патчей:
 go get -u ./...
 go mod tidy
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
+go install github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
 
 2. Фронтенд
 Проверить устаревшие пакеты:

@@ -94,6 +94,7 @@ run_step "frontend-ci" "Frontend dependencies" make --no-print-directory fronten
 run_step "frontend-lint" "Frontend lint" make --no-print-directory frontend-lint
 run_step "frontend-test" "Frontend tests" make --no-print-directory frontend-test
 run_step "frontend-build" "Frontend build" make --no-print-directory frontend-build
+run_step "wails-bindings-check" "Wails bindings check" make --no-print-directory wails-bindings-check
 run_step "npm-audit" "NPM audit" make --no-print-directory npm-audit
 
 print_summary

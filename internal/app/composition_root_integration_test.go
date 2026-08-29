@@ -71,6 +71,12 @@ changes:
 	for _, binding := range appOptions.Bind {
 		boundTypes = append(boundTypes, fmt.Sprintf("%T", binding))
 	}
+	bindingOptions := NewBindingsWailsOptions()
+	generatedBindingTypes := make([]string, 0, len(bindingOptions.Bind))
+	for _, binding := range bindingOptions.Bind {
+		generatedBindingTypes = append(generatedBindingTypes, fmt.Sprintf("%T", binding))
+	}
+	require.ElementsMatch(t, boundTypes, generatedBindingTypes)
 	require.ElementsMatch(t, []string{
 		"*services.AuthService",
 		"*services.UserService",

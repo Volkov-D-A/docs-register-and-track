@@ -37,6 +37,40 @@ type applicationStorage interface {
 	services.StorageInfoProvider
 }
 
+// NewBindingsWailsOptions returns the public service types needed by the Wails
+// bindings generator without constructing runtime infrastructure dependencies.
+func NewBindingsWailsOptions() *options.App {
+	return &options.App{
+		Bind: []interface{}{
+			&services.AuthService{},
+			&services.UserService{},
+			&services.UserSubstitutionService{},
+			&services.NomenclatureService{},
+			&services.ReferenceService{},
+			&services.DocumentAccessAdminService{},
+			&services.DocumentKindService{},
+			&services.DocumentQueryService{},
+			&services.DocumentRegistrationService{},
+			&services.AdministrativeOrderService{},
+			&services.AssignmentService{},
+			&services.DashboardService{},
+			&services.StatisticsService{},
+			&services.DepartmentService{},
+			&services.SettingsService{},
+			&services.AttachmentService{},
+			&services.LinkService{},
+			&services.AcknowledgmentService{},
+			&services.SystemService{},
+			&services.ReleaseNoteService{},
+			&services.ThemeService{},
+			&services.JournalService{},
+			&services.AdminAuditLogService{},
+			&services.UserEventService{},
+			&services.OutboxAdminService{},
+		},
+	}
+}
+
 type wailsOptionsDependencies struct {
 	connectDatabase func(config.DatabaseConfig) (*database.DB, error)
 	newStorage      func(config.MinioConfig) (applicationStorage, error)
