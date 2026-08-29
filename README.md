@@ -74,6 +74,7 @@ Encrypted config values use `ENC:` and require `ENCRYPTION_KEY` to be supplied a
 Maintained project documentation:
 
 - [Technical reference](docs/tech_docs.md)
+- [Server service implementation plan](docs/server-service-implementation-plan.md)
 - [Review findings and fixes](docs/bugs.md)
 - [Setup and backup/restore instructions](docs/instructions.md)
 - [Release notes source](docs/releases.yaml)
