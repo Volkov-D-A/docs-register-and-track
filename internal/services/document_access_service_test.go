@@ -207,7 +207,7 @@ func setupDocumentAccessService(t *testing.T, user *models.User, allowed map[mod
 	ackRepo := &documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}}
 	docRepo := &documentAccessDocumentStore{docs: map[uuid.UUID]models.Document{}}
 	subRepo := &userSubstitutionStoreStub{}
-	service := NewDocumentAccessService(auth, depRepo, assignRepo, ackRepo, accessRepo, docRepo, nil, nil, subRepo)
+	service := NewDocumentAccessService(auth, depRepo, assignRepo, ackRepo, accessRepo, docRepo, subRepo)
 
 	return &documentAccessTestDeps{
 		auth:       auth,
@@ -477,50 +477,6 @@ func TestDocumentAccessService_ResolveReadableDocumentsForSubstitute(t *testing.
 	require.NoError(t, err)
 	assert.Contains(t, readable, byAssignmentID)
 	assert.NotContains(t, readable, deniedID)
-}
-
-type bulkDocumentAccessStore struct {
-	accessible map[uuid.UUID]struct{}
-	err        error
-}
-
-func (s *bulkDocumentAccessStore) GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	return s.accessible, nil
-}
-
-func TestResolveBulkAccessibleDocumentIDs(t *testing.T) {
-	t.Run("store without bulk support", func(t *testing.T) {
-		ids, bulkAvailable, err := resolveBulkAccessibleDocumentIDs(struct{}{}, uuid.New(), []uuid.UUID{uuid.New()})
-
-		require.NoError(t, err)
-		assert.False(t, bulkAvailable)
-		assert.Empty(t, ids)
-	})
-
-	t.Run("returns bulk accessible ids", func(t *testing.T) {
-		documentID := uuid.New()
-		store := &bulkDocumentAccessStore{accessible: map[uuid.UUID]struct{}{documentID: {}}}
-
-		ids, bulkAvailable, err := resolveBulkAccessibleDocumentIDs(store, uuid.New(), []uuid.UUID{documentID})
-
-		require.NoError(t, err)
-		assert.True(t, bulkAvailable)
-		assert.Contains(t, ids, documentID)
-	})
-
-	t.Run("propagates bulk errors", func(t *testing.T) {
-		expectedErr := errors.New("bulk access failed")
-		store := &bulkDocumentAccessStore{err: expectedErr}
-
-		ids, bulkAvailable, err := resolveBulkAccessibleDocumentIDs(store, uuid.New(), []uuid.UUID{uuid.New()})
-
-		require.ErrorIs(t, err, expectedErr)
-		assert.True(t, bulkAvailable)
-		assert.Nil(t, ids)
-	})
 }
 
 func TestDocumentAccessService_HasImplicitReadAccess(t *testing.T) {
@@ -874,93 +830,6 @@ func TestDocumentAccessService_RequireReadAnyType(t *testing.T) {
 	err := deps.service.RequireReadAnyType(documentID)
 
 	require.NoError(t, err)
-}
-
-func TestDocumentAccessService_GetDocumentFallbackRepositories(t *testing.T) {
-	t.Run("maps incoming document when root repository is absent", func(t *testing.T) {
-		documentID := uuid.New()
-		nomenclatureID := uuid.New()
-		now := time.Now()
-		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
-		deps.service.documentRepo = nil
-		deps.service.incomingRepo = &queryIncomingDocStore{
-			doc: &models.IncomingDocument{
-				ID:             documentID,
-				NomenclatureID: nomenclatureID,
-				IncomingNumber: "IN-1",
-				IncomingDate:   now,
-				DocumentTypeID: models.DocumentTypeLetter,
-				Content:        "Incoming",
-				PagesCount:     3,
-				CreatedBy:      deps.user.ID,
-				CreatedAt:      now,
-				UpdatedAt:      now,
-			},
-		}
-
-		doc, err := deps.service.GetDocument(documentID)
-
-		require.NoError(t, err)
-		require.NotNil(t, doc)
-		assert.Equal(t, models.DocumentKindIncomingLetter, doc.Kind)
-		assert.Equal(t, "IN-1", doc.RegistrationNumber)
-		assert.Equal(t, nomenclatureID, doc.NomenclatureID)
-	})
-
-	t.Run("maps outgoing document after incoming miss", func(t *testing.T) {
-		documentID := uuid.New()
-		nomenclatureID := uuid.New()
-		now := time.Now()
-		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
-		deps.service.documentRepo = nil
-		deps.service.incomingRepo = &queryIncomingDocStore{}
-		deps.service.outgoingRepo = &queryOutgoingDocStore{
-			doc: &models.OutgoingDocument{
-				ID:             documentID,
-				NomenclatureID: nomenclatureID,
-				OutgoingNumber: "OUT-1",
-				OutgoingDate:   now,
-				DocumentTypeID: models.DocumentTypeLetter,
-				Content:        "Outgoing",
-				PagesCount:     2,
-				CreatedBy:      deps.user.ID,
-				CreatedAt:      now,
-				UpdatedAt:      now,
-			},
-		}
-
-		doc, err := deps.service.GetDocument(documentID)
-
-		require.NoError(t, err)
-		require.NotNil(t, doc)
-		assert.Equal(t, models.DocumentKindOutgoingLetter, doc.Kind)
-		assert.Equal(t, "OUT-1", doc.RegistrationNumber)
-		assert.Equal(t, nomenclatureID, doc.NomenclatureID)
-	})
-
-	t.Run("propagates incoming fallback errors", func(t *testing.T) {
-		expectedErr := errors.New("incoming lookup failed")
-		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
-		deps.service.documentRepo = nil
-		deps.service.incomingRepo = &queryIncomingDocStore{err: expectedErr}
-
-		doc, err := deps.service.GetDocument(uuid.New())
-
-		require.ErrorIs(t, err, expectedErr)
-		assert.Nil(t, doc)
-	})
-
-	t.Run("returns nil when no fallback repository has the document", func(t *testing.T) {
-		deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
-		deps.service.documentRepo = nil
-		deps.service.incomingRepo = &queryIncomingDocStore{}
-		deps.service.outgoingRepo = &queryOutgoingDocStore{}
-
-		doc, err := deps.service.GetDocument(uuid.New())
-
-		require.NoError(t, err)
-		assert.Nil(t, doc)
-	})
 }
 
 func TestDocumentAccessService_ResolveLink(t *testing.T) {

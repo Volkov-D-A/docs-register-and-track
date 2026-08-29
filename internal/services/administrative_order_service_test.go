@@ -30,6 +30,10 @@ func (s *administrativeOrderServiceStore) GetByID(id uuid.UUID) (*models.Adminis
 	return nil, nil
 }
 
+func (s *administrativeOrderServiceStore) GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error) {
+	return nil, nil
+}
+
 func (s *administrativeOrderServiceStore) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
 	return nil, nil
 }
@@ -89,8 +93,6 @@ func setupAdministrativeOrderService(t *testing.T, allowed map[models.DocumentKi
 		&documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&kindActionDocumentAccessStore{allowed: allowed},
 		docRepo,
-		nil,
-		nil,
 	)
 	return NewAdministrativeOrderService(store, auth, access), store, docRepo, nil, user
 }

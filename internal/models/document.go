@@ -295,9 +295,6 @@ type DocumentAccessScope struct {
 type DocumentFilter struct {
 	NomenclatureID            string               `json:"nomenclatureId,omitempty"`
 	NomenclatureIDs           []string             `json:"nomenclatureIds,omitempty"`
-	AllowedNomenclatureIDs    []string             `json:"-"`
-	AccessibleByUserID        string               `json:"-"`
-	AccessibleByUserIDs       []string             `json:"-"`
 	AccessScope               *DocumentAccessScope `json:"-"`
 	KindCode                  string               `json:"kindCode,omitempty"`
 	DocumentTypeID            string               `json:"documentTypeId,omitempty"`
@@ -330,23 +327,20 @@ type DocumentFilter struct {
 
 // OutgoingDocumentFilter описывает параметры фильтрации исходящих документов.
 type OutgoingDocumentFilter struct {
-	NomenclatureIDs        []string             `json:"nomenclatureIds,omitempty"`
-	AllowedNomenclatureIDs []string             `json:"-"`
-	AccessibleByUserID     string               `json:"-"`
-	AccessibleByUserIDs    []string             `json:"-"`
-	AccessScope            *DocumentAccessScope `json:"-"`
-	KindCode               string               `json:"kindCode,omitempty"`
-	DocumentTypeID         string               `json:"documentTypeId,omitempty"`
-	OrgID                  string               `json:"orgId,omitempty"` // Организация-получатель
-	DateFrom               string               `json:"dateFrom,omitempty"`
-	DateTo                 string               `json:"dateTo,omitempty"`
-	Search                 string               `json:"search,omitempty"`
-	OutgoingNumber         string               `json:"outgoingNumber,omitempty"`
-	RecipientName          string               `json:"recipientName,omitempty"`
-	Page                   int                  `json:"page"`
-	PageSize               int                  `json:"pageSize"`
-	Cursor                 string               `json:"cursor,omitempty"`
-	CursorPagination       bool                 `json:"cursorPagination,omitempty"`
+	NomenclatureIDs  []string             `json:"nomenclatureIds,omitempty"`
+	AccessScope      *DocumentAccessScope `json:"-"`
+	KindCode         string               `json:"kindCode,omitempty"`
+	DocumentTypeID   string               `json:"documentTypeId,omitempty"`
+	OrgID            string               `json:"orgId,omitempty"` // Организация-получатель
+	DateFrom         string               `json:"dateFrom,omitempty"`
+	DateTo           string               `json:"dateTo,omitempty"`
+	Search           string               `json:"search,omitempty"`
+	OutgoingNumber   string               `json:"outgoingNumber,omitempty"`
+	RecipientName    string               `json:"recipientName,omitempty"`
+	Page             int                  `json:"page"`
+	PageSize         int                  `json:"pageSize"`
+	Cursor           string               `json:"cursor,omitempty"`
+	CursorPagination bool                 `json:"cursorPagination,omitempty"`
 }
 
 // PagedResult — постраничный результат

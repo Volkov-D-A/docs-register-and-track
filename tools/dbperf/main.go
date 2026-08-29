@@ -133,7 +133,10 @@ func main() {
 }
 
 func measureOutgoingList(name string, db *sql.DB, repo *repository.OutgoingDocumentRepository, nomenclatureID uuid.UUID, search string, page, pageSize int) metric {
-	filter := models.OutgoingDocumentFilter{AllowedNomenclatureIDs: []string{nomenclatureID.String()}, Search: search, Page: page, PageSize: pageSize}
+	filter := models.OutgoingDocumentFilter{
+		AccessScope: &models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{nomenclatureID.String()}},
+		Search:      search, Page: page, PageSize: pageSize,
+	}
 	if name == "outgoing_number_contains" {
 		filter.OutgoingNumber = "PF/"
 	}
@@ -186,7 +189,7 @@ func measureOutgoingCursor(name string, db *sql.DB, repo *repository.OutgoingDoc
 		fail("encode cursor: %v", err)
 	}
 	filter := models.OutgoingDocumentFilter{
-		AllowedNomenclatureIDs: []string{nomenclatureID.String()}, Search: search,
+		AccessScope: &models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{nomenclatureID.String()}}, Search: search,
 		PageSize: pageSize, CursorPagination: true, Cursor: cursor,
 	}
 	args := []any{models.DocumentKindOutgoingLetter, nomenclatureID, "%" + search + "%", createdAt, id, pageSize + 1}

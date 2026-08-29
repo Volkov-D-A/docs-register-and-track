@@ -83,6 +83,22 @@ func (_m *OutgoingDocStore) GetByID(id uuid.UUID) (*models.OutgoingDocument, err
 	return r0, r1
 }
 
+// GetByIDs provides a mock function with given fields: ids
+func (_m *OutgoingDocStore) GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocument, error) {
+	ret := _m.Called(ids)
+	if len(ret) == 0 {
+		panic("no return value specified for GetByIDs")
+	}
+	if rf, ok := ret.Get(0).(func([]uuid.UUID) ([]models.OutgoingDocument, error)); ok {
+		return rf(ids)
+	}
+	var r0 []models.OutgoingDocument
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]models.OutgoingDocument)
+	}
+	return r0, ret.Error(1)
+}
+
 // GetCount provides a mock function with no fields
 func (_m *OutgoingDocStore) GetCount() (int, error) {
 	ret := _m.Called()

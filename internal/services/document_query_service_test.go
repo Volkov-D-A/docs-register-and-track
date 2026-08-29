@@ -150,8 +150,6 @@ func TestDocumentQueryService_GetList(t *testing.T) {
 		require.NoError(t, err)
 		assert.Same(t, expected, res)
 		assert.Equal(t, "abc", handler.lastFilter.Search)
-		assert.Empty(t, handler.lastFilter.AllowedNomenclatureIDs)
-		assert.Empty(t, handler.lastFilter.AccessibleByUserID)
 		require.NotNil(t, handler.lastFilter.AccessScope)
 		assert.False(t, handler.lastFilter.AccessScope.Restricted)
 	})
@@ -171,11 +169,10 @@ func TestDocumentQueryService_GetList(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		assert.Equal(t, []string{"nom-1", "nom-2"}, handler.lastFilter.AllowedNomenclatureIDs)
-		assert.Equal(t, user.ID.String(), handler.lastFilter.AccessibleByUserID)
 		require.NotNil(t, handler.lastFilter.AccessScope)
 		assert.True(t, handler.lastFilter.AccessScope.Restricted)
 		assert.Equal(t, []string{"nom-1", "nom-2"}, handler.lastFilter.AccessScope.AllowedNomenclatureIDs)
+		assert.Equal(t, user.ID.String(), handler.lastFilter.AccessScope.AccessibleByUserID)
 	})
 
 	t.Run("returns forbidden for unsupported kind", func(t *testing.T) {

@@ -39,6 +39,10 @@ func (s *administrativeOrderCommandStore) GetByID(id uuid.UUID) (*models.Adminis
 	return nil, nil
 }
 
+func (s *administrativeOrderCommandStore) GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error) {
+	return nil, nil
+}
+
 func (s *administrativeOrderCommandStore) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
 	s.createReq = &req
 	if s.createErr != nil {
@@ -107,8 +111,6 @@ func setupAdministrativeOrderCommandHandler(t *testing.T, allowed map[models.Doc
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&kindActionDocumentAccessStore{allowed: allowed},
-		nil,
-		nil,
 		nil,
 	)
 	journal := NewJournalService(journalRepo, auth, access)

@@ -219,21 +219,24 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 
 	t.Run("success with broad filters and pagination limits", func(t *testing.T) {
 		filter := models.DocumentFilter{
-			AccessibleByUserID:     uuid.New().String(),
-			AllowedNomenclatureIDs: []string{uuid.New().String()},
-			NomenclatureIDs:        []string{uuid.New().String(), uuid.New().String()},
-			DateFrom:               "2026-01-01",
-			DateTo:                 "2026-12-31",
-			AppealDateFrom:         "2025-01-01",
-			AppealDateTo:           "2025-12-31",
-			RegistrationNumber:     "ОГ",
-			ApplicantName:          "Иван",
-			AppealType:             "жалоба",
-			OrgID:                  uuid.New().String(),
-			Search:                 "важно",
-			NoResolution:           true,
-			Page:                   -1,
-			PageSize:               500,
+			AccessScope: &models.DocumentAccessScope{
+				Restricted:             true,
+				AccessibleByUserID:     uuid.New().String(),
+				AllowedNomenclatureIDs: []string{uuid.New().String()},
+			},
+			NomenclatureIDs:    []string{uuid.New().String(), uuid.New().String()},
+			DateFrom:           "2026-01-01",
+			DateTo:             "2026-12-31",
+			AppealDateFrom:     "2025-01-01",
+			AppealDateTo:       "2025-12-31",
+			RegistrationNumber: "ОГ",
+			ApplicantName:      "Иван",
+			AppealType:         "жалоба",
+			OrgID:              uuid.New().String(),
+			Search:             "важно",
+			NoResolution:       true,
+			Page:               -1,
+			PageSize:           500,
 		}
 
 		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents d\s+JOIN citizen_appeal_details ca ON ca.document_id = d.id`).

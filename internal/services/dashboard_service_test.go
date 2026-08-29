@@ -25,7 +25,7 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		auth := NewAuthService(nil, userRepo)
 		accessStore := newRoleMappedDocumentAccessStore(accessRoles...)
 		auth.SetAccessStore(accessStore)
-		access := NewDocumentAccessService(auth, nil, nil, nil, accessStore, nil, nil, nil)
+		access := NewDocumentAccessService(auth, nil, nil, nil, accessStore, nil)
 
 		userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
 		_, err := auth.Login(user.Login, password)
@@ -94,7 +94,7 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		require.NoError(t, err)
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 		access := NewDocumentAccessService(
-			auth, nil, nil, nil, accessStore, nil, nil, nil,
+			auth, nil, nil, nil, accessStore, nil,
 			&userSubstitutionStoreStub{activePrincipals: []uuid.UUID{principalID}},
 		)
 		svc := NewDashboardService(repo, auth, access)
@@ -159,7 +159,7 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		_, err := auth.Login(user.Login, password)
 		require.NoError(t, err)
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
-		access := NewDocumentAccessService(auth, nil, nil, nil, accessStore, nil, nil, nil)
+		access := NewDocumentAccessService(auth, nil, nil, nil, accessStore, nil)
 		svc := NewDashboardService(repo, auth, access)
 
 		repo.On("GetExpiringAssignments", mock.MatchedBy(func(filter models.DashboardAssignmentFilter) bool {

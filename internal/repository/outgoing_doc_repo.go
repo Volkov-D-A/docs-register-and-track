@@ -33,7 +33,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 
 	where = append(where, "d.kind = 'outgoing_letter'")
 
-	scope := documentListAccessScope(filter.AccessScope, filter.AllowedNomenclatureIDs, filter.AccessibleByUserID, filter.AccessibleByUserIDs)
+	scope := documentListAccessScope(filter.AccessScope)
 	applyDocumentListAccess(&where, &args, &argIdx, scope)
 
 	if len(filter.NomenclatureIDs) > 0 {

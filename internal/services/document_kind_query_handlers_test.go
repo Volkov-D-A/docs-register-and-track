@@ -30,6 +30,13 @@ func (s *queryIncomingDocStore) GetByID(id uuid.UUID) (*models.IncomingDocument,
 	return s.doc, s.err
 }
 
+func (s *queryIncomingDocStore) GetByIDs(ids []uuid.UUID) ([]models.IncomingDocument, error) {
+	if s.err != nil || s.doc == nil {
+		return nil, s.err
+	}
+	return []models.IncomingDocument{*s.doc}, nil
+}
+
 func (s *queryIncomingDocStore) Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error) {
 	return nil, nil
 }
@@ -58,6 +65,13 @@ func (s *queryOutgoingDocStore) GetList(filter models.OutgoingDocumentFilter) (*
 func (s *queryOutgoingDocStore) GetByID(id uuid.UUID) (*models.OutgoingDocument, error) {
 	s.lastID = id
 	return s.doc, s.err
+}
+
+func (s *queryOutgoingDocStore) GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocument, error) {
+	if s.err != nil || s.doc == nil {
+		return nil, s.err
+	}
+	return []models.OutgoingDocument{*s.doc}, nil
 }
 
 func (s *queryOutgoingDocStore) Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error) {
@@ -90,6 +104,13 @@ func (s *queryCitizenAppealDocStore) GetByID(id uuid.UUID) (*models.CitizenAppea
 	return s.doc, s.err
 }
 
+func (s *queryCitizenAppealDocStore) GetByIDs(ids []uuid.UUID) ([]models.CitizenAppealDocument, error) {
+	if s.err != nil || s.doc == nil {
+		return nil, s.err
+	}
+	return []models.CitizenAppealDocument{*s.doc}, nil
+}
+
 func (s *queryCitizenAppealDocStore) Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
 	return nil, nil
 }
@@ -118,6 +139,13 @@ func (s *queryAdministrativeOrderDocStore) GetList(filter models.DocumentFilter)
 func (s *queryAdministrativeOrderDocStore) GetByID(id uuid.UUID) (*models.AdministrativeOrderDocument, error) {
 	s.lastID = id
 	return s.doc, s.err
+}
+
+func (s *queryAdministrativeOrderDocStore) GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error) {
+	if s.err != nil || s.doc == nil {
+		return nil, s.err
+	}
+	return []models.AdministrativeOrderDocument{*s.doc}, nil
 }
 
 func (s *queryAdministrativeOrderDocStore) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
@@ -215,18 +243,21 @@ func TestOutgoingLetterQueryHandler(t *testing.T) {
 	assert.NotNil(t, card.OutgoingLetter)
 
 	filter := models.DocumentFilter{
-		NomenclatureIDs:        []string{"nom-a"},
-		AllowedNomenclatureIDs: []string{"nom-b"},
-		AccessibleByUserID:     "user-1",
-		DocumentTypeID:         "type-1",
-		OrgID:                  "org-1",
-		DateFrom:               "2026-01-01",
-		DateTo:                 "2026-01-31",
-		Search:                 "OUT",
-		OutgoingNumber:         "OUT-1",
-		RecipientName:          "Recipient",
-		Page:                   2,
-		PageSize:               30,
+		NomenclatureIDs: []string{"nom-a"},
+		AccessScope: &models.DocumentAccessScope{
+			Restricted:             true,
+			AllowedNomenclatureIDs: []string{"nom-b"},
+			AccessibleByUserID:     "user-1",
+		},
+		DocumentTypeID: "type-1",
+		OrgID:          "org-1",
+		DateFrom:       "2026-01-01",
+		DateTo:         "2026-01-31",
+		Search:         "OUT",
+		OutgoingNumber: "OUT-1",
+		RecipientName:  "Recipient",
+		Page:           2,
+		PageSize:       30,
 	}
 	res, err := handler.GetList(filter)
 	require.NoError(t, err)
@@ -234,8 +265,7 @@ func TestOutgoingLetterQueryHandler(t *testing.T) {
 	assert.Equal(t, 1, res.TotalCount)
 	assert.Equal(t, string(models.DocumentKindOutgoingLetter), store.lastFilter.KindCode)
 	assert.Equal(t, filter.NomenclatureIDs, store.lastFilter.NomenclatureIDs)
-	assert.Equal(t, filter.AllowedNomenclatureIDs, store.lastFilter.AllowedNomenclatureIDs)
-	assert.Equal(t, filter.AccessibleByUserID, store.lastFilter.AccessibleByUserID)
+	assert.Equal(t, filter.AccessScope, store.lastFilter.AccessScope)
 	assert.Equal(t, filter.RecipientName, store.lastFilter.RecipientName)
 }
 

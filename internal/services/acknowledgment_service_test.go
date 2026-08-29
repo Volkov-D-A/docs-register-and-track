@@ -42,7 +42,7 @@ func setupAckService(t *testing.T, role string) (
 	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewAcknowledgmentService(&atomicAcknowledgmentStore{AcknowledgmentStore: ackRepo}, userRepo, auth, accessSvc)
 	return svc, ackRepo, userRepo, auth, incomingRepo
@@ -87,7 +87,7 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, nil, nil, ackRepo, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	return NewAcknowledgmentService(&atomicAcknowledgmentStore{AcknowledgmentStore: ackRepo}, userRepo, auth, accessSvc)
 }
@@ -317,7 +317,7 @@ func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 		incomingRepo.On("GetByID", documentID).Return(&models.IncomingDocument{
 			ID: documentID, NomenclatureID: uuid.New(),
 		}, nil).Once()
-		access := NewDocumentAccessService(auth, nil, nil, repo, accessStore, nil, incomingRepo, nil)
+		access := NewDocumentAccessService(auth, nil, nil, repo, accessStore, &kindBackedDocumentStore{incoming: incomingRepo})
 		svc := NewAcknowledgmentService(repo, userRepo, auth, access)
 		repo.On("GetAllActive", models.AcknowledgmentFilter{
 			AllowedDocumentKinds: []string{string(models.DocumentKindIncomingLetter)},

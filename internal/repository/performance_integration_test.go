@@ -21,7 +21,10 @@ func BenchmarkIntegrationDocumentList(b *testing.B) {
 	db := &database.DB{DB: sqlDB}
 	nomID, owner, orgID := seedPerformanceDocuments(b, sqlDB, 250)
 	repo := NewOutgoingDocumentRepository(db)
-	filter := models.OutgoingDocumentFilter{AllowedNomenclatureIDs: []string{nomID.String()}, Search: "performance", Page: 1, PageSize: 50}
+	filter := models.OutgoingDocumentFilter{
+		AccessScope: &models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{nomID.String()}},
+		Search:      "performance", Page: 1, PageSize: 50,
+	}
 	logExplain(b, sqlDB, `SELECT id FROM documents WHERE nomenclature_id = $1 AND content ILIKE $2 ORDER BY created_at DESC LIMIT 50`, nomID, "%performance%")
 	b.ReportAllocs()
 	b.ResetTimer()

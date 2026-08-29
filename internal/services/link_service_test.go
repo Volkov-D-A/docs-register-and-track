@@ -48,8 +48,34 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore Docu
 	}
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	incRepo.On("GetByIDs", mock.Anything).Return(func(ids []uuid.UUID) ([]models.IncomingDocument, error) {
+		result := make([]models.IncomingDocument, 0, len(ids))
+		for _, id := range ids {
+			doc, err := incRepo.GetByID(id)
+			if err != nil {
+				return nil, err
+			}
+			if doc != nil {
+				result = append(result, *doc)
+			}
+		}
+		return result, nil
+	}).Maybe()
+	outRepo.On("GetByIDs", mock.Anything).Return(func(ids []uuid.UUID) ([]models.OutgoingDocument, error) {
+		result := make([]models.OutgoingDocument, 0, len(ids))
+		for _, id := range ids {
+			doc, err := outRepo.GetByID(id)
+			if err != nil {
+				return nil, err
+			}
+			if doc != nil {
+				result = append(result, *doc)
+			}
+		}
+		return result, nil
+	}).Maybe()
 
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, nil, incRepo, outRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, &kindBackedDocumentStore{incoming: incRepo, outgoing: outRepo})
 
 	svc := NewLinkService(&atomicLinkStore{LinkStore: linkRepo}, incRepo, outRepo, nil, nil, accessSvc, auth)
 	return svc, linkRepo, incRepo, outRepo, auth
@@ -89,6 +115,16 @@ func (s *mapDocumentStore) GetByID(id uuid.UUID) (*models.Document, error) {
 	return s.docs[id], nil
 }
 
+func (s *mapDocumentStore) GetByIDs(ids []uuid.UUID) ([]models.Document, error) {
+	result := make([]models.Document, 0, len(ids))
+	for _, id := range ids {
+		if doc := s.docs[id]; doc != nil {
+			result = append(result, *doc)
+		}
+	}
+	return result, nil
+}
+
 type mapCitizenAppealDocStore struct {
 	docs map[uuid.UUID]*models.CitizenAppealDocument
 }
@@ -103,6 +139,16 @@ func (s *mapCitizenAppealDocStore) GetList(filter models.DocumentFilter) (*model
 
 func (s *mapCitizenAppealDocStore) GetByID(id uuid.UUID) (*models.CitizenAppealDocument, error) {
 	return s.docs[id], nil
+}
+
+func (s *mapCitizenAppealDocStore) GetByIDs(ids []uuid.UUID) ([]models.CitizenAppealDocument, error) {
+	result := make([]models.CitizenAppealDocument, 0, len(ids))
+	for _, id := range ids {
+		if doc := s.docs[id]; doc != nil {
+			result = append(result, *doc)
+		}
+	}
+	return result, nil
 }
 
 func (s *mapCitizenAppealDocStore) Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
@@ -123,6 +169,16 @@ func (s *mapAdministrativeOrderDocStore) GetList(filter models.DocumentFilter) (
 
 func (s *mapAdministrativeOrderDocStore) GetByID(id uuid.UUID) (*models.AdministrativeOrderDocument, error) {
 	return s.docs[id], nil
+}
+
+func (s *mapAdministrativeOrderDocStore) GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error) {
+	result := make([]models.AdministrativeOrderDocument, 0, len(ids))
+	for _, id := range ids {
+		if doc := s.docs[id]; doc != nil {
+			result = append(result, *doc)
+		}
+	}
+	return result, nil
 }
 
 func (s *mapAdministrativeOrderDocStore) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
@@ -151,6 +207,20 @@ func (s *mapAdministrativeOrderDocStore) CancelByLink(id uuid.UUID, cancelledAt 
 
 func (s *mapAdministrativeOrderDocStore) GetCount() (int, error) {
 	return 0, nil
+}
+
+func TestLinkServiceLoadGraphCardsPropagatesBulkError(t *testing.T) {
+	repo := mocks.NewIncomingDocStore(t)
+	expectedErr := errors.New("bulk cards failed")
+	repo.On("GetByIDs", mock.Anything).Return([]models.IncomingDocument(nil), expectedErr).Once()
+	svc := &LinkService{incomingDocRepo: repo}
+
+	cards, err := svc.loadGraphCards(map[uuid.UUID]string{
+		uuid.New(): string(models.DocumentKindIncomingLetter),
+	})
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Empty(t, cards.incoming)
 }
 
 func (s *kindActionDocumentAccessStore) HasPermission(kindCode, action string, departmentID, userID string) (bool, error) {

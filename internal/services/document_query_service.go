@@ -71,13 +71,6 @@ func (s *DocumentQueryService) GetList(kindCode string, filter models.DocumentFi
 		if err != nil {
 			return nil, err
 		}
-		if scope.Restricted {
-			filter.AllowedNomenclatureIDs = scope.AllowedNomenclatureIDs
-			filter.AccessibleByUserID = scope.AccessibleByUserID
-			filter.AccessibleByUserIDs = scope.AccessibleByUserIDs
-		}
-		// Pass an explicit scope even for full access. Repositories can therefore
-		// distinguish an intentional unrestricted query from legacy direct calls.
 		filter.AccessScope = scope
 
 		handler, err := s.registry.Get(kind)

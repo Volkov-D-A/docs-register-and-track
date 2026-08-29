@@ -43,8 +43,6 @@ func setupIncomingLetterCommandHandler(t *testing.T, allowed map[models.Document
 		&documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&kindActionDocumentAccessStore{allowed: allowed},
 		nil,
-		nil,
-		nil,
 	)
 	journal := NewJournalService(journalRepo, auth, access)
 	handler := NewIncomingLetterCommandHandler(repo, nomRepo, refRepo, auth, journal, access)

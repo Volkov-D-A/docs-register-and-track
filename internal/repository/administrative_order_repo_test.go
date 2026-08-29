@@ -28,9 +28,9 @@ func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *te
 	userID := uuid.New().String()
 	now := time.Now()
 	filter := models.DocumentFilter{
-		AccessibleByUserID: userID,
-		Page:               1,
-		PageSize:           10,
+		AccessScope: &models.DocumentAccessScope{Restricted: true, AccessibleByUserID: userID},
+		Page:        1,
+		PageSize:    10,
 	}
 
 	expectedCountQuery := `SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id(.*)acknowledgment_users au(.*)JOIN acknowledgments a ON au.acknowledgment_id = a.id(.*)a.document_id = d.id`
@@ -87,8 +87,11 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 
 		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
 		filter := models.DocumentFilter{
-			AccessibleByUserID:        uuid.New().String(),
-			AllowedNomenclatureIDs:    []string{uuid.New().String()},
+			AccessScope: &models.DocumentAccessScope{
+				Restricted:             true,
+				AccessibleByUserID:     uuid.New().String(),
+				AllowedNomenclatureIDs: []string{uuid.New().String()},
+			},
 			NomenclatureIDs:           []string{uuid.New().String(), uuid.New().String()},
 			DateFrom:                  "2026-01-01",
 			DateTo:                    "2026-12-31",

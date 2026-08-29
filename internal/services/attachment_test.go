@@ -58,7 +58,7 @@ func setupAttachmentService(t *testing.T, role string) (
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc)
 	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, depRepo, assignmentRepo, ackRepo, userRepo, auth
@@ -135,7 +135,7 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(roles...), nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(roles...), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc)
 	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, depRepo, assignmentRepo, ackRepo, userRepo, auth
@@ -162,7 +162,7 @@ func setupAttachmentServiceNotAuth(t *testing.T) *AttachmentService {
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
 	settingsSvc := NewSettingsService(nil, settingsRepo, auth, nil)
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 	return NewAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc)
 }
 

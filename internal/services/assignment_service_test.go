@@ -74,7 +74,7 @@ func setupAssignmentService(t *testing.T, role string) (
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, newRoleMappedDocumentAccessStore(role), nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewAssignmentService(assignmentRepo, userRepo, auth, accessSvc)
 	return svc, assignmentRepo, userRepo, auth, incomingRepo
@@ -114,7 +114,7 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
-	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
+	accessSvc := NewDocumentAccessService(auth, nil, assignmentRepo, nil, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewAssignmentService(assignmentRepo, userRepo, auth, accessSvc)
 	return svc, assignmentRepo
@@ -464,7 +464,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 			return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 		}, nil).Maybe()
 		repo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
-		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore("executor"), nil, incomingRepo, outgoingRepo)
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore("executor"), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 		svc2 := NewAssignmentService(repo, userRepo, authSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
@@ -507,7 +507,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 			return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 		}, nil).Maybe()
 		repo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
-		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore("executor"), nil, incomingRepo, outgoingRepo)
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore("executor"), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 		svc2 := NewAssignmentService(repo, userRepo, authSvc, accessSvc)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
@@ -553,7 +553,7 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 			return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 		}, nil).Maybe()
 		repo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
-		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore(), nil, incomingRepo, outgoingRepo)
+		accessSvc := NewDocumentAccessService(authSvc, nil, repo, nil, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 		svc2 := NewAssignmentService(repo, userRepo, authSvc, accessSvc)
 		svc2.SetSubstitutionStore(&userSubstitutionStoreStub{
 			isActive: map[[2]uuid.UUID]bool{
@@ -1246,8 +1246,6 @@ func TestAssignmentService_GetList(t *testing.T) {
 			newKindActionAccessStore(map[string][]string{
 				string(models.DocumentKindIncomingLetter): {"assign"},
 			}),
-			nil,
-			nil,
 			nil,
 		)
 

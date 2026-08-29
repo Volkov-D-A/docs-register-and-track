@@ -413,18 +413,21 @@ func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 
 	t.Run("success with broad filters and pagination limits", func(t *testing.T) {
 		filter := models.OutgoingDocumentFilter{
-			AccessibleByUserID:     uuid.New().String(),
-			AllowedNomenclatureIDs: []string{uuid.New().String()},
-			NomenclatureIDs:        []string{uuid.New().String(), uuid.New().String()},
-			DocumentTypeID:         string(models.DocumentTypeContract),
-			OrgID:                  uuid.New().String(),
-			DateFrom:               "2026-01-01",
-			DateTo:                 "2026-12-31",
-			Search:                 "важно",
-			OutgoingNumber:         "ИСХ",
-			RecipientName:          "Ромашка",
-			Page:                   -1,
-			PageSize:               500,
+			AccessScope: &models.DocumentAccessScope{
+				Restricted:             true,
+				AccessibleByUserID:     uuid.New().String(),
+				AllowedNomenclatureIDs: []string{uuid.New().String()},
+			},
+			NomenclatureIDs: []string{uuid.New().String(), uuid.New().String()},
+			DocumentTypeID:  string(models.DocumentTypeContract),
+			OrgID:           uuid.New().String(),
+			DateFrom:        "2026-01-01",
+			DateTo:          "2026-12-31",
+			Search:          "важно",
+			OutgoingNumber:  "ИСХ",
+			RecipientName:   "Ромашка",
+			Page:            -1,
+			PageSize:        500,
 		}
 
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN outgoing_document_details out ON out.document_id = d.id(.*)`).

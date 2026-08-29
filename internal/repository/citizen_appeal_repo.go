@@ -118,7 +118,7 @@ func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models
 	args := []interface{}{}
 	argIdx := 1
 
-	scope := documentListAccessScope(filter.AccessScope, filter.AllowedNomenclatureIDs, filter.AccessibleByUserID, filter.AccessibleByUserIDs)
+	scope := documentListAccessScope(filter.AccessScope)
 	applyDocumentListAccess(&where, &args, &argIdx, scope)
 
 	if len(filter.NomenclatureIDs) > 0 {

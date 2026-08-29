@@ -29,19 +29,11 @@ func accessibleUserIDs(primary string, additional []string) []string {
 	return result
 }
 
-// documentListAccessScope resolves the transitional filter fields into one
-// explicit scope. Direct repository callers retain their previous behaviour;
-// production list requests receive AccessScope from DocumentQueryService.
-func documentListAccessScope(explicit *models.DocumentAccessScope, allowedNomenclatureIDs []string, accessibleByUserID string, accessibleByUserIDs []string) models.DocumentAccessScope {
+func documentListAccessScope(explicit *models.DocumentAccessScope) models.DocumentAccessScope {
 	if explicit != nil {
 		return *explicit
 	}
-	return models.DocumentAccessScope{
-		Restricted:             len(allowedNomenclatureIDs) > 0 || accessibleByUserID != "" || len(accessibleByUserIDs) > 0,
-		AllowedNomenclatureIDs: allowedNomenclatureIDs,
-		AccessibleByUserID:     accessibleByUserID,
-		AccessibleByUserIDs:    accessibleByUserIDs,
-	}
+	return models.DocumentAccessScope{}
 }
 
 // applyDocumentListAccess appends the SQL equivalent of DocumentAccessScope.

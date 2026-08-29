@@ -16,13 +16,7 @@ type DocumentAccessService struct {
 	substitutionRepo   UserSubstitutionStore
 	accessRepo         DocumentAccessStore
 	documentRepo       DocumentStore
-	incomingRepo       IncomingDocStore
-	outgoingRepo       OutgoingDocStore
 }
-
-// DocumentReadScope is kept as a service-level name for compatibility. The
-// model is also consumed by repositories to apply the same resolved scope.
-type DocumentReadScope = models.DocumentAccessScope
 
 // NewDocumentAccessService создает сервис проверки доступа к документам.
 func NewDocumentAccessService(
@@ -32,8 +26,6 @@ func NewDocumentAccessService(
 	acknowledgmentRepo AcknowledgmentStore,
 	accessRepo DocumentAccessStore,
 	documentRepo DocumentStore,
-	incomingRepo IncomingDocStore,
-	outgoingRepo OutgoingDocStore,
 	substitutionRepos ...UserSubstitutionStore,
 ) *DocumentAccessService {
 	svc := &DocumentAccessService{
@@ -43,8 +35,6 @@ func NewDocumentAccessService(
 		acknowledgmentRepo: acknowledgmentRepo,
 		accessRepo:         accessRepo,
 		documentRepo:       documentRepo,
-		incomingRepo:       incomingRepo,
-		outgoingRepo:       outgoingRepo,
 	}
 	if len(substitutionRepos) > 0 {
 		svc.substitutionRepo = substitutionRepos[0]
@@ -89,57 +79,7 @@ func (s *DocumentAccessService) RequireDomainRead() error {
 
 // GetDocument возвращает корневой документ по ID.
 func (s *DocumentAccessService) GetDocument(documentID uuid.UUID) (*models.Document, error) {
-	if s.documentRepo != nil {
-		return s.documentRepo.GetByID(documentID)
-	}
-
-	if s.incomingRepo != nil {
-		incomingDoc, err := s.incomingRepo.GetByID(documentID)
-		if err != nil {
-			return nil, err
-		}
-		if incomingDoc != nil {
-			return &models.Document{
-				ID:                   incomingDoc.ID,
-				Kind:                 models.DocumentKindIncomingLetter,
-				NomenclatureID:       incomingDoc.NomenclatureID,
-				RegistrationNumber:   incomingDoc.IncomingNumber,
-				RegistrationDate:     incomingDoc.IncomingDate,
-				DocumentTypeID:       incomingDoc.DocumentTypeID,
-				Content:              incomingDoc.Content,
-				PagesCount:           incomingDoc.PagesCount,
-				AttachmentPagesCount: incomingDoc.AttachmentPagesCount,
-				CreatedBy:            incomingDoc.CreatedBy,
-				CreatedAt:            incomingDoc.CreatedAt,
-				UpdatedAt:            incomingDoc.UpdatedAt,
-			}, nil
-		}
-	}
-
-	if s.outgoingRepo != nil {
-		outgoingDoc, err := s.outgoingRepo.GetByID(documentID)
-		if err != nil {
-			return nil, err
-		}
-		if outgoingDoc != nil {
-			return &models.Document{
-				ID:                   outgoingDoc.ID,
-				Kind:                 models.DocumentKindOutgoingLetter,
-				NomenclatureID:       outgoingDoc.NomenclatureID,
-				RegistrationNumber:   outgoingDoc.OutgoingNumber,
-				RegistrationDate:     outgoingDoc.OutgoingDate,
-				DocumentTypeID:       outgoingDoc.DocumentTypeID,
-				Content:              outgoingDoc.Content,
-				PagesCount:           outgoingDoc.PagesCount,
-				AttachmentPagesCount: outgoingDoc.AttachmentPagesCount,
-				CreatedBy:            outgoingDoc.CreatedBy,
-				CreatedAt:            outgoingDoc.CreatedAt,
-				UpdatedAt:            outgoingDoc.UpdatedAt,
-			}, nil
-		}
-	}
-
-	return nil, nil
+	return s.documentRepo.GetByID(documentID)
 }
 
 func (s *DocumentAccessService) getDocumentsByIDs(documentIDs []uuid.UUID) ([]models.Document, error) {
@@ -148,22 +88,7 @@ func (s *DocumentAccessService) getDocumentsByIDs(documentIDs []uuid.UUID) ([]mo
 		return []models.Document{}, nil
 	}
 
-	if bulkRepo, ok := s.documentRepo.(DocumentBulkStore); ok {
-		return bulkRepo.GetByIDs(uniqueIDs)
-	}
-
-	docs := make([]models.Document, 0, len(uniqueIDs))
-	for _, documentID := range uniqueIDs {
-		doc, err := s.GetDocument(documentID)
-		if err != nil {
-			return nil, err
-		}
-		if doc != nil {
-			docs = append(docs, *doc)
-		}
-	}
-
-	return docs, nil
+	return s.documentRepo.GetByIDs(uniqueIDs)
 }
 
 func uniqueDocumentIDs(documentIDs []uuid.UUID) []uuid.UUID {
@@ -455,7 +380,7 @@ func (s *DocumentAccessService) RequireCreate(kind models.DocumentKind) error {
 	return nil
 }
 
-func (s *DocumentAccessService) ResolveReadScope(kind models.DocumentKind) (*DocumentReadScope, error) {
+func (s *DocumentAccessService) ResolveReadScope(kind models.DocumentKind) (*models.DocumentAccessScope, error) {
 	if err := s.RequireDomainRead(); err != nil {
 		return nil, err
 	}
@@ -465,7 +390,7 @@ func (s *DocumentAccessService) ResolveReadScope(kind models.DocumentKind) (*Doc
 		return nil, err
 	}
 	if allowed {
-		return &DocumentReadScope{}, nil
+		return &models.DocumentAccessScope{}, nil
 	}
 
 	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
@@ -488,10 +413,10 @@ func (s *DocumentAccessService) ResolveReadScope(kind models.DocumentKind) (*Doc
 		return nil, err
 	}
 	if !isParticipant {
-		return &DocumentReadScope{Restricted: true, AccessibleByUserID: accessibleByUserID, AccessibleByUserIDs: subjectIDStrings}, nil
+		return &models.DocumentAccessScope{Restricted: true, AccessibleByUserID: accessibleByUserID, AccessibleByUserIDs: subjectIDStrings}, nil
 	}
 
-	return &DocumentReadScope{
+	return &models.DocumentAccessScope{
 		Restricted:             true,
 		AccessibleByUserID:     accessibleByUserID,
 		AccessibleByUserIDs:    subjectIDStrings,
@@ -570,27 +495,27 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 	}
 
 	assignmentAccessibleDocuments := make(map[uuid.UUID]struct{})
-	assignmentBulkAvailable := false
 	acknowledgmentAccessibleDocuments := make(map[uuid.UUID]struct{})
-	acknowledgmentBulkAvailable := false
 	if user.IsDocumentParticipant || len(subjectIDs) > 1 {
 		for _, subjectID := range subjectIDs {
-			ids, bulkAvailable, err := resolveBulkAccessibleDocumentIDs(s.assignmentRepo, subjectID, uniqueIDs)
-			if err != nil {
-				return nil, err
-			}
-			assignmentBulkAvailable = assignmentBulkAvailable || bulkAvailable
-			for documentID := range ids {
-				assignmentAccessibleDocuments[documentID] = struct{}{}
+			if s.assignmentRepo != nil {
+				ids, err := s.assignmentRepo.GetAccessibleDocumentIDs(subjectID, uniqueIDs)
+				if err != nil {
+					return nil, err
+				}
+				for documentID := range ids {
+					assignmentAccessibleDocuments[documentID] = struct{}{}
+				}
 			}
 
-			ids, bulkAvailable, err = resolveBulkAccessibleDocumentIDs(s.acknowledgmentRepo, subjectID, uniqueIDs)
-			if err != nil {
-				return nil, err
-			}
-			acknowledgmentBulkAvailable = acknowledgmentBulkAvailable || bulkAvailable
-			for documentID := range ids {
-				acknowledgmentAccessibleDocuments[documentID] = struct{}{}
+			if s.acknowledgmentRepo != nil {
+				ids, err := s.acknowledgmentRepo.GetAccessibleDocumentIDs(subjectID, uniqueIDs)
+				if err != nil {
+					return nil, err
+				}
+				for documentID := range ids {
+					acknowledgmentAccessibleDocuments[documentID] = struct{}{}
+				}
 			}
 		}
 	}
@@ -628,58 +553,16 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 				readable[doc.ID] = doc
 				continue
 			}
-			if !assignmentBulkAvailable {
-				for _, subjectID := range subjectIDs {
-					allowed, err := s.assignmentRepo.HasDocumentAccess(subjectID, doc.ID)
-					if err != nil {
-						return nil, err
-					}
-					if allowed {
-						readable[doc.ID] = doc
-						break
-					}
-				}
-				if _, ok := readable[doc.ID]; ok {
-					continue
-				}
-			}
 		}
 
 		if s.acknowledgmentRepo != nil {
 			if _, ok := acknowledgmentAccessibleDocuments[doc.ID]; ok {
 				readable[doc.ID] = doc
-				continue
-			}
-			if !acknowledgmentBulkAvailable {
-				for _, subjectID := range subjectIDs {
-					allowed, err := s.acknowledgmentRepo.HasDocumentAccess(subjectID, doc.ID)
-					if err != nil {
-						return nil, err
-					}
-					if allowed {
-						readable[doc.ID] = doc
-						break
-					}
-				}
 			}
 		}
 	}
 
 	return readable, nil
-}
-
-func resolveBulkAccessibleDocumentIDs(store interface{}, userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, bool, error) {
-	empty := make(map[uuid.UUID]struct{})
-	bulkStore, ok := store.(DocumentAccessByUserBulkStore)
-	if !ok {
-		return empty, false, nil
-	}
-
-	ids, err := bulkStore.GetAccessibleDocumentIDs(userID, documentIDs)
-	if err != nil {
-		return nil, true, err
-	}
-	return ids, true, nil
 }
 
 // RequireRead проверяет доступ к конкретному документу по его виду и ID.

@@ -57,13 +57,6 @@ func TestApplyDocumentListAccess(t *testing.T) {
 	})
 }
 
-func TestDocumentListAccessScopeLegacyCompatibility(t *testing.T) {
-	scope := documentListAccessScope(nil, []string{"nom-1"}, "user-1", nil)
-	assert.True(t, scope.Restricted)
-	assert.Equal(t, "user-1", scope.AccessibleByUserID)
-	assert.Equal(t, []string{"nom-1"}, scope.AllowedNomenclatureIDs)
-}
-
 func TestNormalizePagination(t *testing.T) {
 	page, size := normalizePagination(0, 0)
 	assert.Equal(t, 1, page)

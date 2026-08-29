@@ -32,7 +32,7 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 	args := []interface{}{models.DocumentKindAdministrativeOrder}
 	argIdx := 2
 
-	scope := documentListAccessScope(filter.AccessScope, filter.AllowedNomenclatureIDs, filter.AccessibleByUserID, filter.AccessibleByUserIDs)
+	scope := documentListAccessScope(filter.AccessScope)
 	applyDocumentListAccess(&where, &args, &argIdx, scope)
 
 	if len(filter.NomenclatureIDs) > 0 {

@@ -33,7 +33,7 @@ transactional outbox, backup/restore-скрипты, тесты, release gate и
 | 14 | Средний | Исправлено: composition root и lifecycle покрыты integration-тестами |
 | 15 | Низкий | Исправлено: неиспользуемый TTL-кэш MinIO удалён |
 | 16 | Низкий | Исправлено: удалены старые attachment API и fallback-пути |
-| 17 | Низкий | Сохраняется переходная модель document access без срока удаления |
+| 17 | Низкий | Исправлено: переходные document access API и fallback-пути удалены |
 | 18 | Низкий | Ручной frontend wrapper связей дублирует Wails bindings |
 | 19 | Низкий | Release gate не проверяет актуальность Wails bindings |
 | 20 | Низкий | Документация содержит устаревшие описания и противоречия |
@@ -676,7 +676,7 @@ tests, ESLint и production build проходят.
 ## 17. Переходная модель document access не имеет срока удаления
 
 **Приоритет:** низкий
-**Статус:** открыто
+**Статус:** исправлено 29 августа 2026 года
 
 Одновременно поддерживаются новый `AccessScope` и старые поля фильтра:
 
@@ -697,6 +697,25 @@ Production wiring использует новые repositories; основные
 **Исправление:** перевести mocks на актуальные интерфейсы и удалить переходные
 ветки. Если часть совместимости нужна, комментарий должен содержать владельца,
 условие удаления и минимальную поддерживаемую версию.
+
+**Решение:** `DocumentAccessScope` оставлен единственным серверным контрактом
+ограничения списков документов. Старые поля `AllowedNomenclatureIDs` и
+`AccessibleByUser*` удалены из document-фильтров, а query service передаёт в
+репозитории только явно разрешённый scope.
+
+Общий `DocumentStore`, stores документов конкретных видов, `AssignmentStore` и
+`AcknowledgmentStore` теперь обязаны поддерживать соответствующие bulk-методы.
+Из `DocumentAccessService` удалены alias `DocumentReadScope`, восстановление
+корневого документа через incoming/outgoing repositories и N+1 fallback
+проверок доступа. Из `LinkService` удалены optional bulk-интерфейсы и одиночные
+запросы карточек графа; ошибка bulk-загрузки теперь возвращается вызывающему
+коду, а не превращается в узел «Неизвестно».
+
+Production composition root, mocks, тестовые doubles, repository tests и
+`tools/dbperf` переведены на обязательные интерфейсы и `AccessScope`.
+
+**Проверено:** добавлен тест распространения ошибки bulk-загрузки карточек
+графа; `go test ./...` проходит.
 
 ## 18. Ручной frontend wrapper связей дублирует Wails bindings
 

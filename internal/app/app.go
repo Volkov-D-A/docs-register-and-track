@@ -133,7 +133,7 @@ func newWailsOptionsWithDependencies(
 	userSubstitutionService := services.NewUserSubstitutionService(userSubstitutionRepo, userRepo, authService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
 	referenceService := services.NewReferenceService(referenceRepo, authService)
-	documentAccessService := services.NewDocumentAccessService(authService, departmentRepo, assignmentRepo, acknowledgmentRepo, documentAccessRepo, documentRepo, incomingDocRepo, outgoingDocRepo, userSubstitutionRepo)
+	documentAccessService := services.NewDocumentAccessService(authService, departmentRepo, assignmentRepo, acknowledgmentRepo, documentAccessRepo, documentRepo, userSubstitutionRepo)
 	documentAccessAdminService := services.NewDocumentAccessAdminService(authService, documentAccessRepo, userRepo)
 	documentKindService := services.NewDocumentKindService(documentAccessService)
 	journalService := services.NewJournalService(journalRepo, authService, documentAccessService)

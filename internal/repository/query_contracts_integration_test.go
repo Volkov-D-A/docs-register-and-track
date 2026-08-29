@@ -114,7 +114,10 @@ func TestDocumentListAccessScopeIntegration(t *testing.T) {
 	insertScopedOutgoing(t, sqlDB, allowedNom, owner, org, "AL/1", "allowed searchable")
 	insertScopedOutgoing(t, sqlDB, deniedNom, other, org, "DN/1", "denied searchable")
 
-	items, err := NewOutgoingDocumentRepository(db).GetList(models.OutgoingDocumentFilter{AllowedNomenclatureIDs: []string{allowedNom.String()}, Search: "searchable", Page: 1, PageSize: 50})
+	items, err := NewOutgoingDocumentRepository(db).GetList(models.OutgoingDocumentFilter{
+		AccessScope: &models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{allowedNom.String()}},
+		Search:      "searchable", Page: 1, PageSize: 50,
+	})
 	if err != nil {
 		t.Fatalf("get scoped outgoing list: %v", err)
 	}

@@ -53,6 +53,7 @@ type UserSubstitutionStore interface {
 type IncomingDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error)
 	GetByID(id uuid.UUID) (*models.IncomingDocument, error)
+	GetByIDs(ids []uuid.UUID) ([]models.IncomingDocument, error)
 	Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error)
 	Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error)
 	GetCount() (int, error)
@@ -62,6 +63,7 @@ type IncomingDocStore interface {
 type CitizenAppealDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error)
 	GetByID(id uuid.UUID) (*models.CitizenAppealDocument, error)
+	GetByIDs(ids []uuid.UUID) ([]models.CitizenAppealDocument, error)
 	Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error)
 	Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error)
 	GetCount() (int, error)
@@ -71,6 +73,7 @@ type CitizenAppealDocStore interface {
 type AdministrativeOrderDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error)
 	GetByID(id uuid.UUID) (*models.AdministrativeOrderDocument, error)
+	GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error)
 	Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error)
 	Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error)
 	GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error)
@@ -83,16 +86,7 @@ type AdministrativeOrderDocStore interface {
 // DocumentStore — интерфейс для общей корневой сущности документа.
 type DocumentStore interface {
 	GetByID(id uuid.UUID) (*models.Document, error)
-}
-
-// DocumentBulkStore — опциональное расширение для пачечной загрузки документов.
-type DocumentBulkStore interface {
 	GetByIDs(ids []uuid.UUID) ([]models.Document, error)
-}
-
-// DocumentAccessByUserBulkStore — опциональное расширение для пачечной проверки доступа пользователя к документам.
-type DocumentAccessByUserBulkStore interface {
-	GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
 }
 
 // DocumentQueryReader — минимальный интерфейс для общего query-layer документов.
@@ -112,6 +106,7 @@ type DocumentAccessStore interface {
 type OutgoingDocStore interface {
 	GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error)
 	GetByID(id uuid.UUID) (*models.OutgoingDocument, error)
+	GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocument, error)
 	Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error)
 	Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error)
 	GetCount() (int, error)
@@ -163,6 +158,7 @@ type AssignmentStore interface {
 	GetByID(id uuid.UUID) (*models.Assignment, error)
 	GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error)
 	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
+	GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
 }
 
 // DepartmentStore — интерфейс для работы с подразделениями в хранилище.
@@ -219,6 +215,7 @@ type AcknowledgmentStore interface {
 	GetAllActive(filter models.AcknowledgmentFilter) ([]models.Acknowledgment, error)
 	GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error)
 	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
+	GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
 	MarkViewed(ackID, userID uuid.UUID) error
 	Delete(id uuid.UUID) error
 }

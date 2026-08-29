@@ -188,6 +188,22 @@ func (_m *AssignmentStore) HasDocumentAccess(userID uuid.UUID, documentID uuid.U
 	return r0, r1
 }
 
+// GetAccessibleDocumentIDs provides a mock function with given fields: userID, documentIDs
+func (_m *AssignmentStore) GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	ret := _m.Called(userID, documentIDs)
+	if len(ret) == 0 {
+		panic("no return value specified for GetAccessibleDocumentIDs")
+	}
+	if rf, ok := ret.Get(0).(func(uuid.UUID, []uuid.UUID) (map[uuid.UUID]struct{}, error)); ok {
+		return rf(userID, documentIDs)
+	}
+	var r0 map[uuid.UUID]struct{}
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).(map[uuid.UUID]struct{})
+	}
+	return r0, ret.Error(1)
+}
+
 // Update provides a mock function with given fields: id, executorID, content, deadline, status, report, completedAt, coExecutorIDs
 func (_m *AssignmentStore) Update(id uuid.UUID, executorID uuid.UUID, content string, deadline *time.Time, status string, report string, completedAt *time.Time, coExecutorIDs []string) (*models.Assignment, error) {
 	ret := _m.Called(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)

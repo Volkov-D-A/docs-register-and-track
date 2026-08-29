@@ -35,23 +35,20 @@ func (h *OutgoingLetterQueryHandler) GetCard(id uuid.UUID) (*dto.DocumentCard, e
 // GetList возвращает общий список исходящих писем.
 func (h *OutgoingLetterQueryHandler) GetList(filter models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error) {
 	outgoingFilter := models.OutgoingDocumentFilter{
-		NomenclatureIDs:        filter.NomenclatureIDs,
-		AllowedNomenclatureIDs: filter.AllowedNomenclatureIDs,
-		AccessibleByUserID:     filter.AccessibleByUserID,
-		AccessibleByUserIDs:    filter.AccessibleByUserIDs,
-		AccessScope:            filter.AccessScope,
-		KindCode:               string(models.DocumentKindOutgoingLetter),
-		DocumentTypeID:         filter.DocumentTypeID,
-		OrgID:                  filter.OrgID,
-		DateFrom:               filter.DateFrom,
-		DateTo:                 filter.DateTo,
-		Search:                 filter.Search,
-		OutgoingNumber:         filter.OutgoingNumber,
-		RecipientName:          filter.RecipientName,
-		Page:                   filter.Page,
-		PageSize:               filter.PageSize,
-		Cursor:                 filter.Cursor,
-		CursorPagination:       filter.CursorPagination,
+		NomenclatureIDs:  filter.NomenclatureIDs,
+		AccessScope:      filter.AccessScope,
+		KindCode:         string(models.DocumentKindOutgoingLetter),
+		DocumentTypeID:   filter.DocumentTypeID,
+		OrgID:            filter.OrgID,
+		DateFrom:         filter.DateFrom,
+		DateTo:           filter.DateTo,
+		Search:           filter.Search,
+		OutgoingNumber:   filter.OutgoingNumber,
+		RecipientName:    filter.RecipientName,
+		Page:             filter.Page,
+		PageSize:         filter.PageSize,
+		Cursor:           filter.Cursor,
+		CursorPagination: filter.CursorPagination,
 	}
 
 	res, err := h.repo.GetList(outgoingFilter)

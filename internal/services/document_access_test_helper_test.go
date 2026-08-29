@@ -1,6 +1,51 @@
 package services
 
-import "github.com/Volkov-D-A/docs-register-and-track/internal/models"
+import (
+	"github.com/google/uuid"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+)
+
+type kindBackedDocumentStore struct {
+	incoming IncomingDocStore
+	outgoing OutgoingDocStore
+}
+
+func (s *kindBackedDocumentStore) GetByID(id uuid.UUID) (*models.Document, error) {
+	if s.incoming != nil {
+		doc, err := s.incoming.GetByID(id)
+		if err != nil {
+			return nil, err
+		}
+		if doc != nil {
+			return &models.Document{ID: doc.ID, Kind: models.DocumentKindIncomingLetter, NomenclatureID: doc.NomenclatureID}, nil
+		}
+	}
+	if s.outgoing != nil {
+		doc, err := s.outgoing.GetByID(id)
+		if err != nil {
+			return nil, err
+		}
+		if doc != nil {
+			return &models.Document{ID: doc.ID, Kind: models.DocumentKindOutgoingLetter, NomenclatureID: doc.NomenclatureID}, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *kindBackedDocumentStore) GetByIDs(ids []uuid.UUID) ([]models.Document, error) {
+	result := make([]models.Document, 0, len(ids))
+	for _, id := range ids {
+		doc, err := s.GetByID(id)
+		if err != nil {
+			return nil, err
+		}
+		if doc != nil {
+			result = append(result, *doc)
+		}
+	}
+	return result, nil
+}
 
 type roleMappedDocumentAccessStore struct {
 	roles []string
