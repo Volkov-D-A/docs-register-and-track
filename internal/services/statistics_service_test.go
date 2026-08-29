@@ -356,8 +356,27 @@ func TestStatisticsService_GetSystemStatistics(t *testing.T) {
 	store.storageSnapshotErr = errors.New("storage failed")
 	stats, err = svc.GetSystemStatistics()
 	require.NoError(t, err)
-	assert.Equal(t, "N/A", stats.StorageSize)
+	assert.Equal(t, "Нет данных", stats.StorageSize)
 	assert.Zero(t, stats.StorageObjects)
+}
+
+func TestStatisticsServiceUsesLocalizedFallbackWithoutStorage(t *testing.T) {
+	svc, _, _, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
+	svc.storage = nil
+
+	stats, err := svc.GetSystemStatistics()
+	require.NoError(t, err)
+	assert.Equal(t, "Нет данных", stats.StorageSize)
+
+	status, err := svc.GetStorageStatisticsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, "Нет данных", status.StorageSize)
+	assert.Equal(t, models.StorageStatisticsRefreshIdle, status.State)
+
+	status, err = svc.RetryStorageStatisticsRefresh()
+	require.NoError(t, err)
+	assert.Equal(t, "Нет данных", status.StorageSize)
+	assert.Equal(t, models.StorageStatisticsRefreshIdle, status.State)
 }
 
 func TestStatisticsService_GetSystemStatisticsStartsStaleStorageRefreshInBackground(t *testing.T) {

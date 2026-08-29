@@ -77,7 +77,10 @@ Maintained project documentation:
 - [Review findings and fixes](docs/bugs.md)
 - [Setup and backup/restore instructions](docs/instructions.md)
 - [Release notes source](docs/releases.yaml)
-- [Optimization notes](docs/opti.md)
+
+Historical one-time analysis documents are kept separately:
+
+- [Archived performance audit plan](docs/archive/performance-audit-plan.md)
 
 Release must be performed from a clean worktree and must not rely on hidden local state except approved secret injection.
 
@@ -87,12 +90,13 @@ Minimum automated gate before producing artifacts:
 make release-gate
 ```
 
-The gate checks the release environment and generated release asset, Go unit
-and PostgreSQL integration tests, Go vet/vulnerability scan, clean frontend
-dependency installation, frontend lint/test/build and critical npm
-vulnerabilities. Docker with Compose and `POSTGRES_VERSION` are required for
-the disposable integration database. DB performance checks, target-OS smoke
-and backup restore remain separate checks described in the technical reference.
+The gate checks the release environment, generated release asset, internal
+documentation links, Wails bindings, Go unit and PostgreSQL integration tests,
+Go vet/vulnerability scan, clean frontend dependency installation, frontend
+lint/test/build and critical npm vulnerabilities. Docker with Compose and
+`POSTGRES_VERSION` are required for the disposable integration database. DB
+performance checks, target-OS smoke and backup restore remain separate checks
+described in the technical reference.
 
 ## Production Build
 

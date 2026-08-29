@@ -385,7 +385,7 @@ func (r *StatisticsRepository) GetDBSize() string {
 	var size string
 	err := r.db.QueryRow("SELECT pg_size_pretty(pg_database_size(current_database()))").Scan(&size)
 	if err != nil {
-		return "N/A"
+		return "Нет данных"
 	}
 	return size
 }

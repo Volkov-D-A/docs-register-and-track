@@ -328,7 +328,7 @@ func TestStatisticsRepository_SystemCountsAndDBSize(t *testing.T) {
 
 	mock.ExpectQuery(`SELECT pg_size_pretty\(pg_database_size\(current_database\(\)\)\)`).
 		WillReturnError(sql.ErrConnDone)
-	assert.Equal(t, "N/A", repo.GetDBSize())
+	assert.Equal(t, "Нет данных", repo.GetDBSize())
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -1,4 +1,4 @@
-.PHONY: dev build-linux build-windows clean release-assets release-assets-check wails-bindings wails-bindings-check check-release-env check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
+.PHONY: dev build-linux build-windows clean release-assets release-assets-check wails-bindings wails-bindings-check docs-links-check check-release-env check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
@@ -37,6 +37,9 @@ wails-bindings:
 wails-bindings-check: wails-bindings
 	@git diff --exit-code HEAD -- frontend/wailsjs
 	@test -z "$$(git ls-files --others --exclude-standard -- frontend/wailsjs)" || (git status --short -- frontend/wailsjs; echo "Untracked Wails bindings detected. Regenerate and commit frontend/wailsjs." >&2; exit 1)
+
+docs-links-check:
+	node tools/check-markdown-links.mjs
 
 check-release-env:
 	@test -n "$(ENCRYPTION_KEY)" || (echo "ENCRYPTION_KEY is required for production build; provide it via approved release secret injection." >&2; exit 1)

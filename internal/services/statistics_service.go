@@ -314,7 +314,7 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 			UserCount:      userCount,
 			TotalDocuments: documentCount,
 			DBSize:         s.repo.GetDBSize(),
-			StorageSize:    "N/A",
+			StorageSize:    "Нет данных",
 		}
 
 		if s.storage != nil {
@@ -349,7 +349,7 @@ func (s *StatisticsService) GetStorageStatisticsStatus() (*models.StorageStatist
 		return nil, err
 	}
 	if s.storage == nil {
-		return &models.StorageStatisticsStatus{StorageSize: "N/A", State: models.StorageStatisticsRefreshIdle}, nil
+		return &models.StorageStatisticsStatus{StorageSize: "Нет данных", State: models.StorageStatisticsRefreshIdle}, nil
 	}
 	record, err := s.repo.GetStorageStatisticsRefreshRecord()
 	if err != nil {
@@ -365,7 +365,7 @@ func (s *StatisticsService) RetryStorageStatisticsRefresh() (*models.StorageStat
 		return nil, err
 	}
 	if s.storage == nil {
-		return &models.StorageStatisticsStatus{StorageSize: "N/A", State: models.StorageStatisticsRefreshIdle}, nil
+		return &models.StorageStatisticsStatus{StorageSize: "Нет данных", State: models.StorageStatisticsRefreshIdle}, nil
 	}
 	if err := s.repo.ClearStorageStatisticsRefreshError(); err != nil {
 		return nil, err

@@ -264,10 +264,11 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 			return nil, err
 		}
 
-		// Получение деталей документов
+		// Карточки загружены пакетно по видам: не более одного GetByIDs-запроса
+		// для каждого из четырёх поддерживаемых видов, независимо от числа узлов.
 		nodes := []models.GraphNode{}
 
-		// Получение информации о документах
+		// Цикл только собирает узлы из bulk-карт и не обращается к репозиториям.
 		for id, docType := range docIDs {
 			var label, subject, dateStr, sender, recipient string
 			var isActive *bool
