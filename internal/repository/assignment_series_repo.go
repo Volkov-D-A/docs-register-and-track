@@ -89,6 +89,7 @@ func insertAssignmentCoExecutors(tx *sql.Tx, assignmentID uuid.UUID, values []st
 	return nil
 }
 
+// GetAssignmentSeries loads a series template together with its co-executors.
 func (r *AssignmentRepository) GetAssignmentSeries(id uuid.UUID) (*models.AssignmentSeries, error) {
 	var value models.AssignmentSeries
 	var currentID uuid.NullUUID
@@ -146,6 +147,7 @@ func (r *AssignmentRepository) GetAssignmentSeries(id uuid.UUID) (*models.Assign
 	return &value, rows.Err()
 }
 
+// GetAssignmentSeriesByAssignment resolves the optional series of an iteration.
 func (r *AssignmentRepository) GetAssignmentSeriesByAssignment(id uuid.UUID) (*models.AssignmentSeries, error) {
 	var seriesID uuid.NullUUID
 	if err := r.db.QueryRow(`SELECT series_id FROM assignments WHERE id=$1`, id).Scan(&seriesID); err != nil {
@@ -157,6 +159,8 @@ func (r *AssignmentRepository) GetAssignmentSeriesByAssignment(id uuid.UUID) (*m
 	return r.GetAssignmentSeries(seriesID.UUID)
 }
 
+// UpdateAssignmentSeries atomically changes an active template and its future
+// co-executors together with observable outbox effects.
 func (r *AssignmentRepository) UpdateAssignmentSeries(id, executorID uuid.UUID, content, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, coExecutorIDs []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error) {
 	if r.outbox == nil {
 		return nil, ErrOutboxNotConfigured
@@ -194,6 +198,8 @@ func (r *AssignmentRepository) UpdateAssignmentSeries(id, executorID uuid.UUID, 
 	return r.GetAssignmentSeries(id)
 }
 
+// CancelAssignmentSeries deactivates future generation while preserving the
+// current pointer and all assignment history.
 func (r *AssignmentRepository) CancelAssignmentSeries(id, actorID uuid.UUID, effects []models.OutboxEvent) error {
 	if r.outbox == nil {
 		return ErrOutboxNotConfigured
@@ -280,6 +286,8 @@ func (r *AssignmentRepository) FinishSeriesIterationWithNext(
 	return r.GetByID(currentID)
 }
 
+// GetAssignmentSeriesHistory returns all iterations newest first and includes
+// the co-executors captured when each iteration was created.
 func (r *AssignmentRepository) GetAssignmentSeriesHistory(seriesID uuid.UUID) ([]models.Assignment, error) {
 	rows, err := r.db.Query(`
 		SELECT a.id,a.document_id,d.kind,a.executor_id,COALESCE(u.full_name,''),a.content,

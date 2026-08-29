@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/coordination"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
@@ -77,6 +78,15 @@ func (m *storageMutationStub) Finish() error {
 type storageMutationCoordinatorStub struct {
 	started  bool
 	mutation *storageMutationStub
+}
+
+type assignmentAttachmentLookupStub struct {
+	*mocks.AttachmentStore
+	items []models.Attachment
+}
+
+func (s *assignmentAttachmentLookupStub) GetByAssignmentID(uuid.UUID) ([]models.Attachment, error) {
+	return s.items, nil
 }
 
 func (c *storageMutationCoordinatorStub) BeginStorageMutation(ctx context.Context) (coordination.StorageMutation, error) {
@@ -313,6 +323,75 @@ func TestAttachmentServiceUploadPathStreamsSelectedFile(t *testing.T) {
 	assert.Equal(t, "test.txt", attachment.Filename)
 	require.NotNil(t, coordinator.mutation)
 	assert.True(t, coordinator.mutation.finished)
+}
+
+func TestAttachmentServiceAssignmentUploadRevalidatesAfterStorageUpload(t *testing.T) {
+	documentID, assignmentID, seriesID := uuid.New(), uuid.New(), uuid.New()
+	path := filepath.Join(t.TempDir(), "result.txt")
+	require.NoError(t, os.WriteFile(path, []byte("completed work"), 0600))
+	svc, attachmentRepo, settingsRepo, storage, _, _, _, assignmentRepo, _, _, auth := setupAttachmentService(t, "")
+	svc.SetAssignmentStore(assignmentRepo)
+	currentUserID, err := auth.GetCurrentUserUUID()
+	require.NoError(t, err)
+
+	inProgress := &models.Assignment{ID: assignmentID, DocumentID: documentID, ExecutorID: currentUserID, Status: "in_progress", SeriesID: &seriesID, IsSeriesCurrent: true}
+	finished := *inProgress
+	finished.Status = "finished"
+	assignmentRepo.On("GetByID", assignmentID).Return(inProgress, nil).Once()
+	assignmentRepo.On("GetByID", assignmentID).Return(&finished, nil).Once()
+	settingsRepo.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{Key: "assignment_completion_attachments_enabled", Value: "true"}, nil).Twice()
+	settingsRepo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil).Once()
+	settingsRepo.On("Get", "allowed_file_types").Return(&models.SystemSetting{Key: "allowed_file_types", Value: ".txt"}, nil).Once()
+	storage.On("UploadFile", mock.Anything, mock.AnythingOfType("string"), mock.Anything, int64(14), "text/plain; charset=utf-8").Return(nil).Once()
+	storage.On("DeleteFile", mock.Anything, mock.AnythingOfType("string")).Return(nil).Once()
+
+	attachment, err := svc.uploadPathForAssignment(assignmentID, path)
+	require.Nil(t, attachment)
+	requireAppError(t, err, "CONFLICT", 409, "только для поручения в работе")
+	attachmentRepo.AssertNotCalled(t, "CreateForAssignmentWithOutbox", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestAttachmentServiceUploadForAssignmentChecksAndPersistsSelectedFiles(t *testing.T) {
+	documentID, assignmentID, seriesID := uuid.New(), uuid.New(), uuid.New()
+	path := filepath.Join(t.TempDir(), "result.txt")
+	require.NoError(t, os.WriteFile(path, []byte("completed work"), 0600))
+	svc, attachmentRepo, settingsRepo, storage, _, _, _, assignmentRepo, _, _, auth := setupAttachmentService(t, "")
+	svc.SetAssignmentStore(assignmentRepo)
+	svc.Startup(context.Background())
+	svc.openFilesDialog = func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error) { return []string{path}, nil }
+	currentUserID, err := auth.GetCurrentUserUUID()
+	require.NoError(t, err)
+	assignment := &models.Assignment{ID: assignmentID, DocumentID: documentID, ExecutorID: currentUserID, Status: "in_progress", SeriesID: &seriesID, IsSeriesCurrent: true}
+	assignmentRepo.On("GetByID", assignmentID).Return(assignment, nil).Times(3)
+	settingsRepo.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{Key: "assignment_completion_attachments_enabled", Value: "true"}, nil).Times(3)
+	settingsRepo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "10"}, nil).Once()
+	settingsRepo.On("Get", "allowed_file_types").Return(&models.SystemSetting{Key: "allowed_file_types", Value: ".txt"}, nil).Once()
+	storage.On("UploadFile", mock.Anything, mock.AnythingOfType("string"), mock.Anything, int64(14), "text/plain; charset=utf-8").Return(nil).Once()
+	attachmentRepo.On("CreateForAssignmentWithOutbox", mock.MatchedBy(func(a *models.Attachment) bool {
+		return a.AssignmentID != nil && *a.AssignmentID == assignmentID && a.DocumentID == documentID
+	}), true, mock.Anything).Return(nil).Once()
+
+	items, err := svc.UploadForAssignment(assignmentID.String())
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "result.txt", items[0].Filename)
+}
+
+func TestAttachmentServiceGetAssignmentFilesRequiresManagerAndReturnsIterationFiles(t *testing.T) {
+	documentID, assignmentID := uuid.New(), uuid.New()
+	svc, attachmentRepo, _, _, _, _, _, assignmentRepo, _, _, _ := setupAttachmentService(t, "clerk")
+	svc.SetAssignmentStore(assignmentRepo)
+	svc.repo = &assignmentAttachmentLookupStub{
+		AttachmentStore: attachmentRepo,
+		items:           []models.Attachment{{ID: uuid.New(), DocumentID: documentID, AssignmentID: &assignmentID, Filename: "result.pdf"}},
+	}
+	assignmentRepo.On("GetByID", assignmentID).Return(&models.Assignment{ID: assignmentID, DocumentID: documentID}, nil).Once()
+
+	files, err := svc.GetAssignmentFiles(assignmentID.String())
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	assert.Equal(t, "result.pdf", files[0].Filename)
+	assert.Equal(t, assignmentID.String(), files[0].AssignmentID)
 }
 
 func TestAttachmentService_GetList(t *testing.T) {

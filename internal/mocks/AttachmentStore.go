@@ -35,6 +35,20 @@ func (_m *AttachmentStore) CreateWithOutbox(a *models.Attachment, effects []mode
 	return r0
 }
 
+// CreateForAssignmentWithOutbox provides a mock function with given fields: a, requireInProgress, effects
+func (_m *AttachmentStore) CreateForAssignmentWithOutbox(a *models.Attachment, requireInProgress bool, effects []models.OutboxEvent) error {
+	ret := _m.Called(a, requireInProgress, effects)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateForAssignmentWithOutbox")
+	}
+
+	if rf, ok := ret.Get(0).(func(*models.Attachment, bool, []models.OutboxEvent) error); ok {
+		return rf(a, requireInProgress, effects)
+	}
+	return ret.Error(0)
+}
+
 // MarkDeletingWithEffects provides a mock function with given fields: attachment, effects
 func (_m *AttachmentStore) MarkDeletingWithEffects(attachment models.Attachment, effects []models.OutboxEvent) error {
 	ret := _m.Called(attachment, effects)

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"regexp"
 	"testing"
 	"time"
 
@@ -54,6 +55,73 @@ func TestAttachmentRepository_CreateWithOutbox(t *testing.T) {
 		assert.Equal(t, expectedUploadedAt, attachment.UploadedAt)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+func TestAttachmentRepositoryCreateForAssignmentRejectsNonCurrentIteration(t *testing.T) {
+	repo, mockDB := setupAttachmentRepo(t)
+	assignmentID := uuid.New()
+	attachment := &models.Attachment{
+		DocumentID:   uuid.New(),
+		AssignmentID: &assignmentID,
+		Filename:     "result.pdf",
+		StoragePath:  "series/result.pdf",
+		FileSize:     42,
+		ContentType:  "application/pdf",
+		UploadedBy:   uuid.New(),
+	}
+	query := `
+		INSERT INTO attachments (document_id, assignment_id, filename, storage_path, file_size, content_type, uploaded_by)
+		SELECT $1,$2,$3,$4,$5,$6,$7
+		FROM assignments assignment
+		LEFT JOIN assignment_series series ON series.id=assignment.series_id
+		WHERE assignment.id=$2
+		  AND assignment.document_id=$1
+		  AND (assignment.series_id IS NULL OR series.current_assignment_id=assignment.id)
+		  AND (NOT $8 OR assignment.status='in_progress')
+		RETURNING id,uploaded_at
+	`
+
+	mockDB.ExpectBegin()
+	mockDB.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(
+		attachment.DocumentID, assignmentID, attachment.Filename, attachment.StoragePath,
+		attachment.FileSize, attachment.ContentType, attachment.UploadedBy, true,
+	).WillReturnError(sql.ErrNoRows)
+	mockDB.ExpectRollback()
+
+	err := repo.CreateForAssignmentWithOutbox(attachment, true, nil)
+	appErr, ok := models.AsAppError(err)
+	require.True(t, ok)
+	assert.Equal(t, "CONFLICT", appErr.Kind)
+	assert.Equal(t, 409, appErr.Code)
+	require.NoError(t, mockDB.ExpectationsWereMet())
+}
+
+func TestAttachmentRepositoryCreateForAssignmentPersistsEligibleIteration(t *testing.T) {
+	repo, mockDB := setupAttachmentRepo(t)
+	assignmentID := uuid.New()
+	attachment := &models.Attachment{
+		DocumentID:   uuid.New(),
+		AssignmentID: &assignmentID,
+		Filename:     "result.pdf",
+		StoragePath:  "series/result.pdf",
+		FileSize:     42,
+		ContentType:  "application/pdf",
+		UploadedBy:   uuid.New(),
+	}
+	expectedID, expectedUploadedAt := uuid.New(), time.Now().UTC()
+
+	mockDB.ExpectBegin()
+	mockDB.ExpectQuery(`INSERT INTO attachments`).WithArgs(
+		attachment.DocumentID, assignmentID, attachment.Filename, attachment.StoragePath,
+		attachment.FileSize, attachment.ContentType, attachment.UploadedBy, true,
+	).WillReturnRows(sqlmock.NewRows([]string{"id", "uploaded_at"}).AddRow(expectedID, expectedUploadedAt))
+	mockDB.ExpectExec(`UPDATE storage_statistics`).WithArgs(attachment.FileSize).WillReturnResult(sqlmock.NewResult(0, 1))
+	mockDB.ExpectCommit()
+
+	require.NoError(t, repo.CreateForAssignmentWithOutbox(attachment, true, nil))
+	assert.Equal(t, expectedID, attachment.ID)
+	assert.Equal(t, expectedUploadedAt, attachment.UploadedAt)
+	require.NoError(t, mockDB.ExpectationsWereMet())
 }
 
 func TestAttachmentRepositoryDeleteMarkedAndDecrementStorageStatistics(t *testing.T) {

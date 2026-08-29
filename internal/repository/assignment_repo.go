@@ -219,6 +219,54 @@ func (r *AssignmentRepository) UpdateWithOutbox(id, executorID uuid.UUID, conten
 	return r.GetByID(id)
 }
 
+// UpdateDetailsWithOutbox updates only editable assignment fields and rejects a
+// stale editor snapshot. In particular, it cannot overwrite a concurrent
+// status transition or modify an iteration after it has been accepted.
+func (r *AssignmentRepository) UpdateDetailsWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, expectedUpdatedAt time.Time, effects []models.OutboxEvent) (*models.Assignment, error) {
+	if r.outbox == nil {
+		return nil, ErrOutboxNotConfigured
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	result, err := tx.Exec(`UPDATE assignments
+		SET executor_id=$1, content=$2, deadline=$3, updated_at=NOW()
+		WHERE id=$4 AND updated_at=$5 AND status <> 'finished'`, executorID, content, deadline, id, expectedUpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected != 1 {
+		return nil, models.NewConflict("поручение было изменено; обновите данные и повторите")
+	}
+	if _, err = tx.Exec("DELETE FROM assignment_co_executors WHERE assignment_id = $1", id); err != nil {
+		return nil, err
+	}
+	for _, value := range coExecutorIDs {
+		uid, parseErr := uuid.Parse(value)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		if _, err = tx.Exec("INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)", id, uid); err != nil {
+			return nil, err
+		}
+	}
+	for _, effect := range effects {
+		if err = r.outbox.EnqueueTx(tx, effect); err != nil {
+			return nil, err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetByID(id)
+}
+
 // Delete удаляет поручение по его ID.
 func (r *AssignmentRepository) Delete(id uuid.UUID) error {
 	_, err := r.db.Exec("DELETE FROM assignments WHERE id = $1", id)

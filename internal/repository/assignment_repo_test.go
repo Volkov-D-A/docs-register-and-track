@@ -113,7 +113,37 @@ func TestAssignmentRepositoryAtomicMethodsRequireOutbox(t *testing.T) {
 	require.ErrorIs(t, err, ErrOutboxNotConfigured)
 	_, err = repo.UpdateWithOutbox(uuid.New(), uuid.New(), "тест", nil, "new", "", nil, nil, nil)
 	require.ErrorIs(t, err, ErrOutboxNotConfigured)
+	_, err = repo.UpdateDetailsWithOutbox(uuid.New(), uuid.New(), "тест", nil, nil, time.Now(), nil)
+	require.ErrorIs(t, err, ErrOutboxNotConfigured)
 	require.ErrorIs(t, repo.DeleteWithOutbox(uuid.New(), nil), ErrOutboxNotConfigured)
+}
+
+func TestAssignmentRepositoryUpdateDetailsRejectsStaleSnapshot(t *testing.T) {
+	db, mockDB, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	assignmentID, executorID := uuid.New(), uuid.New()
+	expectedUpdatedAt := time.Now().UTC()
+	updateQuery := `UPDATE assignments
+		SET executor_id=$1, content=$2, deadline=$3, updated_at=NOW()
+		WHERE id=$4 AND updated_at=$5 AND status <> 'finished'`
+
+	mockDB.ExpectBegin()
+	mockDB.ExpectExec(regexp.QuoteMeta(updateQuery)).
+		WithArgs(executorID, "изменённый текст", (*time.Time)(nil), assignmentID, expectedUpdatedAt).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mockDB.ExpectRollback()
+
+	updated, err := repo.UpdateDetailsWithOutbox(assignmentID, executorID, "изменённый текст", nil, nil, expectedUpdatedAt, nil)
+	require.Nil(t, updated)
+	appErr, ok := models.AsAppError(err)
+	require.True(t, ok)
+	assert.Equal(t, "CONFLICT", appErr.Kind)
+	assert.Equal(t, 409, appErr.Code)
+	require.NoError(t, mockDB.ExpectationsWereMet())
 }
 
 func TestAssignmentRepository_Create(t *testing.T) {

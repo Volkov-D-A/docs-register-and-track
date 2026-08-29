@@ -37,6 +37,7 @@ type AttachmentService struct {
 	storageMutations coordination.StorageMutationCoordinator
 	assignments      AssignmentStore
 	substitutions    UserSubstitutionStore
+	openFilesDialog  func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error)
 }
 
 type attachmentStoragePathStore interface {
@@ -55,6 +56,7 @@ func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService
 		authService:     authService,
 		fileStorage:     fs,
 		access:          access,
+		openFilesDialog: wailsruntime.OpenMultipleFilesDialog,
 	}
 	if coordinator, ok := repo.(coordination.StorageMutationCoordinator); ok {
 		service.storageMutations = coordinator
@@ -140,7 +142,7 @@ func (s *AttachmentService) Upload(documentIDStr string) ([]dto.Attachment, erro
 		if s.uiContext == nil {
 			return nil, fmt.Errorf("file picker is not initialized")
 		}
-		paths, err := wailsruntime.OpenMultipleFilesDialog(s.uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для вложения"})
+		paths, err := s.openFilesDialog(s.uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для вложения"})
 		if err != nil {
 			return nil, fmt.Errorf("failed to choose files: %w", err)
 		}
@@ -169,41 +171,16 @@ func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) ([]dto.A
 		if err != nil {
 			return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
 		}
-		assignment, err := s.assignments.GetByID(assignmentID)
-		if err != nil {
+		if _, _, err = s.requireAssignmentUploadAccess(assignmentID); err != nil {
 			return nil, err
 		}
-		if assignment == nil {
-			return nil, models.NewNotFound("поручение не найдено")
-		}
-		if assignment.SeriesID != nil && !assignment.IsSeriesCurrent {
-			return nil, models.ErrForbidden
-		}
-		currentUserID, err := s.authService.GetCurrentUserUUID()
-		if err != nil {
-			return nil, err
-		}
-		canAct := assignment.ExecutorID == currentUserID
-		if !canAct && s.substitutions != nil {
-			canAct, err = s.substitutions.IsActiveSubstitute(currentUserID, assignment.ExecutorID)
-			if err != nil {
-				return nil, err
-			}
-		}
-		canUploadDirectly := s.access.RequireDocumentAction(assignment.DocumentID, "upload") == nil
-		if !canUploadDirectly && (!canAct || !s.settingsService.IsAssignmentCompletionAttachmentsEnabled()) {
-			return nil, models.ErrForbidden
-		}
-		if !canUploadDirectly && assignment.Status != "in_progress" {
-			return nil, models.NewConflict("файлы исполнения можно добавлять только для поручения в работе")
-		}
-		paths, err := wailsruntime.OpenMultipleFilesDialog(s.uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для отчёта об исполнении"})
+		paths, err := s.openFilesDialog(s.uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для отчёта об исполнении"})
 		if err != nil {
 			return nil, fmt.Errorf("failed to choose files: %w", err)
 		}
 		items := make([]dto.Attachment, 0, len(paths))
 		for _, path := range paths {
-			item, uploadErr := s.uploadPathLinked(assignment.DocumentID.String(), path, &assignmentID)
+			item, uploadErr := s.uploadPathForAssignment(assignmentID, path)
 			if uploadErr != nil {
 				return nil, uploadErr
 			}
@@ -211,6 +188,50 @@ func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) ([]dto.A
 		}
 		return items, nil
 	})
+}
+
+func (s *AttachmentService) requireAssignmentUploadAccess(assignmentID uuid.UUID) (*models.Assignment, bool, error) {
+	if s.assignments == nil {
+		return nil, false, fmt.Errorf("assignment store is not configured")
+	}
+	assignment, err := s.assignments.GetByID(assignmentID)
+	if err != nil {
+		return nil, false, err
+	}
+	if assignment == nil {
+		return nil, false, models.NewNotFound("поручение не найдено")
+	}
+	if assignment.SeriesID != nil && !assignment.IsSeriesCurrent {
+		return nil, false, models.ErrForbidden
+	}
+	currentUserID, err := s.authService.GetCurrentUserUUID()
+	if err != nil {
+		return nil, false, err
+	}
+	canAct := assignment.ExecutorID == currentUserID
+	if !canAct && s.substitutions != nil {
+		canAct, err = s.substitutions.IsActiveSubstitute(currentUserID, assignment.ExecutorID)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+	canUploadDirectly := s.access.RequireDocumentAction(assignment.DocumentID, "upload") == nil
+	if !canUploadDirectly && (!canAct || !s.settingsService.IsAssignmentCompletionAttachmentsEnabled()) {
+		return nil, false, models.ErrForbidden
+	}
+	requireInProgress := !canUploadDirectly
+	if requireInProgress && assignment.Status != "in_progress" {
+		return nil, false, models.NewConflict("файлы исполнения можно добавлять только для поручения в работе")
+	}
+	return assignment, requireInProgress, nil
+}
+
+func (s *AttachmentService) uploadPathForAssignment(assignmentID uuid.UUID, path string) (*dto.Attachment, error) {
+	assignment, _, err := s.requireAssignmentUploadAccess(assignmentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.uploadPathLinked(assignment.DocumentID.String(), path, &assignmentID)
 }
 
 func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachment, error) {
@@ -323,7 +344,27 @@ func (s *AttachmentService) uploadPathLinked(documentIDStr, path string, assignm
 	if buildErr != nil {
 		return nil, buildErr
 	}
-	err = s.repo.CreateWithOutbox(attachment, []models.OutboxEvent{event})
+	if assignmentID != nil {
+		// Revalidate after the potentially slow storage upload. The repository also
+		// checks current-iteration and status predicates in the INSERT transaction.
+		latest, latestRequireInProgress, accessErr := s.requireAssignmentUploadAccess(*assignmentID)
+		if accessErr != nil {
+			_ = s.fileStorage.DeleteFile(ctx, objectName)
+			return nil, accessErr
+		}
+		if latest.DocumentID != documentID {
+			_ = s.fileStorage.DeleteFile(ctx, objectName)
+			return nil, models.NewConflict("поручение было изменено; повторите загрузку")
+		}
+		creator, ok := s.repo.(assignmentAttachmentCreator)
+		if !ok {
+			_ = s.fileStorage.DeleteFile(ctx, objectName)
+			return nil, fmt.Errorf("assignment attachment creation is not supported")
+		}
+		err = creator.CreateForAssignmentWithOutbox(attachment, latestRequireInProgress, []models.OutboxEvent{event})
+	} else {
+		err = s.repo.CreateWithOutbox(attachment, []models.OutboxEvent{event})
+	}
 	if err != nil {
 		// Попытка откатить (удалить) файл из хранилища, если сохранение в БД не удалось
 		_ = s.fileStorage.DeleteFile(ctx, objectName)
@@ -336,6 +377,10 @@ func (s *AttachmentService) uploadPathLinked(documentIDStr, path string, assignm
 	}
 
 	return dto.MapAttachment(attachment), nil
+}
+
+type assignmentAttachmentCreator interface {
+	CreateForAssignmentWithOutbox(*models.Attachment, bool, []models.OutboxEvent) error
 }
 
 type assignmentAttachmentStore interface {

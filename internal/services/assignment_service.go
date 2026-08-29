@@ -23,6 +23,7 @@ type AssignmentService struct {
 
 type assignmentOutboxStore interface {
 	CreateWithOutbox(id, documentID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error)
+	UpdateDetailsWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, expectedUpdatedAt time.Time, effects []models.OutboxEvent) (*models.Assignment, error)
 	UpdateWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, status, report string, completedAt *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error)
 	DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error
 }
@@ -382,11 +383,14 @@ func (s *AssignmentService) getManagedSeries(id string) (*models.AssignmentSerie
 	return series, repo, nil
 }
 
+// GetSeries returns manager-visible parameters of a recurring assignment.
 func (s *AssignmentService) GetSeries(id string) (*dto.AssignmentSeries, error) {
 	series, _, err := s.getManagedSeries(id)
 	return dto.MapAssignmentSeries(series), err
 }
 
+// GetSeriesHistory returns every iteration, including those hidden from the
+// ordinary assignment list after the series advances.
 func (s *AssignmentService) GetSeriesHistory(id string) ([]dto.Assignment, error) {
 	series, repo, err := s.getManagedSeries(id)
 	if err != nil {
@@ -399,6 +403,8 @@ func (s *AssignmentService) GetSeriesHistory(id string) ([]dto.Assignment, error
 	return dto.MapAssignments(items), nil
 }
 
+// UpdateSeries changes the template for iterations that have not yet been
+// created. It deliberately leaves the current assignment unchanged.
 func (s *AssignmentService) UpdateSeries(id string, request models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error) {
 	series, repo, err := s.getManagedSeries(id)
 	if err != nil {
@@ -420,6 +426,8 @@ func (s *AssignmentService) UpdateSeries(id string, request models.AssignmentSer
 	return dto.MapAssignmentSeries(result), err
 }
 
+// CancelSeries prevents creation of another iteration without deleting or
+// changing the current assignment.
 func (s *AssignmentService) CancelSeries(id string) error {
 	series, repo, err := s.getManagedSeries(id)
 	if err != nil {
@@ -504,7 +512,7 @@ func (s *AssignmentService) Update(
 			}
 			effects = append(effects, event)
 		}
-		res, err = repo.UpdateWithOutbox(uid, execUUID, content, deadlineTime, existing.Status, existing.Report, existing.CompletedAt, coExecutorIDs, effects)
+		res, err = repo.UpdateDetailsWithOutbox(uid, execUUID, content, deadlineTime, coExecutorIDs, existing.UpdatedAt, effects)
 	}
 	return dto.MapAssignment(res), err
 }

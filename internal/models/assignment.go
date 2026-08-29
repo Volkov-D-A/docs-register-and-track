@@ -50,7 +50,7 @@ type AssignmentSeries struct {
 	Content             string     `json:"content"`
 	IntervalUnit        string     `json:"intervalUnit"`
 	IntervalValue       int        `json:"intervalValue"`
-	DayRule             string     `json:"dayRule"` // fixed, last_day
+	DayRule             string     `json:"dayRule"` // same_day, fixed, last_day
 	DayOfMonth          int        `json:"dayOfMonth,omitempty"`
 	CurrentAssignmentID *uuid.UUID `json:"-"`
 	CurrentIteration    int        `json:"currentIteration"`
@@ -64,6 +64,8 @@ type AssignmentSeries struct {
 	UpdatedAt           time.Time  `json:"updatedAt"`
 }
 
+// AssignmentSeriesRequest contains the template and calendar rule supplied by
+// the Wails client when a recurring series is created or updated.
 type AssignmentSeriesRequest struct {
 	DocumentID    string   `json:"documentId"`
 	ExecutorID    string   `json:"executorId"`

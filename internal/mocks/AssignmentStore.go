@@ -34,6 +34,19 @@ func (_m *AssignmentStore) UpdateWithOutbox(id, executorID uuid.UUID, content st
 	return _m.Update(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)
 }
 
+func (_m *AssignmentStore) UpdateDetailsWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, expectedUpdatedAt time.Time, effects []models.OutboxEvent) (*models.Assignment, error) {
+	_m.Effects = append(_m.Effects, effects...)
+	ret := _m.Called(id, executorID, content, deadline, coExecutorIDs, expectedUpdatedAt)
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateDetailsWithOutbox")
+	}
+	var assignment *models.Assignment
+	if ret.Get(0) != nil {
+		assignment = ret.Get(0).(*models.Assignment)
+	}
+	return assignment, ret.Error(1)
+}
+
 func (_m *AssignmentStore) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
 	_m.Effects = append(_m.Effects, effects...)
 	return _m.Delete(id)

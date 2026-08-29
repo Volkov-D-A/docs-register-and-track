@@ -92,6 +92,44 @@ func (r *AttachmentRepository) CreateWithOutbox(a *models.Attachment, effects []
 	return tx.Commit()
 }
 
+// CreateForAssignmentWithOutbox binds an uploaded object only while the target
+// assignment is still an eligible current iteration. The predicate is checked
+// by PostgreSQL in the same transaction as the attachment insert.
+func (r *AttachmentRepository) CreateForAssignmentWithOutbox(a *models.Attachment, requireInProgress bool, effects []models.OutboxEvent) error {
+	if a.AssignmentID == nil {
+		return models.NewBadRequest("не указан ID поручения для файла исполнения")
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	err = tx.QueryRow(`
+		INSERT INTO attachments (document_id, assignment_id, filename, storage_path, file_size, content_type, uploaded_by)
+		SELECT $1,$2,$3,$4,$5,$6,$7
+		FROM assignments assignment
+		LEFT JOIN assignment_series series ON series.id=assignment.series_id
+		WHERE assignment.id=$2
+		  AND assignment.document_id=$1
+		  AND (assignment.series_id IS NULL OR series.current_assignment_id=assignment.id)
+		  AND (NOT $8 OR assignment.status='in_progress')
+		RETURNING id,uploaded_at
+	`, a.DocumentID, *a.AssignmentID, a.Filename, a.StoragePath, a.FileSize, a.ContentType, a.UploadedBy, requireInProgress).Scan(&a.ID, &a.UploadedAt)
+	if err == sql.ErrNoRows {
+		return models.NewConflict("поручение больше не допускает загрузку файлов; обновите данные")
+	}
+	if err != nil {
+		return err
+	}
+	if err = incrementStorageStatisticsTx(tx, a.FileSize); err != nil {
+		return fmt.Errorf("failed to increment storage statistics: %w", err)
+	}
+	if err = enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (r *AttachmentRepository) GetByAssignmentID(assignmentID uuid.UUID) ([]models.Attachment, error) {
 	rows, err := r.db.Query(`
 		SELECT a.id,a.document_id,a.assignment_id,a.filename,a.file_size,a.content_type,

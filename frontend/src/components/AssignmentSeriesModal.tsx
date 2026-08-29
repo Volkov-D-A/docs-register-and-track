@@ -31,9 +31,19 @@ const AssignmentSeriesModal: React.FC<Props> = ({ open, seriesId, documentId, on
     const [executors, setExecutors] = useState<any[]>([]);
     const [filesByAssignment, setFilesByAssignment] = useState<Record<string, any[]>>({});
     const [loading, setLoading] = useState(false);
+    const [loadedSeriesId, setLoadedSeriesId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!open || !seriesId) return;
+        setSeries(null);
+        setHistory([]);
+        setExecutors([]);
+        setFilesByAssignment({});
+        setLoadedSeriesId(null);
+        form.resetFields();
+        if (!open || !seriesId) {
+            setLoading(false);
+            return;
+        }
         let active = true;
         setLoading(true);
         Promise.all([
@@ -42,6 +52,7 @@ const AssignmentSeriesModal: React.FC<Props> = ({ open, seriesId, documentId, on
         ]).then(([[loadedSeries, loadedHistory], users]) => {
             if (!active) return;
             setSeries(loadedSeries);
+            setLoadedSeriesId(seriesId);
             setHistory(loadedHistory || []);
             setExecutors(users || []);
             form.setFieldsValue({
@@ -57,7 +68,10 @@ const AssignmentSeriesModal: React.FC<Props> = ({ open, seriesId, documentId, on
         return () => { active = false; };
     }, [form, message, open, seriesId]);
 
+    const ready = loadedSeriesId === seriesId && series !== null;
+
     const save = async () => {
+        if (!ready) return;
         const values = await form.validateFields();
         setLoading(true);
         try {
@@ -85,6 +99,7 @@ const AssignmentSeriesModal: React.FC<Props> = ({ open, seriesId, documentId, on
     };
 
     const cancelSeries = async () => {
+        if (!ready) return;
         setLoading(true);
         try {
             const service = await import('../../wailsjs/go/services/AssignmentService');
@@ -113,23 +128,23 @@ const AssignmentSeriesModal: React.FC<Props> = ({ open, seriesId, documentId, on
 
     const parameters = (
         <Form form={form} layout="vertical">
-            {!series?.active && <Alert type="warning" showIcon message="Серия отменена. Новые итерации создаваться не будут." style={{ marginBottom: 16 }} />}
+            {ready && !series.active && <Alert type="warning" showIcon message="Серия отменена. Новые итерации создаваться не будут." style={{ marginBottom: 16 }} />}
             <Form.Item name="executorId" label="Ответственный исполнитель" rules={[{ required: true }]}>
-                <Select showSearch optionFilterProp="label" options={executors.map((user) => ({ value: user.id, label: user.fullName }))} disabled={!series?.active} />
+                <Select showSearch optionFilterProp="label" options={executors.map((user) => ({ value: user.id, label: user.fullName }))} disabled={!ready || !series.active} />
             </Form.Item>
             <Form.Item shouldUpdate={(previous, current) => previous.executorId !== current.executorId} noStyle>
                 {({ getFieldValue }) => <Form.Item name="coExecutorIds" label="Соисполнители">
-                    <Select mode="multiple" showSearch optionFilterProp="label" options={executors.filter((user) => user.id !== getFieldValue('executorId')).map((user) => ({ value: user.id, label: user.fullName }))} disabled={!series?.active} />
+                    <Select mode="multiple" showSearch optionFilterProp="label" options={executors.filter((user) => user.id !== getFieldValue('executorId')).map((user) => ({ value: user.id, label: user.fullName }))} disabled={!ready || !series.active} />
                 </Form.Item>}
             </Form.Item>
-            <Form.Item name="content" label="Текст будущих итераций" rules={[{ required: true }]}><TextArea rows={3} disabled={!series?.active} /></Form.Item>
+            <Form.Item name="content" label="Текст будущих итераций" rules={[{ required: true }]}><TextArea rows={3} disabled={!ready || !series.active} /></Form.Item>
             <Space align="start" style={{ display: 'flex' }}>
-                <Form.Item name="intervalValue" label="Каждые N" rules={[{ required: true }]}><InputNumber min={1} max={3650} disabled={!series?.active} /></Form.Item>
-                <Form.Item name="intervalUnit" label="Период" rules={[{ required: true }]}><Select style={{ width: 140 }} options={[{ value: 'day', label: 'Дней' }, { value: 'week', label: 'Недель' }, { value: 'month', label: 'Месяцев' }, { value: 'year', label: 'Лет' }]} disabled={!series?.active} /></Form.Item>
+                <Form.Item name="intervalValue" label="Каждые N" rules={[{ required: true }]}><InputNumber min={1} max={3650} disabled={!ready || !series.active} /></Form.Item>
+                <Form.Item name="intervalUnit" label="Период" rules={[{ required: true }]}><Select style={{ width: 140 }} options={[{ value: 'day', label: 'Дней' }, { value: 'week', label: 'Недель' }, { value: 'month', label: 'Месяцев' }, { value: 'year', label: 'Лет' }]} disabled={!ready || !series.active} /></Form.Item>
                 <Form.Item shouldUpdate={(previous, current) => previous.intervalUnit !== current.intervalUnit || previous.dayRule !== current.dayRule} noStyle>
                     {({ getFieldValue }) => ['month', 'year'].includes(getFieldValue('intervalUnit')) ? <>
-                        <Form.Item name="dayRule" label="Плановый день" rules={[{ required: true }]}><Select style={{ width: 180 }} options={[{ value: 'fixed', label: 'Число месяца' }, { value: 'last_day', label: 'Последний день месяца' }]} disabled={!series?.active} /></Form.Item>
-                        {getFieldValue('dayRule') === 'fixed' ? <Form.Item name="dayOfMonth" label="Число" rules={[{ required: true }]}><InputNumber min={1} max={31} disabled={!series?.active} /></Form.Item> : null}
+                        <Form.Item name="dayRule" label="Плановый день" rules={[{ required: true }]}><Select style={{ width: 180 }} options={[{ value: 'fixed', label: 'Число месяца' }, { value: 'last_day', label: 'Последний день месяца' }]} disabled={!ready || !series.active} /></Form.Item>
+                        {getFieldValue('dayRule') === 'fixed' ? <Form.Item name="dayOfMonth" label="Число" rules={[{ required: true }]}><InputNumber min={1} max={31} disabled={!ready || !series.active} /></Form.Item> : null}
                     </> : null}
                 </Form.Item>
             </Space>
@@ -153,7 +168,7 @@ const AssignmentSeriesModal: React.FC<Props> = ({ open, seriesId, documentId, on
         </div>,
     }} />;
 
-    return <Modal title="Управление серией поручений" open={open} onCancel={onCancel} width={900} footer={series?.active ? [
+    return <Modal title="Управление серией поручений" open={open} onCancel={onCancel} width={900} confirmLoading={loading} footer={ready && series.active ? [
         <Popconfirm key="cancel-series" title="Отменить серию?" description="Текущая итерация сохранится, новые создаваться не будут." okText="Отменить серию" cancelText="Назад" onConfirm={cancelSeries}><Button danger>Отменить серию</Button></Popconfirm>,
         <Button key="close" onClick={onCancel}>Закрыть</Button>,
         <Button key="save" type="primary" loading={loading} onClick={save}>Сохранить</Button>,
