@@ -91,10 +91,14 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 	}
 
 	app := &App{
-		db:        db,
-		cfg:       cfg,
-		metrics:   metrics,
-		lifecycle: background.NewLifecycle(db, &leasedWorker{db: db, worker: worker}, nil),
+		db:      db,
+		cfg:     cfg,
+		metrics: metrics,
+		lifecycle: background.NewLifecycle(
+			db,
+			&leasedWorker{db: db, worker: worker},
+			(&sessionCleaner{store: repository.NewServerSessionRepository(db)}).Run,
+		),
 	}
 	app.http = &http.Server{
 		Addr:              listenAddress,

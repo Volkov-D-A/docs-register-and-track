@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
@@ -25,6 +26,8 @@ type MigrationClient interface {
 type Client struct {
 	baseURL string
 	http    *http.Client
+	tokenMu sync.RWMutex
+	token   string
 }
 
 type Options struct {

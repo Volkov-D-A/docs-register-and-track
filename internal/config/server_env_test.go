@@ -30,6 +30,7 @@ func TestLoadServerFromEnvironment(t *testing.T) {
 	require.True(t, cfg.Minio.UseSSL)
 	require.True(t, cfg.Seq.Enabled)
 	require.Equal(t, 50, cfg.Outbox.BatchSize)
+	require.Equal(t, 12, cfg.Server.SessionTTLHours)
 }
 
 func TestLoadServerRejectsInvalidEnvironmentValue(t *testing.T) {

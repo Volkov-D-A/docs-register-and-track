@@ -552,11 +552,26 @@ Login response не возвращает DB/MinIO/Seq credentials.
 2. Вынести password policy и lockout в server-side use case.
 3. Заменить вызовы `GetCurrentUserUUID` и `RequireAuthenticated` в переносимых
    services на request-scoped principal/authorizer.
-4. Сохранить временный desktop auth adapter только для ещё не перенесённых
-   сценариев.
+4. Desktop auth adapter сразу использует server API; runtime fallback на прямой
+   login не поддерживается. Пока business API переносится, локальные services
+   получают user ID из подтверждённой server session.
 5. Не допускать одновременного смешивания server principal и локального
    `currentUserID` внутри одной доменной транзакции.
 6. Добавить новую миграцию session table и необходимые индексы/retention.
+
+Реализованный первый auth slice:
+
+- рабочая migration `014_server_sessions` (прежняя тестовая migration удалена
+  после проверки механизма миграций, её номер переиспользован);
+- opaque 256-bit token и хранение только SHA-256 hash;
+- login/logout/me endpoints;
+- bearer middleware с request-scoped user identity и permission gate;
+- login rate limit, account lockout и обязательная password-expiry проверка;
+- desktop login без production fallback на прямую проверку пароля.
+
+Периодическая очистка истёкших и отозванных sessions выполняется сервисом при
+запуске и затем раз в час. Следующими остаются change-password endpoints и
+явный revoke всех sessions при административной блокировке или сбросе пароля.
 
 ### Security tests
 

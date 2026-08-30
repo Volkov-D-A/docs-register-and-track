@@ -12,7 +12,7 @@ import (
 // deployment environment variables. Desktop JSON configuration is
 // intentionally not used by the server process.
 func LoadServer() (*Config, error) {
-	cfg := &Config{Server: ServerConfig{ListenAddress: ":8080"}}
+	cfg := &Config{Server: ServerConfig{ListenAddress: ":8080", SessionTTLHours: 12}}
 	if err := applyServerEnvironment(cfg); err != nil {
 		return nil, err
 	}
@@ -45,6 +45,7 @@ func applyServerEnvironment(cfg *Config) error {
 		{"DOCFLOW_OUTBOX_CONSUMER_TIMEOUT_SECONDS", &cfg.Outbox.ConsumerTimeoutSeconds},
 		{"DOCFLOW_OUTBOX_PROCESSED_RETENTION_DAYS", &cfg.Outbox.ProcessedRetentionDays},
 		{"DOCFLOW_OUTBOX_CLEANUP_INTERVAL_MINUTES", &cfg.Outbox.CleanupIntervalMinutes},
+		{"DOCFLOW_AUTH_SESSION_TTL_HOURS", &cfg.Server.SessionTTLHours},
 	}
 	for _, value := range intValues {
 		if err := intValue(value.name, value.target); err != nil {

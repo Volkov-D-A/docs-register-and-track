@@ -69,6 +69,9 @@ func ValidateConfig(cfg *config.Config) error {
 			return fmt.Errorf("server.listenAddress must use host:port format")
 		}
 	}
+	if cfg.Server.SessionTTLHours < 1 || cfg.Server.SessionTTLHours > 24*30 {
+		return fmt.Errorf("server.sessionTtlHours must be between 1 and 720")
+	}
 	_, err := ResolveOutboxOptions(cfg.Outbox)
 	return err
 }

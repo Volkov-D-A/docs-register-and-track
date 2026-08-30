@@ -384,6 +384,12 @@ Example configs:
 ### Authentication
 
 - Любая доменная операция требует authenticated user.
+- Desktop login/logout/current-user выполняются через `docflow-server`;
+- server session — opaque bearer token, в PostgreSQL хранится только SHA-256
+  hash, raw token живёт только в памяти desktop-процесса;
+- `POST /api/v1/auth/login`, `POST /api/v1/auth/logout` и `GET /api/v1/auth/me`
+  являются первым обязательным server API slice;
+- срок сессии задаётся `DOCFLOW_AUTH_SESSION_TTL_HOURS` (по умолчанию 12 часов);
 - После 5 неверных попыток входа аккаунт деактивируется и пишется admin audit entry.
 - First-run setup creates `admin` with system permission `admin`, если пользователей еще нет.
 

@@ -17,7 +17,8 @@ func validConfig() *config.Config {
 		Minio: config.MinioConfig{
 			Endpoint: "minio:9000", AccessKeyID: "docflow", SecretAccessKey: "plain-test-secret", BucketName: "docflow-attachments",
 		},
-		Seq: config.SeqConfig{Enabled: true, URL: "https://seq.example.test"},
+		Seq:    config.SeqConfig{Enabled: true, URL: "https://seq.example.test"},
+		Server: config.ServerConfig{SessionTTLHours: 12},
 	}
 }
 

@@ -28,6 +28,7 @@ CADDY_VERSION=2.11.4-alpine
 # Temporary external HTTP port published by Caddy.
 DOCFLOW_SERVER_PORT=8080
 DOCFLOW_SERVER_LISTEN_ADDRESS=:8080
+DOCFLOW_AUTH_SESSION_TTL_HOURS=12
 
 # ==========================================
 # Настройки seq

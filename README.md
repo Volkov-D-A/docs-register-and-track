@@ -8,10 +8,9 @@ Wails desktop application for registering and tracking documents. The app uses:
 - MinIO for attachments;
 - Seq for technical logs.
 
-The repository also contains the first server-side migration increment:
-`docflow-server` can own transactional outbox consumption independently of
-running desktop applications. Desktop access to PostgreSQL and MinIO remains in
-place until the later API migration stages.
+`docflow-server` owns transactional outbox consumption, database migrations and
+desktop authentication. Desktop access to PostgreSQL and MinIO remains only for
+business scenarios that have not yet moved to HTTP API.
 
 The repository keeps application code and a compact maintained documentation set. Review findings and their current status are tracked in [`docs/bugs.md`](docs/bugs.md); production readiness is determined by the release gate plus environment-specific smoke and recovery checks.
 
@@ -55,6 +54,17 @@ The container health check uses `GET /health/live`, so maintenance is not
 treated as a process crash. Operational readiness is available separately at
 `GET /health/ready` and returns HTTP 503 until the schema and dependencies are
 ready.
+
+Authentication uses `POST /api/v1/auth/login`, opaque bearer sessions and
+`GET /api/v1/auth/me`. Only a SHA-256 token hash is stored in PostgreSQL; the
+raw token remains in desktop process memory and is revoked by
+`POST /api/v1/auth/logout`. Session lifetime is configured with
+`DOCFLOW_AUTH_SESSION_TTL_HOURS` (12 hours by default).
+
+For an existing schema, deploy the new server first and apply migration 14
+(`server_sessions`) through the current migration UI. Only then deploy the
+desktop build that requires server login. No direct-login fallback is enabled
+in the production composition root.
 
 Install frontend dependencies and build assets:
 

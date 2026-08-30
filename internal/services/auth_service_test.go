@@ -1,10 +1,12 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
@@ -18,6 +20,22 @@ import (
 type captureAdminAuditLogStore struct {
 	requests []models.CreateAdminAuditLogRequest
 }
+
+type fakeServerAuthClient struct {
+	user        *dto.User
+	loginCalls  int
+	logoutCalls int
+}
+
+func (f *fakeServerAuthClient) Login(context.Context, string, string) (*dto.User, error) {
+	f.loginCalls++
+	return f.user, nil
+}
+func (f *fakeServerAuthClient) Logout(context.Context) error {
+	f.logoutCalls++
+	return nil
+}
+func (f *fakeServerAuthClient) Me(context.Context) (*dto.User, error) { return f.user, nil }
 
 func (s *captureAdminAuditLogStore) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
 	s.requests = append(s.requests, req)
@@ -747,4 +765,19 @@ func TestAuthServiceSchemaLifecycleGate(t *testing.T) {
 	current, err := authService.GetCurrentUser()
 	require.NoError(t, err)
 	assert.Equal(t, user.ID.String(), current.ID)
+}
+
+func TestAuthServiceUsesRequiredServerSessionWhenConfigured(t *testing.T) {
+	userID := uuid.New()
+	client := &fakeServerAuthClient{user: &dto.User{ID: userID.String(), Login: "server-user", IsActive: true}}
+	service := NewAuthService(nil, mocks.NewUserStore(t))
+	service.SetServerAuth(client)
+
+	user, err := service.Login("server-user", "Passw0rd!")
+	require.NoError(t, err)
+	assert.Equal(t, userID.String(), user.ID)
+	require.NoError(t, service.RequireAuthenticated())
+	require.NoError(t, service.Logout())
+	assert.Equal(t, 1, client.loginCalls)
+	assert.Equal(t, 1, client.logoutCalls)
 }

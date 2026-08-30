@@ -33,6 +33,7 @@ type ServerConfig struct {
 	URL               string `json:"url,omitempty"`
 	AllowInsecureHTTP bool   `json:"allowInsecureHttp,omitempty"`
 	ListenAddress     string `json:"listenAddress,omitempty"`
+	SessionTTLHours   int    `json:"sessionTtlHours,omitempty"`
 }
 
 // OutboxWorkerConfig contains optional standalone-worker tuning. Zero values

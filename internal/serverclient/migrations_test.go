@@ -74,3 +74,24 @@ func TestNewAllowsRemoteHTTPOnlyWithExplicitOptIn(t *testing.T) {
 
 	require.NoError(t, err)
 }
+
+func TestAuthClientStoresTokenForSubsequentRequests(t *testing.T) {
+	client, err := New("https://server.test")
+	require.NoError(t, err)
+	requestNumber := 0
+	client.http.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		requestNumber++
+		if requestNumber == 1 {
+			assert.Equal(t, "/api/v1/auth/login", r.URL.Path)
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"accessToken":"token-1","expiresAt":"2030-01-01T00:00:00Z","user":{"id":"00000000-0000-0000-0000-000000000001","login":"admin"}}`)), Header: make(http.Header)}, nil
+		}
+		assert.Equal(t, "Bearer token-1", r.Header.Get("Authorization"))
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"id":"00000000-0000-0000-0000-000000000001","login":"admin"}`)), Header: make(http.Header)}, nil
+	})
+
+	user, err := client.Login(context.Background(), "admin", "Passw0rd!")
+	require.NoError(t, err)
+	assert.Equal(t, "admin", user.Login)
+	_, err = client.Me(context.Background())
+	require.NoError(t, err)
+}

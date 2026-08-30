@@ -78,6 +78,10 @@ export function SetOperationMetrics(arg1) {
   return window['go']['services']['AuthService']['SetOperationMetrics'](arg1);
 }
 
+export function SetServerAuth(arg1) {
+  return window['go']['services']['AuthService']['SetServerAuth'](arg1);
+}
+
 export function SetSettingsStore(arg1) {
   return window['go']['services']['AuthService']['SetSettingsStore'](arg1);
 }

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 var (
@@ -38,6 +40,7 @@ type AuthService struct {
 	mu              sync.RWMutex
 	metrics         *observability.Registry
 	schemaLifecycle SchemaLifecycle
+	serverAuth      serverclient.AuthClient
 }
 type userLockOutboxStore interface {
 	IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error)
@@ -63,6 +66,8 @@ func (s *AuthService) SetSettingsStore(settingsRepo SettingsStore) {
 
 func (s *AuthService) SetOperationMetrics(metrics *observability.Registry) { s.metrics = metrics }
 
+func (s *AuthService) SetServerAuth(client serverclient.AuthClient) { s.serverAuth = client }
+
 // isTableNotExistsError проверяет, является ли ошибка «таблица не существует» (PostgreSQL 42P01).
 func isTableNotExistsError(err error) bool {
 	var pqErr *pq.Error
@@ -75,6 +80,22 @@ func isTableNotExistsError(err error) bool {
 // Login — вход пользователя (Wails binding)
 func (s *AuthService) Login(login, password string) (*dto.User, error) {
 	return measureOperation(s.metrics, "auth.login", func() (*dto.User, error) {
+		if s.serverAuth != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			user, err := s.serverAuth.Login(ctx, login, password)
+			if err != nil {
+				return nil, err
+			}
+			userID, err := uuid.Parse(user.ID)
+			if err != nil {
+				return nil, models.NewInternal("Сервис вернул некорректный идентификатор пользователя", err)
+			}
+			s.mu.Lock()
+			s.currentUserID = userID
+			s.mu.Unlock()
+			return user, nil
+		}
 		if err := s.ensureCompatibleSchema(); err != nil {
 			return nil, err
 		}
@@ -181,15 +202,29 @@ func (s *AuthService) ensureCompatibleSchema() error {
 // Logout — выход
 func (s *AuthService) Logout() error {
 	return measureOperationError(s.metrics, "auth.logout", func() error {
-		s.mu.Lock()
-		s.currentUserID = uuid.Nil
-		s.mu.Unlock()
+		defer func() {
+			s.mu.Lock()
+			s.currentUserID = uuid.Nil
+			s.mu.Unlock()
+		}()
+		if s.serverAuth != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := s.serverAuth.Logout(ctx); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 }
 
 // GetCurrentUser — получить текущего пользователя
 func (s *AuthService) GetCurrentUser() (*dto.User, error) {
+	if s.serverAuth != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		return s.serverAuth.Me(ctx)
+	}
 	user, err := s.getActiveCurrentUser()
 	if err != nil {
 		return nil, err
@@ -228,6 +263,22 @@ func (s *AuthService) checkSchemaReady() error {
 }
 
 func (s *AuthService) getActiveSessionPrincipal() (*models.SessionPrincipal, error) {
+	if s.serverAuth != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		user, err := s.serverAuth.Me(ctx)
+		if err != nil {
+			s.mu.Lock()
+			s.currentUserID = uuid.Nil
+			s.mu.Unlock()
+			return nil, err
+		}
+		userID, err := uuid.Parse(user.ID)
+		if err != nil || !user.IsActive {
+			return nil, ErrNotAuthenticated
+		}
+		return &models.SessionPrincipal{ID: userID, IsActive: true}, nil
+	}
 	s.mu.RLock()
 	userID := s.currentUserID
 	s.mu.RUnlock()

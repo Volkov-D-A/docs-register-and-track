@@ -4,6 +4,7 @@ import {uuid} from '../models';
 import {dto} from '../models';
 import {services} from '../models';
 import {observability} from '../models';
+import {serverclient} from '../models';
 import {models} from '../models';
 
 export function ChangePassword(arg1:string,arg2:string):Promise<void>;
@@ -43,6 +44,8 @@ export function RequireSystemPermission(arg1:string):Promise<void>;
 export function SetAccessStore(arg1:services.DocumentAccessStore):Promise<void>;
 
 export function SetOperationMetrics(arg1:observability.Registry):Promise<void>;
+
+export function SetServerAuth(arg1:serverclient.AuthClient):Promise<void>;
 
 export function SetSettingsStore(arg1:services.SettingsStore):Promise<void>;
 

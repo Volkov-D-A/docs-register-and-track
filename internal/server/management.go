@@ -38,6 +38,9 @@ type managementAPI struct {
 	lifecycle    migrationLifecycle
 	users        adminUserStore
 	audit        adminAuditStore
+	authUsers    authUserStore
+	authSettings authSettingsStore
+	sessions     authSessionStore
 	acquireLease func(context.Context) (func(), bool, error)
 	migration    sync.Mutex
 	authMu       sync.Mutex
@@ -70,12 +73,16 @@ type adminAuditStore interface {
 }
 
 func newManagementAPI(app *App) *managementAPI {
+	users := repository.NewUserRepository(app.db)
 	return &managementAPI{
-		cfg:        app.cfg,
-		migrations: app.db,
-		lifecycle:  app.lifecycle,
-		users:      repository.NewUserRepository(app.db),
-		audit:      repository.NewAdminAuditLogRepository(app.db),
+		cfg:          app.cfg,
+		migrations:   app.db,
+		lifecycle:    app.lifecycle,
+		users:        users,
+		authUsers:    users,
+		authSettings: repository.NewSettingsRepository(app.db),
+		sessions:     repository.NewServerSessionRepository(app.db),
+		audit:        repository.NewAdminAuditLogRepository(app.db),
 		acquireLease: func(ctx context.Context) (func(), bool, error) {
 			lease, acquired, err := app.db.TryAcquireBackgroundWorkerLease(ctx)
 			if err != nil || !acquired {
@@ -97,6 +104,9 @@ func (api *managementAPI) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health/live", api.live)
 	mux.HandleFunc("GET /health/ready", api.ready)
+	mux.HandleFunc("POST /api/v1/auth/login", api.login)
+	mux.Handle("POST /api/v1/auth/logout", api.requireSession(http.HandlerFunc(api.logout)))
+	mux.Handle("GET /api/v1/auth/me", api.requireSession(http.HandlerFunc(api.me)))
 	mux.HandleFunc("GET /api/v1/admin/migrations", api.status)
 	mux.HandleFunc("POST /api/v1/admin/migrations/apply", api.apply)
 	mux.HandleFunc("POST /api/v1/admin/migrations/rollback", api.rollback)
@@ -295,7 +305,7 @@ func (api *managementAPI) clearAuthenticationFailures(key string) {
 }
 
 func (api *managementAPI) auditAction(user *models.User, action, details string) {
-	if user == nil {
+	if user == nil || api.audit == nil {
 		return
 	}
 	if _, err := api.audit.Create(models.CreateAdminAuditLogRequest{UserID: user.ID, UserName: user.FullName, Action: action, Details: details}); err != nil {

@@ -180,6 +180,7 @@ func newWailsOptionsWithDependencies(
 		}
 	}
 	settingsService.SetMigrationClient(migrationClient)
+	authService.SetServerAuth(migrationClient)
 	userService := services.NewUserService(userRepo, authService)
 	userSubstitutionService := services.NewUserSubstitutionService(userSubstitutionRepo, userRepo, authService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
