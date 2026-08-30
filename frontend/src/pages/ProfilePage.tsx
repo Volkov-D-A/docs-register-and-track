@@ -91,7 +91,7 @@ const ProfilePage: React.FC = () => {
     const handleChangePassword = async (values: any) => {
         try {
             await changePassword(values.oldPassword, values.newPassword);
-            message.success('Пароль успешно изменён');
+            message.success('Пароль успешно изменён. Войдите снова');
             passwordForm.resetFields();
             setIsChangingPassword(false);
         } catch {

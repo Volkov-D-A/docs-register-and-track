@@ -16,7 +16,6 @@ const UsersTab: React.FC = () => {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [documentAccessCollapseKeys, setDocumentAccessCollapseKeys] = useState<string[]>([]);
-  const [passwordForm] = Form.useForm();
   const [form] = Form.useForm();
   const { kinds: allDocumentKinds } = useCurrentAccessSummary();
 
@@ -215,18 +214,28 @@ const UsersTab: React.FC = () => {
     }
   };
 
-  const onPasswordChange = async (values: any) => {
+  const onPasswordReset = async () => {
     if (loading) {
       return;
     }
     setLoading(true);
     try {
       const { ResetPassword } = await import('../../../wailsjs/go/services/UserService');
-      await ResetPassword(editItem.id, values.newPassword);
-      message.success('Пароль успешно изменён');
+      const temporaryPassword = await ResetPassword(editItem.id);
       setPasswordModalOpen(false);
-      passwordForm.resetFields();
       setEditItem(null);
+      modal.info({
+        title: 'Временный пароль',
+        content: (
+          <Space orientation="vertical" size="small">
+            <Typography.Text>
+              Передайте пользователю временный пароль. При следующем входе система потребует его сменить.
+            </Typography.Text>
+            <Typography.Text copyable code>{temporaryPassword}</Typography.Text>
+          </Space>
+        ),
+        okText: 'Готово',
+      });
     } catch (error: unknown) {
       message.error(formatAppError(error));
     } finally {
@@ -285,7 +294,7 @@ const UsersTab: React.FC = () => {
       render: (_: any, record: any) => (
         <Space>
           <Button size="small" title="Редактировать пользователя" icon={<EditOutlined />} onClick={() => { void openEditModal(record); }} />
-          <Button size="small" title="Сменить пароль пользователя" icon={<KeyOutlined />} onClick={() => {
+          <Button size="small" title="Сбросить пароль пользователя" icon={<KeyOutlined />} onClick={() => {
             setEditItem(record);
             setPasswordModalOpen(true);
           }} />
@@ -441,26 +450,22 @@ const UsersTab: React.FC = () => {
       </Modal>
 
       <Modal
-        title={`Смена пароля для пользователя ${editItem?.login}`}
+        title={`Сброс пароля пользователя ${editItem?.login}`}
         open={passwordModalOpen}
-        onCancel={() => confirmDiscardFormChanges(modal, passwordForm, () => {
+        onCancel={() => {
           setPasswordModalOpen(false);
           setEditItem(null);
-          passwordForm.resetFields();
-        })}
-        onOk={() => passwordForm.submit()}
+        }}
+        onOk={() => { void onPasswordReset(); }}
         width={400}
         confirmLoading={loading}
+        okText="Сбросить пароль"
+        cancelText="Отмена"
       >
-        <Form form={passwordForm} layout="vertical" onFinish={onPasswordChange}>
-          <Form.Item
-            name="newPassword"
-            label="Новый пароль"
-            rules={[{ required: true, min: 8, message: 'Минимум 8 символов' }]}
-          >
-            <Input.Password />
-          </Form.Item>
-        </Form>
+        <Typography.Text>
+          Текущий пароль и все активные сессии пользователя будут отозваны.
+          Система сгенерирует временный пароль, который потребуется сменить при следующем входе.
+        </Typography.Text>
       </Modal>
     </div>
   );

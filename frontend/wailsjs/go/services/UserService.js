@@ -18,8 +18,8 @@ export function GetSubstitutionCandidates() {
   return window['go']['services']['UserService']['GetSubstitutionCandidates']();
 }
 
-export function ResetPassword(arg1, arg2) {
-  return window['go']['services']['UserService']['ResetPassword'](arg1, arg2);
+export function ResetPassword(arg1) {
+  return window['go']['services']['UserService']['ResetPassword'](arg1);
 }
 
 export function UpdateUser(arg1) {

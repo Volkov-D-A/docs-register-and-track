@@ -27,6 +27,7 @@ type authSessionStore interface {
 type authUserStore interface {
 	GetByLogin(string) (*models.User, error)
 	GetByID(uuid.UUID) (*models.User, error)
+	UpdatePassword(uuid.UUID, string) error
 	IncrementFailedLoginAttempts(uuid.UUID) (int, bool, error)
 	ResetFailedLoginAttempts(uuid.UUID) error
 }
@@ -52,6 +53,17 @@ type loginResponse struct {
 	AccessToken string    `json:"accessToken"`
 	ExpiresAt   time.Time `json:"expiresAt"`
 	User        *dto.User `json:"user"`
+}
+
+type changePasswordRequest struct {
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword"`
+}
+
+type changeRequiredPasswordRequest struct {
+	Login       string `json:"login"`
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword"`
 }
 
 func (api *managementAPI) login(w http.ResponseWriter, r *http.Request) {
@@ -135,6 +147,100 @@ func (api *managementAPI) logout(w http.ResponseWriter, r *http.Request) {
 
 func (api *managementAPI) me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dto.MapUser(authenticatedFromContext(r.Context()).User))
+}
+
+func (api *managementAPI) changePassword(w http.ResponseWriter, r *http.Request) {
+	var req changePasswordRequest
+	if err := decodeJSON(r, &req); err != nil || req.OldPassword == "" || req.NewPassword == "" {
+		writeAPIError(w, http.StatusBadRequest, "invalid_request", errors.New("oldPassword and newPassword are required"))
+		return
+	}
+	auth := authenticatedFromContext(r.Context())
+	if !security.VerifyPassword(auth.User.PasswordHash, req.OldPassword) {
+		writeAPIError(w, http.StatusBadRequest, "wrong_password", models.ErrWrongPassword)
+		return
+	}
+	if err := api.updatePassword(auth.User, req.NewPassword); err != nil {
+		api.writePasswordUpdateError(w, err)
+		return
+	}
+	api.auditAction(auth.User, "USER_PASSWORD_CHANGED", "Пользователь изменил пароль через docflow-server; все активные сессии отозваны")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (api *managementAPI) changeRequiredPassword(w http.ResponseWriter, r *http.Request) {
+	var req changeRequiredPasswordRequest
+	if err := decodeJSON(r, &req); err != nil || strings.TrimSpace(req.Login) == "" || req.OldPassword == "" || req.NewPassword == "" {
+		writeAPIError(w, http.StatusBadRequest, "invalid_request", errors.New("login, oldPassword and newPassword are required"))
+		return
+	}
+	login := strings.TrimSpace(req.Login)
+	authKey := remoteHost(r.RemoteAddr) + "\x00" + login
+	if !api.authenticationAllowed(authKey, time.Now()) {
+		writeAPIError(w, http.StatusTooManyRequests, "authentication_rate_limited", errors.New("too many authentication failures; retry later"))
+		return
+	}
+	user, err := api.authUsers.GetByLogin(login)
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "password_change_failed", err)
+		return
+	}
+	if user == nil || !security.VerifyPassword(user.PasswordHash, req.OldPassword) {
+		api.recordAuthenticationFailure(authKey, time.Now())
+		if user != nil {
+			attempts, active, incrementErr := api.authUsers.IncrementFailedLoginAttempts(user.ID)
+			if incrementErr != nil {
+				writeAPIError(w, http.StatusInternalServerError, "password_change_failed", incrementErr)
+				return
+			}
+			if attempts >= 5 || !active {
+				api.auditAction(user, "USER_LOCKED", "Учётная запись заблокирована после 5 неверных попыток обязательной смены пароля")
+				writeAPIError(w, http.StatusForbidden, "user_locked", models.ErrUserLocked)
+				return
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+		writeAPIError(w, http.StatusUnauthorized, "invalid_credentials", models.ErrInvalidCredentials)
+		return
+	}
+	if !user.IsActive {
+		code, authErr := "user_inactive", error(models.ErrUserNotActive)
+		if user.FailedLoginAttempts >= 5 {
+			code, authErr = "user_locked", models.ErrUserLocked
+		}
+		writeAPIError(w, http.StatusForbidden, code, authErr)
+		return
+	}
+	if !api.passwordChangeRequired(user) {
+		writeAPIError(w, http.StatusConflict, "password_change_not_required", models.NewConflict("смена пароля сейчас не требуется"))
+		return
+	}
+	if err := api.updatePassword(user, req.NewPassword); err != nil {
+		api.writePasswordUpdateError(w, err)
+		return
+	}
+	api.clearAuthenticationFailures(authKey)
+	api.auditAction(user, "USER_PASSWORD_CHANGED", "Выполнена обязательная смена пароля через docflow-server; все активные сессии отозваны")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (api *managementAPI) updatePassword(user *models.User, newPassword string) error {
+	if err := security.ValidatePassword(newPassword); err != nil {
+		return models.NewBadRequestWrapped(err.Error(), err)
+	}
+	newHash, err := security.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	return api.authUsers.UpdatePassword(user.ID, newHash)
+}
+
+func (api *managementAPI) writePasswordUpdateError(w http.ResponseWriter, err error) {
+	if appErr, ok := models.AsAppError(err); ok && appErr.StatusCode() < http.StatusInternalServerError {
+		writeAPIError(w, appErr.StatusCode(), strings.ToLower(appErr.SafeKind()), appErr)
+		return
+	}
+	writeAPIError(w, http.StatusInternalServerError, "password_change_failed", err)
 }
 
 func (api *managementAPI) requireSession(next http.Handler) http.Handler {

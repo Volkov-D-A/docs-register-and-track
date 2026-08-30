@@ -17,6 +17,8 @@ type AuthClient interface {
 	Login(context.Context, string, string) (*dto.User, error)
 	Logout(context.Context) error
 	Me(context.Context) (*dto.User, error)
+	ChangePassword(context.Context, string, string) error
+	ChangeRequiredPassword(context.Context, string, string, string) error
 }
 
 type loginResponse struct {
@@ -97,19 +99,75 @@ func (c *Client) Me(ctx context.Context) (*dto.User, error) {
 	return &user, nil
 }
 
+func (c *Client) ChangePassword(ctx context.Context, oldPassword, newPassword string) error {
+	payload, err := json.Marshal(map[string]string{"oldPassword": oldPassword, "newPassword": newPassword})
+	if err != nil {
+		return err
+	}
+	req, err := c.authenticatedRequestWithBody(ctx, http.MethodPost, "/api/v1/auth/change-password", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		// The server may have committed the password change before the connection
+		// failed, so the old session can no longer be trusted locally.
+		c.clearToken()
+		return fmt.Errorf("docflow-server is unavailable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return decodeAuthError(resp)
+	}
+	c.clearToken()
+	return nil
+}
+
+func (c *Client) ChangeRequiredPassword(ctx context.Context, login, oldPassword, newPassword string) error {
+	payload, err := json.Marshal(map[string]string{"login": login, "oldPassword": oldPassword, "newPassword": newPassword})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/auth/change-required-password", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("docflow-server is unavailable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return decodeAuthError(resp)
+	}
+	return nil
+}
+
 func (c *Client) authenticatedRequest(ctx context.Context, method, path string) (*http.Request, error) {
+	return c.authenticatedRequestWithBody(ctx, method, path, nil)
+}
+
+func (c *Client) authenticatedRequestWithBody(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
 	c.tokenMu.RLock()
 	token := c.token
 	c.tokenMu.RUnlock()
 	if token == "" {
 		return nil, models.ErrUnauthorized
 	}
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, nil)
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	return req, nil
+}
+
+func (c *Client) clearToken() {
+	c.tokenMu.Lock()
+	c.token = ""
+	c.tokenMu.Unlock()
 }
 
 func decodeAuthError(resp *http.Response) error {
@@ -127,6 +185,12 @@ func decodeAuthError(resp *http.Response) error {
 		return models.ErrUserNotActive
 	case "password_change_required":
 		return models.ErrPasswordChangeRequired
+	case "wrong_password":
+		return models.ErrWrongPassword
+	case "validation_error":
+		return models.NewBadRequest(body.Error)
+	case "password_change_not_required", "conflict":
+		return models.NewConflict(body.Error)
 	case "authentication_required", "session_invalid":
 		return models.ErrUnauthorized
 	default:

@@ -565,13 +565,20 @@ Login response не возвращает DB/MinIO/Seq credentials.
   после проверки механизма миграций, её номер переиспользован);
 - opaque 256-bit token и хранение только SHA-256 hash;
 - login/logout/me endpoints;
+- authenticated and required-password change endpoints;
 - bearer middleware с request-scoped user identity и permission gate;
 - login rate limit, account lockout и обязательная password-expiry проверка;
-- desktop login без production fallback на прямую проверку пароля.
+- desktop login и смена пароля без production fallback на прямую проверку;
+- атомарный revoke всех sessions при смене/сбросе пароля и деактивации
+  пользователя.
+- административный сброс генерирует временный пароль по той же политике, что и
+  создание пользователя, и включает обязательную смену при следующем входе;
+  пароль возвращается только для однократного показа администратору.
 
 Периодическая очистка истёкших и отозванных sessions выполняется сервисом при
-запуске и затем раз в час. Следующими остаются change-password endpoints и
-явный revoke всех sessions при административной блокировке или сбросе пароля.
+запуске и затем раз в час. Auth slice завершён; следующим вертикальным срезом
+переносится управление пользователями и серверная проверка административных
+прав.
 
 ### Security tests
 

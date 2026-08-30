@@ -115,11 +115,37 @@ func TestUserRepositoryIncrementFailedLoginAttemptsWithOutboxRollsBackOnEnqueueF
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`UPDATE users SET failed_login_attempts`).WithArgs(userID).WillReturnRows(sqlmock.NewRows([]string{"failed_login_attempts", "is_active"}).AddRow(5, false))
+	mock.ExpectExec(`UPDATE server_sessions SET revoked_at`).WithArgs(userID).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
 	mock.ExpectRollback()
 
 	_, _, err = repo.IncrementFailedLoginAttemptsWithOutbox(userID, event)
 	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUserRepositoryResetPasswordWithOutboxRequiresChangeAndRevokesSessions(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewUserRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	userID := uuid.New()
+	event := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "user:" + userID.String() + ":password-reset", Payload: `{}`}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE users SET password_hash=.*password_change_required=true`).
+		WithArgs(sqlmock.AnyArg(), userID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE server_sessions SET revoked_at`).
+		WithArgs(userID).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectExec(`INSERT INTO event_outbox`).
+		WithArgs(event.EventType, event.DeduplicationKey, event.Payload).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	require.NoError(t, repo.ResetPasswordWithOutbox(userID, "TemporaryPassw0rd!", []models.OutboxEvent{event}))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -392,7 +418,7 @@ func TestUserRepository_Update(t *testing.T) {
 		ID:                    uid.String(),
 		Login:                 "upduser",
 		FullName:              "Upd User",
-		IsActive:              true,
+		IsActive:              false,
 		IsDocumentParticipant: true,
 	}
 
@@ -400,6 +426,9 @@ func TestUserRepository_Update(t *testing.T) {
 	mock.ExpectExec(`UPDATE users SET`).
 		WithArgs(req.Login, req.FullName, req.IsActive, nil, req.IsDocumentParticipant, uid).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`UPDATE server_sessions SET revoked_at`).
+		WithArgs(uid).
+		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	mock.ExpectCommit()
 
@@ -410,7 +439,7 @@ func TestUserRepository_Update(t *testing.T) {
 			"id", "login", "password_hash", "full_name", "is_document_participant", "is_active", "failed_login_attempts",
 			"password_changed_at", "password_change_required", "created_at", "updated_at",
 			"d.id", "d.name",
-		}).AddRow(uid, req.Login, "hash", req.FullName, true, true, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
+		}).AddRow(uid, req.Login, "hash", req.FullName, true, req.IsActive, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
 	mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{"permission"}))
@@ -419,6 +448,7 @@ func TestUserRepository_Update(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, user)
 	assert.Equal(t, req.Login, user.Login)
+	assert.False(t, user.IsActive)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -433,9 +463,14 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 
 	t.Run("UpdatePassword", func(t *testing.T) {
 		// Изменение пароля (передача нового хеша)
+		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE users SET password_hash`).
-			WithArgs("newhash", uid).
+			WithArgs("newhash", false, uid).
 			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(`UPDATE server_sessions SET revoked_at`).
+			WithArgs(uid).
+			WillReturnResult(sqlmock.NewResult(0, 2))
+		mock.ExpectCommit()
 
 		err = repo.UpdatePassword(uid, "newhash")
 		require.NoError(t, err)
@@ -452,18 +487,25 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 	})
 
 	t.Run("ResetPassword success", func(t *testing.T) {
+		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE users SET password_hash`).
-			WithArgs(sqlmock.AnyArg(), uid).
+			WithArgs(sqlmock.AnyArg(), true, uid).
 			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(`UPDATE server_sessions SET revoked_at`).
+			WithArgs(uid).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
 
 		err = repo.ResetPassword(uid, "NewPass123!")
 		require.NoError(t, err)
 	})
 
 	t.Run("ResetPassword missing user", func(t *testing.T) {
+		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE users SET password_hash`).
-			WithArgs(sqlmock.AnyArg(), uid).
+			WithArgs(sqlmock.AnyArg(), true, uid).
 			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectRollback()
 
 		err = repo.ResetPassword(uid, "NewPass123!")
 		appErr, ok := models.AsAppError(err)
@@ -484,9 +526,14 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 	})
 
 	t.Run("IncrementFailedLoginAttempts", func(t *testing.T) {
+		mock.ExpectBegin()
 		mock.ExpectQuery(`UPDATE users`).
 			WithArgs(uid).
 			WillReturnRows(sqlmock.NewRows([]string{"failed_login_attempts", "is_active"}).AddRow(5, false))
+		mock.ExpectExec(`UPDATE server_sessions SET revoked_at`).
+			WithArgs(uid).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
 
 		attempts, isActive, err := repo.IncrementFailedLoginAttempts(uid)
 		require.NoError(t, err)

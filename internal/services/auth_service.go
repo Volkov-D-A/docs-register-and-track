@@ -331,6 +331,17 @@ func (s *AuthService) getActiveCurrentUser() (*models.User, error) {
 // ChangePassword — смена пароля
 func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 	return measureOperationError(s.metrics, "auth.change_password", func() error {
+		if s.serverAuth != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			err := s.serverAuth.ChangePassword(ctx, oldPassword, newPassword)
+			if err == nil {
+				s.mu.Lock()
+				s.currentUserID = uuid.Nil
+				s.mu.Unlock()
+			}
+			return err
+		}
 		userID, err := s.GetCurrentUserUUID()
 		if err != nil {
 			return err
@@ -364,6 +375,11 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 // ChangeRequiredPassword меняет пароль до полноценного входа, когда пароль истек или требуется первичная смена.
 func (s *AuthService) ChangeRequiredPassword(login, oldPassword, newPassword string) error {
 	return measureOperationError(s.metrics, "auth.change_required_password", func() error {
+		if s.serverAuth != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			return s.serverAuth.ChangeRequiredPassword(ctx, login, oldPassword, newPassword)
+		}
 		user, err := s.userRepo.GetByLogin(login)
 		if err != nil {
 			return err

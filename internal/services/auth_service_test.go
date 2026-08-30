@@ -22,9 +22,11 @@ type captureAdminAuditLogStore struct {
 }
 
 type fakeServerAuthClient struct {
-	user        *dto.User
-	loginCalls  int
-	logoutCalls int
+	user                        *dto.User
+	loginCalls                  int
+	logoutCalls                 int
+	changePasswordCalls         int
+	changeRequiredPasswordCalls int
 }
 
 func (f *fakeServerAuthClient) Login(context.Context, string, string) (*dto.User, error) {
@@ -36,6 +38,14 @@ func (f *fakeServerAuthClient) Logout(context.Context) error {
 	return nil
 }
 func (f *fakeServerAuthClient) Me(context.Context) (*dto.User, error) { return f.user, nil }
+func (f *fakeServerAuthClient) ChangePassword(context.Context, string, string) error {
+	f.changePasswordCalls++
+	return nil
+}
+func (f *fakeServerAuthClient) ChangeRequiredPassword(context.Context, string, string, string) error {
+	f.changeRequiredPasswordCalls++
+	return nil
+}
 
 func (s *captureAdminAuditLogStore) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
 	s.requests = append(s.requests, req)
@@ -780,4 +790,20 @@ func TestAuthServiceUsesRequiredServerSessionWhenConfigured(t *testing.T) {
 	require.NoError(t, service.Logout())
 	assert.Equal(t, 1, client.loginCalls)
 	assert.Equal(t, 1, client.logoutCalls)
+}
+
+func TestAuthServiceUsesServerForPasswordChangesWhenConfigured(t *testing.T) {
+	userID := uuid.New()
+	client := &fakeServerAuthClient{user: &dto.User{ID: userID.String(), Login: "server-user", IsActive: true}}
+	service := NewAuthService(nil, mocks.NewUserStore(t))
+	service.SetServerAuth(client)
+	_, err := service.Login("server-user", "Passw0rd!")
+	require.NoError(t, err)
+
+	require.NoError(t, service.ChangePassword("Passw0rd!", "NewPassw0rd!"))
+	assert.Equal(t, 1, client.changePasswordCalls)
+	assert.False(t, service.IsAuthenticated())
+
+	require.NoError(t, service.ChangeRequiredPassword("server-user", "Passw0rd!", "NewPassw0rd!"))
+	assert.Equal(t, 1, client.changeRequiredPasswordCalls)
 }

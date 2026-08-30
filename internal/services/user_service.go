@@ -107,23 +107,27 @@ func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*dto.User, error
 	return dto.MapUser(res), nil
 }
 
-// ResetPassword сбрасывает пароль пользователя (доступно только администраторам).
-func (s *UserService) ResetPassword(userID string, newPassword string) error {
+// ResetPassword генерирует временный пароль пользователя (доступно только администраторам).
+func (s *UserService) ResetPassword(userID string) (string, error) {
 	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return err
+		return "", err
 	}
 
 	uid, err := parseUUID(userID)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	user, err := s.userRepo.GetByID(uid)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if user == nil {
-		return models.NewNotFound("пользователь не найден")
+		return "", models.NewNotFound("пользователь не найден")
+	}
+	temporaryPassword, err := security.GenerateTemporaryPassword()
+	if err != nil {
+		return "", err
 	}
 
 	targetUserName := user.FullName
@@ -133,18 +137,18 @@ func (s *UserService) ResetPassword(userID string, newPassword string) error {
 	details := fmt.Sprintf("Сброшен пароль пользователя «%s»", targetUserName)
 	store, ok := s.userRepo.(userOutboxStore)
 	if !ok {
-		return errUserOutboxStoreRequired
+		return "", errUserOutboxStoreRequired
 	}
 	event, buildErr := s.auditEffect("user:"+uid.String()+":password-reset:"+uuid.NewString(), "USER_PASSWORD_RESET", details)
 	if buildErr != nil {
-		return buildErr
+		return "", buildErr
 	}
-	err = store.ResetPasswordWithOutbox(uid, newPassword, []models.OutboxEvent{event})
+	err = store.ResetPasswordWithOutbox(uid, temporaryPassword, []models.OutboxEvent{event})
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return temporaryPassword, nil
 }
 
 // GetExecutors возвращает список активных сотрудников для назначений и ознакомления.

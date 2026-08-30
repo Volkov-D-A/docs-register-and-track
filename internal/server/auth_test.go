@@ -35,6 +35,14 @@ func (f *fakeAuthUsers) IncrementFailedLoginAttempts(uuid.UUID) (int, bool, erro
 	return 1, true, nil
 }
 func (f *fakeAuthUsers) ResetFailedLoginAttempts(uuid.UUID) error { return nil }
+func (f *fakeAuthUsers) UpdatePassword(id uuid.UUID, passwordHash string) error {
+	if f.user == nil || f.user.ID != id {
+		return models.NewNotFound("пользователь не найден")
+	}
+	f.user.PasswordHash = passwordHash
+	f.user.PasswordChangeRequired = false
+	return nil
+}
 
 type fakeAuthSettings struct{}
 
@@ -99,4 +107,54 @@ func TestAuthMeRejectsMissingBearerToken(t *testing.T) {
 	api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil))
 
 	assert.Equal(t, http.StatusUnauthorized, response.Code)
+}
+
+func TestChangeRequiredPasswordUpdatesCredentials(t *testing.T) {
+	oldHash, err := security.HashPassword("Passw0rd!")
+	require.NoError(t, err)
+	user := &models.User{ID: uuid.New(), Login: "user", PasswordHash: oldHash, FullName: "User", IsActive: true, PasswordChangeRequired: true}
+	api := &managementAPI{
+		authUsers:    &fakeAuthUsers{user: user},
+		authSettings: fakeAuthSettings{},
+		audit:        &fakeAdminAudit{},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/change-required-password", bytes.NewBufferString(`{"login":"user","oldPassword":"Passw0rd!","newPassword":"NewPassw0rd!"}`))
+	response := httptest.NewRecorder()
+
+	api.Handler().ServeHTTP(response, request)
+
+	require.Equal(t, http.StatusNoContent, response.Code, response.Body.String())
+	assert.True(t, security.VerifyPassword(user.PasswordHash, "NewPassw0rd!"))
+	assert.False(t, user.PasswordChangeRequired)
+}
+
+func TestChangePasswordUsesBearerSessionAndInvalidatesOldCredentials(t *testing.T) {
+	oldHash, err := security.HashPassword("Passw0rd!")
+	require.NoError(t, err)
+	user := &models.User{ID: uuid.New(), Login: "user", PasswordHash: oldHash, FullName: "User", IsActive: true}
+	sessions := &fakeAuthSessions{}
+	api := &managementAPI{
+		cfg:          &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}},
+		authUsers:    &fakeAuthUsers{user: user},
+		authSettings: fakeAuthSettings{},
+		sessions:     sessions,
+		audit:        &fakeAdminAudit{},
+	}
+	login := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(`{"login":"user","password":"Passw0rd!"}`))
+	loginResult := httptest.NewRecorder()
+	api.Handler().ServeHTTP(loginResult, login)
+	require.Equal(t, http.StatusOK, loginResult.Code)
+	var loginResponse struct {
+		AccessToken string `json:"accessToken"`
+	}
+	require.NoError(t, json.NewDecoder(loginResult.Body).Decode(&loginResponse))
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/change-password", bytes.NewBufferString(`{"oldPassword":"Passw0rd!","newPassword":"NewPassw0rd!"}`))
+	request.Header.Set("Authorization", "Bearer "+loginResponse.AccessToken)
+	response := httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, request)
+
+	require.Equal(t, http.StatusNoContent, response.Code, response.Body.String())
+	assert.False(t, security.VerifyPassword(user.PasswordHash, "Passw0rd!"))
+	assert.True(t, security.VerifyPassword(user.PasswordHash, "NewPassw0rd!"))
 }

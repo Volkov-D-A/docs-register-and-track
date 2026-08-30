@@ -232,21 +232,24 @@ func TestUserService_ResetPassword(t *testing.T) {
 
 		targetUser := &models.User{ID: uid, FullName: "Иван Петров", Login: "ipetrov"}
 		repo.On("GetByID", uid).Return(targetUser, nil).Once()
-		repo.On("ResetPassword", uid, "NewPass123!").Return(nil).Once()
+		repo.On("ResetPassword", uid, mock.MatchedBy(func(password string) bool {
+			return security.ValidatePassword(password) == nil
+		})).Return(nil).Once()
 
-		err := svc.ResetPassword(uid.String(), "NewPass123!")
+		temporaryPassword, err := svc.ResetPassword(uid.String())
 		require.NoError(t, err)
+		assert.NotEmpty(t, temporaryPassword)
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
 		svc, _ := setupUserService(t, "executor")
-		err := svc.ResetPassword(uid.String(), "NewPass123!")
+		_, err := svc.ResetPassword(uid.String())
 		require.Error(t, err)
 	})
 
 	t.Run("invalid ID", func(t *testing.T) {
 		svc, _ := setupUserService(t, "admin")
-		err := svc.ResetPassword("not-uuid", "NewPass123!")
+		_, err := svc.ResetPassword("not-uuid")
 		require.Error(t, err)
 	})
 
@@ -254,7 +257,7 @@ func TestUserService_ResetPassword(t *testing.T) {
 		svc, repo := setupUserService(t, "admin")
 		repo.On("GetByID", uid).Return(nil, nil).Once()
 
-		err := svc.ResetPassword(uid.String(), "NewPass123!")
+		_, err := svc.ResetPassword(uid.String())
 
 		requireAppError(t, err, "NOT_FOUND", 404, "пользователь не найден")
 	})
@@ -263,10 +266,11 @@ func TestUserService_ResetPassword(t *testing.T) {
 		svc, repo, _ := setupUserServiceWithRoles(t, []string{"admin", "clerk"})
 		targetUser := &models.User{ID: uid, FullName: "User", Login: "user"}
 		repo.On("GetByID", uid).Return(targetUser, nil).Once()
-		repo.On("ResetPassword", uid, "NewPass123!").Return(nil).Once()
+		repo.On("ResetPassword", uid, mock.AnythingOfType("string")).Return(nil).Once()
 
-		err := svc.ResetPassword(uid.String(), "NewPass123!")
+		temporaryPassword, err := svc.ResetPassword(uid.String())
 		require.NoError(t, err)
+		assert.NotEmpty(t, temporaryPassword)
 	})
 }
 

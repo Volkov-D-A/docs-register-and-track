@@ -61,6 +61,18 @@ raw token remains in desktop process memory and is revoked by
 `POST /api/v1/auth/logout`. Session lifetime is configured with
 `DOCFLOW_AUTH_SESSION_TTL_HOURS` (12 hours by default).
 
+Password changes also go through the service:
+`POST /api/v1/auth/change-password` requires the current bearer session, while
+`POST /api/v1/auth/change-required-password` accepts the credentials that were
+rejected by login due to the password-change requirement. A successful password
+change, an administrator password reset, or user deactivation revokes every
+server session for that user. After changing their own password, the desktop
+returns the user to login.
+
+An administrator does not choose a replacement password: reset generates a
+random temporary password, returns it once for copying, and marks it for a
+mandatory change at the user's next login.
+
 For an existing schema, deploy the new server first and apply migration 14
 (`server_sessions`) through the current migration UI. Only then deploy the
 desktop build that requires server login. No direct-login fallback is enabled

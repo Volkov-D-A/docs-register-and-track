@@ -327,6 +327,11 @@ func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
+	if !req.IsActive {
+		if _, err := tx.Exec(`UPDATE server_sessions SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE user_id = $1 AND revoked_at IS NULL`, uid); err != nil {
+			return nil, fmt.Errorf("failed to revoke deactivated user sessions: %w", err)
+		}
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
@@ -353,6 +358,11 @@ func (r *UserRepository) UpdateWithOutbox(req models.UpdateUserRequest, effects 
 	defer tx.Rollback()
 	if _, err := tx.Exec(`UPDATE users SET login=$1, full_name=$2, is_active=$3, department_id=$4, is_document_participant=$5, failed_login_attempts=CASE WHEN is_active=false AND $3=true THEN 0 ELSE failed_login_attempts END, updated_at=CURRENT_TIMESTAMP WHERE id=$6`, req.Login, req.FullName, req.IsActive, depID, req.IsDocumentParticipant, uid); err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+	if !req.IsActive {
+		if _, err := tx.Exec(`UPDATE server_sessions SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE user_id = $1 AND revoked_at IS NULL`, uid); err != nil {
+			return nil, fmt.Errorf("failed to revoke deactivated user sessions: %w", err)
+		}
 	}
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
 		return nil, err
@@ -526,15 +536,24 @@ func (r *UserRepository) GetActiveUsers() ([]models.User, error) {
 
 // UpdatePassword обновляет хэш пароля пользователя.
 func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string) error {
-	result, err := r.db.Exec(`
+	return r.updatePassword(userID, newPasswordHash, false)
+}
+
+func (r *UserRepository) updatePassword(userID uuid.UUID, newPasswordHash string, changeRequired bool) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin password update: %w", err)
+	}
+	defer tx.Rollback()
+	result, err := tx.Exec(`
 		UPDATE users
 		SET password_hash = $1,
 		    failed_login_attempts = 0,
 		    password_changed_at = CURRENT_TIMESTAMP,
-		    password_change_required = false,
+		    password_change_required = $2,
 		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $2
-	`, newPasswordHash, userID)
+		WHERE id = $3
+	`, newPasswordHash, changeRequired, userID)
 
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
@@ -546,7 +565,12 @@ func (r *UserRepository) UpdatePassword(userID uuid.UUID, newPasswordHash string
 	if affected == 0 {
 		return models.NewNotFound("пользователь не найден")
 	}
-
+	if _, err := tx.Exec(`UPDATE server_sessions SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE user_id = $1 AND revoked_at IS NULL`, userID); err != nil {
+		return fmt.Errorf("failed to revoke user sessions after password update: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit password update: %w", err)
+	}
 	return nil
 }
 
@@ -559,7 +583,7 @@ func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) err
 	if err != nil {
 		return err
 	}
-	return r.UpdatePassword(userID, hash)
+	return r.updatePassword(userID, hash, true)
 }
 
 func (r *UserRepository) ResetPasswordWithOutbox(userID uuid.UUID, newPassword string, effects []models.OutboxEvent) error {
@@ -575,7 +599,7 @@ func (r *UserRepository) ResetPasswordWithOutbox(userID uuid.UUID, newPassword s
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`UPDATE users SET password_hash=$1, failed_login_attempts=0, password_changed_at=CURRENT_TIMESTAMP, password_change_required=false, updated_at=CURRENT_TIMESTAMP WHERE id=$2`, hash, userID)
+	result, err := tx.Exec(`UPDATE users SET password_hash=$1, failed_login_attempts=0, password_changed_at=CURRENT_TIMESTAMP, password_change_required=true, updated_at=CURRENT_TIMESTAMP WHERE id=$2`, hash, userID)
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
@@ -585,6 +609,9 @@ func (r *UserRepository) ResetPasswordWithOutbox(userID uuid.UUID, newPassword s
 	}
 	if affected == 0 {
 		return models.NewNotFound("пользователь не найден")
+	}
+	if _, err := tx.Exec(`UPDATE server_sessions SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE user_id = $1 AND revoked_at IS NULL`, userID); err != nil {
+		return fmt.Errorf("failed to revoke user sessions after password reset: %w", err)
 	}
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
 		return err
@@ -608,10 +635,15 @@ func (r *UserRepository) UpdateProfile(userID uuid.UUID, req models.UpdateProfil
 
 // IncrementFailedLoginAttempts увеличивает счетчик неудачных входов и деактивирует пользователя после 5-й ошибки.
 func (r *UserRepository) IncrementFailedLoginAttempts(userID uuid.UUID) (int, bool, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to begin failed login update: %w", err)
+	}
+	defer tx.Rollback()
 	var attempts int
 	var isActive bool
 
-	err := r.db.QueryRow(`
+	err = tx.QueryRow(`
 		UPDATE users
 		SET failed_login_attempts = failed_login_attempts + 1,
 		    is_active = CASE
@@ -625,7 +657,14 @@ func (r *UserRepository) IncrementFailedLoginAttempts(userID uuid.UUID) (int, bo
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to increment failed login attempts: %w", err)
 	}
-
+	if !isActive {
+		if _, err := tx.Exec(`UPDATE server_sessions SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE user_id = $1 AND revoked_at IS NULL`, userID); err != nil {
+			return 0, false, fmt.Errorf("failed to revoke locked user sessions: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, false, fmt.Errorf("failed to commit failed login update: %w", err)
+	}
 	return attempts, isActive, nil
 }
 
@@ -641,6 +680,11 @@ func (r *UserRepository) IncrementFailedLoginAttemptsWithOutbox(userID uuid.UUID
 	var isActive bool
 	if err := tx.QueryRow(`UPDATE users SET failed_login_attempts = failed_login_attempts + 1, is_active = CASE WHEN failed_login_attempts + 1 >= 5 THEN false ELSE is_active END, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING failed_login_attempts, is_active`, userID).Scan(&attempts, &isActive); err != nil {
 		return 0, false, fmt.Errorf("failed to increment failed login attempts: %w", err)
+	}
+	if !isActive {
+		if _, err := tx.Exec(`UPDATE server_sessions SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE user_id = $1 AND revoked_at IS NULL`, userID); err != nil {
+			return 0, false, fmt.Errorf("failed to revoke locked user sessions: %w", err)
+		}
 	}
 	if attempts == 5 && !isActive && r.outbox != nil {
 		if err := r.outbox.EnqueueTx(tx, lockEffect); err != nil {

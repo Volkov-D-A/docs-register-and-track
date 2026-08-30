@@ -147,7 +147,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             await ChangePassword(oldPassword, newPassword);
-            set({ isLoading: false });
+            useDraftLinkStore.getState().clearDraftLink();
+            useRegisterDocumentStore.getState().clearRequest();
+            set({ user: null, isAuthenticated: false, isLoading: false });
         } catch (err: unknown) {
             set({ error: formatAppError(err, 'Ошибка смены пароля'), isLoading: false });
             throw err;
