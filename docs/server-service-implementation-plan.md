@@ -4,10 +4,13 @@
 
 Дата последнего обновления: 30 августа 2026 года
 
-Статус: этап 1 и серверное управление миграциями реализованы в коде;
-production deployment, TLS и cutover не выполнены
+Статус: server worker, контейнерное развёртывание, управление миграциями и
+полный auth/password lifecycle реализованы и проверены. Следующий этап —
+перенос управления пользователями в server API. Business operations desktop
+пока продолжают напрямую использовать PostgreSQL и MinIO; HTTPS и окончательное
+закрытие инфраструктуры от рабочих мест не выполнены.
 
-Реализованный первый инкремент:
+Реализовано к текущей точке:
 
 - отдельный entrypoint `cmd/docflow-server`;
 - команды `run`, `check-config`, `healthcheck` и `version`;
@@ -25,11 +28,79 @@ production deployment, TLS и cutover не выполнены
 - пустая БД bootstrap-ится сервером, обновление существующей БД подтверждается
   администратором из desktop UI;
 - desktop не исполняет migration SQL: apply/rollback выполняет сервер под
-  PostgreSQL advisory lock с повторной проверкой admin password и audit.
+  PostgreSQL advisory lock с повторной проверкой admin password и audit;
+- Caddy включён в Compose как reverse proxy; временно используется явно
+  разрешаемый HTTP только для доверенной изолированной сети;
+- migration `014_server_sessions`, opaque bearer sessions, login/logout/me,
+  обычная и обязательная смена пароля;
+- desktop auth всегда использует server client в production composition root,
+  без runtime fallback на прямую проверку credentials;
+- смена/сброс пароля, деактивация и автоматическая блокировка отзывают server
+  sessions; административный сброс генерирует временный пароль для однократного
+  показа и требует смену при следующем входе.
 
-До production-переключения остаются инфраструктурное развёртывание, проверка
-реального backup/restore, production-like integration/load test и согласованное
-окно остановки всех централизованно запускаемых desktop-процессов.
+Контрольные коммиты:
+
+- `afa6b0b` — server process, worker и управление миграциями;
+- `efe053b` — server-side authentication и sessions;
+- `9912af8` — полный password lifecycle и административный временный пароль.
+
+| Этап | Состояние | Что осталось |
+|---|---|---|
+| 0. Baseline | Частично | Production SLO, ресурсы, DNS/TLS, owners, restore evidence |
+| 1. Server worker | Завершён | Только эксплуатационный production smoke |
+| 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
+| 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
+| 4. Authentication | Завершён | Parallel-principal test вместе с первым business endpoint |
+| 5. Business API | Следующий | Начать с управления пользователями |
+| 6. Attachments API | Не начат | Streaming endpoints и limits |
+| 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
+
+До целевого production-состояния остаются перенос business API, HTTPS,
+удаление DB/MinIO credentials с рабочих мест, firewall cutover, реальный
+backup/restore test и production-like load/end-to-end проверки.
+
+## Точка продолжения
+
+Текущий рабочий срез завершён на commit `9912af8`. При возобновлении работы не
+нужно заново реализовывать worker, миграции, login/session или password flows.
+
+Следующий рекомендуемый срез — **управление пользователями через server API**:
+
+1. Добавить защищённые правом `admin` endpoints:
+   - `GET /api/v1/users`;
+   - `POST /api/v1/users`;
+   - `PATCH /api/v1/users/{id}`;
+   - `POST /api/v1/users/{id}/reset-password`.
+2. Перенести в те же server use cases проверку прав, audit/outbox, инвариант
+   активного администратора и отзыв sessions при деактивации/сбросе.
+3. Возвращать временный пароль только из успешного reset response; не помещать
+   его в logs, audit, outbox или повторно читаемое хранилище.
+4. Добавить typed методы в существующий `internal/serverclient.Client` и
+   переключить Wails `UserService` на них.
+5. После переключения сразу удалить direct repository path этого сценария:
+   приложение находится в разработке, централизованная публикация исключает
+   необходимость feature flag и runtime backward compatibility.
+6. Покрыть server authorization, stable error mapping, атомарность
+   user-change+outbox+session-revoke, PostgreSQL integration и UI flows.
+
+Критерий готовности следующего среза: экран пользователей не выполняет SQL из
+desktop, все команды авторизуются сервером, а create/edit/deactivate/reset
+работают через HTTP с теми же пользовательскими результатами.
+
+После него рекомендуемый порядок:
+
+1. Собственный профиль пользователя.
+2. Подразделения и простые справочники — как шаблон CRUD API.
+3. Системные настройки, access profiles и substitutions.
+4. Read-only списки и карточки документов.
+5. Команды регистрации/изменения документов с idempotency.
+6. Поручения, ознакомления, связи, journal, dashboard и statistics.
+7. Вложения через streaming API, затем закрытие прямого PostgreSQL/MinIO.
+
+До использования credentials и временных паролей через недоверенную или
+маршрутизируемую сеть необходимо завершить HTTPS в Caddy и установить доверие к
+CA на рабочих местах. Текущий HTTP — только временный режим доверенной сети.
 
 ## 1. Цель
 
@@ -199,7 +270,10 @@ internal/
 
 ## 5. Этапы реализации
 
-## Этап 0. Зафиксировать требования и измерить baseline
+## Этап 0. Зафиксировать требования и измерить baseline — частично
+
+Кодовые и локальные проверки выполнялись, но production baseline, владельцы,
+SLO, DNS/TLS и реальный recovery test ещё должны быть зафиксированы.
 
 ### Работы
 
@@ -243,7 +317,7 @@ internal/
 Нет неизвестных параметров инфраструктуры, которые влияют на сетевую или
 security-модель реализации.
 
-## Этап 1. Выделить server-side outbox worker
+## Этап 1. Выделить server-side outbox worker — завершён
 
 Это первый production-инкремент. Он не меняет пользовательский протокол и не
 добавляет внешний API.
@@ -342,7 +416,14 @@ payload, и только после успешного cutover новый цен
 - desktop composition root не создаёт outbox worker;
 - monitoring подтверждает, что очередь обрабатывает `docflow-server`.
 
-## Этап 2. Подготовить production deployment и наблюдаемость
+## Этап 2. Подготовить production deployment и наблюдаемость — частично
+
+Реализованы distroless Docker image, Docker Hub publication, Compose service,
+environment-only config, liveness/readiness, restart policy и минимальные
+значимые logs в Seq. Production manifest/hardening, alerts, ресурсные пороги и
+операторская проверка backup/restore остаются незавершёнными. Периодические
+metric snapshots намеренно не отправляются в Seq; metrics backend пока не
+выбран.
 
 ### Deployment
 
@@ -406,7 +487,12 @@ log содержит только значимые события, warnings и e
 Сервис устанавливается и обновляется воспроизводимо, автоматически
 перезапускается и наблюдается оператором без подключения к контейнеру или БД.
 
-## Этап 3. Добавить системный HTTPS API и compatibility handshake
+## Этап 3. Добавить системный HTTPS API и compatibility handshake — частично
+
+HTTP server, API v1, health endpoints, Caddy и typed desktop client уже есть.
+Реализован временный явно разрешаемый HTTP-режим. HTTPS certificate, доверие CA,
+`system/status`, формальный compatibility handshake, request ID и единый
+production error envelope для всех будущих endpoints ещё предстоят.
 
 На этом этапе business operations ещё могут идти напрямую в БД, но desktop уже
 умеет связываться с сервисом.
@@ -488,7 +574,7 @@ Desktop -> HTTPS :443 -> Caddy/nginx -> HTTP internal -> docflow-server
 отказ нового status API ещё не должен повреждать данные или запускать частично
 выполненную команду.
 
-## Этап 4. Перенести аутентификацию и request identity
+## Этап 4. Перенести аутентификацию и request identity — завершён
 
 Это обязательный архитектурный refactoring перед переносом защищённых use
 cases.
@@ -596,10 +682,12 @@ Login response не возвращает DB/MinIO/Seq credentials.
 ### Критерий завершения
 
 Desktop входит через сервер, а server-side protected endpoint всегда получает
-identity из проверенной сессии. Параллельные пользователи покрыты race и
-integration tests.
+identity из проверенной сессии. Реализованы unit и PostgreSQL integration tests
+login/logout/password/session revoke. Изоляцию параллельных principals следует
+дополнительно проверить на первом многопользовательском business handler, где
+одновременно выполняются запросы разных пользователей.
 
-## Этап 5. Переносить business API вертикальными сценариями
+## Этап 5. Переносить business API вертикальными сценариями — следующий
 
 Перенос выполняется не по техническим слоям, а законченными пользовательскими
 сценариями. Для каждой группы одновременно переносятся query, command,
@@ -607,16 +695,37 @@ authorization, audit и тесты.
 
 ### Рекомендуемый порядок
 
-1. Пользователи, подразделения и простые справочники.
-2. Системные настройки и access summary.
-3. Чтение списков и карточек документов.
-4. Регистрация и изменение документов.
-5. Поручения, соисполнители и замещения.
-6. Ознакомления и user events.
-7. Связи документов и журнал.
-8. Dashboard и статистика.
-9. Административный audit и outbox UI.
-10. Миграции и остальные административные операции.
+1. Управление пользователями: list/create/edit/deactivate/reset password.
+2. Собственный профиль пользователя.
+3. Подразделения и простые справочники.
+4. Системные настройки, access profiles, substitutions и access summary.
+5. Чтение списков и карточек документов.
+6. Регистрация и изменение документов.
+7. Поручения, соисполнители и замещения.
+8. Ознакомления и user events.
+9. Связи документов и журнал.
+10. Dashboard, статистика, административный audit и outbox UI.
+
+Миграции уже управляются через server management API и не входят в оставшийся
+business backlog.
+
+### Ближайший срез: управление пользователями
+
+Server handler не должен вызывать Wails `UserService`, зависящий от
+process-local state. Следует выделить или переиспользовать server-safe use case,
+который получает request-scoped principal и выполняет:
+
+- `admin` authorization до чтения/изменения пользователей;
+- create с автоматически сгенерированным temporary password;
+- edit/deactivate с инвариантом хотя бы одного активного администратора;
+- reset с temporary password, `password_change_required=true` и revoke sessions;
+- atomic domain mutation + audit outbox;
+- DTO без `password_hash` и иных внутренних полей.
+
+Для `POST /api/v1/users` и reset response temporary password возвращается один
+раз. Эти команды нельзя автоматически повторять после неопределённого сетевого
+результата без idempotency key и сохранённого результата: иначе повтор создаст
+другой пароль, неизвестный пользователю.
 
 ### Шаблон миграции одного сценария
 
@@ -629,9 +738,10 @@ authorization, audit и тесты.
 5. Сохранить atomic domain change + outbox.
 6. Добавить server handler как тонкий adapter.
 7. Добавить typed method в desktop `apiclient`.
-8. Переключить Wails service на API adapter feature flag.
+8. Переключить Wails service на API adapter в централизованной desktop-сборке.
 9. Выполнить contract, integration и UI tests.
-10. После rollout удалить desktop repository path только для этого сценария.
+10. Сразу удалить desktop repository path этого сценария; runtime fallback и
+    поддержка старого протокола не требуются.
 
 ### Idempotency
 
@@ -660,13 +770,13 @@ HTTP request не разбивает одну доменную транзакц�
 ### Критерий завершения каждой группы
 
 - production desktop использует API path;
-- direct repository path выключен конфигурацией;
+- direct repository path этого сценария удалён из composition root;
 - permissions и audit совпадают с прежним поведением;
-- contract поддерживает текущую централизованную desktop-версию и согласованный
-  rollback на предыдущую версию в течение rollback window;
-- rollback feature flag проверен.
+- contract и server соответствуют текущей централизованной desktop-версии;
+- проверен согласованный парный rollback либо подготовлен безопасный forward
+  fix; runtime protocol fallback отсутствует.
 
-## Этап 6. Перенести вложения за API
+## Этап 6. Перенести вложения за API — не начат
 
 ### Первый вариант: streaming proxy
 
@@ -706,7 +816,7 @@ DELETE /api/v1/attachments/{id}
 - upload/download/delete и cancellation проверены на предельных размерах;
 - backup/restore согласованности PostgreSQL+MinIO повторно протестирован.
 
-## Этап 7. Закрыть прямой доступ desktop к инфраструктуре
+## Этап 7. Закрыть прямой доступ desktop к инфраструктуре — не начат
 
 ### Работы
 
@@ -720,11 +830,14 @@ DELETE /api/v1/attachments/{id}
    - UI-specific orchestration.
 5. На firewall/network уровне запретить рабочим местам PostgreSQL и MinIO.
 6. Сменить прежние общие credentials, поскольку они могли сохраниться на ПК.
-7. Выдать `docflow-server` отдельные least-privilege DB и MinIO identities.
-8. Перевести migration ownership на server CLI/deployment job.
-9. Удалить оставшиеся transitional direct API paths после rollback window;
-   embedded outbox worker уже удалён на этапе 1.
-10. Обновить backup/restore, installation, diagnostics и incident runbooks.
+7. Удалять direct repository path каждого сценария одновременно с его
+   централизованным API cutover; embedded outbox worker уже удалён на этапе 1.
+8. Обновить backup/restore, installation, diagnostics и incident runbooks.
+
+Migration ownership уже перенесён на server management API. Отдельные
+least-privilege DB и MinIO identities отложены по принятому решению и не
+являются условием текущей разработки, но остаются рекомендуемым production
+hardening после функционального cutover.
 
 ### Критерий завершения
 
@@ -739,12 +852,14 @@ DELETE /api/v1/attachments/{id}
 - major API version находится в URL: `/api/v1`;
 - additive поля не требуют новой major version;
 - удаление/переименование поля требует нового контракта или периода deprecation;
-- сервер поддерживает текущую централизованную desktop-версию и предыдущую
-  rollback-версию в течение согласованного rollback window; их одновременная
-  штатная эксплуатация не требуется;
+- сервер обязан поддерживать текущую централизованную desktop-версию;
+  одновременная поддержка предыдущего протокола не требуется;
+- rollback выполняется только заранее проверенной совместимой парой
+  desktop/server или заменяется forward fix;
 - `minimumClientVersion` повышается только после подтверждения обновления
   общего executable и завершения всех старых процессов;
-- schema migration не должна первой ломать ещё работающий desktop.
+- перед несовместимым schema/API cutover все уже запущенные desktop-процессы
+  закрываются в окно обслуживания.
 
 ### Error envelope
 
@@ -927,6 +1042,9 @@ Backup/restore не следует автоматически включать �
 
 ### Порядок первого worker rollout
 
+Этот rollout выполнен в коде и проверен на текущем контуре. Раздел сохраняется
+как эксплуатационная памятка для новой установки.
+
 1. На тестовом контуре проверить новый desktop как producer без consumer, а
    server-worker — как единственный обработчик совместимой очереди.
 2. Развернуть `docflow-server` рядом с PostgreSQL/MinIO, но не допускать
@@ -948,27 +1066,28 @@ Backup/restore не следует автоматически включать �
 1. Развернуть additive migration.
 2. Развернуть server endpoint, ещё не используемый клиентами.
 3. Выполнить contract/smoke tests.
-4. Опубликовать централизованный desktop с feature flag `direct|api`, оставив
-   production значение `direct` до проверки.
-5. В согласованное окно закрыть запущенные процессы и централизованно включить
-   `api`.
-6. Выполнить production smoke и сравнить latency, errors, audit и результаты
+4. В согласованное окно закрыть уже запущенные desktop-процессы и опубликовать
+   централизованный desktop, использующий новый endpoint без direct fallback.
+5. Выполнить production smoke и сравнить latency, errors, audit и результаты
    запросов.
-7. При успехе открыть систему всем пользователям; при ошибке вернуть общий flag
-   в `direct` и перезапустить desktop.
-8. После rollback window удалить direct path.
+6. При успехе открыть систему пользователям. При ошибке остановить rollout и
+   использовать заранее проверенный парный rollback desktop/server либо
+   выпустить forward fix; переключателя `direct|api` нет.
+7. Убедиться, что direct repository path данного сценария отсутствует в новой
+   desktop-сборке.
 
 ### Rollback
 
 - server image откатывается на предыдущую совместимую версию;
-- desktop feature flag временно возвращает ещё существующий direct path;
+- desktop откатывается только вместе с совместимой server-версией; runtime
+  feature flag и сохранённый direct path не предусмотрены;
 - schema не откатывается автоматически;
 - destructive migrations не выполняются до завершения rollback window;
 - rollback outbox требует окна обслуживания: закрыть desktop, остановить
-  сервер, вернуть предыдущий общий executable со встроенным worker и проверить
-  совместимость event payload;
-- credentials не возвращаются на рабочие места после окончательного сетевого
-  закрытия без отдельного решения об аварийном режиме.
+  сервер и развернуть предыдущую совместимую server-версию worker; возврат
+  embedded desktop worker не предусмотрен;
+- после удаления инфраструктурных credentials с рабочих мест rollback не
+  должен возвращать их без отдельного решения об аварийном режиме.
 
 ## 12. Эксплуатация
 
@@ -1038,28 +1157,32 @@ offline-режима:
 | Seq/логи раскрывают данные | Утечка credentials/PII | Structured redaction и logging tests |
 | Несколько server replicas запускают scheduler | Двойные задания | Один replica сначала; позже advisory lock/leader election |
 
-## 15. Решения, которые нужно принять до соответствующих этапов
+## 15. Принятые и остающиеся решения
 
-До этапа 1:
+Уже принято:
 
-- Docker Compose или systemd;
-- серверная ОС и доступные ресурсы;
-- где хранится production deployment manifest;
-- способ доставки server secrets.
+- один модульный `docflow-server` в Docker Compose;
+- versioned image загружается из Docker Hub;
+- server config и secrets передаются через environment, server JSON config
+  отсутствует;
+- Caddy является reverse proxy; внутренний server listener использует HTTP;
+- временный внешний HTTP разрешается только явным desktop opt-in;
+- opaque bearer sessions живут 12 часов по умолчанию, raw token хранится только
+  в памяти desktop;
+- после перезапуска desktop пользователь входит повторно;
+- допускается несколько одновременных sessions пользователя, но security events
+  отзывают их все;
+- desktop публикуется централизованно, поэтому runtime backward compatibility,
+  `direct|api` feature flag и сохранение старых paths не требуются.
 
-До этапа 3:
+Нужно решить до production HTTPS и расширения API:
 
-- DNS и CA/TLS;
-- reverse proxy или Go TLS termination;
-- формат/versioning API contract;
-- требуемое окно совместимости desktop/server.
-
-До этапа 4:
-
-- idle и absolute session lifetime;
-- политика повторного входа после рестарта desktop;
-- требования к журналированию IP/device metadata;
-- необходимость одновременных сессий одного пользователя.
+- production DNS name и источник CA/certificate;
+- установка доверия к CA на всех рабочих местах и renewal procedure;
+- production server resources, limits и расположение deployment manifest;
+- утверждённый способ доставки production secrets;
+- требования к IP/device metadata в audit;
+- формальный compatibility/status contract и парная rollback policy.
 
 До этапа 6:
 
@@ -1091,7 +1214,8 @@ offline-режима:
 - поддерживаемые версии desktop/server/schema формально определены;
 - release gate, integration, end-to-end, security, load и реальный restore test
   пройдены;
-- transitional direct paths и старые credentials удалены после rollback window;
+- direct paths удалены при переносе соответствующих сценариев, а старые
+  credentials удалены и ротированы при финальном сетевом cutover;
 - desktop binary не содержит outbox consumer;
 - `README.md`, технический справочник, инструкции и release notes отражают
   фактическую production-архитектуру.
