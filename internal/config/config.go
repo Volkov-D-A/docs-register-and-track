@@ -20,9 +20,30 @@ const (
 
 // Config хранит основную конфигурацию приложения.
 type Config struct {
-	Database DatabaseConfig `json:"database"`
-	Minio    MinioConfig    `json:"minio"`
-	Seq      SeqConfig      `json:"seq"`
+	Database DatabaseConfig     `json:"database"`
+	Minio    MinioConfig        `json:"minio"`
+	Seq      SeqConfig          `json:"seq"`
+	Outbox   OutboxWorkerConfig `json:"outbox,omitempty"`
+	Server   ServerConfig       `json:"server,omitempty"`
+}
+
+// ServerConfig contains the desktop API endpoint and the standalone server
+// listen address. Each process uses only the field relevant to it.
+type ServerConfig struct {
+	URL               string `json:"url,omitempty"`
+	AllowInsecureHTTP bool   `json:"allowInsecureHttp,omitempty"`
+	ListenAddress     string `json:"listenAddress,omitempty"`
+}
+
+// OutboxWorkerConfig contains optional standalone-worker tuning. Zero values
+// use safe defaults in the outbox package.
+type OutboxWorkerConfig struct {
+	PollingIntervalSeconds   int `json:"pollingIntervalSeconds,omitempty"`
+	BatchSize                int `json:"batchSize,omitempty"`
+	StaleClaimTimeoutSeconds int `json:"staleClaimTimeoutSeconds,omitempty"`
+	ConsumerTimeoutSeconds   int `json:"consumerTimeoutSeconds,omitempty"`
+	ProcessedRetentionDays   int `json:"processedRetentionDays,omitempty"`
+	CleanupIntervalMinutes   int `json:"cleanupIntervalMinutes,omitempty"`
 }
 
 // SeqConfig хранит настройки подключения к Seq

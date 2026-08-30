@@ -31,30 +31,107 @@ type Worker struct {
 	lastRequiredAudit models.RequiredAuditStats
 	metrics           *observability.Registry
 	now               func() time.Time
+	options           Options
 }
 
 const (
-	maxAttempts        = 10
-	maxRetryDelay      = time.Hour
-	queueAlertSize     = 100
-	staleClaimTimeout  = 5 * time.Minute
-	consumerTimeout    = 30 * time.Second
-	processedRetention = 90 * 24 * time.Hour
-	cleanupInterval    = time.Hour
-	cleanupBatchSize   = 1000
-	cleanupMaxBatches  = 10
+	maxAttempts       = 10
+	maxRetryDelay     = time.Hour
+	queueAlertSize    = 100
+	cleanupBatchSize  = 1000
+	cleanupMaxBatches = 10
 )
 
+type Options struct {
+	PollingInterval    time.Duration
+	BatchSize          int
+	StaleClaimTimeout  time.Duration
+	ConsumerTimeout    time.Duration
+	ProcessedRetention time.Duration
+	CleanupInterval    time.Duration
+}
+
+func DefaultOptions() Options {
+	return Options{
+		PollingInterval:    5 * time.Second,
+		BatchSize:          50,
+		StaleClaimTimeout:  5 * time.Minute,
+		ConsumerTimeout:    30 * time.Second,
+		ProcessedRetention: 90 * 24 * time.Hour,
+		CleanupInterval:    time.Hour,
+	}
+}
+
+func (o Options) WithDefaults() Options {
+	defaults := DefaultOptions()
+	if o.PollingInterval == 0 {
+		o.PollingInterval = defaults.PollingInterval
+	}
+	if o.BatchSize == 0 {
+		o.BatchSize = defaults.BatchSize
+	}
+	if o.StaleClaimTimeout == 0 {
+		o.StaleClaimTimeout = defaults.StaleClaimTimeout
+	}
+	if o.ConsumerTimeout == 0 {
+		o.ConsumerTimeout = defaults.ConsumerTimeout
+	}
+	if o.ProcessedRetention == 0 {
+		o.ProcessedRetention = defaults.ProcessedRetention
+	}
+	if o.CleanupInterval == 0 {
+		o.CleanupInterval = defaults.CleanupInterval
+	}
+	return o
+}
+
+func (o Options) Validate() error {
+	if o.PollingInterval < time.Second || o.PollingInterval > time.Minute {
+		return fmt.Errorf("outbox polling interval must be between 1s and 1m")
+	}
+	if o.BatchSize < 1 || o.BatchSize > 1000 {
+		return fmt.Errorf("outbox batch size must be between 1 and 1000")
+	}
+	if o.StaleClaimTimeout < time.Minute || o.StaleClaimTimeout > time.Hour {
+		return fmt.Errorf("outbox stale claim timeout must be between 1m and 1h")
+	}
+	if o.ConsumerTimeout < time.Second || o.ConsumerTimeout > 10*time.Minute {
+		return fmt.Errorf("outbox consumer timeout must be between 1s and 10m")
+	}
+	if o.ProcessedRetention < 24*time.Hour || o.ProcessedRetention > 365*24*time.Hour {
+		return fmt.Errorf("outbox processed retention must be between 1 and 365 days")
+	}
+	if o.CleanupInterval < time.Minute || o.CleanupInterval > 24*time.Hour {
+		return fmt.Errorf("outbox cleanup interval must be between 1m and 24h")
+	}
+	return nil
+}
+
 func NewWorker(outbox *repository.OutboxRepository, events *repository.UserEventRepository, journal *repository.JournalRepository, audit *repository.AdminAuditLogRepository, attachments *repository.AttachmentRepository, storage FileDeleter) *Worker {
-	return &Worker{outbox: outbox, events: events, journal: journal, audit: audit, attachments: attachments, storage: storage, now: time.Now}
+	worker, err := NewWorkerWithOptions(outbox, events, journal, audit, attachments, storage, DefaultOptions())
+	if err != nil {
+		panic(err)
+	}
+	return worker
+}
+
+func NewWorkerWithOptions(outbox *repository.OutboxRepository, events *repository.UserEventRepository, journal *repository.JournalRepository, audit *repository.AdminAuditLogRepository, attachments *repository.AttachmentRepository, storage FileDeleter, options Options) (*Worker, error) {
+	options = options.WithDefaults()
+	if err := options.Validate(); err != nil {
+		return nil, err
+	}
+	if outbox == nil {
+		return nil, fmt.Errorf("outbox repository is required")
+	}
+	return &Worker{outbox: outbox, events: events, journal: journal, audit: audit, attachments: attachments, storage: storage, now: time.Now, options: options}, nil
 }
 
 func (w *Worker) SetMetrics(metrics *observability.Registry) { w.metrics = metrics }
 
 func (w *Worker) Run(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(w.options.PollingInterval)
 	defer ticker.Stop()
-	cleanupTicker := time.NewTicker(cleanupInterval)
+	cleanupTicker := time.NewTicker(w.options.CleanupInterval)
 	defer cleanupTicker.Stop()
 	cleanupDue := true
 	for {
@@ -65,7 +142,7 @@ func (w *Worker) Run(ctx context.Context) {
 		// A crashed process can leave a claimed task behind. Reaping on every
 		// polling iteration, rather than just at startup, also recovers claims
 		// from a stalled concurrent worker.
-		if err := w.outbox.ReleaseStaleClaims(time.Now().Add(-staleClaimTimeout)); err != nil {
+		if err := w.outbox.ReleaseStaleClaims(time.Now().Add(-w.options.StaleClaimTimeout)); err != nil {
 			slog.Warn("failed to release stale outbox claims", "error", err)
 		}
 		if err := w.ProcessOnceContext(ctx); err != nil {
@@ -84,7 +161,7 @@ func (w *Worker) Run(ctx context.Context) {
 }
 
 func (w *Worker) cleanupProcessed(ctx context.Context) {
-	cutoff := w.now().Add(-processedRetention)
+	cutoff := w.now().Add(-w.options.ProcessedRetention)
 	var total int64
 	for range cleanupMaxBatches {
 		deleted, err := w.outbox.DeleteProcessedBefore(ctx, cutoff, cleanupBatchSize)
@@ -100,7 +177,7 @@ func (w *Worker) cleanupProcessed(ctx context.Context) {
 		}
 	}
 	if total > 0 {
-		slog.Info("cleaned processed outbox events", "deleted", total, "retention_days", int(processedRetention/(24*time.Hour)))
+		slog.Info("cleaned processed outbox events", "deleted", total, "retention_days", int(w.options.ProcessedRetention/(24*time.Hour)))
 	}
 }
 
@@ -150,7 +227,7 @@ func (w *Worker) ProcessOnce() error {
 // ProcessOnceContext delivers one claimed batch while propagating shutdown
 // and per-consumer deadlines to operations that support a context.
 func (w *Worker) ProcessOnceContext(ctx context.Context) error {
-	events, err := w.outbox.ClaimPending(50)
+	events, err := w.outbox.ClaimPending(w.options.BatchSize)
 	if err != nil {
 		return err
 	}
@@ -186,7 +263,7 @@ func retryDelay(attempts int) time.Duration {
 }
 
 func (w *Worker) process(parent context.Context, event models.OutboxEvent) error {
-	ctx, cancel := context.WithTimeout(parent, consumerTimeout)
+	ctx, cancel := context.WithTimeout(parent, w.options.ConsumerTimeout)
 	defer cancel()
 
 	switch event.EventType {

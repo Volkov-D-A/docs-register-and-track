@@ -25,9 +25,9 @@ var rawEncryptionKey string
 // Инициализируется лениво из rawEncryptionKey (ldflags).
 var encryptionKey []byte
 
-func getEncryptionKey() []byte {
+func getEncryptionKey() ([]byte, error) {
 	if len(encryptionKey) > 0 {
-		return encryptionKey
+		return encryptionKey, nil
 	}
 
 	key := rawEncryptionKey
@@ -36,10 +36,10 @@ func getEncryptionKey() []byte {
 	}
 
 	if key == "" {
-		panic("CRITICAL: rawEncryptionKey is not set. The application must be built with -ldflags or ENCRYPTION_KEY env var must be set.")
+		return nil, fmt.Errorf("ENCRYPTION_KEY is required for encrypted configuration values")
 	}
 	encryptionKey = []byte(key)
-	return encryptionKey
+	return encryptionKey, nil
 }
 
 // IsEncrypted проверяет, является ли значение зашифрованным (содержит префикс ENC:).
@@ -59,7 +59,11 @@ func DecryptPassword(value string) (string, error) {
 		return "", fmt.Errorf("ошибка декодирования base64: %w", err)
 	}
 
-	block, err := aes.NewCipher(getEncryptionKey())
+	key, err := getEncryptionKey()
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("ошибка создания AES-шифра: %w", err)
 	}
@@ -85,7 +89,11 @@ func DecryptPassword(value string) (string, error) {
 
 // EncryptPassword шифрует пароль и возвращает строку с префиксом ENC: для записи в конфиг.
 func EncryptPassword(password string) (string, error) {
-	block, err := aes.NewCipher(getEncryptionKey())
+	key, err := getEncryptionKey()
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("ошибка создания AES-шифра: %w", err)
 	}

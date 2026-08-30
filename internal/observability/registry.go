@@ -1,12 +1,11 @@
 // Package observability contains lightweight in-process performance metrics.
-// It deliberately has no network exporter: desktop deployments can send its
-// structured snapshots through the application's existing slog/Seq pipeline.
+// Metrics remain in memory until a dedicated metrics backend is introduced;
+// they are deliberately not written to operational logs.
 package observability
 
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -175,49 +174,6 @@ func (r *Registry) Counters() []CounterSnapshot {
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result
-}
-
-// LogSnapshot writes one structured record for every collected operation.
-func (r *Registry) LogSnapshot(logger *slog.Logger) {
-	if logger == nil {
-		logger = slog.Default()
-	}
-	for _, metric := range r.Snapshot() {
-		logger.Info("operation metrics",
-			"operation", metric.Name,
-			"count", metric.Count,
-			"errors", metric.Errors,
-			"deadline_exceeded", metric.DeadlineExceeded,
-			"total_duration", metric.TotalDuration,
-			"p50", metric.P50,
-			"p95", metric.P95,
-			"p99", metric.P99,
-		)
-	}
-	for _, gauge := range r.Gauges() {
-		logger.Info("gauge metric", "metric", gauge.Name, "value", gauge.Value)
-	}
-	for _, counter := range r.Counters() {
-		logger.Info("counter metric", "metric", counter.Name, "value", counter.Value)
-	}
-}
-
-// LogPeriodically emits snapshots until ctx is cancelled. It is intended to
-// run from application startup, using the existing structured log pipeline.
-func LogPeriodically(ctx context.Context, registry *Registry, logger *slog.Logger, interval time.Duration) {
-	if registry == nil || interval <= 0 {
-		return
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			registry.LogSnapshot(logger)
-		}
-	}
 }
 
 func percentile(samples []time.Duration, probability float64) time.Duration {

@@ -293,6 +293,23 @@ func (db *DB) CheckMigrationCompatibility(migrationsPath string) error {
 	return nil
 }
 
+// IsApplicationSchemaInitialized distinguishes a genuinely empty database from
+// an existing installation awaiting an administrator-approved upgrade. The
+// server may bootstrap an empty database automatically, but must never apply an
+// upgrade to existing data without approval.
+func (db *DB) IsApplicationSchemaInitialized(ctx context.Context) (bool, error) {
+	if db == nil || db.DB == nil {
+		return false, fmt.Errorf("database is not initialized")
+	}
+	ctx, cancel := db.withOperationTimeout(ctx)
+	defer cancel()
+	var initialized bool
+	if err := db.DB.QueryRowContext(ctx, `SELECT to_regclass('public.users') IS NOT NULL`).Scan(&initialized); err != nil {
+		return false, fmt.Errorf("check application schema initialization: %w", err)
+	}
+	return initialized, nil
+}
+
 // RollbackMigration откатывает последнюю применённую миграцию (на 1 шаг назад).
 func (db *DB) RollbackMigration(migrationsPath string) error {
 	if err := db.CheckMigrationCompatibility(migrationsPath); err != nil {

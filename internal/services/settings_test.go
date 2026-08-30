@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
@@ -8,11 +9,46 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type fakeServerMigrationClient struct {
+	status        database.MigrationStatus
+	statusErr     error
+	applyErr      error
+	rollbackErr   error
+	applyCalls    int
+	rollbackCalls int
+	login         string
+	password      string
+}
+
+func (c *fakeServerMigrationClient) Status(context.Context) (*database.MigrationStatus, error) {
+	if c.statusErr != nil {
+		return nil, c.statusErr
+	}
+	return &c.status, nil
+}
+
+func (c *fakeServerMigrationClient) Apply(_ context.Context, login, password string) (*database.MigrationStatus, error) {
+	c.applyCalls++
+	c.login, c.password = login, password
+	if c.applyErr != nil {
+		return nil, c.applyErr
+	}
+	return &c.status, nil
+}
+
+func (c *fakeServerMigrationClient) Rollback(_ context.Context, login, password string, _ models.RollbackMigrationRequest) (*database.MigrationStatus, error) {
+	c.rollbackCalls++
+	c.login, c.password = login, password
+	if c.rollbackErr != nil {
+		return nil, c.rollbackErr
+	}
+	return &c.status, nil
+}
 
 func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.SettingsStore) {
 	t.Helper()
@@ -34,11 +70,9 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	auth.Login(user.Login, password)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	dbMock, _, err := sqlmock.New()
-	require.NoError(t, err)
-	db := &database.DB{DB: dbMock}
-
-	return NewSettingsService(db, &atomicSettingsStore{SettingsStore: settingsRepo}, auth, nil), settingsRepo
+	service := NewSettingsService(&atomicSettingsStore{SettingsStore: settingsRepo}, auth)
+	service.SetMigrationClient(&fakeServerMigrationClient{})
+	return service, settingsRepo
 }
 
 func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsService, *mocks.SettingsStore, *AuthService, *models.User) {
@@ -61,11 +95,9 @@ func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsServi
 	auth.Login(user.Login, password)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	dbMock, _, err := sqlmock.New()
-	require.NoError(t, err)
-	db := &database.DB{DB: dbMock}
-
-	return NewSettingsService(db, &atomicSettingsStore{SettingsStore: settingsRepo}, auth, nil), settingsRepo, auth, user
+	service := NewSettingsService(&atomicSettingsStore{SettingsStore: settingsRepo}, auth)
+	service.SetMigrationClient(&fakeServerMigrationClient{})
+	return service, settingsRepo, auth, user
 }
 
 type atomicSettingsStore struct {
@@ -76,19 +108,6 @@ type atomicSettingsStore struct {
 func (s *atomicSettingsStore) UpdateWithOutbox(key, value string, effects []models.OutboxEvent) error {
 	s.effects = append([]models.OutboxEvent(nil), effects...)
 	return s.SettingsStore.Update(key, value)
-}
-
-type captureSettingsAuditLogStore struct {
-	requests []models.CreateAdminAuditLogRequest
-}
-
-func (s *captureSettingsAuditLogStore) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
-	s.requests = append(s.requests, req)
-	return uuid.New(), nil
-}
-
-func (s *captureSettingsAuditLogStore) GetAll(limit, offset int) ([]models.AdminAuditLog, int, error) {
-	return nil, 0, nil
 }
 
 func TestSettingsService_GetAll(t *testing.T) {
@@ -142,15 +161,13 @@ func TestSettingsService_Update(t *testing.T) {
 	})
 
 	t.Run("skips update and audit when value did not change", func(t *testing.T) {
-		svc, repo, auth, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
-		auditRepo := &captureSettingsAuditLogStore{}
-		svc.auditService = NewAdminAuditLogService(auditRepo, auth)
+		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
 
 		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "value"}, nil).Once()
 
 		err := svc.Update("key", "value")
 		require.NoError(t, err)
-		assert.Empty(t, auditRepo.requests)
+		assert.Empty(t, svc.repo.(*atomicSettingsStore).effects)
 	})
 
 	t.Run("writes audit only when value changed", func(t *testing.T) {
@@ -491,74 +508,58 @@ func TestSettingsService_IsAssignmentCompletionAttachmentsEnabled(t *testing.T) 
 }
 
 func TestSettingsService_RunMigrations(t *testing.T) {
-	// Выполнение накатывания миграций БД (доступно только администратору)
 	t.Run("forbidden non-admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "executor")
-		err := svc.RunMigrations()
+		err := svc.RunMigrations("Passw0rd!")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Недостаточно прав")
 	})
 
-	t.Run("allowed for user with admin role", func(t *testing.T) {
-		svc, _, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
+	t.Run("calls server as current admin", func(t *testing.T) {
+		svc, _ := setupSettingsService(t, "admin")
+		client := &fakeServerMigrationClient{}
+		svc.SetMigrationClient(client)
 
-		err := svc.RunMigrations()
-		if err != nil {
-			assert.NotContains(t, err.Error(), "Недостаточно прав")
-		}
+		require.NoError(t, svc.RunMigrations("Passw0rd!"))
+		assert.Equal(t, 1, client.applyCalls)
+		assert.Equal(t, "admin_set", client.login)
+		assert.Equal(t, "Passw0rd!", client.password)
 	})
 
-	t.Run("success admin", func(t *testing.T) {
+	t.Run("requires password", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
-		// The db layer expects an actual database, which might crash, but we catch it
-		err := svc.RunMigrations()
-		// it will likely be: migration path not found, or driver creation failure, but not forbidden
-		if err != nil {
-			assert.NotContains(t, err.Error(), "Недостаточно прав")
-		}
+		err := svc.RunMigrations(" ")
+		require.ErrorContains(t, err, "Введите пароль")
 	})
 }
 
 func TestSettingsService_RunMigrationsReconcilesSchemaLifecycle(t *testing.T) {
 	t.Run("successful migration", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
-		db := &fakeMigrationDatabase{}
+		client := &fakeServerMigrationClient{}
 		lifecycle := &fakeSchemaLifecycle{}
-		svc.db = db
+		svc.SetMigrationClient(client)
 		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
 
-		require.NoError(t, svc.RunMigrations())
-		assert.Equal(t, 1, db.runCalls)
+		require.NoError(t, svc.RunMigrations("Passw0rd!"))
+		assert.Equal(t, 1, client.applyCalls)
 		assert.Equal(t, 1, lifecycle.reconcileCalls)
 	})
 
 	t.Run("failed migration", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
-		db := &fakeMigrationDatabase{runErr: assert.AnError}
+		client := &fakeServerMigrationClient{applyErr: assert.AnError}
 		lifecycle := &fakeSchemaLifecycle{}
-		svc.db = db
+		svc.SetMigrationClient(client)
 		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
 
-		require.Error(t, svc.RunMigrations())
-		assert.Equal(t, 1, db.runCalls)
-		assert.Zero(t, lifecycle.reconcileCalls)
-	})
-
-	t.Run("forbidden migration", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "executor")
-		db := &fakeMigrationDatabase{}
-		lifecycle := &fakeSchemaLifecycle{}
-		svc.db = db
-		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
-
-		require.Error(t, svc.RunMigrations())
-		assert.Zero(t, db.runCalls)
+		require.Error(t, svc.RunMigrations("Passw0rd!"))
+		assert.Equal(t, 1, client.applyCalls)
 		assert.Zero(t, lifecycle.reconcileCalls)
 	})
 }
 
 func TestSettingsService_GetMigrationStatus(t *testing.T) {
-	// Получение состояния всех миграций базы данных
 	t.Run("forbidden non-admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "clerk")
 		status, err := svc.GetMigrationStatus()
@@ -567,25 +568,12 @@ func TestSettingsService_GetMigrationStatus(t *testing.T) {
 		assert.Contains(t, err.Error(), "Недостаточно прав")
 	})
 
-	t.Run("allowed for user with admin role", func(t *testing.T) {
-		svc, _, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
-
-		status, err := svc.GetMigrationStatus()
-		if err != nil {
-			assert.NotContains(t, err.Error(), "Недостаточно прав")
-		} else {
-			assert.NotNil(t, status)
-		}
-	})
-
 	t.Run("success admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
+		svc.SetMigrationClient(&fakeServerMigrationClient{status: database.MigrationStatus{CurrentVersion: 7, UpToDate: true}})
 		status, err := svc.GetMigrationStatus()
-		if err != nil {
-			assert.NotContains(t, err.Error(), "Недостаточно прав")
-		} else {
-			assert.NotNil(t, status)
-		}
+		require.NoError(t, err)
+		assert.EqualValues(t, 7, status.CurrentVersion)
 	})
 }
 
@@ -596,6 +584,7 @@ func TestSettingsService_RollbackMigration(t *testing.T) {
 		BackupReference:      "smb://backup/docflow/2026-05-28_120000.tar",
 		AcknowledgedDataLoss: true,
 		Confirmation:         rollbackMigrationConfirmationPhrase,
+		Password:             "Passw0rd!",
 	}
 
 	t.Run("forbidden non-admin", func(t *testing.T) {
@@ -614,21 +603,12 @@ func TestSettingsService_RollbackMigration(t *testing.T) {
 		assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
 	})
 
-	t.Run("allowed for user with admin role", func(t *testing.T) {
-		svc, _, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
-
-		err := svc.RollbackMigration(validReq)
-		if err != nil {
-			assert.NotContains(t, err.Error(), "Недостаточно прав")
-		}
-	})
-
 	t.Run("success admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
-		err := svc.RollbackMigration(validReq)
-		if err != nil {
-			assert.NotContains(t, err.Error(), "Недостаточно прав")
-		}
+		client := &fakeServerMigrationClient{}
+		svc.SetMigrationClient(client)
+		require.NoError(t, svc.RollbackMigration(validReq))
+		assert.Equal(t, 1, client.rollbackCalls)
 	})
 }
 
@@ -638,56 +618,30 @@ func TestSettingsService_RollbackCoordinatesSchemaLifecycle(t *testing.T) {
 		BackupReference:      "smb://backup/docflow/2026-07-22_120000.tar",
 		AcknowledgedDataLoss: true,
 		Confirmation:         rollbackMigrationConfirmationPhrase,
+		Password:             "Passw0rd!",
 	}
 
 	t.Run("successful rollback", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
-		db := &fakeMigrationDatabase{}
+		client := &fakeServerMigrationClient{}
 		lifecycle := &fakeSchemaLifecycle{}
-		svc.db = db
+		svc.SetMigrationClient(client)
 		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
 
 		require.NoError(t, svc.RollbackMigration(validReq))
-		assert.Equal(t, 1, lifecycle.prepareCalls)
-		assert.Equal(t, 1, db.rollbackCalls)
-		assert.Equal(t, []bool{true}, lifecycle.completeResults)
+		assert.Equal(t, 1, client.rollbackCalls)
+		assert.Equal(t, 1, lifecycle.reconcileCalls)
 	})
 
-	t.Run("worker stop failure prevents rollback", func(t *testing.T) {
+	t.Run("failed rollback does not reconcile", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
-		db := &fakeMigrationDatabase{}
-		lifecycle := &fakeSchemaLifecycle{prepareRollbackErr: assert.AnError}
-		svc.db = db
-		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
-
-		require.Error(t, svc.RollbackMigration(validReq))
-		assert.Equal(t, 1, lifecycle.prepareCalls)
-		assert.Zero(t, db.rollbackCalls)
-		assert.Empty(t, lifecycle.completeResults)
-	})
-
-	t.Run("failed rollback restores lifecycle", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "admin")
-		db := &fakeMigrationDatabase{rollbackErr: assert.AnError}
+		client := &fakeServerMigrationClient{rollbackErr: assert.AnError}
 		lifecycle := &fakeSchemaLifecycle{}
-		svc.db = db
+		svc.SetMigrationClient(client)
 		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
 
 		require.Error(t, svc.RollbackMigration(validReq))
-		assert.Equal(t, 1, lifecycle.prepareCalls)
-		assert.Equal(t, 1, db.rollbackCalls)
-		assert.Equal(t, []bool{false}, lifecycle.completeResults)
-	})
-
-	t.Run("maintenance mode prevents another rollback", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "admin")
-		db := &fakeMigrationDatabase{}
-		lifecycle := &fakeSchemaLifecycle{checkReadyErr: models.NewConflict("schema maintenance")}
-		svc.db = db
-		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
-
-		require.Error(t, svc.RollbackMigration(validReq))
-		assert.Zero(t, lifecycle.prepareCalls)
-		assert.Zero(t, db.rollbackCalls)
+		assert.Equal(t, 1, client.rollbackCalls)
+		assert.Zero(t, lifecycle.reconcileCalls)
 	})
 }

@@ -1,34 +1,30 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 const rollbackMigrationConfirmationPhrase = "ОТКАТ МИГРАЦИИ"
 
 // SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {
-	db              migrationDatabase
 	repo            SettingsStore
 	authService     *AuthService
-	auditService    *AdminAuditLogService
 	schemaLifecycle SchemaLifecycle
+	migrationClient serverclient.MigrationClient
 	migrationMu     sync.Mutex
-}
-
-type migrationDatabase interface {
-	RunMigrations(string) error
-	GetMigrationStatus(string) (*database.MigrationStatus, error)
-	RollbackMigration(string) error
 }
 
 type settingsOutboxStore interface {
@@ -38,13 +34,15 @@ type settingsOutboxStore interface {
 var errSettingsOutboxStoreRequired = errors.New("settings store must support atomic outbox operations")
 
 // NewSettingsService создает новый экземпляр SettingsService.
-func NewSettingsService(db migrationDatabase, repo SettingsStore, authService *AuthService, auditService *AdminAuditLogService) *SettingsService {
+func NewSettingsService(repo SettingsStore, authService *AuthService) *SettingsService {
 	return &SettingsService{
-		db:           db,
-		repo:         repo,
-		authService:  authService,
-		auditService: auditService,
+		repo:        repo,
+		authService: authService,
 	}
+}
+
+func (s *SettingsService) SetMigrationClient(client serverclient.MigrationClient) {
+	s.migrationClient = client
 }
 
 // GetAll возвращает все системные настройки.
@@ -98,19 +96,22 @@ func validateSystemSettingValue(key, value string) error {
 }
 
 // RunMigrations запускает миграции БД (только admin).
-func (s *SettingsService) RunMigrations() error {
+func (s *SettingsService) RunMigrations(password string) error {
 	s.migrationMu.Lock()
 	defer s.migrationMu.Unlock()
 
 	if err := s.authService.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для управления миграциями")
 	}
-	if err := s.db.RunMigrations(database.DefaultMigrationsPath); err != nil {
-		return migrationCompatibilityAppError(err)
+	login, err := s.currentMigrationLogin(password)
+	if err != nil {
+		return err
 	}
-
-	userID, userName := s.authService.GetCurrentAuditInfo()
-	s.auditService.LogAction(userID, userName, "MIGRATION_RUN", "Применены миграции БД")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if _, err := s.migrationClient.Apply(ctx, login, password); err != nil {
+		return models.NewConflictWrapped("Не удалось применить миграции через docflow-server", err)
+	}
 	if s.schemaLifecycle != nil {
 		s.schemaLifecycle.ReconcileSchema()
 	}
@@ -122,7 +123,16 @@ func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error
 	if err := s.authService.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
 		return nil, models.NewForbidden("Недостаточно прав для просмотра статуса миграций")
 	}
-	return s.db.GetMigrationStatus(database.DefaultMigrationsPath)
+	if s.migrationClient == nil {
+		return nil, models.NewConflict("Клиент docflow-server не настроен")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	status, err := s.migrationClient.Status(ctx)
+	if err != nil {
+		return nil, models.NewConflictWrapped("Не удалось получить статус миграций от docflow-server", err)
+	}
+	return status, nil
 }
 
 // RollbackMigration откатывает последнюю миграцию БД (только admin).
@@ -136,36 +146,33 @@ func (s *SettingsService) RollbackMigration(req models.RollbackMigrationRequest)
 	if err := validateRollbackMigrationRequest(req); err != nil {
 		return err
 	}
+	login, err := s.currentMigrationLogin(req.Password)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if _, err := s.migrationClient.Rollback(ctx, login, req.Password, req); err != nil {
+		return models.NewConflictWrapped("Не удалось откатить миграцию через docflow-server", err)
+	}
 	if s.schemaLifecycle != nil {
-		if err := s.schemaLifecycle.CheckReady(); err != nil {
-			return err
-		}
-		if err := s.schemaLifecycle.PrepareRollback(); err != nil {
-			return models.NewConflictWrapped("Не удалось остановить фоновые процессы перед откатом миграции", err)
-		}
+		s.schemaLifecycle.ReconcileSchema()
 	}
-	rollbackSucceeded := false
-	defer func() {
-		if s.schemaLifecycle != nil {
-			s.schemaLifecycle.CompleteRollback(rollbackSucceeded)
-		}
-	}()
-
-	userID, userName := s.authService.GetCurrentAuditInfo()
-	s.auditService.LogAction(
-		userID,
-		userName,
-		"MIGRATION_ROLLBACK_REQUESTED",
-		fmt.Sprintf("Запрошен откат последней миграции БД; backup: %s", strings.TrimSpace(req.BackupReference)),
-	)
-
-	if err := s.db.RollbackMigration(database.DefaultMigrationsPath); err != nil {
-		return migrationCompatibilityAppError(err)
-	}
-
-	s.auditService.LogAction(userID, userName, "MIGRATION_ROLLBACK", fmt.Sprintf("Откачена последняя миграция БД; backup: %s", strings.TrimSpace(req.BackupReference)))
-	rollbackSucceeded = true
 	return nil
+}
+
+func (s *SettingsService) currentMigrationLogin(password string) (string, error) {
+	if s.migrationClient == nil {
+		return "", models.NewConflict("Клиент docflow-server не настроен")
+	}
+	if strings.TrimSpace(password) == "" {
+		return "", models.NewBadRequest("Введите пароль администратора")
+	}
+	user, err := s.authService.GetCurrentUser()
+	if err != nil {
+		return "", err
+	}
+	return user.Login, nil
 }
 
 // Вспомогательные методы для других сервисов

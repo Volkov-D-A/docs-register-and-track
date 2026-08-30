@@ -1,5 +1,6 @@
 # LOCAL DEVELOPMENT EXAMPLE ONLY.
-# docker-compose.yaml поднимает PostgreSQL/MinIO/Seq для закрытого dev-контура.
+# docker-compose.yaml поднимает PostgreSQL/MinIO/Seq/docflow-server/Caddy для
+# закрытого dev-контура.
 # Production topology, versions, secrets and network boundaries are defined by
 # approved external production documentation, not by this compose file.
 services:
@@ -18,6 +19,12 @@ services:
       # Маппим на /var/lib/postgresql (VOLUME из Dockerfile образа),
       # чтобы Docker не создавал анонимный том для этого пути.
       - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     restart: unless-stopped
   minio:
     image: minio/minio:${MINIO_VERSION}
@@ -47,6 +54,56 @@ services:
     volumes:
       # Сохраняем логи в volume, чтобы они не пропали при перезапуске контейнера
       - seq_data:/data
+    restart: unless-stopped
+  docflow-server:
+    image: hehelf/docflow-service:${DOCFLOW_SERVER_VERSION:?Set DOCFLOW_SERVER_VERSION in .env}
+    pull_policy: always
+    container_name: docflow_server
+    environment:
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      POSTGRES_CONTAINER: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      SEQ_URL: http://seq:80
+      SEQ_ENABLED: ${SEQ_ENABLED:-true}
+      DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS: ${DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS:-5}
+      DOCFLOW_OUTBOX_BATCH_SIZE: ${DOCFLOW_OUTBOX_BATCH_SIZE:-50}
+      DOCFLOW_OUTBOX_STALE_CLAIM_TIMEOUT_SECONDS: ${DOCFLOW_OUTBOX_STALE_CLAIM_TIMEOUT_SECONDS:-300}
+      DOCFLOW_OUTBOX_CONSUMER_TIMEOUT_SECONDS: ${DOCFLOW_OUTBOX_CONSUMER_TIMEOUT_SECONDS:-30}
+      DOCFLOW_OUTBOX_PROCESSED_RETENTION_DAYS: ${DOCFLOW_OUTBOX_PROCESSED_RETENTION_DAYS:-90}
+      DOCFLOW_OUTBOX_CLEANUP_INTERVAL_MINUTES: ${DOCFLOW_OUTBOX_CLEANUP_INTERVAL_MINUTES:-60}
+      DOCFLOW_SERVER_LISTEN_ADDRESS: :8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      seq:
+        condition: service_started
+    restart: unless-stopped
+    stop_grace_period: 40s
+    expose:
+      - "8080"
+  caddy:
+    image: caddy:${CADDY_VERSION:?Set CADDY_VERSION in .env}
+    container_name: docflow_caddy
+    depends_on:
+      docflow-server:
+        condition: service_healthy
+    ports:
+      # Temporary HTTP endpoint. Replace the Caddyfile with the documented TLS
+      # configuration before transmitting credentials over an untrusted network.
+      - "${DOCFLOW_SERVER_PORT:-8080}:80"
+    volumes:
+      - ./build/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     restart: unless-stopped
 volumes:
   pgdata:

@@ -2379,6 +2379,7 @@ export namespace models {
 	    backupReference: string;
 	    acknowledgedDataLoss: boolean;
 	    confirmation: string;
+	    password: string;
 
 	    static createFrom(source: any = {}) {
 	        return new RollbackMigrationRequest(source);
@@ -2390,6 +2391,7 @@ export namespace models {
 	        this.backupReference = source["backupReference"];
 	        this.acknowledgedDataLoss = source["acknowledgedDataLoss"];
 	        this.confirmation = source["confirmation"];
+	        this.password = source["password"];
 	    }
 	}
 

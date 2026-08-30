@@ -23,12 +23,9 @@ type MinioService struct {
 
 // NewMinioService создает новый экземпляр MinioService.
 func NewMinioService(cfg config.MinioConfig) (*MinioService, error) {
-	client, err := minio.New(cfg.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.GetSecretAccessKey(), ""),
-		Secure: cfg.UseSSL,
-	})
+	client, err := newMinioClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to init minio client: %w", err)
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -52,6 +49,39 @@ func NewMinioService(cfg config.MinioConfig) (*MinioService, error) {
 		client:     client,
 		bucketName: cfg.BucketName,
 	}, nil
+}
+
+// CheckMinio verifies that the configured bucket is reachable without creating
+// or modifying storage. It is used by standalone server health checks.
+func CheckMinio(ctx context.Context, cfg config.MinioConfig) error {
+	client, err := newMinioClient(cfg)
+	if err != nil {
+		return err
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	exists, err := client.BucketExists(checkCtx, cfg.BucketName)
+	if err != nil {
+		return fmt.Errorf("check bucket exists failed: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("minio bucket %q does not exist", cfg.BucketName)
+	}
+	return nil
+}
+
+func newMinioClient(cfg config.MinioConfig) (*minio.Client, error) {
+	client, err := minio.New(cfg.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.GetSecretAccessKey(), ""),
+		Secure: cfg.UseSSL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to init minio client: %w", err)
+	}
+	return client, nil
 }
 
 // UploadFile загружает файл в MinIO.

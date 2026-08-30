@@ -2,6 +2,8 @@ package config
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -93,4 +95,19 @@ func TestIsEncrypted(t *testing.T) {
 	if !IsEncrypted("ENC:something") {
 		t.Fatal("ENC: prefix should be detected as encrypted")
 	}
+}
+
+func TestEncryptedValueWithoutKeyReturnsErrorInsteadOfPanicking(t *testing.T) {
+	previousRawKey := rawEncryptionKey
+	previousKey := encryptionKey
+	rawEncryptionKey = ""
+	encryptionKey = nil
+	t.Setenv("ENCRYPTION_KEY", "")
+	t.Cleanup(func() {
+		rawEncryptionKey = previousRawKey
+		encryptionKey = previousKey
+	})
+
+	_, err := DecryptPassword("ENC:AQID")
+	require.ErrorContains(t, err, "ENCRYPTION_KEY")
 }

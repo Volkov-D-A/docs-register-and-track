@@ -18,5 +18,9 @@
     "seq": {
         "url": "http://localhost:5341",
         "enabled": true
+    },
+    "server": {
+        "url": "http://localhost:8080",
+        "allowInsecureHttp": false
     }
 }

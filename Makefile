@@ -1,8 +1,14 @@
-.PHONY: dev build-linux build-windows clean release-assets release-assets-check wails-bindings wails-bindings-check docs-links-check check-release-env check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
+.PHONY: dev build-linux build-windows build-server run-server docker-server-build docker-server-push check-docker check-docflow-server-version clean release-assets release-assets-check wails-bindings wails-bindings-check docs-links-check check-release-env check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
 export ENCRYPTION_KEY
+export POSTGRES_CONTAINER POSTGRES_PORT POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB POSTGRES_SSLMODE
+export MINIO_ENDPOINT MINIO_ROOT_USER MINIO_ROOT_PASSWORD MINIO_USE_SSL MINIO_BUCKET
+export SEQ_URL SEQ_ENABLED
+export DOCFLOW_SERVER_LISTEN_ADDRESS
+export DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS DOCFLOW_OUTBOX_BATCH_SIZE DOCFLOW_OUTBOX_STALE_CLAIM_TIMEOUT_SECONDS
+export DOCFLOW_OUTBOX_CONSUMER_TIMEOUT_SECONDS DOCFLOW_OUTBOX_PROCESSED_RETENTION_DAYS DOCFLOW_OUTBOX_CLEANUP_INTERVAL_MINUTES
 
 # Переменные
 TAGS = webkit2_41
@@ -18,6 +24,11 @@ PERFORMANCE_DIR = build/performance
 PERFORMANCE_DOCUMENTS ?= 10000
 PERFORMANCE_PAGE_SIZE ?= 50
 PERFORMANCE_DEEP_PAGE ?= 0
+SERVER_DOCKERFILE = build/server/Dockerfile
+SERVER_IMAGE ?= docflow-server
+SERVER_IMAGE_TAG ?= $(DOCFLOW_SERVER_VERSION)
+DOCKER_PLATFORM ?= linux/amd64
+DOCKERHUB_IMAGE = hehelf/docflow-service
 
 # Ключ шифрования конфигурации (из .env → ENCRYPTION_KEY)
 LDFLAGS = -X 'github.com/Volkov-D-A/docs-register-and-track/internal/config.rawEncryptionKey=$(ENCRYPTION_KEY)'
@@ -60,6 +71,29 @@ build-windows:
 	$(MAKE) check-release-env
 	$(MAKE) release-assets
 	wails build -platform windows/amd64 -ldflags "$(LDFLAGS)"
+
+# Сборка standalone server-side outbox worker.
+build-server:
+	mkdir -p build/bin
+	GOCACHE=$(GOCACHE) CGO_ENABLED=0 go build -trimpath -o build/bin/docflow-server ./cmd/docflow-server
+
+run-server:
+	GOCACHE=$(GOCACHE) go run ./cmd/docflow-server run
+
+check-docker:
+	@command -v docker >/dev/null 2>&1 || (echo "docker is required" >&2; exit 1)
+	@docker info >/dev/null 2>&1 || (echo "docker daemon is not available" >&2; exit 1)
+
+check-docflow-server-version:
+	@test -n "$(DOCFLOW_SERVER_VERSION)" || (echo "DOCFLOW_SERVER_VERSION is required in .env" >&2; exit 1)
+
+docker-server-build: check-docker check-docflow-server-version
+	docker build --platform $(DOCKER_PLATFORM) --build-arg VERSION=$(DOCFLOW_SERVER_VERSION) -f $(SERVER_DOCKERFILE) -t $(SERVER_IMAGE):$(SERVER_IMAGE_TAG) .
+
+# Перед публикацией выполните docker login. Токен Docker Hub не передаётся Makefile.
+docker-server-push: check-docker check-docflow-server-version
+	docker build --platform $(DOCKER_PLATFORM) --build-arg VERSION=$(DOCFLOW_SERVER_VERSION) -f $(SERVER_DOCKERFILE) -t $(DOCKERHUB_IMAGE):$(DOCFLOW_SERVER_VERSION) .
+	docker push $(DOCKERHUB_IMAGE):$(DOCFLOW_SERVER_VERSION)
 
 # Очистка кэша сборки и папки build/bin
 clean:

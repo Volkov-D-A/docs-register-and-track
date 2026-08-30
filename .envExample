@@ -8,7 +8,8 @@
 
 # ==========================================
 # Ключ шифрования конфигурации (AES-256, ровно 32 символа)
-# Передаётся в бинарник через ldflags при сборке.
+# Используется для расшифровки ENC:-значений. Не встраивайте production-ключ
+# в Docker image — передавайте его контейнеру только во время запуска.
 # ==========================================
 ENCRYPTION_KEY=your-32-byte-aes256-key-here!!!!
 
@@ -18,19 +19,37 @@ ENCRYPTION_KEY=your-32-byte-aes256-key-here!!!!
 MINIO_VERSION=RELEASE.2025-09-07T16-13-09Z
 POSTGRES_VERSION=18.3
 SEQ_VERSION=2025.2.16020-x64
+DOCFLOW_SERVER_VERSION=1.0.6
+CADDY_VERSION=2.11.4-alpine
+
+# ==========================================
+# Management API docflow-server
+# ==========================================
+# Temporary external HTTP port published by Caddy.
+DOCFLOW_SERVER_PORT=8080
+DOCFLOW_SERVER_LISTEN_ADDRESS=:8080
 
 # ==========================================
 # Настройки seq
 # ==========================================
 SEQ_ADMIN_PASSWORD=docflow_password
+# Адрес из Docker network. Для запуска docflow-server на хосте используйте
+# http://localhost:5341.
+SEQ_URL=http://docflow_seq:80
+SEQ_ENABLED=true
 
 # ==========================================
 # Настройки MinIO
 # ==========================================
 MINIO_ROOT_USER=docflow
 MINIO_ROOT_PASSWORD=docflow_password
-MINIO_ENDPOINT=http://localhost:9000
+# Адрес из Docker network. Для запуска docflow-server на хосте используйте
+# http://localhost:9000.
+MINIO_ENDPOINT=http://docflow_minio:9000
 MINIO_BUCKET=docflow-attachments
+# Если MINIO_ENDPOINT содержит http:// или https://, значение определяется
+# автоматически. Переменная нужна только для endpoint без схемы.
+# MINIO_USE_SSL=false
 
 # ==========================================
 # Настройки PostgreSQL
@@ -39,6 +58,18 @@ POSTGRES_USER=docflow
 POSTGRES_PASSWORD=docflow_password
 POSTGRES_DB=docflow
 POSTGRES_CONTAINER=docflow_db
+POSTGRES_PORT=5432
+POSTGRES_SSLMODE=disable
+
+# ==========================================
+# Настройки outbox worker в docflow-server
+# ==========================================
+DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS=5
+DOCFLOW_OUTBOX_BATCH_SIZE=50
+DOCFLOW_OUTBOX_STALE_CLAIM_TIMEOUT_SECONDS=300
+DOCFLOW_OUTBOX_CONSUMER_TIMEOUT_SECONDS=30
+DOCFLOW_OUTBOX_PROCESSED_RETENTION_DAYS=90
+DOCFLOW_OUTBOX_CLEANUP_INTERVAL_MINUTES=60
 
 # ==========================================
 # Настройки SMB для бэкапов

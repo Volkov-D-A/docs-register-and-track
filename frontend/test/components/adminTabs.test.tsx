@@ -40,9 +40,10 @@ describe('critical administration tabs', () => {
     expect(await screen.findByText('Требуется обновление')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Применить миграции/ }));
     expect(runMigrations).not.toHaveBeenCalled();
-    await user.click(await screen.findByRole('button', { name: 'Запустить' }));
+    await user.type(await screen.findByLabelText('Пароль администратора'), 'Passw0rd!');
+    await user.click(await screen.findByRole('button', { name: 'Применить миграции' }));
 
-    await waitFor(() => expect(runMigrations).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(runMigrations).toHaveBeenCalledWith('Passw0rd!'));
     await waitFor(() => expect(getStatus).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('Актуальна')).toBeInTheDocument();
   });

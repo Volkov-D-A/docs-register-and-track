@@ -105,33 +105,64 @@ changes:
 		"*services.OutboxAdminService",
 	}, boundTypes)
 
+	startupContext, cancelStartup := context.WithCancel(context.Background())
+	defer cancelStartup()
+	appOptions.OnStartup(startupContext)
+
+	appOptions.OnShutdown(context.Background())
+	require.Equal(t, int32(1), closeLoggerCalls.Load())
+	require.Error(t, sqlDB.Ping())
+}
+
+func TestDesktopCompositionDoesNotConsumeOutboxIntegration(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	sqlDB := integrationdb.Open(t)
+	db := &database.DB{DB: sqlDB}
+
+	appOptions, failure := newWailsOptionsWithDependencies(
+		&config.Config{},
+		WailsOptionsParams{
+			ConfigPath: "integration-config.json",
+			ReleaseNotesSource: []byte(`version: 1.0.0
+releasedAt: 2026-08-06
+changes:
+  - title: Integration test
+    description: Desktop has no outbox consumer
+`),
+		},
+		wailsOptionsDependencies{
+			connectDatabase: func(config.DatabaseConfig) (*database.DB, error) { return db, nil },
+			newStorage: func(config.MinioConfig) (applicationStorage, error) {
+				return compositionTestStorage{}, nil
+			},
+			newThemeService: services.NewThemeService,
+		},
+	)
+	require.Nil(t, failure)
+
 	userID := uuid.New()
 	_, err := db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active)
-		VALUES ($1, $2, 'integration-hash', 'Composition Root', TRUE)`, userID, "composition_"+uuid.NewString())
+		VALUES ($1, $2, 'integration-hash', 'Desktop Producer', TRUE)`, userID, "desktop_"+uuid.NewString())
 	require.NoError(t, err)
 	payload, err := json.Marshal(models.CreateAdminAuditLogRequest{
-		UserID:   userID,
-		UserName: "Composition Root",
-		Action:   "COMPOSITION_ROOT_INTEGRATION",
-		Details:  "outbox worker started by Wails OnStartup",
+		UserID: userID, UserName: "Desktop Producer", Action: "DESKTOP_PRODUCER_INTEGRATION", Details: "must stay pending in desktop",
 	})
 	require.NoError(t, err)
 	require.NoError(t, repository.NewOutboxRepository(db).Enqueue(models.OutboxEvent{
-		EventType:        models.OutboxEventAudit,
-		DeduplicationKey: "composition-root:" + uuid.NewString(),
-		Payload:          string(payload),
+		EventType: models.OutboxEventAudit, DeduplicationKey: "desktop-producer:" + uuid.NewString(), Payload: string(payload),
 	}))
 
 	startupContext, cancelStartup := context.WithCancel(context.Background())
 	defer cancelStartup()
 	appOptions.OnStartup(startupContext)
-	require.Eventually(t, func() bool {
+	require.Never(t, func() bool {
 		var processed int
-		err := db.QueryRow(`SELECT COUNT(*) FROM admin_audit_log WHERE action = 'COMPOSITION_ROOT_INTEGRATION'`).Scan(&processed)
-		return err == nil && processed == 1
-	}, 5*time.Second, 25*time.Millisecond)
+		err := db.QueryRow(`SELECT COUNT(*) FROM admin_audit_log WHERE action = 'DESKTOP_PRODUCER_INTEGRATION'`).Scan(&processed)
+		return err == nil && processed > 0
+	}, 250*time.Millisecond, 25*time.Millisecond)
 
+	var pending int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM event_outbox WHERE processed_at IS NULL`).Scan(&pending))
+	require.Equal(t, 1, pending)
 	appOptions.OnShutdown(context.Background())
-	require.Equal(t, int32(1), closeLoggerCalls.Load())
-	require.Error(t, sqlDB.Ping())
 }

@@ -122,6 +122,17 @@ func TestBackgroundLifecycleStartsWorkerOnlyOnce(t *testing.T) {
 	assert.Equal(t, int32(1), worker.stops.Load())
 }
 
+func TestBackgroundLifecycleKeepsSchemaGateWithoutEmbeddedWorker(t *testing.T) {
+	reader := &fakeMigrationStatusReader{status: readyMigrationStatus()}
+	lifecycle := newBackgroundLifecycle(reader, nil, nil)
+	lifecycle.SetApplicationContext(context.Background())
+
+	lifecycle.ReconcileSchema()
+
+	require.NoError(t, lifecycle.CheckReady())
+	stopLifecycle(t, lifecycle)
+}
+
 func TestBackgroundLifecycleBlocksOnUnavailableOrUnsafeSchema(t *testing.T) {
 	tests := []struct {
 		name   string

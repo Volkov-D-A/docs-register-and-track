@@ -34,8 +34,12 @@ export function RollbackMigration(arg1) {
   return window['go']['services']['SettingsService']['RollbackMigration'](arg1);
 }
 
-export function RunMigrations() {
-  return window['go']['services']['SettingsService']['RunMigrations']();
+export function RunMigrations(arg1) {
+  return window['go']['services']['SettingsService']['RunMigrations'](arg1);
+}
+
+export function SetMigrationClient(arg1) {
+  return window['go']['services']['SettingsService']['SetMigrationClient'](arg1);
 }
 
 export function Update(arg1, arg2) {

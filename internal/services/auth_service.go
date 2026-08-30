@@ -507,16 +507,13 @@ func (s *AuthService) NeedsInitialSetup() (bool, error) {
 	return count == 0, nil
 }
 
-// InitialSetup — создаёт администратора при первом запуске.
-// Если таблицы не существуют, автоматически запускает миграции перед созданием пользователя.
+// InitialSetup creates the first administrator after docflow-server has
+// bootstrapped an empty database. Desktop never executes schema migrations.
 func (s *AuthService) InitialSetup(password string) error {
-	// Проверяем, существуют ли таблицы; если нет — запускаем миграции
 	_, err := s.userRepo.CountUsers()
 	if err != nil {
 		if isTableNotExistsError(err) {
-			if migErr := s.db.RunMigrations(database.DefaultMigrationsPath); migErr != nil {
-				return fmt.Errorf("ошибка применения миграций: %w", migErr)
-			}
+			return models.NewConflict("docflow-server ещё не подготовил схему базы данных")
 		} else {
 			return fmt.Errorf("ошибка проверки пользователей: %w", err)
 		}

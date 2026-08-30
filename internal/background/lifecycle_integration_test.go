@@ -1,4 +1,4 @@
-package app
+package background
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBackgroundLifecycleProcessesOutboxAfterMigrationIntegration(t *testing.T) {
+func TestLifecycleProcessesOutboxAfterMigrationIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	db := &database.DB{DB: sqlDB}
 	require.NoError(t, db.RollbackMigration(database.DefaultMigrationsPath))
@@ -24,7 +24,7 @@ func TestBackgroundLifecycleProcessesOutboxAfterMigrationIntegration(t *testing.
 	outboxRepo := repository.NewOutboxRepository(db)
 	auditRepo := repository.NewAdminAuditLogRepository(db)
 	worker := outbox.NewWorker(outboxRepo, nil, nil, auditRepo, nil, nil)
-	lifecycle := newBackgroundLifecycle(db, worker, nil)
+	lifecycle := NewLifecycle(db, worker, nil)
 	lifecycle.SetApplicationContext(context.Background())
 	lifecycle.ReconcileSchema()
 	require.Error(t, lifecycle.CheckReady())
@@ -55,5 +55,7 @@ func TestBackgroundLifecycleProcessesOutboxAfterMigrationIntegration(t *testing.
 		return err == nil && processed == 1
 	}, 5*time.Second, 25*time.Millisecond)
 
-	stopLifecycle(t, lifecycle)
+	stopContext, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, lifecycle.Stop(stopContext))
 }

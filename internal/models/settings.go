@@ -16,4 +16,5 @@ type RollbackMigrationRequest struct {
 	BackupReference      string `json:"backupReference"`
 	AcknowledgedDataLoss bool   `json:"acknowledgedDataLoss"`
 	Confirmation         string `json:"confirmation"`
+	Password             string `json:"password"`
 }

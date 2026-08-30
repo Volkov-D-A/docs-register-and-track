@@ -2,7 +2,34 @@
 
 Дата подготовки: 29 августа 2026 года
 
-Статус: архитектурный план, реализация не начата
+Дата последнего обновления: 30 августа 2026 года
+
+Статус: этап 1 и серверное управление миграциями реализованы в коде;
+production deployment, TLS и cutover не выполнены
+
+Реализованный первый инкремент:
+
+- отдельный entrypoint `cmd/docflow-server`;
+- команды `run`, `check-config`, `healthcheck` и `version`;
+- server composition root для PostgreSQL, MinIO и outbox consumers;
+- общий schema-dependent lifecycle в `internal/background`;
+- встроенный outbox consumer удалён из desktop composition root;
+- PostgreSQL advisory lease обеспечивает один server-worker и сериализует
+  серверные изменения схемы;
+- настраиваемые polling, batch, timeouts, retention и cleanup;
+- graceful shutdown, значимые structured operational logs и startup diagnostics;
+- unit и PostgreSQL integration tests;
+- environment-only server config, versioned distroless container image и
+  Makefile targets для локальной сборки и явной публикации в Docker Hub;
+- management API с раздельными liveness/readiness и maintenance mode;
+- пустая БД bootstrap-ится сервером, обновление существующей БД подтверждается
+  администратором из desktop UI;
+- desktop не исполняет migration SQL: apply/rollback выполняет сервер под
+  PostgreSQL advisory lock с повторной проверкой admin password и audit.
+
+До production-переключения остаются инфраструктурное развёртывание, проверка
+реального backup/restore, production-like integration/load test и согласованное
+окно остановки всех централизованно запускаемых desktop-процессов.
 
 ## 1. Цель
 
@@ -25,7 +52,7 @@ PostgreSQL и MinIO.
 
 ## 2. Исходное состояние
 
-Сейчас каждый Wails-процесс:
+До реализации этапа 1 каждый Wails-процесс:
 
 - напрямую подключается к PostgreSQL;
 - напрямую обращается к MinIO;
@@ -119,10 +146,11 @@ React -> Wails binding -> desktop API adapter -> HTTPS -> server use case
 
 ### 3.5. Сервер владеет изменениями схемы в целевом состоянии
 
-Во время перехода текущий административный UI миграций сохраняется. После
-перевода рабочих операций за API миграции запускаются только серверной
-операционной командой. Несколько экземпляров не должны выполнять миграции
-конкурентно.
+Административный UI миграций сохраняется, но является только клиентом
+management API. Каталог embedded migrations и SQL execution принадлежат
+`docflow-server`. На apply/rollback сервис останавливает worker, получает
+PostgreSQL advisory lock и после операции согласует maintenance/readiness без
+рестарта. Несколько экземпляров не могут выполнять миграции конкурентно.
 
 ## 4. Целевая структура кода
 
@@ -246,20 +274,19 @@ security-модель реализации.
    - shutdown timeout.
 6. Заменить compile-time constants worker на валидируемые настройки с
    безопасными default и разумными limits.
-7. Добавить режим desktop worker:
-
-   ```text
-   background.outboxConsumer = embedded | external
-   ```
-
-   Режим сохраняется как управляемый cutover/rollback switch. В production он
-   переключается централизованно на `external` в окно обслуживания.
+7. Удалить outbox consumer из desktop composition root. Desktop всегда остаётся
+   producer: repositories продолжают атомарно добавлять события, но Wails
+   lifecycle не получает worker и не может обрабатывать очередь.
 8. Не удалять защиту `FOR UPDATE SKIP LOCKED`: она нужна для отказоустойчивости
-   и защищает от непреднамеренно оставшегося запущенного старого процесса, хотя
-   штатный rollout не предполагает параллельных consumers.
-9. Добавить server process signals: `SIGTERM`, `SIGINT`, context cancellation,
+   server-worker и защищает от непреднамеренно оставшегося запущенного процесса
+   предыдущей desktop-версии, хотя штатный rollout не предполагает параллельных
+   consumers.
+9. Удерживать отдельный session-level PostgreSQL advisory lease всё время
+   работы server-worker. Второй экземпляр сервиса не запускает consumer, а
+   desktop UI отклоняет применение и rollback миграций до остановки сервиса.
+10. Добавить server process signals: `SIGTERM`, `SIGINT`, context cancellation,
    ожидание текущего batch и закрытие DB/logger.
-10. Добавить команды:
+11. Добавить команды:
 
     ```text
     docflow-server run
@@ -272,7 +299,7 @@ security-модель реализации.
 
 При централизованной поставке штатный cutover выполняется без параллельной
 работы desktop-worker и server-worker. Однако уже запущенный процесс не меняется
-при замене общего executable. Поэтому текущий desktop-worker и новый
+при замене общего executable. Поэтому desktop-worker предыдущей версии и новый
 server-worker всё равно должны понимать существующие `event_type` и payload на
 случай ошибочно не закрытого процесса или аварийного rollback.
 
@@ -312,8 +339,8 @@ payload, и только после успешного cutover новый цен
 - server worker работает без запущенного Wails-приложения;
 - очередь обрабатывается после рестарта процесса;
 - остановка и schema gate проверены тестами;
-- production desktop настроены на `external`;
-- мониторинг подтверждает отсутствие неожиданных embedded workers.
+- desktop composition root не создаёт outbox worker;
+- monitoring подтверждает, что очередь обрабатывает `docflow-server`.
 
 ## Этап 2. Подготовить production deployment и наблюдаемость
 
@@ -360,7 +387,8 @@ payload, и только после успешного cutover новый цен
 - build version и uptime.
 
 Следует определить способ сбора метрик. До внедрения отдельного metrics backend
-допустимы периодические structured snapshots в Seq, но для alerting требуется
+метрики остаются только во внутреннем registry и не публикуются в Seq: operational
+log содержит только значимые события, warnings и errors. Для alerting требуется
 система, способная строить пороги по времени.
 
 ### Alerts
@@ -672,8 +700,8 @@ DELETE /api/v1/attachments/{id}
 6. Сменить прежние общие credentials, поскольку они могли сохраниться на ПК.
 7. Выдать `docflow-server` отдельные least-privilege DB и MinIO identities.
 8. Перевести migration ownership на server CLI/deployment job.
-9. Удалить embedded outbox worker и transitional feature flags после окончания
-   rollback window.
+9. Удалить оставшиеся transitional direct API paths после rollback window;
+   embedded outbox worker уже удалён на этапе 1.
 10. Обновить backup/restore, installation, diagnostics и incident runbooks.
 
 ### Критерий завершения
@@ -782,6 +810,9 @@ Backup/restore не следует автоматически включать �
 Обязательные требования:
 
 - TLS с проверяемым сертификатом;
+- временный remote HTTP разрешается только явным desktop-флагом
+  `server.allowInsecureHttp`, в доверенной изолированной сети и не считается
+  завершением production TLS gate;
 - password/session/storage secrets не логируются;
 - секреты отсутствуют в argv и image layers;
 - отдельный непривилегированный OS/container user;
@@ -874,22 +905,21 @@ Backup/restore не следует автоматически включать �
 
 ### Порядок первого worker rollout
 
-1. На тестовом контуре проверить новый desktop в режимах `embedded` и
-   `external`, а также server-worker на копии совместимой схемы.
+1. На тестовом контуре проверить новый desktop как producer без consumer, а
+   server-worker — как единственный обработчик совместимой очереди.
 2. Развернуть `docflow-server` рядом с PostgreSQL/MinIO, но не допускать
    production consumption до начала окна обслуживания.
 3. Объявить окно обслуживания и запретить новые входы.
 4. Закрыть все Wails-приложения и проверить отсутствие старых процессов/DB
    sessions. Простая замена общего executable без этого шага недостаточна.
-5. Остановить embedded consumption, дождаться завершения взятых событий и
-   проверить отсутствие активных claims либо дождаться их stale timeout.
-6. Опубликовать общий desktop executable и конфигурацию с режимом `external`.
+5. Дождаться завершения событий, взятых прежними desktop-worker, и проверить
+   отсутствие активных claims либо дождаться их stale timeout.
+6. Опубликовать общий desktop executable без встроенного worker.
 7. Запустить `docflow-server`, дождаться readiness и обработки контрольного
    события.
 8. Выполнить smoke test desktop и открыть систему пользователям.
-9. Наблюдать очередь, terminal failures и отсутствие embedded consumers.
-10. После rollback window удалить embedded worker в одном из следующих
-    централизованных релизов.
+9. Наблюдать очередь, terminal failures и отсутствие процессов предыдущей
+   desktop-версии.
 
 ### Порядок rollout каждого API-сценария
 
@@ -912,8 +942,9 @@ Backup/restore не следует автоматически включать �
 - desktop feature flag временно возвращает ещё существующий direct path;
 - schema не откатывается автоматически;
 - destructive migrations не выполняются до завершения rollback window;
-- outbox server можно остановить, временно вернув `embedded`, только если
-  event payload совместим;
+- rollback outbox требует окна обслуживания: закрыть desktop, остановить
+  сервер, вернуть предыдущий общий executable со встроенным worker и проверить
+  совместимость event payload;
 - credentials не возвращаются на рабочие места после окончательного сетевого
   закрытия без отдельного решения об аварийном режиме.
 
@@ -1038,7 +1069,7 @@ offline-режима:
 - поддерживаемые версии desktop/server/schema формально определены;
 - release gate, integration, end-to-end, security, load и реальный restore test
   пройдены;
-- transitional direct paths, embedded worker и старые credentials удалены после
-  rollback window;
+- transitional direct paths и старые credentials удалены после rollback window;
+- desktop binary не содержит outbox consumer;
 - `README.md`, технический справочник, инструкции и release notes отражают
   фактическую production-архитектуру.

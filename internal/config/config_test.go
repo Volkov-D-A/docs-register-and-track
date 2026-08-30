@@ -119,6 +119,10 @@ func TestLoadConfig(t *testing.T) {
 				"password": "db_password",
 				"dbname": "db_name",
 				"sslmode": "require"
+			},
+			"server": {
+				"url": "http://docflow.internal:8080",
+				"allowInsecureHttp": true
 			}
 		}`
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
@@ -136,6 +140,8 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "db_password", cfg.Database.Password)
 		assert.Equal(t, "db_name", cfg.Database.DBName)
 		assert.Equal(t, "require", cfg.Database.SSLMode)
+		assert.Equal(t, "http://docflow.internal:8080", cfg.Server.URL)
+		assert.True(t, cfg.Server.AllowInsecureHTTP)
 	})
 
 	// Ошибка при отсутствии файла конфигурации

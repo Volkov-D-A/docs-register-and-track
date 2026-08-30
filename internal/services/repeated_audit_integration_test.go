@@ -37,7 +37,7 @@ func TestRepeatedTransitionsProduceDistinctAuditEventsIntegration(t *testing.T) 
 	_, err = auth.Login("admin", adminPassword)
 	require.NoError(t, err)
 
-	settingsService := NewSettingsService(db, settingsRepo, auth, NewAdminAuditLogService(auditRepo, auth))
+	settingsService := NewSettingsService(settingsRepo, auth)
 	userService := NewUserService(userRepo, auth)
 	substitutionService := NewUserSubstitutionService(substitutionRepo, userRepo, auth)
 

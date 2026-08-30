@@ -6,11 +6,13 @@ import { formatAppError } from '../../utils/appError';
 const ROLLBACK_MIGRATION_CONFIRMATION_PHRASE = 'ОТКАТ МИГРАЦИИ';
 
 const MigrationsTab: React.FC = () => {
-  const { message, modal } = App.useApp();
+  const { message } = App.useApp();
+  const [migrationForm] = Form.useForm();
   const [rollbackForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [rollingBack, setRollingBack] = useState(false);
+  const [migrationModalOpen, setMigrationModalOpen] = useState(false);
   const [rollbackModalOpen, setRollbackModalOpen] = useState(false);
   const [status, setStatus] = useState<any>(null);
 
@@ -37,29 +39,27 @@ const MigrationsTab: React.FC = () => {
     if (running) {
       return;
     }
-    modal.confirm({
-      title: 'Запуск миграций',
-      content: 'Вы уверены, что хотите применить миграции базы данных? Убедитесь, что все пользователи завершили работу в системе.',
-      okText: 'Запустить',
-      cancelText: 'Отмена',
-      okType: 'primary',
-      onOk: async () => {
-        if (running) {
-          return;
-        }
-        setRunning(true);
-        try {
-          const { RunMigrations } = await import('../../../wailsjs/go/services/SettingsService');
-          await RunMigrations();
-          message.success('Миграции успешно применены');
-          await loadStatus();
-        } catch (error: unknown) {
-          message.error(formatAppError(error));
-        } finally {
-          setRunning(false);
-        }
-      },
-    });
+    migrationForm.resetFields();
+    setMigrationModalOpen(true);
+  };
+
+  const onConfirmMigrations = async () => {
+    if (running) {
+      return;
+    }
+    const values = await migrationForm.validateFields();
+    setRunning(true);
+    try {
+      const { RunMigrations } = await import('../../../wailsjs/go/services/SettingsService');
+      await RunMigrations(values.password);
+      message.success('Миграции успешно применены сервисом');
+      setMigrationModalOpen(false);
+      await loadStatus();
+    } catch (error: unknown) {
+      message.error(formatAppError(error));
+    } finally {
+      setRunning(false);
+    }
   };
 
   const onRollback = () => {
@@ -80,6 +80,7 @@ const MigrationsTab: React.FC = () => {
         backupReference: values.backupReference,
         acknowledgedDataLoss: values.acknowledgedDataLoss,
         confirmation: values.confirmation,
+        password: values.password,
       });
       message.warning('Откат выполнен. Обычная работа заблокирована до повторного применения миграций.');
       setRollbackModalOpen(false);
@@ -171,6 +172,31 @@ const MigrationsTab: React.FC = () => {
       </div>
 
       <Modal
+        title="Применить миграции через docflow-server?"
+        open={migrationModalOpen}
+        onCancel={() => setMigrationModalOpen(false)}
+        onOk={onConfirmMigrations}
+        okText="Применить миграции"
+        cancelText="Отмена"
+        okButtonProps={{ loading: running }}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="warning">
+          Убедитесь, что все пользователи завершили работу. Сервис повторно
+          проверит пароль текущего администратора.
+        </Typography.Paragraph>
+        <Form form={migrationForm} layout="vertical" preserve={false}>
+          <Form.Item
+            name="password"
+            label="Пароль администратора"
+            rules={[{ required: true, message: 'Введите пароль администратора' }]}
+          >
+            <Input.Password autoComplete="current-password" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
         title="Откатить последнюю миграцию?"
         open={rollbackModalOpen}
         onCancel={() => setRollbackModalOpen(false)}
@@ -179,13 +205,20 @@ const MigrationsTab: React.FC = () => {
         cancelText="Отмена"
         okButtonProps={{ danger: true, loading: rollingBack }}
         confirmLoading={rollingBack}
-        destroyOnClose
+        destroyOnHidden
       >
         <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
           <Typography.Text type="danger">
             Откат последней миграции может удалить таблицы, столбцы и данные, созданные этой миграцией.
           </Typography.Text>
           <Form form={rollbackForm} layout="vertical" preserve={false}>
+            <Form.Item
+              name="password"
+              label="Пароль администратора"
+              rules={[{ required: true, message: 'Введите пароль администратора' }]}
+            >
+              <Input.Password autoComplete="current-password" />
+            </Form.Item>
             <Form.Item
               name="backupCompleted"
               valuePropName="checked"

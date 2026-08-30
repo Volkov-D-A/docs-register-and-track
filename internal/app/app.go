@@ -17,8 +17,8 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
@@ -162,7 +162,24 @@ func newWailsOptionsWithDependencies(
 
 	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
 	outboxAdminService := services.NewOutboxAdminService(outboxRepo, authService)
-	settingsService := services.NewSettingsService(db, settingsRepo, authService, adminAuditLogService)
+	settingsService := services.NewSettingsService(settingsRepo, authService)
+	serverURL := cfg.Server.URL
+	if serverURL == "" {
+		serverURL = "http://localhost:8080"
+	}
+	migrationClient, err := serverclient.NewWithOptions(serverURL, serverclient.Options{
+		AllowInsecureHTTP: cfg.Server.AllowInsecureHTTP,
+	})
+	if err != nil {
+		return nil, &startupdiag.Failure{
+			Component:  "docflow-server",
+			ConfigPath: params.ConfigPath,
+			Summary:    "Некорректный адрес серверного API.",
+			NextStep:   "Проверьте server.url в desktop config.json.",
+			Err:        err,
+		}
+	}
+	settingsService.SetMigrationClient(migrationClient)
 	userService := services.NewUserService(userRepo, authService)
 	userSubstitutionService := services.NewUserSubstitutionService(userSubstitutionRepo, userRepo, authService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
@@ -210,11 +227,9 @@ func newWailsOptionsWithDependencies(
 	attachmentService.SetSubstitutionStore(userSubstitutionRepo)
 	attachmentService.SetOperationLifecycle(operationLifecycle)
 	attachmentService.SetOperationMetrics(metrics)
-	outboxWorker := outbox.NewWorker(outboxRepo, userEventRepo, journalRepo, adminAuditLogRepo, attachmentRepo, objectStorage)
-	outboxWorker.SetMetrics(metrics)
 	backgroundServices := newBackgroundLifecycle(
 		db,
-		outboxWorker,
+		nil,
 		nil,
 	)
 	services.ConfigureSchemaLifecycle(authService, settingsService, backgroundServices)
@@ -262,7 +277,6 @@ func newWailsOptionsWithDependencies(
 		LogLevel:       wailslogger.ERROR,
 		ErrorFormatter: formatBackendError,
 		OnStartup: func(ctx context.Context) {
-			go observability.LogPeriodically(ctx, metrics, slog.Default(), time.Minute)
 			attachmentService.Startup(ctx)
 			backgroundServices.SetApplicationContext(ctx)
 			backgroundServices.ReconcileSchema()
@@ -277,7 +291,6 @@ func newWailsOptionsWithDependencies(
 			if err := operationLifecycle.Shutdown(shutdownCtx); err != nil {
 				slog.Warn("shutdown continued before all backend operations finished", "error", err)
 			}
-			metrics.LogSnapshot(slog.Default())
 			db.Close()
 			if params.CloseLogger != nil {
 				params.CloseLogger()

@@ -1,6 +1,6 @@
 # Техническая документация проекта
 
-Дата обновления: 2026-08-29
+Дата обновления: 2026-08-30
 Статус: основной справочник для дальнейшей разработки
 
 ## Назначение
@@ -50,7 +50,7 @@ Frontend:
 
 - Wails CLI v2;
 - Makefile как основной entrypoint для dev/build/release checks;
-- Docker Compose для локальных PostgreSQL, MinIO и Seq;
+- Docker Compose для локальных PostgreSQL, MinIO, Seq, `docflow-server` и Caddy;
 - Linux `amd64` и Windows `amd64` являются production target. macOS не входит в текущий release target.
 
 ## Высокоуровневая Архитектура
@@ -63,7 +63,11 @@ Wails desktop app
 │   ├── встраивает frontend и release notes
 │   └── запускает Wails с options из internal/app
 │
+├── cmd/docflow-server/
+│   └── standalone process для централизованной обработки outbox
+│
 ├── internal/
+│   ├── background/    общий schema-dependent lifecycle
 │   ├── app/           composition root, Wails bindings и shutdown
 │   ├── config/        config loading, encrypted secrets
 │   ├── database/      PostgreSQL connection, embedded migrations
@@ -195,10 +199,17 @@ Production error envelope для frontend:
 - migrations лежат в `internal/database/migrations`;
 - runtime UI migration management сохраняется в production для пользователя с `admin`;
 - schema-dependent background services запускаются общим lifecycle только при `UpToDate` и совместимой схеме;
-- успешный запуск миграций повторно сверяет схему и запускает outbox worker без перезапуска приложения;
+- desktop UI не исполняет SQL миграций и обращается к management API
+  `docflow-server`;
+- перед изменением схемы серверный lifecycle останавливает worker и освобождает
+  его session-level PostgreSQL advisory lease; handler затем получает тот же
+  lease как migration lock;
+- после успешного apply сервер повторно проверяет `UpToDate`/compatibility и
+  запускает worker без рестарта процесса или контейнера;
 - rollback считается destructive operation;
 - rollback требует fresh PostgreSQL+MinIO backup, backup reference, data-loss acknowledgment, control phrase and audit entries;
-- перед rollback schema-dependent worker останавливается, а обычные защищённые операции блокируются до успешного повторного применения миграций;
+- после успешного rollback сервер остаётся в maintenance, а desktop maintenance
+  gate блокирует обычные защищённые операции до повторного apply;
 - в режиме обслуживания администратору остаются доступны аутентификация, статус миграций и их применение для восстановления;
 - older binary against newer DB schema must be blocked;
 - dirty schema means stop using app and follow recovery procedure.
@@ -235,6 +246,65 @@ MinIO хранит physical attachment objects. PostgreSQL хранит attachme
 worker, останавливает его перед rollback и включает maintenance gate для обычных
 защищённых операций. Повторная успешная миграция снимает gate и запускает worker
 без рестарта приложения.
+
+Lifecycle реализован в `internal/background` и используется Wails composition
+root как schema maintenance gate, а standalone `docflow-server` — как lifecycle
+реального worker. Desktop composition root не создаёт outbox consumer:
+repositories продолжают записывать transactional events, а единственный
+consumer находится в `docflow-server` и читает ту же таблицу `event_outbox`
+общей PostgreSQL. Переключение production выполняется централизованно только
+после закрытия уже запущенных процессов предыдущей desktop-версии.
+
+На время работы consumer удерживает отдельный PostgreSQL advisory lease на
+выделенном соединении. Management API сначала останавливает consumer и
+освобождает lease, затем использует его как межпроцессную блокировку изменения
+схемы. Второй server-worker или конкурентная миграция получить lease не могут.
+
+`docflow-server` предоставляет команды `run`, `check-config`, `healthcheck` и
+`version`, а также liveness/readiness и административный API миграций. Он проверяет актуальность embedded migrations,
+подключение к PostgreSQL и MinIO, использует graceful shutdown и отправляет
+в Seq только значимые operational events, warnings и errors. Периодические
+metric snapshots в operational log не отправляются. Desktop всё ещё напрямую
+работает с PostgreSQL и MinIO для бизнес-операций, но управление миграциями уже
+переведено на HTTP API сервиса.
+
+Container image собирается через `build/server/Dockerfile` на distroless runtime
+под непривилегированным пользователем. В image не копируются production config
+и secrets; настройки передаются при запуске через env-файл или механизм
+оркестратора; JSON-конфигурацию сервер не читает. `docker-compose.yaml` всегда
+загружает `hehelf/docflow-service:${DOCFLOW_SERVER_VERSION}` из Docker Hub,
+запускает его рядом с PostgreSQL, MinIO, Seq и Caddy и ожидает readiness PostgreSQL.
+Версия задаётся в `.env` рядом с версиями остальных контейнеров. Сборка
+исходников на production host не выполняется. Пустая схема bootstrap-ится
+сервером автоматически; при обновлении существующей схемы процесс остаётся
+живым в maintenance и ждёт команды администратора. Docker healthcheck проверяет
+`/health/live`, а `/health/ready` остаётся 503 до готовности схемы и зависимостей.
+`make
+docker-server-build` создаёт локальный versioned tag, а `make
+docker-server-push` после отдельного `docker login` собирает и публикует image и
+immutable `DOCFLOW_SERVER_VERSION` из `.env`. Repository
+`hehelf/docflow-service` жёстко задан в Makefile и Compose. Makefile не принимает
+Docker Hub token.
+
+Management endpoints:
+
+- `GET /health/live` — процесс и HTTP listener работают;
+- `GET /health/ready` — схема, PostgreSQL и MinIO готовы к обычной работе;
+- `GET /api/v1/admin/migrations` — status embedded/schema versions;
+- `POST /api/v1/admin/migrations/apply` — apply всех ожидающих миграций;
+- `POST /api/v1/admin/migrations/rollback` — rollback одной миграции с backup
+  reference, data-loss acknowledgement и контрольной фразой.
+
+Apply и rollback повторно проверяют текущий пароль активного пользователя с
+системным правом `admin`; одинаковые ошибки авторизации не раскрывают причину и
+ограничиваются по частоте в памяти процесса. Пароль передаётся через HTTP Basic
+только на время вызова и не входит в JSON или audit. Compose размещает Caddy
+перед сервисом: наружу публикуется Caddy, а порт `docflow-server` остаётся только
+во внутренней сети. До подключения сертификатов допускается явно включаемый
+временный режим desktop `server.allowInsecureHttp=true`. Он не является
+production-защитой и допустим только в доверенной изолированной сети. Штатная
+схема — HTTPS, `allowInsecureHttp=false` и проверка certificate через системный
+trust store.
 
 Покрытые зоны:
 
@@ -277,7 +347,13 @@ worker, останавливает его перед rollback и включае�
 
 ## Конфигурация И Секреты
 
-Config lookup order:
+`docflow-server` читает подключения, Seq и параметры outbox исключительно из
+runtime environment. PostgreSQL и MinIO используют те же credentials, которыми
+инициализируются контейнеры; отдельные service accounts на текущем этапе не
+создаются. Полный перечень и локальные примеры приведены в `.envExample`.
+JSON-файл серверу не требуется.
+
+Desktop config lookup order:
 
 ```text
 DOCFLOW_CONFIG_PATH
@@ -285,7 +361,9 @@ DOCFLOW_CONFIG_PATH
 <current working directory>/config/config.json
 ```
 
-Production должен использовать `DOCFLOW_CONFIG_PATH` или executable-relative `config/config.json`. CWD fallback предназначен для local development.
+Production desktop должен использовать `DOCFLOW_CONFIG_PATH` или
+executable-relative `config/config.json`. CWD fallback предназначен для local
+development.
 
 Secrets:
 
@@ -709,10 +787,11 @@ PostgreSQL из `docker-compose.integration.yaml`, передаёт безопа
 
 Integration coverage composition root собирает Wails options с реальной
 тестовой PostgreSQL и поддельным object storage, без запуска GUI и MinIO. Тест
-проверяет состав bindings, запуск outbox worker через `OnStartup` и остановку
-background services, закрытие database pool и logger callback через
-`OnShutdown`. Production `NewWailsOptions` использует те же package-private
-фабрики с реальными PostgreSQL, MinIO и theme service.
+проверяет состав bindings, отсутствие outbox consumption в desktop, сохранение
+pending event, закрытие database pool и logger callback через `OnShutdown`.
+Отдельный server integration test проверяет обработку события без Wails.
+Production `NewWailsOptions` использует те же package-private фабрики с
+реальными PostgreSQL, MinIO и theme service.
 
 ## Performance Budgets
 

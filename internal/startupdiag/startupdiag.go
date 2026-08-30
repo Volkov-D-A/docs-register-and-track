@@ -17,6 +17,14 @@ type Failure struct {
 	Err        error
 }
 
+func (f Failure) Error() string {
+	normalized := f.normalized()
+	if normalized.Err != nil {
+		return fmt.Sprintf("%s: %s: %v", normalized.Component, normalized.Summary, normalized.Err)
+	}
+	return fmt.Sprintf("%s: %s", normalized.Component, normalized.Summary)
+}
+
 func (f Failure) normalized() Failure {
 	f.Component = strings.TrimSpace(f.Component)
 	f.ConfigPath = strings.TrimSpace(f.ConfigPath)

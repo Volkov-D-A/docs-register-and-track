@@ -1,0 +1,10 @@
+.git
+.env
+.gocache
+config
+server-config.json
+frontend/node_modules
+frontend/dist
+build/bin
+build/performance
+build/release-evidence

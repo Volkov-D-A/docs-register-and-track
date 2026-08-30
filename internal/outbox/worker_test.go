@@ -178,7 +178,7 @@ func TestWorkerCleanupProcessedUsesRetentionAndBoundedBatches(t *testing.T) {
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), nil, nil, nil, nil, nil)
 	now := time.Date(2026, time.August, 5, 12, 0, 0, 0, time.UTC)
 	worker.now = func() time.Time { return now }
-	cutoff := now.Add(-processedRetention)
+	cutoff := now.Add(-worker.options.ProcessedRetention)
 	mock.ExpectExec(`WITH expired AS \(.*DELETE FROM event_outbox`).WithArgs(cutoff, cleanupBatchSize).WillReturnResult(sqlmock.NewResult(0, cleanupBatchSize))
 	mock.ExpectExec(`WITH expired AS \(.*DELETE FROM event_outbox`).WithArgs(cutoff, cleanupBatchSize).WillReturnResult(sqlmock.NewResult(0, 25))
 
@@ -210,4 +210,15 @@ func TestRetryDelayIsBoundedExponential(t *testing.T) {
 	require.Equal(t, time.Second, retryDelay(1))
 	require.Equal(t, 8*time.Second, retryDelay(4))
 	require.Equal(t, maxRetryDelay, retryDelay(100))
+}
+
+func TestWorkerOptionsDefaultsAndValidation(t *testing.T) {
+	defaults := (Options{}).WithDefaults()
+	require.Equal(t, 50, defaults.BatchSize)
+	require.Equal(t, 5*time.Second, defaults.PollingInterval)
+	require.NoError(t, defaults.Validate())
+
+	invalid := defaults
+	invalid.BatchSize = 1001
+	require.Error(t, invalid.Validate())
 }
