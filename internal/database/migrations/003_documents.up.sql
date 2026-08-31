@@ -40,6 +40,21 @@ CREATE INDEX idx_documents_kind_nomenclature_created_at
 CREATE UNIQUE INDEX idx_documents_created_by_kind_idempotency
     ON documents (created_by, kind, idempotency_key);
 
+-- Stores the durable result of document commands independently from the
+-- document registration key. This also covers updates and admin drafts.
+CREATE TABLE document_command_idempotency (
+    principal_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    operation TEXT NOT NULL,
+    idempotency_key UUID NOT NULL,
+    request_hash TEXT NOT NULL,
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (principal_id, operation, idempotency_key)
+);
+
+CREATE INDEX idx_document_command_idempotency_created_at
+    ON document_command_idempotency(created_at);
+
 -- 9. Document Correspondent Registrations
 CREATE TABLE document_correspondent_registrations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -16,4 +16,6 @@ DROP TABLE IF EXISTS document_resolutions;
 
 DROP TABLE IF EXISTS document_correspondent_registrations;
 
+DROP TABLE IF EXISTS document_command_idempotency;
+
 DROP TABLE IF EXISTS documents;

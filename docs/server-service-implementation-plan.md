@@ -179,10 +179,11 @@ request-local principal. Фильтр `AccessScope` не сериализует�
 
 В контрольном срезе `82218a8` команды регистрации, изменения и создания
 административных черновиков переключены на typed server client. Добавлена
-миграция `012_document_command_idempotency`; server request principal определяет
-пользователя и права, а direct command registry удалён из desktop composition
-root. Unit, HTTP/client, frontend и полный PostgreSQL integration-прогон,
-включая повтор команды и conflict при изменённом payload, проходят.
+таблица `document_command_idempotency` в базовой миграции документов
+`003_documents`; server request principal определяет пользователя и права, а
+direct command registry удалён из desktop composition root. Unit, HTTP/client,
+frontend и полный PostgreSQL integration-прогон, включая повтор команды и
+conflict при изменённом payload, проходят.
 
 После него перенесены поручения: CRUD, смена статусов, соисполнители,
 повторяющиеся серии и история итераций работают через typed server client.
