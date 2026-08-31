@@ -37,6 +37,7 @@ type managementAPI struct {
 	migrations   migrationStore
 	lifecycle    migrationLifecycle
 	users        adminUserStore
+	userCommands userManagementStore
 	audit        adminAuditStore
 	authUsers    authUserStore
 	authSettings authSettingsStore
@@ -74,11 +75,13 @@ type adminAuditStore interface {
 
 func newManagementAPI(app *App) *managementAPI {
 	users := repository.NewUserRepository(app.db)
+	users.SetOutbox(repository.NewOutboxRepository(app.db))
 	return &managementAPI{
 		cfg:          app.cfg,
 		migrations:   app.db,
 		lifecycle:    app.lifecycle,
 		users:        users,
+		userCommands: users,
 		authUsers:    users,
 		authSettings: repository.NewSettingsRepository(app.db),
 		sessions:     repository.NewServerSessionRepository(app.db),
@@ -109,6 +112,10 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/auth/logout", api.requireSession(http.HandlerFunc(api.logout)))
 	mux.Handle("GET /api/v1/auth/me", api.requireSession(http.HandlerFunc(api.me)))
 	mux.Handle("POST /api/v1/auth/change-password", api.requireSession(http.HandlerFunc(api.changePassword)))
+	mux.Handle("GET /api/v1/users", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.listUsers)))
+	mux.Handle("POST /api/v1/users", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.createUser)))
+	mux.Handle("PATCH /api/v1/users/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateUser)))
+	mux.Handle("POST /api/v1/users/{id}/reset-password", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.resetUserPassword)))
 	mux.HandleFunc("GET /api/v1/admin/migrations", api.status)
 	mux.HandleFunc("POST /api/v1/admin/migrations/apply", api.apply)
 	mux.HandleFunc("POST /api/v1/admin/migrations/rollback", api.rollback)

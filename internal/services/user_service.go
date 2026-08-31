@@ -1,31 +1,20 @@
 package services
 
 import (
+	"context"
 	"fmt"
-
-	"github.com/google/uuid"
+	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // UserService предоставляет бизнес-логику для управления пользователями.
 type UserService struct {
 	userRepo UserStore
 	auth     *AuthService
-}
-type userOutboxStore interface {
-	CreateWithOutbox(models.CreateUserRequest, []models.OutboxEvent) (*models.User, error)
-	UpdateWithOutbox(models.UpdateUserRequest, []models.OutboxEvent) (*models.User, error)
-	ResetPasswordWithOutbox(uuid.UUID, string, []models.OutboxEvent) error
-}
-
-var errUserOutboxStoreRequired = fmt.Errorf("user store must support atomic outbox operations")
-
-func (s *UserService) auditEffect(key, action, details string) (models.OutboxEvent, error) {
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	return NewAdminAuditOutboxEvent(key, models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: action, Details: details})
+	server   serverclient.UserClient
 }
 
 // NewUserService создает новый экземпляр UserService.
@@ -36,119 +25,57 @@ func NewUserService(userRepo UserStore, auth *AuthService) *UserService {
 	}
 }
 
-// GetAllUsers возвращает список всех пользователей (доступно администраторам и делопроизводителям).
+func (s *UserService) SetServerClient(client serverclient.UserClient) { s.server = client }
+
+func (s *UserService) serverClient() (serverclient.UserClient, error) {
+	if s.server == nil {
+		return nil, fmt.Errorf("docflow-server user client is not configured")
+	}
+	return s.server, nil
+}
+
+// GetAllUsers возвращает список всех пользователей (доступно администраторам).
 func (s *UserService) GetAllUsers() ([]dto.User, error) {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+	client, err := s.serverClient()
+	if err != nil {
 		return nil, err
 	}
-	res, err := s.userRepo.GetAll()
-	return dto.MapUsers(res), err
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return client.ListUsers(ctx)
 }
 
 // CreateUser создает нового пользователя (доступно только администраторам).
 func (s *UserService) CreateUser(req models.CreateUserRequest) (*dto.User, error) {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return nil, err
-	}
-
-	temporaryPassword := ""
-	if req.Password == "" {
-		generatedPassword, err := security.GenerateTemporaryPassword()
-		if err != nil {
-			return nil, err
-		}
-		req.Password = generatedPassword
-		temporaryPassword = generatedPassword
-	}
-	req.PasswordChangeRequired = true
-
-	details := fmt.Sprintf("Создан пользователь «%s» (%s)", req.FullName, req.Login)
-	var res *models.User
-	var err error
-	store, ok := s.userRepo.(userOutboxStore)
-	if !ok {
-		return nil, errUserOutboxStoreRequired
-	}
-	event, buildErr := s.auditEffect("user:"+uuid.NewString()+":create", "USER_CREATE", details)
-	if buildErr != nil {
-		return nil, buildErr
-	}
-	res, err = store.CreateWithOutbox(req, []models.OutboxEvent{event})
+	client, err := s.serverClient()
 	if err != nil {
 		return nil, err
 	}
-
-	userDTO := dto.MapUser(res)
-	userDTO.TemporaryPassword = temporaryPassword
-	return userDTO, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return client.CreateUser(ctx, req)
 }
 
 // UpdateUser обновляет данные пользователя (доступно только администраторам).
 func (s *UserService) UpdateUser(req models.UpdateUserRequest) (*dto.User, error) {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+	client, err := s.serverClient()
+	if err != nil {
 		return nil, err
 	}
-	details := fmt.Sprintf("Обновлен пользователь «%s»", req.FullName)
-	var res *models.User
-	var err error
-	store, ok := s.userRepo.(userOutboxStore)
-	if !ok {
-		return nil, errUserOutboxStoreRequired
-	}
-	event, buildErr := s.auditEffect("user:"+req.ID+":update:"+uuid.NewString(), "USER_UPDATE", details)
-	if buildErr != nil {
-		return nil, buildErr
-	}
-	res, err = store.UpdateWithOutbox(req, []models.OutboxEvent{event})
-	if err != nil {
-		return nil, activeAdministratorInvariantConflict(err)
-	}
-
-	return dto.MapUser(res), nil
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return client.UpdateUser(ctx, req)
 }
 
 // ResetPassword генерирует временный пароль пользователя (доступно только администраторам).
 func (s *UserService) ResetPassword(userID string) (string, error) {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return "", err
-	}
-
-	uid, err := parseUUID(userID)
+	client, err := s.serverClient()
 	if err != nil {
 		return "", err
 	}
-
-	user, err := s.userRepo.GetByID(uid)
-	if err != nil {
-		return "", err
-	}
-	if user == nil {
-		return "", models.NewNotFound("пользователь не найден")
-	}
-	temporaryPassword, err := security.GenerateTemporaryPassword()
-	if err != nil {
-		return "", err
-	}
-
-	targetUserName := user.FullName
-	if targetUserName == "" {
-		targetUserName = user.Login
-	}
-	details := fmt.Sprintf("Сброшен пароль пользователя «%s»", targetUserName)
-	store, ok := s.userRepo.(userOutboxStore)
-	if !ok {
-		return "", errUserOutboxStoreRequired
-	}
-	event, buildErr := s.auditEffect("user:"+uid.String()+":password-reset:"+uuid.NewString(), "USER_PASSWORD_RESET", details)
-	if buildErr != nil {
-		return "", buildErr
-	}
-	err = store.ResetPasswordWithOutbox(uid, temporaryPassword, []models.OutboxEvent{event})
-	if err != nil {
-		return "", err
-	}
-
-	return temporaryPassword, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return client.ResetUserPassword(ctx, userID)
 }
 
 // GetExecutors возвращает список активных сотрудников для назначений и ознакомления.

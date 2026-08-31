@@ -167,7 +167,7 @@ func newWailsOptionsWithDependencies(
 	if serverURL == "" {
 		serverURL = "http://localhost:8080"
 	}
-	migrationClient, err := serverclient.NewWithOptions(serverURL, serverclient.Options{
+	serverClient, err := serverclient.NewWithOptions(serverURL, serverclient.Options{
 		AllowInsecureHTTP: cfg.Server.AllowInsecureHTTP,
 	})
 	if err != nil {
@@ -179,9 +179,10 @@ func newWailsOptionsWithDependencies(
 			Err:        err,
 		}
 	}
-	settingsService.SetMigrationClient(migrationClient)
-	authService.SetServerAuth(migrationClient)
+	settingsService.SetMigrationClient(serverClient)
+	authService.SetServerAuth(serverClient)
 	userService := services.NewUserService(userRepo, authService)
+	userService.SetServerClient(serverClient)
 	userSubstitutionService := services.NewUserSubstitutionService(userSubstitutionRepo, userRepo, authService)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
 	referenceService := services.NewReferenceService(referenceRepo, authService)

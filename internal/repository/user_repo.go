@@ -356,8 +356,16 @@ func (r *UserRepository) UpdateWithOutbox(req models.UpdateUserRequest, effects 
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(`UPDATE users SET login=$1, full_name=$2, is_active=$3, department_id=$4, is_document_participant=$5, failed_login_attempts=CASE WHEN is_active=false AND $3=true THEN 0 ELSE failed_login_attempts END, updated_at=CURRENT_TIMESTAMP WHERE id=$6`, req.Login, req.FullName, req.IsActive, depID, req.IsDocumentParticipant, uid); err != nil {
+	result, err := tx.Exec(`UPDATE users SET login=$1, full_name=$2, is_active=$3, department_id=$4, is_document_participant=$5, failed_login_attempts=CASE WHEN is_active=false AND $3=true THEN 0 ELSE failed_login_attempts END, updated_at=CURRENT_TIMESTAMP WHERE id=$6`, req.Login, req.FullName, req.IsActive, depID, req.IsDocumentParticipant, uid)
+	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("read updated user count: %w", err)
+	}
+	if affected == 0 {
+		return nil, models.NewNotFound("пользователь не найден")
 	}
 	if !req.IsActive {
 		if _, err := tx.Exec(`UPDATE server_sessions SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE user_id = $1 AND revoked_at IS NULL`, uid); err != nil {

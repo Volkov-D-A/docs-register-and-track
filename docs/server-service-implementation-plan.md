@@ -2,13 +2,14 @@
 
 Дата подготовки: 29 августа 2026 года
 
-Дата последнего обновления: 30 августа 2026 года
+Дата последнего обновления: 31 августа 2026 года
 
-Статус: server worker, контейнерное развёртывание, управление миграциями и
-полный auth/password lifecycle реализованы и проверены. Следующий этап —
-перенос управления пользователями в server API. Business operations desktop
-пока продолжают напрямую использовать PostgreSQL и MinIO; HTTPS и окончательное
-закрытие инфраструктуры от рабочих мест не выполнены.
+Статус: server worker, контейнерное развёртывание, управление миграциями,
+полный auth/password lifecycle и основные операции управления пользователями
+реализованы и проверены через server API. Связанные с экраном пользователей
+права доступа, замещения и справочник подразделений пока продолжают напрямую
+использовать PostgreSQL из desktop; HTTPS и окончательное закрытие
+инфраструктуры от рабочих мест не выполнены.
 
 Реализовано к текущей точке:
 
@@ -37,7 +38,12 @@
   без runtime fallback на прямую проверку credentials;
 - смена/сброс пароля, деактивация и автоматическая блокировка отзывают server
   sessions; административный сброс генерирует временный пароль для однократного
-  показа и требует смену при следующем входе.
+  показа и требует смену при следующем входе;
+- защищённые admin endpoints list/create/update/reset пользователей;
+- desktop `UserService` выполняет административные операции через typed server
+  client, а server request principal берётся из bearer-сессии;
+- user change, audit outbox и отзыв sessions остаются одной транзакцией;
+  временный пароль возвращается только в успешном create/reset response.
 
 Контрольные коммиты:
 
@@ -51,8 +57,8 @@
 | 1. Server worker | Завершён | Только эксплуатационный production smoke |
 | 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
 | 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
-| 4. Authentication | Завершён | Parallel-principal test вместе с первым business endpoint |
-| 5. Business API | Следующий | Начать с управления пользователями |
+| 4. Authentication | Завершён | Только production-like session/load smoke |
+| 5. Business API | В работе | Основные операции пользователей перенесены; завершить связанные права и замещения |
 | 6. Attachments API | Не начат | Streaming endpoints и limits |
 | 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
 
@@ -62,31 +68,36 @@ backup/restore test и production-like load/end-to-end проверки.
 
 ## Точка продолжения
 
-Текущий рабочий срез завершён на commit `9912af8`. При возобновлении работы не
-нужно заново реализовывать worker, миграции, login/session или password flows.
+Контрольный commit до текущего рабочего среза — `9912af8`. При возобновлении
+работы не нужно заново реализовывать worker, миграции, login/session, password
+flows или основные admin-операции пользователей.
 
-Следующий рекомендуемый срез — **управление пользователями через server API**:
+В текущем рабочем срезе реализовано **основное управление пользователями через
+server API**:
 
-1. Добавить защищённые правом `admin` endpoints:
+1. Добавлены защищённые правом `admin` endpoints:
    - `GET /api/v1/users`;
    - `POST /api/v1/users`;
    - `PATCH /api/v1/users/{id}`;
    - `POST /api/v1/users/{id}/reset-password`.
-2. Перенести в те же server use cases проверку прав, audit/outbox, инвариант
+2. Перенесены в server handlers проверка прав, audit/outbox, инвариант
    активного администратора и отзыв sessions при деактивации/сбросе.
-3. Возвращать временный пароль только из успешного reset response; не помещать
-   его в logs, audit, outbox или повторно читаемое хранилище.
-4. Добавить typed методы в существующий `internal/serverclient.Client` и
-   переключить Wails `UserService` на них.
-5. После переключения сразу удалить direct repository path этого сценария:
+3. Временный пароль возвращается только из успешного create/reset response и
+   не помещается в logs, audit, outbox или повторно читаемое хранилище.
+4. Добавлены typed методы в существующий `internal/serverclient.Client`, Wails
+   `UserService` переключён на них.
+5. После переключения удалён direct repository path административных методов:
    приложение находится в разработке, централизованная публикация исключает
    необходимость feature flag и runtime backward compatibility.
-6. Покрыть server authorization, stable error mapping, атомарность
-   user-change+outbox+session-revoke, PostgreSQL integration и UI flows.
+6. Server authorization, stable error mapping, атомарность
+   user-change+outbox+session-revoke и PostgreSQL integration покрыты тестами;
+   публичные Wails signatures сохранены, frontend build и tests проходят.
 
-Критерий готовности следующего среза: экран пользователей не выполняет SQL из
-desktop, все команды авторизуются сервером, а create/edit/deactivate/reset
-работают через HTTP с теми же пользовательскими результатами.
+Следующий рекомендуемый срез — перенести связанные с экраном пользователей
+`DocumentAccessAdminService` и административные методы
+`UserSubstitutionService` в server API. После этого перенести чтение
+подразделений либо включить минимальный read-only lookup в тот же срез. Критерий
+готовности: экран пользователей целиком не выполняет SQL из desktop.
 
 После него рекомендуемый порядок:
 

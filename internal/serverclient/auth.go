@@ -187,12 +187,16 @@ func decodeAuthError(resp *http.Response) error {
 		return models.ErrPasswordChangeRequired
 	case "wrong_password":
 		return models.ErrWrongPassword
-	case "validation_error":
+	case "invalid_request", "validation_error":
 		return models.NewBadRequest(body.Error)
 	case "password_change_not_required", "conflict":
 		return models.NewConflict(body.Error)
 	case "authentication_required", "session_invalid":
 		return models.ErrUnauthorized
+	case "forbidden":
+		return models.ErrForbidden
+	case "not_found":
+		return models.NewNotFound(body.Error)
 	default:
 		if body.Error == "" {
 			body.Error = resp.Status

@@ -1,7 +1,9 @@
 package services
 
 import (
+	"context"
 	"errors"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
@@ -15,6 +17,77 @@ import (
 
 type adminAuditLogStoreMock struct {
 	mock.Mock
+}
+
+// testUserClient preserves the old repository-focused assertions while the
+// production UserService now delegates these commands to docflow-server.
+type testUserClient struct {
+	repo UserStore
+	auth *AuthService
+}
+
+func (c *testUserClient) ListUsers(context.Context) ([]dto.User, error) {
+	if err := c.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
+	users, err := c.repo.GetAll()
+	return dto.MapUsers(users), err
+}
+
+func (c *testUserClient) CreateUser(_ context.Context, req models.CreateUserRequest) (*dto.User, error) {
+	if err := c.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
+	temporaryPassword := ""
+	if req.Password == "" {
+		password, err := security.GenerateTemporaryPassword()
+		if err != nil {
+			return nil, err
+		}
+		req.Password, temporaryPassword = password, password
+	}
+	req.PasswordChangeRequired = true
+	user, err := c.repo.Create(req)
+	if err != nil {
+		return nil, err
+	}
+	result := dto.MapUser(user)
+	result.TemporaryPassword = temporaryPassword
+	return result, nil
+}
+
+func (c *testUserClient) UpdateUser(_ context.Context, req models.UpdateUserRequest) (*dto.User, error) {
+	if err := c.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
+	user, err := c.repo.Update(req)
+	return dto.MapUser(user), activeAdministratorInvariantConflict(err)
+}
+
+func (c *testUserClient) ResetUserPassword(_ context.Context, id string) (string, error) {
+	if err := c.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return "", err
+	}
+	uid, err := parseUUID(id)
+	if err != nil {
+		return "", err
+	}
+	user, err := c.repo.GetByID(uid)
+	if err != nil {
+		return "", err
+	}
+	if user == nil {
+		return "", models.NewNotFound("пользователь не найден")
+	}
+	password, err := security.GenerateTemporaryPassword()
+	if err != nil {
+		return "", err
+	}
+	return password, c.repo.ResetPassword(uid, password)
+}
+
+func setTestUserClient(service *UserService, repo UserStore, auth *AuthService) {
+	service.SetServerClient(&testUserClient{repo: repo, auth: auth})
 }
 
 func (m *adminAuditLogStoreMock) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
@@ -39,6 +112,7 @@ func TestUserService_GetAllUsers(t *testing.T) {
 	authRepo := mocks.NewUserStore(t)
 	authService := NewAuthService(nil, authRepo)
 	userService := NewUserService(mockRepo, authService)
+	setTestUserClient(userService, mockRepo, authService)
 
 	login := "testuser"
 	password := "CorrectPassw0rd!"
@@ -127,7 +201,9 @@ func setupUserService(t *testing.T, role string) (*UserService, *mocks.UserStore
 	auth.Login(user.Login, password)
 	authRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewUserService(mockRepo, auth), mockRepo
+	service := NewUserService(mockRepo, auth)
+	setTestUserClient(service, mockRepo, auth)
+	return service, mockRepo
 }
 
 func setupUserServiceWithRoles(t *testing.T, roles []string) (*UserService, *mocks.UserStore, *AuthService) {
@@ -150,7 +226,9 @@ func setupUserServiceWithRoles(t *testing.T, roles []string) (*UserService, *moc
 	require.NoError(t, err)
 	authRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewUserService(mockRepo, auth), mockRepo, auth
+	service := NewUserService(mockRepo, auth)
+	setTestUserClient(service, mockRepo, auth)
+	return service, mockRepo, auth
 }
 
 func TestUserService_CreateUser(t *testing.T) {
