@@ -192,13 +192,8 @@ func newWailsOptionsWithDependencies(
 	documentKindService.SetServerClient(serverClient)
 	journalService := services.NewJournalService(journalRepo, authService, documentAccessService)
 	journalService.SetOperationLifecycle(operationLifecycle)
-	documentKindQueryRegistry := services.NewDocumentKindQueryRegistry(
-		services.NewIncomingLetterQueryHandler(incomingDocRepo),
-		services.NewOutgoingLetterQueryHandler(outgoingDocRepo),
-		services.NewCitizenAppealQueryHandler(citizenAppealRepo),
-		services.NewAdministrativeOrderQueryHandler(administrativeOrderRepo),
-	)
-	documentQueryService := services.NewDocumentQueryService(documentKindQueryRegistry, documentAccessService)
+	documentQueryService := services.NewDocumentQueryService()
+	documentQueryService.SetServerClient(serverClient)
 	documentQueryService.SetOperationMetrics(metrics)
 	documentKindCommandRegistry := services.NewDocumentKindCommandRegistry(
 		services.NewIncomingLetterCommandHandler(incomingDocRepo, nomenclatureRepo, referenceRepo, authService, journalService, documentAccessService),

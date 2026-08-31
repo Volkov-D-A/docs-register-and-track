@@ -20,6 +20,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 )
 
 const rollbackConfirmationPhrase = "ОТКАТ МИГРАЦИИ"
@@ -33,25 +34,26 @@ type rollbackRequest struct {
 }
 
 type managementAPI struct {
-	cfg           *config.Config
-	migrations    migrationStore
-	lifecycle     migrationLifecycle
-	users         adminUserStore
-	userCommands  userManagementStore
-	userAccess    userAccessManagementStore
-	substitutions userSubstitutionManagementStore
-	departments   departmentManagementStore
-	references    referenceManagementStore
-	nomenclature  nomenclatureManagementStore
-	settings      settingsManagementStore
-	audit         adminAuditStore
-	authUsers     authUserStore
-	authSettings  authSettingsStore
-	sessions      authSessionStore
-	acquireLease  func(context.Context) (func(), bool, error)
-	migration     sync.Mutex
-	authMu        sync.Mutex
-	authFailures  map[string]authFailure
+	cfg             *config.Config
+	migrations      migrationStore
+	lifecycle       migrationLifecycle
+	users           adminUserStore
+	userCommands    userManagementStore
+	userAccess      userAccessManagementStore
+	substitutions   userSubstitutionManagementStore
+	departments     departmentManagementStore
+	references      referenceManagementStore
+	nomenclature    nomenclatureManagementStore
+	settings        settingsManagementStore
+	documentQueries func(*models.User) documentQueryAPI
+	audit           adminAuditStore
+	authUsers       authUserStore
+	authSettings    authSettingsStore
+	sessions        authSessionStore
+	acquireLease    func(context.Context) (func(), bool, error)
+	migration       sync.Mutex
+	authMu          sync.Mutex
+	authFailures    map[string]authFailure
 }
 
 type authFailure struct {
@@ -95,6 +97,15 @@ func newManagementAPI(app *App) *managementAPI {
 	nomenclature.SetOutbox(outboxRepo)
 	settings := repository.NewSettingsRepository(app.db)
 	settings.SetOutbox(outboxRepo)
+	assignments := repository.NewAssignmentRepository(app.db)
+	acknowledgments := repository.NewAcknowledgmentRepository(app.db)
+	documents := repository.NewDocumentRepository(app.db)
+	queryRegistry := services.NewDocumentKindQueryRegistry(
+		services.NewIncomingLetterQueryHandler(repository.NewIncomingDocumentRepository(app.db)),
+		services.NewOutgoingLetterQueryHandler(repository.NewOutgoingDocumentRepository(app.db)),
+		services.NewCitizenAppealQueryHandler(repository.NewCitizenAppealRepository(app.db)),
+		services.NewAdministrativeOrderQueryHandler(repository.NewAdministrativeOrderRepository(app.db)),
+	)
 	return &managementAPI{
 		cfg:           app.cfg,
 		migrations:    app.db,
@@ -107,10 +118,19 @@ func newManagementAPI(app *App) *managementAPI {
 		references:    references,
 		nomenclature:  nomenclature,
 		settings:      settings,
-		authUsers:     users,
-		authSettings:  settings,
-		sessions:      repository.NewServerSessionRepository(app.db),
-		audit:         repository.NewAdminAuditLogRepository(app.db),
+		documentQueries: func(user *models.User) documentQueryAPI {
+			documentAccess := services.NewDocumentAccessService(
+				requestDocumentPrincipal{user: user}, departments, assignments,
+				acknowledgments, access, documents, substitutions,
+			)
+			query := services.NewDocumentQueryEngine(queryRegistry, documentAccess)
+			query.SetOperationMetrics(app.metrics)
+			return query
+		},
+		authUsers:    users,
+		authSettings: settings,
+		sessions:     repository.NewServerSessionRepository(app.db),
+		audit:        repository.NewAdminAuditLogRepository(app.db),
 		acquireLease: func(ctx context.Context) (func(), bool, error) {
 			lease, acquired, err := app.db.TryAcquireBackgroundWorkerLease(ctx)
 			if err != nil || !acquired {
@@ -166,6 +186,8 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/settings", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.listSettings)))
 	mux.Handle("GET /api/v1/settings/{key}", api.requireSession(http.HandlerFunc(api.getSetting)))
 	mux.Handle("PATCH /api/v1/settings/{key}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateSetting)))
+	mux.Handle("GET /api/v1/documents/{id}", api.requireSession(http.HandlerFunc(api.getDocumentCard)))
+	mux.Handle("POST /api/v1/documents/query", api.requireSession(http.HandlerFunc(api.listDocuments)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))

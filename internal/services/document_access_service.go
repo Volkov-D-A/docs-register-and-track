@@ -3,13 +3,24 @@ package services
 import (
 	"github.com/google/uuid"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
+
+// DocumentAccessPrincipal provides the request-local identity used by document
+// access checks. AuthService implements it for desktop workflows; the server
+// supplies an immutable principal for each HTTP request.
+type DocumentAccessPrincipal interface {
+	RequireAuthenticated() error
+	GetCurrentUser() (*dto.User, error)
+	GetCurrentUserUUID() (uuid.UUID, error)
+}
 
 // DocumentAccessService инкапсулирует политику доступа к документному домену.
 // Нужен как единая точка переиспользования для сервисов документов, файлов, журнала и связанных сущностей.
 type DocumentAccessService struct {
-	auth               *AuthService
+	auth               DocumentAccessPrincipal
+	desktopAuth        *AuthService
 	depRepo            DepartmentStore
 	assignmentRepo     AssignmentStore
 	acknowledgmentRepo AcknowledgmentStore
@@ -20,7 +31,7 @@ type DocumentAccessService struct {
 
 // NewDocumentAccessService создает сервис проверки доступа к документам.
 func NewDocumentAccessService(
-	auth *AuthService,
+	auth DocumentAccessPrincipal,
 	depRepo DepartmentStore,
 	assignmentRepo AssignmentStore,
 	acknowledgmentRepo AcknowledgmentStore,
@@ -35,6 +46,9 @@ func NewDocumentAccessService(
 		acknowledgmentRepo: acknowledgmentRepo,
 		accessRepo:         accessRepo,
 		documentRepo:       documentRepo,
+	}
+	if desktopAuth, ok := auth.(*AuthService); ok {
+		svc.desktopAuth = desktopAuth
 	}
 	if len(substitutionRepos) > 0 {
 		svc.substitutionRepo = substitutionRepos[0]

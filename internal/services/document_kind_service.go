@@ -35,7 +35,7 @@ func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSumma
 }
 
 func (s *DocumentKindService) getCurrentAccessSummaryDirect() (*dto.CurrentAccessSummary, error) {
-	if s.access == nil || s.access.auth == nil {
+	if s.access == nil || s.access.auth == nil || s.access.desktopAuth == nil {
 		return nil, models.ErrUnauthorized
 	}
 
@@ -47,13 +47,13 @@ func (s *DocumentKindService) getCurrentAccessSummaryDirect() (*dto.CurrentAcces
 		return nil, models.ErrUnauthorized
 	}
 
-	if err := s.access.auth.checkSchemaReady(); err != nil {
+	if err := s.access.desktopAuth.checkSchemaReady(); err != nil {
 		// Migration administration must remain reachable while ordinary schema-
 		// dependent operations are suspended. Return the smallest useful access
 		// model only after re-checking the current session's admin permission
 		// without the lifecycle guard. SettingsService applies the same special
 		// authorization rule to migration status and execution.
-		if adminErr := s.access.auth.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); adminErr != nil {
+		if adminErr := s.access.desktopAuth.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); adminErr != nil {
 			return nil, err
 		}
 		return &dto.CurrentAccessSummary{
@@ -121,7 +121,7 @@ func (s *DocumentKindService) getCurrentAccessSummaryDirect() (*dto.CurrentAcces
 		models.SystemPermissionStatsAssignments,
 		models.SystemPermissionStatsSystem,
 	} {
-		if s.access.auth.HasSystemPermission(permission) {
+		if s.access.desktopAuth.HasSystemPermission(permission) {
 			systemPermissions = append(systemPermissions, permission)
 		}
 	}
