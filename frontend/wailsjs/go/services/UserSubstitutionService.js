@@ -10,6 +10,10 @@ export function GetUserSubstitution(arg1) {
   return window['go']['services']['UserSubstitutionService']['GetUserSubstitution'](arg1);
 }
 
+export function SetServerClient(arg1) {
+  return window['go']['services']['UserSubstitutionService']['SetServerClient'](arg1);
+}
+
 export function UpdateMySubstitution(arg1) {
   return window['go']['services']['UserSubstitutionService']['UpdateMySubstitution'](arg1);
 }

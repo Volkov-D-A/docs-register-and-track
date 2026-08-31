@@ -6,6 +6,10 @@ export function GetUserAccessProfile(arg1) {
   return window['go']['services']['DocumentAccessAdminService']['GetUserAccessProfile'](arg1);
 }
 
+export function SetServerClient(arg1) {
+  return window['go']['services']['DocumentAccessAdminService']['SetServerClient'](arg1);
+}
+
 export function UpdateUserAccessProfile(arg1) {
   return window['go']['services']['DocumentAccessAdminService']['UpdateUserAccessProfile'](arg1);
 }

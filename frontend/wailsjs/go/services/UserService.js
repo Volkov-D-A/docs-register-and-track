@@ -22,6 +22,10 @@ export function ResetPassword(arg1) {
   return window['go']['services']['UserService']['ResetPassword'](arg1);
 }
 
+export function SetServerClient(arg1) {
+  return window['go']['services']['UserService']['SetServerClient'](arg1);
+}
+
 export function UpdateUser(arg1) {
   return window['go']['services']['UserService']['UpdateUser'](arg1);
 }
