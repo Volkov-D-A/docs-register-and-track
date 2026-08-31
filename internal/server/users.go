@@ -19,10 +19,12 @@ const activeAdministratorInvariantMessage = "at least one active administrator m
 
 type userManagementStore interface {
 	GetAll() ([]models.User, error)
+	GetActiveUsers() ([]models.User, error)
 	GetByID(uuid.UUID) (*models.User, error)
 	CreateWithOutbox(models.CreateUserRequest, []models.OutboxEvent) (*models.User, error)
 	UpdateWithOutbox(models.UpdateUserRequest, []models.OutboxEvent) (*models.User, error)
 	ResetPasswordWithOutbox(uuid.UUID, string, []models.OutboxEvent) error
+	UpdateProfileWithOutbox(uuid.UUID, models.UpdateProfileRequest, []models.OutboxEvent) error
 }
 
 type resetPasswordResponse struct {

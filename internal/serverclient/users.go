@@ -18,6 +18,15 @@ type UserClient interface {
 	CreateUser(context.Context, models.CreateUserRequest) (*dto.User, error)
 	UpdateUser(context.Context, models.UpdateUserRequest) (*dto.User, error)
 	ResetUserPassword(context.Context, string) (string, error)
+	ListSubstitutionCandidates(context.Context) ([]dto.User, error)
+}
+
+func (c *Client) ListSubstitutionCandidates(ctx context.Context) ([]dto.User, error) {
+	var users []dto.User
+	if err := c.doUserRequest(ctx, http.MethodGet, "/api/v1/profile/substitution-candidates", nil, http.StatusOK, &users); err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
 func (c *Client) ListUsers(ctx context.Context) ([]dto.User, error) {

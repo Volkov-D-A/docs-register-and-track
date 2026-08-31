@@ -439,6 +439,11 @@ func (s *AuthService) incrementFailedLoginAttempts(user *models.User) (int, bool
 
 // UpdateProfile — обновление профиля текущего пользователя
 func (s *AuthService) UpdateProfile(req models.UpdateProfileRequest) error {
+	if s.serverAuth != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		return s.serverAuth.UpdateProfile(ctx, req)
+	}
 	userID, err := s.GetCurrentUserUUID()
 	if err != nil {
 		return err

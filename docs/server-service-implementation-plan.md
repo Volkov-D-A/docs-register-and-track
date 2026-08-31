@@ -48,14 +48,19 @@ operations пока продолжают прямой доступ; HTTPS и о�
 - access profile и административные замещения пользователя читаются и
   изменяются через server API с атомарным audit outbox;
 - lookup подразделений и текущая access summary читаются через server API;
-  request principal не хранится в общем состоянии процесса.
+  request principal не хранится в общем состоянии процесса;
+- обновление собственного профиля, кандидаты замещения и личное замещение
+  работают через server API; client-supplied principal для self-операций
+  игнорируется в пользу bearer principal.
 
 Контрольные коммиты:
 
 - `afa6b0b` — server process, worker и управление миграциями;
 - `efe053b` — server-side authentication и sessions;
 - `9912af8` — полный password lifecycle и административный временный пароль;
-- `54a1664` — основные операции управления пользователями через server API.
+- `54a1664` — основные операции управления пользователями через server API;
+- `01c66c1` — access profile, admin substitution и lookup для экрана
+  пользователей через server API.
 
 | Этап | Состояние | Что осталось |
 |---|---|---|
@@ -64,7 +69,7 @@ operations пока продолжают прямой доступ; HTTPS и о�
 | 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
 | 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
 | 4. Authentication | Завершён | Только production-like session/load smoke |
-| 5. Business API | В работе | Управление пользователями завершено; следующий срез — собственный профиль |
+| 5. Business API | В работе | Пользователи и собственный профиль перенесены; следующий срез — подразделения |
 | 6. Attachments API | Не начат | Streaming endpoints и limits |
 | 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
 
@@ -74,7 +79,7 @@ backup/restore test и production-like load/end-to-end проверки.
 
 ## Точка продолжения
 
-Контрольный commit до текущего рабочего среза — `54a1664`. При возобновлении
+Контрольный commit до текущего рабочего среза — `01c66c1`. При возобновлении
 работы не нужно заново реализовывать worker, миграции, login/session, password
 flows или основные admin-операции пользователей.
 
@@ -105,19 +110,22 @@ server API**:
 `GetCurrentAccessSummary`. Критерий выполнен: экран пользователей целиком не
 выполняет SQL из desktop.
 
-Следующий рекомендуемый срез — **собственный профиль пользователя**: профиль,
-кандидаты замещения и пользовательские get/update substitution должны работать
-через server API без прямых desktop repositories.
+После контрольного коммита перенесён **собственный профиль пользователя**:
+обновление профиля, кандидаты замещения и пользовательские get/update
+substitution работают через server API без прямых desktop repositories.
+
+Следующий рекомендуемый срез — **подразделения**: перенести create/update/delete
+в дополнение к уже серверному read-only lookup и использовать этот CRUD как
+шаблон для остальных простых справочников.
 
 После него рекомендуемый порядок:
 
-1. Собственный профиль пользователя.
-2. Подразделения и простые справочники — как шаблон CRUD API.
-3. Системные настройки и оставшиеся access-related операции.
-4. Read-only списки и карточки документов.
-5. Команды регистрации/изменения документов с idempotency.
-6. Поручения, ознакомления, связи, journal, dashboard и statistics.
-7. Вложения через streaming API, затем закрытие прямого PostgreSQL/MinIO.
+1. Подразделения и простые справочники — как шаблон CRUD API.
+2. Системные настройки и оставшиеся access-related операции.
+3. Read-only списки и карточки документов.
+4. Команды регистрации/изменения документов с idempotency.
+5. Поручения, ознакомления, связи, journal, dashboard и statistics.
+6. Вложения через streaming API, затем закрытие прямого PostgreSQL/MinIO.
 
 До использования credentials и временных паролей через недоверенную или
 маршрутизируемую сеть необходимо завершить HTTPS в Caddy и установить доверие к

@@ -27,6 +27,8 @@ type fakeServerAuthClient struct {
 	logoutCalls                 int
 	changePasswordCalls         int
 	changeRequiredPasswordCalls int
+	updateProfileCalls          int
+	profileRequest              models.UpdateProfileRequest
 }
 
 func (f *fakeServerAuthClient) Login(context.Context, string, string) (*dto.User, error) {
@@ -44,6 +46,12 @@ func (f *fakeServerAuthClient) ChangePassword(context.Context, string, string) e
 }
 func (f *fakeServerAuthClient) ChangeRequiredPassword(context.Context, string, string, string) error {
 	f.changeRequiredPasswordCalls++
+	return nil
+}
+
+func (f *fakeServerAuthClient) UpdateProfile(_ context.Context, req models.UpdateProfileRequest) error {
+	f.updateProfileCalls++
+	f.profileRequest = req
 	return nil
 }
 
@@ -806,4 +814,16 @@ func TestAuthServiceUsesServerForPasswordChangesWhenConfigured(t *testing.T) {
 
 	require.NoError(t, service.ChangeRequiredPassword("server-user", "Passw0rd!", "NewPassw0rd!"))
 	assert.Equal(t, 1, client.changeRequiredPasswordCalls)
+}
+
+func TestAuthServiceUsesServerForProfileUpdateWhenConfigured(t *testing.T) {
+	client := &fakeServerAuthClient{user: &dto.User{ID: uuid.NewString(), Login: "server-user", IsActive: true}}
+	service := NewAuthService(nil, mocks.NewUserStore(t))
+	service.SetServerAuth(client)
+	req := models.UpdateProfileRequest{Login: "renamed", FullName: "Renamed User"}
+
+	require.NoError(t, service.UpdateProfile(req))
+
+	assert.Equal(t, 1, client.updateProfileCalls)
+	assert.Equal(t, req, client.profileRequest)
 }

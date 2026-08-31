@@ -34,6 +34,14 @@ func (c *testUserClient) ListUsers(context.Context) ([]dto.User, error) {
 	return dto.MapUsers(users), err
 }
 
+func (c *testUserClient) ListSubstitutionCandidates(context.Context) ([]dto.User, error) {
+	if err := c.auth.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
+	users, err := c.repo.GetActiveUsers()
+	return dto.MapUsers(users), err
+}
+
 func (c *testUserClient) CreateUser(_ context.Context, req models.CreateUserRequest) (*dto.User, error) {
 	if err := c.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err

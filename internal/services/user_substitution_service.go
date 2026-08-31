@@ -168,21 +168,22 @@ func (s *UserSubstitutionService) saveForPrincipal(principalID uuid.UUID, req mo
 
 // GetMySubstitution возвращает настройку замещения текущего пользователя.
 func (s *UserSubstitutionService) GetMySubstitution() (*dto.UserSubstitution, error) {
-	userID, err := s.auth.GetCurrentUserUUID()
-	if err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerUserAdministrationNotConfigured
 	}
-	res, err := s.repo.GetByPrincipalID(userID)
-	return dto.MapUserSubstitution(res), err
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.server.GetMySubstitution(ctx)
 }
 
 // UpdateMySubstitution обновляет замещающего текущего пользователя.
 func (s *UserSubstitutionService) UpdateMySubstitution(req models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error) {
-	userID, err := s.auth.GetCurrentUserUUID()
-	if err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerUserAdministrationNotConfigured
 	}
-	return s.saveForPrincipal(userID, req, false)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.server.UpdateMySubstitution(ctx, req)
 }
 
 // GetUserSubstitution возвращает настройку замещения выбранного пользователя. Доступно администратору.

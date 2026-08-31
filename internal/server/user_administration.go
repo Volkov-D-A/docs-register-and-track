@@ -101,6 +101,10 @@ func (api *managementAPI) updateUserSubstitution(w http.ResponseWriter, r *http.
 		return
 	}
 	req.PrincipalUserID = principalID.String()
+	api.saveUserSubstitution(w, r, principalID, principal, req, "USER_SUBSTITUTION_UPDATE")
+}
+
+func (api *managementAPI) saveUserSubstitution(w http.ResponseWriter, r *http.Request, principalID uuid.UUID, principal *models.User, req models.UpdateUserSubstitutionRequest, auditAction string) {
 	startsAt, err := parseOptionalSubstitutionDate(req.StartsAt)
 	if err != nil {
 		writeUserError(w, err)
@@ -156,7 +160,7 @@ func (api *managementAPI) updateUserSubstitution(w http.ResponseWriter, r *http.
 	}
 
 	auth := authenticatedFromContext(r.Context())
-	effect, err := userAuditEffect(auth.User, "user-substitution:"+principalID.String()+":update:"+uuid.NewString(), "USER_SUBSTITUTION_UPDATE", fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName))
+	effect, err := userAuditEffect(auth.User, "user-substitution:"+principalID.String()+":update:"+uuid.NewString(), auditAction, fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName))
 	if err != nil {
 		writeUserError(w, err)
 		return

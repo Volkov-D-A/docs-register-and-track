@@ -36,6 +36,23 @@ func (c testSubstitutionAdminClient) UpdateUserSubstitution(_ context.Context, r
 	return c.service.saveForPrincipal(id, req, true)
 }
 
+func (c testSubstitutionAdminClient) GetMySubstitution(context.Context) (*dto.UserSubstitution, error) {
+	id, err := c.service.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, err
+	}
+	item, err := c.service.repo.GetByPrincipalID(id)
+	return dto.MapUserSubstitution(item), err
+}
+
+func (c testSubstitutionAdminClient) UpdateMySubstitution(_ context.Context, req models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error) {
+	id, err := c.service.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, err
+	}
+	return c.service.saveForPrincipal(id, req, false)
+}
+
 func setupUserSubstitutionService(t *testing.T, currentUser *models.User) (*UserSubstitutionService, *userSubstitutionStoreStub, *mocks.UserStore, *AuthService) {
 	t.Helper()
 	store := &userSubstitutionStoreStub{}

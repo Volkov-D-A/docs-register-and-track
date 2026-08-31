@@ -17,6 +17,24 @@ type UserAccessClient interface {
 type UserSubstitutionAdminClient interface {
 	GetUserSubstitution(context.Context, string) (*dto.UserSubstitution, error)
 	UpdateUserSubstitution(context.Context, models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error)
+	GetMySubstitution(context.Context) (*dto.UserSubstitution, error)
+	UpdateMySubstitution(context.Context, models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error)
+}
+
+func (c *Client) GetMySubstitution(ctx context.Context) (*dto.UserSubstitution, error) {
+	var result *dto.UserSubstitution
+	if err := c.doUserRequest(ctx, http.MethodGet, "/api/v1/profile/substitution", nil, http.StatusOK, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *Client) UpdateMySubstitution(ctx context.Context, input models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error) {
+	var result *dto.UserSubstitution
+	if err := c.doUserRequest(ctx, http.MethodPut, "/api/v1/profile/substitution", input, http.StatusOK, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 type DepartmentLookupClient interface {

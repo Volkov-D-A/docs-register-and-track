@@ -19,6 +19,11 @@ type AuthClient interface {
 	Me(context.Context) (*dto.User, error)
 	ChangePassword(context.Context, string, string) error
 	ChangeRequiredPassword(context.Context, string, string, string) error
+	UpdateProfile(context.Context, models.UpdateProfileRequest) error
+}
+
+func (c *Client) UpdateProfile(ctx context.Context, input models.UpdateProfileRequest) error {
+	return c.doUserRequest(ctx, http.MethodPatch, "/api/v1/profile", input, http.StatusNoContent, nil)
 }
 
 type loginResponse struct {

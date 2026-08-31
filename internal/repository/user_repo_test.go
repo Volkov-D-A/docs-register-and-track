@@ -149,6 +149,26 @@ func TestUserRepositoryResetPasswordWithOutboxRequiresChangeAndRevokesSessions(t
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUserRepositoryUpdateProfileWithOutboxIsAtomic(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewUserRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	userID := uuid.New()
+	effect := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "profile:update", Payload: `{}`}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE users SET login`).WithArgs("renamed", "Renamed", userID).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(effect.EventType, effect.DeduplicationKey, effect.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	err = repo.UpdateProfileWithOutbox(userID, models.UpdateProfileRequest{Login: "renamed", FullName: "Renamed"}, []models.OutboxEvent{effect})
+
+	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUserRepository_CreateInitialAdmin(t *testing.T) {
 	t.Run("creates user and admin permission in one transaction", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
@@ -517,9 +537,11 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 
 	t.Run("UpdateProfile", func(t *testing.T) {
 		// Редактирование собственного профиля пользователем
+		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE users SET login(.*)full_name(.*)`).
 			WithArgs("newlog", "newname", uid).
 			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
 
 		err = repo.UpdateProfile(uid, models.UpdateProfileRequest{Login: "newlog", FullName: "newname"})
 		require.NoError(t, err)

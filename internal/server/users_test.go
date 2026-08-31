@@ -58,6 +58,15 @@ type fakeUserManagementStore struct {
 }
 
 func (s *fakeUserManagementStore) GetAll() ([]models.User, error) { return s.users, nil }
+func (s *fakeUserManagementStore) GetActiveUsers() ([]models.User, error) {
+	result := make([]models.User, 0, len(s.users))
+	for _, user := range s.users {
+		if user.IsActive {
+			result = append(result, user)
+		}
+	}
+	return result, nil
+}
 func (s *fakeUserManagementStore) GetByID(id uuid.UUID) (*models.User, error) {
 	for i := range s.users {
 		if s.users[i].ID == id {
@@ -80,6 +89,16 @@ func (s *fakeUserManagementStore) UpdateWithOutbox(req models.UpdateUserRequest,
 func (s *fakeUserManagementStore) ResetPasswordWithOutbox(id uuid.UUID, password string, effects []models.OutboxEvent) error {
 	s.resetID, s.resetPassword, s.effects = id, password, effects
 	return nil
+}
+func (s *fakeUserManagementStore) UpdateProfileWithOutbox(id uuid.UUID, req models.UpdateProfileRequest, effects []models.OutboxEvent) error {
+	for i := range s.users {
+		if s.users[i].ID == id {
+			s.users[i].Login, s.users[i].FullName = req.Login, req.FullName
+			s.effects = effects
+			return nil
+		}
+	}
+	return models.NewNotFound("пользователь не найден")
 }
 
 func authenticatedUserAPI(t *testing.T, permissions []string) (*managementAPI, *fakeUserManagementStore, string) {

@@ -629,16 +629,39 @@ func (r *UserRepository) ResetPasswordWithOutbox(userID uuid.UUID, newPassword s
 
 // UpdateProfile обновляет данные профиля пользователя (логин, ФИО).
 func (r *UserRepository) UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error {
-	_, err := r.db.Exec(`
+	return r.updateProfile(userID, req, nil)
+}
+
+func (r *UserRepository) UpdateProfileWithOutbox(userID uuid.UUID, req models.UpdateProfileRequest, effects []models.OutboxEvent) error {
+	return r.updateProfile(userID, req, effects)
+}
+
+func (r *UserRepository) updateProfile(userID uuid.UUID, req models.UpdateProfileRequest, effects []models.OutboxEvent) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin profile update: %w", err)
+	}
+	defer tx.Rollback()
+	result, err := tx.Exec(`
 		UPDATE users SET login = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $3
 	`, req.Login, req.FullName, userID)
-
 	if err != nil {
 		return fmt.Errorf("failed to update profile: %w", err)
 	}
-
-	return nil
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read updated profile count: %w", err)
+	}
+	if affected == 0 {
+		return models.NewNotFound("пользователь не найден")
+	}
+	if effects != nil {
+		if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // IncrementFailedLoginAttempts увеличивает счетчик неудачных входов и деактивирует пользователя после 5-й ошибки.

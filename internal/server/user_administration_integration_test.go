@@ -56,6 +56,11 @@ func TestUserAdministrationAPIPersistsAccessAndSubstitutionWithAuditIntegration(
 		AccessToken string `json:"accessToken"`
 	}
 	require.NoError(t, json.NewDecoder(loginResult.Body).Decode(&loginBody))
+	profileRequest := httptest.NewRequest(http.MethodPatch, "/api/v1/profile", strings.NewReader(`{"login":"access-admin-renamed","fullName":"Access Admin Renamed"}`))
+	profileRequest.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	profileResult := httptest.NewRecorder()
+	api.Handler().ServeHTTP(profileResult, profileRequest)
+	require.Equal(t, http.StatusNoContent, profileResult.Code, profileResult.Body.String())
 
 	accessRequest := httptest.NewRequest(http.MethodPut, "/api/v1/users/"+targetID.String()+"/access-profile", strings.NewReader(`{"systemPermissions":[{"permission":"references","isAllowed":true}],"permissions":[{"kindCode":"incoming_letter","action":"read","isAllowed":true}]}`))
 	accessRequest.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
@@ -70,6 +75,8 @@ func TestUserAdministrationAPIPersistsAccessAndSubstitutionWithAuditIntegration(
 	require.Equal(t, http.StatusOK, substitutionResult.Code, substitutionResult.Body.String())
 
 	var systemRules, documentRules, substitutionsCount, effects int
+	var profileLogin string
+	require.NoError(t, db.QueryRow(`SELECT login FROM users WHERE id=$1`, adminID).Scan(&profileLogin))
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM user_system_permissions WHERE user_id=$1 AND permission='references' AND is_allowed=TRUE`, targetID).Scan(&systemRules))
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM document_permissions WHERE subject_type='user' AND subject_key=$1 AND kind_code='incoming_letter' AND action='read' AND is_allowed=TRUE`, targetID.String()).Scan(&documentRules))
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM user_substitutions WHERE principal_user_id=$1 AND substitute_user_id=$2 AND is_active=TRUE`, targetID, substituteID).Scan(&substitutionsCount))
@@ -77,5 +84,6 @@ func TestUserAdministrationAPIPersistsAccessAndSubstitutionWithAuditIntegration(
 	require.Equal(t, 1, systemRules)
 	require.Equal(t, 1, documentRules)
 	require.Equal(t, 1, substitutionsCount)
-	require.Equal(t, 2, effects)
+	require.Equal(t, "access-admin-renamed", profileLogin)
+	require.Equal(t, 3, effects)
 }
