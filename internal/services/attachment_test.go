@@ -57,7 +57,8 @@ func setupAttachmentService(t *testing.T, role string) (
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	settingsSvc := NewSettingsService(settingsRepo, auth)
+	settingsSvc := NewSettingsService(auth)
+	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc)
@@ -134,7 +135,8 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	settingsSvc := NewSettingsService(settingsRepo, auth)
+	settingsSvc := NewSettingsService(auth)
+	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(roles...), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc)
@@ -161,7 +163,8 @@ func setupAttachmentServiceNotAuth(t *testing.T) *AttachmentService {
 	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
 	auth := NewAuthService(nil, userRepo)
-	settingsSvc := NewSettingsService(settingsRepo, auth)
+	settingsSvc := NewSettingsService(auth)
+	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 	return NewAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc)
 }

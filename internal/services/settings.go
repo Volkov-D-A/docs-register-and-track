@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
@@ -20,79 +18,44 @@ const rollbackMigrationConfirmationPhrase = "ОТКАТ МИГРАЦИИ"
 
 // SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {
-	repo            SettingsStore
 	authService     *AuthService
 	schemaLifecycle SchemaLifecycle
 	migrationClient serverclient.MigrationClient
+	settingsClient  serverclient.SettingsClient
 	migrationMu     sync.Mutex
 }
 
-type settingsOutboxStore interface {
-	UpdateWithOutbox(string, string, []models.OutboxEvent) error
-}
-
-var errSettingsOutboxStoreRequired = errors.New("settings store must support atomic outbox operations")
-
 // NewSettingsService создает новый экземпляр SettingsService.
-func NewSettingsService(repo SettingsStore, authService *AuthService) *SettingsService {
-	return &SettingsService{
-		repo:        repo,
-		authService: authService,
-	}
+func NewSettingsService(authService *AuthService) *SettingsService {
+	return &SettingsService{authService: authService}
 }
 
 func (s *SettingsService) SetMigrationClient(client serverclient.MigrationClient) {
 	s.migrationClient = client
 }
 
+func (s *SettingsService) SetServerClient(client serverclient.SettingsClient) {
+	s.settingsClient = client
+}
+
 // GetAll возвращает все системные настройки.
 func (s *SettingsService) GetAll() ([]models.SystemSetting, error) {
-	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return nil, err
+	if s.settingsClient == nil {
+		return nil, models.NewConflict("Клиент настроек docflow-server не настроен")
 	}
-	return s.repo.GetAll()
+	ctx, cancel := settingsContext()
+	defer cancel()
+	return s.settingsClient.ListSettings(ctx)
 }
 
 // Update обновляет значение настройки по ключу (только для администраторов).
 func (s *SettingsService) Update(key, value string) error {
-	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return err
+	if s.settingsClient == nil {
+		return models.NewConflict("Клиент настроек docflow-server не настроен")
 	}
-	if err := validateSystemSettingValue(key, value); err != nil {
-		return err
-	}
-
-	current, err := s.repo.Get(key)
-	if err == nil && current != nil && current.Value == value {
-		return nil
-	}
-
-	userID, userName := s.authService.GetCurrentAuditInfo()
-	details := fmt.Sprintf("Изменена настройка %s: %s", s.getSettingAuditLabel(key, current), value)
-	store, ok := s.repo.(settingsOutboxStore)
-	if !ok {
-		return errSettingsOutboxStoreRequired
-	}
-	event, buildErr := NewAdminAuditOutboxEvent("setting:"+key+":update:"+uuid.NewString(), models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "SETTINGS_UPDATE", Details: details})
-	if buildErr != nil {
-		return buildErr
-	}
-	err = store.UpdateWithOutbox(key, value, []models.OutboxEvent{event})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateSystemSettingValue(key, value string) error {
-	switch key {
-	case "password_lifetime_days":
-		days, err := strconv.Atoi(strings.TrimSpace(value))
-		if err != nil || days < 0 {
-			return models.NewBadRequest("Срок жизни пароля должен быть целым числом от 0 дней")
-		}
-	}
-	return nil
+	ctx, cancel := settingsContext()
+	defer cancel()
+	return s.settingsClient.UpdateSystemSetting(ctx, key, value)
 }
 
 // RunMigrations запускает миграции БД (только admin).
@@ -179,7 +142,7 @@ func (s *SettingsService) currentMigrationLogin(password string) (string, error)
 
 // GetMaxFileSize возвращает максимальный допустимый размер файла в байтах.
 func (s *SettingsService) GetMaxFileSize() (int64, error) {
-	setting, err := s.repo.Get("max_file_size_mb")
+	setting, err := s.getSetting("max_file_size_mb")
 	if err != nil {
 		return 15 * 1024 * 1024, nil
 	}
@@ -195,7 +158,7 @@ func (s *SettingsService) GetMaxFileSize() (int64, error) {
 
 // GetAllowedFileTypes возвращает список разрешенных расширений файлов.
 func (s *SettingsService) GetAllowedFileTypes() ([]string, error) {
-	setting, err := s.repo.Get("allowed_file_types")
+	setting, err := s.getSetting("allowed_file_types")
 	if err != nil {
 		return []string{".pdf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods"}, nil
 	}
@@ -215,7 +178,7 @@ func (s *SettingsService) GetAllowedFileTypes() ([]string, error) {
 
 // GetOrganizationName возвращает название основной организации из настроек.
 func (s *SettingsService) GetOrganizationName() string {
-	setting, err := s.repo.Get("organization_name")
+	setting, err := s.getSetting("organization_name")
 	if err != nil || setting == nil || setting.Value == "" {
 		return ""
 	}
@@ -224,7 +187,7 @@ func (s *SettingsService) GetOrganizationName() string {
 
 // GetOrganizationShortName возвращает краткое название организации из настроек.
 func (s *SettingsService) GetOrganizationShortName() string {
-	setting, err := s.repo.Get("organization_short_name")
+	setting, err := s.getSetting("organization_short_name")
 	if err != nil || setting == nil || setting.Value == "" {
 		return ""
 	}
@@ -233,7 +196,7 @@ func (s *SettingsService) GetOrganizationShortName() string {
 
 // IsAssignmentCompletionAttachmentsEnabled возвращает признак доступности загрузки файлов при завершении поручения.
 func (s *SettingsService) IsAssignmentCompletionAttachmentsEnabled() bool {
-	setting, err := s.repo.Get("assignment_completion_attachments_enabled")
+	setting, err := s.getSetting("assignment_completion_attachments_enabled")
 	if err != nil || setting == nil || setting.Value == "" {
 		return false
 	}
@@ -285,25 +248,15 @@ func migrationCompatibilityAppError(err error) error {
 	return models.NewConflict("Схема БД несовместима с текущей версией приложения")
 }
 
-func (s *SettingsService) getSettingAuditLabel(key string, current *models.SystemSetting) string {
-	switch key {
-	case "organization_name":
-		return "Название организации"
-	case "organization_short_name":
-		return "Краткое название организации"
-	case "max_file_size_mb":
-		return "Максимальный размер файла"
-	case "allowed_file_types":
-		return "Разрешенные типы файлов"
-	case "assignment_completion_attachments_enabled":
-		return "Файлы при завершении поручения"
-	case "password_lifetime_days":
-		return "Срок жизни пароля"
+func (s *SettingsService) getSetting(key string) (*models.SystemSetting, error) {
+	if s.settingsClient == nil {
+		return nil, models.NewConflict("Клиент настроек docflow-server не настроен")
 	}
+	ctx, cancel := settingsContext()
+	defer cancel()
+	return s.settingsClient.GetSystemSetting(ctx, key)
+}
 
-	if current != nil && strings.TrimSpace(current.Description) != "" {
-		return current.Description
-	}
-
-	return fmt.Sprintf("«%s»", key)
+func settingsContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 15*time.Second)
 }

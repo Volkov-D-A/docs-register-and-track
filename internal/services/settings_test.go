@@ -25,6 +25,22 @@ type fakeServerMigrationClient struct {
 	password      string
 }
 
+type fakeServerSettingsClient struct {
+	store SettingsStore
+}
+
+func (c *fakeServerSettingsClient) ListSettings(context.Context) ([]models.SystemSetting, error) {
+	return c.store.GetAll()
+}
+
+func (c *fakeServerSettingsClient) GetSystemSetting(_ context.Context, key string) (*models.SystemSetting, error) {
+	return c.store.Get(key)
+}
+
+func (c *fakeServerSettingsClient) UpdateSystemSetting(_ context.Context, key, value string) error {
+	return c.store.Update(key, value)
+}
+
 func (c *fakeServerMigrationClient) Status(context.Context) (*database.MigrationStatus, error) {
 	if c.statusErr != nil {
 		return nil, c.statusErr
@@ -70,7 +86,8 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	auth.Login(user.Login, password)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	service := NewSettingsService(&atomicSettingsStore{SettingsStore: settingsRepo}, auth)
+	service := NewSettingsService(auth)
+	service.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
 	service.SetMigrationClient(&fakeServerMigrationClient{})
 	return service, settingsRepo
 }
@@ -95,19 +112,10 @@ func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsServi
 	auth.Login(user.Login, password)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	service := NewSettingsService(&atomicSettingsStore{SettingsStore: settingsRepo}, auth)
+	service := NewSettingsService(auth)
+	service.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
 	service.SetMigrationClient(&fakeServerMigrationClient{})
 	return service, settingsRepo, auth, user
-}
-
-type atomicSettingsStore struct {
-	*mocks.SettingsStore
-	effects []models.OutboxEvent
-}
-
-func (s *atomicSettingsStore) UpdateWithOutbox(key, value string, effects []models.OutboxEvent) error {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.SettingsStore.Update(key, value)
 }
 
 func TestSettingsService_GetAll(t *testing.T) {
@@ -130,124 +138,28 @@ func TestSettingsService_GetAll(t *testing.T) {
 		assert.Len(t, result, 1)
 	})
 
-	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "executor")
+	t.Run("propagates server error", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("GetAll").Return(nil, models.ErrForbidden).Once()
 
 		result, err := svc.GetAll()
 
 		require.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
-
-	t.Run("propagates repository error", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("GetAll").Return(nil, assert.AnError).Once()
-
-		result, err := svc.GetAll()
-
-		require.ErrorIs(t, err, assert.AnError)
-		assert.Nil(t, result)
-	})
 }
 
 func TestSettingsService_Update(t *testing.T) {
-	// Изменение отдельной системной настройки (ключ-значение)
-	t.Run("success admin", func(t *testing.T) {
+	t.Run("forwards update to server", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "old"}, nil).Once()
 		repo.On("Update", "key", "value").Return(nil).Once()
-		err := svc.Update("key", "value")
-		require.NoError(t, err)
+		require.NoError(t, svc.Update("key", "value"))
 	})
 
-	t.Run("skips update and audit when value did not change", func(t *testing.T) {
-		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
-
-		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "value"}, nil).Once()
-
-		err := svc.Update("key", "value")
-		require.NoError(t, err)
-		assert.Empty(t, svc.repo.(*atomicSettingsStore).effects)
-	})
-
-	t.Run("writes audit only when value changed", func(t *testing.T) {
-		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
-
-		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "old"}, nil).Once()
-		repo.On("Update", "key", "new").Return(nil).Once()
-
-		err := svc.Update("key", "new")
-		require.NoError(t, err)
-		atomicRepo := svc.repo.(*atomicSettingsStore)
-		require.Len(t, atomicRepo.effects, 1)
-		assert.Equal(t, models.OutboxEventAudit, atomicRepo.effects[0].EventType)
-	})
-
-	t.Run("uses human readable label for known setting", func(t *testing.T) {
-		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
-
-		repo.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{
-			Key:         "assignment_completion_attachments_enabled",
-			Value:       "true",
-			Description: "Разрешить исполнителю прикладывать файлы при завершении поручения",
-		}, nil).Once()
-		repo.On("Update", "assignment_completion_attachments_enabled", "false").Return(nil).Once()
-
-		err := svc.Update("assignment_completion_attachments_enabled", "false")
-		require.NoError(t, err)
-		require.Len(t, svc.repo.(*atomicSettingsStore).effects, 1)
-	})
-
-	t.Run("updates password lifetime setting", func(t *testing.T) {
-		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin"})
-
-		repo.On("Get", "password_lifetime_days").Return(&models.SystemSetting{
-			Key:   "password_lifetime_days",
-			Value: "0",
-		}, nil).Once()
-		repo.On("Update", "password_lifetime_days", "90").Return(nil).Once()
-
-		err := svc.Update("password_lifetime_days", "90")
-		require.NoError(t, err)
-		require.Len(t, svc.repo.(*atomicSettingsStore).effects, 1)
-	})
-
-	t.Run("rejects negative password lifetime", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "admin")
-
-		err := svc.Update("password_lifetime_days", "-1")
-
-		require.Error(t, err)
-		appErr, ok := models.AsAppError(err)
-		require.True(t, ok)
-		assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
-	})
-
-	t.Run("rejects non numeric password lifetime", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "admin")
-
-		err := svc.Update("password_lifetime_days", "month")
-
-		require.Error(t, err)
-		appErr, ok := models.AsAppError(err)
-		require.True(t, ok)
-		assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
-	})
-
-	t.Run("forbidden executor", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "executor")
-		err := svc.Update("key", "value")
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
-
-	t.Run("allowed for user with admin role", func(t *testing.T) {
-		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
-		repo.On("Get", "key").Return(&models.SystemSetting{Key: "key", Value: "old"}, nil).Once()
-		repo.On("Update", "key", "value").Return(nil).Once()
-
-		err := svc.Update("key", "value")
-		require.NoError(t, err)
+	t.Run("propagates server authorization", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "executor")
+		repo.On("Update", "key", "value").Return(models.ErrForbidden).Once()
+		require.ErrorIs(t, svc.Update("key", "value"), models.ErrForbidden)
 	})
 }
 
@@ -348,42 +260,6 @@ func TestMigrationCompatibilityAppError(t *testing.T) {
 
 	err := migrationCompatibilityAppError(assert.AnError)
 	assert.ErrorIs(t, err, assert.AnError)
-}
-
-func TestSettingsServiceGetSettingAuditLabel(t *testing.T) {
-	service := &SettingsService{}
-
-	tests := []struct {
-		name    string
-		key     string
-		current *models.SystemSetting
-		want    string
-	}{
-		{name: "organization name", key: "organization_name", want: "Название организации"},
-		{name: "organization short name", key: "organization_short_name", want: "Краткое название организации"},
-		{name: "max file size", key: "max_file_size_mb", want: "Максимальный размер файла"},
-		{name: "allowed file types", key: "allowed_file_types", want: "Разрешенные типы файлов"},
-		{name: "assignment completion attachments", key: "assignment_completion_attachments_enabled", want: "Файлы при завершении поручения"},
-		{
-			name:    "custom description",
-			key:     "custom_key",
-			current: &models.SystemSetting{Description: "Пользовательское описание"},
-			want:    "Пользовательское описание",
-		},
-		{
-			name:    "blank description fallback",
-			key:     "custom_key",
-			current: &models.SystemSetting{Description: "   "},
-			want:    "«custom_key»",
-		},
-		{name: "nil current fallback", key: "missing_key", want: "«missing_key»"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, service.getSettingAuditLabel(tt.key, tt.current))
-		})
-	}
 }
 
 func TestSettingsService_GetMaxFileSize(t *testing.T) {

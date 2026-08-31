@@ -21,8 +21,6 @@ func TestRepeatedTransitionsProduceDistinctAuditEventsIntegration(t *testing.T) 
 	outboxRepo := repository.NewOutboxRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	userRepo.SetOutbox(outboxRepo)
-	settingsRepo := repository.NewSettingsRepository(db)
-	settingsRepo.SetOutbox(outboxRepo)
 	substitutionRepo := repository.NewUserSubstitutionRepository(db)
 	substitutionRepo.SetOutbox(outboxRepo)
 	auditRepo := repository.NewAdminAuditLogRepository(db)
@@ -37,7 +35,6 @@ func TestRepeatedTransitionsProduceDistinctAuditEventsIntegration(t *testing.T) 
 	_, err = auth.Login("admin", adminPassword)
 	require.NoError(t, err)
 
-	settingsService := NewSettingsService(settingsRepo, auth)
 	userService := NewUserService(userRepo, auth)
 	substitutionService := NewUserSubstitutionService(substitutionRepo, userRepo, auth)
 
@@ -63,16 +60,6 @@ func TestRepeatedTransitionsProduceDistinctAuditEventsIntegration(t *testing.T) 
 	require.NoError(t, err)
 	lockUserFiveTimes(t, auth, "lock-target")
 
-	setting, err := settingsRepo.Get("max_file_size_mb")
-	require.NoError(t, err)
-	require.NotNil(t, setting)
-	alternativeValue := "16"
-	if setting.Value == alternativeValue {
-		alternativeValue = "17"
-	}
-	require.NoError(t, settingsService.Update(setting.Key, alternativeValue))
-	require.NoError(t, settingsService.Update(setting.Key, setting.Value))
-
 	setSubstitution := models.UpdateUserSubstitutionRequest{
 		PrincipalUserID:  principalID.String(),
 		SubstituteUserID: substituteID.String(),
@@ -92,10 +79,8 @@ func TestRepeatedTransitionsProduceDistinctAuditEventsIntegration(t *testing.T) 
 	require.NoError(t, worker.ProcessOnce())
 
 	assertAuditActionCount(t, db, "USER_LOCKED", 2)
-	assertAuditActionCount(t, db, "SETTINGS_UPDATE", 2)
 	assertAuditActionCount(t, db, "USER_SUBSTITUTION_UPDATE", 4)
 	assertDistinctOutboxKeys(t, db, "user:"+lockedUserID.String()+":locked:%", 2)
-	assertDistinctOutboxKeys(t, db, "setting:"+setting.Key+":update:%", 2)
 	assertDistinctOutboxKeys(t, db, "user-substitution:"+principalID.String()+":clear:%", 2)
 }
 

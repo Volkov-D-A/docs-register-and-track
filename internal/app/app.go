@@ -124,7 +124,6 @@ func newWailsOptionsWithDependencies(
 	administrativeOrderRepo := repository.NewAdministrativeOrderRepository(db)
 	assignmentRepo := repository.NewAssignmentRepository(db)
 	departmentRepo := repository.NewDepartmentRepository(db)
-	settingsRepo := repository.NewSettingsRepository(db)
 	attachmentRepo := repository.NewAttachmentRepository(db)
 	linkRepo := repository.NewLinkRepository(db)
 	acknowledgmentRepo := repository.NewAcknowledgmentRepository(db)
@@ -141,7 +140,6 @@ func newWailsOptionsWithDependencies(
 	userSubstitutionRepo.SetOutbox(outboxRepo)
 	referenceRepo.SetOutbox(outboxRepo)
 	userRepo.SetOutbox(outboxRepo)
-	settingsRepo.SetOutbox(outboxRepo)
 	outgoingDocRepo.SetOutbox(outboxRepo)
 	incomingDocRepo.SetOutbox(outboxRepo)
 	citizenAppealRepo.SetOutbox(outboxRepo)
@@ -152,7 +150,6 @@ func newWailsOptionsWithDependencies(
 	authService := services.NewAuthService(db, userRepo)
 	authService.SetOperationMetrics(metrics)
 	authService.SetAccessStore(documentAccessRepo)
-	authService.SetSettingsStore(settingsRepo)
 
 	logger.GetAppUserID = func() string {
 		return authService.GetCurrentUserID()
@@ -160,7 +157,7 @@ func newWailsOptionsWithDependencies(
 
 	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
 	outboxAdminService := services.NewOutboxAdminService(outboxRepo, authService)
-	settingsService := services.NewSettingsService(settingsRepo, authService)
+	settingsService := services.NewSettingsService(authService)
 	serverURL := cfg.Server.URL
 	if serverURL == "" {
 		serverURL = "http://localhost:8080"
@@ -178,6 +175,7 @@ func newWailsOptionsWithDependencies(
 		}
 	}
 	settingsService.SetMigrationClient(serverClient)
+	settingsService.SetServerClient(serverClient)
 	authService.SetServerAuth(serverClient)
 	userService := services.NewUserService(userRepo, authService)
 	userService.SetServerClient(serverClient)
