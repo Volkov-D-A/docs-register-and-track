@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/google/uuid"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
@@ -37,8 +39,11 @@ func (c *Client) UpdateMySubstitution(ctx context.Context, input models.UpdateUs
 	return result, nil
 }
 
-type DepartmentLookupClient interface {
+type DepartmentClient interface {
 	ListDepartments(context.Context) ([]dto.Department, error)
+	CreateDepartment(context.Context, string, []string) (*dto.Department, error)
+	UpdateDepartment(context.Context, string, string, []string) (*dto.Department, error)
+	DeleteDepartment(context.Context, string) error
 }
 
 type CurrentAccessClient interface {
@@ -95,6 +100,42 @@ func (c *Client) ListDepartments(ctx context.Context) ([]dto.Department, error) 
 		return nil, err
 	}
 	return result, nil
+}
+
+func (c *Client) CreateDepartment(ctx context.Context, name string, nomenclatureIDs []string) (*dto.Department, error) {
+	var result dto.Department
+	body := struct {
+		Name            string   `json:"name"`
+		NomenclatureIDs []string `json:"nomenclatureIds"`
+	}{Name: name, NomenclatureIDs: nomenclatureIDs}
+	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/departments", body, http.StatusCreated, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *Client) UpdateDepartment(ctx context.Context, id, name string, nomenclatureIDs []string) (*dto.Department, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID отдела", err)
+	}
+	var result dto.Department
+	body := struct {
+		Name            string   `json:"name"`
+		NomenclatureIDs []string `json:"nomenclatureIds"`
+	}{Name: name, NomenclatureIDs: nomenclatureIDs}
+	path := "/api/v1/departments/" + url.PathEscape(id)
+	if err := c.doUserRequest(ctx, http.MethodPatch, path, body, http.StatusOK, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *Client) DeleteDepartment(ctx context.Context, id string) error {
+	if _, err := uuid.Parse(id); err != nil {
+		return models.NewBadRequestWrapped("неверный ID отдела", err)
+	}
+	path := "/api/v1/departments/" + url.PathEscape(id)
+	return c.doUserRequest(ctx, http.MethodDelete, path, nil, http.StatusNoContent, nil)
 }
 
 func (c *Client) GetCurrentAccessSummary(ctx context.Context) (*dto.CurrentAccessSummary, error) {

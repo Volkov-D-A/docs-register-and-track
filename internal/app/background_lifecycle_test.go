@@ -20,6 +20,17 @@ type fakeMigrationStatusReader struct {
 	err    error
 }
 
+type fakeMigrationStatusClient struct {
+	status      *database.MigrationStatus
+	err         error
+	hasDeadline bool
+}
+
+func (c *fakeMigrationStatusClient) Status(ctx context.Context) (*database.MigrationStatus, error) {
+	_, c.hasDeadline = ctx.Deadline()
+	return c.status, c.err
+}
+
 func (r *fakeMigrationStatusReader) GetMigrationStatus(path string) (*database.MigrationStatus, error) {
 	if path != database.DefaultMigrationsPath {
 		return nil, errors.New("unexpected migration path")
@@ -59,6 +70,27 @@ func readyMigrationStatus() database.MigrationStatus {
 		UpToDate:               true,
 		Compatible:             true,
 	}
+}
+
+func TestServerMigrationStatusReaderUsesServerStatus(t *testing.T) {
+	status := readyMigrationStatus()
+	client := &fakeMigrationStatusClient{status: &status}
+	reader := newServerMigrationStatusReader(client)
+
+	actual, err := reader.GetMigrationStatus(database.DefaultMigrationsPath)
+
+	require.NoError(t, err)
+	assert.Equal(t, &status, actual)
+	assert.True(t, client.hasDeadline)
+}
+
+func TestServerMigrationStatusReaderRequiresClient(t *testing.T) {
+	reader := newServerMigrationStatusReader(nil)
+
+	status, err := reader.GetMigrationStatus(database.DefaultMigrationsPath)
+
+	assert.Nil(t, status)
+	require.EqualError(t, err, "docflow-server migration status client is not configured")
 }
 
 func stopLifecycle(t *testing.T, lifecycle *backgroundLifecycle) {

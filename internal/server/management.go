@@ -40,7 +40,7 @@ type managementAPI struct {
 	userCommands  userManagementStore
 	userAccess    userAccessManagementStore
 	substitutions userSubstitutionManagementStore
-	departments   departmentLookupStore
+	departments   departmentManagementStore
 	audit         adminAuditStore
 	authUsers     authUserStore
 	authSettings  authSettingsStore
@@ -84,6 +84,8 @@ func newManagementAPI(app *App) *managementAPI {
 	access.SetOutbox(outboxRepo)
 	substitutions := repository.NewUserSubstitutionRepository(app.db)
 	substitutions.SetOutbox(outboxRepo)
+	departments := repository.NewDepartmentRepository(app.db)
+	departments.SetOutbox(outboxRepo)
 	return &managementAPI{
 		cfg:           app.cfg,
 		migrations:    app.db,
@@ -92,7 +94,7 @@ func newManagementAPI(app *App) *managementAPI {
 		userCommands:  users,
 		userAccess:    access,
 		substitutions: substitutions,
-		departments:   repository.NewDepartmentRepository(app.db),
+		departments:   departments,
 		authUsers:     users,
 		authSettings:  repository.NewSettingsRepository(app.db),
 		sessions:      repository.NewServerSessionRepository(app.db),
@@ -132,6 +134,9 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/users/{id}/substitution", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getUserSubstitution)))
 	mux.Handle("PUT /api/v1/users/{id}/substitution", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateUserSubstitution)))
 	mux.Handle("GET /api/v1/departments", api.requireSession(http.HandlerFunc(api.listDepartments)))
+	mux.Handle("POST /api/v1/departments", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.createDepartment)))
+	mux.Handle("PATCH /api/v1/departments/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateDepartment)))
+	mux.Handle("DELETE /api/v1/departments/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.deleteDepartment)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))

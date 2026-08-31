@@ -96,10 +96,6 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 			s.mu.Unlock()
 			return user, nil
 		}
-		if err := s.ensureCompatibleSchema(); err != nil {
-			return nil, err
-		}
-
 		user, err := s.userRepo.GetByLogin(login)
 		if err != nil {
 			return nil, err
@@ -187,16 +183,6 @@ func (s *AuthService) getPasswordLifetimeDays() int {
 		return 0
 	}
 	return days
-}
-
-func (s *AuthService) ensureCompatibleSchema() error {
-	if s.db == nil {
-		return nil
-	}
-	if err := s.db.CheckMigrationCompatibility(database.DefaultMigrationsPath); err != nil {
-		return migrationCompatibilityAppError(err)
-	}
-	return nil
 }
 
 // Logout — выход

@@ -139,7 +139,6 @@ func newWailsOptionsWithDependencies(
 	assignmentRepo.SetOutbox(outboxRepo)
 	linkRepo.SetOutbox(outboxRepo)
 	nomenclatureRepo.SetOutbox(outboxRepo)
-	departmentRepo.SetOutbox(outboxRepo)
 	userSubstitutionRepo.SetOutbox(outboxRepo)
 	referenceRepo.SetOutbox(outboxRepo)
 	userRepo.SetOutbox(outboxRepo)
@@ -215,7 +214,7 @@ func newWailsOptionsWithDependencies(
 	administrativeOrderService := services.NewAdministrativeOrderService(administrativeOrderRepo, authService, documentAccessService)
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, documentAccessService, userEventService)
 	assignmentService.SetSubstitutionStore(userSubstitutionRepo)
-	departmentService := services.NewDepartmentService(departmentRepo, authService)
+	departmentService := services.NewDepartmentService()
 	departmentService.SetServerClient(serverClient)
 
 	objectStorage, err := dependencies.newStorage(cfg.Minio)
@@ -234,7 +233,7 @@ func newWailsOptionsWithDependencies(
 	attachmentService.SetOperationLifecycle(operationLifecycle)
 	attachmentService.SetOperationMetrics(metrics)
 	backgroundServices := newBackgroundLifecycle(
-		db,
+		newServerMigrationStatusReader(serverClient),
 		nil,
 		nil,
 	)

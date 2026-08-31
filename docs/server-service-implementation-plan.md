@@ -5,10 +5,10 @@
 Дата последнего обновления: 31 августа 2026 года
 
 Статус: server worker, контейнерное развёртывание, управление миграциями,
-полный auth/password lifecycle и основные операции управления пользователями
+полный auth/password lifecycle, управление пользователями и CRUD подразделений
 реализованы и проверены через server API. Экран пользователей, связанные права
-доступа, административные замещения, lookup подразделений и текущая access
-summary больше не используют PostgreSQL из desktop. Остальные business
+доступа, административные замещения, подразделения и текущая access summary
+больше не используют PostgreSQL из desktop. Остальные business
 operations пока продолжают прямой доступ; HTTPS и окончательное закрытие
 инфраструктуры от рабочих мест не выполнены.
 
@@ -29,8 +29,9 @@ operations пока продолжают прямой доступ; HTTPS и о�
 - management API с раздельными liveness/readiness и maintenance mode;
 - пустая БД bootstrap-ится сервером, обновление существующей БД подтверждается
   администратором из desktop UI;
-- desktop не исполняет migration SQL: apply/rollback выполняет сервер под
-  PostgreSQL advisory lock с повторной проверкой admin password и audit;
+- desktop не исполняет migration SQL и не сравнивает схему со своим embedded
+  каталогом: status/apply/rollback выполняет сервер под PostgreSQL advisory lock
+  с повторной проверкой admin password и audit;
 - Caddy включён в Compose как reverse proxy; временно используется явно
   разрешаемый HTTP только для доверенной изолированной сети;
 - migration `011_server_sessions`, opaque bearer sessions, login/logout/me,
@@ -47,8 +48,9 @@ operations пока продолжают прямой доступ; HTTPS и о�
   временный пароль возвращается только в успешном create/reset response;
 - access profile и административные замещения пользователя читаются и
   изменяются через server API с атомарным audit outbox;
-- lookup подразделений и текущая access summary читаются через server API;
-  request principal не хранится в общем состоянии процесса;
+- lookup и административный CRUD подразделений, а также текущая access summary
+  работают через server API; request principal не хранится в общем состоянии
+  процесса, а department mutation и audit outbox атомарны;
 - обновление собственного профиля, кандидаты замещения и личное замещение
   работают через server API; client-supplied principal для self-операций
   игнорируется в пользу bearer principal.
@@ -69,7 +71,7 @@ operations пока продолжают прямой доступ; HTTPS и о�
 | 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
 | 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
 | 4. Authentication | Завершён | Только production-like session/load smoke |
-| 5. Business API | В работе | Пользователи и собственный профиль перенесены; следующий срез — подразделения |
+| 5. Business API | В работе | Пользователи, профиль и подразделения перенесены; следующий срез — простые справочники |
 | 6. Attachments API | Не начат | Streaming endpoints и limits |
 | 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
 
@@ -114,14 +116,18 @@ server API**:
 обновление профиля, кандидаты замещения и пользовательские get/update
 substitution работают через server API без прямых desktop repositories.
 
-Следующий рекомендуемый срез — **подразделения**: перенести create/update/delete
-в дополнение к уже серверному read-only lookup и использовать этот CRUD как
-шаблон для остальных простых справочников.
+Также завершён CRUD **подразделений**: list/create/update/delete выполняются через
+typed server client, команды защищены правом `admin`, а mutation и audit outbox
+сохраняются одной транзакцией. Direct repository path удалён из
+`DepartmentService`; этот срез служит шаблоном для остальных справочников.
+
+Следующий рекомендуемый срез — простые справочники организаций и исполнителей
+резолюций, затем номенклатура и системные настройки.
 
 После него рекомендуемый порядок:
 
-1. Подразделения и простые справочники — как шаблон CRUD API.
-2. Системные настройки и оставшиеся access-related операции.
+1. Организации и исполнители резолюций по готовому шаблону CRUD API.
+2. Номенклатура, системные настройки и оставшиеся access-related операции.
 3. Read-only списки и карточки документов.
 4. Команды регистрации/изменения документов с idempotency.
 5. Поручения, ознакомления, связи, journal, dashboard и statistics.

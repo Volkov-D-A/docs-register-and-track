@@ -24,8 +24,16 @@ type userSubstitutionManagementStore interface {
 	ReplaceForPrincipalWithOutbox(uuid.UUID, *uuid.UUID, *time.Time, *time.Time, bool, *uuid.UUID, []models.OutboxEvent) (*models.UserSubstitution, error)
 }
 
-type departmentLookupStore interface {
+type departmentManagementStore interface {
 	GetAll() ([]models.Department, error)
+	CreateWithOutbox(string, []string, []models.OutboxEvent) (*models.Department, error)
+	UpdateWithOutbox(uuid.UUID, string, []string, []models.OutboxEvent) (*models.Department, error)
+	DeleteWithOutbox(uuid.UUID, []models.OutboxEvent) error
+}
+
+type departmentMutationRequest struct {
+	Name            string   `json:"name"`
+	NomenclatureIDs []string `json:"nomenclatureIds"`
 }
 
 func (api *managementAPI) getUserAccessProfile(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +193,70 @@ func (api *managementAPI) listDepartments(w http.ResponseWriter, _ *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, dto.MapDepartments(departments))
+}
+
+func (api *managementAPI) createDepartment(w http.ResponseWriter, r *http.Request) {
+	var req departmentMutationRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
+		return
+	}
+	auth := authenticatedFromContext(r.Context())
+	effect, err := userAuditEffect(auth.User, "department:"+uuid.NewString()+":create", "DEPT_CREATE", fmt.Sprintf("Создано подразделение «%s»", req.Name))
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+	department, err := api.departments.CreateWithOutbox(req.Name, req.NomenclatureIDs, []models.OutboxEvent{effect})
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, dto.MapDepartment(department))
+}
+
+func (api *managementAPI) updateDepartment(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeUserError(w, models.NewBadRequestWrapped("неверный ID отдела", err))
+		return
+	}
+	var req departmentMutationRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
+		return
+	}
+	auth := authenticatedFromContext(r.Context())
+	effect, err := userAuditEffect(auth.User, "department:"+id.String()+":update:"+uuid.NewString(), "DEPT_UPDATE", fmt.Sprintf("Обновлено подразделение «%s»", req.Name))
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+	department, err := api.departments.UpdateWithOutbox(id, req.Name, req.NomenclatureIDs, []models.OutboxEvent{effect})
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, dto.MapDepartment(department))
+}
+
+func (api *managementAPI) deleteDepartment(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeUserError(w, models.NewBadRequestWrapped("неверный ID отдела", err))
+		return
+	}
+	auth := authenticatedFromContext(r.Context())
+	effect, err := userAuditEffect(auth.User, "department:"+id.String()+":delete:"+uuid.NewString(), "DEPT_DELETE", fmt.Sprintf("Удалено подразделение (ID: %s)", id))
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+	if err := api.departments.DeleteWithOutbox(id, []models.OutboxEvent{effect}); err != nil {
+		writeUserError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Request) {

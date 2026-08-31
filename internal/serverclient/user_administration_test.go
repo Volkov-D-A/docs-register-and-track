@@ -36,6 +36,21 @@ func TestUserAdministrationClientUsesTypedEndpoints(t *testing.T) {
 			assert.Equal(t, "/api/v1/departments", r.URL.Path)
 			return response(http.StatusOK, `[{"id":"`+uuid.NewString()+`","name":"Legal"}]`), nil
 		case 5:
+			assert.Equal(t, http.MethodPost, r.Method)
+			assert.Equal(t, "/api/v1/departments", r.URL.Path)
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			assert.JSONEq(t, `{"name":"Legal","nomenclatureIds":[]}`, string(body))
+			return response(http.StatusCreated, `{"id":"`+userID+`","name":"Legal","nomenclatureIds":[]}`), nil
+		case 6:
+			assert.Equal(t, http.MethodPatch, r.Method)
+			assert.Equal(t, "/api/v1/departments/"+userID, r.URL.Path)
+			return response(http.StatusOK, `{"id":"`+userID+`","name":"Compliance","nomenclatureIds":[]}`), nil
+		case 7:
+			assert.Equal(t, http.MethodDelete, r.Method)
+			assert.Equal(t, "/api/v1/departments/"+userID, r.URL.Path)
+			return response(http.StatusNoContent, ""), nil
+		case 8:
 			assert.Equal(t, "/api/v1/access/current", r.URL.Path)
 			return response(http.StatusOK, `{"sections":{"settings":true},"documentKinds":[],"registrationKinds":[],"systemPermissions":["admin"]}`), nil
 		default:
@@ -55,9 +70,30 @@ func TestUserAdministrationClientUsesTypedEndpoints(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, departments, 1)
 	assert.Equal(t, "Legal", departments[0].Name)
+	created, err := client.CreateDepartment(context.Background(), "Legal", []string{})
+	require.NoError(t, err)
+	assert.Equal(t, "Legal", created.Name)
+	updated, err := client.UpdateDepartment(context.Background(), userID, "Compliance", []string{})
+	require.NoError(t, err)
+	assert.Equal(t, "Compliance", updated.Name)
+	require.NoError(t, client.DeleteDepartment(context.Background(), userID))
 	summary, err := client.GetCurrentAccessSummary(context.Background())
 	require.NoError(t, err)
 	assert.True(t, summary.Sections.Settings)
+}
+
+func TestDepartmentClientRejectsInvalidIDBeforeRequest(t *testing.T) {
+	requests := 0
+	client := userClientWithToken(t, func(*http.Request) (*http.Response, error) {
+		requests++
+		return response(http.StatusInternalServerError, ""), nil
+	})
+
+	updated, err := client.UpdateDepartment(context.Background(), "invalid", "Legal", nil)
+	assert.Nil(t, updated)
+	require.Error(t, err)
+	require.Error(t, client.DeleteDepartment(context.Background(), "invalid"))
+	assert.Zero(t, requests)
 }
 
 func response(status int, body string) *http.Response {

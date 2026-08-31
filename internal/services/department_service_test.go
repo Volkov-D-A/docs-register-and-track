@@ -7,265 +7,132 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
-type testDepartmentLookupClient struct {
-	repo DepartmentStore
-	auth *AuthService
+type testDepartmentClient struct {
+	items              []dto.Department
+	result             *dto.Department
+	err                error
+	method             string
+	id                 string
+	name               string
+	nomenclatureIDs    []string
+	contextHasDeadline bool
 }
 
-func (c testDepartmentLookupClient) ListDepartments(context.Context) ([]dto.Department, error) {
-	if err := c.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+func (c *testDepartmentClient) capture(ctx context.Context, method, id, name string, nomenclatureIDs []string) {
+	c.method = method
+	c.id = id
+	c.name = name
+	c.nomenclatureIDs = append([]string(nil), nomenclatureIDs...)
+	_, c.contextHasDeadline = ctx.Deadline()
+}
+
+func (c *testDepartmentClient) ListDepartments(ctx context.Context) ([]dto.Department, error) {
+	c.capture(ctx, "list", "", "", nil)
+	return c.items, c.err
+}
+
+func (c *testDepartmentClient) CreateDepartment(ctx context.Context, name string, nomenclatureIDs []string) (*dto.Department, error) {
+	c.capture(ctx, "create", "", name, nomenclatureIDs)
+	return c.result, c.err
+}
+
+func (c *testDepartmentClient) UpdateDepartment(ctx context.Context, id, name string, nomenclatureIDs []string) (*dto.Department, error) {
+	c.capture(ctx, "update", id, name, nomenclatureIDs)
+	return c.result, c.err
+}
+
+func (c *testDepartmentClient) DeleteDepartment(ctx context.Context, id string) error {
+	c.capture(ctx, "delete", id, "", nil)
+	return c.err
+}
+
+func TestDepartmentServiceDelegatesCRUDToServer(t *testing.T) {
+	id := uuid.NewString()
+	nomenclatureIDs := []string{uuid.NewString(), uuid.NewString()}
+	result := &dto.Department{ID: id, Name: "Legal", NomenclatureIDs: nomenclatureIDs}
+
+	tests := []struct {
+		name   string
+		method string
+		call   func(*DepartmentService) error
+	}{
+		{
+			name:   "list",
+			method: "list",
+			call: func(service *DepartmentService) error {
+				_, err := service.GetAllDepartments()
+				return err
+			},
+		},
+		{
+			name:   "create",
+			method: "create",
+			call: func(service *DepartmentService) error {
+				_, err := service.CreateDepartment("Legal", nomenclatureIDs)
+				return err
+			},
+		},
+		{
+			name:   "update",
+			method: "update",
+			call: func(service *DepartmentService) error {
+				_, err := service.UpdateDepartment(id, "Legal", nomenclatureIDs)
+				return err
+			},
+		},
+		{
+			name:   "delete",
+			method: "delete",
+			call: func(service *DepartmentService) error {
+				return service.DeleteDepartment(id)
+			},
+		},
 	}
-	items, err := c.repo.GetAll()
-	return dto.MapDepartments(items), err
-}
 
-func setTestDepartmentLookup(service *DepartmentService, repo DepartmentStore, auth *AuthService) {
-	service.SetServerClient(testDepartmentLookupClient{repo: repo, auth: auth})
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &testDepartmentClient{items: []dto.Department{*result}, result: result}
+			service := NewDepartmentService()
+			service.SetServerClient(client)
 
-func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *mocks.DepartmentStore, *AuthService) {
-	t.Helper()
-	depRepo := mocks.NewDepartmentStore(t)
-	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
-	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
-
-	if role != "" {
-		password := "Passw0rd!"
-		hash, _ := security.HashPassword(password)
-		user := &models.User{
-			ID:           uuid.New(),
-			Login:        role + "_dep",
-			PasswordHash: hash,
-			IsActive:     true,
-		}
-		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
-		_, err := auth.Login(user.Login, password)
-		require.NoError(t, err)
-		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+			require.NoError(t, tt.call(service))
+			assert.Equal(t, tt.method, client.method)
+			assert.True(t, client.contextHasDeadline)
+		})
 	}
-
-	svc := NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth)
-	setTestDepartmentLookup(svc, depRepo, auth)
-	return svc, depRepo, auth
 }
 
-func setupDepartmentServiceWithRoles(t *testing.T, roles []string) (*DepartmentService, *mocks.DepartmentStore, *AuthService) {
-	t.Helper()
-	depRepo := mocks.NewDepartmentStore(t)
-	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
-	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
+func TestDepartmentServicePropagatesServerError(t *testing.T) {
+	want := errors.New("server failed")
+	client := &testDepartmentClient{err: want}
+	service := NewDepartmentService()
+	service.SetServerClient(client)
 
-	password := "Passw0rd!"
-	hash, _ := security.HashPassword(password)
-	user := &models.User{
-		ID:           uuid.New(),
-		Login:        "multi_dep_" + uuid.New().String(),
-		PasswordHash: hash,
-		IsActive:     true,
-	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	_, err := auth.Login(user.Login, password)
-	require.NoError(t, err)
-	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+	result, err := service.CreateDepartment("Legal", nil)
 
-	svc := NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth)
-	setTestDepartmentLookup(svc, depRepo, auth)
-	return svc, depRepo, auth
+	assert.Nil(t, result)
+	require.ErrorIs(t, err, want)
 }
 
-type atomicDepartmentStore struct {
-	*mocks.DepartmentStore
-	effects []models.OutboxEvent
-}
+func TestDepartmentServiceRequiresServerClient(t *testing.T) {
+	service := NewDepartmentService()
 
-func (s *atomicDepartmentStore) CreateWithOutbox(name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.DepartmentStore.Create(name, nomenclatureIDs)
-}
+	items, err := service.GetAllDepartments()
+	assert.Nil(t, items)
+	require.ErrorIs(t, err, errServerDepartmentClientNotConfigured)
 
-func (s *atomicDepartmentStore) UpdateWithOutbox(id uuid.UUID, name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.DepartmentStore.Update(id, name, nomenclatureIDs)
-}
+	created, err := service.CreateDepartment("Legal", nil)
+	assert.Nil(t, created)
+	require.ErrorIs(t, err, errServerDepartmentClientNotConfigured)
 
-func (s *atomicDepartmentStore) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.DepartmentStore.Delete(id)
-}
+	updated, err := service.UpdateDepartment(uuid.NewString(), "Legal", nil)
+	assert.Nil(t, updated)
+	require.ErrorIs(t, err, errServerDepartmentClientNotConfigured)
 
-func TestDepartmentService_GetAllDepartments(t *testing.T) {
-	// Получение списка всех подразделений организации
-	t.Run("успех", func(t *testing.T) {
-		svc, repo, _ := setupDepartmentService(t, "clerk")
-		mockValues := []models.Department{
-			{ID: uuid.New(), Name: "Отдел кадров"},
-			{ID: uuid.New(), Name: "Бухгалтерия"},
-		}
-		repo.On("GetAll").Return(mockValues, nil).Once()
-
-		result, err := svc.GetAllDepartments()
-		require.NoError(t, err)
-		assert.Len(t, result, 2)
-		assert.Equal(t, "Отдел кадров", result[0].Name)
-	})
-
-	t.Run("ошибка базы", func(t *testing.T) {
-		svc, repo, _ := setupDepartmentService(t, "clerk")
-		repo.On("GetAll").Return(nil, errors.New("db error")).Once()
-
-		result, err := svc.GetAllDepartments()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "db error")
-		assert.Nil(t, result)
-	})
-
-	t.Run("не авторизован", func(t *testing.T) {
-		svc, _, _ := setupDepartmentService(t, "")
-		result, err := svc.GetAllDepartments()
-		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("деактивирован после входа", func(t *testing.T) {
-		depRepo := mocks.NewDepartmentStore(t)
-		userRepo := mocks.NewUserStore(t)
-		user := &models.User{ID: uuid.New(), IsActive: false}
-		auth := NewAuthService(nil, userRepo)
-		auth.currentUserID = user.ID
-		userRepo.On("GetByID", user.ID).Return(user, nil).Once()
-		svc := NewDepartmentService(depRepo, auth)
-		setTestDepartmentLookup(svc, depRepo, auth)
-
-		result, err := svc.GetAllDepartments()
-
-		require.ErrorIs(t, err, models.ErrUnauthorized)
-		assert.Nil(t, result)
-		assert.False(t, auth.IsAuthenticated())
-	})
-}
-
-func TestDepartmentService_CreateDepartment(t *testing.T) {
-	// Создание нового подразделения с сохранением привязанных индексов номенклатуры
-	t.Run("успех (админ)", func(t *testing.T) {
-		svc, repo, _ := setupDepartmentService(t, "admin")
-		name := "IT Отдел"
-		nomIDs := []string{uuid.New().String(), uuid.New().String()}
-
-		expected := &models.Department{ID: uuid.New(), Name: name}
-		repo.On("Create", name, nomIDs).Return(expected, nil).Once()
-
-		result, err := svc.CreateDepartment(name, nomIDs)
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, name, result.Name)
-	})
-
-	t.Run("запрещено (не админ)", func(t *testing.T) {
-		svc, _, _ := setupDepartmentService(t, "clerk")
-		result, err := svc.CreateDepartment("Test", []string{})
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("запрещено без роли admin", func(t *testing.T) {
-		svc, _, _ := setupDepartmentServiceWithRoles(t, []string{"clerk"})
-
-		result, err := svc.CreateDepartment("Test", []string{})
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestDepartmentService_UpdateDepartment(t *testing.T) {
-	// Обновление данных существующего подразделения
-	idStr := uuid.New().String()
-
-	t.Run("успех (админ)", func(t *testing.T) {
-		svc, repo, _ := setupDepartmentService(t, "admin")
-		name := "Обновленный IT Отдел"
-		nomIDs := []string{uuid.New().String()}
-
-		expected := &models.Department{ID: uuid.MustParse(idStr), Name: name}
-		repo.On("Update", mock.AnythingOfType("uuid.UUID"), name, nomIDs).Return(expected, nil).Once()
-
-		result, err := svc.UpdateDepartment(idStr, name, nomIDs)
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, name, result.Name)
-	})
-
-	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _ := setupDepartmentService(t, "admin")
-		result, err := svc.UpdateDepartment("invalid-uuid", "Тест", nil)
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID отдела")
-		assert.Nil(t, result)
-	})
-
-	t.Run("запрещено (не админ)", func(t *testing.T) {
-		svc, _, _ := setupDepartmentService(t, "clerk")
-		result, err := svc.UpdateDepartment(idStr, "Тест", nil)
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("запрещено без роли admin", func(t *testing.T) {
-		svc, _, _ := setupDepartmentServiceWithRoles(t, []string{"clerk"})
-
-		result, err := svc.UpdateDepartment(idStr, "Тест", nil)
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestDepartmentService_DeleteDepartment(t *testing.T) {
-	// Удаление подразделения из базы
-	idStr := uuid.New().String()
-
-	t.Run("успех (админ)", func(t *testing.T) {
-		svc, repo, _ := setupDepartmentService(t, "admin")
-		repo.On("Delete", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
-
-		err := svc.DeleteDepartment(idStr)
-		require.NoError(t, err)
-	})
-
-	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _ := setupDepartmentService(t, "admin")
-		err := svc.DeleteDepartment("invalid-uuid")
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID отдела")
-	})
-
-	t.Run("запрещено (не админ)", func(t *testing.T) {
-		svc, _, _ := setupDepartmentService(t, "clerk")
-		err := svc.DeleteDepartment(idStr)
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
-
-	t.Run("запрещено без роли admin", func(t *testing.T) {
-		svc, _, _ := setupDepartmentServiceWithRoles(t, []string{"clerk"})
-
-		err := svc.DeleteDepartment(idStr)
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
+	require.ErrorIs(t, service.DeleteDepartment(uuid.NewString()), errServerDepartmentClientNotConfigured)
 }
