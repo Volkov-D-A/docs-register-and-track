@@ -9,13 +9,16 @@ CREATE TABLE IF NOT EXISTS attachments (
     uploaded_by UUID NOT NULL REFERENCES users (id),
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     -- Durable deletion intent while the object is removed from MinIO.
-    deletion_requested_at TIMESTAMP WITH TIME ZONE
+    deletion_requested_at TIMESTAMP WITH TIME ZONE,
+    assignment_id UUID REFERENCES assignments(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_attachments_document ON attachments (document_id);
 CREATE INDEX idx_attachments_pending_deletion
     ON attachments (deletion_requested_at)
     WHERE deletion_requested_at IS NOT NULL;
+CREATE INDEX idx_attachments_assignment ON attachments(assignment_id)
+    WHERE assignment_id IS NOT NULL;
 
 -- 13. Cached Storage Statistics
 CREATE TABLE storage_statistics (

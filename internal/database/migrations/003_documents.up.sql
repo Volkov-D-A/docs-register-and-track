@@ -23,7 +23,8 @@ CREATE TABLE documents (
     idempotency_key UUID NOT NULL DEFAULT gen_random_uuid(),
     created_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    attachment_pages_count INT NOT NULL DEFAULT 0 CHECK (attachment_pages_count >= 0)
 );
 
 CREATE INDEX idx_documents_kind ON documents (kind);
@@ -106,8 +107,6 @@ CREATE TABLE citizen_appeal_details (
         appeal_type IN ('предложение', 'заявление', 'жалоба')
     ),
     applicant_category VARCHAR(255) NOT NULL,
-    appeal_pages_count INT NOT NULL DEFAULT 1,
-    attachment_pages_count INT NOT NULL DEFAULT 0,
     has_envelope BOOLEAN NOT NULL DEFAULT false,
     received_from_pos BOOLEAN NOT NULL DEFAULT false
 );

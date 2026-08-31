@@ -19,3 +19,7 @@ CREATE INDEX idx_event_outbox_pending
 CREATE INDEX idx_event_outbox_failed
     ON event_outbox (failed_at, created_at)
     WHERE failed_at IS NOT NULL;
+
+CREATE INDEX idx_event_outbox_processed_cleanup
+    ON event_outbox (processed_at, id)
+    WHERE processed_at IS NOT NULL;

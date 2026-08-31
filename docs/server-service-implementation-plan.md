@@ -33,7 +33,7 @@ operations пока продолжают прямой доступ; HTTPS и о�
   PostgreSQL advisory lock с повторной проверкой admin password и audit;
 - Caddy включён в Compose как reverse proxy; временно используется явно
   разрешаемый HTTP только для доверенной изолированной сети;
-- migration `014_server_sessions`, opaque bearer sessions, login/logout/me,
+- migration `011_server_sessions`, opaque bearer sessions, login/logout/me,
   обычная и обязательная смена пароля;
 - desktop auth всегда использует server client в production composition root,
   без runtime fallback на прямую проверку credentials;
@@ -676,7 +676,7 @@ Login response не возвращает DB/MinIO/Seq credentials.
 
 Реализованный первый auth slice:
 
-- рабочая migration `014_server_sessions` (прежняя тестовая migration удалена
+- рабочая migration `011_server_sessions` (прежняя тестовая migration удалена
   после проверки механизма миграций, её номер переиспользован);
 - opaque 256-bit token и хранение только SHA-256 hash;
 - login/logout/me endpoints;

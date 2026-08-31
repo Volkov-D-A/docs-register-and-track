@@ -73,10 +73,9 @@ An administrator does not choose a replacement password: reset generates a
 random temporary password, returns it once for copying, and marks it for a
 mandatory change at the user's next login.
 
-For an existing schema, deploy the new server first and apply migration 14
-(`server_sessions`) through the current migration UI. Only then deploy the
-desktop build that requires server login. No direct-login fallback is enabled
-in the production composition root.
+This development baseline expects a fresh database: the migration history was
+compacted and ends with migration 11 (`server_sessions`). No direct-login
+fallback is enabled in the production composition root.
 
 Install frontend dependencies and build assets:
 
