@@ -184,11 +184,14 @@ func newWailsOptionsWithDependencies(
 	userService := services.NewUserService(userRepo, authService)
 	userService.SetServerClient(serverClient)
 	userSubstitutionService := services.NewUserSubstitutionService(userSubstitutionRepo, userRepo, authService)
+	userSubstitutionService.SetServerClient(serverClient)
 	nomenclatureService := services.NewNomenclatureService(nomenclatureRepo, authService)
 	referenceService := services.NewReferenceService(referenceRepo, authService)
 	documentAccessService := services.NewDocumentAccessService(authService, departmentRepo, assignmentRepo, acknowledgmentRepo, documentAccessRepo, documentRepo, userSubstitutionRepo)
 	documentAccessAdminService := services.NewDocumentAccessAdminService(authService, documentAccessRepo, userRepo)
+	documentAccessAdminService.SetServerClient(serverClient)
 	documentKindService := services.NewDocumentKindService(documentAccessService)
+	documentKindService.SetServerClient(serverClient)
 	journalService := services.NewJournalService(journalRepo, authService, documentAccessService)
 	journalService.SetOperationLifecycle(operationLifecycle)
 	documentKindQueryRegistry := services.NewDocumentKindQueryRegistry(
@@ -213,6 +216,7 @@ func newWailsOptionsWithDependencies(
 	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, documentAccessService, userEventService)
 	assignmentService.SetSubstitutionStore(userSubstitutionRepo)
 	departmentService := services.NewDepartmentService(departmentRepo, authService)
+	departmentService.SetServerClient(serverClient)
 
 	objectStorage, err := dependencies.newStorage(cfg.Minio)
 	if err != nil {

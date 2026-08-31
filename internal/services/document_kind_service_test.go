@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -8,10 +9,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
+
+type testCurrentAccessClient struct{ service *DocumentKindService }
+
+func (c testCurrentAccessClient) GetCurrentAccessSummary(context.Context) (*dto.CurrentAccessSummary, error) {
+	return c.service.getCurrentAccessSummaryDirect()
+}
 
 func setupDocumentKindService(t *testing.T, role string, isDocumentParticipant bool) (*DocumentKindService, *AuthService) {
 	t.Helper()
@@ -39,7 +47,9 @@ func setupDocumentKindService(t *testing.T, role string, isDocumentParticipant b
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	access := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), nil)
-	return NewDocumentKindService(access), auth
+	service := NewDocumentKindService(access)
+	service.SetServerClient(testCurrentAccessClient{service: service})
+	return service, auth
 }
 
 func TestDocumentKindService_GetCurrentAccessSummary(t *testing.T) {

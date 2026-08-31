@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -9,10 +10,28 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
+
+type testDepartmentLookupClient struct {
+	repo DepartmentStore
+	auth *AuthService
+}
+
+func (c testDepartmentLookupClient) ListDepartments(context.Context) ([]dto.Department, error) {
+	if err := c.auth.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
+	items, err := c.repo.GetAll()
+	return dto.MapDepartments(items), err
+}
+
+func setTestDepartmentLookup(service *DepartmentService, repo DepartmentStore, auth *AuthService) {
+	service.SetServerClient(testDepartmentLookupClient{repo: repo, auth: auth})
+}
 
 func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *mocks.DepartmentStore, *AuthService) {
 	t.Helper()
@@ -37,6 +56,7 @@ func setupDepartmentService(t *testing.T, role string) (*DepartmentService, *moc
 	}
 
 	svc := NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth)
+	setTestDepartmentLookup(svc, depRepo, auth)
 	return svc, depRepo, auth
 }
 
@@ -60,7 +80,9 @@ func setupDepartmentServiceWithRoles(t *testing.T, roles []string) (*DepartmentS
 	require.NoError(t, err)
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth), depRepo, auth
+	svc := NewDepartmentService(&atomicDepartmentStore{DepartmentStore: depRepo}, auth)
+	setTestDepartmentLookup(svc, depRepo, auth)
+	return svc, depRepo, auth
 }
 
 type atomicDepartmentStore struct {
@@ -125,6 +147,7 @@ func TestDepartmentService_GetAllDepartments(t *testing.T) {
 		auth.currentUserID = user.ID
 		userRepo.On("GetByID", user.ID).Return(user, nil).Once()
 		svc := NewDepartmentService(depRepo, auth)
+		setTestDepartmentLookup(svc, depRepo, auth)
 
 		result, err := svc.GetAllDepartments()
 

@@ -33,19 +33,22 @@ type rollbackRequest struct {
 }
 
 type managementAPI struct {
-	cfg          *config.Config
-	migrations   migrationStore
-	lifecycle    migrationLifecycle
-	users        adminUserStore
-	userCommands userManagementStore
-	audit        adminAuditStore
-	authUsers    authUserStore
-	authSettings authSettingsStore
-	sessions     authSessionStore
-	acquireLease func(context.Context) (func(), bool, error)
-	migration    sync.Mutex
-	authMu       sync.Mutex
-	authFailures map[string]authFailure
+	cfg           *config.Config
+	migrations    migrationStore
+	lifecycle     migrationLifecycle
+	users         adminUserStore
+	userCommands  userManagementStore
+	userAccess    userAccessManagementStore
+	substitutions userSubstitutionManagementStore
+	departments   departmentLookupStore
+	audit         adminAuditStore
+	authUsers     authUserStore
+	authSettings  authSettingsStore
+	sessions      authSessionStore
+	acquireLease  func(context.Context) (func(), bool, error)
+	migration     sync.Mutex
+	authMu        sync.Mutex
+	authFailures  map[string]authFailure
 }
 
 type authFailure struct {
@@ -75,17 +78,25 @@ type adminAuditStore interface {
 
 func newManagementAPI(app *App) *managementAPI {
 	users := repository.NewUserRepository(app.db)
-	users.SetOutbox(repository.NewOutboxRepository(app.db))
+	outboxRepo := repository.NewOutboxRepository(app.db)
+	users.SetOutbox(outboxRepo)
+	access := repository.NewDocumentAccessRepository(app.db)
+	access.SetOutbox(outboxRepo)
+	substitutions := repository.NewUserSubstitutionRepository(app.db)
+	substitutions.SetOutbox(outboxRepo)
 	return &managementAPI{
-		cfg:          app.cfg,
-		migrations:   app.db,
-		lifecycle:    app.lifecycle,
-		users:        users,
-		userCommands: users,
-		authUsers:    users,
-		authSettings: repository.NewSettingsRepository(app.db),
-		sessions:     repository.NewServerSessionRepository(app.db),
-		audit:        repository.NewAdminAuditLogRepository(app.db),
+		cfg:           app.cfg,
+		migrations:    app.db,
+		lifecycle:     app.lifecycle,
+		users:         users,
+		userCommands:  users,
+		userAccess:    access,
+		substitutions: substitutions,
+		departments:   repository.NewDepartmentRepository(app.db),
+		authUsers:     users,
+		authSettings:  repository.NewSettingsRepository(app.db),
+		sessions:      repository.NewServerSessionRepository(app.db),
+		audit:         repository.NewAdminAuditLogRepository(app.db),
 		acquireLease: func(ctx context.Context) (func(), bool, error) {
 			lease, acquired, err := app.db.TryAcquireBackgroundWorkerLease(ctx)
 			if err != nil || !acquired {
@@ -116,6 +127,12 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/users", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.createUser)))
 	mux.Handle("PATCH /api/v1/users/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateUser)))
 	mux.Handle("POST /api/v1/users/{id}/reset-password", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.resetUserPassword)))
+	mux.Handle("GET /api/v1/users/{id}/access-profile", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getUserAccessProfile)))
+	mux.Handle("PUT /api/v1/users/{id}/access-profile", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateUserAccessProfile)))
+	mux.Handle("GET /api/v1/users/{id}/substitution", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getUserSubstitution)))
+	mux.Handle("PUT /api/v1/users/{id}/substitution", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateUserSubstitution)))
+	mux.Handle("GET /api/v1/departments", api.requireSession(http.HandlerFunc(api.listDepartments)))
+	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.HandleFunc("GET /api/v1/admin/migrations", api.status)
 	mux.HandleFunc("POST /api/v1/admin/migrations/apply", api.apply)
 	mux.HandleFunc("POST /api/v1/admin/migrations/rollback", api.rollback)

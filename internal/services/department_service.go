@@ -1,18 +1,27 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 // DepartmentService предоставляет бизнес-логику для работы с подразделениями.
 type DepartmentService struct {
-	repo DepartmentStore
-	auth *AuthService
+	repo   DepartmentStore
+	auth   *AuthService
+	server serverclient.DepartmentLookupClient
 }
+
+func (s *DepartmentService) SetServerClient(client serverclient.DepartmentLookupClient) {
+	s.server = client
+}
+
 type departmentOutboxStore interface {
 	CreateWithOutbox(string, []string, []models.OutboxEvent) (*models.Department, error)
 	UpdateWithOutbox(uuid.UUID, string, []string, []models.OutboxEvent) (*models.Department, error)
@@ -31,11 +40,12 @@ func NewDepartmentService(repo DepartmentStore, auth *AuthService) *DepartmentSe
 
 // GetAllDepartments возвращает список всех подразделений.
 func (s *DepartmentService) GetAllDepartments() ([]dto.Department, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerUserAdministrationNotConfigured
 	}
-	res, err := s.repo.GetAll()
-	return dto.MapDepartments(res), err
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.server.ListDepartments(ctx)
 }
 
 // CreateDepartment создает новое подразделение.

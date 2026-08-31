@@ -2,13 +2,15 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
+
+var errServerUserAdministrationNotConfigured = errors.New("docflow-server user administration client is not configured")
 
 // UserService предоставляет бизнес-логику для управления пользователями.
 type UserService struct {
@@ -29,7 +31,7 @@ func (s *UserService) SetServerClient(client serverclient.UserClient) { s.server
 
 func (s *UserService) serverClient() (serverclient.UserClient, error) {
 	if s.server == nil {
-		return nil, fmt.Errorf("docflow-server user client is not configured")
+		return nil, errServerUserAdministrationNotConfigured
 	}
 	return s.server, nil
 }

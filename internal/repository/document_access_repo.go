@@ -9,8 +9,11 @@ import (
 
 // DocumentAccessRepository читает матрицу доступа document-domain.
 type DocumentAccessRepository struct {
-	db *database.DB
+	db     *database.DB
+	outbox *OutboxRepository
 }
+
+func (r *DocumentAccessRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
 // NewDocumentAccessRepository создает новый экземпляр DocumentAccessRepository.
 func NewDocumentAccessRepository(db *database.DB) *DocumentAccessRepository {
@@ -114,6 +117,14 @@ func (r *DocumentAccessRepository) GetUserAccessProfile(userID string) (*models.
 
 // ReplaceUserAccessProfile заменяет прямые document-domain права пользователя.
 func (r *DocumentAccessRepository) ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error {
+	return r.replaceUserAccessProfile(userID, systemPermissions, permissions, nil)
+}
+
+func (r *DocumentAccessRepository) ReplaceUserAccessProfileWithOutbox(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule, effects []models.OutboxEvent) error {
+	return r.replaceUserAccessProfile(userID, systemPermissions, permissions, effects)
+}
+
+func (r *DocumentAccessRepository) replaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule, effects []models.OutboxEvent) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin user access transaction: %w", err)
@@ -143,6 +154,11 @@ func (r *DocumentAccessRepository) ReplaceUserAccessProfile(userID string, syste
 			VALUES ($1, 'user', $2, $3, $4)
 		`, permission.KindCode, userID, permission.Action, permission.IsAllowed); err != nil {
 			return fmt.Errorf("failed to insert user document permission: %w", err)
+		}
+	}
+	if effects != nil {
+		if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+			return err
 		}
 	}
 

@@ -6,9 +6,10 @@
 
 Статус: server worker, контейнерное развёртывание, управление миграциями,
 полный auth/password lifecycle и основные операции управления пользователями
-реализованы и проверены через server API. Связанные с экраном пользователей
-права доступа, замещения и справочник подразделений пока продолжают напрямую
-использовать PostgreSQL из desktop; HTTPS и окончательное закрытие
+реализованы и проверены через server API. Экран пользователей, связанные права
+доступа, административные замещения, lookup подразделений и текущая access
+summary больше не используют PostgreSQL из desktop. Остальные business
+operations пока продолжают прямой доступ; HTTPS и окончательное закрытие
 инфраструктуры от рабочих мест не выполнены.
 
 Реализовано к текущей точке:
@@ -43,13 +44,18 @@
 - desktop `UserService` выполняет административные операции через typed server
   client, а server request principal берётся из bearer-сессии;
 - user change, audit outbox и отзыв sessions остаются одной транзакцией;
-  временный пароль возвращается только в успешном create/reset response.
+  временный пароль возвращается только в успешном create/reset response;
+- access profile и административные замещения пользователя читаются и
+  изменяются через server API с атомарным audit outbox;
+- lookup подразделений и текущая access summary читаются через server API;
+  request principal не хранится в общем состоянии процесса.
 
 Контрольные коммиты:
 
 - `afa6b0b` — server process, worker и управление миграциями;
 - `efe053b` — server-side authentication и sessions;
-- `9912af8` — полный password lifecycle и административный временный пароль.
+- `9912af8` — полный password lifecycle и административный временный пароль;
+- `54a1664` — основные операции управления пользователями через server API.
 
 | Этап | Состояние | Что осталось |
 |---|---|---|
@@ -58,7 +64,7 @@
 | 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
 | 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
 | 4. Authentication | Завершён | Только production-like session/load smoke |
-| 5. Business API | В работе | Основные операции пользователей перенесены; завершить связанные права и замещения |
+| 5. Business API | В работе | Управление пользователями завершено; следующий срез — собственный профиль |
 | 6. Attachments API | Не начат | Streaming endpoints и limits |
 | 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
 
@@ -68,7 +74,7 @@ backup/restore test и production-like load/end-to-end проверки.
 
 ## Точка продолжения
 
-Контрольный commit до текущего рабочего среза — `9912af8`. При возобновлении
+Контрольный commit до текущего рабочего среза — `54a1664`. При возобновлении
 работы не нужно заново реализовывать worker, миграции, login/session, password
 flows или основные admin-операции пользователей.
 
@@ -93,17 +99,21 @@ server API**:
    user-change+outbox+session-revoke и PostgreSQL integration покрыты тестами;
    публичные Wails signatures сохранены, frontend build и tests проходят.
 
-Следующий рекомендуемый срез — перенести связанные с экраном пользователей
-`DocumentAccessAdminService` и административные методы
-`UserSubstitutionService` в server API. После этого перенести чтение
-подразделений либо включить минимальный read-only lookup в тот же срез. Критерий
-готовности: экран пользователей целиком не выполняет SQL из desktop.
+После контрольного коммита перенесены связанные с экраном пользователей
+`DocumentAccessAdminService`, административные методы
+`UserSubstitutionService`, read-only lookup подразделений и
+`GetCurrentAccessSummary`. Критерий выполнен: экран пользователей целиком не
+выполняет SQL из desktop.
+
+Следующий рекомендуемый срез — **собственный профиль пользователя**: профиль,
+кандидаты замещения и пользовательские get/update substitution должны работать
+через server API без прямых desktop repositories.
 
 После него рекомендуемый порядок:
 
 1. Собственный профиль пользователя.
 2. Подразделения и простые справочники — как шаблон CRUD API.
-3. Системные настройки, access profiles и substitutions.
+3. Системные настройки и оставшиеся access-related операции.
 4. Read-only списки и карточки документов.
 5. Команды регистрации/изменения документов с idempotency.
 6. Поручения, ознакомления, связи, journal, dashboard и statistics.

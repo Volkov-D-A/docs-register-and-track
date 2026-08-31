@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -8,9 +9,32 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
+
+type testSubstitutionAdminClient struct{ service *UserSubstitutionService }
+
+func (c testSubstitutionAdminClient) GetUserSubstitution(_ context.Context, userID string) (*dto.UserSubstitution, error) {
+	if err := c.service.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
+	id, err := parseUUID(userID)
+	if err != nil {
+		return nil, err
+	}
+	item, err := c.service.repo.GetByPrincipalID(id)
+	return dto.MapUserSubstitution(item), err
+}
+
+func (c testSubstitutionAdminClient) UpdateUserSubstitution(_ context.Context, req models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error) {
+	id, err := parseUUID(req.PrincipalUserID)
+	if err != nil {
+		return nil, err
+	}
+	return c.service.saveForPrincipal(id, req, true)
+}
 
 func setupUserSubstitutionService(t *testing.T, currentUser *models.User) (*UserSubstitutionService, *userSubstitutionStoreStub, *mocks.UserStore, *AuthService) {
 	t.Helper()
@@ -22,7 +46,9 @@ func setupUserSubstitutionService(t *testing.T, currentUser *models.User) (*User
 		auth.currentUserID = currentUser.ID
 		userRepo.On("GetByID", currentUser.ID).Return(currentUser, nil).Maybe()
 	}
-	return NewUserSubstitutionService(store, userRepo, auth), store, userRepo, auth
+	service := NewUserSubstitutionService(store, userRepo, auth)
+	service.SetServerClient(testSubstitutionAdminClient{service: service})
+	return service, store, userRepo, auth
 }
 
 type atomicUserSubstitutionStore struct {

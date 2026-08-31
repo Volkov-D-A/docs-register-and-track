@@ -1,6 +1,8 @@
 package services
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -10,6 +12,51 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
+
+type testDocumentAccessClient struct{ service *DocumentAccessAdminService }
+
+func (c testDocumentAccessClient) GetUserAccessProfile(_ context.Context, userID string) (*models.UserDocumentAccessProfile, error) {
+	if err := c.service.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
+	if _, err := parseUUID(userID); err != nil {
+		return nil, err
+	}
+	return c.service.accessRepo.GetUserAccessProfile(userID)
+}
+
+func (c testDocumentAccessClient) UpdateUserAccessProfile(_ context.Context, req models.UpdateUserDocumentAccessRequest) error {
+	if err := c.service.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
+		return err
+	}
+	id, err := parseUUID(req.UserID)
+	if err != nil {
+		return err
+	}
+	user, err := c.service.userRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return models.NewNotFound("пользователь не найден")
+	}
+	for _, permission := range req.Permissions {
+		kind := models.NormalizeDocumentKind(permission.KindCode)
+		if _, ok := models.GetDocumentKindSpec(kind); !ok {
+			return models.NewBadRequest(fmt.Sprintf("неизвестный вид документа: %s", permission.KindCode))
+		}
+		if !kind.SupportsAction(permission.Action) {
+			return models.NewBadRequest(fmt.Sprintf("действие %q не поддерживается для вида документа %q", permission.Action, permission.KindCode))
+		}
+	}
+	return activeAdministratorInvariantConflict(c.service.accessRepo.ReplaceUserAccessProfile(req.UserID, req.SystemPermissions, req.Permissions))
+}
+
+func newTestDocumentAccessAdminService(auth *AuthService, access DocumentAccessStore, users UserStore) *DocumentAccessAdminService {
+	service := NewDocumentAccessAdminService(auth, access, users)
+	service.SetServerClient(testDocumentAccessClient{service: service})
+	return service
+}
 
 type spyDocumentAccessStore struct {
 	replaceCalled bool
@@ -56,7 +103,7 @@ func TestDocumentAccessAdminService_GetUserAccessProfile(t *testing.T) {
 		auth.currentUserID = uuid.New()
 		userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
 
-		svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
+		svc := newTestDocumentAccessAdminService(auth, accessRepo, userRepo)
 
 		profile, err := svc.GetUserAccessProfile(targetUserID)
 
@@ -72,7 +119,7 @@ func TestDocumentAccessAdminService_GetUserAccessProfile(t *testing.T) {
 		auth.SetAccessStore(accessRepo)
 		auth.currentUserID = uuid.New()
 		userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
-		svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
+		svc := newTestDocumentAccessAdminService(auth, accessRepo, userRepo)
 
 		profile, err := svc.GetUserAccessProfile("bad-id")
 
@@ -88,7 +135,7 @@ func TestDocumentAccessAdminService_GetUserAccessProfile(t *testing.T) {
 		auth.SetAccessStore(accessRepo)
 		auth.currentUserID = uuid.New()
 		userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
-		svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
+		svc := newTestDocumentAccessAdminService(auth, accessRepo, userRepo)
 
 		profile, err := svc.GetUserAccessProfile(uuid.New().String())
 
@@ -110,7 +157,7 @@ func TestDocumentAccessAdminService_UpdateUserAccessProfile_RejectsUnsupportedDo
 	targetUserID := uuid.New()
 	userRepo.On("GetByID", targetUserID).Return(&models.User{ID: targetUserID, IsActive: true}, nil).Once()
 
-	svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
+	svc := newTestDocumentAccessAdminService(auth, accessRepo, userRepo)
 	err := svc.UpdateUserAccessProfile(models.UpdateUserDocumentAccessRequest{
 		UserID: targetUserID.String(),
 		Permissions: []models.UserDocumentPermissionRule{
@@ -138,7 +185,7 @@ func TestDocumentAccessAdminService_UpdateUserAccessProfile_ReturnsNotFoundForMi
 	targetUserID := uuid.New()
 	userRepo.On("GetByID", targetUserID).Return(nil, nil).Once()
 
-	svc := NewDocumentAccessAdminService(auth, accessRepo, userRepo)
+	svc := newTestDocumentAccessAdminService(auth, accessRepo, userRepo)
 	err := svc.UpdateUserAccessProfile(models.UpdateUserDocumentAccessRequest{
 		UserID: targetUserID.String(),
 	})

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // UserSubstitutionService управляет замещающими исполнителями пользователя.
@@ -15,7 +17,13 @@ type UserSubstitutionService struct {
 	repo     UserSubstitutionStore
 	userRepo UserStore
 	auth     *AuthService
+	server   serverclient.UserSubstitutionAdminClient
 }
+
+func (s *UserSubstitutionService) SetServerClient(client serverclient.UserSubstitutionAdminClient) {
+	s.server = client
+}
+
 type userSubstitutionOutboxStore interface {
 	ReplaceForPrincipalWithOutbox(uuid.UUID, *uuid.UUID, *time.Time, *time.Time, bool, *uuid.UUID, []models.OutboxEvent) (*models.UserSubstitution, error)
 }
@@ -179,22 +187,20 @@ func (s *UserSubstitutionService) UpdateMySubstitution(req models.UpdateUserSubs
 
 // GetUserSubstitution возвращает настройку замещения выбранного пользователя. Доступно администратору.
 func (s *UserSubstitutionService) GetUserSubstitution(userID string) (*dto.UserSubstitution, error) {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerUserAdministrationNotConfigured
 	}
-	uid, err := parseUUID(userID)
-	if err != nil {
-		return nil, err
-	}
-	res, err := s.repo.GetByPrincipalID(uid)
-	return dto.MapUserSubstitution(res), err
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.server.GetUserSubstitution(ctx, userID)
 }
 
 // UpdateUserSubstitution обновляет замещение выбранного пользователя. Доступно администратору.
 func (s *UserSubstitutionService) UpdateUserSubstitution(req models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error) {
-	principalID, err := parseUUID(req.PrincipalUserID)
-	if err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerUserAdministrationNotConfigured
 	}
-	return s.saveForPrincipal(principalID, req, true)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.server.UpdateUserSubstitution(ctx, req)
 }

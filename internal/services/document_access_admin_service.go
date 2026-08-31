@@ -1,9 +1,11 @@
 package services
 
 import (
-	"fmt"
+	"context"
+	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // DocumentAccessAdminService управляет прямыми document-domain правами пользователей.
@@ -11,6 +13,11 @@ type DocumentAccessAdminService struct {
 	auth       *AuthService
 	accessRepo DocumentAccessStore
 	userRepo   UserStore
+	server     serverclient.UserAccessClient
+}
+
+func (s *DocumentAccessAdminService) SetServerClient(client serverclient.UserAccessClient) {
+	s.server = client
 }
 
 // NewDocumentAccessAdminService создает новый сервис администрирования document access.
@@ -24,44 +31,20 @@ func NewDocumentAccessAdminService(auth *AuthService, accessRepo DocumentAccessS
 
 // GetUserAccessProfile возвращает прямые права пользователя в document-domain.
 func (s *DocumentAccessAdminService) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerUserAdministrationNotConfigured
 	}
-	if _, err := parseUUID(userID); err != nil {
-		return nil, err
-	}
-
-	return s.accessRepo.GetUserAccessProfile(userID)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.server.GetUserAccessProfile(ctx, userID)
 }
 
 // UpdateUserAccessProfile заменяет прямые document-domain права пользователя.
 func (s *DocumentAccessAdminService) UpdateUserAccessProfile(req models.UpdateUserDocumentAccessRequest) error {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return err
+	if s.server == nil {
+		return errServerUserAdministrationNotConfigured
 	}
-
-	uid, err := parseUUID(req.UserID)
-	if err != nil {
-		return err
-	}
-
-	user, err := s.userRepo.GetByID(uid)
-	if err != nil {
-		return err
-	}
-	if user == nil {
-		return models.NewNotFound("пользователь не найден")
-	}
-
-	for _, permission := range req.Permissions {
-		kind := models.NormalizeDocumentKind(permission.KindCode)
-		if _, ok := models.GetDocumentKindSpec(kind); !ok {
-			return models.NewBadRequest(fmt.Sprintf("неизвестный вид документа: %s", permission.KindCode))
-		}
-		if !kind.SupportsAction(permission.Action) {
-			return models.NewBadRequest(fmt.Sprintf("действие %q не поддерживается для вида документа %q", permission.Action, permission.KindCode))
-		}
-	}
-
-	return activeAdministratorInvariantConflict(s.accessRepo.ReplaceUserAccessProfile(req.UserID, req.SystemPermissions, req.Permissions))
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.server.UpdateUserAccessProfile(ctx, req)
 }

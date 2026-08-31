@@ -208,3 +208,22 @@ func TestDocumentAccessRepository_ReplaceUserAccessProfile(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestDocumentAccessRepository_ReplaceUserAccessProfileWithOutboxIsAtomic(t *testing.T) {
+	repo, mock, cleanup := setupDocumentAccessRepository(t)
+	defer cleanup()
+	repo.SetOutbox(&OutboxRepository{})
+	effect := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "user-access:1", Payload: `{}`}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`DELETE FROM user_system_permissions`).WithArgs("user-1").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO user_system_permissions`).WithArgs("user-1", models.SystemPermissionAdmin, true).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`DELETE FROM document_permissions`).WithArgs("user-1").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(effect.EventType, effect.DeduplicationKey, effect.Payload).WillReturnError(assert.AnError)
+	mock.ExpectRollback()
+
+	err := repo.ReplaceUserAccessProfileWithOutbox("user-1", []models.UserSystemPermissionRule{{Permission: models.SystemPermissionAdmin, IsAllowed: true}}, nil, []models.OutboxEvent{effect})
+
+	require.ErrorIs(t, err, assert.AnError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

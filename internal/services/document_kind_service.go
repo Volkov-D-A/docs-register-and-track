@@ -1,13 +1,22 @@
 package services
 
 import (
+	"context"
+	"time"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // DocumentKindService предоставляет системные метаданные видов документов.
 type DocumentKindService struct {
 	access *DocumentAccessService
+	server serverclient.CurrentAccessClient
+}
+
+func (s *DocumentKindService) SetServerClient(client serverclient.CurrentAccessClient) {
+	s.server = client
 }
 
 // NewDocumentKindService создает новый сервис метаданных видов документов.
@@ -17,6 +26,15 @@ func NewDocumentKindService(access *DocumentAccessService) *DocumentKindService 
 
 // GetCurrentAccessSummary возвращает текущую access-модель для навигации и UI.
 func (s *DocumentKindService) GetCurrentAccessSummary() (*dto.CurrentAccessSummary, error) {
+	if s.server == nil {
+		return nil, errServerUserAdministrationNotConfigured
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.server.GetCurrentAccessSummary(ctx)
+}
+
+func (s *DocumentKindService) getCurrentAccessSummaryDirect() (*dto.CurrentAccessSummary, error) {
 	if s.access == nil || s.access.auth == nil {
 		return nil, models.ErrUnauthorized
 	}
