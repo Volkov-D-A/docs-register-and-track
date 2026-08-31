@@ -1,129 +1,74 @@
 package services
 
 import (
-	"fmt"
+	"context"
+	"errors"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
-// NomenclatureService предоставляет бизнес-логику для работы с номенклатурой дел.
+var errServerNomenclatureClientNotConfigured = errors.New("docflow-server nomenclature client is not configured")
+
+// NomenclatureService is the Wails adapter for server-owned nomenclature use cases.
 type NomenclatureService struct {
-	repo NomenclatureStore
-	auth *AuthService
+	server serverclient.NomenclatureClient
 }
 
-type nomenclatureOutboxStore interface {
-	CreateWithOutbox(string, string, int, string, string, string, int, []models.OutboxEvent) (*models.Nomenclature, error)
-	UpdateWithOutbox(uuid.UUID, string, string, int, string, string, string, bool, []models.OutboxEvent) (*models.Nomenclature, error)
-	DeleteWithOutbox(uuid.UUID, []models.OutboxEvent) error
+func NewNomenclatureService() *NomenclatureService {
+	return &NomenclatureService{}
 }
 
-var errNomenclatureOutboxStoreRequired = fmt.Errorf("nomenclature store must support atomic outbox operations")
-
-// NewNomenclatureService создает новый экземпляр NomenclatureService.
-func NewNomenclatureService(repo NomenclatureStore, auth *AuthService) *NomenclatureService {
-	return &NomenclatureService{repo: repo, auth: auth}
+func (s *NomenclatureService) SetServerClient(client serverclient.NomenclatureClient) {
+	s.server = client
 }
 
-// GetAll возвращает все дела номенклатуры за указанный год и по указанному виду документа.
 func (s *NomenclatureService) GetAll(year int, kindCode string) ([]dto.Nomenclature, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerNomenclatureClientNotConfigured
 	}
-	res, err := s.repo.GetAll(year, kindCode)
-	return dto.MapNomenclatures(res), err
+	ctx, cancel := nomenclatureContext()
+	defer cancel()
+	return s.server.ListNomenclature(ctx, year, kindCode)
 }
 
-// GetActiveForKind возвращает активные дела для выбора при регистрации документов.
 func (s *NomenclatureService) GetActiveForKind(kindCode string) ([]dto.Nomenclature, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerNomenclatureClientNotConfigured
 	}
-	year := time.Now().Year()
-	res, err := s.repo.GetActiveByKind(kindCode, year)
-	return dto.MapNomenclatures(res), err
+	ctx, cancel := nomenclatureContext()
+	defer cancel()
+	return s.server.ListActiveNomenclature(ctx, kindCode)
 }
 
-// Create создает новое дело номенклатуры (доступно только администраторам и делопроизводителям).
 func (s *NomenclatureService) Create(name, index string, year int, kindCode, separator, numberingMode string, startNumber int) (*dto.Nomenclature, error) {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerNomenclatureClientNotConfigured
 	}
-	if startNumber < 1 {
-		startNumber = 1
-	}
-
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	var res *models.Nomenclature
-	var err error
-	store, ok := s.repo.(nomenclatureOutboxStore)
-	if !ok {
-		return nil, errNomenclatureOutboxStoreRequired
-	}
-	event, buildErr := NewAdminAuditOutboxEvent("nomenclature:"+uuid.NewString()+":create", models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "NOMENCLATURE_CREATE", Details: fmt.Sprintf("Создано дело «%s» (%s), вид: %s, год: %d, стартовый номер: %d", name, index, kindCode, year, startNumber)})
-	if buildErr != nil {
-		return nil, buildErr
-	}
-	res, err = store.CreateWithOutbox(name, index, year, kindCode, separator, numberingMode, startNumber, []models.OutboxEvent{event})
-	if err != nil {
-		return nil, err
-	}
-
-	return dto.MapNomenclature(res), nil
+	ctx, cancel := nomenclatureContext()
+	defer cancel()
+	return s.server.CreateNomenclature(ctx, name, index, year, kindCode, separator, numberingMode, startNumber)
 }
 
-// Update обновляет существующее дело номенклатуры.
-func (s *NomenclatureService) Update(id string, name, index string, year int, kindCode, separator, numberingMode string, isActive bool) (*dto.Nomenclature, error) {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return nil, err
+func (s *NomenclatureService) Update(id, name, index string, year int, kindCode, separator, numberingMode string, isActive bool) (*dto.Nomenclature, error) {
+	if s.server == nil {
+		return nil, errServerNomenclatureClientNotConfigured
 	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return nil, models.NewBadRequestWrapped("неверный ID номенклатуры", err)
-	}
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	var res *models.Nomenclature
-	store, ok := s.repo.(nomenclatureOutboxStore)
-	if !ok {
-		return nil, errNomenclatureOutboxStoreRequired
-	}
-	event, buildErr := NewAdminAuditOutboxEvent("nomenclature:"+uid.String()+":update:"+uuid.NewString(), models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "NOMENCLATURE_UPDATE", Details: fmt.Sprintf("Обновлено дело «%s» (%s)", name, index)})
-	if buildErr != nil {
-		return nil, buildErr
-	}
-	res, err = store.UpdateWithOutbox(uid, name, index, year, kindCode, separator, numberingMode, isActive, []models.OutboxEvent{event})
-	if err != nil {
-		return nil, err
-	}
-
-	return dto.MapNomenclature(res), nil
+	ctx, cancel := nomenclatureContext()
+	defer cancel()
+	return s.server.UpdateNomenclature(ctx, id, name, index, year, kindCode, separator, numberingMode, isActive)
 }
 
-// Delete удаляет дело номенклатуры по его ID (доступно только администраторам).
 func (s *NomenclatureService) Delete(id string) error {
-	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
-		return err
+	if s.server == nil {
+		return errServerNomenclatureClientNotConfigured
 	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный ID номенклатуры", err)
-	}
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	store, ok := s.repo.(nomenclatureOutboxStore)
-	if !ok {
-		return errNomenclatureOutboxStoreRequired
-	}
-	event, buildErr := NewAdminAuditOutboxEvent("nomenclature:"+uid.String()+":delete", models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: "NOMENCLATURE_DELETE", Details: fmt.Sprintf("Удалено дело (ID: %s)", id)})
-	if buildErr != nil {
-		return buildErr
-	}
-	err = store.DeleteWithOutbox(uid, []models.OutboxEvent{event})
-	if err != nil {
-		return err
-	}
-	return nil
+	ctx, cancel := nomenclatureContext()
+	defer cancel()
+	return s.server.DeleteNomenclature(ctx, id)
+}
+
+func nomenclatureContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 15*time.Second)
 }

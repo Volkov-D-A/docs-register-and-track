@@ -42,6 +42,7 @@ type managementAPI struct {
 	substitutions userSubstitutionManagementStore
 	departments   departmentManagementStore
 	references    referenceManagementStore
+	nomenclature  nomenclatureManagementStore
 	audit         adminAuditStore
 	authUsers     authUserStore
 	authSettings  authSettingsStore
@@ -89,6 +90,8 @@ func newManagementAPI(app *App) *managementAPI {
 	departments.SetOutbox(outboxRepo)
 	references := repository.NewReferenceRepository(app.db)
 	references.SetOutbox(outboxRepo)
+	nomenclature := repository.NewNomenclatureRepository(app.db)
+	nomenclature.SetOutbox(outboxRepo)
 	return &managementAPI{
 		cfg:           app.cfg,
 		migrations:    app.db,
@@ -99,6 +102,7 @@ func newManagementAPI(app *App) *managementAPI {
 		substitutions: substitutions,
 		departments:   departments,
 		references:    references,
+		nomenclature:  nomenclature,
 		authUsers:     users,
 		authSettings:  repository.NewSettingsRepository(app.db),
 		sessions:      repository.NewServerSessionRepository(app.db),
@@ -150,6 +154,11 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/references/resolution-executors/resolve", api.requireSession(http.HandlerFunc(api.resolveResolutionExecutor)))
 	mux.Handle("PATCH /api/v1/references/resolution-executors/{id}", api.requirePermission(models.SystemPermissionReferences, http.HandlerFunc(api.updateResolutionExecutor)))
 	mux.Handle("DELETE /api/v1/references/resolution-executors/{id}", api.requirePermission(models.SystemPermissionReferences, http.HandlerFunc(api.deleteResolutionExecutor)))
+	mux.Handle("GET /api/v1/nomenclature", api.requireSession(http.HandlerFunc(api.listNomenclature)))
+	mux.Handle("GET /api/v1/nomenclature/active", api.requireSession(http.HandlerFunc(api.listActiveNomenclature)))
+	mux.Handle("POST /api/v1/nomenclature", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.createNomenclature)))
+	mux.Handle("PATCH /api/v1/nomenclature/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateNomenclature)))
+	mux.Handle("DELETE /api/v1/nomenclature/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.deleteNomenclature)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))

@@ -6,7 +6,8 @@
 
 Статус: server worker, контейнерное развёртывание, управление миграциями,
 полный auth/password lifecycle, управление пользователями, CRUD подразделений,
-организаций и исполнителей резолюций реализованы и проверены через server API.
+организаций, исполнителей резолюций и номенклатуры реализованы и проверены через
+server API.
 Эти сценарии вместе с access summary больше не используют PostgreSQL из
 desktop. Остальные business
 operations пока продолжают прямой доступ; HTTPS и окончательное закрытие
@@ -54,6 +55,9 @@ operations пока продолжают прямой доступ; HTTPS и о�
 - list/search/find-or-create и административные изменения организаций и
   исполнителей резолюций работают через server API; update/delete/merge и audit
   outbox выполняются атомарно;
+- list/active и административный CRUD номенклатуры работают через server API;
+  mutation и audit outbox выполняются атомарно, а выдача следующего номера пока
+  остаётся внутри транзакционного сценария регистрации документа;
 - обновление собственного профиля, кандидаты замещения и личное замещение
   работают через server API; client-supplied principal для self-операций
   игнорируется в пользу bearer principal.
@@ -66,7 +70,8 @@ operations пока продолжают прямой доступ; HTTPS и о�
 - `54a1664` — основные операции управления пользователями через server API;
 - `01c66c1` — access profile, admin substitution и lookup для экрана
   пользователей через server API;
-- `484bd85` — server-owned migration status и CRUD подразделений.
+- `484bd85` — server-owned migration status и CRUD подразделений;
+- `18a97fe` — организации и исполнители резолюций через server API.
 
 | Этап | Состояние | Что осталось |
 |---|---|---|
@@ -75,7 +80,7 @@ operations пока продолжают прямой доступ; HTTPS и о�
 | 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
 | 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
 | 4. Authentication | Завершён | Только production-like session/load smoke |
-| 5. Business API | В работе | Пользователи, профиль, подразделения и простые справочники перенесены; следующий срез — номенклатура |
+| 5. Business API | В работе | Пользователи, профиль, подразделения, простые справочники и номенклатура перенесены; следующий срез — системные настройки |
 | 6. Attachments API | Не начат | Streaming endpoints и limits |
 | 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
 
@@ -85,7 +90,7 @@ backup/restore test и production-like load/end-to-end проверки.
 
 ## Точка продолжения
 
-Контрольный commit до текущего рабочего среза — `484bd85`. При возобновлении
+Контрольный commit до текущего рабочего среза — `18a97fe`. При возобновлении
 работы не нужно заново реализовывать worker, миграции, login/session, password
 flows или основные admin-операции пользователей.
 
@@ -131,16 +136,22 @@ list/search/find-or-create и административные update/delete/mer
 audit outbox сохраняются одной транзакцией. `ReferenceService` больше не имеет
 repository path для этих справочников.
 
-Следующий рекомендуемый срез — номенклатура, затем системные настройки.
+В текущем рабочем срезе завершена **номенклатура**: list/active и
+административные create/update/delete выполняются через typed server client,
+право `admin` проверяется сервером, а mutation и audit outbox сохраняются одной
+транзакцией. `NomenclatureService` больше не имеет repository path. Операция
+выдачи следующего номера намеренно остаётся в repository-сценарии регистрации
+документа до переноса этого сценария целиком, чтобы не разрывать транзакционность.
+
+Следующий рекомендуемый срез — системные настройки.
 
 После него рекомендуемый порядок:
 
-1. Номенклатура по готовому шаблону CRUD API.
-2. Системные настройки и оставшиеся access-related операции.
-3. Read-only списки и карточки документов.
-4. Команды регистрации/изменения документов с idempotency.
-5. Поручения, ознакомления, связи, journal, dashboard и statistics.
-6. Вложения через streaming API, затем закрытие прямого PostgreSQL/MinIO.
+1. Системные настройки и оставшиеся access-related операции.
+2. Read-only списки и карточки документов.
+3. Команды регистрации/изменения документов с idempotency.
+4. Поручения, ознакомления, связи, journal, dashboard и statistics.
+5. Вложения через streaming API, затем закрытие прямого PostgreSQL/MinIO.
 
 До использования credentials и временных паролей через недоверенную или
 маршрутизируемую сеть необходимо завершить HTTPS в Caddy и установить доверие к
