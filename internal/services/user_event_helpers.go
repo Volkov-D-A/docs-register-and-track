@@ -80,7 +80,7 @@ func documentNumberLabel(number string) string {
 	return number
 }
 
-func eventActorID(auth *AuthService) *uuid.UUID {
+func eventActorID(auth DocumentAccessPrincipal) *uuid.UUID {
 	if auth == nil {
 		return nil
 	}
@@ -91,7 +91,7 @@ func eventActorID(auth *AuthService) *uuid.UUID {
 	return &currentUserID
 }
 
-func eventActorExcluded(auth *AuthService) map[uuid.UUID]struct{} {
+func eventActorExcluded(auth DocumentAccessPrincipal) map[uuid.UUID]struct{} {
 	excluded := make(map[uuid.UUID]struct{})
 	actorID := eventActorID(auth)
 	if actorID != nil {

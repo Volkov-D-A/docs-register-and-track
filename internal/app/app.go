@@ -199,8 +199,7 @@ func newWailsOptionsWithDependencies(
 	documentRegistrationService.SetOperationMetrics(metrics)
 	userEventService := services.NewUserEventService(userEventRepo, authService)
 	administrativeOrderService := services.NewAdministrativeOrderService(administrativeOrderRepo, authService, documentAccessService)
-	assignmentService := services.NewAssignmentService(assignmentRepo, userRepo, authService, documentAccessService, userEventService)
-	assignmentService.SetSubstitutionStore(userSubstitutionRepo)
+	assignmentService := services.NewAssignmentServiceWithClient(serverClient)
 	departmentService := services.NewDepartmentService()
 	departmentService.SetServerClient(serverClient)
 

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -9,16 +10,19 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // AssignmentService предоставляет бизнес-логику для работы с поручениями.
 type AssignmentService struct {
-	repo          AssignmentStore
-	userRepo      UserStore
-	auth          *AuthService
-	access        *DocumentAccessService
-	events        *UserEventService
-	substitutions UserSubstitutionStore
+	repo           AssignmentStore
+	userRepo       UserStore
+	auth           DocumentAccessPrincipal
+	access         *DocumentAccessService
+	events         *UserEventService
+	emitUserEvents bool
+	substitutions  UserSubstitutionStore
+	server         serverclient.AssignmentClient
 }
 
 type assignmentOutboxStore interface {
@@ -42,7 +46,7 @@ type assignmentSeriesStore interface {
 func NewAssignmentService(
 	repo AssignmentStore,
 	userRepo UserStore,
-	auth *AuthService,
+	auth DocumentAccessPrincipal,
 	access *DocumentAccessService,
 	events ...*UserEventService,
 ) *AssignmentService {
@@ -54,8 +58,35 @@ func NewAssignmentService(
 	}
 	if len(events) > 0 {
 		s.events = events[0]
+		s.emitUserEvents = events[0] != nil
 	}
 	return s
+}
+
+// NewServerAssignmentService creates a request-scoped server service and
+// enables durable assignment notifications without desktop AuthService state.
+func NewServerAssignmentService(
+	repo AssignmentStore,
+	userRepo UserStore,
+	auth DocumentAccessPrincipal,
+	access *DocumentAccessService,
+) *AssignmentService {
+	service := NewAssignmentService(repo, userRepo, auth, access)
+	service.emitUserEvents = true
+	return service
+}
+
+// NewAssignmentServiceWithClient creates the desktop adapter for server-owned assignments.
+func NewAssignmentServiceWithClient(client serverclient.AssignmentClient) *AssignmentService {
+	return &AssignmentService{server: client}
+}
+
+func assignmentClientContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 30*time.Second)
+}
+
+func (s *AssignmentService) assignmentEventsEnabled() bool {
+	return s.emitUserEvents || s.events != nil
 }
 
 // SetSubstitutionStore подключает источник активных замещений.
@@ -188,6 +219,11 @@ func (s *AssignmentService) Create(
 	deadline string,
 	coExecutorIDs []string,
 ) (*dto.Assignment, error) {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.CreateAssignment(ctx, documentID, executorID, content, deadline, coExecutorIDs)
+	}
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
@@ -311,6 +347,11 @@ func nextSeriesDeadline(current time.Time, intervalUnit string, intervalValue in
 
 // CreateSeries creates the recurring template and its first ordinary iteration.
 func (s *AssignmentService) CreateSeries(request models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error) {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.CreateAssignmentSeries(ctx, request)
+	}
 	documentID, err := uuid.Parse(request.DocumentID)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
@@ -385,6 +426,11 @@ func (s *AssignmentService) getManagedSeries(id string) (*models.AssignmentSerie
 
 // GetSeries returns manager-visible parameters of a recurring assignment.
 func (s *AssignmentService) GetSeries(id string) (*dto.AssignmentSeries, error) {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.GetAssignmentSeries(ctx, id)
+	}
 	series, _, err := s.getManagedSeries(id)
 	return dto.MapAssignmentSeries(series), err
 }
@@ -392,6 +438,11 @@ func (s *AssignmentService) GetSeries(id string) (*dto.AssignmentSeries, error) 
 // GetSeriesHistory returns every iteration, including those hidden from the
 // ordinary assignment list after the series advances.
 func (s *AssignmentService) GetSeriesHistory(id string) ([]dto.Assignment, error) {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.GetAssignmentSeriesHistory(ctx, id)
+	}
 	series, repo, err := s.getManagedSeries(id)
 	if err != nil {
 		return nil, err
@@ -406,6 +457,11 @@ func (s *AssignmentService) GetSeriesHistory(id string) ([]dto.Assignment, error
 // UpdateSeries changes the template for iterations that have not yet been
 // created. It deliberately leaves the current assignment unchanged.
 func (s *AssignmentService) UpdateSeries(id string, request models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error) {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.UpdateAssignmentSeries(ctx, id, request)
+	}
 	series, repo, err := s.getManagedSeries(id)
 	if err != nil {
 		return nil, err
@@ -429,6 +485,11 @@ func (s *AssignmentService) UpdateSeries(id string, request models.AssignmentSer
 // CancelSeries prevents creation of another iteration without deleting or
 // changing the current assignment.
 func (s *AssignmentService) CancelSeries(id string) error {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.CancelAssignmentSeries(ctx, id)
+	}
 	series, repo, err := s.getManagedSeries(id)
 	if err != nil {
 		return err
@@ -452,6 +513,11 @@ func (s *AssignmentService) Update(
 	deadline string,
 	coExecutorIDs []string,
 ) (*dto.Assignment, error) {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.UpdateAssignment(ctx, id, executorID, content, deadline, coExecutorIDs)
+	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
@@ -519,6 +585,11 @@ func (s *AssignmentService) Update(
 
 // UpdateStatus — изменение статуса (исполнитель или админ)
 func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assignment, error) {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.UpdateAssignmentStatus(ctx, id, status, report)
+	}
 	if err := s.auth.RequireAuthenticated(); err != nil {
 		return nil, err
 	}
@@ -571,7 +642,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 		var eventType, title, message string
 		switch status {
 		case "completed":
-			if s.events != nil {
+			if s.assignmentEventsEnabled() {
 				recipients, _ = collectUserIDsWithDocumentAction(s.userRepo, s.access, updated.DocumentKind, "assign", nil)
 			}
 			eventType, title, message = models.UserEventAssignmentCompleted, "Поручение ожидает приемки", fmt.Sprintf("Исполнитель отправил поручение по документу %s на приемку", documentNumberLabel(updated.DocumentNumber))
@@ -582,7 +653,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 			recipients = assignmentExecutorRecipientIDs(&updated)
 			eventType, title, message = models.UserEventAssignmentReturned, "Поручение отклонено", fmt.Sprintf("Поручение по документу %s возвращено на доработку", documentNumberLabel(updated.DocumentNumber))
 		}
-		if s.events != nil {
+		if s.assignmentEventsEnabled() {
 			for _, recipient := range recipients {
 				request := models.CreateUserEventRequest{RecipientUserID: recipient, ActorUserID: eventActorID(s.auth), DocumentID: updated.DocumentID, DocumentKind: updated.DocumentKind, DocumentNumber: updated.DocumentNumber, EntityType: models.UserEventEntityAssignment, EntityID: updated.ID, EventType: eventType, Title: title, Message: message, Metadata: userEventMetadata(map[string]string{"status": status, "report": statusUpdate.report})}
 				event, buildErr := NewUserEventOutboxEvent(assignmentOutboxKey(uid, eventType, revision, &recipient, "user_event"), request)
@@ -643,6 +714,11 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 
 // GetByID возвращает поручение по его ID.
 func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.GetAssignment(ctx, id)
+	}
 	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
@@ -683,6 +759,11 @@ func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
 
 // GetList возвращает список поручений с учетом фильтрации.
 func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.ListAssignments(ctx, filter)
+	}
 	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
@@ -818,6 +899,11 @@ func assignmentRevision(assignment *models.Assignment) string {
 
 // Delete удаляет поручение по его ID (только для незавершенных, если не админ).
 func (s *AssignmentService) Delete(id string) error {
+	if s.server != nil {
+		ctx, cancel := assignmentClientContext()
+		defer cancel()
+		return s.server.DeleteAssignment(ctx, id)
+	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return models.NewBadRequestWrapped("неверный ID поручения", err)

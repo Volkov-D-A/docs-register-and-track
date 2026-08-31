@@ -47,6 +47,7 @@ type managementAPI struct {
 	settings         settingsManagementStore
 	documentQueries  func(*models.User) documentQueryAPI
 	documentCommands func(*models.User) documentCommandAPI
+	assignments      func(*models.User) assignmentAPI
 	audit            adminAuditStore
 	authUsers        authUserStore
 	authSettings     authSettingsStore
@@ -99,6 +100,7 @@ func newManagementAPI(app *App) *managementAPI {
 	settings := repository.NewSettingsRepository(app.db)
 	settings.SetOutbox(outboxRepo)
 	assignments := repository.NewAssignmentRepository(app.db)
+	assignments.SetOutbox(outboxRepo)
 	acknowledgments := repository.NewAcknowledgmentRepository(app.db)
 	documents := repository.NewDocumentRepository(app.db)
 	queryRegistry := services.NewDocumentKindQueryRegistry(
@@ -150,6 +152,15 @@ func newManagementAPI(app *App) *managementAPI {
 			commands := services.NewDocumentRegistrationService(registry)
 			commands.SetOperationMetrics(app.metrics)
 			return commands
+		},
+		assignments: func(user *models.User) assignmentAPI {
+			principal := requestDocumentPrincipal{user: user}
+			documentAccess := services.NewDocumentAccessService(
+				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+			)
+			service := services.NewServerAssignmentService(assignments, users, principal, documentAccess)
+			service.SetSubstitutionStore(substitutions)
+			return service
 		},
 		authUsers:    users,
 		authSettings: settings,
@@ -215,6 +226,17 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/documents/{kind}", api.requireSession(http.HandlerFunc(api.registerDocument)))
 	mux.Handle("PATCH /api/v1/documents/{kind}/{id}", api.requireSession(http.HandlerFunc(api.updateDocument)))
 	mux.Handle("POST /api/v1/documents/{kind}/admin-drafts", api.requireSession(http.HandlerFunc(api.createAdminDocumentDraft)))
+	mux.Handle("POST /api/v1/assignments", api.requireSession(http.HandlerFunc(api.createAssignment)))
+	mux.Handle("POST /api/v1/assignments/query", api.requireSession(http.HandlerFunc(api.listAssignments)))
+	mux.Handle("GET /api/v1/assignments/{id}", api.requireSession(http.HandlerFunc(api.getAssignment)))
+	mux.Handle("PATCH /api/v1/assignments/{id}", api.requireSession(http.HandlerFunc(api.updateAssignment)))
+	mux.Handle("PATCH /api/v1/assignments/{id}/status", api.requireSession(http.HandlerFunc(api.updateAssignmentStatus)))
+	mux.Handle("DELETE /api/v1/assignments/{id}", api.requireSession(http.HandlerFunc(api.deleteAssignment)))
+	mux.Handle("POST /api/v1/assignment-series", api.requireSession(http.HandlerFunc(api.createAssignmentSeries)))
+	mux.Handle("GET /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.getAssignmentSeries)))
+	mux.Handle("GET /api/v1/assignment-series/{id}/history", api.requireSession(http.HandlerFunc(api.getAssignmentSeriesHistory)))
+	mux.Handle("PATCH /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.updateAssignmentSeries)))
+	mux.Handle("DELETE /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.cancelAssignmentSeries)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))
