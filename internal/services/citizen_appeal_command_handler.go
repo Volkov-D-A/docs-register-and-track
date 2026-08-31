@@ -47,6 +47,7 @@ type CitizenAppealRegisterRequest struct {
 // CitizenAppealUpdateRequest описывает команду обновления обращения граждан.
 type CitizenAppealUpdateRequest struct {
 	ID                   string                              `json:"id"`
+	IdempotencyKey       string                              `json:"idempotencyKey,omitempty"`
 	RegistrationNumber   string                              `json:"registrationNumber"`
 	RegistrationDate     string                              `json:"registrationDate"`
 	AppealDate           string                              `json:"appealDate"`
@@ -82,7 +83,7 @@ type CitizenAppealCommandHandler struct {
 	repo    CitizenAppealDocStore
 	nomRepo NomenclatureStore
 	refRepo ReferenceStore
-	auth    *AuthService
+	auth    DocumentCommandPrincipal
 	journal *JournalService
 	access  *DocumentAccessService
 }
@@ -98,7 +99,7 @@ func NewCitizenAppealCommandHandler(
 	repo CitizenAppealDocStore,
 	nomRepo NomenclatureStore,
 	refRepo ReferenceStore,
-	auth *AuthService,
+	auth DocumentCommandPrincipal,
 	journal *JournalService,
 	access *DocumentAccessService,
 ) *CitizenAppealCommandHandler {
@@ -140,6 +141,10 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
 	if err != nil || idempotencyKey == uuid.Nil {
 		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
 	}
 
 	registrationNumber := strings.TrimSpace(req.RegistrationNumber)
@@ -195,6 +200,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 		ReceivedFromPOS:      req.ReceivedFromPOS,
 		Correspondents:       correspondents,
 		Resolutions:          resolutions,
+		CommandHash:          commandHash,
 	}
 	store, ok := h.repo.(citizenAppealJournalStore)
 	if !ok {
@@ -216,6 +222,9 @@ func (h *CitizenAppealCommandHandler) RegisterDocument(req any) (any, error) {
 
 // CreateAdminDraft создает черновик обращения граждан с административно заданным номером.
 func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		req.IdempotencyKey = uuid.NewString()
+	}
 	if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
@@ -238,10 +247,18 @@ func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateReque
 	if err != nil {
 		return nil, ErrNotAuthenticated
 	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
+	}
 
 	createReq := models.CreateCitizenAppealDocRequest{
 		NomenclatureID:       nomID,
-		IdempotencyKey:       uuid.New(),
+		IdempotencyKey:       idempotencyKey,
 		AdminNumberOverride:  adminOverride,
 		CreatedBy:            createdBy,
 		RegistrationDate:     registrationDate,
@@ -253,6 +270,7 @@ func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateReque
 		ApplicantCategory:    adminDraftPlaceholder,
 		PagesCount:           1,
 		AttachmentPagesCount: 0,
+		CommandHash:          commandHash,
 	}
 	store, ok := h.repo.(citizenAppealJournalStore)
 	if !ok {
@@ -264,11 +282,26 @@ func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateReque
 
 // Update обновляет обращения граждан.
 func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*dto.CitizenAppealDocument, error) {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		req.IdempotencyKey = uuid.NewString()
+	}
 	uid, err := uuid.Parse(req.ID)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := h.access.RequireDocumentAction(uid, "update"); err != nil {
+		return nil, err
+	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
+	}
+	actorID, err := h.auth.GetCurrentUserUUID()
+	if err != nil {
 		return nil, err
 	}
 
@@ -306,6 +339,9 @@ func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*d
 
 	updateReq := models.UpdateCitizenAppealDocRequest{
 		ID:                   uid,
+		ActorID:              actorID,
+		IdempotencyKey:       idempotencyKey,
+		CommandHash:          commandHash,
 		RegistrationNumber:   registrationNumber,
 		RegistrationDate:     registrationDate,
 		AppealDate:           appealDate,
@@ -325,7 +361,7 @@ func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*d
 	if !ok {
 		return nil, fmt.Errorf("citizen appeal store must support atomic outbox operations")
 	}
-	currentUserID, _ := h.auth.GetCurrentUserUUID()
+	currentUserID := actorID
 	event, buildErr := NewJournalOutboxEvent("citizen-appeal:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Обращение отредактировано"})
 	if buildErr != nil {
 		return nil, buildErr

@@ -13,3 +13,7 @@ export function GetList(arg1, arg2) {
 export function SetOperationMetrics(arg1) {
   return window['go']['services']['DocumentQueryService']['SetOperationMetrics'](arg1);
 }
+
+export function SetServerClient(arg1) {
+  return window['go']['services']['DocumentQueryService']['SetServerClient'](arg1);
+}

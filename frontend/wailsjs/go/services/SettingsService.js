@@ -42,6 +42,10 @@ export function SetMigrationClient(arg1) {
   return window['go']['services']['SettingsService']['SetMigrationClient'](arg1);
 }
 
+export function SetServerClient(arg1) {
+  return window['go']['services']['SettingsService']['SetServerClient'](arg1);
+}
+
 export function Update(arg1, arg2) {
   return window['go']['services']['SettingsService']['Update'](arg1, arg2);
 }

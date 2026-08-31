@@ -16,6 +16,7 @@ type AdminDraftCreateRequest struct {
 	NomenclatureID      string                      `json:"nomenclatureId"`
 	RegistrationDate    string                      `json:"registrationDate"`
 	AdminNumberOverride *AdminNumberOverrideRequest `json:"adminNumberOverride"`
+	IdempotencyKey      string                      `json:"idempotencyKey,omitempty"`
 }
 
 const adminDraftPlaceholder = "Черновик. Требуется заполнение."

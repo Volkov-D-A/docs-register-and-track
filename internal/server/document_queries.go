@@ -44,6 +44,18 @@ func (p requestDocumentPrincipal) GetCurrentUserUUID() (uuid.UUID, error) {
 	return p.user.ID, nil
 }
 
+func (p requestDocumentPrincipal) RequireSystemPermission(permission string) error {
+	if err := p.RequireAuthenticated(); err != nil {
+		return err
+	}
+	for _, value := range p.user.SystemPermissions {
+		if value == permission {
+			return nil
+		}
+	}
+	return models.ErrForbidden
+}
+
 func (api *managementAPI) getDocumentCard(w http.ResponseWriter, r *http.Request) {
 	query := api.documentQueries(authenticatedFromContext(r.Context()).User)
 	card, err := query.GetByID(r.PathValue("id"))

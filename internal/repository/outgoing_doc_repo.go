@@ -279,6 +279,17 @@ func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest,
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
+	commandOperation := "documents.register:" + string(models.DocumentKindOutgoingLetter)
+	existingCommandID, err := reserveDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash)
+	if err != nil {
+		return nil, err
+	}
+	if existingCommandID != uuid.Nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
+		}
+		return r.GetByID(existingCommandID)
+	}
 
 	var registration *registrationNumberResult
 	if req.AdminNumberOverride != nil {
@@ -290,6 +301,9 @@ func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest,
 		return nil, err
 	}
 	if registration.Existing != uuid.Nil {
+		if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, registration.Existing); err != nil {
+			return nil, err
+		}
 		if err := tx.Commit(); err != nil {
 			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
 		}
@@ -346,6 +360,9 @@ func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest,
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
 		return nil, err
 	}
+	if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, id); err != nil {
+		return nil, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
@@ -374,6 +391,17 @@ func (r *OutgoingDocumentRepository) update(req models.UpdateOutgoingDocRequest,
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
+	commandOperation := "documents.update:" + string(models.DocumentKindOutgoingLetter)
+	existingCommandID, err := reserveDocumentCommandTx(tx, req.ActorID, commandOperation, req.IdempotencyKey, req.CommandHash)
+	if err != nil {
+		return nil, err
+	}
+	if existingCommandID != uuid.Nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
+		}
+		return r.GetByID(existingCommandID)
+	}
 
 	if _, err = tx.Exec(`
 		UPDATE documents SET
@@ -404,6 +432,9 @@ func (r *OutgoingDocumentRepository) update(req models.UpdateOutgoingDocRequest,
 		return nil, fmt.Errorf("failed to update outgoing document details: %w", err)
 	}
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
+	if err := completeDocumentCommandTx(tx, req.ActorID, commandOperation, req.IdempotencyKey, req.CommandHash, req.ID); err != nil {
 		return nil, err
 	}
 

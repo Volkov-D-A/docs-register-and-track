@@ -25,6 +25,7 @@ func TestServerProcessesOutboxWithoutWailsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	db := &database.DB{DB: sqlDB}
 	cfg := validConfig()
+	cfg.Server.ListenAddress = "127.0.0.1:0"
 	application, err := newWithDependencies(cfg, dependencies{
 		connectDatabase: func(config.DatabaseConfig) (*database.DB, error) { return db, nil },
 		newStorage:      func(config.MinioConfig) (outbox.FileDeleter, error) { return testStorage{}, nil },

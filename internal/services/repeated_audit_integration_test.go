@@ -35,7 +35,6 @@ func TestRepeatedTransitionsProduceDistinctAuditEventsIntegration(t *testing.T) 
 	_, err = auth.Login("admin", adminPassword)
 	require.NoError(t, err)
 
-	userService := NewUserService(userRepo, auth)
 	substitutionService := NewUserSubstitutionService(substitutionRepo, userRepo, auth)
 
 	departmentID := uuid.New()
@@ -49,7 +48,7 @@ func TestRepeatedTransitionsProduceDistinctAuditEventsIntegration(t *testing.T) 
 	substituteID := insertAuditIntegrationUser(t, db, departmentID, userHash, "substitute", "Substitute")
 
 	lockUserFiveTimes(t, auth, "lock-target")
-	_, err = userService.UpdateUser(models.UpdateUserRequest{
+	_, err = userRepo.Update(models.UpdateUserRequest{
 		ID:                    lockedUserID.String(),
 		Login:                 "lock-target",
 		FullName:              "Lock Target",
@@ -66,13 +65,13 @@ func TestRepeatedTransitionsProduceDistinctAuditEventsIntegration(t *testing.T) 
 		IsActive:         true,
 	}
 	clearSubstitution := models.UpdateUserSubstitutionRequest{PrincipalUserID: principalID.String()}
-	_, err = substitutionService.UpdateUserSubstitution(setSubstitution)
+	_, err = substitutionService.saveForPrincipal(principalID, setSubstitution, true)
 	require.NoError(t, err)
-	_, err = substitutionService.UpdateUserSubstitution(clearSubstitution)
+	_, err = substitutionService.saveForPrincipal(principalID, clearSubstitution, true)
 	require.NoError(t, err)
-	_, err = substitutionService.UpdateUserSubstitution(setSubstitution)
+	_, err = substitutionService.saveForPrincipal(principalID, setSubstitution, true)
 	require.NoError(t, err)
-	_, err = substitutionService.UpdateUserSubstitution(clearSubstitution)
+	_, err = substitutionService.saveForPrincipal(principalID, clearSubstitution, true)
 	require.NoError(t, err)
 
 	worker := outbox.NewWorker(outboxRepo, nil, nil, auditRepo, nil, nil)

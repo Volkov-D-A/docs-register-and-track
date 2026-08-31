@@ -30,6 +30,7 @@ type AdministrativeOrderRegisterRequest struct {
 // AdministrativeOrderUpdateRequest описывает команду обновления приказа.
 type AdministrativeOrderUpdateRequest struct {
 	ID                      string   `json:"id"`
+	IdempotencyKey          string   `json:"idempotencyKey,omitempty"`
 	OrderDate               string   `json:"orderDate"`
 	Title                   string   `json:"title"`
 	PagesCount              int      `json:"pagesCount"`
@@ -44,7 +45,7 @@ type AdministrativeOrderUpdateRequest struct {
 type AdministrativeOrderCommandHandler struct {
 	repo    AdministrativeOrderDocStore
 	nomRepo NomenclatureStore
-	auth    *AuthService
+	auth    DocumentCommandPrincipal
 	journal *JournalService
 	access  *DocumentAccessService
 }
@@ -59,7 +60,7 @@ type administrativeOrderJournalStore interface {
 func NewAdministrativeOrderCommandHandler(
 	repo AdministrativeOrderDocStore,
 	nomRepo NomenclatureStore,
-	auth *AuthService,
+	auth DocumentCommandPrincipal,
 	journal *JournalService,
 	access *DocumentAccessService,
 ) *AdministrativeOrderCommandHandler {
@@ -100,6 +101,10 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
 	if err != nil || idempotencyKey == uuid.Nil {
 		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
 	}
 
 	orderDate, err := time.Parse("2006-01-02", req.OrderDate)
@@ -145,6 +150,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 		IsActive:                req.IsActive,
 		CancelledAt:             cancelledAt,
 		AcknowledgmentFullNames: normalizeFullNames(req.AcknowledgmentFullNames),
+		CommandHash:             commandHash,
 	}
 	store, ok := h.repo.(administrativeOrderJournalStore)
 	if !ok {
@@ -165,6 +171,9 @@ func (h *AdministrativeOrderCommandHandler) RegisterDocument(req any) (any, erro
 
 // CreateAdminDraft создает черновик приказа с административно заданным номером.
 func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		req.IdempotencyKey = uuid.NewString()
+	}
 	if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
@@ -187,10 +196,18 @@ func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreat
 	if err != nil {
 		return nil, ErrNotAuthenticated
 	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
+	}
 
 	createReq := models.CreateAdministrativeOrderDocRequest{
 		NomenclatureID:          nomID,
-		IdempotencyKey:          uuid.New(),
+		IdempotencyKey:          idempotencyKey,
 		AdminNumberOverride:     adminOverride,
 		CreatedBy:               createdBy,
 		OrderDate:               registrationDate,
@@ -199,6 +216,7 @@ func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreat
 		ExecutionController:     adminDraftPlaceholder,
 		IsActive:                true,
 		AcknowledgmentFullNames: []string{},
+		CommandHash:             commandHash,
 	}
 	store, ok := h.repo.(administrativeOrderJournalStore)
 	if !ok {
@@ -210,11 +228,26 @@ func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreat
 
 // Update обновляет приказ.
 func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdateRequest) (*dto.AdministrativeOrderDocument, error) {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		req.IdempotencyKey = uuid.NewString()
+	}
 	uid, err := uuid.Parse(req.ID)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := h.access.RequireDocumentAction(uid, "update"); err != nil {
+		return nil, err
+	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
+	}
+	actorID, err := h.auth.GetCurrentUserUUID()
+	if err != nil {
 		return nil, err
 	}
 
@@ -243,6 +276,9 @@ func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdate
 
 	updateReq := models.UpdateAdministrativeOrderDocRequest{
 		ID:                      uid,
+		ActorID:                 actorID,
+		IdempotencyKey:          idempotencyKey,
+		CommandHash:             commandHash,
 		OrderDate:               orderDate,
 		Title:                   strings.TrimSpace(req.Title),
 		PagesCount:              req.PagesCount,
@@ -256,7 +292,7 @@ func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdate
 	if !ok {
 		return nil, fmt.Errorf("administrative order store must support atomic outbox operations")
 	}
-	currentUserID, _ := h.auth.GetCurrentUserUUID()
+	currentUserID := actorID
 	event, buildErr := NewJournalOutboxEvent("administrative-order:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Приказ отредактирован"})
 	if buildErr != nil {
 		return nil, buildErr

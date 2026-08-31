@@ -75,6 +75,10 @@ func (c *Client) ResetUserPassword(ctx context.Context, userID string) (string, 
 }
 
 func (c *Client) doUserRequest(ctx context.Context, method, path string, body any, expectedStatus int, result any) error {
+	return c.doUserRequestWithIdempotency(ctx, method, path, body, expectedStatus, result, "")
+}
+
+func (c *Client) doUserRequestWithIdempotency(ctx context.Context, method, path string, body any, expectedStatus int, result any, idempotencyKey string) error {
 	var payload io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -89,6 +93,9 @@ func (c *Client) doUserRequest(ctx context.Context, method, path string, body an
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if idempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", idempotencyKey)
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {

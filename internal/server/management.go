@@ -34,26 +34,27 @@ type rollbackRequest struct {
 }
 
 type managementAPI struct {
-	cfg             *config.Config
-	migrations      migrationStore
-	lifecycle       migrationLifecycle
-	users           adminUserStore
-	userCommands    userManagementStore
-	userAccess      userAccessManagementStore
-	substitutions   userSubstitutionManagementStore
-	departments     departmentManagementStore
-	references      referenceManagementStore
-	nomenclature    nomenclatureManagementStore
-	settings        settingsManagementStore
-	documentQueries func(*models.User) documentQueryAPI
-	audit           adminAuditStore
-	authUsers       authUserStore
-	authSettings    authSettingsStore
-	sessions        authSessionStore
-	acquireLease    func(context.Context) (func(), bool, error)
-	migration       sync.Mutex
-	authMu          sync.Mutex
-	authFailures    map[string]authFailure
+	cfg              *config.Config
+	migrations       migrationStore
+	lifecycle        migrationLifecycle
+	users            adminUserStore
+	userCommands     userManagementStore
+	userAccess       userAccessManagementStore
+	substitutions    userSubstitutionManagementStore
+	departments      departmentManagementStore
+	references       referenceManagementStore
+	nomenclature     nomenclatureManagementStore
+	settings         settingsManagementStore
+	documentQueries  func(*models.User) documentQueryAPI
+	documentCommands func(*models.User) documentCommandAPI
+	audit            adminAuditStore
+	authUsers        authUserStore
+	authSettings     authSettingsStore
+	sessions         authSessionStore
+	acquireLease     func(context.Context) (func(), bool, error)
+	migration        sync.Mutex
+	authMu           sync.Mutex
+	authFailures     map[string]authFailure
 }
 
 type authFailure struct {
@@ -106,6 +107,14 @@ func newManagementAPI(app *App) *managementAPI {
 		services.NewCitizenAppealQueryHandler(repository.NewCitizenAppealRepository(app.db)),
 		services.NewAdministrativeOrderQueryHandler(repository.NewAdministrativeOrderRepository(app.db)),
 	)
+	incomingCommands := repository.NewIncomingDocumentRepository(app.db)
+	outgoingCommands := repository.NewOutgoingDocumentRepository(app.db)
+	citizenAppealCommands := repository.NewCitizenAppealRepository(app.db)
+	administrativeOrderCommands := repository.NewAdministrativeOrderRepository(app.db)
+	incomingCommands.SetOutbox(outboxRepo)
+	outgoingCommands.SetOutbox(outboxRepo)
+	citizenAppealCommands.SetOutbox(outboxRepo)
+	administrativeOrderCommands.SetOutbox(outboxRepo)
 	return &managementAPI{
 		cfg:           app.cfg,
 		migrations:    app.db,
@@ -126,6 +135,21 @@ func newManagementAPI(app *App) *managementAPI {
 			query := services.NewDocumentQueryEngine(queryRegistry, documentAccess)
 			query.SetOperationMetrics(app.metrics)
 			return query
+		},
+		documentCommands: func(user *models.User) documentCommandAPI {
+			principal := requestDocumentPrincipal{user: user}
+			documentAccess := services.NewDocumentAccessService(
+				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+			)
+			registry := services.NewDocumentKindCommandRegistry(
+				services.NewIncomingLetterCommandHandler(incomingCommands, nomenclature, references, principal, nil, documentAccess),
+				services.NewOutgoingLetterCommandHandler(outgoingCommands, references, nomenclature, principal, nil, documentAccess),
+				services.NewCitizenAppealCommandHandler(citizenAppealCommands, nomenclature, references, principal, nil, documentAccess),
+				services.NewAdministrativeOrderCommandHandler(administrativeOrderCommands, nomenclature, principal, nil, documentAccess),
+			)
+			commands := services.NewDocumentRegistrationService(registry)
+			commands.SetOperationMetrics(app.metrics)
+			return commands
 		},
 		authUsers:    users,
 		authSettings: settings,
@@ -188,6 +212,9 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/settings/{key}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateSetting)))
 	mux.Handle("GET /api/v1/documents/{id}", api.requireSession(http.HandlerFunc(api.getDocumentCard)))
 	mux.Handle("POST /api/v1/documents/query", api.requireSession(http.HandlerFunc(api.listDocuments)))
+	mux.Handle("POST /api/v1/documents/{kind}", api.requireSession(http.HandlerFunc(api.registerDocument)))
+	mux.Handle("PATCH /api/v1/documents/{kind}/{id}", api.requireSession(http.HandlerFunc(api.updateDocument)))
+	mux.Handle("POST /api/v1/documents/{kind}/admin-drafts", api.requireSession(http.HandlerFunc(api.createAdminDocumentDraft)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))

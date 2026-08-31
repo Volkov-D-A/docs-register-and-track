@@ -50,6 +50,10 @@ export function SearchResolutionExecutors(arg1) {
   return window['go']['services']['ReferenceService']['SearchResolutionExecutors'](arg1);
 }
 
+export function SetServerClient(arg1) {
+  return window['go']['services']['ReferenceService']['SetServerClient'](arg1);
+}
+
 export function UpdateDocumentType(arg1, arg2) {
   return window['go']['services']['ReferenceService']['UpdateDocumentType'](arg1, arg2);
 }

@@ -3,9 +3,12 @@
 import {dto} from '../models';
 import {models} from '../models';
 import {observability} from '../models';
+import {serverclient} from '../models';
 
 export function GetByID(arg1:string):Promise<dto.DocumentCard>;
 
 export function GetList(arg1:string,arg2:models.DocumentFilter):Promise<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_DocumentListItem_>;
 
 export function SetOperationMetrics(arg1:observability.Registry):Promise<void>;
+
+export function SetServerClient(arg1:serverclient.DocumentQueryClient):Promise<void>;

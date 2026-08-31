@@ -32,6 +32,7 @@ type IncomingLetterRegisterRequest struct {
 // IncomingLetterUpdateRequest описывает команду обновления входящего письма.
 type IncomingLetterUpdateRequest struct {
 	ID                   string                               `json:"id"`
+	IdempotencyKey       string                               `json:"idempotencyKey,omitempty"`
 	DocumentTypeID       string                               `json:"documentTypeId"`
 	Correspondents       []IncomingLetterCorrespondentRequest `json:"correspondents"`
 	Content              string                               `json:"content"`
@@ -55,7 +56,7 @@ type IncomingLetterCommandHandler struct {
 	repo    IncomingDocStore
 	nomRepo NomenclatureStore
 	refRepo ReferenceStore
-	auth    *AuthService
+	auth    DocumentCommandPrincipal
 	journal *JournalService
 	access  *DocumentAccessService
 }
@@ -76,7 +77,7 @@ func NewIncomingLetterCommandHandler(
 	repo IncomingDocStore,
 	nomRepo NomenclatureStore,
 	refRepo ReferenceStore,
-	auth *AuthService,
+	auth DocumentCommandPrincipal,
 	journal *JournalService,
 	access *DocumentAccessService,
 ) *IncomingLetterCommandHandler {
@@ -114,6 +115,10 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 	if err != nil || idempotencyKey == uuid.Nil {
 		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
+	}
 	docTypeID := models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(docTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
@@ -126,7 +131,9 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 		for _, name := range strings.Split(req.ResolutionExecutors, "; ") {
 			name = strings.TrimSpace(name)
 			if name != "" {
-				h.refRepo.FindOrCreateResolutionExecutor(name)
+				if _, err := h.refRepo.FindOrCreateResolutionExecutor(name); err != nil {
+					return nil, fmt.Errorf("ошибка исполнителя резолюции: %w", err)
+				}
 			}
 		}
 	}
@@ -175,6 +182,7 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 		Resolution:           resPtr,
 		ResolutionAuthor:     resAuthorPtr,
 		ResolutionExecutors:  resExecutorsPtr,
+		CommandHash:          commandHash,
 	}
 	store, ok := h.repo.(incomingDocumentJournalStore)
 	if !ok {
@@ -196,6 +204,9 @@ func (h *IncomingLetterCommandHandler) RegisterDocument(req any) (any, error) {
 
 // CreateAdminDraft создает черновик входящего письма с административно заданным номером.
 func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		req.IdempotencyKey = uuid.NewString()
+	}
 	if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
@@ -218,6 +229,14 @@ func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 	if err != nil {
 		return nil, ErrNotAuthenticated
 	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
+	}
 	org, err := h.refRepo.FindOrCreateOrganization(adminDraftPlaceholder)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка организации корреспондента: %w", err)
@@ -225,7 +244,7 @@ func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 
 	createReq := models.CreateIncomingDocRequest{
 		NomenclatureID:      nomID,
-		IdempotencyKey:      uuid.New(),
+		IdempotencyKey:      idempotencyKey,
 		AdminNumberOverride: adminOverride,
 		DocumentTypeID:      models.DocumentTypeLetter,
 		CreatedBy:           createdBy,
@@ -240,6 +259,7 @@ func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 		PagesCount:           1,
 		AttachmentPagesCount: 0,
 		SenderSignatory:      adminDraftPlaceholder,
+		CommandHash:          commandHash,
 	}
 	store, ok := h.repo.(incomingDocumentJournalStore)
 	if !ok {
@@ -251,11 +271,26 @@ func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 
 // Update обновляет входящее письмо.
 func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (*dto.IncomingDocument, error) {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		req.IdempotencyKey = uuid.NewString()
+	}
 	uid, err := uuid.Parse(req.ID)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := h.access.RequireDocumentAction(uid, "update"); err != nil {
+		return nil, err
+	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
+	}
+	actorID, err := h.auth.GetCurrentUserUUID()
+	if err != nil {
 		return nil, err
 	}
 	docTypeID := models.NormalizeDocumentType(req.DocumentTypeID)
@@ -270,7 +305,9 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 		for _, name := range strings.Split(req.ResolutionExecutors, "; ") {
 			name = strings.TrimSpace(name)
 			if name != "" {
-				h.refRepo.FindOrCreateResolutionExecutor(name)
+				if _, err := h.refRepo.FindOrCreateResolutionExecutor(name); err != nil {
+					return nil, fmt.Errorf("ошибка исполнителя резолюции: %w", err)
+				}
 			}
 		}
 	}
@@ -295,6 +332,9 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 
 	updateReq := models.UpdateIncomingDocRequest{
 		ID:                   uid,
+		ActorID:              actorID,
+		IdempotencyKey:       idempotencyKey,
+		CommandHash:          commandHash,
 		DocumentTypeID:       docTypeID,
 		Correspondents:       correspondents,
 		Content:              req.Content,
@@ -309,7 +349,7 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 	if !ok {
 		return nil, fmt.Errorf("incoming document store must support atomic outbox operations")
 	}
-	currentUserID, _ := h.auth.GetCurrentUserUUID()
+	currentUserID := actorID
 	event, buildErr := NewJournalOutboxEvent("incoming:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Документ отредактирован"})
 	if buildErr != nil {
 		return nil, buildErr

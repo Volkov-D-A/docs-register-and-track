@@ -114,7 +114,6 @@ func newWailsOptionsWithDependencies(
 
 	userRepo := repository.NewUserRepository(db)
 	userSubstitutionRepo := repository.NewUserSubstitutionRepository(db)
-	nomenclatureRepo := repository.NewNomenclatureRepository(db)
 	referenceRepo := repository.NewReferenceRepository(db)
 	documentAccessRepo := repository.NewDocumentAccessRepository(db)
 	documentRepo := repository.NewDocumentRepository(db)
@@ -195,13 +194,7 @@ func newWailsOptionsWithDependencies(
 	documentQueryService := services.NewDocumentQueryService()
 	documentQueryService.SetServerClient(serverClient)
 	documentQueryService.SetOperationMetrics(metrics)
-	documentKindCommandRegistry := services.NewDocumentKindCommandRegistry(
-		services.NewIncomingLetterCommandHandler(incomingDocRepo, nomenclatureRepo, referenceRepo, authService, journalService, documentAccessService),
-		services.NewOutgoingLetterCommandHandler(outgoingDocRepo, referenceRepo, nomenclatureRepo, authService, journalService, documentAccessService),
-		services.NewCitizenAppealCommandHandler(citizenAppealRepo, nomenclatureRepo, referenceRepo, authService, journalService, documentAccessService),
-		services.NewAdministrativeOrderCommandHandler(administrativeOrderRepo, nomenclatureRepo, authService, journalService, documentAccessService),
-	)
-	documentRegistrationService := services.NewDocumentRegistrationService(documentKindCommandRegistry)
+	documentRegistrationService := services.NewDocumentRegistrationServiceWithClient(serverClient)
 	documentRegistrationService.SetOperationLifecycle(operationLifecycle)
 	documentRegistrationService.SetOperationMetrics(metrics)
 	userEventService := services.NewUserEventService(userEventRepo, authService)

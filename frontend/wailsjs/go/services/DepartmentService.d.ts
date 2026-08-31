@@ -9,6 +9,6 @@ export function DeleteDepartment(arg1:string):Promise<void>;
 
 export function GetAllDepartments():Promise<Array<dto.Department>>;
 
-export function SetServerClient(arg1:serverclient.DepartmentLookupClient):Promise<void>;
+export function SetServerClient(arg1:serverclient.DepartmentClient):Promise<void>;
 
 export function UpdateDepartment(arg1:string,arg2:string,arg3:Array<string>):Promise<dto.Department>;

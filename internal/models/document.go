@@ -396,11 +396,15 @@ type CreateIncomingDocRequest struct {
 	Resolution           *string
 	ResolutionAuthor     *string
 	ResolutionExecutors  *string
+	CommandHash          string
 }
 
 // UpdateIncomingDocRequest — запрос на обновление входящего документа (уровень репозитория).
 type UpdateIncomingDocRequest struct {
 	ID                   uuid.UUID
+	ActorID              uuid.UUID
+	IdempotencyKey       uuid.UUID
+	CommandHash          string
 	DocumentTypeID       string
 	Correspondents       []DocumentCorrespondentRegistration
 	Content              string
@@ -428,11 +432,15 @@ type CreateOutgoingDocRequest struct {
 	SenderSignatory      string
 	SenderExecutor       string
 	Addressee            string
+	CommandHash          string
 }
 
 // UpdateOutgoingDocRequest — запрос на обновление исходящего документа (уровень репозитория).
 type UpdateOutgoingDocRequest struct {
 	ID                   uuid.UUID
+	ActorID              uuid.UUID
+	IdempotencyKey       uuid.UUID
+	CommandHash          string
 	DocumentTypeID       string
 	RecipientOrgID       uuid.UUID
 	OutgoingDate         time.Time
@@ -464,11 +472,15 @@ type CreateCitizenAppealDocRequest struct {
 	ReceivedFromPOS      bool
 	Correspondents       []DocumentCorrespondentRegistration
 	Resolutions          []DocumentResolution
+	CommandHash          string
 }
 
 // UpdateCitizenAppealDocRequest — запрос на обновление обращения граждан.
 type UpdateCitizenAppealDocRequest struct {
 	ID                   uuid.UUID
+	ActorID              uuid.UUID
+	IdempotencyKey       uuid.UUID
+	CommandHash          string
 	RegistrationNumber   string
 	RegistrationDate     time.Time
 	AppealDate           time.Time
@@ -500,6 +512,7 @@ type CreateAdministrativeOrderDocRequest struct {
 	IsActive                bool
 	CancelledAt             *time.Time
 	AcknowledgmentFullNames []string
+	CommandHash             string
 }
 
 const (
@@ -516,6 +529,9 @@ type AdminNumberOverride struct {
 // UpdateAdministrativeOrderDocRequest — запрос на обновление приказа.
 type UpdateAdministrativeOrderDocRequest struct {
 	ID                      uuid.UUID
+	ActorID                 uuid.UUID
+	IdempotencyKey          uuid.UUID
+	CommandHash             string
 	OrderDate               time.Time
 	Title                   string
 	PagesCount              int

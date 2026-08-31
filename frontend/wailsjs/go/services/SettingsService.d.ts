@@ -24,4 +24,6 @@ export function RunMigrations(arg1:string):Promise<void>;
 
 export function SetMigrationClient(arg1:serverclient.MigrationClient):Promise<void>;
 
+export function SetServerClient(arg1:serverclient.SettingsClient):Promise<void>;
+
 export function Update(arg1:string,arg2:string):Promise<void>;

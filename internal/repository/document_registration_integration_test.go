@@ -58,6 +58,7 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 		SenderSignatory: "Signer",
 		SenderExecutor:  "Executor",
 		Addressee:       "Addressee",
+		CommandHash:     "first-command-hash",
 	}
 
 	first, err := repo.Create(firstReq)
@@ -77,6 +78,15 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 	}
 	assertScalar(t, sqlDB, `SELECT next_number FROM nomenclature WHERE id = $1`, []any{nomID}, 2)
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM documents WHERE created_by = $1 AND kind = 'outgoing_letter'`, []any{userID}, 1)
+
+	conflictingReq := firstReq
+	conflictingReq.Content = "changed payload"
+	conflictingReq.CommandHash = "changed-command-hash"
+	if _, err := repo.Create(conflictingReq); err == nil {
+		t.Fatal("expected conflict when an idempotency key is reused with another payload")
+	} else if appErr, ok := models.AsAppError(err); !ok || appErr.StatusCode() != 409 {
+		t.Fatalf("changed payload error = %v, want conflict", err)
+	}
 
 	failingReq := firstReq
 	failingReq.IdempotencyKey = uuid.New()
@@ -182,6 +192,7 @@ func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
 	sharedReq := baseReq
 	sharedReq.IdempotencyKey = sharedKey
 	sharedReq.Content = "shared-key"
+	sharedReq.CommandHash = "shared-command-hash"
 
 	const repeats = 6
 	var repeatWG sync.WaitGroup

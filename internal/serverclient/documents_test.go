@@ -66,3 +66,36 @@ func TestDocumentQueryClientValidatesInputBeforeRequest(t *testing.T) {
 	require.Error(t, err)
 	assert.Zero(t, requests)
 }
+
+func TestDocumentCommandClientUsesIdempotencyHeaders(t *testing.T) {
+	key := uuid.NewString()
+	documentID := uuid.NewString()
+	requestNumber := 0
+	client := userClientWithToken(t, func(r *http.Request) (*http.Response, error) {
+		requestNumber++
+		assert.NotEmpty(t, r.Header.Get("Idempotency-Key"))
+		switch requestNumber {
+		case 1:
+			assert.Equal(t, key, r.Header.Get("Idempotency-Key"))
+			assert.Equal(t, "/api/v1/documents/incoming_letter", r.URL.Path)
+			return response(http.StatusCreated, `{"id":"`+documentID+`"}`), nil
+		case 2:
+			assert.Equal(t, "/api/v1/documents/incoming_letter/"+documentID, r.URL.Path)
+			return response(http.StatusOK, `{"id":"`+documentID+`"}`), nil
+		case 3:
+			assert.Equal(t, "/api/v1/documents/incoming_letter/admin-drafts", r.URL.Path)
+			return response(http.StatusCreated, `{"id":"`+documentID+`"}`), nil
+		default:
+			t.Fatalf("unexpected request %d", requestNumber)
+			return nil, nil
+		}
+	})
+
+	_, err := client.RegisterDocument(context.Background(), "incoming_letter", map[string]any{"idempotencyKey": key})
+	require.NoError(t, err)
+	_, err = client.UpdateDocument(context.Background(), "incoming_letter", map[string]any{"id": documentID})
+	require.NoError(t, err)
+	_, err = client.CreateAdminDocumentDraft(context.Background(), "incoming_letter", map[string]any{"nomenclatureId": uuid.NewString()})
+	require.NoError(t, err)
+	assert.Equal(t, 3, requestNumber)
+}

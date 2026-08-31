@@ -2,11 +2,33 @@ package services
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
+
+type DocumentCommandPrincipal interface {
+	DocumentAccessPrincipal
+	RequireSystemPermission(string) error
+}
+
+type DocumentCommandClient interface {
+	RegisterDocument(context.Context, string, any) (any, error)
+	UpdateDocument(context.Context, string, any) (any, error)
+	CreateAdminDocumentDraft(context.Context, string, any) (any, error)
+}
+
+func documentCommandHash(req any) (string, error) {
+	data, err := json.Marshal(req)
+	if err != nil {
+		return "", fmt.Errorf("encode document command hash: %w", err)
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
+}
 
 // DocumentKindCommandHandler описывает write-обработчик конкретного вида документа.
 type DocumentKindCommandHandler interface {
@@ -50,8 +72,13 @@ func (r *DocumentKindCommandRegistry) Get(kind models.DocumentKind) (DocumentKin
 // DocumentRegistrationService предоставляет общий command API для регистрации и обновления документов.
 type DocumentRegistrationService struct {
 	registry  *DocumentKindCommandRegistry
+	client    DocumentCommandClient
 	lifecycle *OperationLifecycle
 	metrics   *observability.Registry
+}
+
+func NewDocumentRegistrationServiceWithClient(client DocumentCommandClient) *DocumentRegistrationService {
+	return &DocumentRegistrationService{client: client}
 }
 
 // NewDocumentRegistrationService создает новый экземпляр DocumentRegistrationService.
@@ -77,6 +104,13 @@ func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, e
 		}
 
 		kind := models.DocumentKind(kindCode)
+		if s.client != nil {
+			normalizedReq, err := normalizeRegisterRequest(kind, req)
+			if err != nil {
+				return nil, err
+			}
+			return s.client.RegisterDocument(ctx, kindCode, normalizedReq)
+		}
 		handler, err := s.registry.Get(kind)
 		if err != nil {
 			return nil, models.ErrForbidden
@@ -108,6 +142,13 @@ func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, err
 		}
 
 		kind := models.DocumentKind(kindCode)
+		if s.client != nil {
+			normalizedReq, err := normalizeUpdateRequest(kind, req)
+			if err != nil {
+				return nil, err
+			}
+			return s.client.UpdateDocument(ctx, kindCode, normalizedReq)
+		}
 		handler, err := s.registry.Get(kind)
 		if err != nil {
 			return nil, models.ErrForbidden
@@ -139,6 +180,9 @@ func (s *DocumentRegistrationService) CreateAdminDraft(kindCode string, req Admi
 		}
 
 		kind := models.DocumentKind(kindCode)
+		if s.client != nil {
+			return s.client.CreateAdminDocumentDraft(ctx, kindCode, req)
+		}
 		handler, err := s.registry.Get(kind)
 		if err != nil {
 			return nil, models.ErrForbidden

@@ -31,6 +31,7 @@ type OutgoingLetterRegisterRequest struct {
 // OutgoingLetterUpdateRequest описывает команду обновления исходящего письма.
 type OutgoingLetterUpdateRequest struct {
 	ID                   string `json:"id"`
+	IdempotencyKey       string `json:"idempotencyKey,omitempty"`
 	DocumentTypeID       string `json:"documentTypeId"`
 	RecipientOrgName     string `json:"recipientOrgName"`
 	Addressee            string `json:"addressee"`
@@ -47,7 +48,7 @@ type OutgoingLetterCommandHandler struct {
 	repo    OutgoingDocStore
 	refRepo ReferenceStore
 	nomRepo NomenclatureStore
-	auth    *AuthService
+	auth    DocumentCommandPrincipal
 	journal *JournalService
 	access  *DocumentAccessService
 }
@@ -68,7 +69,7 @@ func NewOutgoingLetterCommandHandler(
 	repo OutgoingDocStore,
 	refRepo ReferenceStore,
 	nomRepo NomenclatureStore,
-	auth *AuthService,
+	auth DocumentCommandPrincipal,
 	journal *JournalService,
 	access *DocumentAccessService,
 ) *OutgoingLetterCommandHandler {
@@ -105,6 +106,10 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
 	if err != nil || idempotencyKey == uuid.Nil {
 		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
 	}
 	docTypeID := models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(docTypeID) {
@@ -145,6 +150,7 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 		SenderSignatory:      req.SenderSignatory,
 		SenderExecutor:       req.SenderExecutor,
 		Addressee:            req.Addressee,
+		CommandHash:          commandHash,
 	}
 	var res *models.OutgoingDocument
 	store, ok := h.repo.(outgoingDocumentJournalStore)
@@ -167,6 +173,9 @@ func (h *OutgoingLetterCommandHandler) RegisterDocument(req any) (any, error) {
 
 // CreateAdminDraft создает черновик исходящего письма с административно заданным номером.
 func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		req.IdempotencyKey = uuid.NewString()
+	}
 	if err := h.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
@@ -189,6 +198,14 @@ func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 	if err != nil {
 		return nil, ErrNotAuthenticated
 	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
+	}
 	recipientOrg, err := h.refRepo.FindOrCreateOrganization(adminDraftPlaceholder)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка организации получателя: %w", err)
@@ -196,7 +213,7 @@ func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 
 	createReq := models.CreateOutgoingDocRequest{
 		NomenclatureID:       nomID,
-		IdempotencyKey:       uuid.New(),
+		IdempotencyKey:       idempotencyKey,
 		AdminNumberOverride:  adminOverride,
 		DocumentTypeID:       models.DocumentTypeLetter,
 		RecipientOrgID:       recipientOrg.ID,
@@ -208,6 +225,7 @@ func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 		SenderSignatory:      adminDraftPlaceholder,
 		SenderExecutor:       adminDraftPlaceholder,
 		Addressee:            adminDraftPlaceholder,
+		CommandHash:          commandHash,
 	}
 	var res *models.OutgoingDocument
 	store, ok := h.repo.(outgoingDocumentJournalStore)
@@ -220,11 +238,26 @@ func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 
 // Update обновляет исходящее письмо.
 func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (*dto.OutgoingDocument, error) {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		req.IdempotencyKey = uuid.NewString()
+	}
 	uid, err := uuid.Parse(req.ID)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
 	if err := h.access.RequireDocumentAction(uid, "update"); err != nil {
+		return nil, err
+	}
+	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ключ идемпотентности")
+	}
+	commandHash, err := documentCommandHash(req)
+	if err != nil {
+		return nil, err
+	}
+	actorID, err := h.auth.GetCurrentUserUUID()
+	if err != nil {
 		return nil, err
 	}
 	docTypeID := models.NormalizeDocumentType(req.DocumentTypeID)
@@ -247,6 +280,9 @@ func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (
 
 	updateReq := models.UpdateOutgoingDocRequest{
 		ID:                   uid,
+		ActorID:              actorID,
+		IdempotencyKey:       idempotencyKey,
+		CommandHash:          commandHash,
 		DocumentTypeID:       docTypeID,
 		RecipientOrgID:       recipientOrg.ID,
 		OutgoingDate:         outDate,
@@ -262,7 +298,7 @@ func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (
 	if !ok {
 		return nil, fmt.Errorf("outgoing document store must support atomic outbox operations")
 	}
-	currentUserID, _ := h.auth.GetCurrentUserUUID()
+	currentUserID := actorID
 	event, buildErr := NewJournalOutboxEvent("outgoing:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Документ отредактирован"})
 	if buildErr != nil {
 		return nil, buildErr

@@ -201,8 +201,8 @@ func TestDB_MigratorCloseKeepsSharedDatabaseOpen(t *testing.T) {
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	catalog, err := inspectMigrationCatalog(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 11, catalog.AvailableCount)
-	assert.Equal(t, uint(11), catalog.LatestAvailableVersion)
+	assert.Equal(t, 12, catalog.AvailableCount)
+	assert.Equal(t, uint(12), catalog.LatestAvailableVersion)
 }
 
 func TestInspectMigrationCatalog(t *testing.T) {
