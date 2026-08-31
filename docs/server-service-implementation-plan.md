@@ -5,10 +5,10 @@
 Дата последнего обновления: 31 августа 2026 года
 
 Статус: server worker, контейнерное развёртывание, управление миграциями,
-полный auth/password lifecycle, управление пользователями и CRUD подразделений
-реализованы и проверены через server API. Экран пользователей, связанные права
-доступа, административные замещения, подразделения и текущая access summary
-больше не используют PostgreSQL из desktop. Остальные business
+полный auth/password lifecycle, управление пользователями, CRUD подразделений,
+организаций и исполнителей резолюций реализованы и проверены через server API.
+Эти сценарии вместе с access summary больше не используют PostgreSQL из
+desktop. Остальные business
 operations пока продолжают прямой доступ; HTTPS и окончательное закрытие
 инфраструктуры от рабочих мест не выполнены.
 
@@ -51,6 +51,9 @@ operations пока продолжают прямой доступ; HTTPS и о�
 - lookup и административный CRUD подразделений, а также текущая access summary
   работают через server API; request principal не хранится в общем состоянии
   процесса, а department mutation и audit outbox атомарны;
+- list/search/find-or-create и административные изменения организаций и
+  исполнителей резолюций работают через server API; update/delete/merge и audit
+  outbox выполняются атомарно;
 - обновление собственного профиля, кандидаты замещения и личное замещение
   работают через server API; client-supplied principal для self-операций
   игнорируется в пользу bearer principal.
@@ -62,7 +65,8 @@ operations пока продолжают прямой доступ; HTTPS и о�
 - `9912af8` — полный password lifecycle и административный временный пароль;
 - `54a1664` — основные операции управления пользователями через server API;
 - `01c66c1` — access profile, admin substitution и lookup для экрана
-  пользователей через server API.
+  пользователей через server API;
+- `484bd85` — server-owned migration status и CRUD подразделений.
 
 | Этап | Состояние | Что осталось |
 |---|---|---|
@@ -71,7 +75,7 @@ operations пока продолжают прямой доступ; HTTPS и о�
 | 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
 | 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
 | 4. Authentication | Завершён | Только production-like session/load smoke |
-| 5. Business API | В работе | Пользователи, профиль и подразделения перенесены; следующий срез — простые справочники |
+| 5. Business API | В работе | Пользователи, профиль, подразделения и простые справочники перенесены; следующий срез — номенклатура |
 | 6. Attachments API | Не начат | Streaming endpoints и limits |
 | 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
 
@@ -81,7 +85,7 @@ backup/restore test и production-like load/end-to-end проверки.
 
 ## Точка продолжения
 
-Контрольный commit до текущего рабочего среза — `01c66c1`. При возобновлении
+Контрольный commit до текущего рабочего среза — `484bd85`. При возобновлении
 работы не нужно заново реализовывать worker, миграции, login/session, password
 flows или основные admin-операции пользователей.
 
@@ -121,13 +125,18 @@ typed server client, команды защищены правом `admin`, а mu
 сохраняются одной транзакцией. Direct repository path удалён из
 `DepartmentService`; этот срез служит шаблоном для остальных справочников.
 
-Следующий рекомендуемый срез — простые справочники организаций и исполнителей
-резолюций, затем номенклатура и системные настройки.
+Также завершены справочники **организаций и исполнителей резолюций**:
+list/search/find-or-create и административные update/delete/merge выполняются
+через typed server client. Право `references` проверяется сервером, а mutation и
+audit outbox сохраняются одной транзакцией. `ReferenceService` больше не имеет
+repository path для этих справочников.
+
+Следующий рекомендуемый срез — номенклатура, затем системные настройки.
 
 После него рекомендуемый порядок:
 
-1. Организации и исполнители резолюций по готовому шаблону CRUD API.
-2. Номенклатура, системные настройки и оставшиеся access-related операции.
+1. Номенклатура по готовому шаблону CRUD API.
+2. Системные настройки и оставшиеся access-related операции.
 3. Read-only списки и карточки документов.
 4. Команды регистрации/изменения документов с idempotency.
 5. Поручения, ознакомления, связи, journal, dashboard и statistics.

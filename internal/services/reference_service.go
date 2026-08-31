@@ -1,267 +1,154 @@
 package services
 
 import (
-	"fmt"
-
-	"github.com/google/uuid"
+	"context"
+	"errors"
+	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
-// ReferenceService предоставляет бизнес-логику для работы со справочниками (типы документов, организации).
+var errServerReferenceClientNotConfigured = errors.New("docflow-server reference client is not configured")
+
+// ReferenceService предоставляет бизнес-логику для работы со справочниками.
 type ReferenceService struct {
-	repo ReferenceStore
-	auth *AuthService
-}
-type referenceOutboxStore interface {
-	UpdateOrganizationWithOutbox(uuid.UUID, string, []models.OutboxEvent) error
-	DeleteOrganizationWithOutbox(uuid.UUID, []models.OutboxEvent) error
-	MergeOrganizationsWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) error
-	UpdateResolutionExecutorWithOutbox(uuid.UUID, string, []models.OutboxEvent) error
-	DeleteResolutionExecutorWithOutbox(uuid.UUID, []models.OutboxEvent) error
+	auth   *AuthService
+	server serverclient.ReferenceClient
 }
 
-var errReferenceOutboxStoreRequired = fmt.Errorf("reference store must support atomic outbox operations")
-
-func (s *ReferenceService) auditEffect(key, action, details string) (models.OutboxEvent, error) {
-	userID, userName := s.auth.GetCurrentAuditInfo()
-	return NewAdminAuditOutboxEvent(key, models.CreateAdminAuditLogRequest{UserID: userID, UserName: userName, Action: action, Details: details})
+func NewReferenceService(auth *AuthService) *ReferenceService {
+	return &ReferenceService{auth: auth}
 }
 
-// NewReferenceService создает новый экземпляр ReferenceService.
-func NewReferenceService(repo ReferenceStore, auth *AuthService) *ReferenceService {
-	return &ReferenceService{repo: repo, auth: auth}
+func (s *ReferenceService) SetServerClient(client serverclient.ReferenceClient) {
+	s.server = client
 }
 
-func (s *ReferenceService) requireReferenceManagement() error {
-	return s.auth.RequireSystemPermission(models.SystemPermissionReferences)
-}
-
-// === Типы документов ===
-
-// GetDocumentTypes возвращает список всех типов документов.
+// GetDocumentTypes возвращает неизменяемый список типов документов из кода.
 func (s *ReferenceService) GetDocumentTypes() ([]dto.DocumentType, error) {
 	if err := s.auth.RequireAuthenticated(); err != nil {
 		return nil, err
 	}
-
 	items := make([]dto.DocumentType, 0, len(models.AllowedDocumentTypes()))
 	for _, name := range models.AllowedDocumentTypes() {
-		items = append(items, dto.DocumentType{
-			ID:   name,
-			Name: name,
-		})
+		items = append(items, dto.DocumentType{ID: name, Name: name})
 	}
 	return items, nil
 }
 
-// CreateDocumentType создает новый тип документа для пользователей с доступом к справочникам.
-func (s *ReferenceService) CreateDocumentType(name string) (*dto.DocumentType, error) {
+func (s *ReferenceService) CreateDocumentType(string) (*dto.DocumentType, error) {
 	return nil, models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
-// UpdateDocumentType обновляет название типа документа для пользователей с доступом к справочникам.
-func (s *ReferenceService) UpdateDocumentType(id string, name string) error {
+func (s *ReferenceService) UpdateDocumentType(string, string) error {
 	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
-// DeleteDocumentType удаляет тип документа по его ID для пользователей с доступом к справочникам.
-func (s *ReferenceService) DeleteDocumentType(id string) error {
+func (s *ReferenceService) DeleteDocumentType(string) error {
 	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
-// === Организации ===
-
-// GetOrganizations возвращает список всех организаций-корреспондентов.
 func (s *ReferenceService) GetOrganizations() ([]dto.Organization, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerReferenceClientNotConfigured
 	}
-	res, err := s.repo.GetAllOrganizations()
-	return dto.MapOrganizations(res), err
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.ListOrganizations(ctx, "")
 }
 
-// SearchOrganizations выполняет поиск организаций по названию.
 func (s *ReferenceService) SearchOrganizations(query string) ([]dto.Organization, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerReferenceClientNotConfigured
 	}
-	res, err := s.repo.SearchOrganizations(query)
-	return dto.MapOrganizations(res), err
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.ListOrganizations(ctx, query)
 }
 
-// FindOrCreateOrganization ищет организацию по названию, и создает новую, если она не найдена.
 func (s *ReferenceService) FindOrCreateOrganization(name string) (*dto.Organization, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerReferenceClientNotConfigured
 	}
-	res, err := s.repo.FindOrCreateOrganization(name)
-	return dto.MapOrganization(res), err
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.ResolveOrganization(ctx, name)
 }
 
-// UpdateOrganization обновляет название организации для пользователей с доступом к справочникам.
-func (s *ReferenceService) UpdateOrganization(id string, name string) error {
-	if err := s.requireReferenceManagement(); err != nil {
-		return err
+func (s *ReferenceService) UpdateOrganization(id, name string) error {
+	if s.server == nil {
+		return errServerReferenceClientNotConfigured
 	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
-	}
-	details := fmt.Sprintf("Обновлена организация «%s»", name)
-	store, ok := s.repo.(referenceOutboxStore)
-	if !ok {
-		return errReferenceOutboxStoreRequired
-	}
-	event, buildErr := s.auditEffect("organization:"+uid.String()+":update:"+uuid.NewString(), "ORG_UPDATE", details)
-	if buildErr != nil {
-		return buildErr
-	}
-	err = store.UpdateOrganizationWithOutbox(uid, name, []models.OutboxEvent{event})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.UpdateOrganization(ctx, id, name)
 }
 
-// DeleteOrganization удаляет организацию по её ID для пользователей с доступом к справочникам.
 func (s *ReferenceService) DeleteOrganization(id string) error {
-	if err := s.requireReferenceManagement(); err != nil {
-		return err
+	if s.server == nil {
+		return errServerReferenceClientNotConfigured
 	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
-	}
-	details := fmt.Sprintf("Удалена организация (ID: %s)", id)
-	store, ok := s.repo.(referenceOutboxStore)
-	if !ok {
-		return errReferenceOutboxStoreRequired
-	}
-	event, buildErr := s.auditEffect("organization:"+uid.String()+":delete", "ORG_DELETE", details)
-	if buildErr != nil {
-		return buildErr
-	}
-	err = store.DeleteOrganizationWithOutbox(uid, []models.OutboxEvent{event})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.DeleteOrganization(ctx, id)
 }
 
-// MergeOrganizations объединяет две записи справочника организаций.
-func (s *ReferenceService) MergeOrganizations(sourceID string, targetID string) error {
-	if err := s.requireReferenceManagement(); err != nil {
-		return err
+func (s *ReferenceService) MergeOrganizations(sourceID, targetID string) error {
+	if s.server == nil {
+		return errServerReferenceClientNotConfigured
 	}
-	sourceUID, err := uuid.Parse(sourceID)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный ID исходной организации", err)
-	}
-	targetUID, err := uuid.Parse(targetID)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный ID целевой организации", err)
-	}
-	if sourceUID == targetUID {
-		return models.NewBadRequest("нельзя объединить организацию саму с собой")
-	}
-	details := fmt.Sprintf("Объединены организации: %s -> %s", sourceID, targetID)
-	store, ok := s.repo.(referenceOutboxStore)
-	if !ok {
-		return errReferenceOutboxStoreRequired
-	}
-	event, buildErr := s.auditEffect("organization:"+sourceUID.String()+":merge:"+targetUID.String(), "ORG_MERGE", details)
-	if buildErr != nil {
-		return buildErr
-	}
-	err = store.MergeOrganizationsWithOutbox(sourceUID, targetUID, []models.OutboxEvent{event})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.MergeOrganizations(ctx, sourceID, targetID)
 }
 
-// === Исполнители резолюции ===
-
-// GetResolutionExecutors возвращает список всех исполнителей резолюции.
 func (s *ReferenceService) GetResolutionExecutors() ([]dto.ResolutionExecutor, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerReferenceClientNotConfigured
 	}
-	res, err := s.repo.GetAllResolutionExecutors()
-	return dto.MapResolutionExecutors(res), err
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.ListResolutionExecutors(ctx, "")
 }
 
-// SearchResolutionExecutors выполняет поиск исполнителей резолюции по имени.
 func (s *ReferenceService) SearchResolutionExecutors(query string) ([]dto.ResolutionExecutor, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerReferenceClientNotConfigured
 	}
-	res, err := s.repo.SearchResolutionExecutors(query)
-	return dto.MapResolutionExecutors(res), err
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.ListResolutionExecutors(ctx, query)
 }
 
-// FindOrCreateResolutionExecutor ищет исполнителя по имени, и создает нового, если он не найден.
 func (s *ReferenceService) FindOrCreateResolutionExecutor(name string) (*dto.ResolutionExecutor, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.server == nil {
+		return nil, errServerReferenceClientNotConfigured
 	}
-	res, err := s.repo.FindOrCreateResolutionExecutor(name)
-	return dto.MapResolutionExecutor(res), err
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.ResolveResolutionExecutor(ctx, name)
 }
 
-// UpdateResolutionExecutor обновляет имя исполнителя резолюции для пользователей с доступом к справочникам.
-func (s *ReferenceService) UpdateResolutionExecutor(id string, name string) error {
-	if err := s.requireReferenceManagement(); err != nil {
-		return err
+func (s *ReferenceService) UpdateResolutionExecutor(id, name string) error {
+	if s.server == nil {
+		return errServerReferenceClientNotConfigured
 	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
-	}
-	details := fmt.Sprintf("Обновлен исполнитель резолюции «%s»", name)
-	store, ok := s.repo.(referenceOutboxStore)
-	if !ok {
-		return errReferenceOutboxStoreRequired
-	}
-	event, buildErr := s.auditEffect("resolution-executor:"+uid.String()+":update:"+uuid.NewString(), "RESEXEC_UPDATE", details)
-	if buildErr != nil {
-		return buildErr
-	}
-	err = store.UpdateResolutionExecutorWithOutbox(uid, name, []models.OutboxEvent{event})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.UpdateResolutionExecutor(ctx, id, name)
 }
 
-// DeleteResolutionExecutor удаляет исполнителя резолюции по его ID для пользователей с доступом к справочникам.
 func (s *ReferenceService) DeleteResolutionExecutor(id string) error {
-	if err := s.requireReferenceManagement(); err != nil {
-		return err
+	if s.server == nil {
+		return errServerReferenceClientNotConfigured
 	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный ID записи справочника", err)
-	}
-	details := fmt.Sprintf("Удален исполнитель резолюции (ID: %s)", id)
-	store, ok := s.repo.(referenceOutboxStore)
-	if !ok {
-		return errReferenceOutboxStoreRequired
-	}
-	event, buildErr := s.auditEffect("resolution-executor:"+uid.String()+":delete", "RESEXEC_DELETE", details)
-	if buildErr != nil {
-		return buildErr
-	}
-	err = store.DeleteResolutionExecutorWithOutbox(uid, []models.OutboxEvent{event})
-	if err != nil {
-		return err
-	}
+	ctx, cancel := referenceContext()
+	defer cancel()
+	return s.server.DeleteResolutionExecutor(ctx, id)
+}
 
-	return nil
+func referenceContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 15*time.Second)
 }

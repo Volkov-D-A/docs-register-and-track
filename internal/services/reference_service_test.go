@@ -1,461 +1,172 @@
 package services
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
-func setupReferenceService(t *testing.T, role string) (*ReferenceService, *mocks.ReferenceStore, *mocks.UserStore, *AuthService) {
-	t.Helper()
-	refRepo := mocks.NewReferenceStore(t)
-	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
-	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
+type testReferenceClient struct {
+	organizations      []dto.Organization
+	organization       *dto.Organization
+	executors          []dto.ResolutionExecutor
+	executor           *dto.ResolutionExecutor
+	err                error
+	method             string
+	query              string
+	id                 string
+	targetID           string
+	name               string
+	contextHasDeadline bool
+}
 
-	if role != "" {
-		password := "Passw0rd!"
-		hash, _ := security.HashPassword(password)
-		user := &models.User{
-			ID:           uuid.New(),
-			Login:        role + "_ref",
-			PasswordHash: hash,
-			IsActive:     true,
-		}
-		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
-		_, err := auth.Login(user.Login, password)
-		require.NoError(t, err)
-		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+func (c *testReferenceClient) capture(ctx context.Context, method string) {
+	c.method = method
+	_, c.contextHasDeadline = ctx.Deadline()
+}
+
+func (c *testReferenceClient) ListOrganizations(ctx context.Context, query string) ([]dto.Organization, error) {
+	c.capture(ctx, "list-organizations")
+	c.query = query
+	return c.organizations, c.err
+}
+func (c *testReferenceClient) ResolveOrganization(ctx context.Context, name string) (*dto.Organization, error) {
+	c.capture(ctx, "resolve-organization")
+	c.name = name
+	return c.organization, c.err
+}
+func (c *testReferenceClient) UpdateOrganization(ctx context.Context, id, name string) error {
+	c.capture(ctx, "update-organization")
+	c.id, c.name = id, name
+	return c.err
+}
+func (c *testReferenceClient) DeleteOrganization(ctx context.Context, id string) error {
+	c.capture(ctx, "delete-organization")
+	c.id = id
+	return c.err
+}
+func (c *testReferenceClient) MergeOrganizations(ctx context.Context, sourceID, targetID string) error {
+	c.capture(ctx, "merge-organizations")
+	c.id, c.targetID = sourceID, targetID
+	return c.err
+}
+func (c *testReferenceClient) ListResolutionExecutors(ctx context.Context, query string) ([]dto.ResolutionExecutor, error) {
+	c.capture(ctx, "list-executors")
+	c.query = query
+	return c.executors, c.err
+}
+func (c *testReferenceClient) ResolveResolutionExecutor(ctx context.Context, name string) (*dto.ResolutionExecutor, error) {
+	c.capture(ctx, "resolve-executor")
+	c.name = name
+	return c.executor, c.err
+}
+func (c *testReferenceClient) UpdateResolutionExecutor(ctx context.Context, id, name string) error {
+	c.capture(ctx, "update-executor")
+	c.id, c.name = id, name
+	return c.err
+}
+func (c *testReferenceClient) DeleteResolutionExecutor(ctx context.Context, id string) error {
+	c.capture(ctx, "delete-executor")
+	c.id = id
+	return c.err
+}
+
+func TestReferenceServiceDelegatesDirectoriesToServer(t *testing.T) {
+	id, targetID := uuid.NewString(), uuid.NewString()
+	client := &testReferenceClient{
+		organizations: []dto.Organization{{ID: id, Name: "Legal"}},
+		organization:  &dto.Organization{ID: id, Name: "Legal"},
+		executors:     []dto.ResolutionExecutor{{ID: id, Name: "Executor"}},
+		executor:      &dto.ResolutionExecutor{ID: id, Name: "Executor"},
 	}
+	service := NewReferenceService(nil)
+	service.SetServerClient(client)
 
-	svc := NewReferenceService(&atomicReferenceStore{ReferenceStore: refRepo}, auth)
-	return svc, refRepo, userRepo, auth
+	organizations, err := service.GetOrganizations()
+	require.NoError(t, err)
+	require.Len(t, organizations, 1)
+	assert.Equal(t, "list-organizations", client.method)
+	assert.Empty(t, client.query)
+
+	_, err = service.SearchOrganizations("Leg")
+	require.NoError(t, err)
+	assert.Equal(t, "Leg", client.query)
+	_, err = service.FindOrCreateOrganization("Legal")
+	require.NoError(t, err)
+	assert.Equal(t, "resolve-organization", client.method)
+	require.NoError(t, service.UpdateOrganization(id, "Compliance"))
+	assert.Equal(t, "update-organization", client.method)
+	require.NoError(t, service.DeleteOrganization(id))
+	assert.Equal(t, "delete-organization", client.method)
+	require.NoError(t, service.MergeOrganizations(id, targetID))
+	assert.Equal(t, "merge-organizations", client.method)
+	assert.Equal(t, targetID, client.targetID)
+
+	executors, err := service.GetResolutionExecutors()
+	require.NoError(t, err)
+	require.Len(t, executors, 1)
+	assert.Equal(t, "list-executors", client.method)
+	_, err = service.SearchResolutionExecutors("Exec")
+	require.NoError(t, err)
+	assert.Equal(t, "Exec", client.query)
+	_, err = service.FindOrCreateResolutionExecutor("Executor")
+	require.NoError(t, err)
+	assert.Equal(t, "resolve-executor", client.method)
+	require.NoError(t, service.UpdateResolutionExecutor(id, "Chief"))
+	assert.Equal(t, "update-executor", client.method)
+	require.NoError(t, service.DeleteResolutionExecutor(id))
+	assert.Equal(t, "delete-executor", client.method)
+	assert.True(t, client.contextHasDeadline)
 }
 
-func setupReferenceServiceWithRoles(t *testing.T, roles []string) (*ReferenceService, *mocks.ReferenceStore, *mocks.UserStore, *AuthService) {
-	t.Helper()
-	refRepo := mocks.NewReferenceStore(t)
+func TestReferenceServicePropagatesServerError(t *testing.T) {
+	want := errors.New("server failed")
+	service := NewReferenceService(nil)
+	service.SetServerClient(&testReferenceClient{err: want})
+
+	items, err := service.GetOrganizations()
+	assert.Nil(t, items)
+	require.ErrorIs(t, err, want)
+	require.ErrorIs(t, service.DeleteResolutionExecutor(uuid.NewString()), want)
+}
+
+func TestReferenceServiceRequiresServerClient(t *testing.T) {
+	service := NewReferenceService(nil)
+
+	items, err := service.GetOrganizations()
+	assert.Nil(t, items)
+	require.ErrorIs(t, err, errServerReferenceClientNotConfigured)
+	require.ErrorIs(t, service.UpdateOrganization(uuid.NewString(), "Legal"), errServerReferenceClientNotConfigured)
+
+	executors, err := service.GetResolutionExecutors()
+	assert.Nil(t, executors)
+	require.ErrorIs(t, err, errServerReferenceClientNotConfigured)
+}
+
+func TestReferenceServiceKeepsDocumentTypesLocalAndReadOnly(t *testing.T) {
 	userRepo := mocks.NewUserStore(t)
+	user := &models.User{ID: uuid.New(), IsActive: true}
+	userRepo.On("GetByID", user.ID).Return(user, nil).Once()
 	auth := NewAuthService(nil, userRepo)
-	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
+	auth.currentUserID = user.ID
+	service := NewReferenceService(auth)
 
-	password := "Passw0rd!"
-	hash, _ := security.HashPassword(password)
-	user := &models.User{
-		ID:           uuid.New(),
-		Login:        "multi_ref_" + uuid.New().String(),
-		PasswordHash: hash,
-		IsActive:     true,
-	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	_, err := auth.Login(user.Login, password)
+	items, err := service.GetDocumentTypes()
 	require.NoError(t, err)
-	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
-
-	return NewReferenceService(&atomicReferenceStore{ReferenceStore: refRepo}, auth), refRepo, userRepo, auth
-}
-
-type atomicReferenceStore struct {
-	*mocks.ReferenceStore
-	effects []models.OutboxEvent
-}
-
-func (s *atomicReferenceStore) record(effects []models.OutboxEvent) {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-}
-func (s *atomicReferenceStore) UpdateOrganizationWithOutbox(id uuid.UUID, name string, effects []models.OutboxEvent) error {
-	s.record(effects)
-	return s.ReferenceStore.UpdateOrganization(id, name)
-}
-func (s *atomicReferenceStore) DeleteOrganizationWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
-	s.record(effects)
-	return s.ReferenceStore.DeleteOrganization(id)
-}
-func (s *atomicReferenceStore) MergeOrganizationsWithOutbox(sourceID, targetID uuid.UUID, effects []models.OutboxEvent) error {
-	s.record(effects)
-	return s.ReferenceStore.MergeOrganizations(sourceID, targetID)
-}
-func (s *atomicReferenceStore) UpdateResolutionExecutorWithOutbox(id uuid.UUID, name string, effects []models.OutboxEvent) error {
-	s.record(effects)
-	return s.ReferenceStore.UpdateResolutionExecutor(id, name)
-}
-func (s *atomicReferenceStore) DeleteResolutionExecutorWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
-	s.record(effects)
-	return s.ReferenceStore.DeleteResolutionExecutor(id)
-}
-
-// === Типы документов ===
-
-func TestReferenceService_GetDocumentTypes(t *testing.T) {
-	// Получение списка всех типов документов из кода.
-	t.Run("успех (авторизован)", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "clerk")
-
-		result, err := svc.GetDocumentTypes()
-		require.NoError(t, err)
-		assert.Len(t, result, len(models.AllowedDocumentTypes()))
-		assert.Equal(t, models.DocumentTypeLetter, result[0].Name)
-		assert.Equal(t, models.DocumentTypeLetter, result[0].ID)
-	})
-
-	t.Run("не авторизован", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "") // без входа
-		result, err := svc.GetDocumentTypes()
-		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestReferenceService_CreateDocumentType(t *testing.T) {
-	// Типы документов заданы в коде и не редактируются через сервис.
-	t.Run("запрещено", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "clerk")
-		result, err := svc.CreateDocumentType("Test")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "не редактируются")
-		assert.Nil(t, result)
-	})
-}
-
-func TestReferenceService_UpdateDocumentType(t *testing.T) {
-	// Типы документов заданы в коде и не редактируются через сервис.
-	t.Run("запрещено", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "clerk")
-		err := svc.UpdateDocumentType("Письмо", "Test")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "не редактируются")
-	})
-}
-
-func TestReferenceService_DeleteDocumentType(t *testing.T) {
-	// Типы документов заданы в коде и не редактируются через сервис.
-	t.Run("запрещено", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "clerk")
-		err := svc.DeleteDocumentType("Письмо")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "не редактируются")
-	})
-}
-
-// === Организации ===
-
-func TestReferenceService_GetOrganizations(t *testing.T) {
-	// Выгрузка полного списка организаций-корреспондентов
-	t.Run("успех", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "clerk")
-		mockValues := []models.Organization{
-			{ID: uuid.New(), Name: "Орг 1"},
-			{ID: uuid.New(), Name: "Орг 2"},
-		}
-		repo.On("GetAllOrganizations").Return(mockValues, nil).Once()
-
-		result, err := svc.GetOrganizations()
-		require.NoError(t, err)
-		assert.Len(t, result, 2)
-	})
-
-	t.Run("не авторизован", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "")
-		result, err := svc.GetOrganizations()
-		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestReferenceService_SearchOrganizations(t *testing.T) {
-	// Поиск внешних организаций по частичному совпадению названия (поиск для поля ввода)
-	t.Run("успех", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "clerk")
-		mockValues := []models.Organization{
-			{ID: uuid.New(), Name: "Поиск Орг"},
-		}
-		repo.On("SearchOrganizations", "Поиск").Return(mockValues, nil).Once()
-
-		result, err := svc.SearchOrganizations("Поиск")
-		require.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Equal(t, "Поиск Орг", result[0].Name)
-	})
-
-	t.Run("не авторизован", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "")
-		result, err := svc.SearchOrganizations("Test")
-		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestReferenceService_FindOrCreateOrganization(t *testing.T) {
-	// Поиск организации по точному названию или её автоматическое добавление в справочник
-	t.Run("успех", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "clerk")
-		name := "Новая Орг"
-		expected := &models.Organization{ID: uuid.New(), Name: name}
-		repo.On("FindOrCreateOrganization", name).Return(expected, nil).Once()
-
-		result, err := svc.FindOrCreateOrganization(name)
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, name, result.Name)
-	})
-
-	t.Run("не авторизован", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "")
-		result, err := svc.FindOrCreateOrganization("Test")
-		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestReferenceService_UpdateOrganization(t *testing.T) {
-	// Изменение официального названия организации-корреспондента
-	idStr := uuid.New().String()
-
-	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		err := svc.UpdateOrganization("invalid-uuid", "Тест")
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID записи справочника")
-	})
-
-	t.Run("запрещено (не админ)", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "clerk")
-		err := svc.UpdateOrganization(idStr, "Тест")
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
-
-	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		repo.On("UpdateOrganization", mock.AnythingOfType("uuid.UUID"), "Тест").Return(nil).Once()
-
-		err := svc.UpdateOrganization(idStr, "Тест")
-		require.NoError(t, err)
-	})
-}
-
-func TestReferenceServiceUpdateOrganizationPassesAuditEffectToAtomicStore(t *testing.T) {
-	organizationID := uuid.New()
-	svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-	repo.On("UpdateOrganization", organizationID, "Новая организация").Return(nil).Once()
-
-	err := svc.UpdateOrganization(organizationID.String(), "Новая организация")
-	require.NoError(t, err)
-	atomicRepo := svc.repo.(*atomicReferenceStore)
-	require.Len(t, atomicRepo.effects, 1)
-	assert.Equal(t, models.OutboxEventAudit, atomicRepo.effects[0].EventType)
-}
-
-func TestReferenceService_DeleteOrganization(t *testing.T) {
-	// Удаление организации из справочника контрагентов
-	idStr := uuid.New().String()
-
-	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		err := svc.DeleteOrganization("invalid-uuid")
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID записи справочника")
-	})
-
-	t.Run("запрещено (не админ)", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "clerk")
-		err := svc.DeleteOrganization(idStr)
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
-
-	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		repo.On("DeleteOrganization", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
-
-		err := svc.DeleteOrganization(idStr)
-		require.NoError(t, err)
-	})
-}
-
-func TestReferenceService_MergeOrganizations(t *testing.T) {
-	sourceID := uuid.New()
-	targetID := uuid.New()
-
-	t.Run("невалидный ID исходной организации", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		err := svc.MergeOrganizations("invalid-uuid", targetID.String())
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID исходной организации")
-	})
-
-	t.Run("невалидный ID целевой организации", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		err := svc.MergeOrganizations(sourceID.String(), "invalid-uuid")
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID целевой организации")
-	})
-
-	t.Run("запрещено (не админ)", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "clerk")
-		err := svc.MergeOrganizations(sourceID.String(), targetID.String())
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-	})
-
-	t.Run("нельзя объединить саму с собой", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		err := svc.MergeOrganizations(sourceID.String(), sourceID.String())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "саму с собой")
-	})
-
-	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		repo.On("MergeOrganizations", sourceID, targetID).Return(nil).Once()
-
-		err := svc.MergeOrganizations(sourceID.String(), targetID.String())
-		require.NoError(t, err)
-	})
-}
-
-// === Исполнители резолюции ===
-
-func TestReferenceService_GetResolutionExecutors(t *testing.T) {
-	t.Run("успех", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "clerk")
-		mockValues := []models.ResolutionExecutor{
-			{ID: uuid.New(), Name: "Исполнитель 1"},
-			{ID: uuid.New(), Name: "Исполнитель 2"},
-		}
-		repo.On("GetAllResolutionExecutors").Return(mockValues, nil).Once()
-
-		result, err := svc.GetResolutionExecutors()
-
-		require.NoError(t, err)
-		require.Len(t, result, 2)
-		assert.Equal(t, "Исполнитель 1", result[0].Name)
-	})
-
-	t.Run("не авторизован", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "")
-
-		result, err := svc.GetResolutionExecutors()
-
-		require.ErrorIs(t, err, ErrNotAuthenticated)
-		assert.Nil(t, result)
-	})
-}
-
-func TestReferenceService_SearchResolutionExecutors(t *testing.T) {
-	t.Run("успех", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "clerk")
-		mockValues := []models.ResolutionExecutor{{ID: uuid.New(), Name: "Исполнитель"}}
-		repo.On("SearchResolutionExecutors", "Исп").Return(mockValues, nil).Once()
-
-		result, err := svc.SearchResolutionExecutors("Исп")
-
-		require.NoError(t, err)
-		require.Len(t, result, 1)
-		assert.Equal(t, "Исполнитель", result[0].Name)
-	})
-
-	t.Run("не авторизован", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "")
-
-		result, err := svc.SearchResolutionExecutors("Исп")
-
-		require.ErrorIs(t, err, ErrNotAuthenticated)
-		assert.Nil(t, result)
-	})
-}
-
-func TestReferenceService_FindOrCreateResolutionExecutor(t *testing.T) {
-	t.Run("успех", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, "clerk")
-		name := "Новый исполнитель"
-		expected := &models.ResolutionExecutor{ID: uuid.New(), Name: name}
-		repo.On("FindOrCreateResolutionExecutor", name).Return(expected, nil).Once()
-
-		result, err := svc.FindOrCreateResolutionExecutor(name)
-
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		assert.Equal(t, name, result.Name)
-	})
-
-	t.Run("не авторизован", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "")
-
-		result, err := svc.FindOrCreateResolutionExecutor("Исполнитель")
-
-		require.ErrorIs(t, err, ErrNotAuthenticated)
-		assert.Nil(t, result)
-	})
-}
-
-func TestReferenceService_UpdateResolutionExecutor(t *testing.T) {
-	idStr := uuid.New().String()
-
-	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-
-		err := svc.UpdateResolutionExecutor("invalid-uuid", "Тест")
-
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID записи справочника")
-	})
-
-	t.Run("запрещено", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "clerk")
-
-		err := svc.UpdateResolutionExecutor(idStr, "Тест")
-
-		require.ErrorIs(t, err, models.ErrForbidden)
-	})
-
-	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		repo.On("UpdateResolutionExecutor", mock.AnythingOfType("uuid.UUID"), "Тест").Return(nil).Once()
-
-		err := svc.UpdateResolutionExecutor(idStr, "Тест")
-
-		require.NoError(t, err)
-	})
-}
-
-func TestReferenceService_DeleteResolutionExecutor(t *testing.T) {
-	idStr := uuid.New().String()
-
-	t.Run("невалидный ID", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-
-		err := svc.DeleteResolutionExecutor("invalid-uuid")
-
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID записи справочника")
-	})
-
-	t.Run("запрещено", func(t *testing.T) {
-		svc, _, _, _ := setupReferenceService(t, "clerk")
-
-		err := svc.DeleteResolutionExecutor(idStr)
-
-		require.ErrorIs(t, err, models.ErrForbidden)
-	})
-
-	t.Run("разрешено пользователю с системным правом references", func(t *testing.T) {
-		svc, repo, _, _ := setupReferenceService(t, models.SystemPermissionReferences)
-		repo.On("DeleteResolutionExecutor", mock.AnythingOfType("uuid.UUID")).Return(nil).Once()
-
-		err := svc.DeleteResolutionExecutor(idStr)
-
-		require.NoError(t, err)
-	})
+	require.Len(t, items, len(models.AllowedDocumentTypes()))
+	assert.Equal(t, models.DocumentTypeLetter, items[0].ID)
+
+	created, err := service.CreateDocumentType("Custom")
+	assert.Nil(t, created)
+	require.Error(t, err)
+	require.Error(t, service.UpdateDocumentType("Письмо", "Custom"))
+	require.Error(t, service.DeleteDocumentType("Письмо"))
 }

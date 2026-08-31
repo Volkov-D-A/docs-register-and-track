@@ -41,6 +41,7 @@ type managementAPI struct {
 	userAccess    userAccessManagementStore
 	substitutions userSubstitutionManagementStore
 	departments   departmentManagementStore
+	references    referenceManagementStore
 	audit         adminAuditStore
 	authUsers     authUserStore
 	authSettings  authSettingsStore
@@ -86,6 +87,8 @@ func newManagementAPI(app *App) *managementAPI {
 	substitutions.SetOutbox(outboxRepo)
 	departments := repository.NewDepartmentRepository(app.db)
 	departments.SetOutbox(outboxRepo)
+	references := repository.NewReferenceRepository(app.db)
+	references.SetOutbox(outboxRepo)
 	return &managementAPI{
 		cfg:           app.cfg,
 		migrations:    app.db,
@@ -95,6 +98,7 @@ func newManagementAPI(app *App) *managementAPI {
 		userAccess:    access,
 		substitutions: substitutions,
 		departments:   departments,
+		references:    references,
 		authUsers:     users,
 		authSettings:  repository.NewSettingsRepository(app.db),
 		sessions:      repository.NewServerSessionRepository(app.db),
@@ -137,6 +141,15 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/departments", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.createDepartment)))
 	mux.Handle("PATCH /api/v1/departments/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateDepartment)))
 	mux.Handle("DELETE /api/v1/departments/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.deleteDepartment)))
+	mux.Handle("GET /api/v1/references/organizations", api.requireSession(http.HandlerFunc(api.listOrganizations)))
+	mux.Handle("POST /api/v1/references/organizations/resolve", api.requireSession(http.HandlerFunc(api.resolveOrganization)))
+	mux.Handle("PATCH /api/v1/references/organizations/{id}", api.requirePermission(models.SystemPermissionReferences, http.HandlerFunc(api.updateOrganization)))
+	mux.Handle("DELETE /api/v1/references/organizations/{id}", api.requirePermission(models.SystemPermissionReferences, http.HandlerFunc(api.deleteOrganization)))
+	mux.Handle("POST /api/v1/references/organizations/{id}/merge", api.requirePermission(models.SystemPermissionReferences, http.HandlerFunc(api.mergeOrganization)))
+	mux.Handle("GET /api/v1/references/resolution-executors", api.requireSession(http.HandlerFunc(api.listResolutionExecutors)))
+	mux.Handle("POST /api/v1/references/resolution-executors/resolve", api.requireSession(http.HandlerFunc(api.resolveResolutionExecutor)))
+	mux.Handle("PATCH /api/v1/references/resolution-executors/{id}", api.requirePermission(models.SystemPermissionReferences, http.HandlerFunc(api.updateResolutionExecutor)))
+	mux.Handle("DELETE /api/v1/references/resolution-executors/{id}", api.requirePermission(models.SystemPermissionReferences, http.HandlerFunc(api.deleteResolutionExecutor)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))
