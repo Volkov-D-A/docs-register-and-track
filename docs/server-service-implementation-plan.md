@@ -9,11 +9,12 @@
 организаций, исполнителей резолюций, номенклатуры, системных настроек и read-only
 операции документов, команды регистрации, изменения и создания
 административных черновиков, поручения и серии поручений, ознакомления,
-персональные события, связи документов, журнал, dashboard, statistics и
-административные audit/outbox операции реализованы через server API.
-Эти сценарии вместе с access summary больше не используют PostgreSQL из
-desktop. Вложения пока продолжают прямой доступ; HTTPS и окончательное закрытие
-инфраструктуры от рабочих мест не выполнены.
+персональные события, связи документов, журнал, dashboard, statistics,
+административные audit/outbox операции и вложения реализованы через server API.
+Первичная настройка администратора и lookup исполнителей также принадлежат
+серверу. Desktop composition root больше не создаёт подключения к PostgreSQL
+или MinIO; HTTPS и сетевое закрытие инфраструктуры от рабочих мест пока не
+выполнены.
 
 Реализовано к текущей точке:
 
@@ -92,6 +93,12 @@ desktop. Вложения пока продолжают прямой досту�
 - административный журнал и состояние outbox читаются через server API;
   terminal failures возвращаются в очередь только защищённой admin-командой,
   а desktop не может создавать или подделывать записи аудита.
+- загрузка и скачивание вложений выполняются потоково через server API, списки,
+  удаление, массовая очистка и сверка storage также принадлежат серверу;
+  request body ограничен системной настройкой, storage path не раскрывается;
+- первичная настройка администратора и список исполнителей перенесены в API;
+  production desktop composition root больше не создаёт PostgreSQL pool,
+  repositories или MinIO client.
 
 Контрольные коммиты:
 
@@ -109,6 +116,7 @@ desktop. Вложения пока продолжают прямой досту�
 - `82218a8` — команды документов через server API и полный PostgreSQL-прогон.
 - `33ac27b` — ознакомления и user events через server API;
 - `0ccee05` — связи, журнал, dashboard и statistics через server API.
+- `f7ff5fa` — административные audit/outbox операции через server API.
 
 | Этап | Состояние | Что осталось |
 |---|---|---|
@@ -118,16 +126,16 @@ desktop. Вложения пока продолжают прямой досту�
 | 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
 | 4. Authentication | Завершён | Только production-like session/load smoke |
 | 5. Business API | Завершён | Пользовательские и административные business/read-модели перенесены |
-| 6. Attachments API | Не начат | Streaming endpoints и limits |
-| 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
+| 6. Attachments API | Завершён | Production-like предельные размеры и cancellation smoke |
+| 7. Close direct access | Частично | Код desktop переключён; остались credentials rotation, firewall и сетевой cutover |
 
-До целевого production-состояния остаются attachments API, HTTPS,
-удаление DB/MinIO credentials с рабочих мест, firewall cutover, реальный
+До целевого production-состояния остаются HTTPS, удаление старых DB/MinIO
+credentials с уже установленных рабочих мест, firewall cutover, реальный
 backup/restore test и production-like load/end-to-end проверки.
 
 ## Точка продолжения
 
-Последний контрольный commit до текущего рабочего среза — `0ccee05`. При возобновлении
+Последний контрольный commit до текущего рабочего среза — `f7ff5fa`. При возобновлении
 работы не нужно заново реализовывать worker, миграции, login/session, password
 flows или основные admin-операции пользователей.
 
@@ -234,10 +242,19 @@ principal и сам владеет storage scan; desktop composition root бол
 requeue выполняется защищённой admin-командой. `LogAction` намеренно не
 экспортируется в server API: desktop не является доверенным producer аудита.
 
+В текущем рабочем срезе вложения перенесены через streaming API. Desktop
+сохраняет только UI-операции выбора, локальной записи и открытия файла; сервер
+владеет metadata, permissions, MinIO и outbox. Одновременно перенесены
+`NeedsInitialSetup`, `InitialSetup` и `GetExecutors`, после чего из production
+desktop composition root удалены PostgreSQL repositories/pool и MinIO client.
+HTTP/client/unit tests, полный Go-прогон, frontend tests/build и PostgreSQL
+integration lifecycle upload/download/delete проходят.
+
 После него рекомендуемый порядок:
 
-1. Вложения через streaming API.
-2. Закрытие прямого PostgreSQL/MinIO.
+1. HTTPS и rollout доверенного CA.
+2. Ротация старых credentials и firewall cutover PostgreSQL/MinIO.
+3. Production-like load, cancellation и backup/restore проверки.
 
 До использования credentials и временных паролей через недоверенную или
 маршрутизируемую сеть необходимо завершить HTTPS в Caddy и установить доверие к
@@ -489,9 +506,10 @@ security-модель реализации.
    - shutdown timeout.
 6. Заменить compile-time constants worker на валидируемые настройки с
    безопасными default и разумными limits.
-7. Удалить outbox consumer из desktop composition root. Desktop всегда остаётся
-   producer: repositories продолжают атомарно добавлять события, но Wails
-   lifecycle не получает worker и не может обрабатывать очередь.
+7. Удалить outbox consumer из desktop composition root. На промежуточном этапе
+   desktop ещё оставался producer через repositories; после полного API cutover
+   repositories также удалены из Wails composition root, и producer теперь
+   находится только на сервере.
 8. Не удалять защиту `FOR UPDATE SKIP LOCKED`: она нужна для отказоустойчивости
    server-worker и защищает от непреднамеренно оставшегося запущенного процесса
    предыдущей desktop-версии, хотя штатный rollout не предполагает параллельных
@@ -549,7 +567,7 @@ payload, и только после успешного cutover новый цен
 - остановка при incompatible/dirty schema;
 - отсутствие credentials в logs и process arguments.
 
-### Критерий завершения
+### Критерий production-завершения
 
 - server worker работает без запущенного Wails-приложения;
 - очередь обрабатывается после рестарта процесса;
@@ -917,7 +935,7 @@ HTTP request не разбивает одну доменную транзакц�
 - проверен согласованный парный rollback либо подготовлен безопасный forward
   fix; runtime protocol fallback отсутствует.
 
-## Этап 6. Перенести вложения за API — не начат
+## Этап 6. Перенести вложения за API — завершён в коде
 
 ### Первый вариант: streaming proxy
 
@@ -925,8 +943,13 @@ Endpoints:
 
 ```text
 POST   /api/v1/documents/{id}/attachments
+GET    /api/v1/documents/{id}/attachments
+POST   /api/v1/assignments/{id}/attachments
+GET    /api/v1/assignments/{id}/attachments
 GET    /api/v1/attachments/{id}/content
 DELETE /api/v1/attachments/{id}
+DELETE /api/v1/admin/attachments?before={timestamp}
+GET    /api/v1/admin/attachments/reconciliation
 ```
 
 Требования:
@@ -943,6 +966,10 @@ DELETE /api/v1/attachments/{id}
 - checksum сохраняется/проверяется, если это входит в утверждённый контракт;
 - reverse proxy limits согласованы с application limits.
 
+В реализации application setting ограничен диапазоном `1..1024` МБ, а Caddy
+задаёт независимый hard ceiling `1GB`; более низкий runtime limit проверяется
+сервером до передачи body в MinIO.
+
 ### Возможная оптимизация: presigned URL
 
 Вводится только после нагрузочных измерений. Сервис выдаёт короткоживущий URL
@@ -957,7 +984,11 @@ DELETE /api/v1/attachments/{id}
 - upload/download/delete и cancellation проверены на предельных размерах;
 - backup/restore согласованности PostgreSQL+MinIO повторно протестирован.
 
-## Этап 7. Закрыть прямой доступ desktop к инфраструктуре — не начат
+Функциональный код и automated integration выполнены. Предельные
+production-like размеры, cancellation через реальный reverse proxy и повторный
+restore остаются release/cutover проверками.
+
+## Этап 7. Закрыть прямой доступ desktop к инфраструктуре — код завершён, инфраструктурный cutover не выполнен
 
 ### Работы
 

@@ -27,12 +27,29 @@ type userManagementStore interface {
 	UpdateProfileWithOutbox(uuid.UUID, models.UpdateProfileRequest, []models.OutboxEvent) error
 }
 
+type executorStore interface {
+	GetExecutors() ([]models.User, error)
+}
+
 type resetPasswordResponse struct {
 	TemporaryPassword string `json:"temporaryPassword"`
 }
 
 func (api *managementAPI) listUsers(w http.ResponseWriter, _ *http.Request) {
 	users, err := api.userCommands.GetAll()
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, dto.MapUsers(users))
+}
+
+func (api *managementAPI) listExecutors(w http.ResponseWriter, _ *http.Request) {
+	if api.executors == nil {
+		writeUserError(w, errors.New("executor store is not configured"))
+		return
+	}
+	users, err := api.executors.GetExecutors()
 	if err != nil {
 		writeUserError(w, err)
 		return

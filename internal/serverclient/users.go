@@ -21,6 +21,18 @@ type UserClient interface {
 	ListSubstitutionCandidates(context.Context) ([]dto.User, error)
 }
 
+type ExecutorClient interface {
+	ListExecutors(context.Context) ([]dto.User, error)
+}
+
+func (c *Client) ListExecutors(ctx context.Context) ([]dto.User, error) {
+	var users []dto.User
+	if err := c.doUserRequest(ctx, http.MethodGet, "/api/v1/users/executors", nil, http.StatusOK, &users); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func (c *Client) ListSubstitutionCandidates(ctx context.Context) ([]dto.User, error) {
 	var users []dto.User
 	if err := c.doUserRequest(ctx, http.MethodGet, "/api/v1/profile/substitution-candidates", nil, http.StatusOK, &users); err != nil {

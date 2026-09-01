@@ -249,11 +249,11 @@ worker, останавливает его перед rollback и включае�
 
 Lifecycle реализован в `internal/background` и используется Wails composition
 root как schema maintenance gate, а standalone `docflow-server` — как lifecycle
-реального worker. Desktop composition root не создаёт outbox consumer:
-repositories продолжают записывать transactional events, а единственный
-consumer находится в `docflow-server` и читает ту же таблицу `event_outbox`
-общей PostgreSQL. Переключение production выполняется централизованно только
-после закрытия уже запущенных процессов предыдущей desktop-версии.
+реального worker. Desktop composition root не создаёт PostgreSQL repositories,
+MinIO client или outbox consumer. Команды и transactional events фиксируются
+сервером, а единственный consumer читает `event_outbox` внутри server process.
+Переключение production выполняется централизованно только после закрытия уже
+запущенных процессов предыдущей desktop-версии.
 
 На время работы consumer удерживает отдельный PostgreSQL advisory lease на
 выделенном соединении. Management API сначала останавливает consumer и
@@ -264,9 +264,8 @@ consumer находится в `docflow-server` и читает ту же таб
 `version`, а также liveness/readiness и административный API миграций. Он проверяет актуальность embedded migrations,
 подключение к PostgreSQL и MinIO, использует graceful shutdown и отправляет
 в Seq только значимые operational events, warnings и errors. Периодические
-metric snapshots в operational log не отправляются. Desktop всё ещё напрямую
-работает с PostgreSQL и MinIO для бизнес-операций, но управление миграциями уже
-переведено на HTTP API сервиса.
+metric snapshots в operational log не отправляются. Desktop выполняет все
+business, attachment и migration operations через HTTP API сервиса.
 
 Container image собирается через `build/server/Dockerfile` на distroless runtime
 под непривилегированным пользователем. В image не копируются production config
@@ -368,10 +367,9 @@ development.
 Secrets:
 
 - production secrets never committed;
-- `ENCRYPTION_KEY` читается из runtime environment или подставляется в бинарник через ldflags;
-- PostgreSQL/MinIO secrets should use `ENC:` encrypted values;
-- `ENCRYPTION_KEY` currently embedded through Go ldflags, so release artifacts are sensitive;
-- `.env`, `config.json`, `/etc/docflow/backup.env` и CIFS credentials file должны иметь `0600` или эквивалентный строгий ACL;
+- PostgreSQL/MinIO credentials передаются только серверу через runtime environment;
+- desktop `config.json` не содержит PostgreSQL/MinIO credentials;
+- `.env`, `/etc/docflow/backup.env` и CIFS credentials file должны иметь `0600` или эквивалентный строгий ACL;
 - generated release evidence and logs must not contain passwords, tokens or full encrypted secret material.
 
 Example configs:
@@ -797,13 +795,12 @@ PostgreSQL из `docker-compose.integration.yaml`, передаёт безопа
 Для ручной отладки доступны `make integration-db-up` и
 `make integration-db-down`.
 
-Integration coverage composition root собирает Wails options с реальной
-тестовой PostgreSQL и поддельным object storage, без запуска GUI и MinIO. Тест
-проверяет состав bindings, отсутствие outbox consumption в desktop, сохранение
-pending event, закрытие database pool и logger callback через `OnShutdown`.
-Отдельный server integration test проверяет обработку события без Wails.
-Production `NewWailsOptions` использует те же package-private фабрики с
-реальными PostgreSQL, MinIO и theme service.
+Integration coverage composition root собирает Wails options только с server
+URL и локальным theme service, без PostgreSQL и MinIO. Тест проверяет состав
+bindings, startup/shutdown и logger callback. Отдельные server integration tests
+проверяют обработку outbox и полный lifecycle вложения на реальной PostgreSQL с
+поддельным object storage. Production `NewWailsOptions` создаёт API adapters и
+локальные UI services, но не infrastructure clients.
 
 ## Performance Budgets
 

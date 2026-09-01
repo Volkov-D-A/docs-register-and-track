@@ -39,6 +39,20 @@ func TestUserClientUsesBearerAndTypedListResponse(t *testing.T) {
 	assert.Equal(t, "user", users[0].Login)
 }
 
+func TestUserClientListsExecutorsThroughAuthenticatedEndpoint(t *testing.T) {
+	client := userClientWithToken(t, func(r *http.Request) (*http.Response, error) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/api/v1/users/executors", r.URL.Path)
+		assert.Equal(t, "Bearer session-token", r.Header.Get("Authorization"))
+		return response(http.StatusOK, `[{"id":"`+uuid.NewString()+`","fullName":"Executor"}]`), nil
+	})
+
+	users, err := client.ListExecutors(context.Background())
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	assert.Equal(t, "Executor", users[0].FullName)
+}
+
 func TestUserClientCreateDoesNotRequireDesktopGeneratedPassword(t *testing.T) {
 	client := userClientWithToken(t, func(r *http.Request) (*http.Response, error) {
 		var body map[string]any

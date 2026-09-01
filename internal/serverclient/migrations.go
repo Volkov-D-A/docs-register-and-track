@@ -47,7 +47,7 @@ func NewWithOptions(rawURL string, options Options) (*Client, error) {
 	if parsed.Scheme == "http" && !isLoopbackHost(parsed.Hostname()) && !options.AllowInsecureHTTP {
 		return nil, fmt.Errorf("server URL must use https unless it points to localhost")
 	}
-	return &Client{baseURL: rawURL, http: &http.Client{Timeout: 150 * time.Second}}, nil
+	return &Client{baseURL: rawURL, http: &http.Client{Timeout: 3 * time.Minute}}, nil
 }
 
 func isLoopbackHost(host string) bool {

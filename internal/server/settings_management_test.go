@@ -67,6 +67,22 @@ func TestSettingsReadAPIUsesSessionAndAdminBoundaries(t *testing.T) {
 	assert.Zero(t, store.getAllCalls)
 }
 
+func TestSettingsAdminAPIRejectsUnsafeAttachmentLimit(t *testing.T) {
+	api, _, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
+	store := &fakeSettingsManagementStore{settings: map[string]models.SystemSetting{
+		"max_file_size_mb": {Key: "max_file_size_mb", Value: "15"},
+	}}
+	api.settings = store
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/settings/max_file_size_mb", strings.NewReader(`{"value":"2048"}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+
+	api.Handler().ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.Empty(t, store.updatedKey)
+}
+
 func TestSettingsAdminAPIUpdatesWithAuditAndSkipsUnchangedValue(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
 	store := &fakeSettingsManagementStore{settings: map[string]models.SystemSetting{

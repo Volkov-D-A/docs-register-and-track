@@ -8,9 +8,10 @@ Wails desktop application for registering and tracking documents. The app uses:
 - MinIO for attachments;
 - Seq for technical logs.
 
-`docflow-server` owns transactional outbox consumption, database migrations and
-desktop authentication. Desktop access to PostgreSQL and MinIO remains only for
-business scenarios that have not yet moved to HTTP API.
+`docflow-server` owns PostgreSQL, MinIO, transactional outbox consumption,
+database migrations, authentication and all business operations. The desktop
+uses the versioned HTTP API and does not create database or object-storage
+connections.
 
 The repository keeps application code and a compact maintained documentation set. Review findings and their current status are tracked in [`docs/bugs.md`](docs/bugs.md); production readiness is determined by the release gate plus environment-specific smoke and recovery checks.
 
@@ -32,7 +33,7 @@ cp config.example.json config/config.json
 make storage-up
 ```
 
-`docker-compose.yaml`, `.envExample` and `config.example.json` are local development examples only. Do not use their localhost endpoints, disabled TLS settings or example secrets as production defaults.
+`docker-compose.yaml`, `.envExample` and `config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains the server URL and optional technical logging settings, but no PostgreSQL or MinIO credentials.
 
 Set the immutable `DOCFLOW_SERVER_VERSION` in `.env` next to the versions of
 PostgreSQL, MinIO, Seq and Caddy. Compose always pulls
@@ -60,6 +61,11 @@ Authentication uses `POST /api/v1/auth/login`, opaque bearer sessions and
 raw token remains in desktop process memory and is revoked by
 `POST /api/v1/auth/logout`. Session lifetime is configured with
 `DOCFLOW_AUTH_SESSION_TTL_HOURS` (12 hours by default).
+
+For an empty database the desktop checks `GET /api/v1/auth/setup-required` and
+creates the first administrator through the one-time
+`POST /api/v1/auth/setup` command. The desktop never connects to PostgreSQL for
+bootstrap.
 
 Password changes also go through the service:
 `POST /api/v1/auth/change-password` requires the current bearer session, while
@@ -106,8 +112,9 @@ The same database and MinIO credentials are used both to initialize the local
 containers and to connect `docflow-server`; no duplicate service credentials
 are required. The example contains placeholders and is not a production
 secret-delivery mechanism. The server reads its configuration exclusively from
-environment variables. Desktop builds continue to enqueue transactional events
-but never run an outbox consumer; `docflow-server` is required to deliver them.
+environment variables. Desktop builds neither write transactional events
+directly nor run an outbox consumer; `docflow-server` owns both production and
+delivery.
 
 Build the server container locally:
 

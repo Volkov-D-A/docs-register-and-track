@@ -1,20 +1,5 @@
 {
     "_comment": "LOCAL DEVELOPMENT EXAMPLE ONLY. Do not use these localhost endpoints, disabled TLS settings or example encrypted secrets as production defaults.",
-    "database": {
-        "host": "localhost",
-        "port": 5432,
-        "user": "docflow",
-        "password": "ENC:3/M3ou/s7f5KNUfWnGIoYyALYt/9WyZwHd3gvK77nmKzSrWZEXwC4uohCKA=",
-        "dbname": "docflow",
-        "sslmode": "disable"
-    },
-    "minio": {
-        "endpoint": "localhost:9000",
-        "accessKeyId": "docflow",
-        "secretAccessKey": "ENC:p12cNUfeurZL+ymd/XfAE3fPmkxBdHk+nAeDNKGhJsCT7rkrUQ6+zV7nMmU=",
-        "useSSL": false,
-        "bucketName": "docflow-attachments"
-    },
     "seq": {
         "url": "http://localhost:5341",
         "enabled": true

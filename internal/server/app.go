@@ -28,7 +28,7 @@ type App struct {
 	metrics   *observability.Registry
 	lifecycle *background.Lifecycle
 	http      *http.Server
-	storage   services.StorageInfoProvider
+	storage   serverStorage
 	closeOnce sync.Once
 }
 
@@ -40,6 +40,7 @@ type dependencies struct {
 type serverStorage interface {
 	outbox.FileDeleter
 	services.StorageInfoProvider
+	services.FileStorage
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -112,7 +113,9 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		Addr:              listenAddress,
 		Handler:           newManagementAPI(app).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
+		// Attachment uploads are streamed and may legitimately outlive ordinary
+		// JSON requests; request-local contexts still cancel abandoned transfers.
+		ReadTimeout: 3 * time.Minute,
 		// Schema changes can legitimately take longer than ordinary requests.
 		// The desktop client still supplies a bounded per-operation context.
 		WriteTimeout:   3 * time.Minute,

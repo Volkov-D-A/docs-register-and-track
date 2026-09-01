@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"testing"
 	"time"
 
@@ -20,6 +21,12 @@ type testStorage struct{}
 
 func (testStorage) DeleteFile(context.Context, string) error                { return nil }
 func (testStorage) RefreshStorageUsage(context.Context) (int, int64, error) { return 0, 0, nil }
+func (testStorage) UploadFile(context.Context, string, io.Reader, int64, string) error {
+	return nil
+}
+func (testStorage) DownloadFileToWriter(context.Context, string, io.Writer, int64) error {
+	return nil
+}
 
 func TestServerProcessesOutboxWithoutWailsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)

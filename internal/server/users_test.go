@@ -57,6 +57,10 @@ type fakeUserManagementStore struct {
 	effects       []models.OutboxEvent
 }
 
+type fakeExecutorStore struct{ users []models.User }
+
+func (s fakeExecutorStore) GetExecutors() ([]models.User, error) { return s.users, nil }
+
 func (s *fakeUserManagementStore) GetAll() ([]models.User, error) { return s.users, nil }
 func (s *fakeUserManagementStore) GetActiveUsers() ([]models.User, error) {
 	result := make([]models.User, 0, len(s.users))
@@ -134,6 +138,22 @@ func TestUserAPIRequiresAdminPermission(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, response.Code)
 	assert.Contains(t, response.Body.String(), `"code":"forbidden"`)
+}
+
+func TestExecutorLookupRequiresSessionButNotAdmin(t *testing.T) {
+	api, _, token := authenticatedUserAPI(t, nil)
+	api.executors = fakeExecutorStore{users: []models.User{{ID: uuid.New(), FullName: "Executor", IsActive: true}}}
+
+	unauthorized := httptest.NewRecorder()
+	api.Handler().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/users/executors", nil))
+	assert.Equal(t, http.StatusUnauthorized, unauthorized.Code)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/users/executors", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.Contains(t, response.Body.String(), "Executor")
 }
 
 func TestUserAPIKeepsParallelRequestPrincipalsIsolated(t *testing.T) {

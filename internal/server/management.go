@@ -39,6 +39,7 @@ type managementAPI struct {
 	lifecycle                          migrationLifecycle
 	users                              adminUserStore
 	userCommands                       userManagementStore
+	executors                          executorStore
 	userAccess                         userAccessManagementStore
 	substitutions                      userSubstitutionManagementStore
 	departments                        departmentManagementStore
@@ -55,10 +56,12 @@ type managementAPI struct {
 	journal                            func(*models.User) journalAPI
 	dashboard                          func(*models.User) dashboardAPI
 	statistics                         func(*models.User) statisticsAPI
+	attachments                        func(*models.User) attachmentAPI
 	adminAudit                         func(*models.User) adminAuditAPI
 	outboxAdmin                        func(*models.User) outboxAdminAPI
 	audit                              adminAuditStore
 	authUsers                          authUserStore
+	initialSetup                       initialSetupStore
 	authSettings                       authSettingsStore
 	sessions                           authSessionStore
 	acquireLease                       func(context.Context) (func(), bool, error)
@@ -119,6 +122,8 @@ func newManagementAPI(app *App) *managementAPI {
 	dashboard := repository.NewDashboardRepository(app.db)
 	statistics := repository.NewStatisticsRepository(app.db)
 	adminAudit := repository.NewAdminAuditLogRepository(app.db)
+	attachmentRepo := repository.NewAttachmentRepository(app.db)
+	attachmentRepo.SetOutbox(outboxRepo)
 	documents := repository.NewDocumentRepository(app.db)
 	queryRegistry := services.NewDocumentKindQueryRegistry(
 		services.NewIncomingLetterQueryHandler(repository.NewIncomingDocumentRepository(app.db)),
@@ -140,6 +145,7 @@ func newManagementAPI(app *App) *managementAPI {
 		lifecycle:     app.lifecycle,
 		users:         users,
 		userCommands:  users,
+		executors:     users,
 		userAccess:    access,
 		substitutions: substitutions,
 		departments:   departments,
@@ -226,6 +232,15 @@ func newManagementAPI(app *App) *managementAPI {
 			service.SetOperationMetrics(app.metrics)
 			return service
 		},
+		attachments: func(user *models.User) attachmentAPI {
+			principal := requestDocumentPrincipal{user: user}
+			documentAccess := services.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
+			service := services.NewServerAttachmentService(attachmentRepo, services.NewServerSettingsService(settings), principal, app.storage, documentAccess)
+			service.SetAssignmentStore(assignments)
+			service.SetSubstitutionStore(substitutions)
+			service.SetOperationMetrics(app.metrics)
+			return service
+		},
 		adminAudit: func(user *models.User) adminAuditAPI {
 			return services.NewAdminAuditLogService(adminAudit, requestDocumentPrincipal{user: user})
 		},
@@ -233,6 +248,7 @@ func newManagementAPI(app *App) *managementAPI {
 			return services.NewOutboxAdminService(outboxRepo, requestDocumentPrincipal{user: user})
 		},
 		authUsers:    users,
+		initialSetup: users,
 		authSettings: settings,
 		sessions:     repository.NewServerSessionRepository(app.db),
 		audit:        repository.NewAdminAuditLogRepository(app.db),
@@ -258,11 +274,14 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.HandleFunc("GET /health/live", api.live)
 	mux.HandleFunc("GET /health/ready", api.ready)
 	mux.HandleFunc("POST /api/v1/auth/login", api.login)
+	mux.HandleFunc("GET /api/v1/auth/setup-required", api.setupRequired)
+	mux.HandleFunc("POST /api/v1/auth/setup", api.initialSetupAdmin)
 	mux.HandleFunc("POST /api/v1/auth/change-required-password", api.changeRequiredPassword)
 	mux.Handle("POST /api/v1/auth/logout", api.requireSession(http.HandlerFunc(api.logout)))
 	mux.Handle("GET /api/v1/auth/me", api.requireSession(http.HandlerFunc(api.me)))
 	mux.Handle("POST /api/v1/auth/change-password", api.requireSession(http.HandlerFunc(api.changePassword)))
 	mux.Handle("GET /api/v1/users", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.listUsers)))
+	mux.Handle("GET /api/v1/users/executors", api.requireSession(http.HandlerFunc(api.listExecutors)))
 	mux.Handle("POST /api/v1/users", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.createUser)))
 	mux.Handle("PATCH /api/v1/users/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateUser)))
 	mux.Handle("POST /api/v1/users/{id}/reset-password", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.resetUserPassword)))
@@ -340,6 +359,14 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/admin/outbox/stats", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getOutboxStats)))
 	mux.Handle("GET /api/v1/admin/outbox/failed", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getFailedOutboxEvents)))
 	mux.Handle("POST /api/v1/admin/outbox/{id}/requeue", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.requeueOutboxEvent)))
+	mux.Handle("POST /api/v1/documents/{id}/attachments", api.requireSession(http.HandlerFunc(api.uploadDocumentAttachment)))
+	mux.Handle("GET /api/v1/documents/{id}/attachments", api.requireSession(http.HandlerFunc(api.listDocumentAttachments)))
+	mux.Handle("POST /api/v1/assignments/{id}/attachments", api.requireSession(http.HandlerFunc(api.uploadAssignmentAttachment)))
+	mux.Handle("GET /api/v1/assignments/{id}/attachments", api.requireSession(http.HandlerFunc(api.listAssignmentAttachments)))
+	mux.Handle("GET /api/v1/attachments/{id}/content", api.requireSession(http.HandlerFunc(api.downloadAttachment)))
+	mux.Handle("DELETE /api/v1/attachments/{id}", api.requireSession(http.HandlerFunc(api.deleteAttachment)))
+	mux.Handle("DELETE /api/v1/admin/attachments", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.bulkDeleteAttachments)))
+	mux.Handle("GET /api/v1/admin/attachments/reconciliation", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.reconcileAttachments)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))

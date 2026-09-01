@@ -3,5 +3,8 @@
 }
 
 :80 {
+	request_body {
+		max_size 1GB
+	}
 	reverse_proxy docflow-server:8080
 }

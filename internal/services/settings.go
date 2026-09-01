@@ -16,18 +16,30 @@ import (
 
 const rollbackMigrationConfirmationPhrase = "ОТКАТ МИГРАЦИИ"
 
+const (
+	DefaultAttachmentSizeMB = 15
+	MaximumAttachmentSizeMB = 1024
+)
+
 // SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {
 	authService     *AuthService
 	schemaLifecycle SchemaLifecycle
 	migrationClient serverclient.MigrationClient
 	settingsClient  serverclient.SettingsClient
+	settingsStore   SettingsStore
 	migrationMu     sync.Mutex
 }
 
 // NewSettingsService создает новый экземпляр SettingsService.
 func NewSettingsService(authService *AuthService) *SettingsService {
 	return &SettingsService{authService: authService}
+}
+
+// NewServerSettingsService provides request-local business services with
+// direct access to the server-owned settings repository.
+func NewServerSettingsService(store SettingsStore) *SettingsService {
+	return &SettingsService{settingsStore: store}
 }
 
 func (s *SettingsService) SetMigrationClient(client serverclient.MigrationClient) {
@@ -144,14 +156,14 @@ func (s *SettingsService) currentMigrationLogin(password string) (string, error)
 func (s *SettingsService) GetMaxFileSize() (int64, error) {
 	setting, err := s.getSetting("max_file_size_mb")
 	if err != nil {
-		return 15 * 1024 * 1024, nil
+		return DefaultAttachmentSizeMB * 1024 * 1024, nil
 	}
 	if setting == nil || strings.TrimSpace(setting.Value) == "" {
-		return 15 * 1024 * 1024, nil
+		return DefaultAttachmentSizeMB * 1024 * 1024, nil
 	}
 	mb, err := strconv.Atoi(setting.Value)
-	if err != nil {
-		return 15 * 1024 * 1024, nil
+	if err != nil || mb < 1 || mb > MaximumAttachmentSizeMB {
+		return DefaultAttachmentSizeMB * 1024 * 1024, nil
 	}
 	return int64(mb) * 1024 * 1024, nil
 }
@@ -249,6 +261,9 @@ func migrationCompatibilityAppError(err error) error {
 }
 
 func (s *SettingsService) getSetting(key string) (*models.SystemSetting, error) {
+	if s.settingsStore != nil {
+		return s.settingsStore.Get(key)
+	}
 	if s.settingsClient == nil {
 		return nil, models.NewConflict("Клиент настроек docflow-server не настроен")
 	}

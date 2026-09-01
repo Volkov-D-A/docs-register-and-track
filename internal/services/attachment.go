@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"mime"
 	"os"
@@ -22,13 +23,14 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // AttachmentService предоставляет бизнес-логику для работы с вложениями (файлами) документов.
 type AttachmentService struct {
 	repo             AttachmentStore
-	settingsService  *SettingsService
-	authService      *AuthService
+	settingsService  AttachmentSettings
+	authService      AttachmentPrincipal
 	fileStorage      FileStorage
 	access           *DocumentAccessService
 	lifecycle        *OperationLifecycle
@@ -38,6 +40,26 @@ type AttachmentService struct {
 	assignments      AssignmentStore
 	substitutions    UserSubstitutionStore
 	openFilesDialog  func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error)
+	server           serverclient.AttachmentClient
+}
+
+type AttachmentSettings interface {
+	GetMaxFileSize() (int64, error)
+	GetAllowedFileTypes() ([]string, error)
+	IsAssignmentCompletionAttachmentsEnabled() bool
+}
+
+type AttachmentPrincipal interface {
+	GetCurrentUser() (*dto.User, error)
+	GetCurrentUserUUID() (uuid.UUID, error)
+	RequireSystemPermission(string) error
+}
+
+// NewAttachmentServiceWithClient creates the desktop adapter. Native file
+// dialogs and local downloads stay in desktop, while all protected data and
+// object-storage operations are performed by docflow-server.
+func NewAttachmentServiceWithClient(client serverclient.AttachmentClient) *AttachmentService {
+	return &AttachmentService{server: client, openFilesDialog: wailsruntime.OpenMultipleFilesDialog}
 }
 
 type attachmentStoragePathStore interface {
@@ -50,6 +72,11 @@ type objectNameLister interface {
 
 // NewAttachmentService создает новый экземпляр AttachmentService.
 func NewAttachmentService(repo AttachmentStore, settingsService *SettingsService, authService *AuthService, fs FileStorage, access *DocumentAccessService) *AttachmentService {
+	return NewServerAttachmentService(repo, settingsService, authService, fs, access)
+}
+
+// NewServerAttachmentService creates the request-scoped server implementation.
+func NewServerAttachmentService(repo AttachmentStore, settingsService AttachmentSettings, authService AttachmentPrincipal, fs FileStorage, access *DocumentAccessService) *AttachmentService {
 	service := &AttachmentService{
 		repo:            repo,
 		settingsService: settingsService,
@@ -78,6 +105,11 @@ func (s *AttachmentService) SetSubstitutionStore(store UserSubstitutionStore) {
 // ReconcileStorage compares database metadata and MinIO without modifying
 // either side. It is intentionally available only to administrators.
 func (s *AttachmentService) ReconcileStorage() (*models.AttachmentStorageReconciliation, error) {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.ReconcileAttachmentStorage(ctx)
+	}
 	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
@@ -148,7 +180,7 @@ func (s *AttachmentService) Upload(documentIDStr string) ([]dto.Attachment, erro
 		}
 		attachments := make([]dto.Attachment, 0, len(paths))
 		for _, path := range paths {
-			attachment, err := s.uploadPath(documentIDStr, path)
+			attachment, err := s.uploadSelectedPath(documentIDStr, "", path)
 			if err != nil {
 				return nil, err
 			}
@@ -164,15 +196,17 @@ func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) ([]dto.A
 		if s.uiContext == nil {
 			return nil, fmt.Errorf("file picker is not initialized")
 		}
-		if s.assignments == nil {
+		if s.server == nil && s.assignments == nil {
 			return nil, fmt.Errorf("assignment store is not configured")
 		}
 		assignmentID, err := uuid.Parse(assignmentIDStr)
 		if err != nil {
 			return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
 		}
-		if _, _, err = s.requireAssignmentUploadAccess(assignmentID); err != nil {
-			return nil, err
+		if s.server == nil {
+			if _, _, err = s.requireAssignmentUploadAccess(assignmentID); err != nil {
+				return nil, err
+			}
 		}
 		paths, err := s.openFilesDialog(s.uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для отчёта об исполнении"})
 		if err != nil {
@@ -180,7 +214,7 @@ func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) ([]dto.A
 		}
 		items := make([]dto.Attachment, 0, len(paths))
 		for _, path := range paths {
-			item, uploadErr := s.uploadPathForAssignment(assignmentID, path)
+			item, uploadErr := s.uploadSelectedPath("", assignmentID.String(), path)
 			if uploadErr != nil {
 				return nil, uploadErr
 			}
@@ -188,6 +222,31 @@ func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) ([]dto.A
 		}
 		return items, nil
 	})
+}
+
+func (s *AttachmentService) uploadSelectedPath(documentID, assignmentID, path string) (*dto.Attachment, error) {
+	if s.server == nil {
+		if assignmentID != "" {
+			id, err := uuid.Parse(assignmentID)
+			if err != nil {
+				return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
+			}
+			return s.uploadPathForAssignment(id, path)
+		}
+		return s.uploadPath(documentID, path)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("не удалось открыть выбранный файл", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, models.NewBadRequest("выбранный путь не является обычным файлом")
+	}
+	ctx, release := serviceOperationContext(s.lifecycle)
+	defer release()
+	return s.server.UploadAttachment(ctx, documentID, assignmentID, filepath.Base(path), info.Size(), file)
 }
 
 func (s *AttachmentService) requireAssignmentUploadAccess(assignmentID uuid.UUID) (*models.Assignment, bool, error) {
@@ -234,11 +293,45 @@ func (s *AttachmentService) uploadPathForAssignment(assignmentID uuid.UUID, path
 	return s.uploadPathLinked(assignment.DocumentID.String(), path, &assignmentID)
 }
 
+// UploadAssignmentContent resolves the assignment server-side and binds the
+// uploaded object to its current iteration.
+func (s *AttachmentService) UploadAssignmentContent(assignmentIDStr, filename string, size int64, content io.Reader) (*dto.Attachment, error) {
+	assignmentID, err := uuid.Parse(assignmentIDStr)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
+	}
+	assignment, _, err := s.requireAssignmentUploadAccess(assignmentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.UploadContent(assignment.DocumentID.String(), &assignmentID, filename, size, content)
+}
+
 func (s *AttachmentService) uploadPath(documentIDStr, path string) (*dto.Attachment, error) {
 	return s.uploadPathLinked(documentIDStr, path, nil)
 }
 
 func (s *AttachmentService) uploadPathLinked(documentIDStr, path string, assignmentID *uuid.UUID) (*dto.Attachment, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("не удалось открыть выбранный файл", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, models.NewBadRequest("выбранный путь не является обычным файлом")
+	}
+	return s.UploadContent(documentIDStr, assignmentID, filepath.Base(path), info.Size(), file)
+}
+
+// MaxUploadSize returns the application limit used by the HTTP body guard.
+func (s *AttachmentService) MaxUploadSize() int64 {
+	maxSize, _ := s.settingsService.GetMaxFileSize()
+	return maxSize
+}
+
+// UploadContent validates and streams one request body into object storage.
+func (s *AttachmentService) UploadContent(documentIDStr string, assignmentID *uuid.UUID, filename string, size int64, content io.Reader) (*dto.Attachment, error) {
 	ctx, release := serviceOperationContext(s.lifecycle)
 	defer release()
 
@@ -260,30 +353,23 @@ func (s *AttachmentService) uploadPathLinked(documentIDStr, path string, assignm
 		if !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
 			return nil, models.NewForbidden("загрузка файлов при завершении поручения отключена в настройках")
 		}
-
-		hasAssignmentAccess, err := s.access.HasAssignmentAccess(documentID)
-		if err != nil {
-			return nil, err
+		hasAssignmentAccess, accessErr := s.access.HasAssignmentAccess(documentID)
+		if accessErr != nil {
+			return nil, accessErr
 		}
 		if !hasAssignmentAccess {
 			return nil, models.ErrForbidden
 		}
 	}
 
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, models.NewBadRequestWrapped("не удалось открыть выбранный файл", err)
+	filename = safeDownloadFilename(filename)
+	if filename == "attachment" || len(filename) > 255 || size < 0 || content == nil {
+		return nil, models.NewBadRequest("файл для загрузки указан некорректно")
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		return nil, models.NewBadRequest("выбранный путь не является обычным файлом")
-	}
-	filename := filepath.Base(path)
 
 	// Проверка размера до чтения содержимого.
 	maxSize, _ := s.settingsService.GetMaxFileSize() // returns bytes
-	if info.Size() > maxSize {
+	if size > maxSize {
 		return nil, models.NewBadRequest(fmt.Sprintf("размер файла превышает максимально допустимый (%d МБ)", maxSize/(1024*1024)))
 	}
 
@@ -320,7 +406,7 @@ func (s *AttachmentService) uploadPathLinked(documentIDStr, path string, assignm
 			}
 		}()
 	}
-	if err := s.fileStorage.UploadFile(ctx, objectName, file, info.Size(), contentType); err != nil {
+	if err := s.fileStorage.UploadFile(ctx, objectName, io.LimitReader(content, size), size, contentType); err != nil {
 		return nil, fmt.Errorf("failed to upload file to storage: %v", err)
 	}
 
@@ -334,7 +420,7 @@ func (s *AttachmentService) uploadPathLinked(documentIDStr, path string, assignm
 		DocumentID:   documentID,
 		AssignmentID: assignmentID,
 		Filename:     filename,
-		FileSize:     info.Size(),
+		FileSize:     size,
 		ContentType:  contentType,
 		StoragePath:  objectName,
 		UploadedBy:   userID,
@@ -390,6 +476,11 @@ type assignmentAttachmentStore interface {
 // GetAssignmentFiles is manager-only because it is used by the protected
 // history view of a recurring series.
 func (s *AttachmentService) GetAssignmentFiles(assignmentIDStr string) ([]dto.Attachment, error) {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.ListAssignmentAttachments(ctx, assignmentIDStr)
+	}
 	assignmentID, err := uuid.Parse(assignmentIDStr)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
@@ -421,6 +512,11 @@ func (s *AttachmentService) GetAssignmentFiles(assignmentIDStr string) ([]dto.At
 // GetList — получить вложения документа
 func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, error) {
 	return measureOperation(s.metrics, "attachments.get_list", func() ([]dto.Attachment, error) {
+		if s.server != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			return s.server.ListDocumentAttachments(ctx, documentIDStr)
+		}
 		documentID, err := uuid.Parse(documentIDStr)
 		if err != nil {
 			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
@@ -439,6 +535,11 @@ func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, err
 
 // Delete — удалить вложение
 func (s *AttachmentService) Delete(idStr string) error {
+	if s.server != nil {
+		ctx, release := serviceOperationContext(s.lifecycle)
+		defer release()
+		return s.server.DeleteAttachment(ctx, idStr)
+	}
 	_, release := serviceOperationContext(s.lifecycle)
 	defer release()
 
@@ -470,11 +571,61 @@ func (s *AttachmentService) Delete(idStr string) error {
 	return s.repo.MarkDeletingWithEffects(*attachment, []models.OutboxEvent{event})
 }
 
+// AuthorizeDownload resolves metadata after enforcing document access. It is
+// used only inside the server before response headers are written.
+func (s *AttachmentService) AuthorizeDownload(idStr string) (*models.Attachment, error) {
+	if err := s.access.RequireDomainRead(); err != nil {
+		return nil, err
+	}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID файла", err)
+	}
+	attachment, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if attachment == nil {
+		return nil, models.NewNotFound("вложение не найдено")
+	}
+	if err := s.access.RequireReadAnyType(attachment.DocumentID); err != nil {
+		return nil, err
+	}
+	return attachment, nil
+}
+
+// StreamAttachment writes bounded object content after AuthorizeDownload.
+func (s *AttachmentService) StreamAttachment(ctx context.Context, attachment *models.Attachment, writer io.Writer) error {
+	if attachment == nil {
+		return models.NewNotFound("вложение не найдено")
+	}
+	maxSize, _ := s.settingsService.GetMaxFileSize()
+	if err := s.fileStorage.DownloadFileToWriter(ctx, attachment.StoragePath, writer, maxSize); err != nil {
+		return err
+	}
+	return nil
+}
+
 // DownloadToDisk — сохранить файл в папку «Загрузки» пользователя и вернуть полный путь
 func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 	return measureOperation(s.metrics, "attachments.download", func() (string, error) {
 		ctx, release := serviceOperationContext(s.lifecycle)
 		defer release()
+		if s.server != nil {
+			attachment, content, err := s.server.GetAttachmentContent(ctx, idStr)
+			if err != nil {
+				return "", err
+			}
+			defer content.Close()
+			downloadDir, err := s.getDownloadDir()
+			if err != nil {
+				return "", err
+			}
+			return writeDownloadFileFromStorage(downloadDir, attachment.Filename, func(file *os.File) error {
+				_, copyErr := io.Copy(file, content)
+				return copyErr
+			})
+		}
 
 		if err := s.access.RequireDomainRead(); err != nil {
 			return "", err
@@ -559,7 +710,14 @@ func writeDownloadFileFromStorage(downloadDir, filename string, write func(*os.F
 }
 
 func safeDownloadFilename(filename string) string {
+	filename = strings.ReplaceAll(filename, "\\", "/")
 	cleanFilename := filepath.Base(strings.TrimSpace(filename))
+	cleanFilename = strings.Map(func(r rune) rune {
+		if r < 32 || r == 127 {
+			return -1
+		}
+		return r
+	}, cleanFilename)
 	if cleanFilename == "" || cleanFilename == "." || cleanFilename == string(filepath.Separator) {
 		return "attachment"
 	}
@@ -660,6 +818,11 @@ func (s *AttachmentService) OpenFolder(path string) error {
 
 // BulkDeleteOlderThan — массовое удаление файлов, загруженных до указанной даты
 func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.BulkDeleteAttachments(ctx, dateStr)
+	}
 	_, release := serviceOperationContext(s.lifecycle)
 	defer release()
 

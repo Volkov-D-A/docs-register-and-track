@@ -295,6 +295,14 @@ func TestSettingsService_GetMaxFileSize(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(15*1024*1024), size)
 	})
+
+	t.Run("default on out of range setting", func(t *testing.T) {
+		svc, repo := setupSettingsService(t, "admin")
+		repo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "2048"}, nil).Once()
+		size, err := svc.GetMaxFileSize()
+		require.NoError(t, err)
+		assert.Equal(t, int64(DefaultAttachmentSizeMB*1024*1024), size)
+	})
 }
 
 func TestSettingsService_GetAllowedFileTypes(t *testing.T) {

@@ -22,6 +22,54 @@ type AuthClient interface {
 	UpdateProfile(context.Context, models.UpdateProfileRequest) error
 }
 
+type InitialSetupClient interface {
+	NeedsInitialSetup(context.Context) (bool, error)
+	InitialSetup(context.Context, string) error
+}
+
+func (c *Client) NeedsInitialSetup(ctx context.Context) (bool, error) {
+	var result struct {
+		Required bool `json:"required"`
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/auth/setup-required", nil)
+	if err != nil {
+		return false, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("docflow-server is unavailable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false, decodeAuthError(resp)
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&result); err != nil {
+		return false, err
+	}
+	return result.Required, nil
+}
+
+func (c *Client) InitialSetup(ctx context.Context, password string) error {
+	data, err := json.Marshal(map[string]string{"password": password})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/auth/setup", bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("docflow-server is unavailable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return decodeAuthError(resp)
+	}
+	return nil
+}
+
 func (c *Client) UpdateProfile(ctx context.Context, input models.UpdateProfileRequest) error {
 	return c.doUserRequest(ctx, http.MethodPatch, "/api/v1/profile", input, http.StatusNoContent, nil)
 }

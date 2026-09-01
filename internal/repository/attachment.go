@@ -235,7 +235,9 @@ func (r *AttachmentRepository) GetByID(id uuid.UUID) (*models.Attachment, error)
 		`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at
 		FROM attachments WHERE id = $1 AND deletion_requested_at IS NULL`,
 		id,
-	).Scan(&a.ID, &a.DocumentID, &a.Filename, &a.StoragePath, &a.FileSize, &a.ContentType, &a.UploadedBy, &a.UploadedAt); err != nil {
+	).Scan(&a.ID, &a.DocumentID, &a.Filename, &a.StoragePath, &a.FileSize, &a.ContentType, &a.UploadedBy, &a.UploadedAt); err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 	return &a, nil

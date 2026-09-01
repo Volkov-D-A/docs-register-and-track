@@ -77,14 +77,11 @@ func TestServiceSetOperationLifecycle(t *testing.T) {
 }
 
 func TestSystemServiceStartupStoresContext(t *testing.T) {
-	service := NewSystemService(nil)
+	service := NewSystemService()
 	ctx := context.WithValue(context.Background(), "test-key", "test-value")
 
 	service.Startup(ctx)
 
-	if service.db != nil {
-		t.Fatal("expected nil db to be preserved")
-	}
 	if service.ctx != ctx {
 		t.Fatal("expected startup context to be stored")
 	}

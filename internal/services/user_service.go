@@ -14,9 +14,10 @@ var errServerUserAdministrationNotConfigured = errors.New("docflow-server user a
 
 // UserService предоставляет бизнес-логику для управления пользователями.
 type UserService struct {
-	userRepo UserStore
-	auth     *AuthService
-	server   serverclient.UserClient
+	userRepo  UserStore
+	auth      *AuthService
+	server    serverclient.UserClient
+	executors serverclient.ExecutorClient
 }
 
 // NewUserService создает новый экземпляр UserService.
@@ -27,7 +28,10 @@ func NewUserService(userRepo UserStore, auth *AuthService) *UserService {
 	}
 }
 
-func (s *UserService) SetServerClient(client serverclient.UserClient) { s.server = client }
+func (s *UserService) SetServerClient(client serverclient.UserClient) {
+	s.server = client
+	s.executors, _ = client.(serverclient.ExecutorClient)
+}
 
 func (s *UserService) serverClient() (serverclient.UserClient, error) {
 	if s.server == nil {
@@ -82,11 +86,12 @@ func (s *UserService) ResetPassword(userID string) (string, error) {
 
 // GetExecutors возвращает список активных сотрудников для назначений и ознакомления.
 func (s *UserService) GetExecutors() ([]dto.User, error) {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return nil, err
+	if s.executors == nil {
+		return nil, errServerUserAdministrationNotConfigured
 	}
-	res, err := s.userRepo.GetExecutors()
-	return dto.MapUsers(res), err
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.executors.ListExecutors(ctx)
 }
 
 // GetSubstitutionCandidates возвращает активных пользователей, которых можно выбрать замещающими.

@@ -41,6 +41,7 @@ type AuthService struct {
 	metrics         *observability.Registry
 	schemaLifecycle SchemaLifecycle
 	serverAuth      serverclient.AuthClient
+	initialSetup    serverclient.InitialSetupClient
 }
 type userLockOutboxStore interface {
 	IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error)
@@ -66,7 +67,10 @@ func (s *AuthService) SetSettingsStore(settingsRepo SettingsStore) {
 
 func (s *AuthService) SetOperationMetrics(metrics *observability.Registry) { s.metrics = metrics }
 
-func (s *AuthService) SetServerAuth(client serverclient.AuthClient) { s.serverAuth = client }
+func (s *AuthService) SetServerAuth(client serverclient.AuthClient) {
+	s.serverAuth = client
+	s.initialSetup, _ = client.(serverclient.InitialSetupClient)
+}
 
 // isTableNotExistsError проверяет, является ли ошибка «таблица не существует» (PostgreSQL 42P01).
 func isTableNotExistsError(err error) bool {
@@ -458,6 +462,19 @@ func (s *AuthService) GetCurrentUserID() string {
 // GetCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.
 // Безопасен: при ошибке возвращает uuid.Nil/"system".
 func (s *AuthService) GetCurrentAuditInfo() (uuid.UUID, string) {
+	if s.serverAuth != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		user, err := s.serverAuth.Me(ctx)
+		if err != nil || user == nil {
+			return uuid.Nil, "system"
+		}
+		userID, err := uuid.Parse(user.ID)
+		if err != nil {
+			return uuid.Nil, "system"
+		}
+		return userID, user.FullName
+	}
 	s.mu.RLock()
 	userID := s.currentUserID
 	s.mu.RUnlock()
@@ -488,6 +505,20 @@ func (s *AuthService) HasSystemPermission(permission string) bool {
 
 // HasSystemPermissionFor checks a permission for an already validated user.
 func (s *AuthService) HasSystemPermissionFor(userID uuid.UUID, permission string) bool {
+	if s.serverAuth != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		user, err := s.serverAuth.Me(ctx)
+		if err != nil || user == nil || user.ID != userID.String() {
+			return false
+		}
+		for _, value := range user.SystemPermissions {
+			if value == permission {
+				return true
+			}
+		}
+		return false
+	}
 	if s.accessRepo == nil {
 		return false
 	}
@@ -554,6 +585,11 @@ func (s *AuthService) RequireAnySystemPermission(permissions ...string) error {
 // NeedsInitialSetup — проверяет, нужна ли первоначальная настройка.
 // Возвращает true если таблицы ещё не созданы (миграции не применены) или пользователей в БД нет.
 func (s *AuthService) NeedsInitialSetup() (bool, error) {
+	if s.initialSetup != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		return s.initialSetup.NeedsInitialSetup(ctx)
+	}
 	count, err := s.userRepo.CountUsers()
 	if err != nil {
 		if isTableNotExistsError(err) {
@@ -568,6 +604,11 @@ func (s *AuthService) NeedsInitialSetup() (bool, error) {
 // InitialSetup creates the first administrator after docflow-server has
 // bootstrapped an empty database. Desktop never executes schema migrations.
 func (s *AuthService) InitialSetup(password string) error {
+	if s.initialSetup != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.initialSetup.InitialSetup(ctx, password)
+	}
 	_, err := s.userRepo.CountUsers()
 	if err != nil {
 		if isTableNotExistsError(err) {

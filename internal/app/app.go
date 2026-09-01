@@ -13,15 +13,12 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
 )
 
 // WailsOptionsParams contains process-level dependencies that main owns.
@@ -30,11 +27,6 @@ type WailsOptionsParams struct {
 	Assets             fs.FS
 	ReleaseNotesSource []byte
 	CloseLogger        func()
-}
-
-type applicationStorage interface {
-	services.FileStorage
-	services.StorageInfoProvider
 }
 
 // NewBindingsWailsOptions returns the public service types needed by the Wails
@@ -72,18 +64,12 @@ func NewBindingsWailsOptions() *options.App {
 }
 
 type wailsOptionsDependencies struct {
-	connectDatabase func(config.DatabaseConfig) (*database.DB, error)
-	newStorage      func(config.MinioConfig) (applicationStorage, error)
 	newThemeService func() (*services.ThemeService, error)
 }
 
 // NewWailsOptions builds the desktop application graph and returns Wails options.
 func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.App, *startupdiag.Failure) {
 	return newWailsOptionsWithDependencies(cfg, params, wailsOptionsDependencies{
-		connectDatabase: database.Connect,
-		newStorage: func(cfg config.MinioConfig) (applicationStorage, error) {
-			return storage.NewMinioService(cfg)
-		},
 		newThemeService: services.NewThemeService,
 	})
 }
@@ -93,47 +79,12 @@ func newWailsOptionsWithDependencies(
 	params WailsOptionsParams,
 	dependencies wailsOptionsDependencies,
 ) (*options.App, *startupdiag.Failure) {
-	db, err := dependencies.connectDatabase(cfg.Database)
-	if err != nil {
-		return nil, &startupdiag.Failure{
-			Component:  "PostgreSQL",
-			ConfigPath: params.ConfigPath,
-			Summary:    "Не удалось подключиться к базе данных.",
-			NextStep:   "Проверьте host/port/dbname/user/sslmode в config.json, расшифровку пароля и доступность PostgreSQL из рабочего места.",
-			Err:        err,
-		}
-	}
-	created := false
-	defer func() {
-		if !created {
-			db.Close()
-		}
-	}()
 	metrics := observability.NewRegistry(256)
-	db.SetMetrics(metrics)
-
-	userRepo := repository.NewUserRepository(db)
-	userSubstitutionRepo := repository.NewUserSubstitutionRepository(db)
-	referenceRepo := repository.NewReferenceRepository(db)
-	documentAccessRepo := repository.NewDocumentAccessRepository(db)
-	documentRepo := repository.NewDocumentRepository(db)
-	assignmentRepo := repository.NewAssignmentRepository(db)
-	departmentRepo := repository.NewDepartmentRepository(db)
-	attachmentRepo := repository.NewAttachmentRepository(db)
-	acknowledgmentRepo := repository.NewAcknowledgmentRepository(db)
-	outboxRepo := repository.NewOutboxRepository(db)
-	acknowledgmentRepo.SetOutbox(outboxRepo)
-	attachmentRepo.SetOutbox(outboxRepo)
-	assignmentRepo.SetOutbox(outboxRepo)
-	userSubstitutionRepo.SetOutbox(outboxRepo)
-	referenceRepo.SetOutbox(outboxRepo)
-	userRepo.SetOutbox(outboxRepo)
 
 	operationLifecycle := services.NewOperationLifecycle(5 * time.Minute)
 
-	authService := services.NewAuthService(db, userRepo)
+	authService := services.NewAuthService(nil, nil)
 	authService.SetOperationMetrics(metrics)
-	authService.SetAccessStore(documentAccessRepo)
 
 	logger.GetAppUserID = func() string {
 		return authService.GetCurrentUserID()
@@ -161,18 +112,17 @@ func newWailsOptionsWithDependencies(
 	settingsService.SetMigrationClient(serverClient)
 	settingsService.SetServerClient(serverClient)
 	authService.SetServerAuth(serverClient)
-	userService := services.NewUserService(userRepo, authService)
+	userService := services.NewUserService(nil, authService)
 	userService.SetServerClient(serverClient)
-	userSubstitutionService := services.NewUserSubstitutionService(userSubstitutionRepo, userRepo, authService)
+	userSubstitutionService := services.NewUserSubstitutionService(nil, nil, authService)
 	userSubstitutionService.SetServerClient(serverClient)
 	nomenclatureService := services.NewNomenclatureService()
 	nomenclatureService.SetServerClient(serverClient)
 	referenceService := services.NewReferenceService(authService)
 	referenceService.SetServerClient(serverClient)
-	documentAccessService := services.NewDocumentAccessService(authService, departmentRepo, assignmentRepo, acknowledgmentRepo, documentAccessRepo, documentRepo, userSubstitutionRepo)
-	documentAccessAdminService := services.NewDocumentAccessAdminService(authService, documentAccessRepo, userRepo)
+	documentAccessAdminService := services.NewDocumentAccessAdminService(authService, nil, nil)
 	documentAccessAdminService.SetServerClient(serverClient)
-	documentKindService := services.NewDocumentKindService(documentAccessService)
+	documentKindService := services.NewDocumentKindService(nil)
 	documentKindService.SetServerClient(serverClient)
 	journalService := services.NewJournalServiceWithClient(serverClient)
 	documentQueryService := services.NewDocumentQueryService()
@@ -187,19 +137,7 @@ func newWailsOptionsWithDependencies(
 	departmentService := services.NewDepartmentService()
 	departmentService.SetServerClient(serverClient)
 
-	objectStorage, err := dependencies.newStorage(cfg.Minio)
-	if err != nil {
-		return nil, &startupdiag.Failure{
-			Component:  "MinIO",
-			ConfigPath: params.ConfigPath,
-			Summary:    "Не удалось подключиться к объектному хранилищу.",
-			NextStep:   "Проверьте endpoint/useSSL/bucket/accessKeyId в config.json, расшифровку secretAccessKey и доступность MinIO из рабочего места.",
-			Err:        err,
-		}
-	}
-	attachmentService := services.NewAttachmentService(attachmentRepo, settingsService, authService, objectStorage, documentAccessService)
-	attachmentService.SetAssignmentStore(assignmentRepo)
-	attachmentService.SetSubstitutionStore(userSubstitutionRepo)
+	attachmentService := services.NewAttachmentServiceWithClient(serverClient)
 	attachmentService.SetOperationLifecycle(operationLifecycle)
 	attachmentService.SetOperationMetrics(metrics)
 	backgroundServices := newBackgroundLifecycle(
@@ -213,7 +151,7 @@ func newWailsOptionsWithDependencies(
 	statisticsService := services.NewStatisticsServiceWithClient(serverClient)
 	linkService := services.NewLinkServiceWithClient(serverClient)
 	acknowledgmentService := services.NewAcknowledgmentServiceWithClient(serverClient)
-	systemService := services.NewSystemService(db)
+	systemService := services.NewSystemService()
 	releaseNoteService, err := services.NewReleaseNoteService(params.ReleaseNotesSource)
 	if err != nil {
 		return nil, &startupdiag.Failure{
@@ -260,7 +198,6 @@ func newWailsOptionsWithDependencies(
 			if err := operationLifecycle.Shutdown(shutdownCtx); err != nil {
 				slog.Warn("shutdown continued before all backend operations finished", "error", err)
 			}
-			db.Close()
 			if params.CloseLogger != nil {
 				params.CloseLogger()
 			}
@@ -293,7 +230,6 @@ func newWailsOptionsWithDependencies(
 			outboxAdminService,
 		},
 	}
-	created = true
 	return wailsOptions, nil
 }
 

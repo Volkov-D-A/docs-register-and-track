@@ -44,6 +44,63 @@ type authenticatedRequest struct {
 	TokenHash []byte
 }
 
+type initialSetupStore interface {
+	CountUsers() (int, error)
+	CreateInitialAdmin(string) error
+}
+
+type initialSetupRequest struct {
+	Password string `json:"password"`
+}
+
+func (api *managementAPI) setupRequired(w http.ResponseWriter, _ *http.Request) {
+	if api.initialSetup == nil {
+		writeAPIError(w, http.StatusServiceUnavailable, "initial_setup_unavailable", errors.New("initial setup store is not configured"))
+		return
+	}
+	count, err := api.initialSetup.CountUsers()
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "initial_setup_check_failed", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"required": count == 0})
+}
+
+func (api *managementAPI) initialSetupAdmin(w http.ResponseWriter, r *http.Request) {
+	if api.initialSetup == nil {
+		writeAPIError(w, http.StatusServiceUnavailable, "initial_setup_unavailable", errors.New("initial setup store is not configured"))
+		return
+	}
+	count, err := api.initialSetup.CountUsers()
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "initial_setup_check_failed", err)
+		return
+	}
+	if count > 0 {
+		writeUserError(w, models.NewConflict("начальная настройка уже выполнена"))
+		return
+	}
+	var req initialSetupRequest
+	if err := decodeJSON(r, &req); err != nil || req.Password == "" {
+		writeAPIError(w, http.StatusBadRequest, "invalid_request", errors.New("password is required"))
+		return
+	}
+	if err := security.ValidatePassword(req.Password); err != nil {
+		writeUserError(w, models.NewBadRequestWrapped(err.Error(), err))
+		return
+	}
+	hash, err := security.HashPassword(req.Password)
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "initial_setup_failed", err)
+		return
+	}
+	if err := api.initialSetup.CreateInitialAdmin(hash); err != nil {
+		writeUserError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type loginRequest struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`

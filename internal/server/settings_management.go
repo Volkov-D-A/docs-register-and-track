@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 )
 
 type settingsManagementStore interface {
@@ -91,6 +92,13 @@ func settingKey(w http.ResponseWriter, raw string) (string, bool) {
 }
 
 func validateSystemSettingValue(key, value string) error {
+	if key == "max_file_size_mb" {
+		megabytes, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || megabytes < 1 || megabytes > services.MaximumAttachmentSizeMB {
+			return models.NewBadRequest(fmt.Sprintf("Максимальный размер файла должен быть целым числом от 1 до %d МБ", services.MaximumAttachmentSizeMB))
+		}
+		return nil
+	}
 	if key != "password_lifetime_days" {
 		return nil
 	}

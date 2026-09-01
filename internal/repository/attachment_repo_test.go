@@ -208,8 +208,7 @@ func TestAttachmentRepository_GetByID(t *testing.T) {
 
 		attachment, err := repo.GetByID(attachmentID)
 
-		require.Error(t, err)
-		assert.Equal(t, sql.ErrNoRows, err)
+		require.NoError(t, err)
 		assert.Nil(t, attachment)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
