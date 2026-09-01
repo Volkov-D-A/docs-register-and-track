@@ -64,3 +64,17 @@ func (r *ServerSessionRepository) DeleteExpired(before time.Time) (int64, error)
 	}
 	return result.RowsAffected()
 }
+
+// Activity returns valid sessions and distinct recently active users.
+func (r *ServerSessionRepository) Activity(now, activeSince time.Time) (int, int, error) {
+	var sessions, users int
+	err := r.db.QueryRow(`
+		SELECT COUNT(*), COUNT(DISTINCT user_id) FILTER (WHERE last_seen_at >= $2)
+		FROM server_sessions
+		WHERE revoked_at IS NULL AND expires_at > $1
+	`, now, activeSince).Scan(&sessions, &users)
+	if err != nil {
+		return 0, 0, fmt.Errorf("get server session activity: %w", err)
+	}
+	return sessions, users, nil
+}

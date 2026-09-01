@@ -588,6 +588,12 @@ alerts, ресурсные пороги и
 metric snapshots намеренно не отправляются в Seq; metrics backend пока не
 выбран.
 
+Авторизованная системная вкладка уже получает из сервиса краткую operational
+сводку: release и uptime, активные sessions/users, HTTP latency и error counts,
+состояние PostgreSQL pool, outbox и результаты последней сверки вложений. Эти
+значения предназначены для диагностики оператором, а не заменяют внешний
+metrics backend.
+
 ### Deployment
 
 1. Добавить multi-stage Dockerfile для `docflow-server`.
@@ -634,6 +640,12 @@ metric snapshots намеренно не отправляются в Seq; metric
 метрики остаются только во внутреннем registry и не публикуются в Seq: operational
 log содержит только значимые события, warnings и errors. Для alerting требуется
 система, способная строить пороги по времени.
+
+Счётчики системной вкладки с суффиксом `SinceStart` сбрасываются при рестарте и
+интерпретируются только вместе с `startedAt`/uptime. HTTP series используют
+шаблоны маршрутов, поэтому IDs и query values не создают высокую cardinality и
+не попадают в имена метрик. p95 в UI рассчитывается по ограниченному окну
+последних 256 наблюдений.
 
 ### Alerts
 

@@ -12,11 +12,35 @@ const systemStats = {
   storageObjects: 0,
   storageSize: '0 B',
   storageRefreshInProgress: false,
+  generatedAt: '2026-09-01T12:00:00Z',
+  service: { version: '1.0.6', state: 'ready', uptimeSeconds: 3660, schemaCurrentVersion: 12, schemaRequiredVersion: 12 },
+  usage: { activeUsers15m: 3, activeSessions: 4 },
+  api: { requestsSinceStart: 100, clientErrorsSinceStart: 2, serverErrorsSinceStart: 1, deadlineExceededSinceStart: 0, p95Milliseconds: 18, inFlight: 1, sampleWindow: 256 },
+  database: { poolInUse: 2, poolOpen: 4, poolMax: 20, waitCountSinceStart: 1, operationsSinceStart: 200, operationErrorsSinceStart: 0, operationP95Milliseconds: 8 },
+  outbox: { pending: 1, processing: 0, failed: 0, processedSinceStart: 20, retriesSinceStart: 1 },
+  attachments: {},
 };
 
 afterEach(() => vi.useRealTimers());
 
 describe('SystemStatisticsTab storage lifecycle', () => {
+  test('renders service diagnostics returned by the server', async () => {
+    installWailsMock({
+      StatisticsService: {
+        GetSystemStatistics: vi.fn().mockResolvedValue(systemStats),
+        GetStorageStatisticsStatus: vi.fn().mockResolvedValue({ state: 'idle', storageObjects: 0, storageSize: '0 B' }),
+        RetryStorageStatisticsRefresh: vi.fn(),
+      },
+    });
+
+    renderWithApp(<SystemStatisticsTab />);
+
+    expect(await screen.findByText('1.0.6')).toBeInTheDocument();
+    expect(screen.getByText('Активные пользователи, 15 мин.')).toBeInTheDocument();
+    expect(screen.getByText('p95, окно до 256 запросов')).toBeInTheDocument();
+    expect(screen.getByText('Фоновая очередь')).toBeInTheDocument();
+  });
+
   test('polling replaces a pending snapshot with the completed result', async () => {
     vi.useFakeTimers();
     const getStorageStatus = vi.fn()

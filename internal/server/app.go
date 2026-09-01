@@ -31,6 +31,7 @@ type App struct {
 	http      *http.Server
 	storage   serverStorage
 	version   string
+	startedAt time.Time
 	closeOnce sync.Once
 }
 
@@ -105,11 +106,12 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 	}
 
 	app := &App{
-		db:      db,
-		cfg:     cfg,
-		metrics: metrics,
-		storage: objectStorage,
-		version: version,
+		db:        db,
+		cfg:       cfg,
+		metrics:   metrics,
+		storage:   objectStorage,
+		version:   version,
+		startedAt: time.Now().UTC(),
 		lifecycle: background.NewLifecycle(
 			db,
 			&leasedWorker{db: db, worker: worker},

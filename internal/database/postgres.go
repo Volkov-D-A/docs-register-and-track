@@ -184,7 +184,9 @@ func (db *DB) observe(name string, started time.Time, err error) {
 	if db == nil || db.metrics == nil {
 		return
 	}
-	db.metrics.Observe(name, time.Since(started), err)
+	duration := time.Since(started)
+	db.metrics.Observe(name, duration, err)
+	db.metrics.Observe("database.operation", duration, err)
 	db.observePoolStats()
 }
 

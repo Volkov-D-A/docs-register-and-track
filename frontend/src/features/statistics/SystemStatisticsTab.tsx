@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, App, Button, Card, Col, Row, Space, Spin, Statistic, Typography } from 'antd';
+import { Alert, App, Button, Card, Col, Descriptions, Row, Space, Spin, Statistic, Tag, Typography } from 'antd';
 import { CloudOutlined, DatabaseOutlined, HddOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
 import { models } from '../../../wailsjs/go/models';
 import {
@@ -29,6 +29,20 @@ const StatCard = ({ title, value, icon, color }: StatCardProps) => (
 );
 
 const isRefreshActive = (state?: string) => state === 'pending' || state === 'running';
+
+const formatUptime = (seconds?: number) => {
+  if (!seconds || seconds < 60) return 'меньше минуты';
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return [days && `${days} дн.`, hours && `${hours} ч.`, minutes && `${minutes} мин.`].filter(Boolean).join(' ');
+};
+
+const serviceState = (state?: string) => {
+  if (state === 'ready') return { color: 'success', label: 'Готов' };
+  if (state === 'maintenance') return { color: 'warning', label: 'Обслуживание' };
+  return { color: 'error', label: 'Не готов' };
+};
 
 const SystemStatisticsTab: React.FC = () => {
   const { message } = App.useApp();
@@ -135,6 +149,8 @@ const SystemStatisticsTab: React.FC = () => {
   const storageSize = storageStatus?.storageSize ?? stats?.storageSize ?? 'Нет данных';
   const refreshedAt = storageStatus?.refreshedAt ?? stats?.storageRefreshedAt;
   const refreshActive = isRefreshActive(storageStatus?.state);
+  const state = serviceState(stats?.service?.state);
+  const attachmentProblems = (stats?.attachments?.missingObjects ?? 0) + (stats?.attachments?.orphanObjects ?? 0);
 
   return <Spin spinning={loading && !stats}>
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -144,7 +160,69 @@ const SystemStatisticsTab: React.FC = () => {
         <Col xs={24} sm={12} lg={6}><StatCard title="База данных" value={stats?.dbSize ?? 'Нет данных'} icon={<DatabaseOutlined />} color="#13c2c2" /></Col>
         <Col xs={24} sm={12} lg={6}><StatCard title="Файлы в хранилище" value={storageObjects} icon={<CloudOutlined />} color="#722ed1" /></Col>
         <Col xs={24} sm={12} lg={6}><StatCard title="Размер хранилища" value={storageSize} icon={<HddOutlined />} color="#fa8c16" /></Col>
+        <Col xs={24} sm={12} lg={6}><StatCard title="Активные пользователи, 15 мин." value={stats?.usage?.activeUsers15m ?? 0} icon={<UserOutlined />} color="#2f54eb" /></Col>
+        <Col xs={24} sm={12} lg={6}><StatCard title="Активные сессии" value={stats?.usage?.activeSessions ?? 0} icon={<UserOutlined />} color="#597ef7" /></Col>
       </Row>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={12}>
+          <Card title="Сервис" style={{ height: '100%' }}>
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="Состояние"><Tag color={state.color}>{state.label}</Tag></Descriptions.Item>
+              <Descriptions.Item label="Версия">{stats?.service?.version || 'Нет данных'}</Descriptions.Item>
+              <Descriptions.Item label="Запущен">
+                {stats?.service?.startedAt ? new Date(stats.service.startedAt).toLocaleString('ru-RU') : 'Нет данных'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Время работы">{formatUptime(stats?.service?.uptimeSeconds)}</Descriptions.Item>
+              <Descriptions.Item label="Схема БД">
+                {stats?.service ? `${stats.service.schemaCurrentVersion} / ${stats.service.schemaRequiredVersion}` : 'Нет данных'}
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+        </Col>
+        <Col xs={24} xl={12}>
+          <Card title="API" style={{ height: '100%' }}>
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="Запросы с момента запуска">{stats?.api?.requestsSinceStart ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="Ошибки 4xx / 5xx">{stats?.api?.clientErrorsSinceStart ?? 0} / {stats?.api?.serverErrorsSinceStart ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="Превышения времени ожидания">{stats?.api?.deadlineExceededSinceStart ?? 0}</Descriptions.Item>
+              <Descriptions.Item label={`p95, окно до ${stats?.api?.sampleWindow ?? 0} запросов`}>{stats?.api?.p95Milliseconds ?? 0} мс</Descriptions.Item>
+              <Descriptions.Item label="Выполняются сейчас">{stats?.api?.inFlight ?? 0}</Descriptions.Item>
+            </Descriptions>
+          </Card>
+        </Col>
+        <Col xs={24} xl={12}>
+          <Card title="PostgreSQL" style={{ height: '100%' }}>
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="Пул: занято / свободно / открыто / максимум">
+                {stats?.database?.poolInUse ?? 0} / {stats?.database?.poolIdle ?? 0} / {stats?.database?.poolOpen ?? 0} / {stats?.database?.poolMax ?? 0}
+              </Descriptions.Item>
+              <Descriptions.Item label="Ожидания соединения">
+                {stats?.database?.waitCountSinceStart ?? 0} ({stats?.database?.waitMillisecondsSinceStart ?? 0} мс)
+              </Descriptions.Item>
+              <Descriptions.Item label="Операции / ошибки">{stats?.database?.operationsSinceStart ?? 0} / {stats?.database?.operationErrorsSinceStart ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="p95 операций">{stats?.database?.operationP95Milliseconds ?? 0} мс</Descriptions.Item>
+            </Descriptions>
+          </Card>
+        </Col>
+        <Col xs={24} xl={12}>
+          <Card title="Фоновая очередь" style={{ height: '100%' }}>
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="Ожидают / выполняются">{stats?.outbox?.pending ?? 0} / {stats?.outbox?.processing ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="Необработанные ошибки">{stats?.outbox?.failed ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="Обработано с момента запуска">{stats?.outbox?.processedSinceStart ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="Повторные попытки">{stats?.outbox?.retriesSinceStart ?? 0}</Descriptions.Item>
+            </Descriptions>
+          </Card>
+        </Col>
+      </Row>
+
+      {attachmentProblems > 0 && <Alert
+        type="warning"
+        showIcon
+        message="Последняя сверка вложений обнаружила расхождения"
+        description={`Отсутствуют объектов: ${stats?.attachments?.missingObjects ?? 0}; лишних объектов: ${stats?.attachments?.orphanObjects ?? 0}.`}
+      />}
 
       {refreshActive && !pollTimedOut && <Typography.Text type="secondary">Выполняется фоновая сверка MinIO. Показаны данные последней завершённой сверки.</Typography.Text>}
       {pollTimedOut && <Alert type="warning" showIcon message="Сверка ещё не завершена" description="Автоматическое ожидание остановлено. Проверьте состояние ещё раз вручную." />}
@@ -152,6 +230,7 @@ const SystemStatisticsTab: React.FC = () => {
 
       <Space>
         {refreshedAt && <Typography.Text type="secondary">Последняя полная сверка MinIO: {new Date(refreshedAt).toLocaleString('ru-RU')}</Typography.Text>}
+        {stats?.generatedAt && <Typography.Text type="secondary">Сводка сформирована: {new Date(stats.generatedAt).toLocaleString('ru-RU')}</Typography.Text>}
         <Button
           icon={<ReloadOutlined />}
           loading={loading || retrying}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
@@ -177,6 +178,27 @@ func TestManagementAPILivenessDoesNotRequireReadySchema(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, res.Code)
 	assert.JSONEq(t, `{"status":"live"}`, res.Body.String())
+}
+
+func TestRequestLoggingRecordsLowCardinalityHTTPMetrics(t *testing.T) {
+	metrics := observability.NewRegistry(16)
+	handler := requestLogging(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Pattern = "GET /api/v1/items/{id}"
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+	}), metrics)
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/items/secret-id", nil))
+
+	operations := operationMetrics(metrics.Snapshot())
+	require.Contains(t, operations, "http.request")
+	assert.EqualValues(t, 1, operations["http.request"].Count)
+	assert.EqualValues(t, 1, operations["http.request"].Errors)
+	assert.Contains(t, operations, "http.GET /api/v1/items/{id}")
+	assert.NotContains(t, operations, "secret-id")
+	counters := counterMetrics(metrics.Counters())
+	assert.EqualValues(t, 1, counters["http.responses.5xx"])
+	gauges := gaugeMetrics(metrics.Gauges())
+	assert.Zero(t, gauges["http.in_flight"])
 }
 
 func TestManagementAPIApplyAuthenticatesAdminAndReconcilesWorker(t *testing.T) {

@@ -65,6 +65,13 @@ func NewRegistry(windowSize int) *Registry {
 	return &Registry{windowSize: windowSize, operations: make(map[string]*operation), gauges: make(map[string]float64), counters: make(map[string]float64)}
 }
 
+func (r *Registry) WindowSize() int {
+	if r == nil {
+		return 0
+	}
+	return r.windowSize
+}
+
 func (r *Registry) AddCounter(name string, value float64) {
 	if r == nil || name == "" {
 		return

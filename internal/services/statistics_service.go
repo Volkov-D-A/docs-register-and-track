@@ -27,12 +27,13 @@ const (
 
 // StatisticsService предоставляет бизнес-логику раздела статистики.
 type StatisticsService struct {
-	repo      StatisticsStore
-	auth      StatisticsPrincipal
-	storage   StorageInfoProvider
-	lifecycle *OperationLifecycle
-	metrics   *observability.Registry
-	server    serverclient.StatisticsClient
+	repo        StatisticsStore
+	auth        StatisticsPrincipal
+	storage     StorageInfoProvider
+	lifecycle   *OperationLifecycle
+	metrics     *observability.Registry
+	server      serverclient.StatisticsClient
+	diagnostics SystemDiagnosticsProvider
 }
 
 type StatisticsPrincipal interface {
@@ -43,6 +44,10 @@ type StatisticsPrincipal interface {
 // NewStatisticsService создает новый экземпляр StatisticsService.
 func NewStatisticsService(repo StatisticsStore, auth StatisticsPrincipal, storage StorageInfoProvider) *StatisticsService {
 	return &StatisticsService{repo: repo, auth: auth, storage: storage}
+}
+
+func NewStatisticsServiceWithDiagnostics(repo StatisticsStore, auth StatisticsPrincipal, storage StorageInfoProvider, diagnostics SystemDiagnosticsProvider) *StatisticsService {
+	return &StatisticsService{repo: repo, auth: auth, storage: storage, diagnostics: diagnostics}
 }
 
 func NewStatisticsServiceWithClient(client serverclient.StatisticsClient) *StatisticsService {
@@ -366,6 +371,20 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 			TotalDocuments: documentCount,
 			DBSize:         s.repo.GetDBSize(),
 			StorageSize:    "Нет данных",
+			GeneratedAt:    time.Now().UTC(),
+		}
+		if s.diagnostics != nil {
+			diagnostics, err := s.diagnostics.GetSystemDiagnostics()
+			if err != nil {
+				return nil, err
+			}
+			result.Service = diagnostics.Service
+			result.Usage = diagnostics.Usage
+			result.API = diagnostics.API
+			result.Database = diagnostics.Database
+			result.DBSizeBytes = diagnostics.Database.SizeBytes
+			result.Outbox = diagnostics.Outbox
+			result.Attachments = diagnostics.Attachments
 		}
 
 		if s.storage != nil {
@@ -376,6 +395,7 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 				snapshot := record.Snapshot
 				result.StorageObjects = snapshot.ObjectCount
 				result.StorageSize = formatStorageSize(snapshot.TotalBytes)
+				result.StorageBytes = snapshot.TotalBytes
 				if !snapshot.RefreshedAt.IsZero() {
 					refreshedAt := snapshot.RefreshedAt
 					result.StorageRefreshedAt = &refreshedAt

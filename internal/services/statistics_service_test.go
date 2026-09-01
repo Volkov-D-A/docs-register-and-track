@@ -46,6 +46,15 @@ type fakeStatisticsStore struct {
 	lastAssignmentUserID      string
 }
 
+type fakeSystemDiagnostics struct {
+	value *models.SystemDiagnostics
+	err   error
+}
+
+func (d fakeSystemDiagnostics) GetSystemDiagnostics() (*models.SystemDiagnostics, error) {
+	return d.value, d.err
+}
+
 func (s *fakeStatisticsStore) GetDocumentTotalByYear(yearStart, yearEnd time.Time) (int, error) {
 	return s.documentTotal, s.err
 }
@@ -352,12 +361,34 @@ func TestStatisticsService_GetSystemStatistics(t *testing.T) {
 	assert.Equal(t, "128 MB", stats.DBSize)
 	assert.Equal(t, 9, stats.StorageObjects)
 	assert.Equal(t, "256.0 MB", stats.StorageSize)
+	assert.EqualValues(t, 256*1024*1024, stats.StorageBytes)
 
 	store.storageSnapshotErr = errors.New("storage failed")
 	stats, err = svc.GetSystemStatistics()
 	require.NoError(t, err)
 	assert.Equal(t, "Нет данных", stats.StorageSize)
 	assert.Zero(t, stats.StorageObjects)
+}
+
+func TestStatisticsServiceIncludesServerDiagnostics(t *testing.T) {
+	svc, _, _, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
+	svc.diagnostics = fakeSystemDiagnostics{value: &models.SystemDiagnostics{
+		Service:  models.SystemServiceStatistics{Version: "1.0.6", State: "ready"},
+		Usage:    models.SystemUsageStatistics{ActiveUsers15m: 3, ActiveSessions: 4},
+		API:      models.SystemAPIStatistics{RequestsSinceStart: 100, P95Milliseconds: 12},
+		Database: models.SystemDatabaseStatistics{SizeBytes: 1024, PoolInUse: 2},
+		Outbox:   models.SystemOutboxStatistics{Pending: 1},
+	}}
+
+	stats, err := svc.GetSystemStatistics()
+
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.6", stats.Service.Version)
+	assert.Equal(t, 3, stats.Usage.ActiveUsers15m)
+	assert.EqualValues(t, 100, stats.API.RequestsSinceStart)
+	assert.Equal(t, 2, stats.Database.PoolInUse)
+	assert.EqualValues(t, 1024, stats.Database.SizeBytes)
+	assert.Equal(t, 1, stats.Outbox.Pending)
 }
 
 func TestStatisticsServiceUsesLocalizedFallbackWithoutStorage(t *testing.T) {

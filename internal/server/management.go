@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
@@ -37,6 +39,7 @@ type managementAPI struct {
 	cfg                                *config.Config
 	serverVersion                      string
 	readinessCheck                     func(context.Context, *config.Config) error
+	metrics                            *observability.Registry
 	migrations                         migrationStore
 	lifecycle                          migrationLifecycle
 	users                              adminUserStore
@@ -98,6 +101,9 @@ type adminAuditStore interface {
 }
 
 func newManagementAPI(app *App) *managementAPI {
+	if app.startedAt.IsZero() {
+		app.startedAt = time.Now().UTC()
+	}
 	users := repository.NewUserRepository(app.db)
 	outboxRepo := repository.NewOutboxRepository(app.db)
 	users.SetOutbox(outboxRepo)
@@ -145,6 +151,7 @@ func newManagementAPI(app *App) *managementAPI {
 		cfg:            app.cfg,
 		serverVersion:  app.version,
 		readinessCheck: HealthCheck,
+		metrics:        app.metrics,
 		migrations:     app.db,
 		lifecycle:      app.lifecycle,
 		users:          users,
@@ -232,7 +239,12 @@ func newManagementAPI(app *App) *managementAPI {
 			return service
 		},
 		statistics: func(user *models.User) statisticsAPI {
-			service := services.NewStatisticsService(statistics, requestDocumentPrincipal{user: user}, app.storage)
+			service := services.NewStatisticsServiceWithDiagnostics(
+				statistics,
+				requestDocumentPrincipal{user: user},
+				app.storage,
+				newServerDiagnostics(app, outboxRepo, repository.NewServerSessionRepository(app.db)),
+			)
 			service.SetOperationMetrics(app.metrics)
 			return service
 		},
@@ -382,7 +394,7 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/admin/migrations", api.status)
 	mux.HandleFunc("POST /api/v1/admin/migrations/apply", api.apply)
 	mux.HandleFunc("POST /api/v1/admin/migrations/rollback", api.rollback)
-	return requestLogging(mux)
+	return requestLogging(mux, api.metrics)
 }
 
 func (api *managementAPI) live(w http.ResponseWriter, _ *http.Request) {
@@ -633,10 +645,81 @@ func writeAPIError(w http.ResponseWriter, status int, code string, err error) {
 	writeJSON(w, status, map[string]string{"code": code, "error": err.Error()})
 }
 
-func requestLogging(next http.Handler) http.Handler {
+type metricsResponseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *metricsResponseWriter) WriteHeader(status int) {
+	if w.status != 0 {
+		return
+	}
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *metricsResponseWriter) Write(body []byte) (int, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(body)
+}
+
+func (w *metricsResponseWriter) ReadFrom(reader io.Reader) (int64, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
+	if readerFrom, ok := w.ResponseWriter.(io.ReaderFrom); ok {
+		return readerFrom.ReadFrom(reader)
+	}
+	return io.Copy(w.ResponseWriter, reader)
+}
+
+func (w *metricsResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+func requestLogging(next http.Handler, metrics *observability.Registry) http.Handler {
+	var inFlight atomic.Int64
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-store")
-		next.ServeHTTP(w, r)
+		started := time.Now()
+		current := inFlight.Add(1)
+		if metrics != nil {
+			metrics.SetGauge("http.in_flight", float64(current))
+		}
+		writer := &metricsResponseWriter{ResponseWriter: w}
+		defer func() {
+			panicValue := recover()
+			current = inFlight.Add(-1)
+			if metrics != nil {
+				metrics.SetGauge("http.in_flight", float64(current))
+				status := writer.status
+				if panicValue != nil {
+					status = http.StatusInternalServerError
+				} else if status == 0 {
+					status = http.StatusOK
+				}
+				var requestErr error
+				if errors.Is(r.Context().Err(), context.DeadlineExceeded) {
+					requestErr = context.DeadlineExceeded
+				} else if status >= http.StatusInternalServerError {
+					requestErr = fmt.Errorf("HTTP %d", status)
+				}
+				duration := time.Since(started)
+				metrics.Observe("http.request", duration, requestErr)
+				if r.Pattern != "" {
+					metrics.Observe("http."+r.Pattern, duration, requestErr)
+				}
+				if status >= 400 && status < 500 {
+					metrics.AddCounter("http.responses.4xx", 1)
+				} else if status >= 500 {
+					metrics.AddCounter("http.responses.5xx", 1)
+				}
+			}
+			if panicValue != nil {
+				panic(panicValue)
+			}
+		}()
+		next.ServeHTTP(writer, r)
 	})
 }

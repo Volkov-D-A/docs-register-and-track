@@ -82,13 +82,85 @@ type AssignmentStatisticsReport struct {
 
 // SystemStatistics описывает системную статистику.
 type SystemStatistics struct {
-	UserCount                int        `json:"userCount"`
-	TotalDocuments           int        `json:"totalDocuments"`
-	DBSize                   string     `json:"dbSize"`
-	StorageObjects           int        `json:"storageObjects"`
-	StorageSize              string     `json:"storageSize"`
-	StorageRefreshedAt       *time.Time `json:"storageRefreshedAt,omitempty"`
-	StorageRefreshInProgress bool       `json:"storageRefreshInProgress"`
+	UserCount                int                        `json:"userCount"`
+	TotalDocuments           int                        `json:"totalDocuments"`
+	DBSize                   string                     `json:"dbSize"`
+	DBSizeBytes              int64                      `json:"dbSizeBytes"`
+	StorageObjects           int                        `json:"storageObjects"`
+	StorageSize              string                     `json:"storageSize"`
+	StorageBytes             int64                      `json:"storageBytes"`
+	StorageRefreshedAt       *time.Time                 `json:"storageRefreshedAt,omitempty"`
+	StorageRefreshInProgress bool                       `json:"storageRefreshInProgress"`
+	GeneratedAt              time.Time                  `json:"generatedAt"`
+	Service                  SystemServiceStatistics    `json:"service"`
+	Usage                    SystemUsageStatistics      `json:"usage"`
+	API                      SystemAPIStatistics        `json:"api"`
+	Database                 SystemDatabaseStatistics   `json:"database"`
+	Outbox                   SystemOutboxStatistics     `json:"outbox"`
+	Attachments              SystemAttachmentStatistics `json:"attachments"`
+}
+
+type SystemServiceStatistics struct {
+	Version               string    `json:"version"`
+	APIVersion            string    `json:"apiVersion"`
+	State                 string    `json:"state"`
+	StartedAt             time.Time `json:"startedAt"`
+	UptimeSeconds         int64     `json:"uptimeSeconds"`
+	SchemaCurrentVersion  uint      `json:"schemaCurrentVersion"`
+	SchemaRequiredVersion uint      `json:"schemaRequiredVersion"`
+	SchemaCompatible      bool      `json:"schemaCompatible"`
+	SchemaDirty           bool      `json:"schemaDirty"`
+}
+
+type SystemUsageStatistics struct {
+	ActiveUsers15m int `json:"activeUsers15m"`
+	ActiveSessions int `json:"activeSessions"`
+}
+
+type SystemAPIStatistics struct {
+	RequestsSinceStart         int64 `json:"requestsSinceStart"`
+	ClientErrorsSinceStart     int64 `json:"clientErrorsSinceStart"`
+	ServerErrorsSinceStart     int64 `json:"serverErrorsSinceStart"`
+	DeadlineExceededSinceStart int64 `json:"deadlineExceededSinceStart"`
+	P95Milliseconds            int64 `json:"p95Milliseconds"`
+	InFlight                   int64 `json:"inFlight"`
+	SampleWindow               int   `json:"sampleWindow"`
+}
+
+type SystemDatabaseStatistics struct {
+	SizeBytes                  int64 `json:"sizeBytes"`
+	PoolOpen                   int   `json:"poolOpen"`
+	PoolInUse                  int   `json:"poolInUse"`
+	PoolIdle                   int   `json:"poolIdle"`
+	PoolMax                    int   `json:"poolMax"`
+	WaitCountSinceStart        int64 `json:"waitCountSinceStart"`
+	WaitMillisecondsSinceStart int64 `json:"waitMillisecondsSinceStart"`
+	OperationsSinceStart       int64 `json:"operationsSinceStart"`
+	OperationErrorsSinceStart  int64 `json:"operationErrorsSinceStart"`
+	OperationP95Milliseconds   int64 `json:"operationP95Milliseconds"`
+}
+
+type SystemOutboxStatistics struct {
+	Pending             int   `json:"pending"`
+	Processing          int   `json:"processing"`
+	Failed              int   `json:"failed"`
+	ProcessedSinceStart int64 `json:"processedSinceStart"`
+	RetriesSinceStart   int64 `json:"retriesSinceStart"`
+}
+
+type SystemAttachmentStatistics struct {
+	MissingObjects *int `json:"missingObjects,omitempty"`
+	OrphanObjects  *int `json:"orphanObjects,omitempty"`
+}
+
+// SystemDiagnostics is the server-owned operational part of system statistics.
+type SystemDiagnostics struct {
+	Service     SystemServiceStatistics    `json:"service"`
+	Usage       SystemUsageStatistics      `json:"usage"`
+	API         SystemAPIStatistics        `json:"api"`
+	Database    SystemDatabaseStatistics   `json:"database"`
+	Outbox      SystemOutboxStatistics     `json:"outbox"`
+	Attachments SystemAttachmentStatistics `json:"attachments"`
 }
 
 // StorageStatisticsSnapshot is the persisted result of the last complete

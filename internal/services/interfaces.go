@@ -259,6 +259,12 @@ type StatisticsStore interface {
 	ClearStorageStatisticsRefreshError() error
 }
 
+// SystemDiagnosticsProvider supplies process and service metrics that do not
+// belong to the business statistics repository.
+type SystemDiagnosticsProvider interface {
+	GetSystemDiagnostics() (*models.SystemDiagnostics, error)
+}
+
 // StorageInfoProvider — интерфейс для получения информации о файловом хранилище.
 type StorageInfoProvider interface {
 	RefreshStorageUsage(ctx context.Context) (objectCount int, totalBytes int64, err error)

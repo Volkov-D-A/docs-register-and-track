@@ -2601,6 +2601,141 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class SystemAPIStatistics {
+	    requestsSinceStart: number;
+	    clientErrorsSinceStart: number;
+	    serverErrorsSinceStart: number;
+	    deadlineExceededSinceStart: number;
+	    p95Milliseconds: number;
+	    inFlight: number;
+	    sampleWindow: number;
+
+	    static createFrom(source: any = {}) {
+	        return new SystemAPIStatistics(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.requestsSinceStart = source["requestsSinceStart"];
+	        this.clientErrorsSinceStart = source["clientErrorsSinceStart"];
+	        this.serverErrorsSinceStart = source["serverErrorsSinceStart"];
+	        this.deadlineExceededSinceStart = source["deadlineExceededSinceStart"];
+	        this.p95Milliseconds = source["p95Milliseconds"];
+	        this.inFlight = source["inFlight"];
+	        this.sampleWindow = source["sampleWindow"];
+	    }
+	}
+	export class SystemAttachmentStatistics {
+	    missingObjects?: number;
+	    orphanObjects?: number;
+
+	    static createFrom(source: any = {}) {
+	        return new SystemAttachmentStatistics(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.missingObjects = source["missingObjects"];
+	        this.orphanObjects = source["orphanObjects"];
+	    }
+	}
+	export class SystemDatabaseStatistics {
+	    sizeBytes: number;
+	    poolOpen: number;
+	    poolInUse: number;
+	    poolIdle: number;
+	    poolMax: number;
+	    waitCountSinceStart: number;
+	    waitMillisecondsSinceStart: number;
+	    operationsSinceStart: number;
+	    operationErrorsSinceStart: number;
+	    operationP95Milliseconds: number;
+
+	    static createFrom(source: any = {}) {
+	        return new SystemDatabaseStatistics(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sizeBytes = source["sizeBytes"];
+	        this.poolOpen = source["poolOpen"];
+	        this.poolInUse = source["poolInUse"];
+	        this.poolIdle = source["poolIdle"];
+	        this.poolMax = source["poolMax"];
+	        this.waitCountSinceStart = source["waitCountSinceStart"];
+	        this.waitMillisecondsSinceStart = source["waitMillisecondsSinceStart"];
+	        this.operationsSinceStart = source["operationsSinceStart"];
+	        this.operationErrorsSinceStart = source["operationErrorsSinceStart"];
+	        this.operationP95Milliseconds = source["operationP95Milliseconds"];
+	    }
+	}
+	export class SystemOutboxStatistics {
+	    pending: number;
+	    processing: number;
+	    failed: number;
+	    processedSinceStart: number;
+	    retriesSinceStart: number;
+
+	    static createFrom(source: any = {}) {
+	        return new SystemOutboxStatistics(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pending = source["pending"];
+	        this.processing = source["processing"];
+	        this.failed = source["failed"];
+	        this.processedSinceStart = source["processedSinceStart"];
+	        this.retriesSinceStart = source["retriesSinceStart"];
+	    }
+	}
+	export class SystemServiceStatistics {
+	    version: string;
+	    apiVersion: string;
+	    state: string;
+	    // Go type: time
+	    startedAt: any;
+	    uptimeSeconds: number;
+	    schemaCurrentVersion: number;
+	    schemaRequiredVersion: number;
+	    schemaCompatible: boolean;
+	    schemaDirty: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new SystemServiceStatistics(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.apiVersion = source["apiVersion"];
+	        this.state = source["state"];
+	        this.startedAt = this.convertValues(source["startedAt"], null);
+	        this.uptimeSeconds = source["uptimeSeconds"];
+	        this.schemaCurrentVersion = source["schemaCurrentVersion"];
+	        this.schemaRequiredVersion = source["schemaRequiredVersion"];
+	        this.schemaCompatible = source["schemaCompatible"];
+	        this.schemaDirty = source["schemaDirty"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class SystemSetting {
 	    key: string;
 	    value: string;
@@ -2638,15 +2773,39 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class SystemUsageStatistics {
+	    activeUsers15m: number;
+	    activeSessions: number;
+
+	    static createFrom(source: any = {}) {
+	        return new SystemUsageStatistics(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.activeUsers15m = source["activeUsers15m"];
+	        this.activeSessions = source["activeSessions"];
+	    }
+	}
 	export class SystemStatistics {
 	    userCount: number;
 	    totalDocuments: number;
 	    dbSize: string;
+	    dbSizeBytes: number;
 	    storageObjects: number;
 	    storageSize: string;
+	    storageBytes: number;
 	    // Go type: time
 	    storageRefreshedAt?: any;
 	    storageRefreshInProgress: boolean;
+	    // Go type: time
+	    generatedAt: any;
+	    service: SystemServiceStatistics;
+	    usage: SystemUsageStatistics;
+	    api: SystemAPIStatistics;
+	    database: SystemDatabaseStatistics;
+	    outbox: SystemOutboxStatistics;
+	    attachments: SystemAttachmentStatistics;
 
 	    static createFrom(source: any = {}) {
 	        return new SystemStatistics(source);
@@ -2657,10 +2816,19 @@ export namespace models {
 	        this.userCount = source["userCount"];
 	        this.totalDocuments = source["totalDocuments"];
 	        this.dbSize = source["dbSize"];
+	        this.dbSizeBytes = source["dbSizeBytes"];
 	        this.storageObjects = source["storageObjects"];
 	        this.storageSize = source["storageSize"];
+	        this.storageBytes = source["storageBytes"];
 	        this.storageRefreshedAt = this.convertValues(source["storageRefreshedAt"], null);
 	        this.storageRefreshInProgress = source["storageRefreshInProgress"];
+	        this.generatedAt = this.convertValues(source["generatedAt"], null);
+	        this.service = this.convertValues(source["service"], SystemServiceStatistics);
+	        this.usage = this.convertValues(source["usage"], SystemUsageStatistics);
+	        this.api = this.convertValues(source["api"], SystemAPIStatistics);
+	        this.database = this.convertValues(source["database"], SystemDatabaseStatistics);
+	        this.outbox = this.convertValues(source["outbox"], SystemOutboxStatistics);
+	        this.attachments = this.convertValues(source["attachments"], SystemAttachmentStatistics);
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2681,6 +2849,7 @@ export namespace models {
 		    return a;
 		}
 	}
+
 	export class UpdateProfileRequest {
 	    login: string;
 	    fullName: string;

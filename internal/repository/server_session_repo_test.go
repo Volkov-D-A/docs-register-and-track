@@ -42,3 +42,22 @@ func TestServerSessionRepositoryLifecycle(t *testing.T) {
 	require.NoError(t, repo.RevokeByTokenHash(tokenHash, now))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestServerSessionRepositoryActivity(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer sqlDB.Close()
+	repo := NewServerSessionRepository(&database.DB{DB: sqlDB})
+	now := time.Now().UTC()
+	activeSince := now.Add(-15 * time.Minute)
+
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\), COUNT\\(DISTINCT user_id\\)").
+		WithArgs(now, activeSince).
+		WillReturnRows(sqlmock.NewRows([]string{"sessions", "users"}).AddRow(5, 3))
+
+	sessions, users, err := repo.Activity(now, activeSince)
+	require.NoError(t, err)
+	assert.Equal(t, 5, sessions)
+	assert.Equal(t, 3, users)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

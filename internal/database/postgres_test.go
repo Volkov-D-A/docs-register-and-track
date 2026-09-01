@@ -92,11 +92,22 @@ func TestDB_RecordsExecutionAndPoolMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	operations := metrics.Snapshot()
-	require.Len(t, operations, 1)
-	assert.Equal(t, "database.exec", operations[0].Name)
-	assert.EqualValues(t, 1, operations[0].Count)
+	require.Len(t, operations, 2)
+	assert.EqualValues(t, 1, operationSnapshotByName(t, operations, "database.exec").Count)
+	assert.EqualValues(t, 1, operationSnapshotByName(t, operations, "database.operation").Count)
 	assert.NotEmpty(t, metrics.Gauges())
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func operationSnapshotByName(t *testing.T, values []observability.OperationSnapshot, name string) observability.OperationSnapshot {
+	t.Helper()
+	for _, value := range values {
+		if value.Name == name {
+			return value
+		}
+	}
+	t.Fatalf("operation metric %q not found", name)
+	return observability.OperationSnapshot{}
 }
 
 func addMigrateInitExpectations(mock sqlmock.Sqlmock) {
