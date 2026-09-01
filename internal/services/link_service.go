@@ -11,6 +11,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // LinkService предоставляет бизнес-логику для управления связями между документами.
@@ -21,9 +22,10 @@ type LinkService struct {
 	citizenAppealDocRepo    CitizenAppealDocStore
 	administrativeOrderRepo AdministrativeOrderDocStore
 	access                  *DocumentAccessService
-	authService             *AuthService
+	authService             DocumentAccessPrincipal
 	lifecycle               *OperationLifecycle
 	metrics                 *observability.Registry
+	server                  serverclient.LinkClient
 }
 
 type linkOutboxStore interface {
@@ -42,7 +44,7 @@ func NewLinkService(
 	citizenAppealDocRepo CitizenAppealDocStore,
 	administrativeOrderRepo AdministrativeOrderDocStore,
 	access *DocumentAccessService,
-	authService *AuthService,
+	authService DocumentAccessPrincipal,
 ) *LinkService {
 	return &LinkService{
 		repo:                    repo,
@@ -53,6 +55,11 @@ func NewLinkService(
 		access:                  access,
 		authService:             authService,
 	}
+}
+
+// NewLinkServiceWithClient creates the desktop adapter for server-owned document links.
+func NewLinkServiceWithClient(client serverclient.LinkClient) *LinkService {
+	return &LinkService{server: client}
 }
 
 func (s *LinkService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
@@ -75,6 +82,11 @@ func linkJournalEffects(link *models.DocumentLink, userID uuid.UUID, action, det
 
 // LinkDocuments создает связь указанного типа между двумя документами.
 func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (*dto.DocumentLink, error) {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.LinkDocuments(ctx, sourceIDStr, targetIDStr, linkType)
+	}
 	return measureOperation(s.metrics, "links.create", func() (*dto.DocumentLink, error) {
 		ctx, release := serviceOperationContext(s.lifecycle)
 		defer release()
@@ -138,6 +150,11 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 
 // UnlinkDocument удаляет связь между документами по её ID.
 func (s *LinkService) UnlinkDocument(idStr string) error {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.UnlinkDocument(ctx, idStr)
+	}
 	return measureOperationError(s.metrics, "links.delete", func() error {
 		ctx, release := serviceOperationContext(s.lifecycle)
 		defer release()
@@ -173,6 +190,11 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 
 // GetDocumentLinks возвращает список всех прямых связей для указанного документа.
 func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, error) {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.GetDocumentLinks(ctx, docIDStr)
+	}
 	return measureOperation(s.metrics, "links.get_list", func() ([]dto.DocumentLink, error) {
 		ctx, release := serviceOperationContext(s.lifecycle)
 		defer release()
@@ -215,6 +237,11 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 
 // GetDocumentFlow возвращает граф связей для документа, включая связанные узлы (документы) и ребра (связи) для визуализации.
 func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, error) {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.GetDocumentFlow(ctx, rootIDStr)
+	}
 	return measureOperation(s.metrics, "links.get_graph", func() (*models.GraphData, error) {
 		ctx, release := serviceOperationContext(s.lifecycle)
 		defer release()

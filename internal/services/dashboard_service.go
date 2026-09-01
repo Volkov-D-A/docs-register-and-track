@@ -1,17 +1,22 @@
 package services
 
 import (
+	"context"
+	"time"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // DashboardService предоставляет данные текущей активности для дашборда.
 type DashboardService struct {
 	repo    DashboardStore
-	auth    *AuthService
+	auth    DocumentAccessPrincipal
 	access  *DocumentAccessService
 	metrics *observability.Registry
+	server  serverclient.DashboardClient
 }
 
 func (s *DashboardService) SetOperationMetrics(metrics *observability.Registry) {
@@ -19,12 +24,21 @@ func (s *DashboardService) SetOperationMetrics(metrics *observability.Registry) 
 }
 
 // NewDashboardService создает новый экземпляр DashboardService.
-func NewDashboardService(repo DashboardStore, auth *AuthService, access *DocumentAccessService) *DashboardService {
+func NewDashboardService(repo DashboardStore, auth DocumentAccessPrincipal, access *DocumentAccessService) *DashboardService {
 	return &DashboardService{repo: repo, auth: auth, access: access}
+}
+
+func NewDashboardServiceWithClient(client serverclient.DashboardClient) *DashboardService {
+	return &DashboardService{server: client}
 }
 
 // GetActivity возвращает оперативные данные для главного экрана.
 func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.GetDashboardActivity(ctx)
+	}
 	return measureOperation(s.metrics, "dashboard.get_activity", func() (*dto.DashboardActivity, error) {
 		if err := s.auth.RequireAuthenticated(); err != nil {
 			return nil, err

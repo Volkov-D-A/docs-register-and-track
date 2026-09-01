@@ -16,6 +16,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
 )
 
@@ -27,18 +28,24 @@ type App struct {
 	metrics   *observability.Registry
 	lifecycle *background.Lifecycle
 	http      *http.Server
+	storage   services.StorageInfoProvider
 	closeOnce sync.Once
 }
 
 type dependencies struct {
 	connectDatabase func(config.DatabaseConfig) (*database.DB, error)
-	newStorage      func(config.MinioConfig) (outbox.FileDeleter, error)
+	newStorage      func(config.MinioConfig) (serverStorage, error)
+}
+
+type serverStorage interface {
+	outbox.FileDeleter
+	services.StorageInfoProvider
 }
 
 func New(cfg *config.Config) (*App, error) {
 	return newWithDependencies(cfg, dependencies{
 		connectDatabase: database.Connect,
-		newStorage: func(cfg config.MinioConfig) (outbox.FileDeleter, error) {
+		newStorage: func(cfg config.MinioConfig) (serverStorage, error) {
 			return storage.NewMinioService(cfg)
 		},
 	})
@@ -94,6 +101,7 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		db:      db,
 		cfg:     cfg,
 		metrics: metrics,
+		storage: objectStorage,
 		lifecycle: background.NewLifecycle(
 			db,
 			&leasedWorker{db: db, worker: worker},

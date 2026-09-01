@@ -12,14 +12,14 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 )
 
 type testStorage struct{}
 
-func (testStorage) DeleteFile(context.Context, string) error { return nil }
+func (testStorage) DeleteFile(context.Context, string) error                { return nil }
+func (testStorage) RefreshStorageUsage(context.Context) (int, int64, error) { return 0, 0, nil }
 
 func TestServerProcessesOutboxWithoutWailsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
@@ -28,7 +28,7 @@ func TestServerProcessesOutboxWithoutWailsIntegration(t *testing.T) {
 	cfg.Server.ListenAddress = "127.0.0.1:0"
 	application, err := newWithDependencies(cfg, dependencies{
 		connectDatabase: func(config.DatabaseConfig) (*database.DB, error) { return db, nil },
-		newStorage:      func(config.MinioConfig) (outbox.FileDeleter, error) { return testStorage{}, nil },
+		newStorage:      func(config.MinioConfig) (serverStorage, error) { return testStorage{}, nil },
 	})
 	require.NoError(t, err)
 	defer application.Close()

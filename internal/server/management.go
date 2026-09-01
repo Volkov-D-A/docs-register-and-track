@@ -51,6 +51,10 @@ type managementAPI struct {
 	acknowledgments                    func(*models.User) acknowledgmentAPI
 	userEvents                         func(*models.User) userEventAPI
 	administrativeOrderAcknowledgments func(*models.User) administrativeOrderAcknowledgmentAPI
+	links                              func(*models.User) linkAPI
+	journal                            func(*models.User) journalAPI
+	dashboard                          func(*models.User) dashboardAPI
+	statistics                         func(*models.User) statisticsAPI
 	audit                              adminAuditStore
 	authUsers                          authUserStore
 	authSettings                       authSettingsStore
@@ -107,6 +111,11 @@ func newManagementAPI(app *App) *managementAPI {
 	acknowledgments := repository.NewAcknowledgmentRepository(app.db)
 	acknowledgments.SetOutbox(outboxRepo)
 	userEvents := repository.NewUserEventRepository(app.db)
+	links := repository.NewLinkRepository(app.db)
+	links.SetOutbox(outboxRepo)
+	journal := repository.NewJournalRepository(app.db)
+	dashboard := repository.NewDashboardRepository(app.db)
+	statistics := repository.NewStatisticsRepository(app.db)
 	documents := repository.NewDocumentRepository(app.db)
 	queryRegistry := services.NewDocumentKindQueryRegistry(
 		services.NewIncomingLetterQueryHandler(repository.NewIncomingDocumentRepository(app.db)),
@@ -185,6 +194,34 @@ func newManagementAPI(app *App) *managementAPI {
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
 			return services.NewAdministrativeOrderService(administrativeOrderCommands, principal, documentAccess)
+		},
+		links: func(user *models.User) linkAPI {
+			principal := requestDocumentPrincipal{user: user}
+			documentAccess := services.NewDocumentAccessService(
+				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+			)
+			service := services.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal)
+			service.SetOperationMetrics(app.metrics)
+			return service
+		},
+		journal: func(user *models.User) journalAPI {
+			principal := requestDocumentPrincipal{user: user}
+			documentAccess := services.NewDocumentAccessService(
+				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+			)
+			return services.NewJournalService(journal, principal, documentAccess)
+		},
+		dashboard: func(user *models.User) dashboardAPI {
+			principal := requestDocumentPrincipal{user: user}
+			documentAccess := services.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
+			service := services.NewDashboardService(dashboard, principal, documentAccess)
+			service.SetOperationMetrics(app.metrics)
+			return service
+		},
+		statistics: func(user *models.User) statisticsAPI {
+			service := services.NewStatisticsService(statistics, requestDocumentPrincipal{user: user}, app.storage)
+			service.SetOperationMetrics(app.metrics)
+			return service
 		},
 		authUsers:    users,
 		authSettings: settings,
@@ -275,6 +312,21 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/user-events/documents/{documentId}/read", api.requireSession(http.HandlerFunc(api.markDocumentUserEventsRead)))
 	mux.Handle("POST /api/v1/user-events/read-all", api.requireSession(http.HandlerFunc(api.markAllUserEventsRead)))
 	mux.Handle("POST /api/v1/administrative-order-acknowledgments/{id}/confirm", api.requireSession(http.HandlerFunc(api.markAdministrativeOrderAcknowledged)))
+	mux.Handle("POST /api/v1/document-links", api.requireSession(http.HandlerFunc(api.createDocumentLink)))
+	mux.Handle("DELETE /api/v1/document-links/{id}", api.requireSession(http.HandlerFunc(api.deleteDocumentLink)))
+	mux.Handle("GET /api/v1/documents/{id}/links", api.requireSession(http.HandlerFunc(api.listDocumentLinks)))
+	mux.Handle("GET /api/v1/documents/{id}/link-graph", api.requireSession(http.HandlerFunc(api.getDocumentLinkGraph)))
+	mux.Handle("GET /api/v1/documents/{id}/journal", api.requireSession(http.HandlerFunc(api.getDocumentJournal)))
+	mux.Handle("GET /api/v1/dashboard/activity", api.requireSession(http.HandlerFunc(api.getDashboardActivity)))
+	mux.Handle("GET /api/v1/statistics/documents", api.requireSession(http.HandlerFunc(api.getDocumentStatistics)))
+	mux.Handle("POST /api/v1/statistics/documents/report", api.requireSession(http.HandlerFunc(api.getDocumentStatisticsReport)))
+	mux.Handle("GET /api/v1/statistics/documents/filters", api.requireSession(http.HandlerFunc(api.getDocumentStatisticsFilters)))
+	mux.Handle("GET /api/v1/statistics/assignments", api.requireSession(http.HandlerFunc(api.getAssignmentStatistics)))
+	mux.Handle("POST /api/v1/statistics/assignments/report", api.requireSession(http.HandlerFunc(api.getAssignmentStatisticsReport)))
+	mux.Handle("GET /api/v1/statistics/assignments/filters", api.requireSession(http.HandlerFunc(api.getAssignmentStatisticsFilters)))
+	mux.Handle("GET /api/v1/statistics/system", api.requireSession(http.HandlerFunc(api.getSystemStatistics)))
+	mux.Handle("GET /api/v1/statistics/system/storage", api.requireSession(http.HandlerFunc(api.getStorageStatisticsStatus)))
+	mux.Handle("POST /api/v1/statistics/system/storage/retry", api.requireSession(http.HandlerFunc(api.retryStorageStatisticsRefresh)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))

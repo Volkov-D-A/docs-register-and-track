@@ -56,6 +56,10 @@ func (p requestDocumentPrincipal) RequireSystemPermission(permission string) err
 	return models.ErrForbidden
 }
 
+func (p requestDocumentPrincipal) HasSystemPermission(permission string) bool {
+	return p.RequireSystemPermission(permission) == nil
+}
+
 func (api *managementAPI) getDocumentCard(w http.ResponseWriter, r *http.Request) {
 	query := api.documentQueries(authenticatedFromContext(r.Context()).User)
 	card, err := query.GetByID(r.PathValue("id"))

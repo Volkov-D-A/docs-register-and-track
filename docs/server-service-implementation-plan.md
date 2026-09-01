@@ -8,8 +8,9 @@
 полный auth/password lifecycle, управление пользователями, CRUD подразделений,
 организаций, исполнителей резолюций, номенклатуры, системных настроек и read-only
 операции документов, команды регистрации, изменения и создания
-административных черновиков, поручения и серии поручений, а также ознакомления
-и персональные события реализованы через server API.
+административных черновиков, поручения и серии поручений, ознакомления,
+персональные события, связи документов, журнал, dashboard и statistics
+реализованы через server API.
 Эти сценарии вместе с access summary больше не используют PostgreSQL из
 desktop. Остальные business
 operations пока продолжают прямой доступ; HTTPS и окончательное закрытие
@@ -82,6 +83,13 @@ operations пока продолжают прямой доступ; HTTPS и о�
   событий выполняются через server API; bearer principal и активные замещения
   определяют адресата на сервере, а изменения ознакомлений и
   journal/user-event effects остаются атомарными.
+- создание, удаление, списки и граф связей документов, а также чтение журнала
+  выполняются через server API; сервер проверяет права на оба документа и
+  фильтрует граф по server-resolved read scope, а link mutation и journal
+  outbox сохраняются атомарно.
+- dashboard и все документные, порученческие, системные и storage statistics
+  читаются и запускаются через server API; системные права проверяются по
+  bearer principal, а MinIO scan выполняется сервером без credentials desktop.
 
 Контрольные коммиты:
 
@@ -105,7 +113,7 @@ operations пока продолжают прямой доступ; HTTPS и о�
 | 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
 | 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
 | 4. Authentication | Завершён | Только production-like session/load smoke |
-| 5. Business API | В работе | Пользователи, профиль, справочники, настройки, документы, поручения, ознакомления и user events перенесены; следующий срез — связи документов и журнал |
+| 5. Business API | В работе | Основные пользовательские сценарии, dashboard и statistics перенесены; следующий срез — административные audit/outbox read-модели |
 | 6. Attachments API | Не начат | Streaming endpoints и limits |
 | 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
 
@@ -204,12 +212,24 @@ typed server client. Desktop-сервисы больше не использую
 paths; bearer principal и активные замещения определяются сервером, а
 существующая атомарность acknowledgment + journal/user-event outbox сохранена.
 
-Следующий рекомендуемый срез — связи документов и journal, затем dashboard и
-statistics.
+После них перенесены связи документов и journal: создание, удаление, прямой
+список и граф связей, а также история документа работают через typed server
+client. Сервер получает principal только из bearer-сессии, проверяет `link` для
+обоих документов и `view_journal` для истории. Desktop composition root больше
+не создаёт link/journal и четыре kind-specific document repository; атомарность
+link mutation + journal outbox сохранена.
+
+После них перенесены dashboard и statistics: оперативные поручения, обзорные
+данные, отчёты, фильтры, системные показатели и lifecycle сверки MinIO работают
+через typed server client. Сервер проверяет статистические права по bearer
+principal и сам владеет storage scan; desktop composition root больше не
+создаёт dashboard/statistics repository.
+
+Следующий рекомендуемый срез — административные audit/outbox read-модели.
 
 После него рекомендуемый порядок:
 
-1. Связи, journal, dashboard и statistics.
+1. Административные audit/outbox read-модели.
 2. Вложения через streaming API, затем закрытие прямого PostgreSQL/MinIO.
 
 До использования credentials и временных паролей через недоверенную или
@@ -817,8 +837,8 @@ authorization, audit и тесты.
 6. Регистрация и изменение документов.
 7. Поручения, соисполнители и замещения.
 8. Ознакомления и user events — завершено.
-9. Связи документов и журнал.
-10. Dashboard, статистика, административный audit и outbox UI.
+9. Связи документов и журнал — завершено.
+10. Dashboard и статистика — завершено; административный audit и outbox UI остаются.
 
 Миграции уже управляются через server management API и не входят в оставшийся
 business backlog.

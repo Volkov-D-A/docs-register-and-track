@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // statisticsQueryConcurrency keeps one statistics request from occupying the
@@ -26,15 +28,29 @@ const (
 // StatisticsService предоставляет бизнес-логику раздела статистики.
 type StatisticsService struct {
 	repo      StatisticsStore
-	auth      *AuthService
+	auth      StatisticsPrincipal
 	storage   StorageInfoProvider
 	lifecycle *OperationLifecycle
 	metrics   *observability.Registry
+	server    serverclient.StatisticsClient
+}
+
+type StatisticsPrincipal interface {
+	RequireAuthenticated() error
+	HasSystemPermission(string) bool
 }
 
 // NewStatisticsService создает новый экземпляр StatisticsService.
-func NewStatisticsService(repo StatisticsStore, auth *AuthService, storage StorageInfoProvider) *StatisticsService {
+func NewStatisticsService(repo StatisticsStore, auth StatisticsPrincipal, storage StorageInfoProvider) *StatisticsService {
 	return &StatisticsService{repo: repo, auth: auth, storage: storage}
+}
+
+func NewStatisticsServiceWithClient(client serverclient.StatisticsClient) *StatisticsService {
+	return &StatisticsService{server: client}
+}
+
+func statisticsClientContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 2*time.Minute)
 }
 
 func (s *StatisticsService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
@@ -45,6 +61,11 @@ func (s *StatisticsService) SetOperationMetrics(metrics *observability.Registry)
 
 // GetDocumentStatistics возвращает обзорную статистику по всем документам за текущий год.
 func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics, error) {
+	if s.server != nil {
+		ctx, cancel := statisticsClientContext()
+		defer cancel()
+		return s.server.GetDocumentStatistics(ctx)
+	}
 	return measureOperation(s.metrics, "statistics.get_documents", func() (*models.DocumentStatistics, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
 			return nil, err
@@ -87,6 +108,11 @@ func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics,
 
 // GetDocumentReport возвращает документный отчет за период.
 func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy, kindCode, nomenclatureID, userID string) (*models.DocumentStatisticsReport, error) {
+	if s.server != nil {
+		ctx, cancel := statisticsClientContext()
+		defer cancel()
+		return s.server.GetDocumentReport(ctx, startDateStr, endDateStr, groupBy, kindCode, nomenclatureID, userID)
+	}
 	return measureOperation(s.metrics, "statistics.get_document_report", func() (*models.DocumentStatisticsReport, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
 			return nil, err
@@ -134,6 +160,11 @@ func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy,
 
 // GetDocumentFilterOptions возвращает значения фильтров для документной статистики.
 func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisticsFilters, error) {
+	if s.server != nil {
+		ctx, cancel := statisticsClientContext()
+		defer cancel()
+		return s.server.GetDocumentFilterOptions(ctx)
+	}
 	return measureOperation(s.metrics, "statistics.get_document_filters", func() (*models.DocumentStatisticsFilters, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
 			return nil, err
@@ -158,6 +189,11 @@ func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisti
 
 // GetAssignmentStatistics возвращает обзорную статистику по всем поручениям.
 func (s *StatisticsService) GetAssignmentStatistics() (*models.AssignmentStatistics, error) {
+	if s.server != nil {
+		ctx, cancel := statisticsClientContext()
+		defer cancel()
+		return s.server.GetAssignmentStatistics(ctx)
+	}
 	return measureOperation(s.metrics, "statistics.get_assignments", func() (*models.AssignmentStatistics, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
 			return nil, err
@@ -249,6 +285,11 @@ func runStatisticsQueries(tasks ...func() error) error {
 
 // GetAssignmentReport возвращает отчет по поручениям за период.
 func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string, onlyOverdue bool, userID string) (*models.AssignmentStatisticsReport, error) {
+	if s.server != nil {
+		ctx, cancel := statisticsClientContext()
+		defer cancel()
+		return s.server.GetAssignmentReport(ctx, startDateStr, endDateStr, onlyOverdue, userID)
+	}
 	return measureOperation(s.metrics, "statistics.get_assignment_report", func() (*models.AssignmentStatisticsReport, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
 			return nil, err
@@ -280,6 +321,11 @@ func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string,
 
 // GetAssignmentFilterOptions возвращает значения фильтров для статистики поручений.
 func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStatisticsFilters, error) {
+	if s.server != nil {
+		ctx, cancel := statisticsClientContext()
+		defer cancel()
+		return s.server.GetAssignmentFilterOptions(ctx)
+	}
 	return measureOperation(s.metrics, "statistics.get_assignment_filters", func() (*models.AssignmentStatisticsFilters, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
 			return nil, err
@@ -296,6 +342,11 @@ func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStat
 
 // GetSystemStatistics возвращает системную статистику.
 func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, error) {
+	if s.server != nil {
+		ctx, cancel := statisticsClientContext()
+		defer cancel()
+		return s.server.GetSystemStatistics(ctx)
+	}
 	return measureOperation(s.metrics, "statistics.get_system", func() (*models.SystemStatistics, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
 			return nil, err
@@ -345,6 +396,11 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 // GetStorageStatisticsStatus returns only the storage snapshot and refresh
 // lifecycle, making it cheap enough for bounded UI polling.
 func (s *StatisticsService) GetStorageStatisticsStatus() (*models.StorageStatisticsStatus, error) {
+	if s.server != nil {
+		ctx, cancel := statisticsClientContext()
+		defer cancel()
+		return s.server.GetStorageStatisticsStatus(ctx)
+	}
 	if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
 		return nil, err
 	}
@@ -361,6 +417,11 @@ func (s *StatisticsService) GetStorageStatisticsStatus() (*models.StorageStatist
 // RetryStorageStatisticsRefresh acknowledges the last failure and starts a new
 // scan as soon as no attachment mutation is active.
 func (s *StatisticsService) RetryStorageStatisticsRefresh() (*models.StorageStatisticsStatus, error) {
+	if s.server != nil {
+		ctx, cancel := statisticsClientContext()
+		defer cancel()
+		return s.server.RetryStorageStatisticsRefresh(ctx)
+	}
 	if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
 		return nil, err
 	}
