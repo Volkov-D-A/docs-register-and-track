@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -8,16 +9,18 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // AcknowledgmentService предоставляет бизнес-логику для работы с задачами на ознакомление.
 type AcknowledgmentService struct {
 	repo          AcknowledgmentStore
 	userRepo      UserStore
-	auth          *AuthService
+	auth          DocumentAccessPrincipal
 	access        *DocumentAccessService
 	events        *UserEventService
 	substitutions UserSubstitutionStore
+	server        serverclient.AcknowledgmentClient
 }
 
 type acknowledgmentConfirmationOutboxStore interface {
@@ -42,7 +45,7 @@ var errAcknowledgmentOutboxStoreRequired = errors.New("acknowledgment store must
 func NewAcknowledgmentService(
 	repo AcknowledgmentStore,
 	userRepo UserStore,
-	auth *AuthService,
+	auth DocumentAccessPrincipal,
 	access *DocumentAccessService,
 	events ...*UserEventService,
 ) *AcknowledgmentService {
@@ -56,6 +59,15 @@ func NewAcknowledgmentService(
 		s.events = events[0]
 	}
 	return s
+}
+
+// NewAcknowledgmentServiceWithClient creates the desktop adapter for server-owned acknowledgments.
+func NewAcknowledgmentServiceWithClient(client serverclient.AcknowledgmentClient) *AcknowledgmentService {
+	return &AcknowledgmentService{server: client}
+}
+
+func acknowledgmentClientContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 30*time.Second)
 }
 
 // SetSubstitutionStore подключает источник активных замещений.
@@ -145,6 +157,11 @@ func (s *AcknowledgmentService) Create(
 	content string,
 	userIds []string,
 ) (*dto.Acknowledgment, error) {
+	if s.server != nil {
+		ctx, cancel := acknowledgmentClientContext()
+		defer cancel()
+		return s.server.CreateAcknowledgment(ctx, documentID, content, userIds)
+	}
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
@@ -215,6 +232,11 @@ func (s *AcknowledgmentService) Create(
 
 // GetList возвращает список задач на ознакомление для конкретного документа.
 func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment, error) {
+	if s.server != nil {
+		ctx, cancel := acknowledgmentClientContext()
+		defer cancel()
+		return s.server.ListAcknowledgments(ctx, documentID)
+	}
 	docUUID, err := uuid.Parse(documentID)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
@@ -228,6 +250,11 @@ func (s *AcknowledgmentService) GetList(documentID string) ([]dto.Acknowledgment
 
 // GetPendingForCurrentUser возвращает список невыполненных задач на ознакомление для текущего авторизованного пользователя.
 func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment, error) {
+	if s.server != nil {
+		ctx, cancel := acknowledgmentClientContext()
+		defer cancel()
+		return s.server.ListPendingAcknowledgments(ctx)
+	}
 	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
@@ -255,6 +282,11 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 
 // GetCurrentUserPendingByDocument возвращает ожидающие подтверждения ознакомления текущего пользователя по документу.
 func (s *AcknowledgmentService) GetCurrentUserPendingByDocument(documentID string) ([]dto.Acknowledgment, error) {
+	if s.server != nil {
+		ctx, cancel := acknowledgmentClientContext()
+		defer cancel()
+		return s.server.ListPendingAcknowledgmentsByDocument(ctx, documentID)
+	}
 	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
@@ -291,6 +323,11 @@ func (s *AcknowledgmentService) GetCurrentUserPendingByDocument(documentID strin
 // GetAllActive возвращает список всех активных (не завершенных) задач на ознакомление в системе.
 // Доступно только делопроизводителям.
 func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
+	if s.server != nil {
+		ctx, cancel := acknowledgmentClientContext()
+		defer cancel()
+		return s.server.ListActiveAcknowledgments(ctx)
+	}
 	allowedKinds, err := s.access.GetDocumentKindsWithAction("acknowledge")
 	if err != nil {
 		return nil, err
@@ -332,6 +369,11 @@ func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 
 // MarkViewed отмечает задачу на ознакомление как просмотренную текущим пользователем.
 func (s *AcknowledgmentService) MarkViewed(ackID string) error {
+	if s.server != nil {
+		ctx, cancel := acknowledgmentClientContext()
+		defer cancel()
+		return s.server.MarkAcknowledgmentViewed(ctx, ackID)
+	}
 	if err := s.auth.RequireAuthenticated(); err != nil {
 		return err
 	}
@@ -364,6 +406,11 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 
 // MarkConfirmed отмечает задачу на ознакомление как выполненную (подтвержденную) текущим пользователем.
 func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
+	if s.server != nil {
+		ctx, cancel := acknowledgmentClientContext()
+		defer cancel()
+		return s.server.MarkAcknowledgmentConfirmed(ctx, ackID)
+	}
 	if err := s.auth.RequireAuthenticated(); err != nil {
 		return err
 	}
@@ -439,6 +486,11 @@ func (s *AcknowledgmentService) acknowledgmentConfirmedEventRequests(ack *models
 
 // Delete удаляет задачу на ознакомление по её ID.
 func (s *AcknowledgmentService) Delete(id string) error {
+	if s.server != nil {
+		ctx, cancel := acknowledgmentClientContext()
+		defer cancel()
+		return s.server.DeleteAcknowledgment(ctx, id)
+	}
 	ackUUID, err := uuid.Parse(id)
 	if err != nil {
 		return models.NewBadRequestWrapped("неверный ID строки ознакомления", err)

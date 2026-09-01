@@ -1,19 +1,23 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // AdministrativeOrderService предоставляет дополнительные операции по приказам.
 type AdministrativeOrderService struct {
 	repo   AdministrativeOrderDocStore
-	auth   *AuthService
+	auth   DocumentAccessPrincipal
 	access *DocumentAccessService
+	server serverclient.AdministrativeOrderAcknowledgmentClient
 }
 type administrativeOrderAcknowledgmentOutboxStore interface {
 	MarkAcknowledgmentPersonWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error)
@@ -22,7 +26,7 @@ type administrativeOrderAcknowledgmentOutboxStore interface {
 // NewAdministrativeOrderService создает сервис приказов.
 func NewAdministrativeOrderService(
 	repo AdministrativeOrderDocStore,
-	auth *AuthService,
+	auth DocumentAccessPrincipal,
 	access *DocumentAccessService,
 ) *AdministrativeOrderService {
 	return &AdministrativeOrderService{
@@ -32,8 +36,19 @@ func NewAdministrativeOrderService(
 	}
 }
 
+// NewAdministrativeOrderServiceWithClient creates the desktop adapter for
+// server-owned administrative-order acknowledgment commands.
+func NewAdministrativeOrderServiceWithClient(client serverclient.AdministrativeOrderAcknowledgmentClient) *AdministrativeOrderService {
+	return &AdministrativeOrderService{server: client}
+}
+
 // MarkAcknowledged проставляет отметку ознакомления для строки листа приказа.
 func (s *AdministrativeOrderService) MarkAcknowledged(personIDStr string) (*dto.AdministrativeOrderAcknowledgmentPerson, error) {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.MarkAdministrativeOrderAcknowledged(ctx, personIDStr)
+	}
 	personID, err := uuid.Parse(personIDStr)
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID строки ознакомления", err)

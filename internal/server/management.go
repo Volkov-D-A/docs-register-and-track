@@ -34,28 +34,31 @@ type rollbackRequest struct {
 }
 
 type managementAPI struct {
-	cfg              *config.Config
-	migrations       migrationStore
-	lifecycle        migrationLifecycle
-	users            adminUserStore
-	userCommands     userManagementStore
-	userAccess       userAccessManagementStore
-	substitutions    userSubstitutionManagementStore
-	departments      departmentManagementStore
-	references       referenceManagementStore
-	nomenclature     nomenclatureManagementStore
-	settings         settingsManagementStore
-	documentQueries  func(*models.User) documentQueryAPI
-	documentCommands func(*models.User) documentCommandAPI
-	assignments      func(*models.User) assignmentAPI
-	audit            adminAuditStore
-	authUsers        authUserStore
-	authSettings     authSettingsStore
-	sessions         authSessionStore
-	acquireLease     func(context.Context) (func(), bool, error)
-	migration        sync.Mutex
-	authMu           sync.Mutex
-	authFailures     map[string]authFailure
+	cfg                                *config.Config
+	migrations                         migrationStore
+	lifecycle                          migrationLifecycle
+	users                              adminUserStore
+	userCommands                       userManagementStore
+	userAccess                         userAccessManagementStore
+	substitutions                      userSubstitutionManagementStore
+	departments                        departmentManagementStore
+	references                         referenceManagementStore
+	nomenclature                       nomenclatureManagementStore
+	settings                           settingsManagementStore
+	documentQueries                    func(*models.User) documentQueryAPI
+	documentCommands                   func(*models.User) documentCommandAPI
+	assignments                        func(*models.User) assignmentAPI
+	acknowledgments                    func(*models.User) acknowledgmentAPI
+	userEvents                         func(*models.User) userEventAPI
+	administrativeOrderAcknowledgments func(*models.User) administrativeOrderAcknowledgmentAPI
+	audit                              adminAuditStore
+	authUsers                          authUserStore
+	authSettings                       authSettingsStore
+	sessions                           authSessionStore
+	acquireLease                       func(context.Context) (func(), bool, error)
+	migration                          sync.Mutex
+	authMu                             sync.Mutex
+	authFailures                       map[string]authFailure
 }
 
 type authFailure struct {
@@ -102,6 +105,8 @@ func newManagementAPI(app *App) *managementAPI {
 	assignments := repository.NewAssignmentRepository(app.db)
 	assignments.SetOutbox(outboxRepo)
 	acknowledgments := repository.NewAcknowledgmentRepository(app.db)
+	acknowledgments.SetOutbox(outboxRepo)
+	userEvents := repository.NewUserEventRepository(app.db)
 	documents := repository.NewDocumentRepository(app.db)
 	queryRegistry := services.NewDocumentKindQueryRegistry(
 		services.NewIncomingLetterQueryHandler(repository.NewIncomingDocumentRepository(app.db)),
@@ -161,6 +166,25 @@ func newManagementAPI(app *App) *managementAPI {
 			service := services.NewServerAssignmentService(assignments, users, principal, documentAccess)
 			service.SetSubstitutionStore(substitutions)
 			return service
+		},
+		acknowledgments: func(user *models.User) acknowledgmentAPI {
+			principal := requestDocumentPrincipal{user: user}
+			documentAccess := services.NewDocumentAccessService(
+				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+			)
+			service := services.NewAcknowledgmentService(acknowledgments, users, principal, documentAccess)
+			service.SetSubstitutionStore(substitutions)
+			return service
+		},
+		userEvents: func(user *models.User) userEventAPI {
+			return services.NewUserEventService(userEvents, requestDocumentPrincipal{user: user})
+		},
+		administrativeOrderAcknowledgments: func(user *models.User) administrativeOrderAcknowledgmentAPI {
+			principal := requestDocumentPrincipal{user: user}
+			documentAccess := services.NewDocumentAccessService(
+				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+			)
+			return services.NewAdministrativeOrderService(administrativeOrderCommands, principal, documentAccess)
 		},
 		authUsers:    users,
 		authSettings: settings,
@@ -237,6 +261,20 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/assignment-series/{id}/history", api.requireSession(http.HandlerFunc(api.getAssignmentSeriesHistory)))
 	mux.Handle("PATCH /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.updateAssignmentSeries)))
 	mux.Handle("DELETE /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.cancelAssignmentSeries)))
+	mux.Handle("POST /api/v1/acknowledgments", api.requireSession(http.HandlerFunc(api.createAcknowledgment)))
+	mux.Handle("GET /api/v1/acknowledgments", api.requireSession(http.HandlerFunc(api.listAcknowledgments)))
+	mux.Handle("GET /api/v1/acknowledgments/pending", api.requireSession(http.HandlerFunc(api.listPendingAcknowledgments)))
+	mux.Handle("GET /api/v1/acknowledgments/pending/{documentId}", api.requireSession(http.HandlerFunc(api.listPendingAcknowledgmentsByDocument)))
+	mux.Handle("GET /api/v1/acknowledgments/active", api.requireSession(http.HandlerFunc(api.listActiveAcknowledgments)))
+	mux.Handle("POST /api/v1/acknowledgments/{id}/view", api.requireSession(http.HandlerFunc(api.markAcknowledgmentViewed)))
+	mux.Handle("POST /api/v1/acknowledgments/{id}/confirm", api.requireSession(http.HandlerFunc(api.markAcknowledgmentConfirmed)))
+	mux.Handle("DELETE /api/v1/acknowledgments/{id}", api.requireSession(http.HandlerFunc(api.deleteAcknowledgment)))
+	mux.Handle("POST /api/v1/user-events/query", api.requireSession(http.HandlerFunc(api.listUserEvents)))
+	mux.Handle("GET /api/v1/user-events/unread-count", api.requireSession(http.HandlerFunc(api.getUnreadUserEventCount)))
+	mux.Handle("POST /api/v1/user-events/{id}/read", api.requireSession(http.HandlerFunc(api.markUserEventRead)))
+	mux.Handle("POST /api/v1/user-events/documents/{documentId}/read", api.requireSession(http.HandlerFunc(api.markDocumentUserEventsRead)))
+	mux.Handle("POST /api/v1/user-events/read-all", api.requireSession(http.HandlerFunc(api.markAllUserEventsRead)))
+	mux.Handle("POST /api/v1/administrative-order-acknowledgments/{id}/confirm", api.requireSession(http.HandlerFunc(api.markAdministrativeOrderAcknowledged)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))
