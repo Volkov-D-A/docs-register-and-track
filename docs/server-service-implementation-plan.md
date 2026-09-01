@@ -344,7 +344,9 @@ Desktop ──HTTPS──► docflow-server ──► PostgreSQL / MinIO / Seq
 ```
 
 На стадии A desktop и сервер взаимодействуют косвенно через outbox в
-PostgreSQL. На стадии B desktop знает только HTTPS URL сервиса.
+PostgreSQL. На стадии B desktop знает только HTTPS URL сервиса. Это относится
+и к техническим логам: desktop отправляет аутентифицированные ограниченные
+пакеты в сервис, а адресом Seq и окончательной identity владеет сервер.
 
 ### 3.3. Секреты не выдаются desktop-клиенту
 
@@ -579,7 +581,9 @@ payload, и только после успешного cutover новый цен
 
 Реализованы distroless Docker image, Docker Hub publication, Compose service,
 environment-only config, liveness/readiness, restart policy и минимальные
-значимые logs в Seq. Production manifest/hardening, alerts, ресурсные пороги и
+значимые logs в Seq. Desktop также переведён с прямой отправки в Seq на
+аутентифицированный telemetry endpoint сервиса. Production manifest/hardening,
+alerts, ресурсные пороги и
 операторская проверка backup/restore остаются незавершёнными. Периодические
 metric snapshots намеренно не отправляются в Seq; metrics backend пока не
 выбран.

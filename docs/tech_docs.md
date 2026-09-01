@@ -352,6 +352,13 @@ runtime environment. PostgreSQL и MinIO используют те же credenti
 создаются. Полный перечень и локальные примеры приведены в `.envExample`.
 JSON-файл серверу не требуется.
 
+Desktop не получает адрес или credentials Seq. После входа он отправляет
+ограниченные пакеты технических событий в аутентифицированный
+`POST /api/v1/telemetry/logs`. Сервис проверяет размер и структуру событий,
+отбрасывает чувствительные атрибуты, устанавливает identity из bearer-сессии и
+пишет события через собственный `slog`/Seq pipeline. Локальный JSON-вывод
+desktop сохраняется как best-effort fallback.
+
 Desktop config lookup order:
 
 ```text

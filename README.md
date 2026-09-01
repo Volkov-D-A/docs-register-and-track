@@ -33,7 +33,7 @@ cp config.example.json config/config.json
 make storage-up
 ```
 
-`docker-compose.yaml`, `.envExample` and `config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains the server URL and optional technical logging settings, but no PostgreSQL or MinIO credentials.
+`docker-compose.yaml`, `.envExample` and `config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains only the server connection settings and no PostgreSQL, MinIO or Seq credentials/endpoints. Authenticated desktop technical logs are sent in bounded batches to `POST /api/v1/telemetry/logs`; `docflow-server` adds the session identity and forwards them through its logging pipeline to Seq.
 
 Set the immutable `DOCFLOW_SERVER_VERSION` in `.env` next to the versions of
 PostgreSQL, MinIO, Seq and Caddy. Compose always pulls

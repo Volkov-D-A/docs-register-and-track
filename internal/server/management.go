@@ -367,6 +367,7 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/attachments/{id}", api.requireSession(http.HandlerFunc(api.deleteAttachment)))
 	mux.Handle("DELETE /api/v1/admin/attachments", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.bulkDeleteAttachments)))
 	mux.Handle("GET /api/v1/admin/attachments/reconciliation", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.reconcileAttachments)))
+	mux.Handle("POST /api/v1/telemetry/logs", api.requireSession(http.HandlerFunc(api.ingestTechnicalLogs)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))
@@ -601,7 +602,11 @@ func contains(values []string, expected string) bool {
 }
 
 func decodeJSON(r *http.Request, target any) error {
-	decoder := json.NewDecoder(io.LimitReader(r.Body, 64<<10))
+	return decodeJSONLimit(r, target, 64<<10)
+}
+
+func decodeJSONLimit(r *http.Request, target any, limit int64) error {
+	decoder := json.NewDecoder(io.LimitReader(r.Body, limit))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		return fmt.Errorf("decode request: %w", err)

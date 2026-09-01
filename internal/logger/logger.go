@@ -3,11 +3,13 @@ package logger
 import (
 	"bytes"
 	"context"
+	"io"
 	"log"
 	"log/slog"
 	"os"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // GetAppUserID — глобальная функция для получения ID текущего пользователя приложения.
@@ -44,33 +46,36 @@ func Init(cfg config.SeqConfig) (*slog.Logger, func()) {
 	var handler slog.Handler
 	var closer func()
 
-	// Настройки форматирования ключей для CLEF (Compact Log Event Format)
-	opts := &slog.HandlerOptions{
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			switch a.Key {
-			case slog.TimeKey:
-				a.Key = "@t"
-			case slog.LevelKey:
-				a.Key = "@l"
-			case slog.MessageKey:
-				a.Key = "@m"
-			}
-			return a
-		},
-	}
-
 	if cfg.Enabled && cfg.URL != "" {
 		w := NewSeqAsyncWriter(cfg.URL)
-		handler = &technicalContextHandler{Handler: slog.NewJSONHandler(w, opts)}
+		handler = &technicalContextHandler{Handler: slog.NewJSONHandler(w, clefHandlerOptions())}
 		closer = func() {
 			_ = w.Close()
 		}
 	} else {
 		// Обычный вывод в консоль, если Seq выключен (для fallback)
-		handler = &technicalContextHandler{Handler: slog.NewJSONHandler(os.Stdout, opts)}
+		handler = &technicalContextHandler{Handler: slog.NewJSONHandler(os.Stdout, clefHandlerOptions())}
 		closer = func() {}
 	}
 
+	return install(handler, closer)
+}
+
+func clefHandlerOptions() *slog.HandlerOptions {
+	return &slog.HandlerOptions{ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+		switch a.Key {
+		case slog.TimeKey:
+			a.Key = "@t"
+		case slog.LevelKey:
+			a.Key = "@l"
+		case slog.MessageKey:
+			a.Key = "@m"
+		}
+		return a
+	}}
+}
+
+func install(handler slog.Handler, closer func()) (*slog.Logger, func()) {
 	logger := slog.New(handler)
 
 	// Добавляем глобальные атрибуты ко всем логам по умолчанию
@@ -85,6 +90,14 @@ func Init(cfg config.SeqConfig) (*slog.Logger, func()) {
 	log.SetFlags(0) // убираем timestamp, чтобы не мешал сравнению
 
 	return logger, closer
+}
+
+// InitDesktop keeps a local JSON fallback and forwards authenticated log
+// batches through docflow-server. Desktop never receives a Seq endpoint.
+func InitDesktop(client serverclient.TelemetryClient) (*slog.Logger, func()) {
+	writer := NewServerAsyncWriter(client)
+	handler := &technicalContextHandler{Handler: slog.NewJSONHandler(io.MultiWriter(os.Stdout, writer), clefHandlerOptions())}
+	return install(handler, func() { _ = writer.Close() })
 }
 
 // stdLogFilter реализует io.Writer для перехвата вывода стандартного log.

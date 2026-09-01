@@ -27,6 +27,15 @@ type WailsOptionsParams struct {
 	Assets             fs.FS
 	ReleaseNotesSource []byte
 	CloseLogger        func()
+	ServerClient       *serverclient.Client
+}
+
+func NewDesktopServerClient(cfg *config.Config) (*serverclient.Client, error) {
+	serverURL := cfg.Server.URL
+	if serverURL == "" {
+		serverURL = "http://localhost:8080"
+	}
+	return serverclient.NewWithOptions(serverURL, serverclient.Options{AllowInsecureHTTP: cfg.Server.AllowInsecureHTTP})
 }
 
 // NewBindingsWailsOptions returns the public service types needed by the Wails
@@ -91,20 +100,18 @@ func newWailsOptionsWithDependencies(
 	}
 
 	settingsService := services.NewSettingsService(authService)
-	serverURL := cfg.Server.URL
-	if serverURL == "" {
-		serverURL = "http://localhost:8080"
-	}
-	serverClient, err := serverclient.NewWithOptions(serverURL, serverclient.Options{
-		AllowInsecureHTTP: cfg.Server.AllowInsecureHTTP,
-	})
-	if err != nil {
-		return nil, &startupdiag.Failure{
-			Component:  "docflow-server",
-			ConfigPath: params.ConfigPath,
-			Summary:    "Некорректный адрес серверного API.",
-			NextStep:   "Проверьте server.url в desktop config.json.",
-			Err:        err,
+	serverClient := params.ServerClient
+	if serverClient == nil {
+		var err error
+		serverClient, err = NewDesktopServerClient(cfg)
+		if err != nil {
+			return nil, &startupdiag.Failure{
+				Component:  "docflow-server",
+				ConfigPath: params.ConfigPath,
+				Summary:    "Некорректный адрес серверного API.",
+				NextStep:   "Проверьте server.url в desktop config.json.",
+				Err:        err,
+			}
 		}
 	}
 	adminAuditLogService := services.NewAdminAuditLogServiceWithClient(serverClient)

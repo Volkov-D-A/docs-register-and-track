@@ -70,7 +70,18 @@ func main() {
 		})
 	}
 
-	_, closeLogger := logger.Init(cfg.Seq)
+	serverClient, err := app.NewDesktopServerClient(cfg)
+	if err != nil {
+		failStartup(startupdiag.Failure{
+			Component:  "docflow-server",
+			ConfigPath: configPath,
+			Summary:    "Некорректный адрес серверного API.",
+			NextStep:   "Проверьте server.url в desktop config.json.",
+			Err:        err,
+		})
+	}
+
+	_, closeLogger := logger.InitDesktop(serverClient)
 	var closeLoggerOnce sync.Once
 	closeLoggerSafely := func() {
 		closeLoggerOnce.Do(closeLogger)
@@ -82,6 +93,7 @@ func main() {
 		Assets:             assets,
 		ReleaseNotesSource: releaseNotesSource,
 		CloseLogger:        closeLoggerSafely,
+		ServerClient:       serverClient,
 	})
 	if failure != nil {
 		failStartup(*failure)

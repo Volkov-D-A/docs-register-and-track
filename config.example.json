@@ -1,9 +1,5 @@
 {
     "_comment": "LOCAL DEVELOPMENT EXAMPLE ONLY. Do not use these localhost endpoints, disabled TLS settings or example encrypted secrets as production defaults.",
-    "seq": {
-        "url": "http://localhost:5341",
-        "enabled": true
-    },
     "server": {
         "url": "http://localhost:8080",
         "allowInsecureHttp": false
