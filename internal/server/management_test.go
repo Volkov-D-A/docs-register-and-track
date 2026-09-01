@@ -2,8 +2,11 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -18,6 +21,7 @@ import (
 
 type fakeManagementMigrations struct {
 	status        database.MigrationStatus
+	statusErr     error
 	applyErr      error
 	rollbackErr   error
 	applyCalls    int
@@ -29,7 +33,7 @@ func (m *fakeManagementMigrations) RunMigrations(string) error {
 	return m.applyErr
 }
 func (m *fakeManagementMigrations) GetMigrationStatus(string) (*database.MigrationStatus, error) {
-	return &m.status, nil
+	return &m.status, m.statusErr
 }
 func (m *fakeManagementMigrations) RollbackMigration(string) error {
 	m.rollbackCalls++
@@ -75,8 +79,9 @@ func testManagementAPI(t *testing.T) (*managementAPI, *fakeManagementMigrations,
 	lifecycle := &fakeManagementLifecycle{}
 	audit := &fakeAdminAudit{}
 	api := &managementAPI{
-		migrations: migrations,
-		lifecycle:  lifecycle,
+		migrations:    migrations,
+		lifecycle:     lifecycle,
+		serverVersion: "1.0.6",
 		users: fakeAdminUsers{user: &models.User{
 			ID:                uuid.New(),
 			Login:             "admin",
@@ -91,6 +96,76 @@ func testManagementAPI(t *testing.T) (*managementAPI, *fakeManagementMigrations,
 		},
 	}
 	return api, migrations, lifecycle, audit
+}
+
+func TestManagementAPISystemStatusReady(t *testing.T) {
+	api, _, _, _ := testManagementAPI(t)
+	res := httptest.NewRecorder()
+	api.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/v1/system/status", nil))
+
+	require.Equal(t, http.StatusOK, res.Code)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &payload))
+	assert.Equal(t, "ready", payload["status"])
+	assert.Equal(t, "ready", payload["code"])
+	assert.Equal(t, "1.0.6", payload["serverVersion"])
+}
+
+func TestManagementAPISystemStatusDoesNotLeakInternalError(t *testing.T) {
+	api, migrations, _, _ := testManagementAPI(t)
+	migrations.statusErr = errors.New("password=secret database detail")
+	res := httptest.NewRecorder()
+	api.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/v1/system/status", nil))
+
+	require.Equal(t, http.StatusOK, res.Code)
+	assert.Contains(t, res.Body.String(), `"code":"status_unavailable"`)
+	assert.NotContains(t, res.Body.String(), "secret")
+}
+
+func TestManagementAPISystemStatusReportsMaintenance(t *testing.T) {
+	api, _, lifecycle, _ := testManagementAPI(t)
+	lifecycle.readyErr = errors.New("private maintenance detail")
+	res := httptest.NewRecorder()
+	api.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/v1/system/status", nil))
+
+	require.Equal(t, http.StatusOK, res.Code)
+	assert.Contains(t, res.Body.String(), `"status":"maintenance"`)
+	assert.NotContains(t, res.Body.String(), "private")
+}
+
+func TestManagementAPICompatibilityUsesExactReleaseVersion(t *testing.T) {
+	api, _, _, _ := testManagementAPI(t)
+	tests := []struct {
+		version string
+		code    string
+		ok      bool
+	}{
+		{"1.0.6", "compatible", true},
+		{"1.0.5", "client_too_old", false},
+		{"1.0.7", "client_too_new", false},
+	}
+	for _, test := range tests {
+		t.Run(test.version, func(t *testing.T) {
+			res := httptest.NewRecorder()
+			path := "/api/v1/system/compatibility?clientVersion=" + test.version
+			api.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, path, nil))
+			require.Equal(t, http.StatusOK, res.Code)
+			assert.Contains(t, res.Body.String(), `"code":"`+test.code+`"`)
+			assert.Contains(t, res.Body.String(), `"compatible":`+map[bool]string{true: "true", false: "false"}[test.ok])
+		})
+	}
+}
+
+func TestManagementAPICompatibilityRejectsMalformedVersion(t *testing.T) {
+	api, _, _, _ := testManagementAPI(t)
+	for _, version := range []string{"1.0", "+1.0.6", "1.0.6-beta", "01.0.6"} {
+		res := httptest.NewRecorder()
+		path := "/api/v1/system/compatibility?clientVersion=" + url.QueryEscape(version)
+		api.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, path, nil))
+
+		assert.Equal(t, http.StatusBadRequest, res.Code)
+		assert.Contains(t, res.Body.String(), `"code":"invalid_client_version"`)
+	}
 }
 
 func TestManagementAPILivenessDoesNotRequireReadySchema(t *testing.T) {

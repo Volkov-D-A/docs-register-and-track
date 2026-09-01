@@ -35,6 +35,8 @@ type rollbackRequest struct {
 
 type managementAPI struct {
 	cfg                                *config.Config
+	serverVersion                      string
+	readinessCheck                     func(context.Context, *config.Config) error
 	migrations                         migrationStore
 	lifecycle                          migrationLifecycle
 	users                              adminUserStore
@@ -140,18 +142,20 @@ func newManagementAPI(app *App) *managementAPI {
 	citizenAppealCommands.SetOutbox(outboxRepo)
 	administrativeOrderCommands.SetOutbox(outboxRepo)
 	return &managementAPI{
-		cfg:           app.cfg,
-		migrations:    app.db,
-		lifecycle:     app.lifecycle,
-		users:         users,
-		userCommands:  users,
-		executors:     users,
-		userAccess:    access,
-		substitutions: substitutions,
-		departments:   departments,
-		references:    references,
-		nomenclature:  nomenclature,
-		settings:      settings,
+		cfg:            app.cfg,
+		serverVersion:  app.version,
+		readinessCheck: HealthCheck,
+		migrations:     app.db,
+		lifecycle:      app.lifecycle,
+		users:          users,
+		userCommands:   users,
+		executors:      users,
+		userAccess:     access,
+		substitutions:  substitutions,
+		departments:    departments,
+		references:     references,
+		nomenclature:   nomenclature,
+		settings:       settings,
 		documentQueries: func(user *models.User) documentQueryAPI {
 			documentAccess := services.NewDocumentAccessService(
 				requestDocumentPrincipal{user: user}, departments, assignments,
@@ -273,6 +277,8 @@ func (api *managementAPI) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health/live", api.live)
 	mux.HandleFunc("GET /health/ready", api.ready)
+	mux.HandleFunc("GET /api/v1/system/status", api.systemStatus)
+	mux.HandleFunc("GET /api/v1/system/compatibility", api.systemCompatibility)
 	mux.HandleFunc("POST /api/v1/auth/login", api.login)
 	mux.HandleFunc("GET /api/v1/auth/setup-required", api.setupRequired)
 	mux.HandleFunc("POST /api/v1/auth/setup", api.initialSetupAdmin)

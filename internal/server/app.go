@@ -15,6 +15,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
@@ -29,6 +30,7 @@ type App struct {
 	lifecycle *background.Lifecycle
 	http      *http.Server
 	storage   serverStorage
+	version   string
 	closeOnce sync.Once
 }
 
@@ -55,6 +57,10 @@ func New(cfg *config.Config) (*App, error) {
 func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 	if err := ValidateConfig(cfg); err != nil {
 		return nil, fmt.Errorf("validate server configuration: %w", err)
+	}
+	version, err := releaseassets.CurrentVersion()
+	if err != nil {
+		return nil, fmt.Errorf("read server version: %w", err)
 	}
 
 	db, err := deps.connectDatabase(cfg.Database)
@@ -103,6 +109,7 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		cfg:     cfg,
 		metrics: metrics,
 		storage: objectStorage,
+		version: version,
 		lifecycle: background.NewLifecycle(
 			db,
 			&leasedWorker{db: db, worker: worker},

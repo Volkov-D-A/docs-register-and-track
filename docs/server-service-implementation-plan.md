@@ -123,7 +123,7 @@
 | 0. Baseline | Частично | Production SLO, ресурсы, DNS/TLS, owners, restore evidence |
 | 1. Server worker | Завершён | Только эксплуатационный production smoke |
 | 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
-| 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
+| 3. System API/HTTPS | Частично | TLS, CA rollout, request IDs и общий error envelope |
 | 4. Authentication | Завершён | Только production-like session/load smoke |
 | 5. Business API | Завершён | Пользовательские и административные business/read-модели перенесены |
 | 6. Attachments API | Завершён | Production-like предельные размеры и cancellation smoke |
@@ -653,9 +653,10 @@ log содержит только значимые события, warnings и e
 ## Этап 3. Добавить системный HTTPS API и compatibility handshake — частично
 
 HTTP server, API v1, health endpoints, Caddy и typed desktop client уже есть.
-Реализован временный явно разрешаемый HTTP-режим. HTTPS certificate, доверие CA,
-`system/status`, формальный compatibility handshake, request ID и единый
-production error envelope для всех будущих endpoints ещё предстоят.
+Реализованы публичные `system/status`, compatibility handshake и обязательная
+desktop-проверка до показа login. Временный HTTP-режим включается только явно.
+HTTPS certificate, доверие CA, request ID и единый production error envelope
+для всех endpoints ещё предстоят.
 
 На этом этапе business operations ещё могут идти напрямую в БД, но desktop уже
 умеет связываться с сервисом.
@@ -671,13 +672,19 @@ GET /api/v1/system/compatibility?clientVersion=...
 
 ```json
 {
-  "status": "ready",
+  "compatible": true,
+  "code": "compatible",
   "apiVersion": "v1",
-  "serverVersion": "1.1.0",
+  "serverVersion": "1.0.6",
   "minimumClientVersion": "1.0.6",
-  "maintenance": false
+  "maximumClientVersion": "1.0.6"
 }
 ```
+
+Пока desktop распространяется централизованно, совместимой считается только
+точно совпадающая release-версия. Несовместимость является штатным ответом
+`200 OK` с кодом `client_too_old` или `client_too_new`; некорректный параметр
+версии возвращает `400 Bad Request`.
 
 ### Общий HTTP contract
 
@@ -697,25 +704,21 @@ GET /api/v1/system/compatibility?clientVersion=...
 
 ### Desktop API client
 
-Добавить `internal/apiclient`:
+Typed client реализован в `internal/serverclient`: он валидирует base URL,
+использует стандартный TLS transport с connection pooling, ограничивает запросы
+по времени и различает TLS, transport и protocol errors. Для дальнейшего
+hardening остаются общий request ID, единый structured error decoder,
+ограниченный retry только для безопасных GET/idempotent command и единая
+политика безопасного логирования без password/token/body вложений. Произвольные
+POST автоматически не повторяются.
 
-- base URL validation;
-- TLS transport и connection pooling;
-- общий request ID;
-- deadlines по типу операции;
-- decoding structured errors;
-- ограниченный retry только для заведомо безопасных GET либо idempotent command;
-- отсутствие автоматического retry для произвольного POST;
-- логирование без password/token/body вложений.
-
-Desktop startup выполняет compatibility request до показа login. UI должен
-различать:
+Desktop startup выполняет compatibility request до показа login. UI различает:
 
 - сервис недоступен;
 - недоверенный/просроченный TLS certificate;
 - maintenance;
 - слишком старый desktop;
-- несовместимую версию API;
+- ответ, нарушающий system API contract;
 - обычную ошибку аутентификации.
 
 ### TLS
@@ -1358,7 +1361,7 @@ offline-режима:
 - production server resources, limits и расположение deployment manifest;
 - утверждённый способ доставки production secrets;
 - требования к IP/device metadata в audit;
-- формальный compatibility/status contract и парная rollback policy.
+- парная rollback policy для server и desktop release.
 
 До этапа 6:
 

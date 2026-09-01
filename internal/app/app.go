@@ -16,6 +16,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
@@ -158,7 +159,17 @@ func newWailsOptionsWithDependencies(
 	statisticsService := services.NewStatisticsServiceWithClient(serverClient)
 	linkService := services.NewLinkServiceWithClient(serverClient)
 	acknowledgmentService := services.NewAcknowledgmentServiceWithClient(serverClient)
-	systemService := services.NewSystemService()
+	clientVersion, err := releaseassets.CurrentVersion()
+	if err != nil {
+		return nil, &startupdiag.Failure{
+			Component:  "release version",
+			ConfigPath: params.ConfigPath,
+			Summary:    "Не удалось определить версию приложения.",
+			NextStep:   "Пересоберите приложение через release workflow.",
+			Err:        err,
+		}
+	}
+	systemService := services.NewSystemServiceWithClient(serverClient, clientVersion)
 	releaseNoteService, err := services.NewReleaseNoteService(params.ReleaseNotesSource)
 	if err != nil {
 		return nil, &startupdiag.Failure{
@@ -191,6 +202,7 @@ func newWailsOptionsWithDependencies(
 		LogLevel:       wailslogger.ERROR,
 		ErrorFormatter: formatBackendError,
 		OnStartup: func(ctx context.Context) {
+			systemService.Startup(ctx)
 			attachmentService.Startup(ctx)
 			backgroundServices.SetApplicationContext(ctx)
 			backgroundServices.ReconcileSchema()

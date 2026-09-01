@@ -12,8 +12,9 @@ import { models } from '../wailsjs/go/models';
 import { getDocumentPageKey } from './constants/documentKinds';
 import { useCurrentAccessSummary } from './hooks/useCurrentAccessSummary';
 import { useOrganizationSetup } from './hooks/useOrganizationSetup';
+import SystemBootstrapGate from './components/SystemBootstrapGate';
 
-function App() {
+function AppContent() {
     const { message } = AntdApp.useApp();
     const { isAuthenticated, user } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
@@ -188,6 +189,14 @@ function App() {
                 onSave={organizationSetup.save}
             />
         </>
+    );
+}
+
+function App() {
+    return (
+        <SystemBootstrapGate>
+            <AppContent />
+        </SystemBootstrapGate>
     );
 }
 
