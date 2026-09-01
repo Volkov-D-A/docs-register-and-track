@@ -1,30 +1,47 @@
 package services
 
 import (
+	"context"
 	"log/slog"
+	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 
 	"github.com/google/uuid"
 )
 
 // AdminAuditLogService предоставляет бизнес-логику для журнала действий администраторов.
 type AdminAuditLogService struct {
-	repo AdminAuditLogStore
-	auth *AuthService
+	repo   AdminAuditLogStore
+	auth   SystemPermissionPrincipal
+	server serverclient.AdminAuditClient
+}
+
+type SystemPermissionPrincipal interface {
+	RequireSystemPermission(string) error
 }
 
 // NewAdminAuditLogService создает новый экземпляр AdminAuditLogService.
-func NewAdminAuditLogService(repo AdminAuditLogStore, auth *AuthService) *AdminAuditLogService {
+func NewAdminAuditLogService(repo AdminAuditLogStore, auth SystemPermissionPrincipal) *AdminAuditLogService {
 	return &AdminAuditLogService{
 		repo: repo,
 		auth: auth,
 	}
 }
 
+func NewAdminAuditLogServiceWithClient(client serverclient.AdminAuditClient) *AdminAuditLogService {
+	return &AdminAuditLogService{server: client}
+}
+
 // GetAll возвращает записи журнала с пагинацией (только для администраторов).
 func (s *AdminAuditLogService) GetAll(page, pageSize int) (*dto.AdminAuditLogPage, error) {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return s.server.GetAdminAuditLog(ctx, page, pageSize)
+	}
 	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
@@ -52,7 +69,7 @@ func (s *AdminAuditLogService) GetAll(page, pageSize int) (*dto.AdminAuditLogPag
 // LogAction — внутренний метод для логирования действий администраторов.
 // Вызывается из других сервисов. Безопасен для вызова с nil receiver.
 func (s *AdminAuditLogService) LogAction(userID uuid.UUID, userName, action, details string) {
-	if s == nil {
+	if s == nil || s.repo == nil {
 		return
 	}
 	req := models.CreateAdminAuditLogRequest{

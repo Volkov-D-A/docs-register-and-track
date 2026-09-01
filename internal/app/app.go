@@ -121,7 +121,6 @@ func newWailsOptionsWithDependencies(
 	departmentRepo := repository.NewDepartmentRepository(db)
 	attachmentRepo := repository.NewAttachmentRepository(db)
 	acknowledgmentRepo := repository.NewAcknowledgmentRepository(db)
-	adminAuditLogRepo := repository.NewAdminAuditLogRepository(db)
 	outboxRepo := repository.NewOutboxRepository(db)
 	acknowledgmentRepo.SetOutbox(outboxRepo)
 	attachmentRepo.SetOutbox(outboxRepo)
@@ -140,8 +139,6 @@ func newWailsOptionsWithDependencies(
 		return authService.GetCurrentUserID()
 	}
 
-	adminAuditLogService := services.NewAdminAuditLogService(adminAuditLogRepo, authService)
-	outboxAdminService := services.NewOutboxAdminService(outboxRepo, authService)
 	settingsService := services.NewSettingsService(authService)
 	serverURL := cfg.Server.URL
 	if serverURL == "" {
@@ -159,6 +156,8 @@ func newWailsOptionsWithDependencies(
 			Err:        err,
 		}
 	}
+	adminAuditLogService := services.NewAdminAuditLogServiceWithClient(serverClient)
+	outboxAdminService := services.NewOutboxAdminServiceWithClient(serverClient)
 	settingsService.SetMigrationClient(serverClient)
 	settingsService.SetServerClient(serverClient)
 	authService.SetServerAuth(serverClient)

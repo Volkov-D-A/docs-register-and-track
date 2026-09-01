@@ -1,24 +1,47 @@
 package services
 
 import (
+	"context"
+	"time"
+
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // OutboxAdminService exposes operational state without granting the UI direct
 // database access. Every operation requires the existing administrator right.
 type OutboxAdminService struct {
-	repo *repository.OutboxRepository
-	auth *AuthService
+	repo   OutboxAdminStore
+	auth   SystemPermissionPrincipal
+	server serverclient.OutboxAdminClient
 }
 
-func NewOutboxAdminService(repo *repository.OutboxRepository, auth *AuthService) *OutboxAdminService {
+type OutboxAdminStore interface {
+	Stats() (models.OutboxStats, error)
+	GetFailed(int) ([]models.FailedOutboxEvent, error)
+	Requeue(uuid.UUID) error
+}
+
+func NewOutboxAdminService(repo OutboxAdminStore, auth SystemPermissionPrincipal) *OutboxAdminService {
 	return &OutboxAdminService{repo: repo, auth: auth}
 }
 
+func NewOutboxAdminServiceWithClient(client serverclient.OutboxAdminClient) *OutboxAdminService {
+	return &OutboxAdminService{server: client}
+}
+
+func outboxAdminClientContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 30*time.Second)
+}
+
 func (s *OutboxAdminService) GetStats() (models.OutboxStats, error) {
+	if s.server != nil {
+		ctx, cancel := outboxAdminClientContext()
+		defer cancel()
+		return s.server.GetOutboxStats(ctx)
+	}
 	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return models.OutboxStats{}, err
 	}
@@ -26,6 +49,11 @@ func (s *OutboxAdminService) GetStats() (models.OutboxStats, error) {
 }
 
 func (s *OutboxAdminService) GetFailed(limit int) ([]models.FailedOutboxEvent, error) {
+	if s.server != nil {
+		ctx, cancel := outboxAdminClientContext()
+		defer cancel()
+		return s.server.GetFailedOutboxEvents(ctx, limit)
+	}
 	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
@@ -33,6 +61,11 @@ func (s *OutboxAdminService) GetFailed(limit int) ([]models.FailedOutboxEvent, e
 }
 
 func (s *OutboxAdminService) Requeue(id string) error {
+	if s.server != nil {
+		ctx, cancel := outboxAdminClientContext()
+		defer cancel()
+		return s.server.RequeueOutboxEvent(ctx, id)
+	}
 	if err := s.auth.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return err
 	}

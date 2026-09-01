@@ -9,11 +9,10 @@
 организаций, исполнителей резолюций, номенклатуры, системных настроек и read-only
 операции документов, команды регистрации, изменения и создания
 административных черновиков, поручения и серии поручений, ознакомления,
-персональные события, связи документов, журнал, dashboard и statistics
-реализованы через server API.
+персональные события, связи документов, журнал, dashboard, statistics и
+административные audit/outbox операции реализованы через server API.
 Эти сценарии вместе с access summary больше не используют PostgreSQL из
-desktop. Остальные business
-operations пока продолжают прямой доступ; HTTPS и окончательное закрытие
+desktop. Вложения пока продолжают прямой доступ; HTTPS и окончательное закрытие
 инфраструктуры от рабочих мест не выполнены.
 
 Реализовано к текущей точке:
@@ -90,6 +89,9 @@ operations пока продолжают прямой доступ; HTTPS и о�
 - dashboard и все документные, порученческие, системные и storage statistics
   читаются и запускаются через server API; системные права проверяются по
   bearer principal, а MinIO scan выполняется сервером без credentials desktop.
+- административный журнал и состояние outbox читаются через server API;
+  terminal failures возвращаются в очередь только защищённой admin-командой,
+  а desktop не может создавать или подделывать записи аудита.
 
 Контрольные коммиты:
 
@@ -105,6 +107,8 @@ operations пока продолжают прямой доступ; HTTPS и о�
 - `0a22a07` — системные настройки через server API;
 - `07b7132` — read-only операции документов через server API.
 - `82218a8` — команды документов через server API и полный PostgreSQL-прогон.
+- `33ac27b` — ознакомления и user events через server API;
+- `0ccee05` — связи, журнал, dashboard и statistics через server API.
 
 | Этап | Состояние | Что осталось |
 |---|---|---|
@@ -113,17 +117,17 @@ operations пока продолжают прямой доступ; HTTPS и о�
 | 2. Deployment/observability | Частично | Hardening, alerts, resource limits, operator procedures |
 | 3. System API/HTTPS | Частично | TLS, CA rollout, compatibility/status, request IDs |
 | 4. Authentication | Завершён | Только production-like session/load smoke |
-| 5. Business API | В работе | Основные пользовательские сценарии, dashboard и statistics перенесены; следующий срез — административные audit/outbox read-модели |
+| 5. Business API | Завершён | Пользовательские и административные business/read-модели перенесены |
 | 6. Attachments API | Не начат | Streaming endpoints и limits |
 | 7. Close direct access | Не начат | Удаление credentials, firewall и финальный cutover |
 
-До целевого production-состояния остаются перенос business API, HTTPS,
+До целевого production-состояния остаются attachments API, HTTPS,
 удаление DB/MinIO credentials с рабочих мест, firewall cutover, реальный
 backup/restore test и production-like load/end-to-end проверки.
 
 ## Точка продолжения
 
-Контрольный commit до текущего рабочего среза — `07b7132`. При возобновлении
+Последний контрольный commit до текущего рабочего среза — `0ccee05`. При возобновлении
 работы не нужно заново реализовывать worker, миграции, login/session, password
 flows или основные admin-операции пользователей.
 
@@ -225,12 +229,15 @@ link mutation + journal outbox сохранена.
 principal и сам владеет storage scan; desktop composition root больше не
 создаёт dashboard/statistics repository.
 
-Следующий рекомендуемый срез — административные audit/outbox read-модели.
+После них перенесены административные audit/outbox операции: журнал аудита,
+статистика очереди и terminal failures читаются через typed server client, а
+requeue выполняется защищённой admin-командой. `LogAction` намеренно не
+экспортируется в server API: desktop не является доверенным producer аудита.
 
 После него рекомендуемый порядок:
 
-1. Административные audit/outbox read-модели.
-2. Вложения через streaming API, затем закрытие прямого PostgreSQL/MinIO.
+1. Вложения через streaming API.
+2. Закрытие прямого PostgreSQL/MinIO.
 
 До использования credentials и временных паролей через недоверенную или
 маршрутизируемую сеть необходимо завершить HTTPS в Caddy и установить доверие к
@@ -838,7 +845,7 @@ authorization, audit и тесты.
 7. Поручения, соисполнители и замещения.
 8. Ознакомления и user events — завершено.
 9. Связи документов и журнал — завершено.
-10. Dashboard и статистика — завершено; административный audit и outbox UI остаются.
+10. Dashboard, статистика, административный audit и outbox UI — завершено.
 
 Миграции уже управляются через server management API и не входят в оставшийся
 business backlog.

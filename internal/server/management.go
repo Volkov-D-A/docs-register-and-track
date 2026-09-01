@@ -55,6 +55,8 @@ type managementAPI struct {
 	journal                            func(*models.User) journalAPI
 	dashboard                          func(*models.User) dashboardAPI
 	statistics                         func(*models.User) statisticsAPI
+	adminAudit                         func(*models.User) adminAuditAPI
+	outboxAdmin                        func(*models.User) outboxAdminAPI
 	audit                              adminAuditStore
 	authUsers                          authUserStore
 	authSettings                       authSettingsStore
@@ -116,6 +118,7 @@ func newManagementAPI(app *App) *managementAPI {
 	journal := repository.NewJournalRepository(app.db)
 	dashboard := repository.NewDashboardRepository(app.db)
 	statistics := repository.NewStatisticsRepository(app.db)
+	adminAudit := repository.NewAdminAuditLogRepository(app.db)
 	documents := repository.NewDocumentRepository(app.db)
 	queryRegistry := services.NewDocumentKindQueryRegistry(
 		services.NewIncomingLetterQueryHandler(repository.NewIncomingDocumentRepository(app.db)),
@@ -223,6 +226,12 @@ func newManagementAPI(app *App) *managementAPI {
 			service.SetOperationMetrics(app.metrics)
 			return service
 		},
+		adminAudit: func(user *models.User) adminAuditAPI {
+			return services.NewAdminAuditLogService(adminAudit, requestDocumentPrincipal{user: user})
+		},
+		outboxAdmin: func(user *models.User) outboxAdminAPI {
+			return services.NewOutboxAdminService(outboxRepo, requestDocumentPrincipal{user: user})
+		},
 		authUsers:    users,
 		authSettings: settings,
 		sessions:     repository.NewServerSessionRepository(app.db),
@@ -327,6 +336,10 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/statistics/system", api.requireSession(http.HandlerFunc(api.getSystemStatistics)))
 	mux.Handle("GET /api/v1/statistics/system/storage", api.requireSession(http.HandlerFunc(api.getStorageStatisticsStatus)))
 	mux.Handle("POST /api/v1/statistics/system/storage/retry", api.requireSession(http.HandlerFunc(api.retryStorageStatisticsRefresh)))
+	mux.Handle("GET /api/v1/admin/audit", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getAdminAuditLog)))
+	mux.Handle("GET /api/v1/admin/outbox/stats", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getOutboxStats)))
+	mux.Handle("GET /api/v1/admin/outbox/failed", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getFailedOutboxEvents)))
+	mux.Handle("POST /api/v1/admin/outbox/{id}/requeue", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.requeueOutboxEvent)))
 	mux.Handle("GET /api/v1/access/current", api.requireSession(http.HandlerFunc(api.currentAccessSummary)))
 	mux.Handle("PATCH /api/v1/profile", api.requireSession(http.HandlerFunc(api.updateOwnProfile)))
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))
