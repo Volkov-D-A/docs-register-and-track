@@ -99,15 +99,9 @@ Run the app in development mode:
 make dev
 ```
 
-Build and inspect the standalone outbox service:
-
-```bash
-cp .envExample .env
-make build-server
-make run-server
-```
-
-Fill the PostgreSQL, MinIO, Seq and outbox values before starting the service.
+The local `docflow-server` is started by `make storage-up` as part of the
+Compose stack; a second standalone server process is not required. Fill the
+PostgreSQL, MinIO, Seq and outbox values before starting the stack.
 The same database and MinIO credentials are used both to initialize the local
 containers and to connect `docflow-server`; no duplicate service credentials
 are required. The example contains placeholders and is not a production
@@ -116,14 +110,8 @@ environment variables. Desktop builds neither write transactional events
 directly nor run an outbox consumer; `docflow-server` owns both production and
 delivery.
 
-Build the server container locally:
-
-```bash
-make docker-server-build
-```
-
-The resulting tag is `docflow-server:<productVersion>` by default. Publish an
-immutable version tag to Docker Hub after authenticating locally:
+Build and publish an immutable server image to Docker Hub after authenticating
+locally:
 
 ```bash
 docker login
@@ -131,12 +119,13 @@ make docker-server-push
 ```
 
 The Docker Hub repository is fixed as `hehelf/docflow-service`; Makefile and
-Compose read `DOCFLOW_SERVER_VERSION` from `.env`. Keep it synchronized with the
-product version when publishing a release. The Makefile never accepts or stores
-a Docker Hub password/token. The runtime image contains only the static server
-binary. Pass `.env` with `--env-file` or the equivalent orchestrator mechanism.
-Provide `ENCRYPTION_KEY` when a secret uses the `ENC:` format. Production secret
-delivery must be verified on the target host.
+Compose read `DOCFLOW_SERVER_VERSION` from `.env`. Before building, the target
+checks that this version matches the generated release asset and Wails product
+version. The Makefile never accepts or stores a Docker Hub password/token. The
+runtime image contains only the static server binary. Pass `.env` with
+`--env-file` or the equivalent orchestrator mechanism.
+PostgreSQL and MinIO passwords must be supplied as runtime secrets; production
+secret delivery must be verified on the target host.
 
 Run automated checks:
 
@@ -159,7 +148,7 @@ DOCFLOW_CONFIG_PATH
 
 The current working directory fallback is for local development. Production installs should use `DOCFLOW_CONFIG_PATH` or place the approved config next to the executable under `config/config.json`. Target install smoke must still verify launch from shortcut/default cwd, paths with spaces and Cyrillic characters, and missing/invalid config behavior.
 
-Encrypted config values use `ENC:` and require `ENCRYPTION_KEY` to be supplied at build/runtime according to the approved release process. Do not commit production secrets.
+The desktop configuration contains no infrastructure credentials. Do not commit production secrets.
 
 ## Release And Operations
 

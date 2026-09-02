@@ -60,7 +60,6 @@ services:
     pull_policy: always
     container_name: docflow_server
     environment:
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       POSTGRES_CONTAINER: postgres
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER}

@@ -73,7 +73,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return &startupdiag.Failure{
 			Component: "configuration",
 			Summary:   "Не удалось загрузить конфигурацию docflow-server.",
-			NextStep:  "Проверьте переменные PostgreSQL, MinIO, Seq, outbox и ENCRYPTION_KEY.",
+			NextStep:  "Проверьте переменные PostgreSQL, MinIO, Seq и outbox.",
 			Err:       err,
 		}
 	}

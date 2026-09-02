@@ -31,7 +31,9 @@ func TestValidateConfig(t *testing.T) {
 	}{
 		{name: "missing database host", change: func(cfg *config.Config) { cfg.Database.Host = "" }},
 		{name: "invalid database port", change: func(cfg *config.Config) { cfg.Database.Port = 70000 }},
+		{name: "encrypted database password", change: func(cfg *config.Config) { cfg.Database.Password = "ENC:legacy" }},
 		{name: "missing minio secret", change: func(cfg *config.Config) { cfg.Minio.SecretAccessKey = "" }},
+		{name: "encrypted minio secret", change: func(cfg *config.Config) { cfg.Minio.SecretAccessKey = "ENC:legacy" }},
 		{name: "invalid seq URL", change: func(cfg *config.Config) { cfg.Seq.URL = "seq" }},
 		{name: "invalid listen address", change: func(cfg *config.Config) { cfg.Server.ListenAddress = "8080" }},
 		{name: "invalid polling interval", change: func(cfg *config.Config) { cfg.Outbox.PollingIntervalSeconds = 61 }},

@@ -1,24 +1,15 @@
-.PHONY: dev build-linux build-windows build-server run-server docker-server-build docker-server-push check-docker check-docflow-server-version clean release-assets release-assets-check wails-bindings wails-bindings-check docs-links-check check-release-env check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate
+.PHONY: dev build-linux build-windows docker-server-push check-docker check-docflow-server-version clean release-assets release-assets-check wails-bindings wails-bindings-check docs-links-check check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate storage-up storage-down storage-reset
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
-export ENCRYPTION_KEY
-export POSTGRES_CONTAINER POSTGRES_PORT POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB POSTGRES_SSLMODE
-export MINIO_ENDPOINT MINIO_ROOT_USER MINIO_ROOT_PASSWORD MINIO_USE_SSL MINIO_BUCKET
-export SEQ_URL SEQ_ENABLED
-export DOCFLOW_SERVER_LISTEN_ADDRESS
-export DOCFLOW_AUTH_SESSION_TTL_HOURS
-export DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS DOCFLOW_OUTBOX_BATCH_SIZE DOCFLOW_OUTBOX_STALE_CLAIM_TIMEOUT_SECONDS
-export DOCFLOW_OUTBOX_CONSUMER_TIMEOUT_SECONDS DOCFLOW_OUTBOX_PROCESSED_RETENTION_DAYS DOCFLOW_OUTBOX_CLEANUP_INTERVAL_MINUTES
 
 # Переменные
 TAGS = webkit2_41
 WAILS ?= wails
 FRONTEND_DIR = frontend
-RELEASE_EVIDENCE_DIR = build/release-evidence
 GOCACHE ?= /tmp/go-build-cache
 GOVULNCHECK ?= $(shell command -v govulncheck 2>/dev/null || echo "go run golang.org/x/vuln/cmd/govulncheck@latest")
-GO_PACKAGES = $(shell go list ./... | grep -v '/frontend/node_modules/')
+GO_PACKAGES = . ./cmd/... ./internal/... ./tools/...
 INTEGRATION_COMPOSE = docker compose -p docflow-integration -f docker-compose.integration.yaml
 INTEGRATION_DSN = postgres://docflow_integration:docflow_integration@127.0.0.1:55432/docflow_test_outbox?sslmode=disable
 PERFORMANCE_DIR = build/performance
@@ -26,13 +17,8 @@ PERFORMANCE_DOCUMENTS ?= 10000
 PERFORMANCE_PAGE_SIZE ?= 50
 PERFORMANCE_DEEP_PAGE ?= 0
 SERVER_DOCKERFILE = build/server/Dockerfile
-SERVER_IMAGE ?= docflow-server
-SERVER_IMAGE_TAG ?= $(DOCFLOW_SERVER_VERSION)
 DOCKER_PLATFORM ?= linux/amd64
 DOCKERHUB_IMAGE = hehelf/docflow-service
-
-# Ключ шифрования конфигурации (из .env → ENCRYPTION_KEY)
-LDFLAGS = -X 'github.com/Volkov-D-A/docs-register-and-track/internal/config.rawEncryptionKey=$(ENCRYPTION_KEY)'
 
 release-assets:
 	GOCACHE=$(GOCACHE) go generate ./internal/releaseassets
@@ -53,43 +39,29 @@ wails-bindings-check: wails-bindings
 docs-links-check:
 	node tools/check-markdown-links.mjs
 
-check-release-env:
-	@test -n "$(ENCRYPTION_KEY)" || (echo "ENCRYPTION_KEY is required for production build; provide it via approved release secret injection." >&2; exit 1)
-
 # Запуск режима разработки с правильным WebKit для Ubuntu 24.04
 dev:
 	$(MAKE) release-assets
-	wails dev -tags $(TAGS) -ldflags "$(LDFLAGS)"
+	wails dev -tags $(TAGS)
 
 # Сборка готового бинарника для тестирования в Linux
 build-linux:
-	$(MAKE) check-release-env
 	$(MAKE) release-assets
-	wails build -tags $(TAGS) -platform linux/amd64 -ldflags "$(LDFLAGS)"
+	wails build -tags $(TAGS) -platform linux/amd64
 
 # Кросс-компиляция готового .exe для Windows (для конечных пользователей)
 build-windows:
-	$(MAKE) check-release-env
 	$(MAKE) release-assets
-	wails build -platform windows/amd64 -ldflags "$(LDFLAGS)"
-
-# Сборка standalone server-side outbox worker.
-build-server:
-	mkdir -p build/bin
-	GOCACHE=$(GOCACHE) CGO_ENABLED=0 go build -trimpath -o build/bin/docflow-server ./cmd/docflow-server
-
-run-server:
-	GOCACHE=$(GOCACHE) go run ./cmd/docflow-server run
+	wails build -platform windows/amd64
 
 check-docker:
 	@command -v docker >/dev/null 2>&1 || (echo "docker is required" >&2; exit 1)
 	@docker info >/dev/null 2>&1 || (echo "docker daemon is not available" >&2; exit 1)
 
-check-docflow-server-version:
+check-docflow-server-version: release-assets-check
 	@test -n "$(DOCFLOW_SERVER_VERSION)" || (echo "DOCFLOW_SERVER_VERSION is required in .env" >&2; exit 1)
-
-docker-server-build: check-docker check-docflow-server-version
-	docker build --platform $(DOCKER_PLATFORM) --build-arg VERSION=$(DOCFLOW_SERVER_VERSION) -f $(SERVER_DOCKERFILE) -t $(SERVER_IMAGE):$(SERVER_IMAGE_TAG) .
+	@actual="$$(GOCACHE=$(GOCACHE) go run ./cmd/docflow-server version)"; \
+		test "$$actual" = "$(DOCFLOW_SERVER_VERSION)" || (echo "DOCFLOW_SERVER_VERSION $(DOCFLOW_SERVER_VERSION) does not match embedded product version $$actual" >&2; exit 1)
 
 # Перед публикацией выполните docker login. Токен Docker Hub не передаётся Makefile.
 docker-server-push: check-docker check-docflow-server-version
@@ -122,7 +94,7 @@ integration-test: check-integration-env
 
 # Generates a local baseline only. It intentionally has no pass/fail latency
 # threshold because Docker and developer hardware are not stable benchmark hosts.
-db-performance-check:
+db-performance-check: check-integration-env
 	@set -eu; \
 		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \
@@ -133,10 +105,10 @@ db-performance-check:
 
 # Эти цели полезны при ручной отладке интеграционных тестов. Данные не
 # предназначены для сохранения: integration-db-down удаляет volume.
-integration-db-up:
+integration-db-up: check-integration-env
 	$(INTEGRATION_COMPOSE) up -d --wait
 
-integration-db-down:
+integration-db-down: check-integration-env
 	$(INTEGRATION_COMPOSE) down -v --remove-orphans
 
 go-vet:
@@ -164,18 +136,18 @@ release-gate:
 	@./tools/release-gate.sh
 
 # ==========================================
-# УПРАВЛЕНИЕ БАЗОЙ ДАННЫХ (DOCKER)
+# УПРАВЛЕНИЕ ЛОКАЛЬНЫМ СТЕКОМ (DOCKER)
 # ==========================================
 
-# Обычный запуск базы данных в фоновом режиме
+# Запуск PostgreSQL, MinIO, Seq, docflow-server и Caddy в фоновом режиме
 storage-up:
 	docker compose up -d
 
-# Остановка контейнера (данные СОХРАНЯЮТСЯ)
+# Остановка локального стека (данные СОХРАНЯЮТСЯ)
 storage-down:
 	docker compose down
 
-# ПОЛНЫЙ СБРОС: удаляет контейнер, УНИЧТОЖАЕТ ВСЕ ДАННЫЕ (том) и поднимает чистую БД
+# ПОЛНЫЙ СБРОС: удаляет контейнеры и тома локального стека, затем поднимает его заново
 storage-reset:
 	docker compose down -v
 	docker compose up -d

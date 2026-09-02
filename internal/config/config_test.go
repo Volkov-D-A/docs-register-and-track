@@ -25,26 +25,9 @@ func TestDatabaseConfigConnectionString(t *testing.T) {
 }
 
 func TestMinioConfigGetSecretAccessKey(t *testing.T) {
-	t.Run("plain secret", func(t *testing.T) {
-		cfg := MinioConfig{SecretAccessKey: "plain-secret"}
+	cfg := MinioConfig{SecretAccessKey: "plain-secret"}
 
-		assert.Equal(t, "plain-secret", cfg.GetSecretAccessKey())
-	})
-
-	t.Run("encrypted secret", func(t *testing.T) {
-		encrypted, err := EncryptPassword("encrypted-secret")
-		require.NoError(t, err)
-
-		cfg := MinioConfig{SecretAccessKey: encrypted}
-
-		assert.Equal(t, "encrypted-secret", cfg.GetSecretAccessKey())
-	})
-
-	t.Run("invalid encrypted secret falls back to raw value", func(t *testing.T) {
-		cfg := MinioConfig{SecretAccessKey: "ENC:not-valid-base64!!!"}
-
-		assert.Equal(t, "ENC:not-valid-base64!!!", cfg.GetSecretAccessKey())
-	})
+	assert.Equal(t, "plain-secret", cfg.GetSecretAccessKey())
 }
 
 func TestGetDefaultConfigPath(t *testing.T) {

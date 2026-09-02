@@ -29,8 +29,8 @@ func ValidateConfig(cfg *config.Config) error {
 	if strings.TrimSpace(db.Password) == "" {
 		return fmt.Errorf("database.password is required")
 	}
-	if _, err := config.DecryptPassword(db.Password); err != nil {
-		return fmt.Errorf("decrypt database.password: %w", err)
+	if strings.HasPrefix(db.Password, "ENC:") {
+		return fmt.Errorf("database.password must be provided as a runtime secret; ENC values are not supported")
 	}
 	if strings.TrimSpace(db.DBName) == "" {
 		return fmt.Errorf("database.dbname is required")
@@ -49,8 +49,8 @@ func ValidateConfig(cfg *config.Config) error {
 	if strings.TrimSpace(minio.SecretAccessKey) == "" {
 		return fmt.Errorf("minio.secretAccessKey is required")
 	}
-	if _, err := config.DecryptPassword(minio.SecretAccessKey); err != nil {
-		return fmt.Errorf("decrypt minio.secretAccessKey: %w", err)
+	if strings.HasPrefix(minio.SecretAccessKey, "ENC:") {
+		return fmt.Errorf("minio.secretAccessKey must be provided as a runtime secret; ENC values are not supported")
 	}
 	if strings.TrimSpace(minio.BucketName) == "" {
 		return fmt.Errorf("minio.bucketName is required")

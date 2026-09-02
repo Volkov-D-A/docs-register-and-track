@@ -64,12 +64,12 @@ Wails desktop app
 │   └── запускает Wails с options из internal/app
 │
 ├── cmd/docflow-server/
-│   └── standalone process для централизованной обработки outbox
+│   └── HTTP API, migrations, storage access и outbox worker
 │
 ├── internal/
 │   ├── background/    общий schema-dependent lifecycle
 │   ├── app/           composition root, Wails bindings и shutdown
-│   ├── config/        config loading, encrypted secrets
+│   ├── config/        desktop config и server environment loading
 │   ├── database/      PostgreSQL connection, embedded migrations
 │   ├── models/        domain entities, requests, app errors
 │   ├── dto/           frontend-facing mapping
@@ -278,10 +278,9 @@ Container image собирается через `build/server/Dockerfile` на d
 сервером автоматически; при обновлении существующей схемы процесс остаётся
 живым в maintenance и ждёт команды администратора. Docker healthcheck проверяет
 `/health/live`, а `/health/ready` остаётся 503 до готовности схемы и зависимостей.
-`make
-docker-server-build` создаёт локальный versioned tag, а `make
-docker-server-push` после отдельного `docker login` собирает и публикует image и
-immutable `DOCFLOW_SERVER_VERSION` из `.env`. Repository
+`make docker-server-push` после отдельного `docker login` проверяет соответствие
+`DOCFLOW_SERVER_VERSION` встроенной версии продукта, собирает и публикует
+immutable image tag из `.env`. Repository
 `hehelf/docflow-service` жёстко задан в Makefile и Compose. Makefile не принимает
 Docker Hub token.
 
@@ -377,7 +376,7 @@ Secrets:
 - PostgreSQL/MinIO credentials передаются только серверу через runtime environment;
 - desktop `config.json` не содержит PostgreSQL/MinIO credentials;
 - `.env`, `/etc/docflow/backup.env` и CIFS credentials file должны иметь `0600` или эквивалентный строгий ACL;
-- generated release evidence and logs must not contain passwords, tokens or full encrypted secret material.
+- generated release evidence and logs must not contain passwords or tokens.
 
 Example configs:
 
@@ -755,7 +754,6 @@ make release-gate
 
 It runs/checks:
 
-- required `ENCRYPTION_KEY`;
 - generated release asset freshness;
 - Go tests;
 - PostgreSQL integration tests on a disposable Docker Compose database;
@@ -773,13 +771,12 @@ smoke или backup restore: это отдельные автоматическ�
 
 Common targets:
 
-- `make storage-up` - start local PostgreSQL/MinIO/Seq;
-- `make storage-down` - stop local services without deleting volumes;
-- `make storage-reset` - destructive local reset;
+- `make storage-up` - start local PostgreSQL/MinIO/Seq/docflow-server/Caddy stack;
+- `make storage-down` - stop the local stack without deleting volumes;
+- `make storage-reset` - destructively reset and restart the local stack;
 - `make dev` - Wails dev;
 - `make release-assets` - generate embedded release assets;
 - `make release-assets-check` - verify generated release assets;
-- `make check-release-env` - проверить наличие release key;
 - `make check-integration-env` - проверить Docker Compose и версию PostgreSQL;
 - `make go-test`;
 - `make go-vet`;
@@ -866,8 +863,8 @@ Rule: a change is not production-ready just because local unit tests pass. Relea
 - Keep `npm audit --audit-level=critical` in release gate.
 - Dependency inventories и license review при необходимости выполняются отдельным production-процессом; текущий `release-gate` их не генерирует.
 - Do not commit secrets.
-- Treat release artifacts as sensitive because `ENCRYPTION_KEY` is embedded through ldflags.
-- Keep technical logs free of passwords, tokens and full encrypted secret material.
+- Supply PostgreSQL and MinIO credentials to `docflow-server` through the approved runtime secret-delivery mechanism.
+- Keep technical logs free of passwords and tokens.
 
 ## Install And Runtime Targets
 

@@ -2,9 +2,6 @@ package main
 
 import (
 	"embed"
-	"flag"
-	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"sync"
@@ -28,36 +25,6 @@ func main() {
 		return
 	}
 
-	// CLI-утилита: шифрование пароля для config.json
-	encryptFlag := flag.String("encrypt-password", "", "Зашифровать пароль для config.json и вывести результат")
-	flag.Parse()
-
-	if *encryptFlag != "" {
-		encrypted, err := config.EncryptPassword(*encryptFlag)
-		if err != nil {
-			failStartup(startupdiag.Failure{
-				Component: "config encryption",
-				Summary:   "Не удалось зашифровать пароль для config.json.",
-				NextStep:  "Проверьте значение ENCRYPTION_KEY и повторите команду --encrypt-password.",
-				Err:       err,
-			})
-		}
-		// Wails собирается как GUI-приложение (без консоли), поэтому
-		// записываем результат в файл рядом с исполняемым файлом.
-		outputFile := "encrypted_password.txt"
-		content := fmt.Sprintf("Зашифрованный пароль для поля \"password\" в config.json:\n\n%s\n", encrypted)
-		if err := os.WriteFile(outputFile, []byte(content), 0600); err != nil {
-			failStartup(startupdiag.Failure{
-				Component: "config encryption",
-				Summary:   "Не удалось записать encrypted_password.txt.",
-				NextStep:  "Проверьте права записи в текущий каталог или запустите команду из доступного рабочего каталога.",
-				Err:       err,
-			})
-		}
-		log.Printf("Результат записан в файл: %s", outputFile)
-		return
-	}
-
 	configPath := config.GetDefaultConfigPath()
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -65,7 +32,7 @@ func main() {
 			Component:  "configuration",
 			ConfigPath: configPath,
 			Summary:    "Не удалось загрузить config.json.",
-			NextStep:   "Проверьте DOCFLOW_CONFIG_PATH, наличие файла, права чтения, JSON-синтаксис и ENCRYPTION_KEY для ENC:-значений.",
+			NextStep:   "Проверьте DOCFLOW_CONFIG_PATH, наличие файла, права чтения и JSON-синтаксис.",
 			Err:        err,
 		})
 	}

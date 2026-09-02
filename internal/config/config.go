@@ -72,26 +72,16 @@ type MinioConfig struct {
 	BucketName      string `json:"bucketName"`
 }
 
-// GetSecretAccessKey возвращает ключ доступа.
-// Если он зашифрован (префикс ENC:), автоматически дешифрует его.
+// GetSecretAccessKey возвращает ключ доступа, полученный из server environment.
 func (m MinioConfig) GetSecretAccessKey() string {
-	secret := m.SecretAccessKey
-	if decrypted, err := DecryptPassword(m.SecretAccessKey); err == nil {
-		secret = decrypted
-	}
-	return secret
+	return m.SecretAccessKey
 }
 
 // ConnectionString формирует строку подключения к базе данных.
-// Если пароль зашифрован (префикс ENC:), автоматически дешифрует его.
 func (d DatabaseConfig) ConnectionString() string {
-	password := d.Password
-	if decrypted, err := DecryptPassword(d.Password); err == nil {
-		password = decrypted
-	}
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d statement_timeout=%d lock_timeout=%d",
-		d.Host, d.Port, d.User, password, d.DBName, d.SSLMode,
+		d.Host, d.Port, d.User, d.Password, d.DBName, d.SSLMode,
 		int(defaultDBConnectTimeout/time.Second),
 		defaultDBStatementTimeout.Milliseconds(),
 		defaultDBLockTimeout.Milliseconds(),
