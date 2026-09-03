@@ -1,11 +1,5 @@
-# LOCAL DEVELOPMENT EXAMPLE ONLY.
-# docker-compose.yaml поднимает PostgreSQL/MinIO/Seq/docflow-server/Caddy для
-# закрытого dev-контура.
-# Production topology, versions, secrets and network boundaries are defined by
-# approved external production documentation, not by this compose file.
 services:
   postgres:
-    # Используем alpine-версию, так как она весит в разы меньше и быстрее скачивается
     image: postgres:${POSTGRES_VERSION}-alpine
     container_name: docflow_db
     environment:
@@ -14,8 +8,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       PGDATA: /var/lib/postgresql/data
     volumes:
-      # Маппим на /var/lib/postgresql (VOLUME из Dockerfile образа),
-      # чтобы Docker не создавал анонимный том для этого пути.
       - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -38,12 +30,9 @@ services:
     image: datalust/seq:${SEQ_VERSION}
     container_name: docflow_seq
     environment:
-      # Подтверждение лицензионного соглашения (обязательно для запуска)
       - ACCEPT_EULA=Y
-      # Опционально: можно сразу задать пароль администратора
       - SEQ_FIRSTRUN_ADMINPASSWORD=${SEQ_ADMIN_PASSWORD}
     volumes:
-      # Сохраняем логи в volume, чтобы они не пропали при перезапуске контейнера
       - seq_data:/data
     restart: unless-stopped
   docflow-server:
@@ -90,11 +79,19 @@ services:
       docflow-server:
         condition: service_healthy
     ports:
-      - "${DOCFLOW_SERVER_PORT:-8080}:80"
+      - "443:443"
     volumes:
-      - ./build/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     restart: unless-stopped
 volumes:
   pgdata:
   minio_data:
   seq_data:
+
+  caddy_data:
+    external: true
+    name: docflow-caddy-data
+
+  caddy_config:

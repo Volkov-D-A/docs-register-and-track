@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -47,7 +46,12 @@ func NewWithOptions(rawURL string, options Options) (*Client, error) {
 	if parsed.Scheme == "http" && !isLoopbackHost(parsed.Hostname()) && !options.AllowInsecureHTTP {
 		return nil, fmt.Errorf("server URL must use https unless it points to localhost")
 	}
-	return &Client{baseURL: rawURL, http: &http.Client{Timeout: 3 * time.Minute}}, nil
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Client{baseURL: rawURL, http: httpClient}, nil
 }
 
 func isLoopbackHost(host string) bool {

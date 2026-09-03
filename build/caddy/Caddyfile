@@ -1,10 +1,17 @@
-{
-	auto_https off
-}
-
-:80 {
+http://:80 {
 	request_body {
 		max_size 1GB
 	}
+
+	reverse_proxy docflow-server:8080
+}
+
+docflow.uszn.lcl {
+	tls internal
+
+	request_body {
+		max_size 1GB
+	}
+
 	reverse_proxy docflow-server:8080
 }
