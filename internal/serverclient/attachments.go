@@ -45,7 +45,7 @@ func (c *Client) UploadAttachment(ctx context.Context, documentID, assignmentID,
 	req.ContentLength = size
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
-	resp, err := c.http.Do(req)
+	resp, err := c.doAuthenticated(req)
 	if err != nil {
 		return nil, fmt.Errorf("docflow-server is unavailable: %w", err)
 	}
@@ -81,7 +81,7 @@ func (c *Client) GetAttachmentContent(ctx context.Context, id string) (*dto.Atta
 	if err != nil {
 		return nil, nil, err
 	}
-	resp, err := c.http.Do(req)
+	resp, err := c.doAuthenticated(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("docflow-server is unavailable: %w", err)
 	}

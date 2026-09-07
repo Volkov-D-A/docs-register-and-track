@@ -109,7 +109,7 @@ func (c *Client) doUserRequestWithIdempotency(ctx context.Context, method, path 
 	if idempotencyKey != "" {
 		req.Header.Set("Idempotency-Key", idempotencyKey)
 	}
-	resp, err := c.http.Do(req)
+	resp, err := c.doAuthenticated(req)
 	if err != nil {
 		return fmt.Errorf("docflow-server is unavailable: %w", err)
 	}

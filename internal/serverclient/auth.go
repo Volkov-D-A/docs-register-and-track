@@ -81,6 +81,10 @@ type loginResponse struct {
 }
 
 func (c *Client) Login(ctx context.Context, login, password string) (*dto.User, error) {
+	c.tokenMu.Lock()
+	c.loginAttempt++
+	attempt := c.loginAttempt
+	c.tokenMu.Unlock()
 	payload, err := json.Marshal(map[string]string{"login": login, "password": password})
 	if err != nil {
 		return nil, err
@@ -106,21 +110,51 @@ func (c *Client) Login(ctx context.Context, login, password string) (*dto.User, 
 		return nil, fmt.Errorf("docflow-server returned an incomplete login response")
 	}
 	c.tokenMu.Lock()
+	if c.loginAttempt != attempt {
+		c.tokenMu.Unlock()
+		return nil, models.ErrUnauthorized
+	}
+	oldCancel := c.sessionCancel
+	c.sessionContext, c.sessionCancel = context.WithCancel(context.Background())
 	c.token = result.AccessToken
+	c.sessionUserID = result.User.ID
+	c.sessionRevision++
+	c.sessionReason = ""
 	c.tokenMu.Unlock()
+	if oldCancel != nil {
+		oldCancel()
+	}
 	return result.User, nil
 }
 
 func (c *Client) Logout(ctx context.Context) error {
-	defer func() {
-		c.tokenMu.Lock()
-		c.token = ""
-		c.tokenMu.Unlock()
-	}()
-	req, err := c.authenticatedRequest(ctx, http.MethodPost, "/api/v1/auth/logout")
+	// Clear locally before the network call; a slow logout must not erase a new login.
+	c.tokenMu.Lock()
+	c.loginAttempt++
+	token := c.token
+	c.token = ""
+	c.sessionUserID = ""
+	c.sessionRevision++
+	c.sessionReason = "logout"
+	state, handler := c.sessionStateLocked(), c.onSessionEnded
+	cancel := c.sessionCancel
+	c.sessionContext, c.sessionCancel = nil, nil
+	c.tokenMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if handler != nil {
+		handler(state)
+	}
+	if token == "" {
+		return nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/auth/logout", nil)
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	// This request revokes the captured old token; its result cannot change local state.
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("docflow-server is unavailable: %w", err)
@@ -137,7 +171,7 @@ func (c *Client) Me(ctx context.Context) (*dto.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.http.Do(req)
+	resp, err := c.doAuthenticated(req)
 	if err != nil {
 		return nil, fmt.Errorf("docflow-server is unavailable: %w", err)
 	}
@@ -162,18 +196,18 @@ func (c *Client) ChangePassword(ctx context.Context, oldPassword, newPassword st
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.http.Do(req)
+	resp, err := c.doAuthenticated(req)
 	if err != nil {
 		// The server may have committed the password change before the connection
 		// failed, so the old session can no longer be trusted locally.
-		c.clearToken()
+		c.endSession(sessionForRequest(req), "password_changed")
 		return fmt.Errorf("docflow-server is unavailable: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		return decodeAuthError(resp)
 	}
-	c.clearToken()
+	c.endSession(sessionForRequest(req), "password_changed")
 	return nil
 }
 
@@ -205,22 +239,17 @@ func (c *Client) authenticatedRequest(ctx context.Context, method, path string) 
 func (c *Client) authenticatedRequestWithBody(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
 	c.tokenMu.RLock()
 	token := c.token
+	revision := c.sessionRevision
 	c.tokenMu.RUnlock()
 	if token == "" {
 		return nil, models.ErrUnauthorized
 	}
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
+	req, err := http.NewRequestWithContext(withRequestSession(ctx, revision, token), method, c.baseURL+path, body)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	return req, nil
-}
-
-func (c *Client) clearToken() {
-	c.tokenMu.Lock()
-	c.token = ""
-	c.tokenMu.Unlock()
 }
 
 func decodeAuthError(resp *http.Response) error {

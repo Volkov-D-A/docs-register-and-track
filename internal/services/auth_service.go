@@ -95,9 +95,13 @@ func (s *AuthService) Login(login, password string) (*dto.User, error) {
 			if err != nil {
 				return nil, models.NewInternal("Сервис вернул некорректный идентификатор пользователя", err)
 			}
-			s.mu.Lock()
-			s.currentUserID = userID
-			s.mu.Unlock()
+			if _, ownsSession := s.serverAuth.(interface {
+				SessionState() serverclient.SessionState
+			}); !ownsSession {
+				s.mu.Lock()
+				s.currentUserID = userID
+				s.mu.Unlock()
+			}
 			return user, nil
 		}
 		user, err := s.userRepo.GetByLogin(login)
@@ -442,21 +446,31 @@ func (s *AuthService) UpdateProfile(req models.UpdateProfileRequest) error {
 	return s.userRepo.UpdateProfile(userID, req)
 }
 
-// IsAuthenticated — проверка авторизации
-func (s *AuthService) IsAuthenticated() bool {
+// GetSessionState returns local session metadata for synchronizing the renderer.
+// The HTTP client owns the desktop session; no credentials cross this boundary.
+func (s *AuthService) GetSessionState() serverclient.SessionState {
+	if source, ok := s.serverAuth.(interface {
+		SessionState() serverclient.SessionState
+	}); ok {
+		return source.SessionState()
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.currentUserID != uuid.Nil
+	state := serverclient.SessionState{Authenticated: s.currentUserID != uuid.Nil}
+	if state.Authenticated {
+		state.UserID = s.currentUserID.String()
+	}
+	return state
 }
 
-// GetCurrentUserID — получить ID текущего пользователя
+// IsAuthenticated — проверка авторизации
+func (s *AuthService) IsAuthenticated() bool {
+	return s.GetSessionState().Authenticated
+}
+
+// GetCurrentUserID returns the current local principal, including invalidation.
 func (s *AuthService) GetCurrentUserID() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.currentUserID == uuid.Nil {
-		return ""
-	}
-	return s.currentUserID.String()
+	return s.GetSessionState().UserID
 }
 
 // GetCurrentAuditInfo возвращает ID и имя текущего пользователя для аудит-лога.

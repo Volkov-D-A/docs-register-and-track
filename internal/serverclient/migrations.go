@@ -23,10 +23,17 @@ type MigrationClient interface {
 }
 
 type Client struct {
-	baseURL string
-	http    *http.Client
-	tokenMu sync.RWMutex
-	token   string
+	baseURL         string
+	http            *http.Client
+	tokenMu         sync.RWMutex
+	token           string
+	sessionRevision uint64
+	sessionUserID   string
+	sessionReason   string
+	loginAttempt    uint64
+	sessionContext  context.Context
+	sessionCancel   context.CancelFunc
+	onSessionEnded  func(SessionState)
 }
 
 type Options struct {

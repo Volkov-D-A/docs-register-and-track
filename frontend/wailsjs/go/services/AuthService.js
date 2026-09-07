@@ -26,6 +26,10 @@ export function GetCurrentUserUUID() {
   return window['go']['services']['AuthService']['GetCurrentUserUUID']();
 }
 
+export function GetSessionState() {
+  return window['go']['services']['AuthService']['GetSessionState']();
+}
+
 export function HasAnySystemPermission(arg1) {
   return window['go']['services']['AuthService']['HasAnySystemPermission'](arg1);
 }

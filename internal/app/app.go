@@ -11,6 +11,7 @@ import (
 	wailslogger "github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
@@ -202,6 +203,9 @@ func newWailsOptionsWithDependencies(
 		LogLevel:       wailslogger.ERROR,
 		ErrorFormatter: formatBackendError,
 		OnStartup: func(ctx context.Context) {
+			serverClient.SetSessionEndedHandler(func(state serverclient.SessionState) {
+				wailsruntime.EventsEmit(ctx, "auth:session-ended", state)
+			})
 			systemService.Startup(ctx)
 			attachmentService.Startup(ctx)
 			backgroundServices.SetApplicationContext(ctx)
@@ -209,6 +213,7 @@ func newWailsOptionsWithDependencies(
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {
+			serverClient.SetSessionEndedHandler(nil)
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			if err := backgroundServices.Stop(shutdownCtx); err != nil {

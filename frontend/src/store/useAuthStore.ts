@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import { Login, Logout, ChangePassword, ChangeRequiredPassword, UpdateProfile } from '../../wailsjs/go/services/AuthService';
-import { models } from '../../wailsjs/go/models';
+import { Login, Logout, ChangePassword, ChangeRequiredPassword, UpdateProfile, GetSessionState } from '../../wailsjs/go/services/AuthService';
+import { models, serverclient } from '../../wailsjs/go/models';
 import { DocumentKindMeta } from '../constants/documentKinds';
 import { useDraftLinkStore } from './useDraftLinkStore';
 import { useRegisterDocumentStore } from './useRegisterDocumentStore';
+import { resetCurrentAccessSummaryCache } from './accessSummaryCache';
 import { formatAppError, getAppErrorCode } from '../utils/appError';
 
 /**
@@ -76,6 +77,9 @@ const formatAuthError = (err: unknown): string => {
  * Интерфейс хранилища состояния аутентификации.
  */
 interface AuthState {
+    sessionRevision: number;
+    authAttempt: number;
+    sessionEnded: (state: serverclient.SessionState) => void;
     user: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
@@ -93,16 +97,40 @@ interface AuthState {
 /**
  * Хранилище состояния аутентификации Zustand.
  */
+const clearSessionData = () => {
+    useDraftLinkStore.getState().clearDraftLink();
+    useRegisterDocumentStore.getState().clearRequest();
+    resetCurrentAccessSummaryCache();
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
+    sessionRevision: 0,
+    authAttempt: 0,
+    sessionEnded: (state) => {
+        if (state.authenticated || state.revision <= get().sessionRevision) return;
+        clearSessionData();
+        set({ sessionRevision: state.revision, user: null, isAuthenticated: false,
+            isLoading: false, error: state.reason === 'logout' ? null : 'Сессия завершена. Войдите снова.' });
+    },
     user: null,
     isAuthenticated: false,
     isLoading: false,
     error: null,
 
     login: async (username: string, password: string) => {
-        set({ isLoading: true, error: null });
+        const attempt = get().authAttempt + 1;
+        const revision = get().sessionRevision;
+        set({ authAttempt: attempt, isLoading: true, error: null });
         try {
             const user = await Login(username, password);
+            const session = await GetSessionState();
+            if (get().authAttempt !== attempt) return;
+            if (!session.authenticated || session.userId !== user.id || session.revision < get().sessionRevision) {
+                get().sessionEnded(session);
+                set({ isLoading: false });
+                return;
+            }
+            clearSessionData();
             const systemPermissions = user.systemPermissions || [];
 
             set({
@@ -121,9 +149,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     } : undefined,
                 },
                 isAuthenticated: true,
+                sessionRevision: session.revision,
+                error: null,
                 isLoading: false,
             });
         } catch (err: unknown) {
+            if (get().authAttempt !== attempt || get().sessionRevision !== revision) return;
             if (getAppErrorCode(err) === 'PASSWORD_CHANGE_REQUIRED') {
                 set({ error: null, isLoading: false });
                 throw err;
@@ -133,41 +164,52 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
 
     logout: async () => {
+        // Clear immediately, even if revocation is slow or the network is down.
+        clearSessionData();
+        set({ authAttempt: get().authAttempt + 1, user: null, isAuthenticated: false, isLoading: false, error: null });
         try {
             await Logout();
         } catch (err) {
             console.error('Logout error:', err);
         }
-        useDraftLinkStore.getState().clearDraftLink();
-        useRegisterDocumentStore.getState().clearRequest();
-        set({ user: null, isAuthenticated: false });
     },
 
     changePassword: async (oldPassword: string, newPassword: string) => {
+        const revision = get().sessionRevision;
+        const attempt = get().authAttempt;
         set({ isLoading: true, error: null });
         try {
             await ChangePassword(oldPassword, newPassword);
-            useDraftLinkStore.getState().clearDraftLink();
-            useRegisterDocumentStore.getState().clearRequest();
-            set({ user: null, isAuthenticated: false, isLoading: false });
+            get().sessionEnded(await GetSessionState());
         } catch (err: unknown) {
-            set({ error: formatAppError(err, 'Ошибка смены пароля'), isLoading: false });
+            // A transport failure may follow a committed password change. Read
+            // local state as well as listening for events, which are not durable.
+            try { get().sessionEnded(await GetSessionState()); } catch { /* event remains the primary notification */ }
+            if (get().sessionRevision === revision && get().authAttempt === attempt) {
+                set({ error: formatAppError(err, 'Ошибка смены пароля'), isLoading: false });
+            }
             throw err;
         }
     },
 
     changeRequiredPassword: async (login: string, oldPassword: string, newPassword: string) => {
+        const attempt = get().authAttempt;
+        const revision = get().sessionRevision;
         set({ isLoading: true, error: null });
         try {
             await ChangeRequiredPassword(login, oldPassword, newPassword);
-            set({ isLoading: false });
+            if (get().authAttempt === attempt && get().sessionRevision === revision) set({ isLoading: false });
         } catch (err: unknown) {
-            set({ error: formatAppError(err, 'Ошибка смены пароля'), isLoading: false });
+            if (get().authAttempt === attempt && get().sessionRevision === revision) {
+                set({ error: formatAppError(err, 'Ошибка смены пароля'), isLoading: false });
+            }
             throw err;
         }
     },
 
     updateProfile: async (login: string, fullName: string) => {
+        const revision = get().sessionRevision;
+        const attempt = get().authAttempt;
         set({ isLoading: true, error: null });
         try {
             const req = new models.UpdateProfileRequest();
@@ -175,6 +217,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             req.fullName = fullName;
 
             await UpdateProfile(req);
+            if (get().sessionRevision !== revision || get().authAttempt !== attempt) return;
 
             // Обновляем данные пользователя в store
             const { user } = get();
@@ -184,7 +227,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 set({ isLoading: false });
             }
         } catch (err: unknown) {
-            set({ error: formatAppError(err, 'Ошибка обновления профиля'), isLoading: false });
+            if (get().sessionRevision === revision && get().authAttempt === attempt) {
+                set({ error: formatAppError(err, 'Ошибка обновления профиля'), isLoading: false });
+            }
             throw err;
         }
     },

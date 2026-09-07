@@ -12,6 +12,7 @@ import { models } from '../wailsjs/go/models';
 import { getDocumentPageKey } from './constants/documentKinds';
 import { useCurrentAccessSummary } from './hooks/useCurrentAccessSummary';
 import { useOrganizationSetup } from './hooks/useOrganizationSetup';
+import { useSessionEvents } from './hooks/useSessionEvents';
 import SystemBootstrapGate from './components/SystemBootstrapGate';
 
 function AppContent() {
@@ -193,9 +194,11 @@ function AppContent() {
 }
 
 function App() {
+    useSessionEvents();
+    const sessionRevision = useAuthStore((state) => state.sessionRevision);
     return (
         <SystemBootstrapGate>
-            <AppContent />
+            <AppContent key={sessionRevision} />
         </SystemBootstrapGate>
     );
 }
