@@ -55,3 +55,20 @@ describe('appError adapter', () => {
     assert.equal(getAppErrorCode(error), 'PASSWORD_CHANGE_REQUIRED');
   });
 });
+
+describe('request diagnostics', () => {
+  it('preserves and displays the server request id through the Wails envelope', () => {
+    const requestId = '435a3c95-0024-4907-b2df-de1b5b5c31bc';
+    const error = new Error(JSON.stringify({ code: 'INTERNAL_ERROR', status: 500, message: 'private SQL', requestId }));
+    assert.equal(normalizeAppError(error).requestId, requestId);
+    assert.ok(formatAppError(error).includes(`Код обращения: ${requestId}`));
+    assert.equal(formatAppError(error).includes('private SQL'), false);
+  });
+
+  it('keeps maintenance distinct from authentication failures', () => {
+    const error = { code: 'MAINTENANCE', status: 503, message: 'private detail' };
+    assert.ok(formatAppError(error).includes('обслуживание базы данных'));
+    assert.equal(formatAppError(error).includes('private'), false);
+    assert.equal(getAppErrorCode(error), 'MAINTENANCE');
+  });
+});

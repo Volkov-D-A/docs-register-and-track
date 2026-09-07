@@ -251,38 +251,3 @@ func (c *Client) authenticatedRequestWithBody(ctx context.Context, method, path 
 	req.Header.Set("Authorization", "Bearer "+token)
 	return req, nil
 }
-
-func decodeAuthError(resp *http.Response) error {
-	var body struct {
-		Code  string `json:"code"`
-		Error string `json:"error"`
-	}
-	_ = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&body)
-	switch body.Code {
-	case "invalid_credentials":
-		return models.ErrInvalidCredentials
-	case "user_locked":
-		return models.ErrUserLocked
-	case "user_inactive":
-		return models.ErrUserNotActive
-	case "password_change_required":
-		return models.ErrPasswordChangeRequired
-	case "wrong_password":
-		return models.ErrWrongPassword
-	case "invalid_request", "validation_error":
-		return models.NewBadRequest(body.Error)
-	case "password_change_not_required", "conflict":
-		return models.NewConflict(body.Error)
-	case "authentication_required", "session_invalid":
-		return models.ErrUnauthorized
-	case "forbidden":
-		return models.ErrForbidden
-	case "not_found":
-		return models.NewNotFound(body.Error)
-	default:
-		if body.Error == "" {
-			body.Error = resp.Status
-		}
-		return fmt.Errorf("docflow-server %s: %s", body.Code, body.Error)
-	}
-}

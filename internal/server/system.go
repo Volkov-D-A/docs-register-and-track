@@ -21,6 +21,7 @@ func (api *managementAPI) systemStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	status, err := api.migrations.GetMigrationStatus(database.DefaultMigrationsPath)
 	if err != nil || status == nil {
+		logAPIError(w, http.StatusOK, "status_unavailable", err)
 		writeJSON(w, http.StatusOK, result)
 		return
 	}
@@ -44,6 +45,7 @@ func (api *managementAPI) systemStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if api.readinessCheck != nil {
 		if err := api.readinessCheck(r.Context(), api.cfg); err != nil {
+			logAPIError(w, http.StatusOK, "dependency_not_ready", err)
 			result.Code = "dependency_not_ready"
 			writeJSON(w, http.StatusOK, result)
 			return

@@ -406,11 +406,15 @@ func (api *managementAPI) live(w http.ResponseWriter, _ *http.Request) {
 
 func (api *managementAPI) ready(w http.ResponseWriter, r *http.Request) {
 	if err := api.lifecycle.CheckReady(); err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "maintenance", "error": err.Error()})
+		writeAPIStateError(w, http.StatusServiceUnavailable, "maintenance", "maintenance", err)
 		return
 	}
-	if err := HealthCheck(r.Context(), api.cfg); err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready", "error": err.Error()})
+	check := api.readinessCheck
+	if check == nil {
+		check = HealthCheck
+	}
+	if err := check(r.Context(), api.cfg); err != nil {
+		writeAPIStateError(w, http.StatusServiceUnavailable, "dependency_not_ready", "not_ready", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
@@ -649,13 +653,6 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
-func writeAPIError(w http.ResponseWriter, status int, code string, err error) {
-	if status == http.StatusConflict || status >= http.StatusInternalServerError {
-		slog.Warn("management API operation failed", "code", code, "status", status, "error", err)
-	}
-	writeJSON(w, status, map[string]string{"code": code, "error": err.Error()})
-}
-
 type metricsResponseWriter struct {
 	http.ResponseWriter
 	status int
@@ -691,6 +688,7 @@ func (w *metricsResponseWriter) Unwrap() http.ResponseWriter { return w.Response
 func requestLogging(next http.Handler, metrics *observability.Registry) http.Handler {
 	var inFlight atomic.Int64
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(requestIDHeader, uuid.NewString())
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-store")
 		started := time.Now()

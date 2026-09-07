@@ -112,15 +112,7 @@ func (c *Client) do(ctx context.Context, method, path, login, password string, b
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var apiErr struct {
-			Code  string `json:"code"`
-			Error string `json:"error"`
-		}
-		_ = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&apiErr)
-		if apiErr.Error == "" {
-			apiErr.Error = resp.Status
-		}
-		return nil, fmt.Errorf("docflow-server %s: %s", apiErr.Code, apiErr.Error)
+		return nil, decodeAuthError(resp)
 	}
 	var status database.MigrationStatus
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&status); err != nil {

@@ -96,9 +96,10 @@ func (c *Client) doAuthenticated(req *http.Request) (*http.Response, error) {
 	}
 	resp.Body = &sessionBody{ReadCloser: resp.Body, client: c, session: session, cleanup: cleanup}
 	if resp.StatusCode == http.StatusUnauthorized {
+		id := responseRequestID(resp)
 		c.endSession(session, "session_invalid")
 		resp.Body.Close()
-		return nil, models.ErrUnauthorized
+		return nil, models.WithRequestID(models.ErrUnauthorized, id)
 	}
 	c.tokenMu.RLock()
 	current = c.token == session.token && c.sessionRevision == session.revision

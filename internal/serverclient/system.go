@@ -84,7 +84,7 @@ func (c *Client) doSystemGET(ctx context.Context, path string, target any) error
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return &SystemRequestError{Kind: SystemErrorProtocol, Err: fmt.Errorf("system API returned %s", resp.Status)}
+		return &SystemRequestError{Kind: SystemErrorProtocol, Err: decodeAuthError(resp)}
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(target); err != nil {
 		return &SystemRequestError{Kind: SystemErrorProtocol, Err: fmt.Errorf("decode system API response: %w", err)}

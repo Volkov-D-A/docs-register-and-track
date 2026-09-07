@@ -201,13 +201,13 @@ func activeAdministratorConflict(err error) error {
 
 func writeUserError(w http.ResponseWriter, err error) {
 	if appErr, ok := models.AsAppError(err); ok {
-		writeAPIError(w, appErr.StatusCode(), strings.ToLower(appErr.SafeKind()), errors.New(appErr.SafeMessage()))
+		writeAPIError(w, appErr.StatusCode(), strings.ToLower(appErr.SafeKind()), err)
 		return
 	}
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
-		writeAPIError(w, http.StatusConflict, "conflict", errors.New("пользователь с таким логином уже существует"))
+		writeAPIError(w, http.StatusConflict, "conflict", models.NewConflictWrapped("пользователь с таким логином уже существует", err))
 		return
 	}
-	writeAPIError(w, http.StatusInternalServerError, "user_operation_failed", errors.New("не удалось выполнить операцию с пользователем"))
+	writeAPIError(w, http.StatusInternalServerError, "user_operation_failed", err)
 }

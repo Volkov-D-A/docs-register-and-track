@@ -2,6 +2,7 @@ export interface AppErrorView {
     code: string;
     message: string;
     status?: number;
+    requestId?: string;
 }
 
 const DEFAULT_ERROR_MESSAGE = 'Не удалось выполнить действие';
@@ -9,6 +10,10 @@ const DEFAULT_ERROR_MESSAGE = 'Не удалось выполнить дейст
 const GENERIC_ACTION = 'Повторите попытку или обратитесь к администратору, если ошибка повторяется.';
 
 const CODE_COPY: Record<string, { message: string; action: string; allowDetail?: boolean }> = {
+    MAINTENANCE: {
+        message: 'Сервис временно недоступен: обслуживание базы данных',
+        action: 'Повторите попытку после завершения обслуживания.',
+    },
     UNAUTHORIZED: {
         message: 'Требуется вход в систему',
         action: 'Войдите снова и повторите действие.',
@@ -113,6 +118,7 @@ export const normalizeAppError = (error: unknown, fallbackMessage = DEFAULT_ERRO
                 code: code || codeFromStatus(status),
                 message: message || fallbackMessage || DEFAULT_ERROR_MESSAGE,
                 status,
+                ...(readString(error.requestId) ? { requestId: readString(error.requestId) } : {}),
             };
         }
 
@@ -159,7 +165,8 @@ export const formatAppError = (error: unknown, fallbackMessage = DEFAULT_ERROR_M
     const detail = copy.allowDetail ? appError.message : '';
     const message = detail || copy.message || fallbackMessage || DEFAULT_ERROR_MESSAGE;
 
-    return `${ensureSentence(message)} ${ensureSentence(copy.action)}`.trim();
+    const diagnostic = appError.requestId ? ` Код обращения: ${appError.requestId}.` : '';
+    return `${ensureSentence(message)} ${ensureSentence(copy.action)}${diagnostic}`.trim();
 };
 
 export const getAppErrorCode = (error: unknown): string => normalizeAppError(error).code;

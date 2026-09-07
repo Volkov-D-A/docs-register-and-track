@@ -263,9 +263,10 @@ func formatBackendError(err error) any {
 	// from Error.message (rather than receiving "[object Object]").
 	format := func(code, message string, status int) string {
 		payload, marshalErr := json.Marshal(map[string]any{
-			"code":    code,
-			"message": message,
-			"status":  status,
+			"code":      code,
+			"message":   message,
+			"status":    status,
+			"requestId": models.ErrorRequestID(err),
 		})
 		if marshalErr != nil {
 			return `{"code":"INTERNAL_ERROR","message":"произошла внутренняя ошибка","status":500}`
@@ -275,13 +276,20 @@ func formatBackendError(err error) any {
 
 	if appErr, ok := models.AsAppError(err); ok {
 		if appErr.StatusCode() >= 500 {
-			attrs := []any{"type", "backend_binding", "code", appErr.SafeKind(), "status", appErr.StatusCode(), "error", appErr.Error()}
+			attrs := []any{"type", "backend_binding", "code", appErr.SafeKind(), "status", appErr.StatusCode(), "error", appErr.Error(), "request_id", models.ErrorRequestID(err), "error_causes", models.ErrorCauses(err)}
 			if appErr.Internal != nil {
 				attrs = append(attrs, "internal", appErr.Internal.Error())
 			}
 			slog.Error("Backend binding failed", attrs...)
 		}
-		return format(appErr.SafeKind(), appErr.SafeMessage(), appErr.StatusCode())
+		message, public := models.PublicErrorMessage(appErr)
+		if !public {
+			message = "Произошла внутренняя ошибка сервера."
+			if appErr.StatusCode() == 503 && appErr.SafeKind() == "MAINTENANCE" {
+				message = "Сервис временно недоступен: обслуживание базы данных."
+			}
+		}
+		return format(appErr.SafeKind(), message, appErr.StatusCode())
 	}
 	slog.Error("Backend binding failed", "type", "backend_binding", "error_type", fmt.Sprintf("%T", err), "error", err.Error())
 	return format("INTERNAL_ERROR", "произошла внутренняя ошибка", 500)

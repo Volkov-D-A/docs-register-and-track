@@ -120,7 +120,7 @@ func (api *managementAPI) downloadAttachment(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", attachment.FileSize))
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 	if err := service.StreamAttachment(r.Context(), attachment, w); err != nil {
-		slog.Warn("attachment download stream failed", "attachment_id", attachment.ID, "error", err)
+		slog.Warn("attachment download stream failed", "attachment_id", attachment.ID, "request_id", ensureRequestID(w), "error", err, "error_causes", models.ErrorCauses(err))
 	}
 }
 
