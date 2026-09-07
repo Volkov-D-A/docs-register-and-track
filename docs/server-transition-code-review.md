@@ -72,7 +72,7 @@ Endpoint `POST /api/v1/auth/setup` доступен без аутентифик�
 
 [Сгенерированные bindings](../frontend/wailsjs/go/services/AttachmentService.d.ts) содержат ровно десять UI-операций. Удалены серверные методы, `Startup` и сеттеры. Тесты проверяют точный набор методов Go/JS/TS, отсутствие серверного типа в обеих Wails-регистрациях и совпадение регистраций.
 
-Избыточные методы других Wails-сервисов остаются отдельной задачей. Проверки: `go test`, `go test -race` и `go vet` для services/server/serverclient/app; frontend lint и production build; 7 UI-тестов. Bindings перегенерированы, повторная генерация воспроизводима. PostgreSQL-интеграция не выполнялась: Docker Desktop недоступен в WSL. Нативный GUI вручную не проверялся. Проверка ссылок выявляет четыре прежние проблемы: отсутствуют `docs/bugs.md` и `docs/https-internal-ca-setup.md` (по две ссылки).
+Избыточные методы других Wails-сервисов и разделение пакетов включены в [пошаговый план разделения desktop- и серверного кода](desktop-server-separation-plan.md). Реализация этого плана ещё не начата. Проверки вложений: `go test`, `go test -race` и `go vet` для services/server/serverclient/app; frontend lint и production build; 7 UI-тестов. Bindings перегенерированы, повторная генерация воспроизводима. PostgreSQL-интеграция не выполнялась: Docker Desktop недоступен в WSL. Нативный GUI вручную не проверялся. Проверка ссылок выявляет четыре прежние проблемы: отсутствуют `docs/bugs.md` и `docs/https-internal-ca-setup.md` (по две ссылки).
 
 ### 4. Средний приоритет: клиент не завершает сессию после `401 Unauthorized`
 
