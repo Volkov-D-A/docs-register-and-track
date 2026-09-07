@@ -146,9 +146,10 @@ func newWailsOptionsWithDependencies(
 	departmentService := services.NewDepartmentService()
 	departmentService.SetServerClient(serverClient)
 
-	attachmentService := services.NewAttachmentServiceWithClient(serverClient)
-	attachmentService.SetOperationLifecycle(operationLifecycle)
-	attachmentService.SetOperationMetrics(metrics)
+	attachmentService, startAttachments, err := services.NewDesktopAttachmentService(serverClient, services.DesktopAttachmentOptions{Lifecycle: operationLifecycle, Metrics: metrics})
+	if err != nil {
+		return nil, &startupdiag.Failure{Component: "attachments", ConfigPath: params.ConfigPath, Summary: "Не удалось настроить сервис вложений.", Err: err}
+	}
 	backgroundServices := newBackgroundLifecycle(
 		newServerMigrationStatusReader(serverClient),
 		nil,
@@ -207,7 +208,7 @@ func newWailsOptionsWithDependencies(
 				wailsruntime.EventsEmit(ctx, "auth:session-ended", state)
 			})
 			systemService.Startup(ctx)
-			attachmentService.Startup(ctx)
+			startAttachments(ctx)
 			backgroundServices.SetApplicationContext(ctx)
 			backgroundServices.ReconcileSchema()
 		},

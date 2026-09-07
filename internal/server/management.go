@@ -252,10 +252,7 @@ func newManagementAPI(app *App) *managementAPI {
 		attachments: func(user *models.User) attachmentAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := services.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
-			service := services.NewServerAttachmentService(attachmentRepo, services.NewServerSettingsService(settings), principal, app.storage, documentAccess)
-			service.SetAssignmentStore(assignments)
-			service.SetSubstitutionStore(substitutions)
-			service.SetOperationMetrics(app.metrics)
+			service := services.NewServerAttachmentService(attachmentRepo, services.NewServerSettingsService(settings), principal, app.storage, documentAccess, services.ServerAttachmentOptions{Assignments: assignments, Substitutions: substitutions, Metrics: app.metrics})
 			return service
 		},
 		adminAudit: func(user *models.User) adminAuditAPI {

@@ -14,7 +14,10 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 )
+
+var _ attachmentAPI = (*services.ServerAttachmentService)(nil)
 
 type attachmentAPI interface {
 	MaxUploadSize() int64

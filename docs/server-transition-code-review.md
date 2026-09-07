@@ -66,15 +66,13 @@ Endpoint `POST /api/v1/auth/setup` доступен без аутентифик�
 
 ### 3. Средний приоритет: Wails публикует внутренние методы серверных сервисов
 
-Статус на 7 сентября 2026 года: актуальность подтверждена; запланировано полное разделение desktop- и server-реализаций вложений по [отдельному плану](attachment-service-separation-plan.md). Реализация не начата. Уточнение последствий: при текущих настройках Wails v2.15.0 диспетчер перехватывает panic, поэтому падение всего процесса от вызова `MaxUploadSize` не подтверждено; избыточная публикация методов и возможность изменения внутреннего состояния сохраняются.
+Статус на 7 сентября 2026 года: риск для вложений закрыт. Реализовано разделение: независимые `AttachmentService` (desktop) и `ServerAttachmentService` (HTTP-сервер) не содержат друг друга и не переключаются между локальным и серверным режимами.
 
-Один тип `AttachmentService` используется одновременно как desktop-фасад и серверная реализация. В результате bindings экспортируют в renderer методы, которые ему не нужны: `AuthorizeDownload`, `UploadContent`, `StreamAttachment`, `MaxUploadSize`, а также `Set*`-методы зависимостей: [`frontend/wailsjs/go/services/AttachmentService.d.ts`](../frontend/wailsjs/go/services/AttachmentService.d.ts#L11).
+[Desktop-сервис](../internal/services/attachment_desktop.go) получает обязательный HTTP-клиент, lifecycle, metrics и адаптеры ОС через конструктор. Callback запуска хранит Wails-контекст под mutex и не публикуется как метод. [Серверный сервис](../internal/services/attachment_server.go) получает зависимости при создании, сохраняет проверки прав, streaming и transactional effects. Общая нормализация имён используется обеими реализациями.
 
-Desktop-конструктор заполняет только server client и функцию выбора файлов: [`internal/services/attachment.go`](../internal/services/attachment.go#L58). Например, доступный из bindings `MaxUploadSize()` обращается к неинициализированному `settingsService`: [`internal/services/attachment.go`](../internal/services/attachment.go#L327). Вызов такого метода из renderer способен вызвать panic/DoS. Публичные сеттеры также позволяют менять внутренние зависимости объекта после создания.
+[Сгенерированные bindings](../frontend/wailsjs/go/services/AttachmentService.d.ts) содержат ровно десять UI-операций. Удалены серверные методы, `Startup` и сеттеры. Тесты проверяют точный набор методов Go/JS/TS, отсутствие серверного типа в обеих Wails-регистрациях и совпадение регистраций.
 
-Если в renderer появится XSS или будет скомпрометирована frontend-зависимость, избыточная поверхность bindings увеличивает последствия атаки.
-
-Рекомендация: разделить типы на узкий Wails-фасад и внутреннюю серверную реализацию. В bindings должны оставаться только операции, действительно вызываемые UI. Серверные методы, интерфейсные сеттеры и методы с `context.Context`, `io.Reader`/`io.Writer` не должны экспортироваться в renderer. Добавить тест/проверку allowlist публичных Wails-методов.
+Избыточные методы других Wails-сервисов остаются отдельной задачей. Проверки: `go test`, `go test -race` и `go vet` для services/server/serverclient/app; frontend lint и production build; 7 UI-тестов. Bindings перегенерированы, повторная генерация воспроизводима. PostgreSQL-интеграция не выполнялась: Docker Desktop недоступен в WSL. Нативный GUI вручную не проверялся. Проверка ссылок выявляет четыре прежние проблемы: отсутствуют `docs/bugs.md` и `docs/https-internal-ca-setup.md` (по две ссылки).
 
 ### 4. Средний приоритет: клиент не завершает сессию после `401 Unauthorized`
 
@@ -153,9 +151,9 @@ if user == nil || !security.VerifyPassword(user.PasswordHash, req.Password) {
 
 `AuthService` сохраняет прямой repository/database fallback, хотя production desktop создаётся с server client, а сервер использует собственные обработчики. Этот путь преимущественно поддерживается старыми тестами и усложняет понимание доверенной границы: [`internal/services/auth_service.go`](../internal/services/auth_service.go).
 
-`AttachmentService` содержит desktop-операции выбора/открытия файлов и серверные операции object storage в одном публичном типе. Это является причиной избыточных bindings и многочисленных веток `if s.server != nil`.
+Вложения разделены на независимые desktop- и server-типы; смешанная реализация и legacy-конструкторы удалены (см. риск №3).
 
-Рекомендация: после подтверждения отсутствия legacy-сценария выделить отдельные типы, например `DesktopAttachmentFacade` и `ServerAttachmentService`; для аутентификации оставить в desktop только адаптер `serverclient.AuthClient`. Старую реализацию удалять отдельным изменением после миграционных тестов.
+Оставшаяся рекомендация для аутентификации: оставить в desktop только адаптер `serverclient.AuthClient`. Старую реализацию удалять отдельным изменением после миграционных тестов.
 
 ### Неиспользуемые зависимости `UserService`
 
@@ -165,9 +163,7 @@ if user == nil || !security.VerifyPassword(user.PasswordHash, req.Password) {
 
 ### Закомментированные старые тесты вложений
 
-В [`internal/services/attachment_test.go`](../internal/services/attachment_test.go#L194) остался крупный закомментированный блок тестов старого base64-пути загрузки. Он не исполняется и создаёт ложное впечатление покрытия.
-
-Рекомендация: удалить блок. Если содержащиеся в нём сценарии по-прежнему важны, восстановить их как тесты streaming HTTP API, а не хранить закомментированный код.
+Исправлено при разделении вложений: закомментированный base64-блок удалён. Актуальные проверки аутентификации, лимита размера, типа файла и запрета загрузки участником выполняются в [серверных streaming-тестах](../internal/services/attachment_server_test.go). Выбор файлов и сохранение Downloads проверяются в [desktop-тестах](../internal/services/attachment_desktop_test.go).
 
 ## Недостающее тестовое покрытие
 
