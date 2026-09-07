@@ -71,6 +71,7 @@ type managementAPI struct {
 	sessions                           authSessionStore
 	acquireLease                       func(context.Context) (func(), bool, error)
 	migration                          sync.Mutex
+	schemaRequests                     sync.RWMutex
 	authMu                             sync.Mutex
 	authFailures                       map[string]authFailure
 }
@@ -287,10 +288,11 @@ func newManagementAPI(app *App) *managementAPI {
 
 func (api *managementAPI) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health/live", api.live)
-	mux.HandleFunc("GET /health/ready", api.ready)
-	mux.HandleFunc("GET /api/v1/system/status", api.systemStatus)
-	mux.HandleFunc("GET /api/v1/system/compatibility", api.systemCompatibility)
+	control := http.NewServeMux()
+	control.HandleFunc("GET /health/live", api.live)
+	control.HandleFunc("GET /health/ready", api.ready)
+	control.HandleFunc("GET /api/v1/system/status", api.systemStatus)
+	control.HandleFunc("GET /api/v1/system/compatibility", api.systemCompatibility)
 	mux.HandleFunc("POST /api/v1/auth/login", api.login)
 	mux.HandleFunc("GET /api/v1/auth/setup-required", api.setupRequired)
 	mux.HandleFunc("POST /api/v1/auth/setup", api.initialSetupAdmin)
@@ -391,10 +393,11 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/profile/substitution-candidates", api.requireSession(http.HandlerFunc(api.listOwnSubstitutionCandidates)))
 	mux.Handle("GET /api/v1/profile/substitution", api.requireSession(http.HandlerFunc(api.getOwnSubstitution)))
 	mux.Handle("PUT /api/v1/profile/substitution", api.requireSession(http.HandlerFunc(api.updateOwnSubstitution)))
-	mux.HandleFunc("GET /api/v1/admin/migrations", api.status)
-	mux.HandleFunc("POST /api/v1/admin/migrations/apply", api.apply)
-	mux.HandleFunc("POST /api/v1/admin/migrations/rollback", api.rollback)
-	return requestLogging(mux, api.metrics)
+	control.HandleFunc("GET /api/v1/admin/migrations", api.status)
+	control.HandleFunc("POST /api/v1/admin/migrations/apply", api.apply)
+	control.HandleFunc("POST /api/v1/admin/migrations/rollback", api.rollback)
+	control.Handle("/", api.requireReadySchema(mux))
+	return requestLogging(control, api.metrics)
 }
 
 func (api *managementAPI) live(w http.ResponseWriter, _ *http.Request) {
@@ -423,13 +426,17 @@ func (api *managementAPI) status(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (api *managementAPI) apply(w http.ResponseWriter, r *http.Request) {
+	api.migration.Lock()
+	defer api.migration.Unlock()
+
 	user, ok := api.authenticateAdmin(w, r)
 	if !ok {
 		return
 	}
-	api.migration.Lock()
-	defer api.migration.Unlock()
 
+	// Drain admitted requests before stopping workers or changing the schema.
+	api.schemaRequests.Lock()
+	defer api.schemaRequests.Unlock()
 	if err := api.lifecycle.PrepareRollback(); err != nil {
 		writeAPIError(w, http.StatusConflict, "worker_stop_failed", err)
 		return
@@ -456,6 +463,9 @@ func (api *managementAPI) apply(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *managementAPI) rollback(w http.ResponseWriter, r *http.Request) {
+	api.migration.Lock()
+	defer api.migration.Unlock()
+
 	user, ok := api.authenticateAdmin(w, r)
 	if !ok {
 		return
@@ -470,8 +480,9 @@ func (api *managementAPI) rollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.migration.Lock()
-	defer api.migration.Unlock()
+	// Drain admitted requests before stopping workers or changing the schema.
+	api.schemaRequests.Lock()
+	defer api.schemaRequests.Unlock()
 	if err := api.lifecycle.PrepareRollback(); err != nil {
 		writeAPIError(w, http.StatusConflict, "worker_stop_failed", err)
 		return

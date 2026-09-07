@@ -35,7 +35,11 @@
 
 ### 1. Высокий приоритет: maintenance mode не блокирует прикладные API
 
-`PrepareRollback` включает режим обслуживания и останавливает worker: [`internal/background/lifecycle.go`](../internal/background/lifecycle.go#L134). Однако прикладные маршруты регистрируются напрямую через `requireSession`/`requirePermission`, а итоговый handler оборачивается только логированием запросов: [`internal/server/management.go`](../internal/server/management.go#L288).
+Статус на 7 сентября 2026 года: актуальность подтверждена по текущему коду; исправлено в рабочем дереве. Общая защита прикладных маршрутов возвращает `503` с кодом `maintenance` до аутентификации и обращения к сервисам. Отдельно доступны health, system status/compatibility и управление миграциями. Apply/rollback ожидают завершения уже принятых прикладных запросов (включая streaming), блокируя новые запросы на время ожидания и изменения схемы. Проверка администратора сериализована с другими миграциями. После успешного rollback блокировка сохраняется до восстановления готовности схемы.
+
+Регрессионные тесты: `internal/server/maintenance_test.go` — блокировка чтения, записи документов и вложений, auth и остальных групп API; доступность разрешённых endpoints; конкурентное ожидание активного запроса, apply/rollback, успешные и ошибочные завершения. Тесты используют настоящий `background.Lifecycle` и управляемую имитацию миграций. Проверки `go test`, `go test -race` и `go vet` для `./internal/server ./internal/background` прошли; PostgreSQL integration suite не запускался.
+
+Исходное наблюдение ревью: `PrepareRollback` включает режим обслуживания и останавливает worker: [`internal/background/lifecycle.go`](../internal/background/lifecycle.go#L134). Однако прикладные маршруты регистрируются напрямую через `requireSession`/`requirePermission`, а итоговый handler оборачивается только логированием запросов: [`internal/server/management.go`](../internal/server/management.go#L288).
 
 Проверка `lifecycle.CheckReady()` используется для readiness endpoint, но не является общей защитой прикладных маршрутов: [`internal/server/management.go`](../internal/server/management.go#L404).
 
