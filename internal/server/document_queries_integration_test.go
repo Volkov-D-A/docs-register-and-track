@@ -45,7 +45,7 @@ func TestDocumentQueryAPIReturnsListAndCardWithServerAccessIntegration(t *testin
 	})
 	require.NoError(t, err)
 
-	api := newManagementAPI(&App{
+	api := newIntegrationManagementAPI(t, &App{
 		db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}},
 		metrics: observability.NewRegistry(32),
 	})

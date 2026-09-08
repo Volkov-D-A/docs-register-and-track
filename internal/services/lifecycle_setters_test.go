@@ -2,12 +2,13 @@ package services
 
 import (
 	"context"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"testing"
 	"time"
 )
 
 func TestServiceSetOperationLifecycle(t *testing.T) {
-	lifecycle := NewOperationLifecycle(time.Second)
+	lifecycle := operations.NewLifecycle(time.Second)
 	defer func() {
 		if err := lifecycle.Shutdown(context.Background()); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
@@ -16,13 +17,13 @@ func TestServiceSetOperationLifecycle(t *testing.T) {
 
 	tests := []struct {
 		name string
-		set  func(*OperationLifecycle)
-		get  func() *OperationLifecycle
+		set  func(*operations.Lifecycle)
+		get  func() *operations.Lifecycle
 	}{
 		{
 			name: "document registration service",
 			set:  (&DocumentRegistrationService{}).SetOperationLifecycle,
-			get: func() *OperationLifecycle {
+			get: func() *operations.Lifecycle {
 				service := &DocumentRegistrationService{}
 				service.SetOperationLifecycle(lifecycle)
 				return service.lifecycle
@@ -31,7 +32,7 @@ func TestServiceSetOperationLifecycle(t *testing.T) {
 		{
 			name: "journal service",
 			set:  (&JournalService{}).SetOperationLifecycle,
-			get: func() *OperationLifecycle {
+			get: func() *operations.Lifecycle {
 				service := &JournalService{}
 				service.SetOperationLifecycle(lifecycle)
 				return service.lifecycle
@@ -40,7 +41,7 @@ func TestServiceSetOperationLifecycle(t *testing.T) {
 		{
 			name: "link service",
 			set:  (&LinkService{}).SetOperationLifecycle,
-			get: func() *OperationLifecycle {
+			get: func() *operations.Lifecycle {
 				service := &LinkService{}
 				service.SetOperationLifecycle(lifecycle)
 				return service.lifecycle
@@ -49,7 +50,7 @@ func TestServiceSetOperationLifecycle(t *testing.T) {
 		{
 			name: "statistics service",
 			set:  (&StatisticsService{}).SetOperationLifecycle,
-			get: func() *OperationLifecycle {
+			get: func() *operations.Lifecycle {
 				service := &StatisticsService{}
 				service.SetOperationLifecycle(lifecycle)
 				return service.lifecycle

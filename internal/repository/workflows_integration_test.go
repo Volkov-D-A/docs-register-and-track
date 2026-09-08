@@ -193,11 +193,18 @@ func TestAttachmentDeletionSagaIntegration(t *testing.T) {
 	if err := attachments.CreateWithOutbox(attachment, []models.OutboxEvent{{EventType: models.OutboxEventJournal, DeduplicationKey: "attachment-create", Payload: `{}`}}); err != nil {
 		t.Fatalf("create attachment: %v", err)
 	}
+	if visible, err := attachments.GetByID(attachment.ID); err != nil || visible == nil {
+		t.Fatalf("created attachment is unavailable: attachment=%+v, err=%v", visible, err)
+	}
 	if err := attachments.MarkDeletingWithOutbox(*attachment); err != nil {
 		t.Fatalf("mark deleting: %v", err)
 	}
-	if _, err := attachments.GetByID(attachment.ID); err != sql.ErrNoRows {
-		t.Fatalf("tombstone visible, err=%v", err)
+	// GetByID represents an absent (including deleting) attachment as nil, nil.
+	if visible, err := attachments.GetByID(attachment.ID); err != nil || visible != nil {
+		t.Fatalf("tombstone lookup: attachment=%+v, err=%v", visible, err)
+	}
+	if visible, err := attachments.GetByDocumentID(documentID); err != nil || len(visible) != 0 {
+		t.Fatalf("tombstone in document list: attachments=%+v, err=%v", visible, err)
 	}
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM attachments WHERE id = $1 AND deletion_requested_at IS NOT NULL`, []any{attachment.ID}, 1)
 	if err := attachments.MarkDeletingWithOutbox(*attachment); err != nil {

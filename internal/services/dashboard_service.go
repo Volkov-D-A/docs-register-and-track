@@ -7,6 +7,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
@@ -39,7 +40,7 @@ func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
 		defer cancel()
 		return s.server.GetDashboardActivity(ctx)
 	}
-	return measureOperation(s.metrics, "dashboard.get_activity", func() (*dto.DashboardActivity, error) {
+	return operations.Measure(s.metrics, "dashboard.get_activity", func() (*dto.DashboardActivity, error) {
 		if err := s.auth.RequireAuthenticated(); err != nil {
 			return nil, err
 		}

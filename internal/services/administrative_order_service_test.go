@@ -79,7 +79,7 @@ func setupAdministrativeOrderService(t *testing.T, allowed map[models.DocumentKi
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()

@@ -6,14 +6,14 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 )
 
 type documentCommandAPI interface {
 	Register(string, any) (any, error)
 	Update(string, any) (any, error)
-	CreateAdminDraft(string, services.AdminDraftCreateRequest) (any, error)
+	CreateAdminDraft(string, dto.AdminDraftCreateRequest) (any, error)
 }
 
 func documentIdempotencyKey(r *http.Request) (string, error) {
@@ -72,7 +72,7 @@ func (api *managementAPI) createAdminDocumentDraft(w http.ResponseWriter, r *htt
 		writeUserError(w, err)
 		return
 	}
-	var req services.AdminDraftCreateRequest
+	var req dto.AdminDraftCreateRequest
 	if err := decodeJSON(r, &req); err != nil {
 		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
 		return

@@ -11,36 +11,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-// AdministrativeOrderRegisterRequest описывает команду регистрации приказа.
-type AdministrativeOrderRegisterRequest struct {
-	NomenclatureID          string                      `json:"nomenclatureId"`
-	IdempotencyKey          string                      `json:"idempotencyKey"`
-	OrderDate               string                      `json:"orderDate"`
-	Title                   string                      `json:"title"`
-	PagesCount              int                         `json:"pagesCount"`
-	ExecutionController     string                      `json:"executionController"`
-	ExecutionDeadline       string                      `json:"executionDeadline"`
-	IsActive                bool                        `json:"isActive"`
-	CancelledAt             string                      `json:"cancelledAt"`
-	AcknowledgmentFullNames []string                    `json:"acknowledgmentFullNames"`
-	RegistrationNumber      string                      `json:"registrationNumber"`
-	AdminNumberOverride     *AdminNumberOverrideRequest `json:"adminNumberOverride"`
-}
-
-// AdministrativeOrderUpdateRequest описывает команду обновления приказа.
-type AdministrativeOrderUpdateRequest struct {
-	ID                      string   `json:"id"`
-	IdempotencyKey          string   `json:"idempotencyKey,omitempty"`
-	OrderDate               string   `json:"orderDate"`
-	Title                   string   `json:"title"`
-	PagesCount              int      `json:"pagesCount"`
-	ExecutionController     string   `json:"executionController"`
-	ExecutionDeadline       string   `json:"executionDeadline"`
-	IsActive                bool     `json:"isActive"`
-	CancelledAt             string   `json:"cancelledAt"`
-	AcknowledgmentFullNames []string `json:"acknowledgmentFullNames"`
-}
-
 // AdministrativeOrderCommandHandler инкапсулирует write-операции по приказам.
 type AdministrativeOrderCommandHandler struct {
 	repo    AdministrativeOrderDocStore
@@ -79,7 +49,7 @@ func (h *AdministrativeOrderCommandHandler) Kind() models.DocumentKind {
 }
 
 // Register регистрирует приказ.
-func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegisterRequest) (*dto.AdministrativeOrderDocument, error) {
+func (h *AdministrativeOrderCommandHandler) Register(req dto.AdministrativeOrderRegisterRequest) (*dto.AdministrativeOrderDocument, error) {
 	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
 	if err != nil {
 		return nil, err
@@ -133,7 +103,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 	orderNumber := strings.TrimSpace(req.RegistrationNumber)
 	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, models.ErrUnauthorized
 	}
 
 	createReq := models.CreateAdministrativeOrderDocRequest{
@@ -162,7 +132,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req AdministrativeOrderRegi
 
 // RegisterDocument реализует общий command-интерфейс по виду документа.
 func (h *AdministrativeOrderCommandHandler) RegisterDocument(req any) (any, error) {
-	typedReq, ok := req.(AdministrativeOrderRegisterRequest)
+	typedReq, ok := req.(dto.AdministrativeOrderRegisterRequest)
 	if !ok {
 		return nil, fmt.Errorf("invalid register request for kind %s", h.Kind())
 	}
@@ -170,7 +140,7 @@ func (h *AdministrativeOrderCommandHandler) RegisterDocument(req any) (any, erro
 }
 
 // CreateAdminDraft создает черновик приказа с административно заданным номером.
-func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req dto.AdminDraftCreateRequest) (any, error) {
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		req.IdempotencyKey = uuid.NewString()
 	}
@@ -194,7 +164,7 @@ func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreat
 	}
 	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, models.ErrUnauthorized
 	}
 	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
 	if err != nil || idempotencyKey == uuid.Nil {
@@ -227,7 +197,7 @@ func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req AdminDraftCreat
 }
 
 // Update обновляет приказ.
-func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdateRequest) (*dto.AdministrativeOrderDocument, error) {
+func (h *AdministrativeOrderCommandHandler) Update(req dto.AdministrativeOrderUpdateRequest) (*dto.AdministrativeOrderDocument, error) {
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		req.IdempotencyKey = uuid.NewString()
 	}
@@ -303,7 +273,7 @@ func (h *AdministrativeOrderCommandHandler) Update(req AdministrativeOrderUpdate
 
 // UpdateDocument реализует общий command-интерфейс по виду документа.
 func (h *AdministrativeOrderCommandHandler) UpdateDocument(req any) (any, error) {
-	typedReq, ok := req.(AdministrativeOrderUpdateRequest)
+	typedReq, ok := req.(dto.AdministrativeOrderUpdateRequest)
 	if !ok {
 		return nil, fmt.Errorf("invalid update request for kind %s", h.Kind())
 	}

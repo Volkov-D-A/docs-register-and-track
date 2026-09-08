@@ -60,7 +60,7 @@ func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 	}
 	source, target := createDocument("link source"), createDocument("link target")
 
-	api := newManagementAPI(&App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32)})
+	api := newIntegrationManagementAPI(t, &App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32)})
 	login := func(login string) string {
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"login":"`+login+`","password":"`+password+`"}`))
 		response := httptest.NewRecorder()

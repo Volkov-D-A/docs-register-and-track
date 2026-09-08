@@ -8,7 +8,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 
 	"github.com/google/uuid"
 )
@@ -275,11 +274,9 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 		},
 	}
 
-	// mock auth pieces but AuthService struct directly
+	// Use an authenticated principal without password authentication.
 	userStore := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userStore)
-
-	hash, _ := security.HashPassword("CorrectP@ssword1!")
+	auth := newTestPrincipal(userStore)
 
 	setupUser := func(depIDStr string) *models.User {
 		var dep *models.Department
@@ -288,14 +285,12 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 			dep = &models.Department{ID: dID}
 		}
 		u := &models.User{
-			ID:           uuid.New(),
-			Login:        "test_" + uuid.New().String(),
-			PasswordHash: hash,
-			IsActive:     true,
-			Department:   dep,
+			ID:         uuid.New(),
+			Login:      "test_" + uuid.New().String(),
+			IsActive:   true,
+			Department: dep,
 		}
-		userStore.On("GetByLogin", u.Login).Return(u, nil).Once()
-		auth.Login(u.Login, "CorrectP@ssword1!")
+		auth.currentUserID = u.ID
 		userStore.On("GetByID", u.ID).Return(u, nil).Maybe()
 		return u
 	}
@@ -377,10 +372,10 @@ func TestApplyExecutorNomenclatureFilter(t *testing.T) {
 }
 
 func TestGetExecutorAllowedNomenclatureIDs(t *testing.T) {
-	setupAuth := func(t *testing.T, user *models.User) *AuthService {
+	setupAuth := func(t *testing.T, user *models.User) *testPrincipal {
 		t.Helper()
 		userRepo := mocks.NewUserStore(t)
-		auth := NewAuthService(nil, userRepo)
+		auth := newTestPrincipal(userRepo)
 		if user != nil {
 			auth.currentUserID = user.ID
 			userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()

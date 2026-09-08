@@ -1,0 +1,192 @@
+{
+  "AcknowledgmentService": [
+    "Create",
+    "Delete",
+    "GetAllActive",
+    "GetCurrentUserPendingByDocument",
+    "GetList",
+    "GetPendingForCurrentUser",
+    "MarkConfirmed",
+    "MarkViewed",
+    "SetSubstitutionStore"
+  ],
+  "AdminAuditLogService": [
+    "GetAll",
+    "LogAction"
+  ],
+  "AdministrativeOrderService": [
+    "MarkAcknowledged"
+  ],
+  "AssignmentService": [
+    "CancelSeries",
+    "Create",
+    "CreateSeries",
+    "Delete",
+    "GetByID",
+    "GetList",
+    "GetSeries",
+    "GetSeriesHistory",
+    "SetSubstitutionStore",
+    "Update",
+    "UpdateSeries",
+    "UpdateStatus"
+  ],
+  "AttachmentService": [
+    "BulkDeleteOlderThan",
+    "Delete",
+    "DownloadToDisk",
+    "GetAssignmentFiles",
+    "GetList",
+    "OpenFile",
+    "OpenFolder",
+    "ReconcileStorage",
+    "Upload",
+    "UploadForAssignment"
+  ],
+  "AuthService": [
+    "ChangePassword",
+    "ChangeRequiredPassword",
+    "GetCurrentUser",
+    "GetSessionState",
+    "InitialSetup",
+    "IsAuthenticated",
+    "Login",
+    "Logout",
+    "NeedsInitialSetup",
+    "UpdateProfile"
+  ],
+  "DashboardService": [
+    "GetActivity",
+    "SetOperationMetrics"
+  ],
+  "DepartmentService": [
+    "CreateDepartment",
+    "DeleteDepartment",
+    "GetAllDepartments",
+    "SetServerClient",
+    "UpdateDepartment"
+  ],
+  "DocumentAccessAdminService": [
+    "GetUserAccessProfile",
+    "UpdateUserAccessProfile"
+  ],
+  "DocumentKindService": [
+    "GetCurrentAccessSummary"
+  ],
+  "DocumentQueryService": [
+    "GetByID",
+    "GetList",
+    "SetOperationMetrics",
+    "SetServerClient"
+  ],
+  "DocumentRegistrationService": [
+    "CreateAdminDraft",
+    "Register",
+    "SetOperationLifecycle",
+    "SetOperationMetrics",
+    "Update"
+  ],
+  "JournalService": [
+    "GetByDocumentID",
+    "SetOperationLifecycle"
+  ],
+  "LinkService": [
+    "GetDocumentFlow",
+    "GetDocumentLinks",
+    "LinkDocuments",
+    "SetOperationLifecycle",
+    "SetOperationMetrics",
+    "UnlinkDocument"
+  ],
+  "NomenclatureService": [
+    "Create",
+    "Delete",
+    "GetActiveForKind",
+    "GetAll",
+    "SetServerClient",
+    "Update"
+  ],
+  "OutboxAdminService": [
+    "GetFailed",
+    "GetStats",
+    "Requeue"
+  ],
+  "ReferenceService": [
+    "CreateDocumentType",
+    "DeleteDocumentType",
+    "DeleteOrganization",
+    "DeleteResolutionExecutor",
+    "FindOrCreateOrganization",
+    "FindOrCreateResolutionExecutor",
+    "GetDocumentTypes",
+    "GetOrganizations",
+    "GetResolutionExecutors",
+    "MergeOrganizations",
+    "SearchOrganizations",
+    "SearchResolutionExecutors",
+    "SetServerClient",
+    "UpdateDocumentType",
+    "UpdateOrganization",
+    "UpdateResolutionExecutor"
+  ],
+  "ReleaseNoteService": [
+    "GetCurrent",
+    "MarkCurrentViewed"
+  ],
+  "SettingsService": [
+    "GetAll",
+    "GetAllowedFileTypes",
+    "GetMaxFileSize",
+    "GetMigrationStatus",
+    "GetOrganizationName",
+    "GetOrganizationShortName",
+    "IsAssignmentCompletionAttachmentsEnabled",
+    "RollbackMigration",
+    "RunMigrations",
+    "SetMigrationClient",
+    "SetServerClient",
+    "Update"
+  ],
+  "StatisticsService": [
+    "GetAssignmentFilterOptions",
+    "GetAssignmentReport",
+    "GetAssignmentStatistics",
+    "GetDocumentFilterOptions",
+    "GetDocumentReport",
+    "GetDocumentStatistics",
+    "GetStorageStatisticsStatus",
+    "GetSystemStatistics",
+    "RetryStorageStatisticsRefresh",
+    "SetOperationLifecycle",
+    "SetOperationMetrics"
+  ],
+  "SystemService": [
+    "GetBootstrapStatus",
+    "Startup"
+  ],
+  "ThemeService": [
+    "GetTheme",
+    "SetTheme"
+  ],
+  "UserEventService": [
+    "GetCurrentUserEvents",
+    "GetUnreadCount",
+    "MarkAllRead",
+    "MarkDocumentRead",
+    "MarkRead"
+  ],
+  "UserService": [
+    "CreateUser",
+    "GetAllUsers",
+    "GetExecutors",
+    "GetSubstitutionCandidates",
+    "ResetPassword",
+    "UpdateUser"
+  ],
+  "UserSubstitutionService": [
+    "GetMySubstitution",
+    "GetUserSubstitution",
+    "UpdateMySubstitution",
+    "UpdateUserSubstitution"
+  ]
+}

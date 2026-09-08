@@ -23,61 +23,6 @@ var allowedAppealTypes = map[string]struct{}{
 	AppealTypeComplaint:   {},
 }
 
-// CitizenAppealRegisterRequest описывает команду регистрации обращения граждан.
-type CitizenAppealRegisterRequest struct {
-	NomenclatureID       string                              `json:"nomenclatureId"`
-	IdempotencyKey       string                              `json:"idempotencyKey"`
-	RegistrationDate     string                              `json:"registrationDate"`
-	AppealDate           string                              `json:"appealDate"`
-	ApplicantFullName    string                              `json:"applicantFullName"`
-	RegistrationAddress  string                              `json:"registrationAddress"`
-	AppealType           string                              `json:"appealType"`
-	ApplicantCategory    string                              `json:"applicantCategory"`
-	PagesCount           int                                 `json:"pagesCount"`
-	AttachmentPagesCount int                                 `json:"attachmentPagesCount"`
-	HasEnvelope          bool                                `json:"hasEnvelope"`
-	ReceivedFromPOS      bool                                `json:"receivedFromPos"`
-	Content              string                              `json:"content"`
-	RegistrationNumber   string                              `json:"registrationNumber"`
-	AdminNumberOverride  *AdminNumberOverrideRequest         `json:"adminNumberOverride"`
-	Correspondents       []CitizenAppealCorrespondentRequest `json:"correspondents"`
-	Resolutions          []CitizenAppealResolutionRequest    `json:"resolutions"`
-}
-
-// CitizenAppealUpdateRequest описывает команду обновления обращения граждан.
-type CitizenAppealUpdateRequest struct {
-	ID                   string                              `json:"id"`
-	IdempotencyKey       string                              `json:"idempotencyKey,omitempty"`
-	RegistrationNumber   string                              `json:"registrationNumber"`
-	RegistrationDate     string                              `json:"registrationDate"`
-	AppealDate           string                              `json:"appealDate"`
-	ApplicantFullName    string                              `json:"applicantFullName"`
-	RegistrationAddress  string                              `json:"registrationAddress"`
-	AppealType           string                              `json:"appealType"`
-	ApplicantCategory    string                              `json:"applicantCategory"`
-	PagesCount           int                                 `json:"pagesCount"`
-	AttachmentPagesCount int                                 `json:"attachmentPagesCount"`
-	HasEnvelope          bool                                `json:"hasEnvelope"`
-	ReceivedFromPOS      bool                                `json:"receivedFromPos"`
-	Content              string                              `json:"content"`
-	Correspondents       []CitizenAppealCorrespondentRequest `json:"correspondents"`
-	Resolutions          []CitizenAppealResolutionRequest    `json:"resolutions"`
-}
-
-// CitizenAppealCorrespondentRequest описывает один набор внешних регистрационных реквизитов.
-type CitizenAppealCorrespondentRequest struct {
-	RegistrationNumber string `json:"registrationNumber"`
-	RegistrationDate   string `json:"registrationDate"`
-	CorrespondentName  string `json:"correspondentName"`
-}
-
-// CitizenAppealResolutionRequest описывает один набор резолюции.
-type CitizenAppealResolutionRequest struct {
-	Resolution          string `json:"resolution"`
-	ResolutionAuthor    string `json:"resolutionAuthor"`
-	ResolutionExecutors string `json:"resolutionExecutors"`
-}
-
 // CitizenAppealCommandHandler инкапсулирует write-операции по обращениям граждан.
 type CitizenAppealCommandHandler struct {
 	repo    CitizenAppealDocStore
@@ -119,7 +64,7 @@ func (h *CitizenAppealCommandHandler) Kind() models.DocumentKind {
 }
 
 // Register регистрирует обращения граждан.
-func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest) (*dto.CitizenAppealDocument, error) {
+func (h *CitizenAppealCommandHandler) Register(req dto.CitizenAppealRegisterRequest) (*dto.CitizenAppealDocument, error) {
 	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
 	if err != nil {
 		return nil, err
@@ -178,7 +123,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 
 	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, models.ErrUnauthorized
 	}
 
 	createReq := models.CreateCitizenAppealDocRequest{
@@ -212,7 +157,7 @@ func (h *CitizenAppealCommandHandler) Register(req CitizenAppealRegisterRequest)
 
 // RegisterDocument реализует общий command-интерфейс по виду документа.
 func (h *CitizenAppealCommandHandler) RegisterDocument(req any) (any, error) {
-	typedReq, ok := req.(CitizenAppealRegisterRequest)
+	typedReq, ok := req.(dto.CitizenAppealRegisterRequest)
 	if !ok {
 		return nil, fmt.Errorf("invalid register request for kind %s", h.Kind())
 	}
@@ -221,7 +166,7 @@ func (h *CitizenAppealCommandHandler) RegisterDocument(req any) (any, error) {
 }
 
 // CreateAdminDraft создает черновик обращения граждан с административно заданным номером.
-func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+func (h *CitizenAppealCommandHandler) CreateAdminDraft(req dto.AdminDraftCreateRequest) (any, error) {
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		req.IdempotencyKey = uuid.NewString()
 	}
@@ -245,7 +190,7 @@ func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateReque
 	}
 	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, models.ErrUnauthorized
 	}
 	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
 	if err != nil || idempotencyKey == uuid.Nil {
@@ -281,7 +226,7 @@ func (h *CitizenAppealCommandHandler) CreateAdminDraft(req AdminDraftCreateReque
 }
 
 // Update обновляет обращения граждан.
-func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*dto.CitizenAppealDocument, error) {
+func (h *CitizenAppealCommandHandler) Update(req dto.CitizenAppealUpdateRequest) (*dto.CitizenAppealDocument, error) {
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		req.IdempotencyKey = uuid.NewString()
 	}
@@ -372,7 +317,7 @@ func (h *CitizenAppealCommandHandler) Update(req CitizenAppealUpdateRequest) (*d
 
 // UpdateDocument реализует общий command-интерфейс по виду документа.
 func (h *CitizenAppealCommandHandler) UpdateDocument(req any) (any, error) {
-	typedReq, ok := req.(CitizenAppealUpdateRequest)
+	typedReq, ok := req.(dto.CitizenAppealUpdateRequest)
 	if !ok {
 		return nil, fmt.Errorf("invalid update request for kind %s", h.Kind())
 	}
@@ -380,7 +325,7 @@ func (h *CitizenAppealCommandHandler) UpdateDocument(req any) (any, error) {
 	return h.Update(typedReq)
 }
 
-func (h *CitizenAppealCommandHandler) buildCorrespondents(reqs []CitizenAppealCorrespondentRequest) ([]models.DocumentCorrespondentRegistration, error) {
+func (h *CitizenAppealCommandHandler) buildCorrespondents(reqs []dto.CitizenAppealCorrespondentRequest) ([]models.DocumentCorrespondentRegistration, error) {
 	if len(reqs) == 0 {
 		return nil, nil
 	}
@@ -426,7 +371,7 @@ func (h *CitizenAppealCommandHandler) buildCorrespondents(reqs []CitizenAppealCo
 	return result, nil
 }
 
-func (h *CitizenAppealCommandHandler) buildResolutions(reqs []CitizenAppealResolutionRequest) ([]models.DocumentResolution, error) {
+func (h *CitizenAppealCommandHandler) buildResolutions(reqs []dto.CitizenAppealResolutionRequest) ([]models.DocumentResolution, error) {
 	if len(reqs) == 0 {
 		return nil, nil
 	}

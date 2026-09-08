@@ -13,14 +13,13 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
-func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *AuthService) {
+func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *testPrincipal) {
 	return setupLinkServiceWithAccessStore(t, role, newRoleMappedDocumentAccessStore(role))
 }
 
-func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore DocumentAccessStore) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *AuthService) {
+func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore DocumentAccessStore) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *testPrincipal) {
 	t.Helper()
 	linkRepo := mocks.NewLinkStore(t)
 	incRepo := mocks.NewIncomingDocStore(t)
@@ -30,20 +29,17 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore Docu
 	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 
 	if role != "" {
-		password := "Passw0rd!"
-		hash, _ := security.HashPassword(password)
+
 		user := &models.User{
-			ID:           uuid.New(),
-			Login:        role + "_link",
-			PasswordHash: hash,
-			IsActive:     true,
+			ID:    uuid.New(),
+			Login: role + "_link",
+
+			IsActive: true,
 		}
-		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
-		_, err := auth.Login(user.Login, password)
-		require.NoError(t, err)
+		auth.currentUserID = user.ID
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()

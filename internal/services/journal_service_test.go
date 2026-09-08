@@ -8,7 +8,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.JournalStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *AuthService) {
+func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.JournalStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *testPrincipal) {
 	t.Helper()
 	journalRepo := mocks.NewJournalStore(t)
 	incomingRepo := mocks.NewIncomingDocStore(t)
@@ -26,20 +25,17 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 
 	if role != "" {
-		password := "Passw0rd!"
-		hash, _ := security.HashPassword(password)
+
 		user := &models.User{
-			ID:           uuid.New(),
-			Login:        role + "_journal",
-			PasswordHash: hash,
-			IsActive:     true,
+			ID:    uuid.New(),
+			Login: role + "_journal",
+
+			IsActive: true,
 		}
-		userRepo.On("GetByLogin", user.Login).Return(user, nil).Maybe()
-		_, err := auth.Login(user.Login, password)
-		require.NoError(t, err)
+		auth.currentUserID = user.ID
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {

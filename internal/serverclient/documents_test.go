@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
@@ -95,7 +96,7 @@ func TestDocumentCommandClientUsesIdempotencyHeaders(t *testing.T) {
 	require.NoError(t, err)
 	_, err = client.UpdateDocument(context.Background(), "incoming_letter", map[string]any{"id": documentID})
 	require.NoError(t, err)
-	_, err = client.CreateAdminDocumentDraft(context.Background(), "incoming_letter", map[string]any{"nomenclatureId": uuid.NewString()})
+	_, err = client.CreateAdminDocumentDraft(context.Background(), "incoming_letter", dto.AdminDraftCreateRequest{NomenclatureID: uuid.NewString()})
 	require.NoError(t, err)
 	assert.Equal(t, 3, requestNumber)
 }

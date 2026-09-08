@@ -18,6 +18,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
@@ -83,7 +84,7 @@ type authFailure struct {
 
 type migrationStore interface {
 	RunMigrations(string) error
-	GetMigrationStatus(string) (*database.MigrationStatus, error)
+	GetMigrationStatus(string) (*dto.MigrationStatus, error)
 	RollbackMigration(string) error
 }
 

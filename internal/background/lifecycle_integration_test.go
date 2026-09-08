@@ -6,14 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func TestLifecycleProcessesOutboxAfterMigrationIntegration(t *testing.T) {
@@ -24,7 +25,7 @@ func TestLifecycleProcessesOutboxAfterMigrationIntegration(t *testing.T) {
 	outboxRepo := repository.NewOutboxRepository(db)
 	auditRepo := repository.NewAdminAuditLogRepository(db)
 	worker := outbox.NewWorker(outboxRepo, nil, nil, auditRepo, nil, nil)
-	lifecycle := NewLifecycle(db, worker, nil)
+	lifecycle := NewLifecycle(func() (*dto.MigrationStatus, error) { return db.GetMigrationStatus(database.DefaultMigrationsPath) }, worker, nil)
 	lifecycle.SetApplicationContext(context.Background())
 	lifecycle.ReconcileSchema()
 	require.Error(t, lifecycle.CheckReady())

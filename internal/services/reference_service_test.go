@@ -155,7 +155,7 @@ func TestReferenceServiceKeepsDocumentTypesLocalAndReadOnly(t *testing.T) {
 	userRepo := mocks.NewUserStore(t)
 	user := &models.User{ID: uuid.New(), IsActive: true}
 	userRepo.On("GetByID", user.ID).Return(user, nil).Once()
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	auth.currentUserID = user.ID
 	service := NewReferenceService(auth)
 

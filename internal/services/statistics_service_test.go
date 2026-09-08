@@ -173,11 +173,11 @@ func (s *fakeStatisticsStorage) RefreshStorageUsage(ctx context.Context) (int, i
 	return s.objectCount, s.totalBytes, s.err
 }
 
-func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsService, *fakeStatisticsStore, *fakeStatisticsStorage, *AuthService) {
+func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsService, *fakeStatisticsStore, *fakeStatisticsStorage, *testPrincipal) {
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	auth.currentUserID = uuid.New()
 	userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(permissions...))

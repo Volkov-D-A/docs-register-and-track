@@ -20,13 +20,14 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // AttachmentService is the desktop HTTP adapter and the attachment Wails API.
 type AttachmentService struct {
 	server          serverclient.AttachmentClient
-	lifecycle       *OperationLifecycle
+	lifecycle       *operations.Lifecycle
 	metrics         *observability.Registry
 	uiMu            sync.RWMutex
 	uiContext       context.Context
@@ -38,7 +39,7 @@ type AttachmentService struct {
 // DesktopAttachmentOptions supplies lifecycle and optional native OS adapters.
 // Nil adapters use the native implementation; metrics and lifecycle are optional.
 type DesktopAttachmentOptions struct {
-	Lifecycle       *OperationLifecycle
+	Lifecycle       *operations.Lifecycle
 	Metrics         *observability.Registry
 	OpenFilesDialog func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error)
 	DownloadDir     func() (string, error)
@@ -82,13 +83,13 @@ func (s *AttachmentService) pickerContext() context.Context {
 }
 
 func (s *AttachmentService) shortOperationContext() (context.Context, func()) {
-	parent, release := serviceOperationContext(s.lifecycle)
+	parent, release := s.lifecycle.OperationContext()
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	return ctx, func() { cancel(); release() }
 }
 
 func (s *AttachmentService) Upload(documentIDStr string) ([]dto.Attachment, error) {
-	return measureOperation(s.metrics, "attachments.upload", func() ([]dto.Attachment, error) {
+	return operations.Measure(s.metrics, "attachments.upload", func() ([]dto.Attachment, error) {
 		uiContext := s.pickerContext()
 		if uiContext == nil {
 			return nil, fmt.Errorf("file picker is not initialized")
@@ -110,7 +111,7 @@ func (s *AttachmentService) Upload(documentIDStr string) ([]dto.Attachment, erro
 }
 
 func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) ([]dto.Attachment, error) {
-	return measureOperation(s.metrics, "attachments.upload.assignment", func() ([]dto.Attachment, error) {
+	return operations.Measure(s.metrics, "attachments.upload.assignment", func() ([]dto.Attachment, error) {
 		uiContext := s.pickerContext()
 		if uiContext == nil {
 			return nil, fmt.Errorf("file picker is not initialized")
@@ -145,7 +146,7 @@ func (s *AttachmentService) uploadSelectedPath(documentID, assignmentID, path st
 	if err != nil || !info.Mode().IsRegular() {
 		return nil, models.NewBadRequest("выбранный путь не является обычным файлом")
 	}
-	ctx, release := serviceOperationContext(s.lifecycle)
+	ctx, release := s.lifecycle.OperationContext()
 	defer release()
 	return s.server.UploadAttachment(ctx, documentID, assignmentID, filepath.Base(path), info.Size(), file)
 }
@@ -163,7 +164,7 @@ func (s *AttachmentService) GetAssignmentFiles(assignmentIDStr string) ([]dto.At
 }
 
 func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, error) {
-	return measureOperation(s.metrics, "attachments.get_list", func() ([]dto.Attachment, error) {
+	return operations.Measure(s.metrics, "attachments.get_list", func() ([]dto.Attachment, error) {
 		ctx, cancel := s.shortOperationContext()
 		defer cancel()
 		return s.server.ListDocumentAttachments(ctx, documentIDStr)
@@ -171,7 +172,7 @@ func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, err
 }
 
 func (s *AttachmentService) Delete(idStr string) error {
-	ctx, release := serviceOperationContext(s.lifecycle)
+	ctx, release := s.lifecycle.OperationContext()
 	defer release()
 	return s.server.DeleteAttachment(ctx, idStr)
 }
@@ -183,8 +184,8 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 }
 
 func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
-	return measureOperation(s.metrics, "attachments.download", func() (string, error) {
-		ctx, release := serviceOperationContext(s.lifecycle)
+	return operations.Measure(s.metrics, "attachments.download", func() (string, error) {
+		ctx, release := s.lifecycle.OperationContext()
 		defer release()
 		attachment, content, err := s.server.GetAttachmentContent(ctx, idStr)
 		if err != nil {

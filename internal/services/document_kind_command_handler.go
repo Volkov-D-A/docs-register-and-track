@@ -1,14 +1,15 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 )
 
 type DocumentCommandPrincipal interface {
@@ -19,7 +20,7 @@ type DocumentCommandPrincipal interface {
 type DocumentCommandClient interface {
 	RegisterDocument(context.Context, string, any) (any, error)
 	UpdateDocument(context.Context, string, any) (any, error)
-	CreateAdminDocumentDraft(context.Context, string, any) (any, error)
+	CreateAdminDocumentDraft(context.Context, string, dto.AdminDraftCreateRequest) (any, error)
 }
 
 func documentCommandHash(req any) (string, error) {
@@ -38,7 +39,7 @@ type DocumentKindCommandHandler interface {
 }
 
 type AdminDraftCommandHandler interface {
-	CreateAdminDraft(req AdminDraftCreateRequest) (any, error)
+	CreateAdminDraft(req dto.AdminDraftCreateRequest) (any, error)
 }
 
 // DocumentKindCommandRegistry хранит обработчики command-операций по видам документов.
@@ -73,7 +74,7 @@ func (r *DocumentKindCommandRegistry) Get(kind models.DocumentKind) (DocumentKin
 type DocumentRegistrationService struct {
 	registry  *DocumentKindCommandRegistry
 	client    DocumentCommandClient
-	lifecycle *OperationLifecycle
+	lifecycle *operations.Lifecycle
 	metrics   *observability.Registry
 }
 
@@ -86,7 +87,7 @@ func NewDocumentRegistrationService(registry *DocumentKindCommandRegistry) *Docu
 	return &DocumentRegistrationService{registry: registry}
 }
 
-func (s *DocumentRegistrationService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
+func (s *DocumentRegistrationService) SetOperationLifecycle(lifecycle *operations.Lifecycle) {
 	s.lifecycle = lifecycle
 }
 
@@ -96,8 +97,8 @@ func (s *DocumentRegistrationService) SetOperationMetrics(metrics *observability
 
 // Register делегирует регистрацию документа обработчику по kindCode.
 func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, error) {
-	return measureOperation(s.metrics, "documents.register", func() (any, error) {
-		ctx, release := serviceOperationContext(s.lifecycle)
+	return operations.Measure(s.metrics, "documents.register", func() (any, error) {
+		ctx, release := s.lifecycle.OperationContext()
 		defer release()
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -105,7 +106,7 @@ func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, e
 
 		kind := models.DocumentKind(kindCode)
 		if s.client != nil {
-			normalizedReq, err := normalizeRegisterRequest(kind, req)
+			normalizedReq, err := dto.NormalizeDocumentRegisterRequest(kind, req)
 			if err != nil {
 				return nil, err
 			}
@@ -116,7 +117,7 @@ func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, e
 			return nil, models.ErrForbidden
 		}
 
-		normalizedReq, err := normalizeRegisterRequest(kind, req)
+		normalizedReq, err := dto.NormalizeDocumentRegisterRequest(kind, req)
 		if err != nil {
 			return nil, err
 		}
@@ -134,8 +135,8 @@ func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, e
 
 // Update делегирует обновление документа обработчику по kindCode.
 func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, error) {
-	return measureOperation(s.metrics, "documents.update", func() (any, error) {
-		ctx, release := serviceOperationContext(s.lifecycle)
+	return operations.Measure(s.metrics, "documents.update", func() (any, error) {
+		ctx, release := s.lifecycle.OperationContext()
 		defer release()
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -143,7 +144,7 @@ func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, err
 
 		kind := models.DocumentKind(kindCode)
 		if s.client != nil {
-			normalizedReq, err := normalizeUpdateRequest(kind, req)
+			normalizedReq, err := dto.NormalizeDocumentUpdateRequest(kind, req)
 			if err != nil {
 				return nil, err
 			}
@@ -154,7 +155,7 @@ func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, err
 			return nil, models.ErrForbidden
 		}
 
-		normalizedReq, err := normalizeUpdateRequest(kind, req)
+		normalizedReq, err := dto.NormalizeDocumentUpdateRequest(kind, req)
 		if err != nil {
 			return nil, err
 		}
@@ -171,9 +172,9 @@ func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, err
 }
 
 // CreateAdminDraft создает административный черновик с зарезервированным номером.
-func (s *DocumentRegistrationService) CreateAdminDraft(kindCode string, req AdminDraftCreateRequest) (any, error) {
-	return measureOperation(s.metrics, "documents.create_admin_draft", func() (any, error) {
-		ctx, release := serviceOperationContext(s.lifecycle)
+func (s *DocumentRegistrationService) CreateAdminDraft(kindCode string, req dto.AdminDraftCreateRequest) (any, error) {
+	return operations.Measure(s.metrics, "documents.create_admin_draft", func() (any, error) {
+		ctx, release := s.lifecycle.OperationContext()
 		defer release()
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -201,120 +202,4 @@ func (s *DocumentRegistrationService) CreateAdminDraft(kindCode string, req Admi
 		}
 		return result, nil
 	})
-}
-
-func normalizeRegisterRequest(kind models.DocumentKind, req any) (any, error) {
-	switch kind {
-	case models.DocumentKindIncomingLetter:
-		if typedReq, ok := req.(IncomingLetterRegisterRequest); ok {
-			return typedReq, nil
-		}
-
-		var typedReq IncomingLetterRegisterRequest
-		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
-			return nil, err
-		}
-
-		return typedReq, nil
-	case models.DocumentKindOutgoingLetter:
-		if typedReq, ok := req.(OutgoingLetterRegisterRequest); ok {
-			return typedReq, nil
-		}
-
-		var typedReq OutgoingLetterRegisterRequest
-		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
-			return nil, err
-		}
-
-		return typedReq, nil
-	case models.DocumentKindCitizenAppeal:
-		if typedReq, ok := req.(CitizenAppealRegisterRequest); ok {
-			return typedReq, nil
-		}
-
-		var typedReq CitizenAppealRegisterRequest
-		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
-			return nil, err
-		}
-
-		return typedReq, nil
-	case models.DocumentKindAdministrativeOrder:
-		if typedReq, ok := req.(AdministrativeOrderRegisterRequest); ok {
-			return typedReq, nil
-		}
-
-		var typedReq AdministrativeOrderRegisterRequest
-		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
-			return nil, err
-		}
-
-		return typedReq, nil
-	default:
-		return nil, models.ErrForbidden
-	}
-}
-
-func normalizeUpdateRequest(kind models.DocumentKind, req any) (any, error) {
-	switch kind {
-	case models.DocumentKindIncomingLetter:
-		if typedReq, ok := req.(IncomingLetterUpdateRequest); ok {
-			return typedReq, nil
-		}
-
-		var typedReq IncomingLetterUpdateRequest
-		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
-			return nil, err
-		}
-
-		return typedReq, nil
-	case models.DocumentKindOutgoingLetter:
-		if typedReq, ok := req.(OutgoingLetterUpdateRequest); ok {
-			return typedReq, nil
-		}
-
-		var typedReq OutgoingLetterUpdateRequest
-		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
-			return nil, err
-		}
-
-		return typedReq, nil
-	case models.DocumentKindCitizenAppeal:
-		if typedReq, ok := req.(CitizenAppealUpdateRequest); ok {
-			return typedReq, nil
-		}
-
-		var typedReq CitizenAppealUpdateRequest
-		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
-			return nil, err
-		}
-
-		return typedReq, nil
-	case models.DocumentKindAdministrativeOrder:
-		if typedReq, ok := req.(AdministrativeOrderUpdateRequest); ok {
-			return typedReq, nil
-		}
-
-		var typedReq AdministrativeOrderUpdateRequest
-		if err := decodeDocumentCommandRequest(req, &typedReq); err != nil {
-			return nil, err
-		}
-
-		return typedReq, nil
-	default:
-		return nil, models.ErrForbidden
-	}
-}
-
-func decodeDocumentCommandRequest(src any, dst any) error {
-	data, err := json.Marshal(src)
-	if err != nil {
-		return models.NewBadRequest("неверный формат команды документа")
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(dst); err != nil {
-		return models.NewBadRequest("неверные поля команды документа")
-	}
-
-	return nil
 }

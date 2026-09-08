@@ -13,6 +13,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/background"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
@@ -113,7 +114,7 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		version:   version,
 		startedAt: time.Now().UTC(),
 		lifecycle: background.NewLifecycle(
-			db,
+			func() (*dto.MigrationStatus, error) { return db.GetMigrationStatus(database.DefaultMigrationsPath) },
 			&leasedWorker{db: db, worker: worker},
 			(&sessionCleaner{store: repository.NewServerSessionRepository(db)}).Run,
 		),

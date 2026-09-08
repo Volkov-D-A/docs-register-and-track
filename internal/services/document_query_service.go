@@ -10,6 +10,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
@@ -34,7 +35,7 @@ func (s *DocumentQueryService) SetOperationMetrics(metrics *observability.Regist
 }
 
 func (s *DocumentQueryService) GetByID(id string) (*dto.DocumentCard, error) {
-	return measureOperation(s.metrics, "documents.get_card", func() (*dto.DocumentCard, error) {
+	return operations.Measure(s.metrics, "documents.get_card", func() (*dto.DocumentCard, error) {
 		if s.server == nil {
 			return nil, errServerDocumentQueryClientNotConfigured
 		}
@@ -45,7 +46,7 @@ func (s *DocumentQueryService) GetByID(id string) (*dto.DocumentCard, error) {
 }
 
 func (s *DocumentQueryService) GetList(kindCode string, filter models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error) {
-	return measureOperation(s.metrics, "documents.get_list", func() (*dto.PagedResult[dto.DocumentListItem], error) {
+	return operations.Measure(s.metrics, "documents.get_list", func() (*dto.PagedResult[dto.DocumentListItem], error) {
 		if s.server == nil {
 			return nil, errServerDocumentQueryClientNotConfigured
 		}
@@ -86,7 +87,7 @@ func NewDocumentQueryEngine(
 
 // GetByID возвращает общую карточку документа по его ID.
 func (s *DocumentQueryEngine) GetByID(id string) (*dto.DocumentCard, error) {
-	return measureOperation(s.metrics, "documents.get_card", func() (*dto.DocumentCard, error) {
+	return operations.Measure(s.metrics, "documents.get_card", func() (*dto.DocumentCard, error) {
 		if err := s.access.RequireDomainRead(); err != nil {
 			return nil, err
 		}
@@ -115,7 +116,7 @@ func (s *DocumentQueryEngine) GetByID(id string) (*dto.DocumentCard, error) {
 
 // GetList возвращает общий список документов указанного вида.
 func (s *DocumentQueryEngine) GetList(kindCode string, filter models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error) {
-	return measureOperation(s.metrics, "documents.get_list", func() (*dto.PagedResult[dto.DocumentListItem], error) {
+	return operations.Measure(s.metrics, "documents.get_list", func() (*dto.PagedResult[dto.DocumentListItem], error) {
 		if err := s.access.RequireDomainRead(); err != nil {
 			return nil, err
 		}

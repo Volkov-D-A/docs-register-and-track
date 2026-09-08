@@ -3,9 +3,11 @@ package services
 import (
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 func TestBuildAdminNumberOverride(t *testing.T) {
@@ -16,7 +18,7 @@ func TestBuildAdminNumberOverride(t *testing.T) {
 	})
 
 	t.Run("insert shift", func(t *testing.T) {
-		result, err := buildAdminNumberOverride(&AdminNumberOverrideRequest{
+		result, err := buildAdminNumberOverride(&dto.AdminNumberOverrideRequest{
 			Mode:   models.AdminNumberModeInsertShift,
 			Number: 15,
 		})
@@ -28,7 +30,7 @@ func TestBuildAdminNumberOverride(t *testing.T) {
 	})
 
 	t.Run("literal with suffix", func(t *testing.T) {
-		result, err := buildAdminNumberOverride(&AdminNumberOverrideRequest{
+		result, err := buildAdminNumberOverride(&dto.AdminNumberOverrideRequest{
 			Mode:   models.AdminNumberModeLiteral,
 			Number: 15,
 			Suffix: "А",
@@ -41,7 +43,7 @@ func TestBuildAdminNumberOverride(t *testing.T) {
 	})
 
 	t.Run("rejects invalid mode", func(t *testing.T) {
-		result, err := buildAdminNumberOverride(&AdminNumberOverrideRequest{
+		result, err := buildAdminNumberOverride(&dto.AdminNumberOverrideRequest{
 			Mode:   "bad",
 			Number: 15,
 		})
@@ -51,7 +53,7 @@ func TestBuildAdminNumberOverride(t *testing.T) {
 	})
 
 	t.Run("rejects suffix for shift mode", func(t *testing.T) {
-		result, err := buildAdminNumberOverride(&AdminNumberOverrideRequest{
+		result, err := buildAdminNumberOverride(&dto.AdminNumberOverrideRequest{
 			Mode:   models.AdminNumberModeInsertShift,
 			Number: 15,
 			Suffix: "А",

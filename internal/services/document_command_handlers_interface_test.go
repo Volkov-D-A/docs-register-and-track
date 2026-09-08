@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
@@ -21,29 +22,29 @@ func TestDocumentCommandHandlers_InterfaceMethods(t *testing.T) {
 			name:        "incoming letter",
 			kind:        models.DocumentKindIncomingLetter,
 			handler:     setupIncomingLetterCommandHandler(t, nil).handler,
-			registerReq: IncomingLetterRegisterRequest{},
-			updateReq:   IncomingLetterUpdateRequest{ID: "bad-id"},
+			registerReq: dto.IncomingLetterRegisterRequest{},
+			updateReq:   dto.IncomingLetterUpdateRequest{ID: "bad-id"},
 		},
 		{
 			name:        "outgoing letter",
 			kind:        models.DocumentKindOutgoingLetter,
 			handler:     setupOutgoingLetterCommandHandler(t, nil).handler,
-			registerReq: OutgoingLetterRegisterRequest{},
-			updateReq:   OutgoingLetterUpdateRequest{ID: "bad-id"},
+			registerReq: dto.OutgoingLetterRegisterRequest{},
+			updateReq:   dto.OutgoingLetterUpdateRequest{ID: "bad-id"},
 		},
 		{
 			name:        "citizen appeal",
 			kind:        models.DocumentKindCitizenAppeal,
 			handler:     setupCitizenAppealCommandHandler(t, nil).handler,
-			registerReq: CitizenAppealRegisterRequest{},
-			updateReq:   CitizenAppealUpdateRequest{ID: "bad-id"},
+			registerReq: dto.CitizenAppealRegisterRequest{},
+			updateReq:   dto.CitizenAppealUpdateRequest{ID: "bad-id"},
 		},
 		{
 			name:        "administrative order",
 			kind:        models.DocumentKindAdministrativeOrder,
 			handler:     setupAdministrativeOrderCommandHandler(t, nil).handler,
-			registerReq: AdministrativeOrderRegisterRequest{},
-			updateReq:   AdministrativeOrderUpdateRequest{ID: "bad-id"},
+			registerReq: dto.AdministrativeOrderRegisterRequest{},
+			updateReq:   dto.AdministrativeOrderUpdateRequest{ID: "bad-id"},
 		},
 	}
 

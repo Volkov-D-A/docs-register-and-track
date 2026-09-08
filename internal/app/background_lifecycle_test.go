@@ -2,39 +2,35 @@ package app
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 )
 
 type fakeMigrationStatusReader struct {
 	mu     sync.RWMutex
-	status database.MigrationStatus
+	status dto.MigrationStatus
 	err    error
 }
 
 type fakeMigrationStatusClient struct {
-	status      *database.MigrationStatus
+	status      *dto.MigrationStatus
 	err         error
 	hasDeadline bool
 }
 
-func (c *fakeMigrationStatusClient) Status(ctx context.Context) (*database.MigrationStatus, error) {
+func (c *fakeMigrationStatusClient) Status(ctx context.Context) (*dto.MigrationStatus, error) {
 	_, c.hasDeadline = ctx.Deadline()
 	return c.status, c.err
 }
 
-func (r *fakeMigrationStatusReader) GetMigrationStatus(path string) (*database.MigrationStatus, error) {
-	if path != database.DefaultMigrationsPath {
-		return nil, errors.New("unexpected migration path")
-	}
+func (r *fakeMigrationStatusReader) GetMigrationStatus() (*dto.MigrationStatus, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.err != nil {
@@ -44,7 +40,7 @@ func (r *fakeMigrationStatusReader) GetMigrationStatus(path string) (*database.M
 	return &status, nil
 }
 
-func (r *fakeMigrationStatusReader) set(status database.MigrationStatus, err error) {
+func (r *fakeMigrationStatusReader) set(status dto.MigrationStatus, err error) {
 	r.mu.Lock()
 	r.status = status
 	r.err = err
@@ -62,8 +58,8 @@ func (w *blockingBackgroundWorker) Run(ctx context.Context) {
 	w.stops.Add(1)
 }
 
-func readyMigrationStatus() database.MigrationStatus {
-	return database.MigrationStatus{
+func readyMigrationStatus() dto.MigrationStatus {
+	return dto.MigrationStatus{
 		CurrentVersion:         10,
 		AvailableCount:         10,
 		LatestAvailableVersion: 10,
@@ -77,7 +73,7 @@ func TestServerMigrationStatusReaderUsesServerStatus(t *testing.T) {
 	client := &fakeMigrationStatusClient{status: &status}
 	reader := newServerMigrationStatusReader(client)
 
-	actual, err := reader.GetMigrationStatus(database.DefaultMigrationsPath)
+	actual, err := reader.GetMigrationStatus()
 
 	require.NoError(t, err)
 	assert.Equal(t, &status, actual)
@@ -87,7 +83,7 @@ func TestServerMigrationStatusReaderUsesServerStatus(t *testing.T) {
 func TestServerMigrationStatusReaderRequiresClient(t *testing.T) {
 	reader := newServerMigrationStatusReader(nil)
 
-	status, err := reader.GetMigrationStatus(database.DefaultMigrationsPath)
+	status, err := reader.GetMigrationStatus()
 
 	assert.Nil(t, status)
 	require.EqualError(t, err, "docflow-server migration status client is not configured")
@@ -103,13 +99,13 @@ func stopLifecycle(t *testing.T, lifecycle *backgroundLifecycle) {
 func TestBackgroundLifecycleWaitsForContextAndReadySchema(t *testing.T) {
 	reader := &fakeMigrationStatusReader{status: readyMigrationStatus()}
 	worker := &blockingBackgroundWorker{}
-	lifecycle := newBackgroundLifecycle(reader, worker, nil)
+	lifecycle := newBackgroundLifecycle(reader.GetMigrationStatus, worker, nil)
 
 	lifecycle.ReconcileSchema()
 	assert.Zero(t, worker.starts.Load())
 	require.NoError(t, lifecycle.CheckReady())
 
-	reader.set(database.MigrationStatus{
+	reader.set(dto.MigrationStatus{
 		CurrentVersion:         9,
 		AvailableCount:         10,
 		LatestAvailableVersion: 10,
@@ -131,7 +127,7 @@ func TestBackgroundLifecycleStartsWorkerOnlyOnce(t *testing.T) {
 	reader := &fakeMigrationStatusReader{status: readyMigrationStatus()}
 	worker := &blockingBackgroundWorker{}
 	var startupRuns atomic.Int32
-	lifecycle := newBackgroundLifecycle(reader, worker, func(context.Context) error {
+	lifecycle := newBackgroundLifecycle(reader.GetMigrationStatus, worker, func(context.Context) error {
 		startupRuns.Add(1)
 		return nil
 	})
@@ -156,7 +152,7 @@ func TestBackgroundLifecycleStartsWorkerOnlyOnce(t *testing.T) {
 
 func TestBackgroundLifecycleKeepsSchemaGateWithoutEmbeddedWorker(t *testing.T) {
 	reader := &fakeMigrationStatusReader{status: readyMigrationStatus()}
-	lifecycle := newBackgroundLifecycle(reader, nil, nil)
+	lifecycle := newBackgroundLifecycle(reader.GetMigrationStatus, nil, nil)
 	lifecycle.SetApplicationContext(context.Background())
 
 	lifecycle.ReconcileSchema()
@@ -168,20 +164,20 @@ func TestBackgroundLifecycleKeepsSchemaGateWithoutEmbeddedWorker(t *testing.T) {
 func TestBackgroundLifecycleBlocksOnUnavailableOrUnsafeSchema(t *testing.T) {
 	tests := []struct {
 		name   string
-		status database.MigrationStatus
+		status dto.MigrationStatus
 		err    error
 	}{
 		{name: "status error", err: assert.AnError},
-		{name: "dirty", status: database.MigrationStatus{CurrentVersion: 10, LatestAvailableVersion: 10, Dirty: true}},
-		{name: "too new", status: database.MigrationStatus{CurrentVersion: 11, LatestAvailableVersion: 10, SchemaTooNew: true}},
-		{name: "outdated", status: database.MigrationStatus{CurrentVersion: 9, LatestAvailableVersion: 10, Compatible: true}},
+		{name: "dirty", status: dto.MigrationStatus{CurrentVersion: 10, LatestAvailableVersion: 10, Dirty: true}},
+		{name: "too new", status: dto.MigrationStatus{CurrentVersion: 11, LatestAvailableVersion: 10, SchemaTooNew: true}},
+		{name: "outdated", status: dto.MigrationStatus{CurrentVersion: 9, LatestAvailableVersion: 10, Compatible: true}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := &fakeMigrationStatusReader{status: tt.status, err: tt.err}
 			worker := &blockingBackgroundWorker{}
-			lifecycle := newBackgroundLifecycle(reader, worker, nil)
+			lifecycle := newBackgroundLifecycle(reader.GetMigrationStatus, worker, nil)
 			lifecycle.SetApplicationContext(context.Background())
 
 			lifecycle.ReconcileSchema()
@@ -195,7 +191,7 @@ func TestBackgroundLifecycleBlocksOnUnavailableOrUnsafeSchema(t *testing.T) {
 func TestBackgroundLifecycleRollbackStopsAndCanRecover(t *testing.T) {
 	reader := &fakeMigrationStatusReader{status: readyMigrationStatus()}
 	worker := &blockingBackgroundWorker{}
-	lifecycle := newBackgroundLifecycle(reader, worker, nil)
+	lifecycle := newBackgroundLifecycle(reader.GetMigrationStatus, worker, nil)
 	lifecycle.SetApplicationContext(context.Background())
 	lifecycle.ReconcileSchema()
 	require.Eventually(t, func() bool { return worker.starts.Load() == 1 }, time.Second, time.Millisecond)
@@ -213,7 +209,7 @@ func TestBackgroundLifecycleRollbackStopsAndCanRecover(t *testing.T) {
 func TestBackgroundLifecycleSuccessfulRollbackStaysInMaintenance(t *testing.T) {
 	reader := &fakeMigrationStatusReader{status: readyMigrationStatus()}
 	worker := &blockingBackgroundWorker{}
-	lifecycle := newBackgroundLifecycle(reader, worker, nil)
+	lifecycle := newBackgroundLifecycle(reader.GetMigrationStatus, worker, nil)
 	lifecycle.SetApplicationContext(context.Background())
 	lifecycle.ReconcileSchema()
 	require.Eventually(t, func() bool { return worker.starts.Load() == 1 }, time.Second, time.Millisecond)

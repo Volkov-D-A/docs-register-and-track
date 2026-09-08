@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
 
 func TestConnect_Failure(t *testing.T) {
@@ -292,75 +293,45 @@ func TestActiveAdministratorInvariantMigration(t *testing.T) {
 	assert.True(t, strings.Contains(sql, "at least one active administrator must remain"))
 }
 
-func TestMigrationCompatibilityErrorError(t *testing.T) {
-	tests := []struct {
-		name string
-		err  *MigrationCompatibilityError
-		want string
-	}{
-		{
-			name: "schema too new",
-			err:  &MigrationCompatibilityError{CurrentVersion: 9, LatestAvailableVersion: 8, SchemaTooNew: true},
-			want: "database schema version 9 is newer than embedded migrations 8",
-		},
-		{
-			name: "dirty schema",
-			err:  &MigrationCompatibilityError{CurrentVersion: 7, Dirty: true},
-			want: "database schema version 7 is dirty",
-		},
-		{
-			name: "generic incompatible schema",
-			err:  &MigrationCompatibilityError{},
-			want: "database schema is incompatible with this binary",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.err.Error())
-		})
-	}
-}
-
-func TestMigrationStatus_applyCompatibility(t *testing.T) {
+func TestApplyMigrationCompatibility(t *testing.T) {
 	tests := []struct {
 		name         string
-		status       MigrationStatus
+		status       dto.MigrationStatus
 		upToDate     bool
 		schemaTooNew bool
 		compatible   bool
 	}{
 		{
 			name:       "current schema matches embedded migrations",
-			status:     MigrationStatus{CurrentVersion: 7, LatestAvailableVersion: 7},
+			status:     dto.MigrationStatus{CurrentVersion: 7, LatestAvailableVersion: 7},
 			upToDate:   true,
 			compatible: true,
 		},
 		{
 			name:       "version gap does not make current schema look newer",
-			status:     MigrationStatus{CurrentVersion: 4, AvailableCount: 3, LatestAvailableVersion: 4},
+			status:     dto.MigrationStatus{CurrentVersion: 4, AvailableCount: 3, LatestAvailableVersion: 4},
 			upToDate:   true,
 			compatible: true,
 		},
 		{
 			name:       "old schema can be migrated by current binary",
-			status:     MigrationStatus{CurrentVersion: 5, LatestAvailableVersion: 7},
+			status:     dto.MigrationStatus{CurrentVersion: 5, LatestAvailableVersion: 7},
 			compatible: true,
 		},
 		{
 			name:         "newer schema is not up to date for old binary",
-			status:       MigrationStatus{CurrentVersion: 8, LatestAvailableVersion: 7},
+			status:       dto.MigrationStatus{CurrentVersion: 8, LatestAvailableVersion: 7},
 			schemaTooNew: true,
 		},
 		{
 			name:   "dirty schema is not compatible",
-			status: MigrationStatus{CurrentVersion: 7, LatestAvailableVersion: 7, Dirty: true},
+			status: dto.MigrationStatus{CurrentVersion: 7, LatestAvailableVersion: 7, Dirty: true},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.status.applyCompatibility()
+			applyMigrationCompatibility(&tt.status)
 			assert.Equal(t, tt.upToDate, tt.status.UpToDate)
 			assert.Equal(t, tt.schemaTooNew, tt.status.SchemaTooNew)
 			assert.Equal(t, tt.compatible, tt.status.Compatible)

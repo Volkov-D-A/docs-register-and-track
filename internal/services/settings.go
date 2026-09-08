@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
@@ -21,9 +21,14 @@ const (
 	MaximumAttachmentSizeMB = 1024
 )
 
+type settingsPrincipal interface {
+	GetCurrentUser() (*dto.User, error)
+	RequireSystemPermissionWithoutSchemaCheck(string) error
+}
+
 // SettingsService предоставляет бизнес-логику для работы с системными настройками.
 type SettingsService struct {
-	authService     *AuthService
+	authService     settingsPrincipal
 	schemaLifecycle SchemaLifecycle
 	migrationClient serverclient.MigrationClient
 	settingsClient  serverclient.SettingsClient
@@ -32,7 +37,7 @@ type SettingsService struct {
 }
 
 // NewSettingsService создает новый экземпляр SettingsService.
-func NewSettingsService(authService *AuthService) *SettingsService {
+func NewSettingsService(authService settingsPrincipal) *SettingsService {
 	return &SettingsService{authService: authService}
 }
 
@@ -75,7 +80,7 @@ func (s *SettingsService) RunMigrations(password string) error {
 	s.migrationMu.Lock()
 	defer s.migrationMu.Unlock()
 
-	if err := s.authService.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
+	if err := s.authService.RequireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для управления миграциями")
 	}
 	login, err := s.currentMigrationLogin(password)
@@ -94,8 +99,8 @@ func (s *SettingsService) RunMigrations(password string) error {
 }
 
 // GetMigrationStatus возвращает текущий статус миграций БД (только admin).
-func (s *SettingsService) GetMigrationStatus() (*database.MigrationStatus, error) {
-	if err := s.authService.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
+func (s *SettingsService) GetMigrationStatus() (*dto.MigrationStatus, error) {
+	if err := s.authService.RequireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
 		return nil, models.NewForbidden("Недостаточно прав для просмотра статуса миграций")
 	}
 	if s.migrationClient == nil {
@@ -115,7 +120,7 @@ func (s *SettingsService) RollbackMigration(req models.RollbackMigrationRequest)
 	s.migrationMu.Lock()
 	defer s.migrationMu.Unlock()
 
-	if err := s.authService.requireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
+	if err := s.authService.RequireSystemPermissionWithoutSchemaCheck(models.SystemPermissionAdmin); err != nil {
 		return models.NewForbidden("Недостаточно прав для отката миграций")
 	}
 	if err := validateRollbackMigrationRequest(req); err != nil {
@@ -238,7 +243,7 @@ func validateRollbackMigrationRequest(req models.RollbackMigrationRequest) error
 }
 
 func migrationCompatibilityAppError(err error) error {
-	var compatibilityErr *database.MigrationCompatibilityError
+	var compatibilityErr *models.MigrationCompatibilityError
 	if !errors.As(err, &compatibilityErr) {
 		return err
 	}

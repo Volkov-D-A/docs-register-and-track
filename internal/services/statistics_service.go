@@ -12,6 +12,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
@@ -30,7 +31,7 @@ type StatisticsService struct {
 	repo        StatisticsStore
 	auth        StatisticsPrincipal
 	storage     StorageInfoProvider
-	lifecycle   *OperationLifecycle
+	lifecycle   *operations.Lifecycle
 	metrics     *observability.Registry
 	server      serverclient.StatisticsClient
 	diagnostics SystemDiagnosticsProvider
@@ -58,7 +59,7 @@ func statisticsClientContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 2*time.Minute)
 }
 
-func (s *StatisticsService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
+func (s *StatisticsService) SetOperationLifecycle(lifecycle *operations.Lifecycle) {
 	s.lifecycle = lifecycle
 }
 
@@ -71,7 +72,7 @@ func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics,
 		defer cancel()
 		return s.server.GetDocumentStatistics(ctx)
 	}
-	return measureOperation(s.metrics, "statistics.get_documents", func() (*models.DocumentStatistics, error) {
+	return operations.Measure(s.metrics, "statistics.get_documents", func() (*models.DocumentStatistics, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
 			return nil, err
 		}
@@ -118,7 +119,7 @@ func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy,
 		defer cancel()
 		return s.server.GetDocumentReport(ctx, startDateStr, endDateStr, groupBy, kindCode, nomenclatureID, userID)
 	}
-	return measureOperation(s.metrics, "statistics.get_document_report", func() (*models.DocumentStatisticsReport, error) {
+	return operations.Measure(s.metrics, "statistics.get_document_report", func() (*models.DocumentStatisticsReport, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
 			return nil, err
 		}
@@ -170,7 +171,7 @@ func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisti
 		defer cancel()
 		return s.server.GetDocumentFilterOptions(ctx)
 	}
-	return measureOperation(s.metrics, "statistics.get_document_filters", func() (*models.DocumentStatisticsFilters, error) {
+	return operations.Measure(s.metrics, "statistics.get_document_filters", func() (*models.DocumentStatisticsFilters, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
 			return nil, err
 		}
@@ -199,7 +200,7 @@ func (s *StatisticsService) GetAssignmentStatistics() (*models.AssignmentStatist
 		defer cancel()
 		return s.server.GetAssignmentStatistics(ctx)
 	}
-	return measureOperation(s.metrics, "statistics.get_assignments", func() (*models.AssignmentStatistics, error) {
+	return operations.Measure(s.metrics, "statistics.get_assignments", func() (*models.AssignmentStatistics, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
 			return nil, err
 		}
@@ -295,7 +296,7 @@ func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string,
 		defer cancel()
 		return s.server.GetAssignmentReport(ctx, startDateStr, endDateStr, onlyOverdue, userID)
 	}
-	return measureOperation(s.metrics, "statistics.get_assignment_report", func() (*models.AssignmentStatisticsReport, error) {
+	return operations.Measure(s.metrics, "statistics.get_assignment_report", func() (*models.AssignmentStatisticsReport, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
 			return nil, err
 		}
@@ -331,7 +332,7 @@ func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStat
 		defer cancel()
 		return s.server.GetAssignmentFilterOptions(ctx)
 	}
-	return measureOperation(s.metrics, "statistics.get_assignment_filters", func() (*models.AssignmentStatisticsFilters, error) {
+	return operations.Measure(s.metrics, "statistics.get_assignment_filters", func() (*models.AssignmentStatisticsFilters, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
 			return nil, err
 		}
@@ -352,7 +353,7 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 		defer cancel()
 		return s.server.GetSystemStatistics(ctx)
 	}
-	return measureOperation(s.metrics, "statistics.get_system", func() (*models.SystemStatistics, error) {
+	return operations.Measure(s.metrics, "statistics.get_system", func() (*models.SystemStatistics, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
 			return nil, err
 		}
@@ -505,7 +506,7 @@ func (s *StatisticsService) ensureStorageStatisticsStatus(record models.StorageS
 }
 
 func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
-	ctx, release := serviceOperationContext(s.lifecycle)
+	ctx, release := s.lifecycle.OperationContext()
 	defer release()
 
 	objectCount, totalBytes, err := s.storage.RefreshStorageUsage(ctx)

@@ -3,7 +3,6 @@ package services
 import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,24 +12,20 @@ import (
 )
 
 func setupAckService(t *testing.T, role string) (
-	*AcknowledgmentService, *mocks.AcknowledgmentStore, *mocks.UserStore, *AuthService, *mocks.IncomingDocStore,
+	*AcknowledgmentService, *mocks.AcknowledgmentStore, *mocks.UserStore, *testPrincipal, *mocks.IncomingDocStore,
 ) {
 	t.Helper()
 	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 
-	password := "Passw0rd!"
-	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:           uuid.New(),
-		Login:        role + "_ack",
-		PasswordHash: hash,
-		IsActive:     true,
+		ID:    uuid.New(),
+		Login: role + "_ack",
+
+		IsActive: true,
 	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	_, err := auth.Login(user.Login, password)
-	require.NoError(t, err)
+	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	userRepo.On("GetAll").Return([]models.User{}, nil).Maybe()
 
@@ -78,7 +73,7 @@ func setupAckServiceNotAuth(t *testing.T) *AcknowledgmentService {
 	t.Helper()
 	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
 	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
@@ -195,7 +190,7 @@ func TestAcknowledgmentService_GetList(t *testing.T) {
 		svc := setupAckServiceNotAuth(t)
 		result, err := svc.GetList(docID.String())
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrUnauthorized, err)
 		assert.Nil(t, result)
 	})
 
@@ -225,7 +220,7 @@ func TestAcknowledgmentService_GetPendingForCurrentUser(t *testing.T) {
 		svc := setupAckServiceNotAuth(t)
 		result, err := svc.GetPendingForCurrentUser()
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrUnauthorized, err)
 		assert.Nil(t, result)
 	})
 }
@@ -254,7 +249,7 @@ func TestAcknowledgmentService_GetCurrentUserPendingByDocument(t *testing.T) {
 
 		result, err := svc.GetCurrentUserPendingByDocument(docID.String())
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrUnauthorized, err)
 		assert.Nil(t, result)
 	})
 
@@ -307,7 +302,7 @@ func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 		user := &models.User{ID: uuid.New(), Login: "limited_ack", PasswordHash: "hash", IsActive: true}
 		repo := mocks.NewAcknowledgmentStore(t)
 		userRepo := mocks.NewUserStore(t)
-		auth := NewAuthService(nil, userRepo)
+		auth := newTestPrincipal(userRepo)
 		accessStore := &kindActionDocumentAccessStore{allowed: map[models.DocumentKind]map[string]bool{
 			models.DocumentKindIncomingLetter: {"acknowledge": true},
 		}}
@@ -367,7 +362,7 @@ func TestAcknowledgmentService_MarkViewed(t *testing.T) {
 		svc := setupAckServiceNotAuth(t)
 		err := svc.MarkViewed(ackID.String())
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrUnauthorized, err)
 	})
 
 	t.Run("invalid ID", func(t *testing.T) {
@@ -438,7 +433,7 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 		svc := setupAckServiceNotAuth(t)
 		err := svc.MarkConfirmed(ackID.String())
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrUnauthorized, err)
 	})
 
 	t.Run("already confirmed is successful without side effects", func(t *testing.T) {

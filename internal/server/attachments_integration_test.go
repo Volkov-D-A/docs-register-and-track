@@ -95,7 +95,7 @@ func TestAttachmentAPIStreamsAndPersistsLifecycleIntegration(t *testing.T) {
 	require.True(t, allowed)
 
 	storage := &attachmentIntegrationStorage{objects: make(map[string][]byte)}
-	api := newManagementAPI(&App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32), storage: storage})
+	api := newIntegrationManagementAPI(t, &App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32), storage: storage})
 	login := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"login":"attachment-user","password":"`+password+`"}`))
 	loginResponse := httptest.NewRecorder()
 	api.Handler().ServeHTTP(loginResponse, login)

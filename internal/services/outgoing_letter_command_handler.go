@@ -11,38 +11,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-// OutgoingLetterRegisterRequest описывает команду регистрации исходящего письма.
-type OutgoingLetterRegisterRequest struct {
-	NomenclatureID       string                      `json:"nomenclatureId"`
-	IdempotencyKey       string                      `json:"idempotencyKey"`
-	DocumentTypeID       string                      `json:"documentTypeId"`
-	RecipientOrgName     string                      `json:"recipientOrgName"`
-	Addressee            string                      `json:"addressee"`
-	OutgoingDate         string                      `json:"outgoingDate"`
-	Content              string                      `json:"content"`
-	PagesCount           int                         `json:"pagesCount"`
-	AttachmentPagesCount int                         `json:"attachmentPagesCount"`
-	SenderSignatory      string                      `json:"senderSignatory"`
-	SenderExecutor       string                      `json:"senderExecutor"`
-	RegistrationNumber   string                      `json:"registrationNumber"`
-	AdminNumberOverride  *AdminNumberOverrideRequest `json:"adminNumberOverride"`
-}
-
-// OutgoingLetterUpdateRequest описывает команду обновления исходящего письма.
-type OutgoingLetterUpdateRequest struct {
-	ID                   string `json:"id"`
-	IdempotencyKey       string `json:"idempotencyKey,omitempty"`
-	DocumentTypeID       string `json:"documentTypeId"`
-	RecipientOrgName     string `json:"recipientOrgName"`
-	Addressee            string `json:"addressee"`
-	OutgoingDate         string `json:"outgoingDate"`
-	Content              string `json:"content"`
-	PagesCount           int    `json:"pagesCount"`
-	AttachmentPagesCount int    `json:"attachmentPagesCount"`
-	SenderSignatory      string `json:"senderSignatory"`
-	SenderExecutor       string `json:"senderExecutor"`
-}
-
 // OutgoingLetterCommandHandler инкапсулирует write-операции по исходящим письмам.
 type OutgoingLetterCommandHandler struct {
 	repo    OutgoingDocStore
@@ -84,7 +52,7 @@ func NewOutgoingLetterCommandHandler(
 }
 
 // Register регистрирует исходящее письмо.
-func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterRequest) (*dto.OutgoingDocument, error) {
+func (h *OutgoingLetterCommandHandler) Register(req dto.OutgoingLetterRegisterRequest) (*dto.OutgoingDocument, error) {
 	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
 	if err != nil {
 		return nil, err
@@ -163,7 +131,7 @@ func (h *OutgoingLetterCommandHandler) Register(req OutgoingLetterRegisterReques
 
 // RegisterDocument реализует общий command-интерфейс по виду документа.
 func (h *OutgoingLetterCommandHandler) RegisterDocument(req any) (any, error) {
-	typedReq, ok := req.(OutgoingLetterRegisterRequest)
+	typedReq, ok := req.(dto.OutgoingLetterRegisterRequest)
 	if !ok {
 		return nil, fmt.Errorf("invalid register request for kind %s", h.Kind())
 	}
@@ -172,7 +140,7 @@ func (h *OutgoingLetterCommandHandler) RegisterDocument(req any) (any, error) {
 }
 
 // CreateAdminDraft создает черновик исходящего письма с административно заданным номером.
-func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req dto.AdminDraftCreateRequest) (any, error) {
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		req.IdempotencyKey = uuid.NewString()
 	}
@@ -196,7 +164,7 @@ func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 	}
 	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, models.ErrUnauthorized
 	}
 	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
 	if err != nil || idempotencyKey == uuid.Nil {
@@ -237,7 +205,7 @@ func (h *OutgoingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 }
 
 // Update обновляет исходящее письмо.
-func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (*dto.OutgoingDocument, error) {
+func (h *OutgoingLetterCommandHandler) Update(req dto.OutgoingLetterUpdateRequest) (*dto.OutgoingDocument, error) {
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		req.IdempotencyKey = uuid.NewString()
 	}
@@ -309,7 +277,7 @@ func (h *OutgoingLetterCommandHandler) Update(req OutgoingLetterUpdateRequest) (
 
 // UpdateDocument реализует общий command-интерфейс по виду документа.
 func (h *OutgoingLetterCommandHandler) UpdateDocument(req any) (any, error) {
-	typedReq, ok := req.(OutgoingLetterUpdateRequest)
+	typedReq, ok := req.(dto.OutgoingLetterUpdateRequest)
 	if !ok {
 		return nil, fmt.Errorf("invalid update request for kind %s", h.Kind())
 	}

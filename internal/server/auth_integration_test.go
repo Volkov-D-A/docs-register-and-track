@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,7 +30,7 @@ func TestServerAuthSessionLifecycleIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := validConfig()
-	api := newManagementAPI(&App{db: db, cfg: cfg})
+	api := newIntegrationManagementAPI(t, &App{db: db, cfg: cfg})
 	login := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(`{"login":"session-integration","password":"Passw0rd!"}`))
 	loginResult := httptest.NewRecorder()
 	api.Handler().ServeHTTP(loginResult, login)
@@ -65,7 +66,7 @@ func TestServerPasswordChangeRevokesAllSessionsIntegration(t *testing.T) {
 	`, userID, passwordHash)
 	require.NoError(t, err)
 
-	api := newManagementAPI(&App{db: db, cfg: validConfig()})
+	api := newIntegrationManagementAPI(t, &App{db: db, cfg: validConfig()})
 	login := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(`{"login":"password-change-integration","password":"Passw0rd!"}`))
 	loginResult := httptest.NewRecorder()
 	api.Handler().ServeHTTP(loginResult, login)
@@ -89,4 +90,46 @@ func TestServerPasswordChangeRevokesAllSessionsIntegration(t *testing.T) {
 	meResult := httptest.NewRecorder()
 	api.Handler().ServeHTTP(meResult, me)
 	assert.Equal(t, http.StatusUnauthorized, meResult.Code)
+}
+
+// Repeated locks must each produce an audit entry through the production HTTP path.
+func TestServerRepeatedLockoutsAuditIntegration(t *testing.T) {
+	db := &database.DB{DB: integrationdb.Open(t)}
+	hash, err := security.HashPassword("Passw0rd!")
+	require.NoError(t, err)
+	id := uuid.New()
+	_, err = db.Exec(`INSERT INTO users(id,login,password_hash,full_name,is_active,password_change_required) VALUES($1,'lock-audit',$2,'Lock Audit',TRUE,FALSE)`, id, hash)
+	require.NoError(t, err)
+	adminID := uuid.New()
+	_, err = db.Exec(`INSERT INTO users(id,login,password_hash,full_name,is_active,password_change_required) VALUES($1,'lock-audit-admin',$2,'Admin',TRUE,FALSE)`, adminID, hash)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO user_system_permissions(user_id,permission,is_allowed) VALUES($1,'admin',TRUE)`, adminID)
+	require.NoError(t, err)
+	api := newIntegrationManagementAPI(t, &App{db: db, cfg: validConfig()})
+	for cycle := 0; cycle < 2; cycle++ {
+		if cycle > 0 {
+			// Fixture reactivation separates two independent account lock transitions.
+			_, err = db.Exec(`UPDATE users SET is_active=TRUE,failed_login_attempts=0 WHERE id=$1`, id)
+			require.NoError(t, err)
+		}
+		for attempt := 1; attempt <= 5; attempt++ {
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(`{"login":"lock-audit","password":"wrong"}`))
+			// Exercise the account counter independently of per-address throttling.
+			request.RemoteAddr = fmt.Sprintf("192.0.2.%d:1234", cycle*5+attempt)
+			response := httptest.NewRecorder()
+			api.Handler().ServeHTTP(response, request)
+			status := http.StatusUnauthorized
+			if attempt == 5 {
+				status = http.StatusForbidden
+			}
+			require.Equal(t, status, response.Code, response.Body.String())
+		}
+		var active bool
+		var attempts, count int
+		require.NoError(t, db.QueryRow(`SELECT is_active,failed_login_attempts FROM users WHERE id=$1`, id).Scan(&active, &attempts))
+		require.False(t, active)
+		require.Equal(t, 5, attempts)
+		require.NoError(t, db.QueryRow(`SELECT COUNT(DISTINCT id) FROM admin_audit_log WHERE user_id=$1 AND action='USER_LOCKED'`, id).Scan(&count))
+		require.Equal(t, cycle+1, count)
+	}
 }

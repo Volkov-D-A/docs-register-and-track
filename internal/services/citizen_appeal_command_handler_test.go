@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
@@ -19,7 +20,7 @@ type citizenAppealHandlerDeps struct {
 	repo        *citizenAppealCommandStore
 	refRepo     *mocks.ReferenceStore
 	journalRepo *mocks.JournalStore
-	auth        *AuthService
+	auth        *testPrincipal
 	user        *models.User
 }
 
@@ -82,7 +83,7 @@ func setupCitizenAppealCommandHandler(t *testing.T, allowed map[models.DocumentK
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
@@ -112,8 +113,8 @@ func setupCitizenAppealCommandHandler(t *testing.T, allowed map[models.DocumentK
 	}
 }
 
-func validCitizenAppealRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) CitizenAppealRegisterRequest {
-	return CitizenAppealRegisterRequest{
+func validCitizenAppealRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) dto.CitizenAppealRegisterRequest {
+	return dto.CitizenAppealRegisterRequest{
 		NomenclatureID:       nomenclatureID.String(),
 		IdempotencyKey:       idempotencyKey.String(),
 		RegistrationDate:     "2026-06-03",
@@ -128,14 +129,14 @@ func validCitizenAppealRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID)
 		ReceivedFromPOS:      true,
 		Content:              " Содержание обращения ",
 		RegistrationNumber:   " CA-10 ",
-		Correspondents: []CitizenAppealCorrespondentRequest{
+		Correspondents: []dto.CitizenAppealCorrespondentRequest{
 			{
 				RegistrationNumber: "EXT-1",
 				RegistrationDate:   "2026-06-01",
 				CorrespondentName:  "Администрация",
 			},
 		},
-		Resolutions: []CitizenAppealResolutionRequest{
+		Resolutions: []dto.CitizenAppealResolutionRequest{
 			{
 				Resolution:          " Подготовить ответ ",
 				ResolutionAuthor:    " Руководитель ",
@@ -364,7 +365,7 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 		)
 		req := validCitizenAppealRegisterRequest(uuid.New(), uuid.New())
 		req.Correspondents = nil
-		req.Resolutions = []CitizenAppealResolutionRequest{{ResolutionAuthor: "Руководитель"}}
+		req.Resolutions = []dto.CitizenAppealResolutionRequest{{ResolutionAuthor: "Руководитель"}}
 
 		result, err := deps.handler.Register(req)
 
@@ -421,7 +422,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			AttachmentPagesCount: 0,
 			CreatedBy:            deps.user.ID,
 		}
-		req := CitizenAppealUpdateRequest{
+		req := dto.CitizenAppealUpdateRequest{
 			ID:                   documentID.String(),
 			RegistrationNumber:   " CA-20 ",
 			RegistrationDate:     "2026-06-04",
@@ -433,7 +434,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			PagesCount:           3,
 			AttachmentPagesCount: 0,
 			Content:              " Обновленное обращение ",
-			Correspondents: []CitizenAppealCorrespondentRequest{
+			Correspondents: []dto.CitizenAppealCorrespondentRequest{
 				{
 					RegistrationNumber: "EXT-2",
 					RegistrationDate:   "2026-06-02",
@@ -464,7 +465,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			allowDocumentActions(models.DocumentKindCitizenAppeal, "read", "update"),
 		)
 
-		result, err := deps.handler.Update(CitizenAppealUpdateRequest{ID: "bad-id"})
+		result, err := deps.handler.Update(dto.CitizenAppealUpdateRequest{ID: "bad-id"})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "неверный ID документа")
@@ -484,7 +485,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(CitizenAppealUpdateRequest{ID: documentID.String()})
+		result, err := deps.handler.Update(dto.CitizenAppealUpdateRequest{ID: documentID.String()})
 
 		require.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
@@ -503,7 +504,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(CitizenAppealUpdateRequest{
+		result, err := deps.handler.Update(dto.CitizenAppealUpdateRequest{
 			ID:                 documentID.String(),
 			RegistrationNumber: "  ",
 		})
@@ -526,7 +527,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(CitizenAppealUpdateRequest{
+		result, err := deps.handler.Update(dto.CitizenAppealUpdateRequest{
 			ID:                   documentID.String(),
 			RegistrationNumber:   "CA-20",
 			RegistrationDate:     "2026-06-04",
@@ -560,7 +561,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 		}
 		deps.repo.updateErr = expectedErr
 
-		result, err := deps.handler.Update(CitizenAppealUpdateRequest{
+		result, err := deps.handler.Update(dto.CitizenAppealUpdateRequest{
 			ID:                   documentID.String(),
 			RegistrationNumber:   "CA-20",
 			RegistrationDate:     "2026-06-04",

@@ -6,15 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 const stopTimeout = 15 * time.Second
 
-type MigrationStatusReader interface {
-	GetMigrationStatus(string) (*database.MigrationStatus, error)
-}
+type MigrationStatusReader func() (*dto.MigrationStatus, error)
 
 type Worker interface {
 	Run(context.Context)
@@ -69,7 +67,7 @@ func (l *Lifecycle) ReconcileSchema() {
 }
 
 func (l *Lifecycle) reconcileSchemaLocked() {
-	status, err := l.statusReader.GetMigrationStatus(database.DefaultMigrationsPath)
+	status, err := l.statusReader()
 	if err != nil || status == nil {
 		l.setMaintenance(true)
 		l.stopWithTimeout("migration status is unavailable")

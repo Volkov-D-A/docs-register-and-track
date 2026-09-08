@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
@@ -19,7 +20,7 @@ type incomingLetterHandlerDeps struct {
 	repo        *mocks.IncomingDocStore
 	refRepo     *mocks.ReferenceStore
 	journalRepo *mocks.JournalStore
-	auth        *AuthService
+	auth        *testPrincipal
 	user        *models.User
 }
 
@@ -27,7 +28,7 @@ func setupIncomingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
@@ -57,8 +58,8 @@ func setupIncomingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	}
 }
 
-func validIncomingLetterRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) IncomingLetterRegisterRequest {
-	return IncomingLetterRegisterRequest{
+func validIncomingLetterRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) dto.IncomingLetterRegisterRequest {
+	return dto.IncomingLetterRegisterRequest{
 		NomenclatureID:       nomenclatureID.String(),
 		IdempotencyKey:       idempotencyKey.String(),
 		DocumentTypeID:       models.DocumentTypeLetter,
@@ -68,7 +69,7 @@ func validIncomingLetterRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID
 		AttachmentPagesCount: 2,
 		SenderSignatory:      "Sender",
 		RegistrationNumber:   "12/26",
-		Correspondents: []IncomingLetterCorrespondentRequest{
+		Correspondents: []dto.IncomingLetterCorrespondentRequest{
 			{
 				RegistrationNumber: "A-1",
 				RegistrationDate:   "2026-06-02",
@@ -223,7 +224,7 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 			allowDocumentActions(models.DocumentKindIncomingLetter, "create"),
 		)
 		req := validIncomingLetterRegisterRequest(uuid.New(), uuid.New())
-		req.Correspondents = []IncomingLetterCorrespondentRequest{{}}
+		req.Correspondents = []dto.IncomingLetterCorrespondentRequest{{}}
 
 		result, err := deps.handler.Register(req)
 
@@ -283,14 +284,14 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter),
 			},
 		}
-		req := IncomingLetterUpdateRequest{
+		req := dto.IncomingLetterUpdateRequest{
 			ID:                   documentID.String(),
 			DocumentTypeID:       models.DocumentTypeLetter,
 			Content:              "Updated content",
 			PagesCount:           5,
 			AttachmentPagesCount: 3,
 			SenderSignatory:      "Updated sender",
-			Correspondents: []IncomingLetterCorrespondentRequest{
+			Correspondents: []dto.IncomingLetterCorrespondentRequest{
 				{
 					RegistrationNumber: "B-2",
 					RegistrationDate:   "2026-06-01",
@@ -333,7 +334,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 			allowDocumentActions(models.DocumentKindIncomingLetter, "read", "update"),
 		)
 
-		result, err := deps.handler.Update(IncomingLetterUpdateRequest{ID: "bad-id"})
+		result, err := deps.handler.Update(dto.IncomingLetterUpdateRequest{ID: "bad-id"})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "неверный ID документа")
@@ -352,10 +353,10 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(IncomingLetterUpdateRequest{
+		result, err := deps.handler.Update(dto.IncomingLetterUpdateRequest{
 			ID:             documentID.String(),
 			DocumentTypeID: models.DocumentTypeLetter,
-			Correspondents: []IncomingLetterCorrespondentRequest{
+			Correspondents: []dto.IncomingLetterCorrespondentRequest{
 				{
 					RegistrationNumber: "B-2",
 					RegistrationDate:   "2026-06-01",
@@ -380,7 +381,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(IncomingLetterUpdateRequest{
+		result, err := deps.handler.Update(dto.IncomingLetterUpdateRequest{
 			ID:             documentID.String(),
 			DocumentTypeID: "unknown",
 		})
@@ -413,7 +414,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 				updateReq.ResolutionExecutors != nil
 		})).Return(nil, expectedErr).Once()
 
-		result, err := deps.handler.Update(IncomingLetterUpdateRequest{
+		result, err := deps.handler.Update(dto.IncomingLetterUpdateRequest{
 			ID:                  documentID.String(),
 			DocumentTypeID:      models.DocumentTypeLetter,
 			Content:             "Updated content",
@@ -421,7 +422,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 			Resolution:          "Рассмотреть",
 			ResolutionAuthor:    "Руководитель",
 			ResolutionExecutors: "Иванов; ; Петров",
-			Correspondents: []IncomingLetterCorrespondentRequest{
+			Correspondents: []dto.IncomingLetterCorrespondentRequest{
 				{
 					RegistrationNumber: "B-2",
 					RegistrationDate:   "2026-06-01",

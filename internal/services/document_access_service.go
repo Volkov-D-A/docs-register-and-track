@@ -8,8 +8,8 @@ import (
 )
 
 // DocumentAccessPrincipal provides the request-local identity used by document
-// access checks. AuthService implements it for desktop workflows; the server
-// supplies an immutable principal for each HTTP request.
+// access checks. The server supplies an immutable principal for each HTTP
+// request; service tests provide a separate fake principal.
 type DocumentAccessPrincipal interface {
 	RequireAuthenticated() error
 	GetCurrentUser() (*dto.User, error)
@@ -20,7 +20,6 @@ type DocumentAccessPrincipal interface {
 // Нужен как единая точка переиспользования для сервисов документов, файлов, журнала и связанных сущностей.
 type DocumentAccessService struct {
 	auth               DocumentAccessPrincipal
-	desktopAuth        *AuthService
 	depRepo            DepartmentStore
 	assignmentRepo     AssignmentStore
 	acknowledgmentRepo AcknowledgmentStore
@@ -46,9 +45,6 @@ func NewDocumentAccessService(
 		acknowledgmentRepo: acknowledgmentRepo,
 		accessRepo:         accessRepo,
 		documentRepo:       documentRepo,
-	}
-	if desktopAuth, ok := auth.(*AuthService); ok {
-		svc.desktopAuth = desktopAuth
 	}
 	if len(substitutionRepos) > 0 {
 		svc.substitutionRepo = substitutionRepos[0]

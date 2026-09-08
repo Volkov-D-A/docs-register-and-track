@@ -6,16 +6,18 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/background"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/background"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/services"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 )
 
 func TestDesktopSessionInvalidationIntegration(t *testing.T) {
@@ -34,7 +36,7 @@ func TestDesktopSessionInvalidationIntegration(t *testing.T) {
 			_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, password_change_required)
     VALUES ($1, 'session-client', $2, 'Session Client', TRUE, FALSE)`, userID, hash)
 			require.NoError(t, err)
-			lifecycle := background.NewLifecycle(db, nil, nil)
+			lifecycle := background.NewLifecycle(func() (*dto.MigrationStatus, error) { return db.GetMigrationStatus(database.DefaultMigrationsPath) }, nil, nil)
 			lifecycle.ReconcileSchema()
 			api := newManagementAPI(&App{db: db, cfg: validConfig(), lifecycle: lifecycle})
 			server := httptest.NewServer(api.Handler())
@@ -45,12 +47,11 @@ func TestDesktopSessionInvalidationIntegration(t *testing.T) {
 			require.NoError(t, err)
 			_, err = adminClient.Login(context.Background(), "session-admin", "Passw0rd!")
 			require.NoError(t, err)
-			auth := services.NewAuthService(nil, nil)
-			auth.SetServerAuth(client)
+			auth := services.NewAuthService(client, client, nil, nil)
 			_, err = auth.Login("session-client", "Passw0rd!")
 			require.NoError(t, err)
 			require.True(t, auth.IsAuthenticated())
-			require.Equal(t, userID.String(), auth.GetCurrentUserID())
+			require.Equal(t, userID.String(), auth.GetSessionState().UserID)
 			var notifications atomic.Int32
 			client.SetSessionEndedHandler(func(state serverclient.SessionState) {
 				notifications.Add(1)
@@ -70,7 +71,7 @@ func TestDesktopSessionInvalidationIntegration(t *testing.T) {
 			_, err = client.Me(context.Background())
 			require.ErrorIs(t, err, models.ErrUnauthorized)
 			assert.False(t, auth.IsAuthenticated())
-			assert.Empty(t, auth.GetCurrentUserID())
+			assert.Empty(t, auth.GetSessionState().UserID)
 			_, err = client.Me(context.Background())
 			require.ErrorIs(t, err, models.ErrUnauthorized)
 			assert.EqualValues(t, 1, notifications.Load())

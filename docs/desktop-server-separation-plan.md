@@ -1,6 +1,6 @@
 # План разделения desktop- и серверного кода
 
-Дата: 7 сентября 2026 года. Статус: запланировано.
+Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–8 завершены 8 сентября 2026 года.
 
 Основание: аудит кода после разделения вложений в коммите `76e90f7` и
 [риск №3 из ревью перехода на сервер](server-transition-code-review.md).
@@ -132,7 +132,7 @@ namespace сразу обновляем frontend и bindings, без старо�
 
 ### Подготовка независимых контрактов
 
-- [ ] **1. Зафиксировать границы и карту сценариев.**
+- [x] **1. Зафиксировать границы и карту сценариев.**
   Составить перечень Wails-методов с реальными вызовами UI, отдельно отметить
   внутренние Go-вызовы. Зафиксировать точный текущий набор bindings тестом,
   совпадение двух регистраций и запрет расширения служебного API. Составить
@@ -143,36 +143,244 @@ namespace сразу обновляем frontend и bindings, без старо�
   Результат: проверяемый исходный список; при каждом следующем этапе разрешённый
   список сокращается. Текущие лишние методы не объявляются целевым контрактом.
 
-- [ ] **2. Отвязать контракты миграций от database.**
+  Выполнено 08.09.2026: [границы и карта сценариев](desktop-server-boundaries.md),
+  [перечень 157 Wails-методов и вызовов UI/Go](desktop-wails-api-baseline.md).
+  Точный снимок JS/TS/Go проверяет `TestWailsAPIContract`; существующий
+  composition-root тест проверяет совпадение runtime и generator Bind.
+  Транзитивные границы новых пакетов проверяются автоматически через
+  `internal/architecture`, включённый в штатный `make go-test`.
+  Commit: пока не создан, изменения находятся в рабочем дереве.
+
+  Проверки:
+
+  - `GOCACHE=/tmp/go-build-cache go list -deps -json ./...` — успешно,
+    владельцы и зависимости зафиксированы в карте.
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/app ./internal/architecture`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/app` — успешно.
+  - `GOCACHE=/tmp/go-build-cache go vet ./internal/app ./internal/architecture`
+    — успешно.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make docs-links-check` — общий проход остаётся незавершённым из-за четырёх
+    ранее известных битых ссылок, перечисленных в конце плана; ошибок в новых
+    документах нет.
+
+  Production-код и Wails API не менялись; генерация bindings, frontend-проверки
+  и PostgreSQL integration suite для этого подготовительного этапа не требуются.
+
+- [x] **2. Отвязать контракты миграций от database.**
   Перенести статус миграций и необходимые потребителям данные совместимости в
   независимые DTO/контракты. Обновить HTTP-клиент, сервер, desktop/background
   lifecycle и тесты. Доступ к миграциям остаётся серверным.
   Результат: для чтения статуса serverclient и lifecycle не импортируют database;
   JSON, maintenance-поведение и обработка ошибок сохранены, старых aliases нет.
 
-- [ ] **3. Выделить общие контракты команд документов.**
+  Реализация 08.09.2026: `dto.MigrationStatus` и
+  `models.MigrationCompatibilityError` вынесены без aliases. Расчёт совместимости
+  остался в database. Lifecycle принимает функцию чтения статуса; путь к
+  embedded migrations задаёт серверный composition root. Обновлены HTTP-клиент,
+  настройки, сервер и тесты. В generated Wails API тип заменён на
+  `dto.MigrationStatus`, поля JSON и имена методов сохранены.
+  Архитектурный тест запрещает транзитивный database для serverclient/background.
+  Commit: пока не создан, изменения находятся в рабочем дереве.
+
+  Проверки:
+
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/database ./internal/dto ./internal/models ./internal/serverclient ./internal/background ./internal/app ./internal/services ./internal/server ./internal/architecture`
+    — успешно; включает JSON-контракт, совместимость, maintenance и bindings.
+  - `GOCACHE=/tmp/go-build-cache go vet ./internal/database ./internal/dto ./internal/models ./internal/serverclient ./internal/background ./internal/app ./internal/services ./internal/server ./internal/architecture`
+    — успешно.
+  - `make wails-bindings` — успешно; diff generated JS/TS проверен.
+  - `make frontend-lint frontend-build` — успешно.
+  - Из `frontend`: `npm run test:components -- test/components/adminTabs.test.tsx`
+    — успешно, 3 теста.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/app ./internal/background ./internal/serverclient ./internal/server -run 'Lifecycle|Maintenance|Migration|Session'`
+    — успешно.
+  - Первый `make integration-test` — выполнен вне песочницы с доступом к Docker,
+    выявил прежние ошибки: `TestAttachmentDeletionSagaIntegration` (tombstone visible)
+    и `TestAdminOperationsAPIPersistsRequeueIntegration` (nil lifecycle).
+    Изолированные контейнеры и тестовый том удалены штатной целью.
+    Оба сбоя воспроизведены на исходном коммите `0f9fd0e` из отдельной копии:
+    `go test ./internal/repository ./internal/server -run 'TestAttachmentDeletionSagaIntegration|TestAdminOperationsAPIPersistsRequeueIntegration' -count=1 -p=1`
+    с `DOCFLOW_INTEGRATION_DSN` из Makefile и `GOCACHE=/tmp/go-build-cache`.
+    Повторная прицельная проверка также выявила nil lifecycle в
+    `TestServerAuthSessionLifecycleIntegration`.
+  - `make docs-links-check` — те же четыре ранее известные битые ссылки,
+    новых ошибок нет.
+
+  Отдельная PostgreSQL-проверка затронутых сценариев прошла:
+  `go test ./internal/background ./internal/server -run 'TestLifecycleProcessesOutboxAfterMigrationIntegration|TestDesktopSessionInvalidationIntegration|TestServerProcessesOutboxWithoutWailsIntegration' -count=1 -p=1 -v`
+  с теми же DSN/cache. Проверены применение миграции и запуск outbox worker,
+  серверный startup/shutdown, истечение/отзыв сессии, деактивация и сброс пароля.
+  Временный стек остановлен через `make integration-db-down` с удалением тома.
+
+  Исправление выявленных тестов 08.09.2026:
+
+  - `TestAttachmentDeletionSagaIntegration` приведён к контракту repository:
+    отсутствующее/удаляемое вложение возвращается как `(nil, nil)`. Проверяется
+    доступность до удаления и отсутствие в поиске по ID и списке документа
+    после установки отметки. SQL и production-поведение не изменялись.
+  - Общий setup `newIntegrationManagementAPI` создаёт настоящий schema lifecycle,
+    вызывает reconcile и проверяет готовность БД. На него переведены HTTP-тесты,
+    ранее создававшие App без lifecycle; типизированный nil больше не попадает
+    в интерфейс. Cleanup останавливает lifecycle до закрытия тестовой БД.
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/server ./internal/repository ./internal/app ./internal/architecture`
+    и `GOCACHE=/tmp/go-build-cache go vet ./internal/server ./internal/repository`
+    — успешно.
+
+  Повторный полный `make integration-test` после исправлений — успешно:
+  все PostgreSQL-пакеты, включая repository и server, прошли. Compose удалил
+  тестовые контейнеры, сеть и том. Этап 2 завершён; следующий — этап 3.
+
+
+
+- [x] **3. Выделить общие контракты команд документов.**
   Отделить передаваемые запросы регистрации, обновления, административного
   черновика и переопределения номера от серверных обработчиков. Использовать
   существующие dto/models, где они уже подходят; не заводить вторые копии.
   Результат: HTTP-клиент и будущие desktop-адаптеры не требуют server services
   ради типов запросов; нормализация не подменяет серверную валидацию и права.
 
-- [ ] **4. Вынести общий operation lifecycle и метрики.**
+  Реализация 08.09.2026: 13 типов команд регистрации/обновления четырёх видов
+  документов, вложенных реквизитов, административного черновика и override
+  перенесены в `dto/document_commands.go`. Общая нормализация JSON находится
+  в dto; права, бизнес-валидация и преобразование override остаются в серверных
+  обработчиках. Старые определения удалены без aliases. Поля, типы, JSON tags
+  и порядок полей всех 13 структур сверены с исходной версией и сохранены.
+  HTTP-клиент принимает типизированный `dto.AdminDraftCreateRequest`;
+  обновлены потребители, frontend административного черновика и generated bindings.
+  Commit: пока не создан, изменения находятся в рабочем дереве.
+
+  Проверки:
+
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/dto ./internal/services ./internal/serverclient ./internal/server ./internal/app ./internal/architecture`
+    — успешно. Новые тесты dto покрывают typed/JSON-преобразование четырёх видов,
+    вложенные реквизиты, неизвестные поля и неверные типы; существующие тесты
+    серверных обработчиков продолжают проверять права и бизнес-валидацию.
+  - `GOCACHE=/tmp/go-build-cache go vet ./internal/dto ./internal/services ./internal/serverclient ./internal/server ./internal/app ./internal/architecture`
+    — успешно.
+  - `make wails-bindings` — успешно, generated diff проверен;
+    namespace двух административных типов изменён с services на dto.
+  - `make frontend-lint frontend-build` — успешно.
+  - Из `frontend`: `npm run test:components -- test/components/adminTabs.test.tsx test/components/documentRegistration.test.tsx`
+    — успешно, 6 тестов.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make integration-test` — успешно: полный PostgreSQL-прогон прошёл,
+    тестовые контейнеры, сеть и том удалены штатной целью.
+
+  Проверка и исправление прежних ссылок документации отложены по указанию
+  пользователя; новых ссылок на этом этапе не добавлено.
+
+
+- [x] **4. Вынести общий operation lifecycle и метрики.**
   Перенести нужные обеим сторонам lifecycle и функции измерения в operations.
   Перевести вызовы напрямую, удалить прежние определения.
   Результат: независимый пакет с тестами timeout, cancellation, shutdown и race;
   он не импортирует services, Wails, serverclient или серверную инфраструктуру.
 
+  Выполнено 08.09.2026: `operations.Lifecycle`, `NewLifecycle`, `Measure` и
+  `MeasureError` заменили определения в services. Все потребители используют
+  новый пакет напрямую. Обёртка `serviceOperationContext` удалена: метод
+  lifecycle уже поддерживает nil. Старых типов, функций и aliases не оставлено.
+  Перенесены прежние lifecycle-тесты и добавлены timeout, deadline shutdown,
+  повторный release, конкурентные start/release/shutdown и проверка метрик.
+  Namespace типа в generated bindings теперь `operations.Lifecycle`.
+  Служебные сеттеры пока остаются до этапов переноса соответствующих сервисов.
+  Commit: пока не создан, изменения находятся в рабочем дереве.
+
+  Проверки:
+
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/operations ./internal/services ./internal/app ./internal/server ./internal/architecture`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/operations ./internal/services ./internal/app ./internal/server -run 'Lifecycle|Attachment|Operation|Measure|Statistics|Session'`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go vet ./internal/operations ./internal/services ./internal/app ./internal/server ./internal/architecture`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/architecture -count=1`
+    — успешно; проверен актуальный production-граф нового пакета без кэша теста.
+  - `make wails-bindings` — успешно, generated diff проверен.
+  - `make frontend-lint frontend-build` — успешно.
+  - `make frontend-test`: utility-тесты прошли, 7 component-тестов превысили
+    стандартный timeout 5 секунд при параллельном запуске проверок.
+    Повторный полный component-прогон из `frontend`:
+    `npm run test:components -- --maxWorkers=1` — 35 тестов в 12 файлах прошли.
+    Таймауты и assertions не изменялись.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make integration-test` — полный PostgreSQL-прогон прошёл,
+    тестовые контейнеры, сеть и том удалены штатной целью.
+
+  Работы с прежними ссылками документации отложены по указанию пользователя;
+  новых ссылок на этом этапе не добавлено.
+
+
 ### Очистка legacy и первые desktop-пакеты
 
-- [ ] **5. Перевести тесты замещений и access summary на production-путь.**
+- [x] **5. Перевести тесты замещений и access summary на production-путь.**
   Перенести актуальные проверки старых `saveForPrincipal` и
   `getCurrentAccessSummaryDirect` на действующие серверные обработчики.
   Проверить собственные/административные операции, замещения и audit/outbox.
   Удалить старые private-реализации и ненужную связь `desktopAuth` в document
   access. Результат: тесты проверяют код, используемый сервером, а не его копию.
 
-- [ ] **6. Удалить legacy-аутентификацию.**
+  Реализация 08.09.2026: private `saveForPrincipal` и
+  `getCurrentAccessSummaryDirect`, их тестовые HTTP-имитации и зависимость
+  `DocumentAccessService.desktopAuth` удалены. Вместе с private-путями удалены
+  неиспользуемые repository/auth/access-поля адаптеров замещений и метаданных
+  видов документов; конструкторы и desktop composition root обновлены напрямую.
+  Старый тест кандидатов сохранён в `user_service_test.go`.
+
+  Матрица HTTP-тестов проверяет собственные и административные замещения:
+  тот же/другой отдел, неактивный или отсутствующий заместитель, отсутствие
+  participant-флага и подразделения, самозамещение, даты, очистка и права.
+  Проверяются principal из сессии/URL, actor и атомарно передаваемый audit.
+  Повторные set/clear вынесены из legacy service-теста в серверный
+  PostgreSQL-тест для обоих режимов: состояние БД, уникальные outbox-ключи и
+  доставка всех четырёх событий каждого режима в audit log.
+  Проверки повторных блокировок login пока остаются до этапа 6.
+
+  Access summary проверяется через `api.Handler()` для clerk, participant без
+  полного чтения и admin без document permissions. Выявленное различие legacy
+  maintenance-теста зафиксировано по production-поведению: общий HTTP gate
+  возвращает 503 для `/api/v1/access/current` независимо от роли, а отдельный
+  маршрут статуса миграций остаётся доступен. Порядок middleware и HTTP-контракт
+  не менялись; старое ожидание сокращённого summary не перенесено как требование.
+  Commit: пока не создан, изменения находятся в рабочем дереве.
+
+  Проверки:
+
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/server ./internal/services ./internal/app ./internal/serverclient`
+    — успешно; включает контракт Wails API и обе регистрации.
+  - `GOCACHE=/tmp/go-build-cache go vet ./internal/server ./internal/services ./internal/app ./internal/serverclient`
+    — успешно.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/app ./internal/services ./internal/server -run 'Substitution|CurrentAccessSummary|DocumentAccess|CompositionRoot'`
+    — успешно.
+  - `make integration-test`: первый прогон выявил ошибку нового тестового
+    SQL-фильтра (`action` вместо фактического `Action` в audit JSON).
+    Запрос исправлен; повторный полный прогон прошёл. Compose удалил
+    тестовые контейнеры, сеть и том.
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/architecture -count=1`
+    — успешно.
+
+  Wails-методы и типы их аргументов/результатов не изменялись; повторная
+  генерация bindings и frontend-проверки не требуются. Работы со ссылками
+  документации отложены по указанию пользователя.
+
+
+- [x] **6. Удалить legacy-аутентификацию.**
   Сопоставить старые auth-тесты с текущими HTTP-тестами: пароль, блокировка,
   обязательная смена, профиль, bootstrap, права, maintenance, завершение сессии.
   Перенести недостающее покрытие и перевести setup других service-тестов на
@@ -180,18 +388,99 @@ namespace сразу обновляем frontend и bindings, без старо�
   fallback. Результат: одна production-реализация серверной аутентификации;
   прежние правила и принятое решение по bootstrap сохранены.
 
-- [ ] **7. Сделать узкий desktop AuthService.**
+  Реализация этапа 6:
+  - Из `AuthService` удалены DB/repository fallback, локальная проверка паролей,
+    блокировка, bootstrap через БД и сеттеры хранилищ. Без HTTP-клиента адаптер
+    возвращает ошибку конфигурации. Остальные зависимости передаются через
+    существующие сеттеры до этапа 7.
+  - Setup service-тестов использует `testPrincipal` без login и хеширования
+    паролей; зависимости от конкретного AuthService заменены узкими интерфейсами.
+  - Старые auth-сценарии сопоставлены с серверными проверками: пароль,
+    пятая неудачная попытка, неактивная/заблокированная запись, сброс счётчика,
+    обязательная смена и срок пароля — `auth_scenarios_test.go`; профиль —
+    `profile_test.go`; bootstrap — `initial_setup_test.go`; maintenance —
+    `maintenance_test.go`; отзыв/завершение сессий — auth/session integration
+    и `serverclient/session_test.go`. Недостающие отрицательные сценарии добавлены.
+  - Повторные блокировки проверяются через HTTP и PostgreSQL, включая две
+    отдельные записи аудита. Используется существующий серверный аудит;
+    механизм transactional outbox для аутентификации не менялся.
+  - Bindings сгенерированы заново; удалены только два сеттера хранилищ,
+    обновлён снимок Wails API. Пользовательские методы сохранены.
+
+  Проверки этапа 6 (8 сентября 2026 года): `make go-test go-vet`,
+  `make integration-test`, `make wails-bindings`, `make frontend-lint frontend-build`,
+  `npm run test:utils` и `npm run test:components -- --maxWorkers=1`
+  (35 тестов, 12 файлов) — успешно. Также прошли
+  `GOCACHE=/tmp/go-build-cache go test ./internal/architecture -count=1` и
+  `GOCACHE=/tmp/go-build-cache go test -race ./internal/services ./internal/serverclient`.
+  В первом интеграционном прогоне исправлена фикстура блокировок: добавлен
+  отдельный активный администратор для соблюдения ограничения БД.
+  Общая документация и проверка её ссылок остаются отложенными.
+
+- [x] **7. Сделать узкий desktop AuthService.**
   Передать HTTP-клиенты, lifecycle и metrics конструктору; отделить внутренний
   доступ к principal от публикуемых UI-методов. Перенести адаптер в
   `internal/desktop/services`, обновить обе регистрации Wails.
   Результат: нет auth-сеттеров и служебных permission/audit-методов в bindings;
   тесты revision сессии, запоздавших ответов, logout и `401` проходят.
 
-- [ ] **8. Очистить адаптеры пользователей и прав.**
+  Реализация этапа 7:
+  - `AuthService` перенесён в `internal/desktop/services`. HTTP auth/setup clients,
+    lifecycle операций и metrics передаются конструктору; сеттеров нет.
+  - Внутренние permission/audit-методы выделены в отдельный `Principal`, который
+    не регистрируется в Wails. Проверка maintenance передаётся его конструктору;
+    SettingsService получает узкий интерфейс principal.
+  - Состояние и revision сессии принадлежат HTTP-клиенту. Локальная копия UUID
+    удалена. Все сетевые операции адаптера участвуют в lifecycle и отменяются
+    при shutdown, сохраняя прежние таймауты.
+  - Обе регистрации Wails используют новый тип. Проверка composition root
+    сравнивает полные Go-типы, включая пакет. Сгенерированы bindings и сокращён
+    снимок API: осталось 10 пользовательских методов AuthService. Имя Wails
+    namespace сохранено, frontend-импорты не меняются.
+  - Тесты адаптера перенесены; добавлены HTTP-сценарии медленного logout,
+    запоздавшего login, инвалидации principal после `401` и отмены при shutdown.
+    Проверки запоздавших ответов и revision в serverclient сохранены.
+
+  Проверки этапа 7 (8 сентября 2026 года): `make go-test go-vet`,
+  `make integration-test`, `make wails-bindings`, `make frontend-lint frontend-build`,
+  `npm run test:utils`, `npm run test:components -- --maxWorkers=1` — успешно.
+  Прошли также архитектурные проверки с `-count=1` и
+  `go test -race ./internal/desktop/services ./internal/serverclient`.
+  Тесты локального HTTP-сервера выполнялись вне песочницы из-за запрета сокетов;
+  тестовый PostgreSQL и его том удалены после интеграционного прогона.
+  Общая документация по-прежнему отложена.
+
+- [x] **8. Очистить адаптеры пользователей и прав.**
   Перевести `UserService`, `UserSubstitutionService`, `DocumentAccessAdminService`
   и `DocumentKindService` в desktop/services. Удалить неиспользуемые поля
   repository/auth/access, заменить сеттеры обязательными конструкторами.
   Результат: только HTTP-операции; серверные проверки не копируются в desktop.
+
+  Реализация этапа 8:
+  - Четыре адаптера перенесены в `internal/desktop/services`; неиспользуемые
+    repository/auth/access-поля удалены. Клиенты обязательны в сигнатурах
+    конструкторов. UserService требует также ExecutorClient, без необязательного
+    type assertion и скрытого отключения списка исполнителей.
+  - Обе регистрации Wails обновлены, bindings сгенерированы заново. Из снимка
+    API удалены четыре SetServerClient; пользовательские методы и namespace
+    сохранены.
+  - Старые тестовые клиенты с собственной авторизацией, генерацией паролей
+    и проверкой прав удалены. Desktop-тесты проверяют 13 HTTP-операций:
+    передачу аргументов без локальных правил, результатов (включая временный
+    пароль), ошибок клиента и сохранение таймаута.
+  - Недостающие серверные HTTP-сценарии перенесены: запрет управления без admin,
+    некорректные/отсутствующие цели, чтение профиля прав, деактивация сессии,
+    ошибка списка исполнителей и конфликт последнего администратора.
+    Удалён оставшийся невостребованный mapper этого конфликта из services;
+    существующая серверная реализация проверяется через HTTP.
+
+  Проверки этапа 8 (8 сентября 2026 года): `make go-test go-vet`,
+  `make wails-bindings`, `make frontend-lint frontend-build` — успешно.
+  Архитектурная проверка выполнена с `-count=1`; новые desktop-пакеты
+  не зависят от services, repository или БД. Серверные HTTP-тесты и проверка
+  Wails-контракта входят в общий Go-прогон.
+  Интеграционный прогон с PostgreSQL не повторялся: SQL, репозитории и
+  производственное поведение БД не менялись. Общая документация отложена.
 
 - [ ] **9. Перенести простые справочные адаптеры.**
   Перевести `DepartmentService`, `NomenclatureService`, `ReferenceService` в
@@ -371,6 +660,10 @@ bindings, тесты и импорты. Для каждого сервиса с�
 PostgreSQL-интеграция не выполнялась. Перед этапами с этой проверкой необходимо
 обеспечить штатный integration-стек; подмена unit-тестами не закрывает проверку.
 Нативный GUI также не проверялся вручную.
+
+Обновление 08.09.2026 (этап 2): Docker доступен вне песочницы; PostgreSQL-стек
+запущен и удалён штатными целями. Выявленные прежние сбои тестов исправлены;
+повторный полный PostgreSQL-прогон прошёл. Подробности — в записи этапа 2.
 
 `make docs-links-check` ранее выявлял четыре существующие битые ссылки:
 две на отсутствующий `docs/bugs.md` и две на

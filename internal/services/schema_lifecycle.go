@@ -11,7 +11,6 @@ type SchemaLifecycle interface {
 
 // ConfigureSchemaLifecycle wires the composition-level schema coordinator
 // without exposing infrastructure setters as Wails service methods.
-func ConfigureSchemaLifecycle(auth *AuthService, settings *SettingsService, lifecycle SchemaLifecycle) {
-	auth.schemaLifecycle = lifecycle
+func ConfigureSchemaLifecycle(settings *SettingsService, lifecycle SchemaLifecycle) {
 	settings.schemaLifecycle = lifecycle
 }

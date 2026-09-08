@@ -3,25 +3,13 @@ package services
 import (
 	"strings"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-type AdminNumberOverrideRequest struct {
-	Mode   string `json:"mode"`
-	Number int    `json:"number"`
-	Suffix string `json:"suffix"`
-}
-
-type AdminDraftCreateRequest struct {
-	NomenclatureID      string                      `json:"nomenclatureId"`
-	RegistrationDate    string                      `json:"registrationDate"`
-	AdminNumberOverride *AdminNumberOverrideRequest `json:"adminNumberOverride"`
-	IdempotencyKey      string                      `json:"idempotencyKey,omitempty"`
-}
-
 const adminDraftPlaceholder = "Черновик. Требуется заполнение."
 
-func buildAdminNumberOverride(req *AdminNumberOverrideRequest) (*models.AdminNumberOverride, error) {
+func buildAdminNumberOverride(req *dto.AdminNumberOverrideRequest) (*models.AdminNumberOverride, error) {
 	if req == nil {
 		return nil, nil
 	}

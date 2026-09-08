@@ -1,4 +1,4 @@
-package services
+package operations
 
 import (
 	"time"
@@ -6,10 +6,10 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
 
-// measureOperation makes performance instrumentation explicit at the service
+// Measure makes performance instrumentation explicit at the service
 // boundary. Keeping names in source code prevents unbounded metric labels from
 // request values such as IDs, filters, or SQL text.
-func measureOperation[T any](metrics *observability.Registry, name string, operation func() (T, error)) (T, error) {
+func Measure[T any](metrics *observability.Registry, name string, operation func() (T, error)) (T, error) {
 	started := time.Now()
 	result, err := operation()
 	if metrics != nil {
@@ -18,7 +18,7 @@ func measureOperation[T any](metrics *observability.Registry, name string, opera
 	return result, err
 }
 
-func measureOperationError(metrics *observability.Registry, name string, operation func() error) error {
+func MeasureError(metrics *observability.Registry, name string, operation func() error) error {
 	started := time.Now()
 	err := operation()
 	if metrics != nil {

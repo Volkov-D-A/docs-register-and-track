@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -47,4 +48,31 @@ func TestInitialSetupAPIIsServerOwnedAndOneTime(t *testing.T) {
 	repeated := httptest.NewRecorder()
 	api.Handler().ServeHTTP(repeated, httptest.NewRequest(http.MethodPost, "/api/v1/auth/setup", strings.NewReader(`{"password":"Passw0rd!"}`)))
 	assert.Equal(t, http.StatusConflict, repeated.Code)
+}
+
+type failingInitialSetupStore struct{ countErr, createErr error }
+
+func (s failingInitialSetupStore) CountUsers() (int, error)        { return 0, s.countErr }
+func (s failingInitialSetupStore) CreateInitialAdmin(string) error { return s.createErr }
+
+func TestInitialSetupRejectsWeakPasswordAndReportsStorageErrors(t *testing.T) {
+	store := &fakeInitialSetupStore{}
+	api := &managementAPI{initialSetup: store}
+	response := httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/auth/setup", strings.NewReader(`{"password":"123"}`)))
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	require.Zero(t, store.count)
+	require.Empty(t, store.hash)
+	for _, tc := range []struct {
+		method, path, body string
+		store              initialSetupStore
+	}{
+		{http.MethodGet, "/api/v1/auth/setup-required", "", failingInitialSetupStore{countErr: errors.New("unavailable")}},
+		{http.MethodPost, "/api/v1/auth/setup", `{"password":"Passw0rd!"}`, failingInitialSetupStore{createErr: errors.New("unavailable")}},
+	} {
+		api.initialSetup = tc.store
+		response := httptest.NewRecorder()
+		api.Handler().ServeHTTP(response, httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body)))
+		require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	}
 }

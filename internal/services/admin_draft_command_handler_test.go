@@ -10,15 +10,16 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-func validAdminDraftCreateRequest(nomenclatureID uuid.UUID) AdminDraftCreateRequest {
-	return AdminDraftCreateRequest{
+func validAdminDraftCreateRequest(nomenclatureID uuid.UUID) dto.AdminDraftCreateRequest {
+	return dto.AdminDraftCreateRequest{
 		NomenclatureID:   nomenclatureID.String(),
 		RegistrationDate: "2026-06-08",
-		AdminNumberOverride: &AdminNumberOverrideRequest{
+		AdminNumberOverride: &dto.AdminNumberOverrideRequest{
 			Mode:   models.AdminNumberModeLiteral,
 			Number: 15,
 			Suffix: "А",
@@ -207,7 +208,7 @@ func TestAdministrativeOrderCommandHandler_CreateAdminDraft(t *testing.T) {
 
 type documentRegistrationServiceDraftHandler struct {
 	kind models.DocumentKind
-	req  *AdminDraftCreateRequest
+	req  *dto.AdminDraftCreateRequest
 }
 
 func (h *documentRegistrationServiceDraftHandler) Kind() models.DocumentKind {
@@ -222,7 +223,7 @@ func (h *documentRegistrationServiceDraftHandler) UpdateDocument(req any) (any, 
 	return nil, models.ErrForbidden
 }
 
-func (h *documentRegistrationServiceDraftHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+func (h *documentRegistrationServiceDraftHandler) CreateAdminDraft(req dto.AdminDraftCreateRequest) (any, error) {
 	h.req = &req
 	return "created", nil
 }

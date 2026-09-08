@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 )
 
 type fakeDocumentCommandAPI struct {
@@ -27,7 +27,7 @@ func (f *fakeDocumentCommandAPI) Update(kind string, request any) (any, error) {
 	f.operation, f.kind, f.request = "update", kind, request
 	return map[string]string{"id": "updated"}, nil
 }
-func (f *fakeDocumentCommandAPI) CreateAdminDraft(kind string, request services.AdminDraftCreateRequest) (any, error) {
+func (f *fakeDocumentCommandAPI) CreateAdminDraft(kind string, request dto.AdminDraftCreateRequest) (any, error) {
 	f.operation, f.kind, f.request = "draft", kind, request
 	return map[string]string{"id": "draft"}, nil
 }

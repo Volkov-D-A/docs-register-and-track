@@ -14,9 +14,11 @@ import (
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	desktopservices "github.com/Volkov-D-A/docs-register-and-track/internal/desktop/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
@@ -45,13 +47,13 @@ func NewDesktopServerClient(cfg *config.Config) (*serverclient.Client, error) {
 func NewBindingsWailsOptions() *options.App {
 	return &options.App{
 		Bind: []interface{}{
-			&services.AuthService{},
-			&services.UserService{},
-			&services.UserSubstitutionService{},
+			&desktopservices.AuthService{},
+			&desktopservices.UserService{},
+			&desktopservices.UserSubstitutionService{},
 			&services.NomenclatureService{},
 			&services.ReferenceService{},
-			&services.DocumentAccessAdminService{},
-			&services.DocumentKindService{},
+			&desktopservices.DocumentAccessAdminService{},
+			&desktopservices.DocumentKindService{},
 			&services.DocumentQueryService{},
 			&services.DocumentRegistrationService{},
 			&services.AdministrativeOrderService{},
@@ -92,16 +94,8 @@ func newWailsOptionsWithDependencies(
 ) (*options.App, *startupdiag.Failure) {
 	metrics := observability.NewRegistry(256)
 
-	operationLifecycle := services.NewOperationLifecycle(5 * time.Minute)
+	operationLifecycle := operations.NewLifecycle(5 * time.Minute)
 
-	authService := services.NewAuthService(nil, nil)
-	authService.SetOperationMetrics(metrics)
-
-	logger.GetAppUserID = func() string {
-		return authService.GetCurrentUserID()
-	}
-
-	settingsService := services.NewSettingsService(authService)
 	serverClient := params.ServerClient
 	if serverClient == nil {
 		var err error
@@ -116,23 +110,28 @@ func newWailsOptionsWithDependencies(
 			}
 		}
 	}
+	backgroundServices := newBackgroundLifecycle(
+		newServerMigrationStatusReader(serverClient).GetMigrationStatus,
+		nil,
+		nil,
+	)
+	authService := desktopservices.NewAuthService(serverClient, serverClient, operationLifecycle, metrics)
+	principal := desktopservices.NewPrincipal(authService, backgroundServices)
+	logger.GetAppUserID = principal.GetCurrentUserID
+	settingsService := services.NewSettingsService(principal)
+	services.ConfigureSchemaLifecycle(settingsService, backgroundServices)
 	adminAuditLogService := services.NewAdminAuditLogServiceWithClient(serverClient)
 	outboxAdminService := services.NewOutboxAdminServiceWithClient(serverClient)
 	settingsService.SetMigrationClient(serverClient)
 	settingsService.SetServerClient(serverClient)
-	authService.SetServerAuth(serverClient)
-	userService := services.NewUserService(nil, authService)
-	userService.SetServerClient(serverClient)
-	userSubstitutionService := services.NewUserSubstitutionService(nil, nil, authService)
-	userSubstitutionService.SetServerClient(serverClient)
+	userService := desktopservices.NewUserService(serverClient)
+	userSubstitutionService := desktopservices.NewUserSubstitutionService(serverClient)
 	nomenclatureService := services.NewNomenclatureService()
 	nomenclatureService.SetServerClient(serverClient)
-	referenceService := services.NewReferenceService(authService)
+	referenceService := services.NewReferenceService(principal)
 	referenceService.SetServerClient(serverClient)
-	documentAccessAdminService := services.NewDocumentAccessAdminService(authService, nil, nil)
-	documentAccessAdminService.SetServerClient(serverClient)
-	documentKindService := services.NewDocumentKindService(nil)
-	documentKindService.SetServerClient(serverClient)
+	documentAccessAdminService := desktopservices.NewDocumentAccessAdminService(serverClient)
+	documentKindService := desktopservices.NewDocumentKindService(serverClient)
 	journalService := services.NewJournalServiceWithClient(serverClient)
 	documentQueryService := services.NewDocumentQueryService()
 	documentQueryService.SetServerClient(serverClient)
@@ -150,12 +149,6 @@ func newWailsOptionsWithDependencies(
 	if err != nil {
 		return nil, &startupdiag.Failure{Component: "attachments", ConfigPath: params.ConfigPath, Summary: "Не удалось настроить сервис вложений.", Err: err}
 	}
-	backgroundServices := newBackgroundLifecycle(
-		newServerMigrationStatusReader(serverClient),
-		nil,
-		nil,
-	)
-	services.ConfigureSchemaLifecycle(authService, settingsService, backgroundServices)
 
 	dashboardService := services.NewDashboardServiceWithClient(serverClient)
 	statisticsService := services.NewStatisticsServiceWithClient(serverClient)

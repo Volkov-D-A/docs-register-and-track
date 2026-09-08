@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 
 	"github.com/google/uuid"
@@ -14,7 +15,7 @@ type JournalService struct {
 	repo      JournalStore
 	auth      DocumentAccessPrincipal
 	access    *DocumentAccessService
-	lifecycle *OperationLifecycle
+	lifecycle *operations.Lifecycle
 	server    serverclient.JournalClient
 }
 
@@ -31,7 +32,7 @@ func NewJournalServiceWithClient(client serverclient.JournalClient) *JournalServ
 	return &JournalService{server: client}
 }
 
-func (s *JournalService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
+func (s *JournalService) SetOperationLifecycle(lifecycle *operations.Lifecycle) {
 	s.lifecycle = lifecycle
 }
 
@@ -43,7 +44,7 @@ func (s *JournalService) GetByDocumentID(documentIDStr string) ([]dto.JournalEnt
 		defer cancel()
 		return s.server.GetDocumentJournal(ctx, documentIDStr)
 	}
-	ctx, release := serviceOperationContext(s.lifecycle)
+	ctx, release := s.lifecycle.OperationContext()
 	defer release()
 
 	docID, err := uuid.Parse(documentIDStr)

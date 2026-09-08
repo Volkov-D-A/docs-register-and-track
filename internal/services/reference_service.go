@@ -14,11 +14,11 @@ var errServerReferenceClientNotConfigured = errors.New("docflow-server reference
 
 // ReferenceService предоставляет бизнес-логику для работы со справочниками.
 type ReferenceService struct {
-	auth   *AuthService
+	auth   interface{ RequireAuthenticated() error }
 	server serverclient.ReferenceClient
 }
 
-func NewReferenceService(auth *AuthService) *ReferenceService {
+func NewReferenceService(auth interface{ RequireAuthenticated() error }) *ReferenceService {
 	return &ReferenceService{auth: auth}
 }
 

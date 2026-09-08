@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
@@ -19,7 +20,7 @@ type outgoingLetterHandlerDeps struct {
 	repo        *mocks.OutgoingDocStore
 	refRepo     *mocks.ReferenceStore
 	journalRepo *mocks.JournalStore
-	auth        *AuthService
+	auth        *testPrincipal
 	user        *models.User
 }
 
@@ -27,7 +28,7 @@ func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
@@ -57,8 +58,8 @@ func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	}
 }
 
-func validOutgoingLetterRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) OutgoingLetterRegisterRequest {
-	return OutgoingLetterRegisterRequest{
+func validOutgoingLetterRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) dto.OutgoingLetterRegisterRequest {
+	return dto.OutgoingLetterRegisterRequest{
 		NomenclatureID:       nomenclatureID.String(),
 		IdempotencyKey:       idempotencyKey.String(),
 		DocumentTypeID:       models.DocumentTypeLetter,
@@ -241,7 +242,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
 			},
 		}
-		req := OutgoingLetterUpdateRequest{
+		req := dto.OutgoingLetterUpdateRequest{
 			ID:                   documentID.String(),
 			DocumentTypeID:       models.DocumentTypeLetter,
 			RecipientOrgName:     "АО Новый получатель",
@@ -292,7 +293,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
 		)
 
-		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{ID: "bad-id"})
+		result, err := deps.handler.Update(dto.OutgoingLetterUpdateRequest{ID: "bad-id"})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "неверный ID документа")
@@ -311,7 +312,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{
+		result, err := deps.handler.Update(dto.OutgoingLetterUpdateRequest{
 			ID:               documentID.String(),
 			DocumentTypeID:   models.DocumentTypeLetter,
 			RecipientOrgName: "АО Новый получатель",
@@ -334,7 +335,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{
+		result, err := deps.handler.Update(dto.OutgoingLetterUpdateRequest{
 			ID:             documentID.String(),
 			DocumentTypeID: "unknown",
 		})
@@ -358,7 +359,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		}
 		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return((*models.Organization)(nil), expectedErr).Once()
 
-		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{
+		result, err := deps.handler.Update(dto.OutgoingLetterUpdateRequest{
 			ID:               documentID.String(),
 			DocumentTypeID:   models.DocumentTypeLetter,
 			RecipientOrgName: "АО Новый получатель",
@@ -383,7 +384,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		}
 		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return(&models.Organization{ID: uuid.New(), Name: "АО Новый получатель"}, nil).Once()
 
-		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{
+		result, err := deps.handler.Update(dto.OutgoingLetterUpdateRequest{
 			ID:               documentID.String(),
 			DocumentTypeID:   models.DocumentTypeLetter,
 			RecipientOrgName: "АО Новый получатель",
@@ -411,7 +412,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return(&models.Organization{ID: uuid.New(), Name: "АО Новый получатель"}, nil).Once()
 		deps.repo.On("Update", mock.Anything).Return(nil, expectedErr).Once()
 
-		result, err := deps.handler.Update(OutgoingLetterUpdateRequest{
+		result, err := deps.handler.Update(dto.OutgoingLetterUpdateRequest{
 			ID:               documentID.String(),
 			DocumentTypeID:   models.DocumentTypeLetter,
 			RecipientOrgName: "АО Новый получатель",

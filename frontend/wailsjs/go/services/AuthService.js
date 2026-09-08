@@ -10,36 +10,12 @@ export function ChangeRequiredPassword(arg1, arg2, arg3) {
   return window['go']['services']['AuthService']['ChangeRequiredPassword'](arg1, arg2, arg3);
 }
 
-export function GetCurrentAuditInfo() {
-  return window['go']['services']['AuthService']['GetCurrentAuditInfo']();
-}
-
 export function GetCurrentUser() {
   return window['go']['services']['AuthService']['GetCurrentUser']();
 }
 
-export function GetCurrentUserID() {
-  return window['go']['services']['AuthService']['GetCurrentUserID']();
-}
-
-export function GetCurrentUserUUID() {
-  return window['go']['services']['AuthService']['GetCurrentUserUUID']();
-}
-
 export function GetSessionState() {
   return window['go']['services']['AuthService']['GetSessionState']();
-}
-
-export function HasAnySystemPermission(arg1) {
-  return window['go']['services']['AuthService']['HasAnySystemPermission'](arg1);
-}
-
-export function HasSystemPermission(arg1) {
-  return window['go']['services']['AuthService']['HasSystemPermission'](arg1);
-}
-
-export function HasSystemPermissionFor(arg1, arg2) {
-  return window['go']['services']['AuthService']['HasSystemPermissionFor'](arg1, arg2);
 }
 
 export function InitialSetup(arg1) {
@@ -60,34 +36,6 @@ export function Logout() {
 
 export function NeedsInitialSetup() {
   return window['go']['services']['AuthService']['NeedsInitialSetup']();
-}
-
-export function RequireAnySystemPermission(arg1) {
-  return window['go']['services']['AuthService']['RequireAnySystemPermission'](arg1);
-}
-
-export function RequireAuthenticated() {
-  return window['go']['services']['AuthService']['RequireAuthenticated']();
-}
-
-export function RequireSystemPermission(arg1) {
-  return window['go']['services']['AuthService']['RequireSystemPermission'](arg1);
-}
-
-export function SetAccessStore(arg1) {
-  return window['go']['services']['AuthService']['SetAccessStore'](arg1);
-}
-
-export function SetOperationMetrics(arg1) {
-  return window['go']['services']['AuthService']['SetOperationMetrics'](arg1);
-}
-
-export function SetServerAuth(arg1) {
-  return window['go']['services']['AuthService']['SetServerAuth'](arg1);
-}
-
-export function SetSettingsStore(arg1) {
-  return window['go']['services']['AuthService']['SetSettingsStore'](arg1);
 }
 
 export function UpdateProfile(arg1) {

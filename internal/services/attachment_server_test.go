@@ -13,11 +13,10 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/coordination"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
 func setupAttachmentService(t *testing.T, role string) (
-	*ServerAttachmentService, *mocks.AttachmentStore, *mocks.SettingsStore, *mocks.FileStorage, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *mocks.AcknowledgmentStore, *mocks.UserStore, *AuthService,
+	*ServerAttachmentService, *mocks.AttachmentStore, *mocks.SettingsStore, *mocks.FileStorage, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *mocks.AcknowledgmentStore, *mocks.UserStore, *testPrincipal,
 ) {
 	t.Helper()
 	attachRepo := mocks.NewAttachmentStore(t)
@@ -37,22 +36,18 @@ func setupAttachmentService(t *testing.T, role string) (
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 
-	password := "Passw0rd!"
-	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:                    uuid.New(),
-		Login:                 role + "_att",
-		PasswordHash:          hash,
+		ID:    uuid.New(),
+		Login: role + "_att",
+
 		FullName:              "Test User",
 		IsDocumentParticipant: role != "admin",
 		IsActive:              true,
 	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	_, err := auth.Login(user.Login, password)
-	require.NoError(t, err)
+	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	settingsSvc := NewSettingsService(auth)
@@ -95,7 +90,7 @@ func (c *storageMutationCoordinatorStub) BeginStorageMutation(ctx context.Contex
 }
 
 func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
-	*ServerAttachmentService, *mocks.AttachmentStore, *mocks.SettingsStore, *mocks.FileStorage, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *mocks.AcknowledgmentStore, *mocks.UserStore, *AuthService,
+	*ServerAttachmentService, *mocks.AttachmentStore, *mocks.SettingsStore, *mocks.FileStorage, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *mocks.AcknowledgmentStore, *mocks.UserStore, *testPrincipal,
 ) {
 	t.Helper()
 	attachRepo := mocks.NewAttachmentStore(t)
@@ -115,22 +110,18 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
-	password := "Passw0rd!"
-	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:                    uuid.New(),
-		Login:                 "multi_att_" + uuid.New().String(),
-		PasswordHash:          hash,
+		ID:    uuid.New(),
+		Login: "multi_att_" + uuid.New().String(),
+
 		FullName:              "Test User",
 		IsDocumentParticipant: true,
 		IsActive:              true,
 	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	_, err := auth.Login(user.Login, password)
-	require.NoError(t, err)
+	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	settingsSvc := NewSettingsService(auth)
@@ -160,7 +151,7 @@ func setupAttachmentServiceNotAuth(t *testing.T) *ServerAttachmentService {
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	settingsSvc := NewSettingsService(auth)
 	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})

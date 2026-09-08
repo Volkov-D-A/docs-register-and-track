@@ -5,7 +5,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -22,23 +21,19 @@ func (s *stubAdminAuditLogStore) GetAll(limit, offset int) ([]models.AdminAuditL
 	return nil, 0, nil
 }
 
-func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) (*AdminAuditLogService, *AuthService) {
+func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) (*AdminAuditLogService, *testPrincipal) {
 	t.Helper()
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
-	password := "Passw0rd!"
-	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:           uuid.New(),
-		Login:        "multi_audit_" + uuid.New().String(),
-		PasswordHash: hash,
-		IsActive:     true,
+		ID:    uuid.New(),
+		Login: "multi_audit_" + uuid.New().String(),
+
+		IsActive: true,
 	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	_, err := auth.Login(user.Login, password)
-	require.NoError(t, err)
+	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	return NewAdminAuditLogService(&stubAdminAuditLogStore{}, auth), auth

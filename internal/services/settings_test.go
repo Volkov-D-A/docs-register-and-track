@@ -4,18 +4,17 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 type fakeServerMigrationClient struct {
-	status        database.MigrationStatus
+	status        dto.MigrationStatus
 	statusErr     error
 	applyErr      error
 	rollbackErr   error
@@ -41,14 +40,14 @@ func (c *fakeServerSettingsClient) UpdateSystemSetting(_ context.Context, key, v
 	return c.store.Update(key, value)
 }
 
-func (c *fakeServerMigrationClient) Status(context.Context) (*database.MigrationStatus, error) {
+func (c *fakeServerMigrationClient) Status(context.Context) (*dto.MigrationStatus, error) {
 	if c.statusErr != nil {
 		return nil, c.statusErr
 	}
 	return &c.status, nil
 }
 
-func (c *fakeServerMigrationClient) Apply(_ context.Context, login, password string) (*database.MigrationStatus, error) {
+func (c *fakeServerMigrationClient) Apply(_ context.Context, login, password string) (*dto.MigrationStatus, error) {
 	c.applyCalls++
 	c.login, c.password = login, password
 	if c.applyErr != nil {
@@ -57,7 +56,7 @@ func (c *fakeServerMigrationClient) Apply(_ context.Context, login, password str
 	return &c.status, nil
 }
 
-func (c *fakeServerMigrationClient) Rollback(_ context.Context, login, password string, _ models.RollbackMigrationRequest) (*database.MigrationStatus, error) {
+func (c *fakeServerMigrationClient) Rollback(_ context.Context, login, password string, _ models.RollbackMigrationRequest) (*dto.MigrationStatus, error) {
 	c.rollbackCalls++
 	c.login, c.password = login, password
 	if c.rollbackErr != nil {
@@ -70,20 +69,17 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	t.Helper()
 	settingsRepo := mocks.NewSettingsStore(t)
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 
-	password := "Passw0rd!"
-	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:           uuid.New(),
-		Login:        role + "_set",
-		FullName:     role + " settings",
-		PasswordHash: hash,
-		IsActive:     true,
+		ID:       uuid.New(),
+		Login:    role + "_set",
+		FullName: role + " settings",
+
+		IsActive: true,
 	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	auth.Login(user.Login, password)
+	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	service := NewSettingsService(auth)
@@ -92,24 +88,21 @@ func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.S
 	return service, settingsRepo
 }
 
-func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsService, *mocks.SettingsStore, *AuthService, *models.User) {
+func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsService, *mocks.SettingsStore, *testPrincipal, *models.User) {
 	t.Helper()
 	settingsRepo := mocks.NewSettingsStore(t)
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
-	password := "Passw0rd!"
-	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:           uuid.New(),
-		Login:        "multi_role_set_" + uuid.New().String(),
-		FullName:     "Multi Role Settings",
-		PasswordHash: hash,
-		IsActive:     true,
+		ID:       uuid.New(),
+		Login:    "multi_role_set_" + uuid.New().String(),
+		FullName: "Multi Role Settings",
+
+		IsActive: true,
 	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	auth.Login(user.Login, password)
+	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	service := NewSettingsService(auth)
@@ -229,7 +222,7 @@ func TestMigrationCompatibilityAppError(t *testing.T) {
 	}{
 		{
 			name: "schema too new",
-			err: &database.MigrationCompatibilityError{
+			err: &models.MigrationCompatibilityError{
 				CurrentVersion:         8,
 				LatestAvailableVersion: 7,
 				SchemaTooNew:           true,
@@ -238,7 +231,7 @@ func TestMigrationCompatibilityAppError(t *testing.T) {
 		},
 		{
 			name: "dirty schema",
-			err: &database.MigrationCompatibilityError{
+			err: &models.MigrationCompatibilityError{
 				CurrentVersion:         7,
 				LatestAvailableVersion: 7,
 				Dirty:                  true,
@@ -423,7 +416,7 @@ func TestSettingsService_RunMigrationsReconcilesSchemaLifecycle(t *testing.T) {
 		client := &fakeServerMigrationClient{}
 		lifecycle := &fakeSchemaLifecycle{}
 		svc.SetMigrationClient(client)
-		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+		svc.schemaLifecycle = lifecycle
 
 		require.NoError(t, svc.RunMigrations("Passw0rd!"))
 		assert.Equal(t, 1, client.applyCalls)
@@ -435,7 +428,7 @@ func TestSettingsService_RunMigrationsReconcilesSchemaLifecycle(t *testing.T) {
 		client := &fakeServerMigrationClient{applyErr: assert.AnError}
 		lifecycle := &fakeSchemaLifecycle{}
 		svc.SetMigrationClient(client)
-		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+		svc.schemaLifecycle = lifecycle
 
 		require.Error(t, svc.RunMigrations("Passw0rd!"))
 		assert.Equal(t, 1, client.applyCalls)
@@ -454,7 +447,7 @@ func TestSettingsService_GetMigrationStatus(t *testing.T) {
 
 	t.Run("success admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
-		svc.SetMigrationClient(&fakeServerMigrationClient{status: database.MigrationStatus{CurrentVersion: 7, UpToDate: true}})
+		svc.SetMigrationClient(&fakeServerMigrationClient{status: dto.MigrationStatus{CurrentVersion: 7, UpToDate: true}})
 		status, err := svc.GetMigrationStatus()
 		require.NoError(t, err)
 		assert.EqualValues(t, 7, status.CurrentVersion)
@@ -510,7 +503,7 @@ func TestSettingsService_RollbackCoordinatesSchemaLifecycle(t *testing.T) {
 		client := &fakeServerMigrationClient{}
 		lifecycle := &fakeSchemaLifecycle{}
 		svc.SetMigrationClient(client)
-		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+		svc.schemaLifecycle = lifecycle
 
 		require.NoError(t, svc.RollbackMigration(validReq))
 		assert.Equal(t, 1, client.rollbackCalls)
@@ -522,7 +515,7 @@ func TestSettingsService_RollbackCoordinatesSchemaLifecycle(t *testing.T) {
 		client := &fakeServerMigrationClient{rollbackErr: assert.AnError}
 		lifecycle := &fakeSchemaLifecycle{}
 		svc.SetMigrationClient(client)
-		ConfigureSchemaLifecycle(svc.authService, svc, lifecycle)
+		svc.schemaLifecycle = lifecycle
 
 		require.Error(t, svc.RollbackMigration(validReq))
 		assert.Equal(t, 1, client.rollbackCalls)

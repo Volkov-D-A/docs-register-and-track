@@ -33,7 +33,7 @@ func TestDashboardAndStatisticsAPIEnforceServerPermissionsIntegration(t *testing
 	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES ($1, $2, TRUE)`, userID, models.SystemPermissionStatsDocuments)
 	require.NoError(t, err)
 
-	api := newManagementAPI(&App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32)})
+	api := newIntegrationManagementAPI(t, &App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32)})
 	login := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"login":"statistics-reader","password":"`+password+`"}`))
 	loginResponse := httptest.NewRecorder()
 	api.Handler().ServeHTTP(loginResponse, login)

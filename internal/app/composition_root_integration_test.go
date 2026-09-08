@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync/atomic"
 	"testing"
 
@@ -45,11 +46,18 @@ changes:
 	}
 	bindingOptions := NewBindingsWailsOptions()
 	generatedBindingTypes := make([]string, 0, len(bindingOptions.Bind))
+	boundConcreteTypes := make([]reflect.Type, 0, len(appOptions.Bind))
+	for _, binding := range appOptions.Bind {
+		boundConcreteTypes = append(boundConcreteTypes, reflect.TypeOf(binding))
+	}
+	generatedConcreteTypes := make([]reflect.Type, 0, len(bindingOptions.Bind))
 	for _, binding := range bindingOptions.Bind {
 		_, isServer := binding.(*services.ServerAttachmentService)
 		require.False(t, isServer)
 		generatedBindingTypes = append(generatedBindingTypes, fmt.Sprintf("%T", binding))
+		generatedConcreteTypes = append(generatedConcreteTypes, reflect.TypeOf(binding))
 	}
+	require.ElementsMatch(t, boundConcreteTypes, generatedConcreteTypes)
 	require.ElementsMatch(t, boundTypes, generatedBindingTypes)
 	require.ElementsMatch(t, []string{
 		"*services.AuthService",

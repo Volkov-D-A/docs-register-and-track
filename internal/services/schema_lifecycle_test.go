@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 )
 
 type fakeSchemaLifecycle struct {
@@ -44,7 +44,7 @@ func (l *fakeSchemaLifecycle) CheckReady() error {
 type fakeMigrationDatabase struct {
 	runErr        error
 	rollbackErr   error
-	status        *database.MigrationStatus
+	status        *dto.MigrationStatus
 	statusErr     error
 	runCalls      int
 	rollbackCalls int
@@ -56,7 +56,7 @@ func (db *fakeMigrationDatabase) RunMigrations(string) error {
 	return db.runErr
 }
 
-func (db *fakeMigrationDatabase) GetMigrationStatus(string) (*database.MigrationStatus, error) {
+func (db *fakeMigrationDatabase) GetMigrationStatus(string) (*dto.MigrationStatus, error) {
 	db.statusCalls++
 	if db.statusErr != nil {
 		return nil, db.statusErr

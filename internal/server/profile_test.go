@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -76,4 +77,20 @@ func TestProfileAPISelfSubstitutionUsesSessionUserAndAudit(t *testing.T) {
 	assert.Equal(t, actor.ID, *store.createdBy)
 	require.Len(t, store.effects, 1)
 	assert.Contains(t, store.effects[0].Payload, "USER_SUBSTITUTION_SELF_UPDATE")
+}
+
+type failingProfileStore struct{ *fakeUserManagementStore }
+
+func (s failingProfileStore) UpdateProfileWithOutbox(uuid.UUID, models.UpdateProfileRequest, []models.OutboxEvent) error {
+	return errors.New("profile storage unavailable")
+}
+func TestProfileAPIReportsStorageFailure(t *testing.T) {
+	api, users, token := authenticatedUserAPI(t, nil)
+	api.userCommands = failingProfileStore{users}
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/profile", strings.NewReader(`{"login":"renamed","fullName":"Renamed User"}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, request)
+	require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	require.Empty(t, users.effects)
 }

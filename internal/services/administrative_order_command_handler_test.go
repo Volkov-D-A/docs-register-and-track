@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
@@ -18,7 +19,7 @@ type administrativeOrderHandlerDeps struct {
 	handler     *AdministrativeOrderCommandHandler
 	repo        *administrativeOrderCommandStore
 	journalRepo *mocks.JournalStore
-	auth        *AuthService
+	auth        *testPrincipal
 	user        *models.User
 }
 
@@ -97,7 +98,7 @@ func setupAdministrativeOrderCommandHandler(t *testing.T, allowed map[models.Doc
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
@@ -125,8 +126,8 @@ func setupAdministrativeOrderCommandHandler(t *testing.T, allowed map[models.Doc
 	}
 }
 
-func validAdministrativeOrderRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) AdministrativeOrderRegisterRequest {
-	return AdministrativeOrderRegisterRequest{
+func validAdministrativeOrderRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID) dto.AdministrativeOrderRegisterRequest {
+	return dto.AdministrativeOrderRegisterRequest{
 		NomenclatureID:          nomenclatureID.String(),
 		IdempotencyKey:          idempotencyKey.String(),
 		OrderDate:               "2026-06-03",
@@ -345,7 +346,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			CancelledAt:         &cancelledAt,
 			CreatedBy:           deps.user.ID,
 		}
-		req := AdministrativeOrderUpdateRequest{
+		req := dto.AdministrativeOrderUpdateRequest{
 			ID:                      documentID.String(),
 			OrderDate:               "2026-06-04",
 			Title:                   " Обновленный приказ ",
@@ -378,7 +379,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
 		)
 
-		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{ID: "bad-id"})
+		result, err := deps.handler.Update(dto.AdministrativeOrderUpdateRequest{ID: "bad-id"})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "неверный ID документа")
@@ -398,7 +399,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{ID: documentID.String()})
+		result, err := deps.handler.Update(dto.AdministrativeOrderUpdateRequest{ID: documentID.String()})
 
 		require.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
@@ -417,7 +418,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{
+		result, err := deps.handler.Update(dto.AdministrativeOrderUpdateRequest{
 			ID:                  documentID.String(),
 			OrderDate:           "2026-06-04",
 			ExecutionController: "Контроль",
@@ -443,7 +444,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{
+		result, err := deps.handler.Update(dto.AdministrativeOrderUpdateRequest{
 			ID:                  documentID.String(),
 			OrderDate:           "04.06.2026",
 			ExecutionController: "Контроль",
@@ -468,7 +469,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{
+		result, err := deps.handler.Update(dto.AdministrativeOrderUpdateRequest{
 			ID:                  documentID.String(),
 			OrderDate:           "2026-06-04",
 			ExecutionDeadline:   "30.06.2026",
@@ -494,7 +495,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			},
 		}
 
-		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{
+		result, err := deps.handler.Update(dto.AdministrativeOrderUpdateRequest{
 			ID:                  documentID.String(),
 			OrderDate:           "2026-06-04",
 			ExecutionController: " ",
@@ -521,7 +522,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		}
 		deps.repo.updateErr = expectedErr
 
-		result, err := deps.handler.Update(AdministrativeOrderUpdateRequest{
+		result, err := deps.handler.Update(dto.AdministrativeOrderUpdateRequest{
 			ID:                  documentID.String(),
 			OrderDate:           "2026-06-04",
 			Title:               "Обновленный приказ",

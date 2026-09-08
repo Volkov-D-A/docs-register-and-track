@@ -11,6 +11,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
@@ -23,7 +24,7 @@ type LinkService struct {
 	administrativeOrderRepo AdministrativeOrderDocStore
 	access                  *DocumentAccessService
 	authService             DocumentAccessPrincipal
-	lifecycle               *OperationLifecycle
+	lifecycle               *operations.Lifecycle
 	metrics                 *observability.Registry
 	server                  serverclient.LinkClient
 }
@@ -62,7 +63,7 @@ func NewLinkServiceWithClient(client serverclient.LinkClient) *LinkService {
 	return &LinkService{server: client}
 }
 
-func (s *LinkService) SetOperationLifecycle(lifecycle *OperationLifecycle) {
+func (s *LinkService) SetOperationLifecycle(lifecycle *operations.Lifecycle) {
 	s.lifecycle = lifecycle
 }
 
@@ -87,8 +88,8 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 		defer cancel()
 		return s.server.LinkDocuments(ctx, sourceIDStr, targetIDStr, linkType)
 	}
-	return measureOperation(s.metrics, "links.create", func() (*dto.DocumentLink, error) {
-		ctx, release := serviceOperationContext(s.lifecycle)
+	return operations.Measure(s.metrics, "links.create", func() (*dto.DocumentLink, error) {
+		ctx, release := s.lifecycle.OperationContext()
 		defer release()
 
 		userID, err := s.authService.GetCurrentUserUUID()
@@ -155,8 +156,8 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 		defer cancel()
 		return s.server.UnlinkDocument(ctx, idStr)
 	}
-	return measureOperationError(s.metrics, "links.delete", func() error {
-		ctx, release := serviceOperationContext(s.lifecycle)
+	return operations.MeasureError(s.metrics, "links.delete", func() error {
+		ctx, release := s.lifecycle.OperationContext()
 		defer release()
 
 		id, err := uuid.Parse(idStr)
@@ -195,8 +196,8 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 		defer cancel()
 		return s.server.GetDocumentLinks(ctx, docIDStr)
 	}
-	return measureOperation(s.metrics, "links.get_list", func() ([]dto.DocumentLink, error) {
-		ctx, release := serviceOperationContext(s.lifecycle)
+	return operations.Measure(s.metrics, "links.get_list", func() ([]dto.DocumentLink, error) {
+		ctx, release := s.lifecycle.OperationContext()
 		defer release()
 
 		docID, err := uuid.Parse(docIDStr)
@@ -242,8 +243,8 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 		defer cancel()
 		return s.server.GetDocumentFlow(ctx, rootIDStr)
 	}
-	return measureOperation(s.metrics, "links.get_graph", func() (*models.GraphData, error) {
-		ctx, release := serviceOperationContext(s.lifecycle)
+	return operations.Measure(s.metrics, "links.get_graph", func() (*models.GraphData, error) {
+		ctx, release := s.lifecycle.OperationContext()
 		defer release()
 
 		rootID, err := uuid.Parse(rootIDStr)

@@ -10,23 +10,11 @@ import (
 
 // DocumentAccessAdminService управляет прямыми document-domain правами пользователей.
 type DocumentAccessAdminService struct {
-	auth       *AuthService
-	accessRepo DocumentAccessStore
-	userRepo   UserStore
-	server     serverclient.UserAccessClient
+	server serverclient.UserAccessClient
 }
 
-func (s *DocumentAccessAdminService) SetServerClient(client serverclient.UserAccessClient) {
-	s.server = client
-}
-
-// NewDocumentAccessAdminService создает новый сервис администрирования document access.
-func NewDocumentAccessAdminService(auth *AuthService, accessRepo DocumentAccessStore, userRepo UserStore) *DocumentAccessAdminService {
-	return &DocumentAccessAdminService{
-		auth:       auth,
-		accessRepo: accessRepo,
-		userRepo:   userRepo,
-	}
+func NewDocumentAccessAdminService(client serverclient.UserAccessClient) *DocumentAccessAdminService {
+	return &DocumentAccessAdminService{server: client}
 }
 
 // GetUserAccessProfile возвращает прямые права пользователя в document-domain.

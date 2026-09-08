@@ -14,14 +14,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
 type fakeManagementMigrations struct {
-	status        database.MigrationStatus
+	status        dto.MigrationStatus
 	statusErr     error
 	applyErr      error
 	rollbackErr   error
@@ -33,7 +33,7 @@ func (m *fakeManagementMigrations) RunMigrations(string) error {
 	m.applyCalls++
 	return m.applyErr
 }
-func (m *fakeManagementMigrations) GetMigrationStatus(string) (*database.MigrationStatus, error) {
+func (m *fakeManagementMigrations) GetMigrationStatus(string) (*dto.MigrationStatus, error) {
 	return &m.status, m.statusErr
 }
 func (m *fakeManagementMigrations) RollbackMigration(string) error {
@@ -76,7 +76,7 @@ func testManagementAPI(t *testing.T) (*managementAPI, *fakeManagementMigrations,
 	t.Helper()
 	hash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
-	migrations := &fakeManagementMigrations{status: database.MigrationStatus{CurrentVersion: 8, LatestAvailableVersion: 8, UpToDate: true, Compatible: true}}
+	migrations := &fakeManagementMigrations{status: dto.MigrationStatus{CurrentVersion: 8, LatestAvailableVersion: 8, UpToDate: true, Compatible: true}}
 	lifecycle := &fakeManagementLifecycle{}
 	audit := &fakeAdminAudit{}
 	api := &managementAPI{

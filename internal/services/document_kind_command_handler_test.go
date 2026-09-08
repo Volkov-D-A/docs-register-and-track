@@ -4,9 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 type stubDocumentKindCommandHandler struct {
@@ -30,11 +32,11 @@ func (h stubDocumentKindCommandHandler) UpdateDocument(req any) (any, error) {
 func TestDocumentRegistrationService_RegisterRoutesToKindHandler(t *testing.T) {
 	t.Parallel()
 
-	expectedReq := IncomingLetterRegisterRequest{Content: "test"}
+	expectedReq := dto.IncomingLetterRegisterRequest{Content: "test"}
 	handler := stubDocumentKindCommandHandler{
 		kind: models.DocumentKindIncomingLetter,
 		registerFunc: func(req any) (any, error) {
-			typedReq, ok := req.(IncomingLetterRegisterRequest)
+			typedReq, ok := req.(dto.IncomingLetterRegisterRequest)
 			if !ok {
 				t.Fatalf("unexpected request type %T", req)
 			}
@@ -63,7 +65,7 @@ func TestDocumentRegistrationService_RegisterRoutesToKindHandler(t *testing.T) {
 func TestDocumentRegistrationService_UpdateRoutesToKindHandler(t *testing.T) {
 	t.Parallel()
 
-	expectedReq := OutgoingLetterUpdateRequest{ID: "doc-id"}
+	expectedReq := dto.OutgoingLetterUpdateRequest{ID: "doc-id"}
 	handler := stubDocumentKindCommandHandler{
 		kind: models.DocumentKindOutgoingLetter,
 		registerFunc: func(req any) (any, error) {
@@ -71,7 +73,7 @@ func TestDocumentRegistrationService_UpdateRoutesToKindHandler(t *testing.T) {
 			return nil, nil
 		},
 		updateFunc: func(req any) (any, error) {
-			typedReq, ok := req.(OutgoingLetterUpdateRequest)
+			typedReq, ok := req.(dto.OutgoingLetterUpdateRequest)
 			if !ok {
 				t.Fatalf("unexpected request type %T", req)
 			}
@@ -127,7 +129,7 @@ func TestDocumentRegistrationService_NormalizesRegisterRequests(t *testing.T) {
 			},
 			assertTyped: func(t *testing.T, req any) {
 				t.Helper()
-				typed, ok := req.(IncomingLetterRegisterRequest)
+				typed, ok := req.(dto.IncomingLetterRegisterRequest)
 				require.True(t, ok)
 				assert.Equal(t, "Входящее", typed.Content)
 				require.Len(t, typed.Correspondents, 1)
@@ -149,7 +151,7 @@ func TestDocumentRegistrationService_NormalizesRegisterRequests(t *testing.T) {
 			},
 			assertTyped: func(t *testing.T, req any) {
 				t.Helper()
-				typed, ok := req.(OutgoingLetterRegisterRequest)
+				typed, ok := req.(dto.OutgoingLetterRegisterRequest)
 				require.True(t, ok)
 				assert.Equal(t, "Исходящее", typed.Content)
 				assert.Equal(t, "Получатель", typed.RecipientOrgName)
@@ -178,7 +180,7 @@ func TestDocumentRegistrationService_NormalizesRegisterRequests(t *testing.T) {
 			},
 			assertTyped: func(t *testing.T, req any) {
 				t.Helper()
-				typed, ok := req.(CitizenAppealRegisterRequest)
+				typed, ok := req.(dto.CitizenAppealRegisterRequest)
 				require.True(t, ok)
 				assert.Equal(t, "Иван Иванов", typed.ApplicantFullName)
 				assert.True(t, typed.HasEnvelope)
@@ -200,7 +202,7 @@ func TestDocumentRegistrationService_NormalizesRegisterRequests(t *testing.T) {
 			},
 			assertTyped: func(t *testing.T, req any) {
 				t.Helper()
-				typed, ok := req.(AdministrativeOrderRegisterRequest)
+				typed, ok := req.(dto.AdministrativeOrderRegisterRequest)
 				require.True(t, ok)
 				assert.Equal(t, "Приказ", typed.Title)
 				assert.Equal(t, []string{"Иван Иванов"}, typed.AcknowledgmentFullNames)
@@ -253,7 +255,7 @@ func TestDocumentRegistrationService_NormalizesUpdateRequests(t *testing.T) {
 			},
 			assertTyped: func(t *testing.T, req any) {
 				t.Helper()
-				typed, ok := req.(IncomingLetterUpdateRequest)
+				typed, ok := req.(dto.IncomingLetterUpdateRequest)
 				require.True(t, ok)
 				assert.Equal(t, "doc-1", typed.ID)
 			},
@@ -270,7 +272,7 @@ func TestDocumentRegistrationService_NormalizesUpdateRequests(t *testing.T) {
 			},
 			assertTyped: func(t *testing.T, req any) {
 				t.Helper()
-				typed, ok := req.(OutgoingLetterUpdateRequest)
+				typed, ok := req.(dto.OutgoingLetterUpdateRequest)
 				require.True(t, ok)
 				assert.Equal(t, "Получатель", typed.RecipientOrgName)
 			},
@@ -292,7 +294,7 @@ func TestDocumentRegistrationService_NormalizesUpdateRequests(t *testing.T) {
 			},
 			assertTyped: func(t *testing.T, req any) {
 				t.Helper()
-				typed, ok := req.(CitizenAppealUpdateRequest)
+				typed, ok := req.(dto.CitizenAppealUpdateRequest)
 				require.True(t, ok)
 				assert.Equal(t, "жалоба", typed.AppealType)
 			},
@@ -310,7 +312,7 @@ func TestDocumentRegistrationService_NormalizesUpdateRequests(t *testing.T) {
 			},
 			assertTyped: func(t *testing.T, req any) {
 				t.Helper()
-				typed, ok := req.(AdministrativeOrderUpdateRequest)
+				typed, ok := req.(dto.AdministrativeOrderUpdateRequest)
 				require.True(t, ok)
 				assert.Equal(t, "Приказ", typed.Title)
 			},

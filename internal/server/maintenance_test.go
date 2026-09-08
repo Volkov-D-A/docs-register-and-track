@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/background"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 )
 
 var maintenanceBusinessRoutes = []struct{ method, path string }{
@@ -107,7 +109,9 @@ func TestMaintenanceDrainsRequestsAndBlocksDuringSchemaChanges(t *testing.T) {
 					held.err = errors.New("migration failed")
 				}
 				api.migrations = held
-				lifecycle := background.NewLifecycle(migrations, nil, nil)
+				lifecycle := background.NewLifecycle(func() (*dto.MigrationStatus, error) {
+					return migrations.GetMigrationStatus(database.DefaultMigrationsPath)
+				}, nil, nil)
 				lifecycle.ReconcileSchema()
 				api.lifecycle = lifecycle
 				handler := api.Handler()

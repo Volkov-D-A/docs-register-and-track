@@ -143,7 +143,7 @@ func (s *UserEventService) MarkAllRead() error {
 
 func (s *UserEventService) currentUserUUID() (uuid.UUID, error) {
 	if s.auth == nil {
-		return uuid.Nil, ErrNotAuthenticated
+		return uuid.Nil, models.ErrUnauthorized
 	}
 	return s.auth.GetCurrentUserUUID()
 }

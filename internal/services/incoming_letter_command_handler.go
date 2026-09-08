@@ -11,46 +11,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-// IncomingLetterRegisterRequest описывает команду регистрации входящего письма.
-type IncomingLetterRegisterRequest struct {
-	NomenclatureID       string                               `json:"nomenclatureId"`
-	IdempotencyKey       string                               `json:"idempotencyKey"`
-	DocumentTypeID       string                               `json:"documentTypeId"`
-	IncomingDate         string                               `json:"incomingDate"`
-	Correspondents       []IncomingLetterCorrespondentRequest `json:"correspondents"`
-	Content              string                               `json:"content"`
-	PagesCount           int                                  `json:"pagesCount"`
-	AttachmentPagesCount int                                  `json:"attachmentPagesCount"`
-	SenderSignatory      string                               `json:"senderSignatory"`
-	Resolution           string                               `json:"resolution"`
-	ResolutionAuthor     string                               `json:"resolutionAuthor"`
-	ResolutionExecutors  string                               `json:"resolutionExecutors"`
-	RegistrationNumber   string                               `json:"registrationNumber"`
-	AdminNumberOverride  *AdminNumberOverrideRequest          `json:"adminNumberOverride"`
-}
-
-// IncomingLetterUpdateRequest описывает команду обновления входящего письма.
-type IncomingLetterUpdateRequest struct {
-	ID                   string                               `json:"id"`
-	IdempotencyKey       string                               `json:"idempotencyKey,omitempty"`
-	DocumentTypeID       string                               `json:"documentTypeId"`
-	Correspondents       []IncomingLetterCorrespondentRequest `json:"correspondents"`
-	Content              string                               `json:"content"`
-	PagesCount           int                                  `json:"pagesCount"`
-	AttachmentPagesCount int                                  `json:"attachmentPagesCount"`
-	SenderSignatory      string                               `json:"senderSignatory"`
-	Resolution           string                               `json:"resolution"`
-	ResolutionAuthor     string                               `json:"resolutionAuthor"`
-	ResolutionExecutors  string                               `json:"resolutionExecutors"`
-}
-
-// IncomingLetterCorrespondentRequest описывает один набор реквизитов корреспондента.
-type IncomingLetterCorrespondentRequest struct {
-	RegistrationNumber string `json:"registrationNumber"`
-	RegistrationDate   string `json:"registrationDate"`
-	CorrespondentName  string `json:"correspondentName"`
-}
-
 // IncomingLetterCommandHandler инкапсулирует write-операции по входящим письмам.
 type IncomingLetterCommandHandler struct {
 	repo    IncomingDocStore
@@ -92,7 +52,7 @@ func NewIncomingLetterCommandHandler(
 }
 
 // Register регистрирует входящее письмо.
-func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterRequest) (*dto.IncomingDocument, error) {
+func (h *IncomingLetterCommandHandler) Register(req dto.IncomingLetterRegisterRequest) (*dto.IncomingDocument, error) {
 	adminOverride, err := buildAdminNumberOverride(req.AdminNumberOverride)
 	if err != nil {
 		return nil, err
@@ -194,7 +154,7 @@ func (h *IncomingLetterCommandHandler) Register(req IncomingLetterRegisterReques
 
 // RegisterDocument реализует общий command-интерфейс по виду документа.
 func (h *IncomingLetterCommandHandler) RegisterDocument(req any) (any, error) {
-	typedReq, ok := req.(IncomingLetterRegisterRequest)
+	typedReq, ok := req.(dto.IncomingLetterRegisterRequest)
 	if !ok {
 		return nil, fmt.Errorf("invalid register request for kind %s", h.Kind())
 	}
@@ -203,7 +163,7 @@ func (h *IncomingLetterCommandHandler) RegisterDocument(req any) (any, error) {
 }
 
 // CreateAdminDraft создает черновик входящего письма с административно заданным номером.
-func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequest) (any, error) {
+func (h *IncomingLetterCommandHandler) CreateAdminDraft(req dto.AdminDraftCreateRequest) (any, error) {
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		req.IdempotencyKey = uuid.NewString()
 	}
@@ -227,7 +187,7 @@ func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 	}
 	createdBy, err := h.auth.GetCurrentUserUUID()
 	if err != nil {
-		return nil, ErrNotAuthenticated
+		return nil, models.ErrUnauthorized
 	}
 	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)
 	if err != nil || idempotencyKey == uuid.Nil {
@@ -270,7 +230,7 @@ func (h *IncomingLetterCommandHandler) CreateAdminDraft(req AdminDraftCreateRequ
 }
 
 // Update обновляет входящее письмо.
-func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (*dto.IncomingDocument, error) {
+func (h *IncomingLetterCommandHandler) Update(req dto.IncomingLetterUpdateRequest) (*dto.IncomingDocument, error) {
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		req.IdempotencyKey = uuid.NewString()
 	}
@@ -358,7 +318,7 @@ func (h *IncomingLetterCommandHandler) Update(req IncomingLetterUpdateRequest) (
 	return dto.MapIncomingDocument(res), err
 }
 
-func (h *IncomingLetterCommandHandler) buildCorrespondents(reqs []IncomingLetterCorrespondentRequest) ([]models.DocumentCorrespondentRegistration, error) {
+func (h *IncomingLetterCommandHandler) buildCorrespondents(reqs []dto.IncomingLetterCorrespondentRequest) ([]models.DocumentCorrespondentRegistration, error) {
 	if len(reqs) == 0 {
 		return nil, models.NewBadRequest("укажите реквизиты корреспондента")
 	}
@@ -410,7 +370,7 @@ func (h *IncomingLetterCommandHandler) buildCorrespondents(reqs []IncomingLetter
 
 // UpdateDocument реализует общий command-интерфейс по виду документа.
 func (h *IncomingLetterCommandHandler) UpdateDocument(req any) (any, error) {
-	typedReq, ok := req.(IncomingLetterUpdateRequest)
+	typedReq, ok := req.(dto.IncomingLetterUpdateRequest)
 	if !ok {
 		return nil, fmt.Errorf("invalid update request for kind %s", h.Kind())
 	}

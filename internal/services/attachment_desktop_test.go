@@ -22,6 +22,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
@@ -247,7 +248,7 @@ func TestDesktopAttachmentDownload(t *testing.T) {
 func TestDesktopAttachmentHTTPForwardingAndLifecycle(t *testing.T) {
 	for _, serverErr := range []error{nil, assert.AnError} {
 		t.Run(fmt.Sprint(serverErr), func(t *testing.T) {
-			lifecycle := NewOperationLifecycle(time.Second)
+			lifecycle := operations.NewLifecycle(time.Second)
 			defer lifecycle.Shutdown(context.Background())
 			var calls []string
 			var contexts []context.Context
@@ -281,7 +282,7 @@ func TestDesktopAttachmentHTTPForwardingAndLifecycle(t *testing.T) {
 	}
 	for _, shutdown := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cancel-%v", shutdown), func(t *testing.T) {
-			lifecycle := NewOperationLifecycle(10 * time.Millisecond)
+			lifecycle := operations.NewLifecycle(10 * time.Millisecond)
 			defer lifecycle.Shutdown(context.Background())
 			entered := make(chan struct{})
 			client := &desktopAttachmentClient{call: func(ctx context.Context, _ string) error { close(entered); <-ctx.Done(); return ctx.Err() }}

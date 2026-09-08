@@ -19,6 +19,8 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
 
@@ -38,36 +40,6 @@ type DB struct {
 	metrics          *observability.Registry
 	poolMu           sync.Mutex
 	lastPoolStats    sql.DBStats
-}
-
-// MigrationStatus содержит информацию о текущем состоянии миграций БД.
-type MigrationStatus struct {
-	CurrentVersion         uint `json:"currentVersion"`
-	Dirty                  bool `json:"dirty"`
-	AvailableCount         int  `json:"availableCount"`
-	LatestAvailableVersion uint `json:"latestAvailableVersion"`
-	UpToDate               bool `json:"upToDate"`
-	SchemaTooNew           bool `json:"schemaTooNew"`
-	Compatible             bool `json:"compatible"`
-}
-
-// MigrationCompatibilityError reports a schema state that the current binary
-// must not operate against.
-type MigrationCompatibilityError struct {
-	CurrentVersion         uint
-	LatestAvailableVersion uint
-	Dirty                  bool
-	SchemaTooNew           bool
-}
-
-func (e *MigrationCompatibilityError) Error() string {
-	if e.SchemaTooNew {
-		return fmt.Sprintf("database schema version %d is newer than embedded migrations %d", e.CurrentVersion, e.LatestAvailableVersion)
-	}
-	if e.Dirty {
-		return fmt.Sprintf("database schema version %d is dirty", e.CurrentVersion)
-	}
-	return "database schema is incompatible with this binary"
 }
 
 // Connect устанавливает подключение к базе данных PostgreSQL и возвращает обертку DB.
@@ -245,8 +217,8 @@ func (db *DB) RunMigrations(migrationsPath string) error {
 }
 
 // GetMigrationStatus возвращает текущую версию и каталог доступных миграций.
-func (db *DB) GetMigrationStatus(migrationsPath string) (*MigrationStatus, error) {
-	status := &MigrationStatus{}
+func (db *DB) GetMigrationStatus(migrationsPath string) (*dto.MigrationStatus, error) {
+	status := &dto.MigrationStatus{}
 
 	catalog, err := inspectMigrationCatalog(migrationsPath)
 	if err != nil {
@@ -269,7 +241,7 @@ func (db *DB) GetMigrationStatus(migrationsPath string) (*MigrationStatus, error
 
 	status.CurrentVersion = version
 	status.Dirty = dirty
-	status.applyCompatibility()
+	applyMigrationCompatibility(status)
 
 	return status, nil
 }
@@ -285,7 +257,7 @@ func (db *DB) CheckMigrationCompatibility(migrationsPath string) error {
 		return nil
 	}
 	if status.SchemaTooNew || status.Dirty {
-		return &MigrationCompatibilityError{
+		return &models.MigrationCompatibilityError{
 			CurrentVersion:         status.CurrentVersion,
 			LatestAvailableVersion: status.LatestAvailableVersion,
 			Dirty:                  status.Dirty,
@@ -476,7 +448,7 @@ func closeMigrator(m *migrate.Migrate) {
 	_, _ = m.Close()
 }
 
-func (s *MigrationStatus) applyCompatibility() {
+func applyMigrationCompatibility(s *dto.MigrationStatus) {
 	s.SchemaTooNew = s.CurrentVersion > s.LatestAvailableVersion
 	s.UpToDate = s.CurrentVersion == s.LatestAvailableVersion && !s.Dirty
 	s.Compatible = !s.Dirty && !s.SchemaTooNew

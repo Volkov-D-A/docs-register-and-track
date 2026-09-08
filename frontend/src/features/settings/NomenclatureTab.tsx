@@ -7,7 +7,7 @@ import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindLabel, getDocumentKindMet
 import { useCurrentAccessSummary } from '../../hooks/useCurrentAccessSummary';
 import { formatAppError } from '../../utils/appError';
 import { confirmDiscardFormChanges } from '../../utils/dirtyForm';
-import { services } from '../../../wailsjs/go/models';
+import { dto } from '../../../wailsjs/go/models';
 
 const NomenclatureTab: React.FC = () => {
   const { message, modal } = App.useApp();
@@ -101,10 +101,10 @@ const NomenclatureTab: React.FC = () => {
     setAdminCreateLoading(true);
     try {
       const { CreateAdminDraft } = await import('../../../wailsjs/go/services/DocumentRegistrationService');
-      await CreateAdminDraft(adminCreateItem.kindCode, services.AdminDraftCreateRequest.createFrom({
+      await CreateAdminDraft(adminCreateItem.kindCode, dto.AdminDraftCreateRequest.createFrom({
         nomenclatureId: adminCreateItem.id,
         registrationDate: values.registrationDate?.format('YYYY-MM-DD') || '',
-        adminNumberOverride: services.AdminNumberOverrideRequest.createFrom({
+        adminNumberOverride: dto.AdminNumberOverrideRequest.createFrom({
           mode: values.mode,
           number: values.number,
           suffix: values.mode === 'literal' ? values.suffix || '' : '',

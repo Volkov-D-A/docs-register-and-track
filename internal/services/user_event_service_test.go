@@ -10,7 +10,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 )
 
 type fakeUserEventStore struct {
@@ -123,20 +122,15 @@ func setupUserEventService(t *testing.T) (*UserEventService, *fakeUserEventStore
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
-	password := "Passw0rd!"
-	hash, err := security.HashPassword(password)
-	require.NoError(t, err)
+	auth := newTestPrincipal(userRepo)
 
 	user := &models.User{
-		ID:           uuid.New(),
-		Login:        "events_user",
-		PasswordHash: hash,
-		IsActive:     true,
+		ID:    uuid.New(),
+		Login: "events_user",
+
+		IsActive: true,
 	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	_, err = auth.Login(user.Login, password)
-	require.NoError(t, err)
+	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	store := &fakeUserEventStore{}

@@ -20,7 +20,7 @@ func newOutboxAdminServiceForTest(t *testing.T, roles ...string) (*OutboxAdminSe
 	userID := uuid.New()
 	userStore := mocks.NewUserStore(t)
 	userStore.On("GetByID", userID).Return(&models.User{ID: userID, IsActive: true}, nil).Maybe()
-	auth := NewAuthService(nil, userStore)
+	auth := newTestPrincipal(userStore)
 	auth.currentUserID = userID
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 	service := NewOutboxAdminService(repository.NewOutboxRepository(&database.DB{DB: db}), auth)

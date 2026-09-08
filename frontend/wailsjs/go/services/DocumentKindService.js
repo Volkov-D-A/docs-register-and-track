@@ -5,7 +5,3 @@
 export function GetCurrentAccessSummary() {
   return window['go']['services']['DocumentKindService']['GetCurrentAccessSummary']();
 }
-
-export function SetServerClient(arg1) {
-  return window['go']['services']['DocumentKindService']['SetServerClient'](arg1);
-}

@@ -1,4 +1,4 @@
-package services
+package operations
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// OperationLifecycle coordinates long-running backend work with app shutdown.
-type OperationLifecycle struct {
+// Lifecycle coordinates long-running backend work with app shutdown.
+type Lifecycle struct {
 	rootCtx    context.Context
 	cancelRoot context.CancelFunc
 	timeout    time.Duration
@@ -17,16 +17,16 @@ type OperationLifecycle struct {
 	wg           sync.WaitGroup
 }
 
-func NewOperationLifecycle(timeout time.Duration) *OperationLifecycle {
+func NewLifecycle(timeout time.Duration) *Lifecycle {
 	rootCtx, cancelRoot := context.WithCancel(context.Background())
-	return &OperationLifecycle{
+	return &Lifecycle{
 		rootCtx:    rootCtx,
 		cancelRoot: cancelRoot,
 		timeout:    timeout,
 	}
 }
 
-func (l *OperationLifecycle) OperationContext() (context.Context, func()) {
+func (l *Lifecycle) OperationContext() (context.Context, func()) {
 	if l == nil {
 		return context.Background(), func() {}
 	}
@@ -56,7 +56,7 @@ func (l *OperationLifecycle) OperationContext() (context.Context, func()) {
 	return ctx, release
 }
 
-func (l *OperationLifecycle) Shutdown(ctx context.Context) error {
+func (l *Lifecycle) Shutdown(ctx context.Context) error {
 	if l == nil {
 		return nil
 	}
@@ -80,11 +80,4 @@ func (l *OperationLifecycle) Shutdown(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-}
-
-func serviceOperationContext(lifecycle *OperationLifecycle) (context.Context, func()) {
-	if lifecycle == nil {
-		return context.Background(), func() {}
-	}
-	return lifecycle.OperationContext()
 }

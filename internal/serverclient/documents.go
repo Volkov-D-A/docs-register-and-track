@@ -22,7 +22,7 @@ type DocumentQueryClient interface {
 type DocumentCommandClient interface {
 	RegisterDocument(context.Context, string, any) (any, error)
 	UpdateDocument(context.Context, string, any) (any, error)
-	CreateAdminDocumentDraft(context.Context, string, any) (any, error)
+	CreateAdminDocumentDraft(context.Context, string, dto.AdminDraftCreateRequest) (any, error)
 }
 
 type documentListRequest struct {
@@ -74,7 +74,7 @@ func (c *Client) UpdateDocument(ctx context.Context, kindCode string, request an
 	return c.doDocumentCommand(ctx, http.MethodPatch, "/api/v1/documents/"+url.PathEscape(kindCode)+"/"+url.PathEscape(id), request, http.StatusOK, key, kindCode)
 }
 
-func (c *Client) CreateAdminDocumentDraft(ctx context.Context, kindCode string, request any) (any, error) {
+func (c *Client) CreateAdminDocumentDraft(ctx context.Context, kindCode string, request dto.AdminDraftCreateRequest) (any, error) {
 	return c.doDocumentCommand(ctx, http.MethodPost, "/api/v1/documents/"+url.PathEscape(kindCode)+"/admin-drafts", request, http.StatusCreated, uuid.NewString(), kindCode)
 }
 

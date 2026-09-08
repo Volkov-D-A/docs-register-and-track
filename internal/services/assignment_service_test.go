@@ -3,7 +3,6 @@ package services
 import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
 
 	"testing"
 	"time"
@@ -44,25 +43,21 @@ func (s *atomicAssignmentStore) DeleteWithOutbox(id uuid.UUID, effects []models.
 }
 
 func setupAssignmentService(t *testing.T, role string) (
-	*AssignmentService, *mocks.AssignmentStore, *mocks.UserStore, *AuthService, *mocks.IncomingDocStore,
+	*AssignmentService, *mocks.AssignmentStore, *mocks.UserStore, *testPrincipal, *mocks.IncomingDocStore,
 ) {
 	t.Helper()
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 
-	password := "Passw0rd!"
-	hash, _ := security.HashPassword(password)
 	user := &models.User{
-		ID:                    uuid.New(),
-		Login:                 role + "_user",
-		PasswordHash:          hash,
+		ID:    uuid.New(),
+		Login: role + "_user",
+
 		IsDocumentParticipant: role != "" && role != "admin",
 		IsActive:              true,
 	}
-	userRepo.On("GetByLogin", user.Login).Return(user, nil).Once()
-	_, err := auth.Login(user.Login, password)
-	require.NoError(t, err)
+	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	incomingRepo := mocks.NewIncomingDocStore(t)
@@ -104,7 +99,7 @@ func setupAssignmentServiceNotAuth(t *testing.T) (*AssignmentService, *mocks.Ass
 	t.Helper()
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
 	incomingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.IncomingDocument {
@@ -204,7 +199,7 @@ func TestAssignmentService_Create(t *testing.T) {
 
 		result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "", nil)
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrUnauthorized, err)
 		assert.Nil(t, result)
 	})
 
@@ -441,18 +436,16 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 	t.Run("executor to in_progress", func(t *testing.T) {
 		_, repo, userRepo, _, _ := setupAssignmentService(t, "executor")
 		// Override auth currentUser ID to match executor
-		password := "Passw0rd!"
-		hash, _ := security.HashPassword(password)
+
 		executorUser := &models.User{
-			ID:                    execID,
-			Login:                 "exec",
-			PasswordHash:          hash,
+			ID:    execID,
+			Login: "exec",
+
 			IsDocumentParticipant: true,
 			IsActive:              true,
 		}
-		authSvc := NewAuthService(nil, userRepo)
-		userRepo.On("GetByLogin", "exec").Return(executorUser, nil).Once()
-		authSvc.Login("exec", password)
+		authSvc := newTestPrincipal(userRepo)
+		authSvc.currentUserID = executorUser.ID
 		userRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 
 		incomingRepo := mocks.NewIncomingDocStore(t)
@@ -484,18 +477,16 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 
 	t.Run("executor to completed", func(t *testing.T) {
 		_, repo, userRepo, _, _ := setupAssignmentService(t, "executor")
-		password := "Passw0rd!"
-		hash, _ := security.HashPassword(password)
+
 		executorUser := &models.User{
-			ID:                    execID,
-			Login:                 "exec2",
-			PasswordHash:          hash,
+			ID:    execID,
+			Login: "exec2",
+
 			IsDocumentParticipant: true,
 			IsActive:              true,
 		}
-		authSvc := NewAuthService(nil, userRepo)
-		userRepo.On("GetByLogin", "exec2").Return(executorUser, nil).Once()
-		authSvc.Login("exec2", password)
+		authSvc := newTestPrincipal(userRepo)
+		authSvc.currentUserID = executorUser.ID
 		userRepo.On("GetByID", executorUser.ID).Return(executorUser, nil).Maybe()
 
 		incomingRepo := mocks.NewIncomingDocStore(t)
@@ -529,19 +520,16 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 	t.Run("active substitute can move assignment to in_progress", func(t *testing.T) {
 		substituteID := uuid.New()
 		_, repo, userRepo, _, _ := setupAssignmentService(t, "")
-		password := "Passw0rd!"
-		hash, _ := security.HashPassword(password)
+
 		substituteUser := &models.User{
-			ID:                    substituteID,
-			Login:                 "substitute",
-			PasswordHash:          hash,
+			ID:    substituteID,
+			Login: "substitute",
+
 			IsDocumentParticipant: false,
 			IsActive:              true,
 		}
-		authSvc := NewAuthService(nil, userRepo)
-		userRepo.On("GetByLogin", substituteUser.Login).Return(substituteUser, nil).Once()
-		_, err := authSvc.Login(substituteUser.Login, password)
-		require.NoError(t, err)
+		authSvc := newTestPrincipal(userRepo)
+		authSvc.currentUserID = substituteUser.ID
 		userRepo.On("GetByID", substituteUser.ID).Return(substituteUser, nil).Maybe()
 
 		incomingRepo := mocks.NewIncomingDocStore(t)
@@ -1055,7 +1043,7 @@ func TestAssignmentService_GetByID(t *testing.T) {
 
 		result, err := svc.GetByID(assignmentID.String())
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrUnauthorized, err)
 		assert.Nil(t, result)
 	})
 
@@ -1138,7 +1126,7 @@ func TestAssignmentService_GetList(t *testing.T) {
 
 		result, err := svc.GetList(models.AssignmentFilter{})
 		require.Error(t, err)
-		assert.Equal(t, ErrNotAuthenticated, err)
+		assert.Equal(t, models.ErrUnauthorized, err)
 		assert.Nil(t, result)
 	})
 

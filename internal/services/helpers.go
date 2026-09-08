@@ -110,7 +110,7 @@ func filterNomenclaturesByDepartment(
 // Извлекает departmentID из текущего пользователя и вызывает filterNomenclaturesByDepartment.
 // Возвращает обновлённый список nomenclatureIDs и флаг isEmpty.
 func applyExecutorNomenclatureFilter(
-	auth *AuthService,
+	auth DocumentAccessPrincipal,
 	depRepo DepartmentStore,
 	nomenclatureIDs []string,
 	nomenclatureID string,
@@ -131,7 +131,7 @@ func applyExecutorNomenclatureFilter(
 }
 
 // getExecutorAllowedNomenclatureIDs возвращает список номенклатур подразделения текущего исполнителя.
-func getExecutorAllowedNomenclatureIDs(auth *AuthService, depRepo DepartmentStore) ([]string, error) {
+func getExecutorAllowedNomenclatureIDs(auth DocumentAccessPrincipal, depRepo DepartmentStore) ([]string, error) {
 	user, err := auth.GetCurrentUser()
 	if err != nil {
 		return nil, err

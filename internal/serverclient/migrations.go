@@ -12,14 +12,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 type MigrationClient interface {
-	Status(context.Context) (*database.MigrationStatus, error)
-	Apply(context.Context, string, string) (*database.MigrationStatus, error)
-	Rollback(context.Context, string, string, models.RollbackMigrationRequest) (*database.MigrationStatus, error)
+	Status(context.Context) (*dto.MigrationStatus, error)
+	Apply(context.Context, string, string) (*dto.MigrationStatus, error)
+	Rollback(context.Context, string, string, models.RollbackMigrationRequest) (*dto.MigrationStatus, error)
 }
 
 type Client struct {
@@ -69,15 +69,15 @@ func isLoopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-func (c *Client) Status(ctx context.Context) (*database.MigrationStatus, error) {
+func (c *Client) Status(ctx context.Context) (*dto.MigrationStatus, error) {
 	return c.do(ctx, http.MethodGet, "/api/v1/admin/migrations", "", "", nil)
 }
 
-func (c *Client) Apply(ctx context.Context, login, password string) (*database.MigrationStatus, error) {
+func (c *Client) Apply(ctx context.Context, login, password string) (*dto.MigrationStatus, error) {
 	return c.do(ctx, http.MethodPost, "/api/v1/admin/migrations/apply", login, password, nil)
 }
 
-func (c *Client) Rollback(ctx context.Context, login, password string, req models.RollbackMigrationRequest) (*database.MigrationStatus, error) {
+func (c *Client) Rollback(ctx context.Context, login, password string, req models.RollbackMigrationRequest) (*dto.MigrationStatus, error) {
 	body := struct {
 		BackupCompleted      bool   `json:"backupCompleted"`
 		BackupReference      string `json:"backupReference"`
@@ -87,7 +87,7 @@ func (c *Client) Rollback(ctx context.Context, login, password string, req model
 	return c.do(ctx, http.MethodPost, "/api/v1/admin/migrations/rollback", login, password, body)
 }
 
-func (c *Client) do(ctx context.Context, method, path, login, password string, body any) (*database.MigrationStatus, error) {
+func (c *Client) do(ctx context.Context, method, path, login, password string, body any) (*dto.MigrationStatus, error) {
 	var payload io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -114,7 +114,7 @@ func (c *Client) do(ctx context.Context, method, path, login, password string, b
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, decodeAuthError(resp)
 	}
-	var status database.MigrationStatus
+	var status dto.MigrationStatus
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&status); err != nil {
 		return nil, fmt.Errorf("decode docflow-server response: %w", err)
 	}

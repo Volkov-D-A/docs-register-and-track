@@ -41,7 +41,7 @@ func TestAdminOperationsAPIPersistsRequeueIntegration(t *testing.T) {
 	require.NoError(t, db.QueryRow(`SELECT id FROM event_outbox WHERE deduplication_key=$1`, event.DeduplicationKey).Scan(&eventID))
 	require.NoError(t, outbox.MarkFailed(eventID, 5, time.Second, 5, "terminal integration failure"))
 
-	api := newManagementAPI(&App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32)})
+	api := newIntegrationManagementAPI(t, &App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32)})
 	login := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"login":"operations-admin","password":"`+password+`"}`))
 	loginResponse := httptest.NewRecorder()
 	api.Handler().ServeHTTP(loginResponse, login)

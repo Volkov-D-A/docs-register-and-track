@@ -14,7 +14,7 @@ import (
 )
 
 type documentAccessTestDeps struct {
-	auth       *AuthService
+	auth       *testPrincipal
 	userRepo   *mocks.UserStore
 	accessRepo *kindActionDocumentAccessStore
 	depRepo    *documentAccessDepartmentStore
@@ -195,7 +195,7 @@ func setupDocumentAccessService(t *testing.T, user *models.User, allowed map[mod
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := NewAuthService(nil, userRepo)
+	auth := newTestPrincipal(userRepo)
 	if user != nil {
 		auth.currentUserID = user.ID
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
