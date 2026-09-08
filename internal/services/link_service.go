@@ -12,40 +12,37 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // LinkService предоставляет бизнес-логику для управления связями между документами.
 type LinkService struct {
-	repo                    LinkStore
-	incomingDocRepo         IncomingDocStore
-	outgoingDocRepo         OutgoingDocStore
-	citizenAppealDocRepo    CitizenAppealDocStore
-	administrativeOrderRepo AdministrativeOrderDocStore
-	access                  *DocumentAccessService
-	authService             DocumentAccessPrincipal
+	repo                    ports.LinkStore
+	incomingDocRepo         ports.IncomingDocStore
+	outgoingDocRepo         ports.OutgoingDocStore
+	citizenAppealDocRepo    ports.CitizenAppealDocStore
+	administrativeOrderRepo ports.AdministrativeOrderDocStore
+	access                  *serverservices.DocumentAccessService
+	authService             ports.DocumentAccessPrincipal
 	lifecycle               *operations.Lifecycle
 	metrics                 *observability.Registry
 	server                  serverclient.LinkClient
-}
-
-type linkOutboxStore interface {
-	CreateWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error
-	DeleteWithOutbox(ctx context.Context, id uuid.UUID, effects []models.OutboxEvent) error
-	CreateAndCancelOrderWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error
 }
 
 var errLinkOutboxStoreRequired = fmt.Errorf("link store must support atomic outbox operations")
 
 // NewLinkService создает новый экземпляр LinkService.
 func NewLinkService(
-	repo LinkStore,
-	incomingDocRepo IncomingDocStore,
-	outgoingDocRepo OutgoingDocStore,
-	citizenAppealDocRepo CitizenAppealDocStore,
-	administrativeOrderRepo AdministrativeOrderDocStore,
-	access *DocumentAccessService,
-	authService DocumentAccessPrincipal,
+	repo ports.LinkStore,
+	incomingDocRepo ports.IncomingDocStore,
+	outgoingDocRepo ports.OutgoingDocStore,
+	citizenAppealDocRepo ports.CitizenAppealDocStore,
+	administrativeOrderRepo ports.AdministrativeOrderDocStore,
+	access *serverservices.DocumentAccessService,
+	authService ports.DocumentAccessPrincipal,
 ) *LinkService {
 	return &LinkService{
 		repo:                    repo,
@@ -72,7 +69,7 @@ func (s *LinkService) SetOperationMetrics(metrics *observability.Registry) { s.m
 func linkJournalEffects(link *models.DocumentLink, userID uuid.UUID, action, details string) ([]models.OutboxEvent, error) {
 	effects := make([]models.OutboxEvent, 0, 2)
 	for _, documentID := range []uuid.UUID{link.SourceID, link.TargetID} {
-		event, err := NewJournalOutboxEvent("link:"+link.ID.String()+":"+action+":"+documentID.String(), models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: action, Details: details})
+		event, err := servereffects.NewJournalOutboxEvent("link:"+link.ID.String()+":"+action+":"+documentID.String(), models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: action, Details: details})
 		if err != nil {
 			return nil, err
 		}
@@ -128,7 +125,7 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 			CreatedAt:  time.Now(),
 		}
 
-		repo, ok := s.repo.(linkOutboxStore)
+		repo, ok := s.repo.(ports.LinkOutboxStore)
 		if !ok {
 			return nil, errLinkOutboxStoreRequired
 		}
@@ -177,7 +174,7 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 		}
 
 		currentUserID, _ := s.authService.GetCurrentUserUUID()
-		repo, ok := s.repo.(linkOutboxStore)
+		repo, ok := s.repo.(ports.LinkOutboxStore)
 		if !ok {
 			return errLinkOutboxStoreRequired
 		}

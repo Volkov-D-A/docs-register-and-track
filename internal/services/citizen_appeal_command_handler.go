@@ -9,6 +9,9 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 const (
@@ -25,28 +28,22 @@ var allowedAppealTypes = map[string]struct{}{
 
 // CitizenAppealCommandHandler инкапсулирует write-операции по обращениям граждан.
 type CitizenAppealCommandHandler struct {
-	repo    CitizenAppealDocStore
-	nomRepo NomenclatureStore
-	refRepo ReferenceStore
-	auth    DocumentCommandPrincipal
+	repo    ports.CitizenAppealDocStore
+	nomRepo ports.NomenclatureStore
+	refRepo ports.ReferenceStore
+	auth    ports.DocumentCommandPrincipal
 	journal *JournalService
-	access  *DocumentAccessService
-}
-type citizenAppealOutboxStore interface {
-	UpdateWithOutbox(models.UpdateCitizenAppealDocRequest, []models.OutboxEvent) (*models.CitizenAppealDocument, error)
-}
-type citizenAppealJournalStore interface {
-	CreateWithJournal(models.CreateCitizenAppealDocRequest, string, string) (*models.CitizenAppealDocument, error)
+	access  *serverservices.DocumentAccessService
 }
 
 // NewCitizenAppealCommandHandler создает handler команд обращений граждан.
 func NewCitizenAppealCommandHandler(
-	repo CitizenAppealDocStore,
-	nomRepo NomenclatureStore,
-	refRepo ReferenceStore,
-	auth DocumentCommandPrincipal,
+	repo ports.CitizenAppealDocStore,
+	nomRepo ports.NomenclatureStore,
+	refRepo ports.ReferenceStore,
+	auth ports.DocumentCommandPrincipal,
 	journal *JournalService,
-	access *DocumentAccessService,
+	access *serverservices.DocumentAccessService,
 ) *CitizenAppealCommandHandler {
 	return &CitizenAppealCommandHandler{
 		repo:    repo,
@@ -147,7 +144,7 @@ func (h *CitizenAppealCommandHandler) Register(req dto.CitizenAppealRegisterRequ
 		Resolutions:          resolutions,
 		CommandHash:          commandHash,
 	}
-	store, ok := h.repo.(citizenAppealJournalStore)
+	store, ok := h.repo.(ports.CitizenAppealJournalStore)
 	if !ok {
 		return nil, fmt.Errorf("citizen appeal store must support atomic journal operations")
 	}
@@ -217,7 +214,7 @@ func (h *CitizenAppealCommandHandler) CreateAdminDraft(req dto.AdminDraftCreateR
 		AttachmentPagesCount: 0,
 		CommandHash:          commandHash,
 	}
-	store, ok := h.repo.(citizenAppealJournalStore)
+	store, ok := h.repo.(ports.CitizenAppealJournalStore)
 	if !ok {
 		return nil, fmt.Errorf("citizen appeal store must support atomic journal operations")
 	}
@@ -302,12 +299,12 @@ func (h *CitizenAppealCommandHandler) Update(req dto.CitizenAppealUpdateRequest)
 		Correspondents:       correspondents,
 		Resolutions:          resolutions,
 	}
-	store, ok := h.repo.(citizenAppealOutboxStore)
+	store, ok := h.repo.(ports.CitizenAppealOutboxStore)
 	if !ok {
 		return nil, fmt.Errorf("citizen appeal store must support atomic outbox operations")
 	}
 	currentUserID := actorID
-	event, buildErr := NewJournalOutboxEvent("citizen-appeal:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Обращение отредактировано"})
+	event, buildErr := servereffects.NewJournalOutboxEvent("citizen-appeal:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Обращение отредактировано"})
 	if buildErr != nil {
 		return nil, buildErr
 	}

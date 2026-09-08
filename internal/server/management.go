@@ -23,6 +23,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 )
 
@@ -166,7 +167,7 @@ func newManagementAPI(app *App) *managementAPI {
 		nomenclature:   nomenclature,
 		settings:       settings,
 		documentQueries: func(user *models.User) documentQueryAPI {
-			documentAccess := services.NewDocumentAccessService(
+			documentAccess := serverservices.NewDocumentAccessService(
 				requestDocumentPrincipal{user: user}, departments, assignments,
 				acknowledgments, access, documents, substitutions,
 			)
@@ -176,7 +177,7 @@ func newManagementAPI(app *App) *managementAPI {
 		},
 		documentCommands: func(user *models.User) documentCommandAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := services.NewDocumentAccessService(
+			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
 			registry := services.NewDocumentKindCommandRegistry(
@@ -191,7 +192,7 @@ func newManagementAPI(app *App) *managementAPI {
 		},
 		assignments: func(user *models.User) assignmentAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := services.NewDocumentAccessService(
+			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
 			service := services.NewServerAssignmentService(assignments, users, principal, documentAccess)
@@ -200,7 +201,7 @@ func newManagementAPI(app *App) *managementAPI {
 		},
 		acknowledgments: func(user *models.User) acknowledgmentAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := services.NewDocumentAccessService(
+			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
 			service := services.NewAcknowledgmentService(acknowledgments, users, principal, documentAccess)
@@ -212,14 +213,14 @@ func newManagementAPI(app *App) *managementAPI {
 		},
 		administrativeOrderAcknowledgments: func(user *models.User) administrativeOrderAcknowledgmentAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := services.NewDocumentAccessService(
+			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
 			return services.NewAdministrativeOrderService(administrativeOrderCommands, principal, documentAccess)
 		},
 		links: func(user *models.User) linkAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := services.NewDocumentAccessService(
+			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
 			service := services.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal)
@@ -228,14 +229,14 @@ func newManagementAPI(app *App) *managementAPI {
 		},
 		journal: func(user *models.User) journalAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := services.NewDocumentAccessService(
+			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
 			return services.NewJournalService(journal, principal, documentAccess)
 		},
 		dashboard: func(user *models.User) dashboardAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := services.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
+			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
 			service := services.NewDashboardService(dashboard, principal, documentAccess)
 			service.SetOperationMetrics(app.metrics)
 			return service
@@ -252,7 +253,7 @@ func newManagementAPI(app *App) *managementAPI {
 		},
 		attachments: func(user *models.User) attachmentAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := services.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
+			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
 			service := services.NewServerAttachmentService(attachmentRepo, services.NewServerSettingsService(settings), principal, app.storage, documentAccess, services.ServerAttachmentOptions{Assignments: assignments, Substitutions: substitutions, Metrics: app.metrics})
 			return service
 		},

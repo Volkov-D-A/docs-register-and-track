@@ -50,8 +50,8 @@ func NewBindingsWailsOptions() *options.App {
 			&desktopservices.AuthService{},
 			&desktopservices.UserService{},
 			&desktopservices.UserSubstitutionService{},
-			&services.NomenclatureService{},
-			&services.ReferenceService{},
+			&desktopservices.NomenclatureService{},
+			&desktopservices.ReferenceService{},
 			&desktopservices.DocumentAccessAdminService{},
 			&desktopservices.DocumentKindService{},
 			&services.DocumentQueryService{},
@@ -60,14 +60,14 @@ func NewBindingsWailsOptions() *options.App {
 			&services.AssignmentService{},
 			&services.DashboardService{},
 			&services.StatisticsService{},
-			&services.DepartmentService{},
+			&desktopservices.DepartmentService{},
 			&services.SettingsService{},
 			&services.AttachmentService{},
 			&services.LinkService{},
 			&services.AcknowledgmentService{},
-			&services.SystemService{},
-			&services.ReleaseNoteService{},
-			&services.ThemeService{},
+			&desktopservices.SystemService{},
+			&desktopservices.ReleaseNoteService{},
+			&desktopservices.ThemeService{},
 			&services.JournalService{},
 			&services.AdminAuditLogService{},
 			&services.UserEventService{},
@@ -77,13 +77,13 @@ func NewBindingsWailsOptions() *options.App {
 }
 
 type wailsOptionsDependencies struct {
-	newThemeService func() (*services.ThemeService, error)
+	newThemeService func() (*desktopservices.ThemeService, error)
 }
 
 // NewWailsOptions builds the desktop application graph and returns Wails options.
 func NewWailsOptions(cfg *config.Config, params WailsOptionsParams) (*options.App, *startupdiag.Failure) {
 	return newWailsOptionsWithDependencies(cfg, params, wailsOptionsDependencies{
-		newThemeService: services.NewThemeService,
+		newThemeService: desktopservices.NewThemeService,
 	})
 }
 
@@ -126,10 +126,8 @@ func newWailsOptionsWithDependencies(
 	settingsService.SetServerClient(serverClient)
 	userService := desktopservices.NewUserService(serverClient)
 	userSubstitutionService := desktopservices.NewUserSubstitutionService(serverClient)
-	nomenclatureService := services.NewNomenclatureService()
-	nomenclatureService.SetServerClient(serverClient)
-	referenceService := services.NewReferenceService(principal)
-	referenceService.SetServerClient(serverClient)
+	nomenclatureService := desktopservices.NewNomenclatureService(serverClient)
+	referenceService := desktopservices.NewReferenceService(principal, serverClient)
 	documentAccessAdminService := desktopservices.NewDocumentAccessAdminService(serverClient)
 	documentKindService := desktopservices.NewDocumentKindService(serverClient)
 	journalService := services.NewJournalServiceWithClient(serverClient)
@@ -142,8 +140,7 @@ func newWailsOptionsWithDependencies(
 	userEventService := services.NewUserEventServiceWithClient(serverClient)
 	administrativeOrderService := services.NewAdministrativeOrderServiceWithClient(serverClient)
 	assignmentService := services.NewAssignmentServiceWithClient(serverClient)
-	departmentService := services.NewDepartmentService()
-	departmentService.SetServerClient(serverClient)
+	departmentService := desktopservices.NewDepartmentService(serverClient)
 
 	attachmentService, startAttachments, err := services.NewDesktopAttachmentService(serverClient, services.DesktopAttachmentOptions{Lifecycle: operationLifecycle, Metrics: metrics})
 	if err != nil {
@@ -164,8 +161,8 @@ func newWailsOptionsWithDependencies(
 			Err:        err,
 		}
 	}
-	systemService := services.NewSystemServiceWithClient(serverClient, clientVersion)
-	releaseNoteService, err := services.NewReleaseNoteService(params.ReleaseNotesSource)
+	systemService, startSystem := desktopservices.NewSystemService(serverClient, clientVersion)
+	releaseNoteService, err := desktopservices.NewReleaseNoteService(params.ReleaseNotesSource)
 	if err != nil {
 		return nil, &startupdiag.Failure{
 			Component:  "release notes",
@@ -200,7 +197,7 @@ func newWailsOptionsWithDependencies(
 			serverClient.SetSessionEndedHandler(func(state serverclient.SessionState) {
 				wailsruntime.EventsEmit(ctx, "auth:session-ended", state)
 			})
-			systemService.Startup(ctx)
+			startSystem(ctx)
 			startAttachments(ctx)
 			backgroundServices.SetApplicationContext(ctx)
 			backgroundServices.ReconcileSchema()

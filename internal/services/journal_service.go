@@ -6,20 +6,22 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 
 	"github.com/google/uuid"
 )
 
 type JournalService struct {
-	repo      JournalStore
-	auth      DocumentAccessPrincipal
-	access    *DocumentAccessService
+	repo      ports.JournalStore
+	auth      ports.DocumentAccessPrincipal
+	access    *serverservices.DocumentAccessService
 	lifecycle *operations.Lifecycle
 	server    serverclient.JournalClient
 }
 
-func NewJournalService(repo JournalStore, auth DocumentAccessPrincipal, access *DocumentAccessService) *JournalService {
+func NewJournalService(repo ports.JournalStore, auth ports.DocumentAccessPrincipal, access *serverservices.DocumentAccessService) *JournalService {
 	return &JournalService{
 		repo:   repo,
 		auth:   auth,

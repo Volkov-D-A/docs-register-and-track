@@ -1,6 +1,6 @@
 # План разделения desktop- и серверного кода
 
-Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–8 завершены 8 сентября 2026 года.
+Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября 2026 года.
 
 Основание: аудит кода после разделения вложений в коммите `76e90f7` и
 [риск №3 из ревью перехода на сервер](server-transition-code-review.md).
@@ -482,21 +482,93 @@ namespace сразу обновляем frontend и bindings, без старо�
   Интеграционный прогон с PostgreSQL не повторялся: SQL, репозитории и
   производственное поведение БД не менялись. Общая документация отложена.
 
-- [ ] **9. Перенести простые справочные адаптеры.**
+- [x] **9. Перенести простые справочные адаптеры.**
   Перевести `DepartmentService`, `NomenclatureService`, `ReferenceService` в
   desktop/services; закрыть настройку зависимостей. Разобрать методы справочника
   типов документов: UI-операции оставить, неиспользуемые запреты CRUD удалить.
   Результат: поведение справочников сохранено, лишние Wails-методы удалены.
 
-- [ ] **10. Перенести локальные desktop-сервисы.**
+  Реализация 08.09.2026:
+  - DepartmentService, NomenclatureService и ReferenceService вместе с тестами
+    перенесены в `internal/desktop/services`. HTTP-клиенты передаются через
+    конструкторы; три SetServerClient удалены.
+  - Из ReferenceService удалены неиспользуемые CreateDocumentType,
+    UpdateDocumentType и DeleteDocumentType. Чтение встроенного списка типов
+    и его проверка аутентификации сохранены; тест использует узкий stub вместо
+    старого principal с repository mock и дополнен проверкой отказа доступа.
+  - Обе регистрации Wails обновлены, bindings сгенерированы штатной целью.
+    Проверенный diff и снимок API содержат ровно шесть удалённых методов;
+    остальные сигнатуры и namespace сохранены.
+  Commit: общий коммит этапов 9–12
+  `refactor: separate desktop adapters and server access policy`.
+
+  Проверки этапа 9:
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/desktop/services ./internal/services ./internal/app ./internal/architecture`
+    — успешно вне песочницы; первый запуск блокировал sandbox-запрет локального
+    порта httptest. Проверены адаптеры, обе регистрации, Wails API и границы импортов.
+  - `GOCACHE=/tmp/go-build-cache go vet ./internal/desktop/services ./internal/services ./internal/app ./internal/architecture`
+    — успешно.
+  - `make wails-bindings`, `make frontend-lint frontend-build` — успешно.
+  - Из `frontend`: `npm run test:components -- test/components/adminTabs.test.tsx test/components/documentRegistration.test.tsx`
+    — успешно, 6 тестов.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make docs-links-check` — общий проход не завершён: четыре описанные ниже
+    битые ссылки и две ссылки из server-transition-code-review.md на удалённые
+    ранее `internal/services/auth_service.go` и `internal/services/user_service.go`.
+    Новые ссылки в этом этапе не добавлялись; общая документация остаётся
+    отложенной до этапа 29.
+
+  SQL, repository, поведение БД, сессии и concurrency не менялись;
+  PostgreSQL integration и race для этого этапа не требуются. Нативный GUI
+  вручную не проверялся.
+
+- [x] **10. Перенести локальные desktop-сервисы.**
   Перевести Theme, ReleaseNote и System. Заменить `SystemService.Startup` на
   callback конструктора; сохранить пользовательские пути Linux/Windows.
   Результат: локальные настройки, заметки выпуска и системные операции работают,
   `Startup` отсутствует в bindings; `SetTheme` остаётся пользовательской операцией.
 
+  Реализация 08.09.2026:
+  - ThemeService, ReleaseNoteService и SystemService вместе с тестами перенесены
+    в `internal/desktop/services`; обе регистрации и зависимости composition root
+    обновлены. Локальные пути по-прежнему определяются через os.UserConfigDir;
+    тесты путей задают XDG_CONFIG_HOME и AppData для Linux/Windows.
+  - Единственный конструктор NewSystemService принимает HTTP-клиент и версию,
+    возвращает сервис и callback запуска. Публичный Startup и прежние
+    конструкторы удалены. Чтение/запись контекста защищены mutex.
+  - Вместо теста присваивания поля проверяются наследование контекста Wails,
+    отмена, таймаут 15 секунд, освобождение контекста после запроса и конкурентный
+    запуск/чтение. Проверки совместимости, готовности, темы и release state сохранены.
+  - Bindings сгенерированы штатной целью: изменение этого этапа — удаление
+    SystemService.Startup; пользовательский SetTheme и остальные методы сохранены.
+  Commit: общий коммит этапов 9–12
+  `refactor: separate desktop adapters and server access policy`.
+
+  Проверки этапа 10 (с `GOCACHE=/tmp/go-build-cache` для Go):
+  - `go test ./internal/desktop/services ./internal/app ./internal/services ./internal/architecture -run 'SystemService|Theme|Release|EmbeddedCurrentRelease|Wails|CompositionRoot|ProductionImport|BoundaryPolicy'`
+    — успешно; в старом services подходящих тестов больше нет.
+  - `go vet ./internal/desktop/services ./internal/app ./internal/services ./internal/architecture`
+    — успешно.
+  - `go test -race ./internal/desktop/services ./internal/app -run 'SystemService|Theme|Release|EmbeddedCurrentRelease|CompositionRoot'`
+    — успешно.
+  - `make wails-bindings`, `make frontend-lint frontend-build` — успешно.
+  - Из `frontend`: `npm run test:components -- test/components/systemBootstrapGate.test.tsx test/components/sessionApp.test.tsx`
+    — успешно, 4 теста.
+  - `CGO_ENABLED=0 go build -o /tmp/docflow-server-separation ./cmd/docflow-server`,
+    `go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .` и
+    `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/docflow-desktop-separation.exe .`
+    — успешно.
+  - `git diff --check` — успешно.
+
+  PostgreSQL integration не запускалась: SQL, repository и поведение БД
+  не менялись. Нативный GUI Linux/Windows вручную не проверялся. Ссылки
+  документации не менялись; шесть ошибок общего прохода из этапа 9 остаются.
+
 ### Подготовка серверных сервисов
 
-- [ ] **11. Отделить серверные интерфейсы и эффекты.**
+- [x] **11. Отделить серверные интерфейсы и эффекты.**
   Перенести repository/storage/principal-контракты в server/ports, построители
   outbox-событий — в server/effects. Общие UI/HTTP-типы туда не переносить.
   Обновить consumers и mocks напрямую. Разместить серверные support-функции по
@@ -504,11 +576,97 @@ namespace сразу обновляем frontend и bindings, без старо�
   Результат: новые server-пакеты не импортируют прежний internal/services;
   семантика транзакционных эффектов и ключей дедупликации сохранена.
 
-- [ ] **12. Перенести DocumentAccessService.**
+  Реализация 08.09.2026:
+  - В `internal/server/ports` перенесены 53 интерфейса: repository/storage,
+    транзакционные расширения хранилищ, серверные principal-контракты и настройки
+    вложений. Потребители и тестовые doubles используют новые типы напрямую;
+    aliases и forwarding-обёрток нет. Старый interfaces.go удалён.
+  - Desktop settingsPrincipal, HTTP DocumentCommandClient и интерфейсы handlers
+    остались у потребителей. DTO и модели не переносились. Дополнительные
+    support-пакеты для следующего переноса DocumentAccessService не понадобились.
+  - Три построителя journal/audit/user-event вынесены в `internal/server/effects`
+    без изменения тел функций. Тесты проверяют тип события, ключ и payload;
+    существующий PostgreSQL-тест коллизии дедупликации перенесён в effects.
+  - Generated mocks не зависят от прежнего services и не требуют изменения
+    сигнатур; добавлены compile-time проверки соответствия всех 14 mocks новым
+    ports. Границы новых пакетов проверяются штатным архитектурным тестом.
+  - Bindings сгенерированы: в двух оставшихся SetSubstitutionStore тип параметра
+    изменён с services.UserSubstitutionStore на ports.UserSubstitutionStore.
+    Удаление самих сеттеров остаётся в этапах разделения соответствующих сервисов.
+  Commit: общий коммит этапов 9–12
+  `refactor: separate desktop adapters and server access policy`.
+
+  Проверки этапа 11:
+  - `make go-test go-vet` — успешно вне песочницы. Первый запуск блокировал
+    запрет локального порта httptest; полный повторный прогон завершился успешно.
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/architecture -count=1`
+    — успешно; новые server-пакеты не импортируют services/desktop/Wails.
+  - `make wails-bindings`, `make frontend-lint frontend-build` — успешно.
+  - Из `frontend`: `npm run test:components -- test/components/assignmentSeriesControls.test.tsx test/components/assignmentCompletionModal.test.tsx`
+    — успешно, 3 теста.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make integration-test` — успешно 08.09.2026 после запуска Docker Desktop,
+    вне песочницы с доступом к Docker daemon. Полный PostgreSQL-прогон включает
+    repository, серверные HTTP-сценарии и перенесённый в server/effects тест
+    коллизии дедупликации. Контейнер, тестовый том и сеть удалены штатной целью.
+    Первые попытки до запуска Docker останавливались на проверке окружения;
+    после запуска sandbox по-прежнему не предоставлял доступ к daemon.
+  - `make docs-links-check` — те же шесть прежних битых ссылок, что в этапе 9.
+    `git diff --check` — успешно.
+
+  SQL, алгоритмы транзакций и concurrency не менялись. Race повторно не запускался;
+  PostgreSQL-проверка перенесённых серверных сценариев unit-тестами не заменяется.
+
+- [x] **12. Перенести DocumentAccessService.**
   Перевести серверную политику доступа и необходимые ей helpers в server/services.
   Использовать request principal; убрать зависимость от concrete desktop auth.
   Результат: проверки домена, номенклатуры, участия, замещений и действий
   выполняются сервером; новые desktop-сервисы не импортируют эту реализацию.
+
+  Реализация 08.09.2026:
+  - DocumentAccessService перенесён в `internal/server/services`, все потребители
+    и серверные фабрики используют новый тип напрямую. Зависимости — модели
+    и server/ports; identity предоставляет request principal через интерфейс.
+    Старый production-файл удалён, aliases и обёрток нет.
+  - Dashboard использует опубликованный серверный метод чтения субъектов
+    замещения. Отбор получателей уведомлений по явному разрешению перенесён
+    в метод политики доступа: поручения и ознакомления больше не читают её
+    приватный accessRepo. Общие для этих серверных сценариев операции с ID
+    размещены рядом в user_ids.go.
+  - Перенесены 15 групп тестов политики доступа: домен, номенклатуры, участие,
+    замещения, пакетное чтение, действия, связи и журнал. Principal в этих тестах
+    — узкий stub; отзыв сессии и деактивация проверяются серверными HTTP-тестами.
+    Общие fixtures оставшихся command/query-тестов сохранены отдельно.
+  - Тесты команд передают изменяемый тестовый document store при создании;
+    тесты поручений и связей настраивают зависимости через конструктор.
+    Прямые изменения приватных полей DocumentAccessService из старого пакета
+    устранены, production-сеттеры ради тестов не добавлялись.
+  Commit: общий коммит этапов 9–12
+  `refactor: separate desktop adapters and server access policy`.
+
+  Проверки этапа 12:
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/services ./internal/server/services ./internal/server ./internal/architecture -run 'DocumentAccess|ProductionImport' -count=1`
+    — успешно; политика доступа и транзитивные границы нового пакета проверены.
+  - `make go-test go-vet` — успешно.
+  - `make integration-test` — успешно вне песочницы с доступом к Docker daemon;
+    полный PostgreSQL-прогон проверяет серверные HTTP-сценарии и repository.
+    Контейнер, тестовый том и сеть удалены штатной целью. Запуск в sandbox
+    остановился на недоступности daemon до создания стека.
+  - `make wails-bindings` — успешно, дополнительных изменений bindings
+    относительно этапа 11 нет.
+  - `make frontend-lint frontend-build` — успешно.
+  - Из `frontend`: `npm run test:components -- test/components/accessVisibility.test.tsx test/components/assignmentCompletionModal.test.tsx`
+    — успешно, 5 тестов.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make docs-links-check` — те же шесть прежних битых ссылок, что в этапе 9;
+    новых ошибок нет. `git diff --check` — успешно.
+
+  Сессии, lifecycle и concurrency не менялись; race повторно не запускался.
+  Нативный GUI вручную не проверялся.
 
 - [ ] **13. Разделить SettingsService.**
   Оставить управление настройками и миграциями в desktop/services, а чтение

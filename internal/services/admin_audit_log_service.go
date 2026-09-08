@@ -7,6 +7,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 
 	"github.com/google/uuid"
@@ -14,17 +15,13 @@ import (
 
 // AdminAuditLogService предоставляет бизнес-логику для журнала действий администраторов.
 type AdminAuditLogService struct {
-	repo   AdminAuditLogStore
-	auth   SystemPermissionPrincipal
+	repo   ports.AdminAuditLogStore
+	auth   ports.SystemPermissionPrincipal
 	server serverclient.AdminAuditClient
 }
 
-type SystemPermissionPrincipal interface {
-	RequireSystemPermission(string) error
-}
-
 // NewAdminAuditLogService создает новый экземпляр AdminAuditLogService.
-func NewAdminAuditLogService(repo AdminAuditLogStore, auth SystemPermissionPrincipal) *AdminAuditLogService {
+func NewAdminAuditLogService(repo ports.AdminAuditLogStore, auth ports.SystemPermissionPrincipal) *AdminAuditLogService {
 	return &AdminAuditLogService{
 		repo: repo,
 		auth: auth,

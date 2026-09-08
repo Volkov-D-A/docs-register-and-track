@@ -3,6 +3,7 @@ package services
 import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/google/uuid"
 )
 
@@ -13,7 +14,7 @@ type testPrincipal struct {
 	userRepo      interface {
 		GetByID(uuid.UUID) (*models.User, error)
 	}
-	accessRepo      DocumentAccessStore
+	accessRepo      ports.DocumentAccessStore
 	schemaLifecycle SchemaLifecycle
 }
 
@@ -22,7 +23,7 @@ func newTestPrincipal(users interface {
 }) *testPrincipal {
 	return &testPrincipal{userRepo: users}
 }
-func (p *testPrincipal) SetAccessStore(store DocumentAccessStore) { p.accessRepo = store }
+func (p *testPrincipal) SetAccessStore(store ports.DocumentAccessStore) { p.accessRepo = store }
 func (p *testPrincipal) GetCurrentUser() (*dto.User, error) {
 	if p.currentUserID == uuid.Nil {
 		return nil, models.ErrUnauthorized

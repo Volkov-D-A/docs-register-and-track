@@ -12,11 +12,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 )
 
-type DocumentCommandPrincipal interface {
-	DocumentAccessPrincipal
-	RequireSystemPermission(string) error
-}
-
 type DocumentCommandClient interface {
 	RegisterDocument(context.Context, string, any) (any, error)
 	UpdateDocument(context.Context, string, any) (any, error)

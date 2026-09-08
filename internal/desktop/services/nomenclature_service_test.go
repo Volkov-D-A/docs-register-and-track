@@ -65,8 +65,7 @@ func TestNomenclatureServiceDelegatesToServer(t *testing.T) {
 	id := uuid.NewString()
 	item := &dto.Nomenclature{ID: id, Name: "Incoming", Index: "01-01", Year: 2026, KindCode: "incoming_letter"}
 	client := &testNomenclatureClient{items: []dto.Nomenclature{*item}, item: item}
-	service := NewNomenclatureService()
-	service.SetServerClient(client)
+	service := NewNomenclatureService(client)
 
 	items, err := service.GetAll(2026, "incoming_letter")
 	require.NoError(t, err)
@@ -99,8 +98,7 @@ func TestNomenclatureServiceDelegatesToServer(t *testing.T) {
 
 func TestNomenclatureServicePropagatesServerError(t *testing.T) {
 	want := errors.New("server failed")
-	service := NewNomenclatureService()
-	service.SetServerClient(&testNomenclatureClient{err: want})
+	service := NewNomenclatureService(&testNomenclatureClient{err: want})
 
 	items, err := service.GetAll(2026, "incoming_letter")
 	assert.Nil(t, items)
@@ -109,7 +107,7 @@ func TestNomenclatureServicePropagatesServerError(t *testing.T) {
 }
 
 func TestNomenclatureServiceRequiresServerClient(t *testing.T) {
-	service := NewNomenclatureService()
+	service := NewNomenclatureService(nil)
 
 	items, err := service.GetAll(2026, "incoming_letter")
 	assert.Nil(t, items)

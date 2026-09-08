@@ -18,26 +18,29 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 // ServerAttachmentService owns protected attachment operations for one HTTP request.
 type ServerAttachmentService struct {
-	repo             AttachmentStore
-	settingsService  AttachmentSettings
-	authService      AttachmentPrincipal
-	fileStorage      FileStorage
-	access           *DocumentAccessService
+	repo             ports.AttachmentStore
+	settingsService  ports.AttachmentSettings
+	authService      ports.AttachmentPrincipal
+	fileStorage      ports.FileStorage
+	access           *serverservices.DocumentAccessService
 	lifecycle        *operations.Lifecycle
 	metrics          *observability.Registry
 	storageMutations coordination.StorageMutationCoordinator
-	assignments      AssignmentStore
-	substitutions    UserSubstitutionStore
+	assignments      ports.AssignmentStore
+	substitutions    ports.UserSubstitutionStore
 }
 
 // ServerAttachmentOptions contains optional request dependencies.
 type ServerAttachmentOptions struct {
-	Assignments      AssignmentStore
-	Substitutions    UserSubstitutionStore
+	Assignments      ports.AssignmentStore
+	Substitutions    ports.UserSubstitutionStore
 	Metrics          *observability.Registry
 	Lifecycle        *operations.Lifecycle
 	StorageMutations coordination.StorageMutationCoordinator
@@ -46,7 +49,7 @@ type ServerAttachmentOptions struct {
 // NewServerAttachmentService requires the repository, settings, principal, storage
 // and document access service. It panics on missing required dependencies,
 // which indicate a composition error rather than a request error.
-func NewServerAttachmentService(repo AttachmentStore, settings AttachmentSettings, principal AttachmentPrincipal, storage FileStorage, access *DocumentAccessService, options ServerAttachmentOptions) *ServerAttachmentService {
+func NewServerAttachmentService(repo ports.AttachmentStore, settings ports.AttachmentSettings, principal ports.AttachmentPrincipal, storage ports.FileStorage, access *serverservices.DocumentAccessService, options ServerAttachmentOptions) *ServerAttachmentService {
 	if attachmentDependencyMissing(repo) || attachmentDependencyMissing(settings) || attachmentDependencyMissing(principal) || attachmentDependencyMissing(storage) || access == nil {
 		panic("server attachment service: missing required dependency")
 	}
@@ -68,43 +71,15 @@ func NewServerAttachmentService(repo AttachmentStore, settings AttachmentSetting
 	return s
 }
 
-type AttachmentSettings interface {
-	GetMaxFileSize() (int64, error)
-	GetAllowedFileTypes() ([]string, error)
-	IsAssignmentCompletionAttachmentsEnabled() bool
-}
-
-type AttachmentPrincipal interface {
-	GetCurrentUser() (*dto.User, error)
-	GetCurrentUserUUID() (uuid.UUID, error)
-	RequireSystemPermission(string) error
-}
-
-type attachmentStoragePathStore interface {
-	GetAllStoragePaths() ([]string, error)
-}
-
-type objectNameLister interface {
-	ListObjectNames(ctx context.Context) ([]string, error)
-}
-
-type assignmentAttachmentCreator interface {
-	CreateForAssignmentWithOutbox(*models.Attachment, bool, []models.OutboxEvent) error
-}
-
-type assignmentAttachmentStore interface {
-	GetByAssignmentID(uuid.UUID) ([]models.Attachment, error)
-}
-
 func (s *ServerAttachmentService) ReconcileStorage() (*models.AttachmentStorageReconciliation, error) {
 	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return nil, err
 	}
-	repo, ok := s.repo.(attachmentStoragePathStore)
+	repo, ok := s.repo.(ports.AttachmentStoragePathStore)
 	if !ok {
 		return nil, fmt.Errorf("attachment storage reconciliation is not supported")
 	}
-	storage, ok := s.fileStorage.(objectNameLister)
+	storage, ok := s.fileStorage.(ports.ObjectNameLister)
 	if !ok {
 		return nil, fmt.Errorf("object storage reconciliation is not supported")
 	}
@@ -299,7 +274,7 @@ func (s *ServerAttachmentService) UploadContent(documentIDStr string, assignment
 		UploadedBy:   userID,
 	}
 
-	event, buildErr := NewJournalOutboxEvent("attachment:"+objectName+":upload:journal", models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: "FILE_UPLOAD", Details: fmt.Sprintf("Добавлен файл: %s", filename)})
+	event, buildErr := servereffects.NewJournalOutboxEvent("attachment:"+objectName+":upload:journal", models.CreateJournalEntryRequest{DocumentID: documentID, UserID: userID, Action: "FILE_UPLOAD", Details: fmt.Sprintf("Добавлен файл: %s", filename)})
 	if buildErr != nil {
 		return nil, buildErr
 	}
@@ -315,7 +290,7 @@ func (s *ServerAttachmentService) UploadContent(documentIDStr string, assignment
 			_ = s.fileStorage.DeleteFile(ctx, objectName)
 			return nil, models.NewConflict("поручение было изменено; повторите загрузку")
 		}
-		creator, ok := s.repo.(assignmentAttachmentCreator)
+		creator, ok := s.repo.(ports.AssignmentAttachmentCreator)
 		if !ok {
 			_ = s.fileStorage.DeleteFile(ctx, objectName)
 			return nil, fmt.Errorf("assignment attachment creation is not supported")
@@ -356,7 +331,7 @@ func (s *ServerAttachmentService) GetAssignmentFiles(assignmentIDStr string) ([]
 	if err = s.access.RequireDocumentAction(assignment.DocumentID, "assign"); err != nil {
 		return nil, err
 	}
-	repo, ok := s.repo.(assignmentAttachmentStore)
+	repo, ok := s.repo.(ports.AssignmentAttachmentStore)
 	if !ok {
 		return nil, fmt.Errorf("assignment attachment lookup is not supported")
 	}
@@ -410,7 +385,7 @@ func (s *ServerAttachmentService) Delete(idStr string) error {
 	// First commit the deletion intent. From this point the attachment is hidden
 	// from reads, so a later database failure cannot leave a visible broken link.
 	currentUserID, _ := s.authService.GetCurrentUserUUID()
-	event, buildErr := NewJournalOutboxEvent("attachment:"+attachment.ID.String()+":delete:journal", models.CreateJournalEntryRequest{DocumentID: attachment.DocumentID, UserID: currentUserID, Action: "FILE_DELETE", Details: fmt.Sprintf("Удален файл: %s", attachment.Filename)})
+	event, buildErr := servereffects.NewJournalOutboxEvent("attachment:"+attachment.ID.String()+":delete:journal", models.CreateJournalEntryRequest{DocumentID: attachment.DocumentID, UserID: currentUserID, Action: "FILE_DELETE", Details: fmt.Sprintf("Удален файл: %s", attachment.Filename)})
 	if buildErr != nil {
 		return buildErr
 	}
@@ -477,7 +452,7 @@ func (s *ServerAttachmentService) BulkDeleteOlderThan(dateStr string) (int, erro
 		currentUserName = u.FullName
 	}
 	details := fmt.Sprintf("Массовое удаление файлов: поставлено в очередь %d, загруженных до %s", len(attachments), date.Format("02.01.2006"))
-	event, buildErr := NewAdminAuditOutboxEvent("attachments:bulk-delete:"+date.UTC().Format(time.RFC3339Nano), models.CreateAdminAuditLogRequest{UserID: currentUserID, UserName: currentUserName, Action: "FILES_BULK_DELETE", Details: details})
+	event, buildErr := servereffects.NewAdminAuditOutboxEvent("attachments:bulk-delete:"+date.UTC().Format(time.RFC3339Nano), models.CreateAdminAuditLogRequest{UserID: currentUserID, UserName: currentUserName, Action: "FILES_BULK_DELETE", Details: details})
 	if buildErr != nil {
 		return 0, buildErr
 	}

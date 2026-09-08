@@ -11,6 +11,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
@@ -67,7 +68,7 @@ func documentQueryContext() (context.Context, context.CancelFunc) {
 // DocumentQueryEngine executes server-side document queries and access checks.
 type DocumentQueryEngine struct {
 	registry *DocumentKindQueryRegistry
-	access   *DocumentAccessService
+	access   *serverservices.DocumentAccessService
 	metrics  *observability.Registry
 }
 
@@ -77,7 +78,7 @@ func (s *DocumentQueryEngine) SetOperationMetrics(metrics *observability.Registr
 
 func NewDocumentQueryEngine(
 	registry *DocumentKindQueryRegistry,
-	access *DocumentAccessService,
+	access *serverservices.DocumentAccessService,
 ) *DocumentQueryEngine {
 	return &DocumentQueryEngine{
 		registry: registry,

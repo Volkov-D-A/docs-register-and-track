@@ -4,11 +4,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 type kindBackedDocumentStore struct {
-	incoming IncomingDocStore
-	outgoing OutgoingDocStore
+	incoming ports.IncomingDocStore
+	outgoing ports.OutgoingDocStore
 }
 
 func (s *kindBackedDocumentStore) GetByID(id uuid.UUID) (*models.Document, error) {
@@ -51,7 +52,7 @@ type roleMappedDocumentAccessStore struct {
 	roles []string
 }
 
-func newRoleMappedDocumentAccessStore(roles ...string) DocumentAccessStore {
+func newRoleMappedDocumentAccessStore(roles ...string) ports.DocumentAccessStore {
 	return &roleMappedDocumentAccessStore{roles: roles}
 }
 

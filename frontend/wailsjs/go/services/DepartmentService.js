@@ -14,10 +14,6 @@ export function GetAllDepartments() {
   return window['go']['services']['DepartmentService']['GetAllDepartments']();
 }
 
-export function SetServerClient(arg1) {
-  return window['go']['services']['DepartmentService']['SetServerClient'](arg1);
-}
-
 export function UpdateDepartment(arg1, arg2, arg3) {
   return window['go']['services']['DepartmentService']['UpdateDepartment'](arg1, arg2, arg3);
 }

@@ -16,12 +16,8 @@ type NomenclatureService struct {
 	server serverclient.NomenclatureClient
 }
 
-func NewNomenclatureService() *NomenclatureService {
-	return &NomenclatureService{}
-}
-
-func (s *NomenclatureService) SetServerClient(client serverclient.NomenclatureClient) {
-	s.server = client
+func NewNomenclatureService(client serverclient.NomenclatureClient) *NomenclatureService {
+	return &NomenclatureService{server: client}
 }
 
 func (s *NomenclatureService) GetAll(year int, kindCode string) ([]dto.Nomenclature, error) {

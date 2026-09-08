@@ -38,6 +38,7 @@ func TestThemeServiceGetAndSetTheme(t *testing.T) {
 func TestNewThemeServiceUsesUserConfigDir(t *testing.T) {
 	configDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configDir)
+	t.Setenv("AppData", configDir)
 
 	service, err := NewThemeService()
 	if err != nil {

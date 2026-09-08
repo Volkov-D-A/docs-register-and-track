@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 type documentAccessTestDeps struct {
-	auth       *testPrincipal
-	userRepo   *mocks.UserStore
+	auth       *accessPrincipalStub
 	accessRepo *kindActionDocumentAccessStore
 	depRepo    *documentAccessDepartmentStore
 	assignRepo *documentAccessAssignmentStore
@@ -194,12 +194,7 @@ func (s *documentAccessDocumentStore) GetByIDs(ids []uuid.UUID) ([]models.Docume
 func setupDocumentAccessService(t *testing.T, user *models.User, allowed map[models.DocumentKind]map[string]bool) *documentAccessTestDeps {
 	t.Helper()
 
-	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
-	if user != nil {
-		auth.currentUserID = user.ID
-		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
-	}
+	auth := &accessPrincipalStub{user: user}
 
 	accessRepo := &kindActionDocumentAccessStore{allowed: allowed}
 	depRepo := &documentAccessDepartmentStore{}
@@ -211,7 +206,6 @@ func setupDocumentAccessService(t *testing.T, user *models.User, allowed map[mod
 
 	return &documentAccessTestDeps{
 		auth:       auth,
-		userRepo:   userRepo,
 		accessRepo: accessRepo,
 		depRepo:    depRepo,
 		assignRepo: assignRepo,
@@ -275,15 +269,14 @@ func TestDocumentAccessService_RequireDomainRead(t *testing.T) {
 		require.ErrorIs(t, err, models.ErrUnauthorized)
 	})
 
-	t.Run("user deactivated after login is rejected before access checks", func(t *testing.T) {
+	t.Run("unauthenticated principal is rejected before access checks", func(t *testing.T) {
 		user := documentAccessUser(true, nil)
 		deps := setupDocumentAccessService(t, user, nil)
-		user.IsActive = false
+		deps.auth.err = models.ErrUnauthorized
 
 		err := deps.service.RequireDomainRead()
 
 		require.ErrorIs(t, err, models.ErrUnauthorized)
-		assert.False(t, deps.auth.IsAuthenticated())
 	})
 
 	t.Run("document participant is allowed without explicit document permissions", func(t *testing.T) {
@@ -875,4 +868,45 @@ func TestDocumentAccessService_RequireViewJournalWithoutAccessRepository(t *test
 	err := deps.service.RequireViewJournal(uuid.New())
 
 	require.ErrorIs(t, err, models.ErrForbidden)
+}
+
+// The request principal supplies identity; HTTP session validation is tested on the server.
+type accessPrincipalStub struct {
+	user *models.User
+	err  error
+}
+
+func (p *accessPrincipalStub) GetCurrentUser() (*dto.User, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+	if p.user == nil {
+		return nil, models.ErrUnauthorized
+	}
+	return dto.MapUser(p.user), nil
+}
+func (p *accessPrincipalStub) RequireAuthenticated() error { _, err := p.GetCurrentUser(); return err }
+func (p *accessPrincipalStub) GetCurrentUserUUID() (uuid.UUID, error) {
+	if err := p.RequireAuthenticated(); err != nil {
+		return uuid.Nil, err
+	}
+	return p.user.ID, nil
+}
+
+type kindActionDocumentAccessStore struct {
+	ports.DocumentAccessStore
+	allowed map[models.DocumentKind]map[string]bool
+}
+
+func (s *kindActionDocumentAccessStore) HasPermission(kind, action, departmentID, userID string) (bool, error) {
+	return s.allowed[models.NormalizeDocumentKind(kind)][action], nil
+}
+
+type userSubstitutionStoreStub struct {
+	ports.UserSubstitutionStore
+	activePrincipals []uuid.UUID
+}
+
+func (s *userSubstitutionStoreStub) GetActivePrincipalIDs(uuid.UUID) ([]uuid.UUID, error) {
+	return s.activePrincipals, nil
 }

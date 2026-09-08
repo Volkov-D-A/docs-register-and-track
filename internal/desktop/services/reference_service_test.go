@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
@@ -87,8 +86,7 @@ func TestReferenceServiceDelegatesDirectoriesToServer(t *testing.T) {
 		executors:     []dto.ResolutionExecutor{{ID: id, Name: "Executor"}},
 		executor:      &dto.ResolutionExecutor{ID: id, Name: "Executor"},
 	}
-	service := NewReferenceService(nil)
-	service.SetServerClient(client)
+	service := NewReferenceService(nil, client)
 
 	organizations, err := service.GetOrganizations()
 	require.NoError(t, err)
@@ -129,8 +127,7 @@ func TestReferenceServiceDelegatesDirectoriesToServer(t *testing.T) {
 
 func TestReferenceServicePropagatesServerError(t *testing.T) {
 	want := errors.New("server failed")
-	service := NewReferenceService(nil)
-	service.SetServerClient(&testReferenceClient{err: want})
+	service := NewReferenceService(nil, &testReferenceClient{err: want})
 
 	items, err := service.GetOrganizations()
 	assert.Nil(t, items)
@@ -139,7 +136,7 @@ func TestReferenceServicePropagatesServerError(t *testing.T) {
 }
 
 func TestReferenceServiceRequiresServerClient(t *testing.T) {
-	service := NewReferenceService(nil)
+	service := NewReferenceService(nil, nil)
 
 	items, err := service.GetOrganizations()
 	assert.Nil(t, items)
@@ -151,22 +148,23 @@ func TestReferenceServiceRequiresServerClient(t *testing.T) {
 	require.ErrorIs(t, err, errServerReferenceClientNotConfigured)
 }
 
-func TestReferenceServiceKeepsDocumentTypesLocalAndReadOnly(t *testing.T) {
-	userRepo := mocks.NewUserStore(t)
-	user := &models.User{ID: uuid.New(), IsActive: true}
-	userRepo.On("GetByID", user.ID).Return(user, nil).Once()
-	auth := newTestPrincipal(userRepo)
-	auth.currentUserID = user.ID
-	service := NewReferenceService(auth)
+type referenceAuthStub struct{ err error }
 
+func (a referenceAuthStub) RequireAuthenticated() error { return a.err }
+
+func TestReferenceServiceDocumentTypes(t *testing.T) {
+	service := NewReferenceService(referenceAuthStub{}, nil)
 	items, err := service.GetDocumentTypes()
 	require.NoError(t, err)
-	require.Len(t, items, len(models.AllowedDocumentTypes()))
-	assert.Equal(t, models.DocumentTypeLetter, items[0].ID)
+	expected := make([]dto.DocumentType, 0)
+	for _, name := range models.AllowedDocumentTypes() {
+		expected = append(expected, dto.DocumentType{ID: name, Name: name})
+	}
+	assert.Equal(t, expected, items)
 
-	created, err := service.CreateDocumentType("Custom")
-	assert.Nil(t, created)
-	require.Error(t, err)
-	require.Error(t, service.UpdateDocumentType("Письмо", "Custom"))
-	require.Error(t, service.DeleteDocumentType("Письмо"))
+	want := errors.New("unauthenticated")
+	service = NewReferenceService(referenceAuthStub{err: want}, nil)
+	items, err = service.GetDocumentTypes()
+	require.ErrorIs(t, err, want)
+	assert.Nil(t, items)
 }

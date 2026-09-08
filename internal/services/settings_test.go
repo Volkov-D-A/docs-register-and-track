@@ -11,6 +11,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 type fakeServerMigrationClient struct {
@@ -25,7 +26,7 @@ type fakeServerMigrationClient struct {
 }
 
 type fakeServerSettingsClient struct {
-	store SettingsStore
+	store ports.SettingsStore
 }
 
 func (c *fakeServerSettingsClient) ListSettings(context.Context) ([]models.SystemSetting, error) {

@@ -3,13 +3,12 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )

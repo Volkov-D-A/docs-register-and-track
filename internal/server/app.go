@@ -18,7 +18,8 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
 )
 
@@ -43,8 +44,8 @@ type dependencies struct {
 
 type serverStorage interface {
 	outbox.FileDeleter
-	services.StorageInfoProvider
-	services.FileStorage
+	ports.StorageInfoProvider
+	ports.FileStorage
 }
 
 func New(cfg *config.Config) (*App, error) {

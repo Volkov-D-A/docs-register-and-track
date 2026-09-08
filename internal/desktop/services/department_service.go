@@ -11,18 +11,14 @@ import (
 
 var errServerDepartmentClientNotConfigured = errors.New("docflow-server department client is not configured")
 
-// DepartmentService предоставляет бизнес-логику для работы с подразделениями.
+// DepartmentService предоставляет UI операции с подразделениями через HTTP.
 type DepartmentService struct {
 	server serverclient.DepartmentClient
 }
 
-func (s *DepartmentService) SetServerClient(client serverclient.DepartmentClient) {
-	s.server = client
-}
-
 // NewDepartmentService создает новый экземпляр DepartmentService.
-func NewDepartmentService() *DepartmentService {
-	return &DepartmentService{}
+func NewDepartmentService(client serverclient.DepartmentClient) *DepartmentService {
+	return &DepartmentService{server: client}
 }
 
 // GetAllDepartments возвращает список всех подразделений.

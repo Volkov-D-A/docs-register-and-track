@@ -8,14 +8,16 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // DashboardService предоставляет данные текущей активности для дашборда.
 type DashboardService struct {
-	repo    DashboardStore
-	auth    DocumentAccessPrincipal
-	access  *DocumentAccessService
+	repo    ports.DashboardStore
+	auth    ports.DocumentAccessPrincipal
+	access  *serverservices.DocumentAccessService
 	metrics *observability.Registry
 	server  serverclient.DashboardClient
 }
@@ -25,7 +27,7 @@ func (s *DashboardService) SetOperationMetrics(metrics *observability.Registry) 
 }
 
 // NewDashboardService создает новый экземпляр DashboardService.
-func NewDashboardService(repo DashboardStore, auth DocumentAccessPrincipal, access *DocumentAccessService) *DashboardService {
+func NewDashboardService(repo ports.DashboardStore, auth ports.DocumentAccessPrincipal, access *serverservices.DocumentAccessService) *DashboardService {
 	return &DashboardService{repo: repo, auth: auth, access: access}
 }
 
@@ -69,18 +71,18 @@ func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
 		filter := models.DashboardAssignmentFilter{Days: 7}
 		if user.IsDocumentParticipant {
 			filter.Days = 3
-			subjectIDs, err := s.access.getCurrentUserAndSubstitutionSubjectIDs()
+			subjectIDs, err := s.access.GetCurrentUserAndSubstitutionSubjectIDs()
 			if err != nil {
 				return nil, err
 			}
-			filter.AccessibleByUserIDs = uuidStrings(subjectIDs)
+			filter.AccessibleByUserIDs = serverservices.UUIDStrings(subjectIDs)
 		} else if len(readableKinds) < len(models.AllDocumentKindSpecs()) {
 			filter.AllowedDocumentKinds = documentKindCodes(readableKinds)
-			subjectIDs, err := s.access.getCurrentUserAndSubstitutionSubjectIDs()
+			subjectIDs, err := s.access.GetCurrentUserAndSubstitutionSubjectIDs()
 			if err != nil {
 				return nil, err
 			}
-			filter.AccessibleByUserIDs = uuidStrings(subjectIDs)
+			filter.AccessibleByUserIDs = serverservices.UUIDStrings(subjectIDs)
 		}
 
 		assignments, err := s.repo.GetExpiringAssignments(filter)

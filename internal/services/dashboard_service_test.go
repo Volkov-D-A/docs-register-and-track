@@ -10,6 +10,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 func TestDashboardService_GetActivity(t *testing.T) {
@@ -22,7 +23,7 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		auth := newTestPrincipal(userRepo)
 		accessStore := newRoleMappedDocumentAccessStore(accessRoles...)
 		auth.SetAccessStore(accessStore)
-		access := NewDocumentAccessService(auth, nil, nil, nil, accessStore, nil)
+		access := serverservices.NewDocumentAccessService(auth, nil, nil, nil, accessStore, nil)
 
 		auth.currentUserID = user.ID
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
@@ -86,7 +87,7 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		accessStore := newRoleMappedDocumentAccessStore("executor")
 		auth.currentUserID = user.ID
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
-		access := NewDocumentAccessService(
+		access := serverservices.NewDocumentAccessService(
 			auth, nil, nil, nil, accessStore, nil,
 			&userSubstitutionStoreStub{activePrincipals: []uuid.UUID{principalID}},
 		)
@@ -150,7 +151,7 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		}}
 		auth.currentUserID = user.ID
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
-		access := NewDocumentAccessService(auth, nil, nil, nil, accessStore, nil)
+		access := serverservices.NewDocumentAccessService(auth, nil, nil, nil, accessStore, nil)
 		svc := NewDashboardService(repo, auth, access)
 
 		repo.On("GetExpiringAssignments", mock.MatchedBy(func(filter models.DashboardAssignmentFilter) bool {

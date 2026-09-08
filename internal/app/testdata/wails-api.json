@@ -63,7 +63,6 @@
     "CreateDepartment",
     "DeleteDepartment",
     "GetAllDepartments",
-    "SetServerClient",
     "UpdateDepartment"
   ],
   "DocumentAccessAdminService": [
@@ -103,7 +102,6 @@
     "Delete",
     "GetActiveForKind",
     "GetAll",
-    "SetServerClient",
     "Update"
   ],
   "OutboxAdminService": [
@@ -112,8 +110,6 @@
     "Requeue"
   ],
   "ReferenceService": [
-    "CreateDocumentType",
-    "DeleteDocumentType",
     "DeleteOrganization",
     "DeleteResolutionExecutor",
     "FindOrCreateOrganization",
@@ -124,8 +120,6 @@
     "MergeOrganizations",
     "SearchOrganizations",
     "SearchResolutionExecutors",
-    "SetServerClient",
-    "UpdateDocumentType",
     "UpdateOrganization",
     "UpdateResolutionExecutor"
   ],
@@ -161,8 +155,7 @@
     "SetOperationMetrics"
   ],
   "SystemService": [
-    "GetBootstrapStatus",
-    "Startup"
+    "GetBootstrapStatus"
   ],
   "ThemeService": [
     "GetTheme",

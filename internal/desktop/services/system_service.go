@@ -2,30 +2,29 @@ package services
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
-// SystemService предоставляет системные методы для фронтенда (проверка БД и др.).
+// SystemService предоставляет проверку совместимости и готовности сервера для фронтенда.
 type SystemService struct {
 	ctx           context.Context
+	ctxMu         sync.RWMutex
 	client        serverclient.SystemClient
 	clientVersion string
 }
 
-// NewSystemService создает новый экземпляр SystemService.
-func NewSystemService() *SystemService { return &SystemService{} }
-
-// NewSystemServiceWithClient creates the runtime service used by the desktop app.
-func NewSystemServiceWithClient(client serverclient.SystemClient, clientVersion string) *SystemService {
-	return &SystemService{client: client, clientVersion: clientVersion}
-}
-
-// Startup вызывается Wails при старте приложения
-func (s *SystemService) Startup(ctx context.Context) {
-	s.ctx = ctx
+// NewSystemService returns the desktop adapter and its Wails startup callback.
+func NewSystemService(client serverclient.SystemClient, clientVersion string) (*SystemService, func(context.Context)) {
+	s := &SystemService{client: client, clientVersion: clientVersion}
+	return s, func(ctx context.Context) {
+		s.ctxMu.Lock()
+		defer s.ctxMu.Unlock()
+		s.ctx = ctx
+	}
 }
 
 // GetBootstrapStatus checks compatibility and readiness before login is shown.
@@ -33,7 +32,9 @@ func (s *SystemService) GetBootstrapStatus() *dto.BootstrapStatus {
 	if s.client == nil || s.clientVersion == "" {
 		return bootstrapFailure(serverclient.SystemErrorProtocol)
 	}
+	s.ctxMu.RLock()
 	parent := s.ctx
+	s.ctxMu.RUnlock()
 	if parent == nil {
 		parent = context.Background()
 	}

@@ -13,13 +13,15 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *testPrincipal) {
 	return setupLinkServiceWithAccessStore(t, role, newRoleMappedDocumentAccessStore(role))
 }
 
-func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore DocumentAccessStore) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *testPrincipal) {
+func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore ports.DocumentAccessStore) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *testPrincipal) {
 	t.Helper()
 	linkRepo := mocks.NewLinkStore(t)
 	incRepo := mocks.NewIncomingDocStore(t)
@@ -71,7 +73,7 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore Docu
 		return result, nil
 	}).Maybe()
 
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, &kindBackedDocumentStore{incoming: incRepo, outgoing: outRepo})
+	accessSvc := serverservices.NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, &kindBackedDocumentStore{incoming: incRepo, outgoing: outRepo})
 
 	svc := NewLinkService(&atomicLinkStore{LinkStore: linkRepo}, incRepo, outRepo, nil, nil, accessSvc, auth)
 	return svc, linkRepo, incRepo, outRepo, auth
@@ -543,7 +545,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		appealID := uuid.New()
 		registrationDate := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
 
-		svc.access.documentRepo = &mapDocumentStore{
+		svc.access = serverservices.NewDocumentAccessService(svc.authService, nil, nil, nil, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
 			docs: map[uuid.UUID]*models.Document{
 				rootID: {
 					ID:                 rootID,
@@ -559,7 +561,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 					Content:            "Просьба заявителя",
 				},
 			},
-		}
+		})
 		svc.citizenAppealDocRepo = &mapCitizenAppealDocStore{
 			docs: map[uuid.UUID]*models.CitizenAppealDocument{
 				appealID: {
@@ -599,7 +601,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		cancelledOrderID := uuid.New()
 		registrationDate := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
 
-		svc.access.documentRepo = &mapDocumentStore{
+		svc.access = serverservices.NewDocumentAccessService(svc.authService, nil, nil, nil, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
 			docs: map[uuid.UUID]*models.Document{
 				rootID: {
 					ID:                 rootID,
@@ -614,7 +616,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 					RegistrationDate:   registrationDate,
 				},
 			},
-		}
+		})
 		svc.administrativeOrderRepo = &mapAdministrativeOrderDocStore{
 			docs: map[uuid.UUID]*models.AdministrativeOrderDocument{
 				rootID: {

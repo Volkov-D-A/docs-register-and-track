@@ -10,44 +10,30 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // AssignmentService предоставляет бизнес-логику для работы с поручениями.
 type AssignmentService struct {
-	repo           AssignmentStore
-	userRepo       UserStore
-	auth           DocumentAccessPrincipal
-	access         *DocumentAccessService
+	repo           ports.AssignmentStore
+	userRepo       ports.UserStore
+	auth           ports.DocumentAccessPrincipal
+	access         *serverservices.DocumentAccessService
 	events         *UserEventService
 	emitUserEvents bool
-	substitutions  UserSubstitutionStore
+	substitutions  ports.UserSubstitutionStore
 	server         serverclient.AssignmentClient
-}
-
-type assignmentOutboxStore interface {
-	CreateWithOutbox(id, documentID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error)
-	UpdateDetailsWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, expectedUpdatedAt time.Time, effects []models.OutboxEvent) (*models.Assignment, error)
-	UpdateWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, status, report string, completedAt *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error)
-	DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error
-}
-
-type assignmentSeriesStore interface {
-	CreateSeriesWithFirstAssignment(seriesID, assignmentID, documentID, executorID, createdBy uuid.UUID, content string, firstDeadline time.Time, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, coExecutorIDs []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error)
-	GetAssignmentSeries(id uuid.UUID) (*models.AssignmentSeries, error)
-	GetAssignmentSeriesByAssignment(id uuid.UUID) (*models.AssignmentSeries, error)
-	UpdateAssignmentSeries(id, executorID uuid.UUID, content, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, coExecutorIDs []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error)
-	CancelAssignmentSeries(id, actorID uuid.UUID, effects []models.OutboxEvent) error
-	FinishSeriesIterationWithNext(currentID, seriesID, nextID uuid.UUID, expectedSeriesUpdatedAt time.Time, report string, completedAt *time.Time, nextDeadline time.Time, nextIteration int, executorID uuid.UUID, content string, coExecutorIDs []string, currentEffects, nextEffects []models.OutboxEvent) (*models.Assignment, error)
-	GetAssignmentSeriesHistory(seriesID uuid.UUID) ([]models.Assignment, error)
 }
 
 // NewAssignmentService создает новый экземпляр AssignmentService.
 func NewAssignmentService(
-	repo AssignmentStore,
-	userRepo UserStore,
-	auth DocumentAccessPrincipal,
-	access *DocumentAccessService,
+	repo ports.AssignmentStore,
+	userRepo ports.UserStore,
+	auth ports.DocumentAccessPrincipal,
+	access *serverservices.DocumentAccessService,
 	events ...*UserEventService,
 ) *AssignmentService {
 	s := &AssignmentService{
@@ -66,10 +52,10 @@ func NewAssignmentService(
 // NewServerAssignmentService creates a request-scoped server service and
 // enables durable assignment notifications without desktop AuthService state.
 func NewServerAssignmentService(
-	repo AssignmentStore,
-	userRepo UserStore,
-	auth DocumentAccessPrincipal,
-	access *DocumentAccessService,
+	repo ports.AssignmentStore,
+	userRepo ports.UserStore,
+	auth ports.DocumentAccessPrincipal,
+	access *serverservices.DocumentAccessService,
 ) *AssignmentService {
 	service := NewAssignmentService(repo, userRepo, auth, access)
 	service.emitUserEvents = true
@@ -90,7 +76,7 @@ func (s *AssignmentService) assignmentEventsEnabled() bool {
 }
 
 // SetSubstitutionStore подключает источник активных замещений.
-func (s *AssignmentService) SetSubstitutionStore(store UserSubstitutionStore) {
+func (s *AssignmentService) SetSubstitutionStore(store ports.UserSubstitutionStore) {
 	s.substitutions = store
 }
 
@@ -117,7 +103,7 @@ func (s *AssignmentService) currentUserAndSubstitutionSubjectIDs() ([]uuid.UUID,
 			ids = append(ids, principalID)
 		}
 	}
-	return ids, uuidStrings(ids), nil
+	return ids, serverservices.UUIDStrings(ids), nil
 }
 
 func (s *AssignmentService) assignmentActorAccess(existing *models.Assignment, currentUserID uuid.UUID) (bool, bool, bool, error) {
@@ -250,7 +236,7 @@ func (s *AssignmentService) Create(
 		deadlineTime = &t
 	}
 
-	repo, ok := s.repo.(assignmentOutboxStore)
+	repo, ok := s.repo.(ports.AssignmentOutboxStore)
 	if !ok {
 		return nil, fmt.Errorf("assignment store must support atomic outbox operations")
 	}
@@ -260,7 +246,7 @@ func (s *AssignmentService) Create(
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
 		journalRequest := models.CreateJournalEntryRequest{DocumentID: docUUID, UserID: currentUserID, Action: "ASSIGNMENT_CREATE", Details: fmt.Sprintf("Создано поручение для %s", doc.Kind)}
 		effects := make([]models.OutboxEvent, 0, 1+len(coExecutorIDs))
-		journalEvent, buildErr := NewJournalOutboxEvent(assignmentOutboxKey(assignmentID, "created", "", nil, "journal"), journalRequest)
+		journalEvent, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(assignmentID, "created", "", nil, "journal"), journalRequest)
 		if buildErr != nil {
 			return nil, buildErr
 		}
@@ -268,7 +254,7 @@ func (s *AssignmentService) Create(
 		assignment := &models.Assignment{ID: assignmentID, DocumentID: docUUID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, ExecutorID: execUUID, CoExecutorIDs: coExecutorIDs, Status: "new"}
 		for _, recipientID := range assignmentExecutorRecipientIDs(assignment) {
 			request := models.CreateUserEventRequest{RecipientUserID: recipientID, ActorUserID: eventActorID(s.auth), DocumentID: docUUID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, EntityType: models.UserEventEntityAssignment, EntityID: assignmentID, EventType: models.UserEventAssignmentCreated, Title: "Новое поручение", Message: fmt.Sprintf("Вам назначено поручение по документу %s", documentNumberLabel(doc.RegistrationNumber)), Metadata: userEventMetadata(map[string]string{"status": "new"})}
-			event, buildErr := NewUserEventOutboxEvent(assignmentOutboxKey(assignmentID, "created", "", &recipientID, "user_event"), request)
+			event, buildErr := servereffects.NewUserEventOutboxEvent(assignmentOutboxKey(assignmentID, "created", "", &recipientID, "user_event"), request)
 			if buildErr != nil {
 				return nil, buildErr
 			}
@@ -374,7 +360,7 @@ func (s *AssignmentService) CreateSeries(request models.AssignmentSeriesRequest)
 	if dayRule != "same_day" && !dateMatchesSeriesRule(firstDeadline, dayRule, dayOfMonth) {
 		return nil, models.NewBadRequest("первый срок не соответствует выбранному правилу расписания")
 	}
-	repo, ok := s.repo.(assignmentSeriesStore)
+	repo, ok := s.repo.(ports.AssignmentSeriesStore)
 	if !ok {
 		return nil, fmt.Errorf("assignment store must support series operations")
 	}
@@ -384,7 +370,7 @@ func (s *AssignmentService) CreateSeries(request models.AssignmentSeriesRequest)
 		return nil, err
 	}
 	effects := make([]models.OutboxEvent, 0, 2+len(request.CoExecutorIDs))
-	journal, err := NewJournalOutboxEvent(assignmentOutboxKey(assignmentID, "series-created", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: documentID, UserID: actorID, Action: "ASSIGNMENT_SERIES_CREATE", Details: "Создана серия поручений и первая итерация"})
+	journal, err := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(assignmentID, "series-created", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: documentID, UserID: actorID, Action: "ASSIGNMENT_SERIES_CREATE", Details: "Создана серия поручений и первая итерация"})
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +378,7 @@ func (s *AssignmentService) CreateSeries(request models.AssignmentSeriesRequest)
 	assignment := &models.Assignment{ID: assignmentID, DocumentID: documentID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, ExecutorID: executorID, CoExecutorIDs: request.CoExecutorIDs, Status: "new", SeriesID: &seriesID, IterationNumber: 1}
 	for _, recipientID := range assignmentExecutorRecipientIDs(assignment) {
 		req := models.CreateUserEventRequest{RecipientUserID: recipientID, ActorUserID: eventActorID(s.auth), DocumentID: documentID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, EntityType: models.UserEventEntityAssignment, EntityID: assignmentID, EventType: models.UserEventAssignmentCreated, Title: "Новое поручение", Message: fmt.Sprintf("Вам назначено поручение по документу %s", documentNumberLabel(doc.RegistrationNumber)), Metadata: userEventMetadata(map[string]string{"status": "new"})}
-		event, buildErr := NewUserEventOutboxEvent(assignmentOutboxKey(assignmentID, "created", "", &recipientID, "user_event"), req)
+		event, buildErr := servereffects.NewUserEventOutboxEvent(assignmentOutboxKey(assignmentID, "created", "", &recipientID, "user_event"), req)
 		if buildErr != nil {
 			return nil, buildErr
 		}
@@ -402,12 +388,12 @@ func (s *AssignmentService) CreateSeries(request models.AssignmentSeriesRequest)
 	return dto.MapAssignmentSeries(result), err
 }
 
-func (s *AssignmentService) getManagedSeries(id string) (*models.AssignmentSeries, assignmentSeriesStore, error) {
+func (s *AssignmentService) getManagedSeries(id string) (*models.AssignmentSeries, ports.AssignmentSeriesStore, error) {
 	seriesID, err := uuid.Parse(id)
 	if err != nil {
 		return nil, nil, models.NewBadRequestWrapped("неверный ID серии", err)
 	}
-	repo, ok := s.repo.(assignmentSeriesStore)
+	repo, ok := s.repo.(ports.AssignmentSeriesStore)
 	if !ok {
 		return nil, nil, fmt.Errorf("assignment store must support series operations")
 	}
@@ -474,7 +460,7 @@ func (s *AssignmentService) UpdateSeries(id string, request models.AssignmentSer
 	if err != nil {
 		return nil, err
 	}
-	event, err := NewJournalOutboxEvent("assignment-series:"+series.ID.String()+":"+time.Now().UTC().Format(time.RFC3339Nano)+":updated:journal", models.CreateJournalEntryRequest{DocumentID: series.DocumentID, UserID: actorID, Action: "ASSIGNMENT_SERIES_UPDATE", Details: "Параметры будущих итераций поручения изменены"})
+	event, err := servereffects.NewJournalOutboxEvent("assignment-series:"+series.ID.String()+":"+time.Now().UTC().Format(time.RFC3339Nano)+":updated:journal", models.CreateJournalEntryRequest{DocumentID: series.DocumentID, UserID: actorID, Action: "ASSIGNMENT_SERIES_UPDATE", Details: "Параметры будущих итераций поручения изменены"})
 	if err != nil {
 		return nil, err
 	}
@@ -498,7 +484,7 @@ func (s *AssignmentService) CancelSeries(id string) error {
 	if err != nil {
 		return err
 	}
-	event, err := NewJournalOutboxEvent("assignment-series:"+series.ID.String()+":cancelled:journal", models.CreateJournalEntryRequest{DocumentID: series.DocumentID, UserID: actorID, Action: "ASSIGNMENT_SERIES_CANCEL", Details: "Серия поручений отменена; текущая итерация сохранена"})
+	event, err := servereffects.NewJournalOutboxEvent("assignment-series:"+series.ID.String()+":cancelled:journal", models.CreateJournalEntryRequest{DocumentID: series.DocumentID, UserID: actorID, Action: "ASSIGNMENT_SERIES_CANCEL", Details: "Серия поручений отменена; текущая итерация сохранена"})
 	if err != nil {
 		return err
 	}
@@ -556,7 +542,7 @@ func (s *AssignmentService) Update(
 		deadlineTime = &t
 	}
 
-	repo, ok := s.repo.(assignmentOutboxStore)
+	repo, ok := s.repo.(ports.AssignmentOutboxStore)
 	if !ok {
 		return nil, fmt.Errorf("assignment store must support atomic outbox operations")
 	}
@@ -564,7 +550,7 @@ func (s *AssignmentService) Update(
 	{
 		revision := time.Now().UTC().Format(time.RFC3339Nano)
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		journal, buildErr := NewJournalOutboxEvent(assignmentOutboxKey(uid, "updated", revision, nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_UPDATE", Details: "Поручение отредактировано"})
+		journal, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(uid, "updated", revision, nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_UPDATE", Details: "Поручение отредактировано"})
 		if buildErr != nil {
 			return nil, buildErr
 		}
@@ -572,7 +558,7 @@ func (s *AssignmentService) Update(
 		updated := &models.Assignment{ID: uid, DocumentID: existing.DocumentID, DocumentKind: existing.DocumentKind, DocumentNumber: existing.DocumentNumber, ExecutorID: execUUID, CoExecutorIDs: coExecutorIDs, Status: existing.Status, UpdatedAt: time.Now()}
 		for _, recipient := range assignmentExecutorRecipientIDs(updated) {
 			request := models.CreateUserEventRequest{RecipientUserID: recipient, ActorUserID: eventActorID(s.auth), DocumentID: updated.DocumentID, DocumentKind: updated.DocumentKind, DocumentNumber: updated.DocumentNumber, EntityType: models.UserEventEntityAssignment, EntityID: updated.ID, EventType: models.UserEventAssignmentUpdated, Title: "Поручение изменено", Message: fmt.Sprintf("Изменено поручение по документу %s", documentNumberLabel(updated.DocumentNumber)), Metadata: userEventMetadata(map[string]string{"status": updated.Status})}
-			event, buildErr := NewUserEventOutboxEvent(assignmentOutboxKey(uid, "updated", revision, &recipient, "user_event"), request)
+			event, buildErr := servereffects.NewUserEventOutboxEvent(assignmentOutboxKey(uid, "updated", revision, &recipient, "user_event"), request)
 			if buildErr != nil {
 				return nil, buildErr
 			}
@@ -620,7 +606,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 		return nil, err
 	}
 
-	repo, ok := s.repo.(assignmentOutboxStore)
+	repo, ok := s.repo.(ports.AssignmentOutboxStore)
 	if !ok {
 		return nil, fmt.Errorf("assignment store must support atomic outbox operations")
 	}
@@ -628,7 +614,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	{
 		revision := time.Now().UTC().Format(time.RFC3339Nano)
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		journal, buildErr := NewJournalOutboxEvent(assignmentOutboxKey(uid, "status:"+status, revision, nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_STATUS", Details: fmt.Sprintf("Статус поручения изменен на %s", status)})
+		journal, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(uid, "status:"+status, revision, nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_STATUS", Details: fmt.Sprintf("Статус поручения изменен на %s", status)})
 		if buildErr != nil {
 			return nil, buildErr
 		}
@@ -643,7 +629,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 		switch status {
 		case "completed":
 			if s.assignmentEventsEnabled() {
-				recipients, _ = collectUserIDsWithDocumentAction(s.userRepo, s.access, updated.DocumentKind, "assign", nil)
+				recipients, _ = s.access.CollectUserIDsWithDocumentAction(s.userRepo, updated.DocumentKind, "assign", nil)
 			}
 			eventType, title, message = models.UserEventAssignmentCompleted, "Поручение ожидает приемки", fmt.Sprintf("Исполнитель отправил поручение по документу %s на приемку", documentNumberLabel(updated.DocumentNumber))
 		case "finished":
@@ -656,7 +642,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 		if s.assignmentEventsEnabled() {
 			for _, recipient := range recipients {
 				request := models.CreateUserEventRequest{RecipientUserID: recipient, ActorUserID: eventActorID(s.auth), DocumentID: updated.DocumentID, DocumentKind: updated.DocumentKind, DocumentNumber: updated.DocumentNumber, EntityType: models.UserEventEntityAssignment, EntityID: updated.ID, EventType: eventType, Title: title, Message: message, Metadata: userEventMetadata(map[string]string{"status": status, "report": statusUpdate.report})}
-				event, buildErr := NewUserEventOutboxEvent(assignmentOutboxKey(uid, eventType, revision, &recipient, "user_event"), request)
+				event, buildErr := servereffects.NewUserEventOutboxEvent(assignmentOutboxKey(uid, eventType, revision, &recipient, "user_event"), request)
 				if buildErr != nil {
 					return nil, buildErr
 				}
@@ -664,7 +650,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 			}
 		}
 		if status == "finished" && existing.SeriesID != nil {
-			seriesRepo, seriesOK := s.repo.(assignmentSeriesStore)
+			seriesRepo, seriesOK := s.repo.(ports.AssignmentSeriesStore)
 			if !seriesOK {
 				return nil, fmt.Errorf("assignment store must support series operations")
 			}
@@ -686,7 +672,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 			nextID := uuid.New()
 			nextIteration := existing.IterationNumber + 1
 			nextEffects := make([]models.OutboxEvent, 0, 1+len(series.CoExecutorIDs))
-			nextJournal, buildErr := NewJournalOutboxEvent(assignmentOutboxKey(nextID, "series-iteration-created", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_SERIES_ITERATION_CREATE", Details: fmt.Sprintf("Автоматически создана итерация поручения №%d со сроком %s", nextIteration, nextDeadline.Format("02.01.2006"))})
+			nextJournal, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(nextID, "series-iteration-created", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_SERIES_ITERATION_CREATE", Details: fmt.Sprintf("Автоматически создана итерация поручения №%d со сроком %s", nextIteration, nextDeadline.Format("02.01.2006"))})
 			if buildErr != nil {
 				return nil, buildErr
 			}
@@ -694,7 +680,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 			nextAssignment := &models.Assignment{ID: nextID, DocumentID: existing.DocumentID, DocumentKind: existing.DocumentKind, DocumentNumber: existing.DocumentNumber, ExecutorID: series.ExecutorID, CoExecutorIDs: series.CoExecutorIDs, Status: "new", SeriesID: &series.ID, IterationNumber: nextIteration}
 			for _, recipientID := range assignmentExecutorRecipientIDs(nextAssignment) {
 				request := models.CreateUserEventRequest{RecipientUserID: recipientID, ActorUserID: eventActorID(s.auth), DocumentID: existing.DocumentID, DocumentKind: existing.DocumentKind, DocumentNumber: existing.DocumentNumber, EntityType: models.UserEventEntityAssignment, EntityID: nextID, EventType: models.UserEventAssignmentCreated, Title: "Новое поручение", Message: fmt.Sprintf("Вам назначено поручение по документу %s", documentNumberLabel(existing.DocumentNumber)), Metadata: userEventMetadata(map[string]string{"status": "new"})}
-				event, eventErr := NewUserEventOutboxEvent(assignmentOutboxKey(nextID, "created", "", &recipientID, "user_event"), request)
+				event, eventErr := servereffects.NewUserEventOutboxEvent(assignmentOutboxKey(nextID, "created", "", &recipientID, "user_event"), request)
 				if eventErr != nil {
 					return nil, eventErr
 				}
@@ -865,11 +851,11 @@ func assignmentExecutorRecipientIDs(assignment *models.Assignment) []uuid.UUID {
 	if assignment == nil {
 		return nil
 	}
-	recipients := appendUniqueUserID(nil, assignment.ExecutorID)
+	recipients := serverservices.AppendUniqueUserID(nil, assignment.ExecutorID)
 	for _, coExecutorID := range assignment.CoExecutorIDs {
 		uid, err := uuid.Parse(coExecutorID)
 		if err == nil {
-			recipients = appendUniqueUserID(recipients, uid)
+			recipients = serverservices.AppendUniqueUserID(recipients, uid)
 		}
 	}
 	return recipients
@@ -928,12 +914,12 @@ func (s *AssignmentService) Delete(id string) error {
 		return models.NewConflict("нельзя удалить завершённое поручение")
 	}
 
-	repo, ok := s.repo.(assignmentOutboxStore)
+	repo, ok := s.repo.(ports.AssignmentOutboxStore)
 	if !ok {
 		return fmt.Errorf("assignment store must support atomic outbox operations")
 	}
 	currentUserID, _ := s.auth.GetCurrentUserUUID()
-	event, buildErr := NewJournalOutboxEvent(assignmentOutboxKey(uid, "deleted", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_DELETE", Details: "Поручение удалено"})
+	event, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(uid, "deleted", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_DELETE", Details: "Поручение удалено"})
 	if buildErr != nil {
 		return buildErr
 	}

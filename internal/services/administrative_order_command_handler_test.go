@@ -13,9 +13,11 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 type administrativeOrderHandlerDeps struct {
+	docRepo     *documentAccessDocumentStore
 	handler     *AdministrativeOrderCommandHandler
 	repo        *administrativeOrderCommandStore
 	journalRepo *mocks.JournalStore
@@ -106,19 +108,21 @@ func setupAdministrativeOrderCommandHandler(t *testing.T, allowed map[models.Doc
 	repo := &administrativeOrderCommandStore{}
 	nomRepo := mocks.NewNomenclatureStore(t)
 	journalRepo := mocks.NewJournalStore(t)
-	access := NewDocumentAccessService(
+	docRepo := &documentAccessDocumentStore{}
+	access := serverservices.NewDocumentAccessService(
 		auth,
 		&documentAccessDepartmentStore{},
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&kindActionDocumentAccessStore{allowed: allowed},
-		nil,
+		docRepo,
 	)
 	journal := NewJournalService(journalRepo, auth, access)
 	handler := NewAdministrativeOrderCommandHandler(repo, nomRepo, auth, journal, access)
 
 	return &administrativeOrderHandlerDeps{
 		handler:     handler,
+		docRepo:     docRepo,
 		repo:        repo,
 		journalRepo: journalRepo,
 		auth:        auth,
@@ -331,7 +335,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
 			},
@@ -393,7 +397,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
 			},
@@ -412,7 +416,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
 			},
@@ -438,7 +442,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
 			},
@@ -463,7 +467,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
 			},
@@ -489,7 +493,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
 			},
@@ -515,7 +519,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
 			},

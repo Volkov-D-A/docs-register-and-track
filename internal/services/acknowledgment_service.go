@@ -9,44 +9,31 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // AcknowledgmentService предоставляет бизнес-логику для работы с задачами на ознакомление.
 type AcknowledgmentService struct {
-	repo          AcknowledgmentStore
-	userRepo      UserStore
-	auth          DocumentAccessPrincipal
-	access        *DocumentAccessService
+	repo          ports.AcknowledgmentStore
+	userRepo      ports.UserStore
+	auth          ports.DocumentAccessPrincipal
+	access        *serverservices.DocumentAccessService
 	events        *UserEventService
-	substitutions UserSubstitutionStore
+	substitutions ports.UserSubstitutionStore
 	server        serverclient.AcknowledgmentClient
-}
-
-type acknowledgmentConfirmationOutboxStore interface {
-	MarkConfirmedWithEffects(uuid.UUID, uuid.UUID, models.AcknowledgmentConfirmationEffects) error
-}
-type acknowledgmentViewedOutboxStore interface {
-	MarkViewedWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) error
-}
-type acknowledgmentDeleteOutboxStore interface {
-	DeleteWithOutbox(uuid.UUID, []models.OutboxEvent) error
-}
-type acknowledgmentCreateOutboxStore interface {
-	CreateWithOutbox(*models.Acknowledgment, []models.OutboxEvent) error
-}
-type acknowledgmentPendingBulkStore interface {
-	GetPendingForUsers([]uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error)
 }
 
 var errAcknowledgmentOutboxStoreRequired = errors.New("acknowledgment store must support atomic outbox operations")
 
 // NewAcknowledgmentService создает новый экземпляр AcknowledgmentService.
 func NewAcknowledgmentService(
-	repo AcknowledgmentStore,
-	userRepo UserStore,
-	auth DocumentAccessPrincipal,
-	access *DocumentAccessService,
+	repo ports.AcknowledgmentStore,
+	userRepo ports.UserStore,
+	auth ports.DocumentAccessPrincipal,
+	access *serverservices.DocumentAccessService,
 	events ...*UserEventService,
 ) *AcknowledgmentService {
 	s := &AcknowledgmentService{
@@ -71,7 +58,7 @@ func acknowledgmentClientContext() (context.Context, context.CancelFunc) {
 }
 
 // SetSubstitutionStore подключает источник активных замещений.
-func (s *AcknowledgmentService) SetSubstitutionStore(store UserSubstitutionStore) {
+func (s *AcknowledgmentService) SetSubstitutionStore(store ports.UserSubstitutionStore) {
 	s.substitutions = store
 }
 
@@ -112,7 +99,7 @@ func acknowledgmentListContainsUser(acknowledgments []models.Acknowledgment, ack
 }
 
 func (s *AcknowledgmentService) pendingForSubjects(subjectIDs []uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
-	if bulkStore, ok := s.repo.(acknowledgmentPendingBulkStore); ok {
+	if bulkStore, ok := s.repo.(ports.AcknowledgmentPendingBulkStore); ok {
 		return bulkStore.GetPendingForUsers(subjectIDs)
 	}
 
@@ -205,19 +192,19 @@ func (s *AcknowledgmentService) Create(
 		return nil, models.NewBadRequest("не выбраны пользователи для ознакомления")
 	}
 
-	store, ok := s.repo.(acknowledgmentCreateOutboxStore)
+	store, ok := s.repo.(ports.AcknowledgmentCreateOutboxStore)
 	if !ok {
 		return nil, errAcknowledgmentOutboxStoreRequired
 	}
 	effects := make([]models.OutboxEvent, 0, len(ack.Users)+1)
-	journal, buildErr := NewJournalOutboxEvent("ack:"+ack.ID.String()+":created:journal", models.CreateJournalEntryRequest{DocumentID: docUUID, UserID: creatorUUID, Action: "ACK_CREATE", Details: "Отправлен на ознакомление"})
+	journal, buildErr := servereffects.NewJournalOutboxEvent("ack:"+ack.ID.String()+":created:journal", models.CreateJournalEntryRequest{DocumentID: docUUID, UserID: creatorUUID, Action: "ACK_CREATE", Details: "Отправлен на ознакомление"})
 	if buildErr != nil {
 		return nil, buildErr
 	}
 	effects = append(effects, journal)
 	for _, user := range ack.Users {
 		request := models.CreateUserEventRequest{RecipientUserID: user.UserID, ActorUserID: &creatorUUID, DocumentID: docUUID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, EntityType: models.UserEventEntityAcknowledgment, EntityID: ack.ID, EventType: models.UserEventAcknowledgmentCreated, Title: "Новое ознакомление", Message: "Вам направлен документ на ознакомление", Metadata: userEventMetadata(map[string]string{"status": "pending"})}
-		event, buildErr := NewUserEventOutboxEvent("ack:"+ack.ID.String()+":created:"+user.UserID.String(), request)
+		event, buildErr := servereffects.NewUserEventOutboxEvent("ack:"+ack.ID.String()+":created:"+user.UserID.String(), request)
 		if buildErr != nil {
 			return nil, buildErr
 		}
@@ -393,11 +380,11 @@ func (s *AcknowledgmentService) MarkViewed(ackID string) error {
 	if ack == nil {
 		return models.ErrForbidden
 	}
-	store, ok := s.repo.(acknowledgmentViewedOutboxStore)
+	store, ok := s.repo.(ports.AcknowledgmentViewedOutboxStore)
 	if !ok {
 		return errAcknowledgmentOutboxStoreRequired
 	}
-	event, buildErr := NewJournalOutboxEvent("ack:"+ackUUID.String()+":viewed:"+userUUID.String()+":journal", models.CreateJournalEntryRequest{DocumentID: ack.DocumentID, UserID: userUUID, Action: "ACK_VIEW", Details: "Документ просмотрен в рамках ознакомления"})
+	event, buildErr := servereffects.NewJournalOutboxEvent("ack:"+ackUUID.String()+":viewed:"+userUUID.String()+":journal", models.CreateJournalEntryRequest{DocumentID: ack.DocumentID, UserID: userUUID, Action: "ACK_VIEW", Details: "Документ просмотрен в рамках ознакомления"})
 	if buildErr != nil {
 		return buildErr
 	}
@@ -423,7 +410,7 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 		return err
 	}
 
-	store, ok := s.repo.(acknowledgmentConfirmationOutboxStore)
+	store, ok := s.repo.(ports.AcknowledgmentConfirmationOutboxStore)
 	if !ok {
 		return errAcknowledgmentOutboxStoreRequired
 	}
@@ -453,11 +440,11 @@ func (s *AcknowledgmentService) acknowledgmentConfirmedEventRequests(ack *models
 
 	excluded := eventActorExcluded(s.auth)
 	requests := make([]models.CreateUserEventRequest, 0)
-	recipients := appendUniqueUserID(nil, ack.CreatorID)
-	controlRecipients, err := collectUserIDsWithDocumentAction(s.userRepo, s.access, ack.DocumentKind, "acknowledge", excluded)
+	recipients := serverservices.AppendUniqueUserID(nil, ack.CreatorID)
+	controlRecipients, err := s.access.CollectUserIDsWithDocumentAction(s.userRepo, ack.DocumentKind, "acknowledge", excluded)
 	if err == nil {
 		for _, recipientID := range controlRecipients {
-			recipients = appendUniqueUserID(recipients, recipientID)
+			recipients = serverservices.AppendUniqueUserID(recipients, recipientID)
 		}
 	}
 
@@ -507,12 +494,12 @@ func (s *AcknowledgmentService) Delete(id string) error {
 		return err
 	}
 
-	store, ok := s.repo.(acknowledgmentDeleteOutboxStore)
+	store, ok := s.repo.(ports.AcknowledgmentDeleteOutboxStore)
 	if !ok {
 		return errAcknowledgmentOutboxStoreRequired
 	}
 	currentUserID, _ := s.auth.GetCurrentUserUUID()
-	event, buildErr := NewJournalOutboxEvent("ack:"+ackUUID.String()+":deleted:journal", models.CreateJournalEntryRequest{DocumentID: ack.DocumentID, UserID: currentUserID, Action: "ACK_DELETE", Details: "Ознакомление удалено"})
+	event, buildErr := servereffects.NewJournalOutboxEvent("ack:"+ackUUID.String()+":deleted:journal", models.CreateJournalEntryRequest{DocumentID: ack.DocumentID, UserID: currentUserID, Action: "ACK_DELETE", Details: "Ознакомление удалено"})
 	if buildErr != nil {
 		return buildErr
 	}

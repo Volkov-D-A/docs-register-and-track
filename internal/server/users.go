@@ -12,7 +12,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
 )
 
 const activeAdministratorInvariantMessage = "at least one active administrator must remain"
@@ -186,7 +186,7 @@ func userAuditEffect(actor *models.User, key, action, details string) (models.Ou
 	if actor == nil {
 		return models.OutboxEvent{}, models.ErrUnauthorized
 	}
-	return services.NewAdminAuditOutboxEvent(key, models.CreateAdminAuditLogRequest{
+	return servereffects.NewAdminAuditOutboxEvent(key, models.CreateAdminAuditLogRequest{
 		UserID: actor.ID, UserName: actor.FullName, Action: action, Details: details,
 	})
 }

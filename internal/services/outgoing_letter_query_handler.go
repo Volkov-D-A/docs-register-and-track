@@ -5,15 +5,16 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 // OutgoingLetterQueryHandler обслуживает read-only операции по исходящим письмам.
 type OutgoingLetterQueryHandler struct {
-	repo OutgoingDocStore
+	repo ports.OutgoingDocStore
 }
 
 // NewOutgoingLetterQueryHandler создает обработчик исходящих писем.
-func NewOutgoingLetterQueryHandler(repo OutgoingDocStore) *OutgoingLetterQueryHandler {
+func NewOutgoingLetterQueryHandler(repo ports.OutgoingDocStore) *OutgoingLetterQueryHandler {
 	return &OutgoingLetterQueryHandler{repo: repo}
 }
 

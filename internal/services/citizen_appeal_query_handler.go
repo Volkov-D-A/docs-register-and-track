@@ -5,15 +5,16 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 // CitizenAppealQueryHandler обслуживает read-only операции по обращениям граждан.
 type CitizenAppealQueryHandler struct {
-	repo CitizenAppealDocStore
+	repo ports.CitizenAppealDocStore
 }
 
 // NewCitizenAppealQueryHandler создает обработчик обращений граждан.
-func NewCitizenAppealQueryHandler(repo CitizenAppealDocStore) *CitizenAppealQueryHandler {
+func NewCitizenAppealQueryHandler(repo ports.CitizenAppealDocStore) *CitizenAppealQueryHandler {
 	return &CitizenAppealQueryHandler{repo: repo}
 }
 

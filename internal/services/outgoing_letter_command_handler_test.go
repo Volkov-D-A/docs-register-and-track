@@ -13,9 +13,11 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 type outgoingLetterHandlerDeps struct {
+	docRepo     *documentAccessDocumentStore
 	handler     *OutgoingLetterCommandHandler
 	repo        *mocks.OutgoingDocStore
 	refRepo     *mocks.ReferenceStore
@@ -37,19 +39,21 @@ func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	refRepo := mocks.NewReferenceStore(t)
 	nomRepo := mocks.NewNomenclatureStore(t)
 	journalRepo := mocks.NewJournalStore(t)
-	access := NewDocumentAccessService(
+	docRepo := &documentAccessDocumentStore{}
+	access := serverservices.NewDocumentAccessService(
 		auth,
 		&documentAccessDepartmentStore{},
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&kindActionDocumentAccessStore{allowed: allowed},
-		nil,
+		docRepo,
 	)
 	journal := NewJournalService(journalRepo, auth, access)
 	handler := NewOutgoingLetterCommandHandler(repo, refRepo, nomRepo, auth, journal, access)
 
 	return &outgoingLetterHandlerDeps{
 		handler:     handler,
+		docRepo:     docRepo,
 		repo:        repo,
 		refRepo:     refRepo,
 		journalRepo: journalRepo,
@@ -237,7 +241,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
 			},
@@ -306,7 +310,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindOutgoingLetter, "read"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
 			},
@@ -329,7 +333,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
 			},
@@ -352,7 +356,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
 			},
@@ -377,7 +381,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
 			},
@@ -404,7 +408,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
 			},

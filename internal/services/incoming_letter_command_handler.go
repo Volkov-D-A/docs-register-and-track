@@ -9,22 +9,19 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 // IncomingLetterCommandHandler инкапсулирует write-операции по входящим письмам.
 type IncomingLetterCommandHandler struct {
-	repo    IncomingDocStore
-	nomRepo NomenclatureStore
-	refRepo ReferenceStore
-	auth    DocumentCommandPrincipal
+	repo    ports.IncomingDocStore
+	nomRepo ports.NomenclatureStore
+	refRepo ports.ReferenceStore
+	auth    ports.DocumentCommandPrincipal
 	journal *JournalService
-	access  *DocumentAccessService
-}
-type incomingDocumentOutboxStore interface {
-	UpdateWithOutbox(models.UpdateIncomingDocRequest, []models.OutboxEvent) (*models.IncomingDocument, error)
-}
-type incomingDocumentJournalStore interface {
-	CreateWithJournal(models.CreateIncomingDocRequest, string, string) (*models.IncomingDocument, error)
+	access  *serverservices.DocumentAccessService
 }
 
 // Kind возвращает системный вид документа, поддерживаемый handler'ом.
@@ -34,12 +31,12 @@ func (h *IncomingLetterCommandHandler) Kind() models.DocumentKind {
 
 // NewIncomingLetterCommandHandler создает handler команд входящих писем.
 func NewIncomingLetterCommandHandler(
-	repo IncomingDocStore,
-	nomRepo NomenclatureStore,
-	refRepo ReferenceStore,
-	auth DocumentCommandPrincipal,
+	repo ports.IncomingDocStore,
+	nomRepo ports.NomenclatureStore,
+	refRepo ports.ReferenceStore,
+	auth ports.DocumentCommandPrincipal,
 	journal *JournalService,
-	access *DocumentAccessService,
+	access *serverservices.DocumentAccessService,
 ) *IncomingLetterCommandHandler {
 	return &IncomingLetterCommandHandler{
 		repo:    repo,
@@ -144,7 +141,7 @@ func (h *IncomingLetterCommandHandler) Register(req dto.IncomingLetterRegisterRe
 		ResolutionExecutors:  resExecutorsPtr,
 		CommandHash:          commandHash,
 	}
-	store, ok := h.repo.(incomingDocumentJournalStore)
+	store, ok := h.repo.(ports.IncomingDocumentJournalStore)
 	if !ok {
 		return nil, fmt.Errorf("incoming document store must support atomic journal operations")
 	}
@@ -221,7 +218,7 @@ func (h *IncomingLetterCommandHandler) CreateAdminDraft(req dto.AdminDraftCreate
 		SenderSignatory:      adminDraftPlaceholder,
 		CommandHash:          commandHash,
 	}
-	store, ok := h.repo.(incomingDocumentJournalStore)
+	store, ok := h.repo.(ports.IncomingDocumentJournalStore)
 	if !ok {
 		return nil, fmt.Errorf("incoming document store must support atomic journal operations")
 	}
@@ -305,12 +302,12 @@ func (h *IncomingLetterCommandHandler) Update(req dto.IncomingLetterUpdateReques
 		ResolutionAuthor:     resAuthorPtr,
 		ResolutionExecutors:  resExecutorsPtr,
 	}
-	store, ok := h.repo.(incomingDocumentOutboxStore)
+	store, ok := h.repo.(ports.IncomingDocumentOutboxStore)
 	if !ok {
 		return nil, fmt.Errorf("incoming document store must support atomic outbox operations")
 	}
 	currentUserID := actorID
-	event, buildErr := NewJournalOutboxEvent("incoming:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Документ отредактирован"})
+	event, buildErr := servereffects.NewJournalOutboxEvent("incoming:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Документ отредактирован"})
 	if buildErr != nil {
 		return nil, buildErr
 	}

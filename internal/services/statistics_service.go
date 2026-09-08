@@ -13,6 +13,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
@@ -28,26 +29,21 @@ const (
 
 // StatisticsService предоставляет бизнес-логику раздела статистики.
 type StatisticsService struct {
-	repo        StatisticsStore
-	auth        StatisticsPrincipal
-	storage     StorageInfoProvider
+	repo        ports.StatisticsStore
+	auth        ports.StatisticsPrincipal
+	storage     ports.StorageInfoProvider
 	lifecycle   *operations.Lifecycle
 	metrics     *observability.Registry
 	server      serverclient.StatisticsClient
-	diagnostics SystemDiagnosticsProvider
-}
-
-type StatisticsPrincipal interface {
-	RequireAuthenticated() error
-	HasSystemPermission(string) bool
+	diagnostics ports.SystemDiagnosticsProvider
 }
 
 // NewStatisticsService создает новый экземпляр StatisticsService.
-func NewStatisticsService(repo StatisticsStore, auth StatisticsPrincipal, storage StorageInfoProvider) *StatisticsService {
+func NewStatisticsService(repo ports.StatisticsStore, auth ports.StatisticsPrincipal, storage ports.StorageInfoProvider) *StatisticsService {
 	return &StatisticsService{repo: repo, auth: auth, storage: storage}
 }
 
-func NewStatisticsServiceWithDiagnostics(repo StatisticsStore, auth StatisticsPrincipal, storage StorageInfoProvider, diagnostics SystemDiagnosticsProvider) *StatisticsService {
+func NewStatisticsServiceWithDiagnostics(repo ports.StatisticsStore, auth ports.StatisticsPrincipal, storage ports.StorageInfoProvider, diagnostics ports.SystemDiagnosticsProvider) *StatisticsService {
 	return &StatisticsService{repo: repo, auth: auth, storage: storage, diagnostics: diagnostics}
 }
 

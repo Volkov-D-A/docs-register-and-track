@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/google/uuid"
 )
 
@@ -55,7 +56,7 @@ func formatDocumentNumber(index, separator, numberingMode string, number int) st
 //   - filterNomID: одиночный NomenclatureID из фильтра (используется, если filterNomIDs пуст)
 func filterNomenclaturesByDepartment(
 	departmentID *uuid.UUID,
-	depRepo DepartmentStore,
+	depRepo ports.DepartmentStore,
 	filterNomIDs []string,
 	filterNomID string,
 ) (filteredIDs []string, isEmpty bool, err error) {
@@ -110,8 +111,8 @@ func filterNomenclaturesByDepartment(
 // Извлекает departmentID из текущего пользователя и вызывает filterNomenclaturesByDepartment.
 // Возвращает обновлённый список nomenclatureIDs и флаг isEmpty.
 func applyExecutorNomenclatureFilter(
-	auth DocumentAccessPrincipal,
-	depRepo DepartmentStore,
+	auth ports.DocumentAccessPrincipal,
+	depRepo ports.DepartmentStore,
 	nomenclatureIDs []string,
 	nomenclatureID string,
 ) (filteredIDs []string, isEmpty bool, err error) {
@@ -131,7 +132,7 @@ func applyExecutorNomenclatureFilter(
 }
 
 // getExecutorAllowedNomenclatureIDs возвращает список номенклатур подразделения текущего исполнителя.
-func getExecutorAllowedNomenclatureIDs(auth DocumentAccessPrincipal, depRepo DepartmentStore) ([]string, error) {
+func getExecutorAllowedNomenclatureIDs(auth ports.DocumentAccessPrincipal, depRepo ports.DepartmentStore) ([]string, error) {
 	user, err := auth.GetCurrentUser()
 	if err != nil {
 		return nil, err

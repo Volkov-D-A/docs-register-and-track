@@ -3,40 +3,31 @@ package services
 import (
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
-
-// DocumentAccessPrincipal provides the request-local identity used by document
-// access checks. The server supplies an immutable principal for each HTTP
-// request; service tests provide a separate fake principal.
-type DocumentAccessPrincipal interface {
-	RequireAuthenticated() error
-	GetCurrentUser() (*dto.User, error)
-	GetCurrentUserUUID() (uuid.UUID, error)
-}
 
 // DocumentAccessService инкапсулирует политику доступа к документному домену.
 // Нужен как единая точка переиспользования для сервисов документов, файлов, журнала и связанных сущностей.
 type DocumentAccessService struct {
-	auth               DocumentAccessPrincipal
-	depRepo            DepartmentStore
-	assignmentRepo     AssignmentStore
-	acknowledgmentRepo AcknowledgmentStore
-	substitutionRepo   UserSubstitutionStore
-	accessRepo         DocumentAccessStore
-	documentRepo       DocumentStore
+	auth               ports.DocumentAccessPrincipal
+	depRepo            ports.DepartmentStore
+	assignmentRepo     ports.AssignmentStore
+	acknowledgmentRepo ports.AcknowledgmentStore
+	substitutionRepo   ports.UserSubstitutionStore
+	accessRepo         ports.DocumentAccessStore
+	documentRepo       ports.DocumentStore
 }
 
 // NewDocumentAccessService создает сервис проверки доступа к документам.
 func NewDocumentAccessService(
-	auth DocumentAccessPrincipal,
-	depRepo DepartmentStore,
-	assignmentRepo AssignmentStore,
-	acknowledgmentRepo AcknowledgmentStore,
-	accessRepo DocumentAccessStore,
-	documentRepo DocumentStore,
-	substitutionRepos ...UserSubstitutionStore,
+	auth ports.DocumentAccessPrincipal,
+	depRepo ports.DepartmentStore,
+	assignmentRepo ports.AssignmentStore,
+	acknowledgmentRepo ports.AcknowledgmentStore,
+	accessRepo ports.DocumentAccessStore,
+	documentRepo ports.DocumentStore,
+	substitutionRepos ...ports.UserSubstitutionStore,
 ) *DocumentAccessService {
 	svc := &DocumentAccessService{
 		auth:               auth,
@@ -69,7 +60,7 @@ func (s *DocumentAccessService) RequireDomainRead() error {
 		return nil
 	}
 
-	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
+	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return err
 	}
@@ -185,7 +176,8 @@ func (s *DocumentAccessService) hasPermission(kind models.DocumentKind, action s
 	return s.accessRepo.HasPermission(string(kind), action, departmentID, userID)
 }
 
-func (s *DocumentAccessService) getCurrentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error) {
+// GetCurrentUserAndSubstitutionSubjectIDs returns the current user and active substitution principals.
+func (s *DocumentAccessService) GetCurrentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error) {
 	currentUserID, err := s.auth.GetCurrentUserUUID()
 	if err != nil {
 		return nil, err
@@ -212,16 +204,6 @@ func (s *DocumentAccessService) getCurrentUserAndSubstitutionSubjectIDs() ([]uui
 		ids = append(ids, principalID)
 	}
 	return ids, nil
-}
-
-func uuidStrings(ids []uuid.UUID) []string {
-	result := make([]string, 0, len(ids))
-	for _, id := range ids {
-		if id != uuid.Nil {
-			result = append(result, id.String())
-		}
-	}
-	return result
 }
 
 func (s *DocumentAccessService) GetAvailableActions(kind models.DocumentKind) ([]string, error) {
@@ -318,7 +300,7 @@ func (s *DocumentAccessService) hasImplicitReadAccess(doc *models.Document) (boo
 		return false, err
 	}
 
-	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
+	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return false, err
 	}
@@ -403,11 +385,11 @@ func (s *DocumentAccessService) ResolveReadScope(kind models.DocumentKind) (*mod
 		return &models.DocumentAccessScope{}, nil
 	}
 
-	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
+	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return nil, err
 	}
-	subjectIDStrings := uuidStrings(subjectIDs)
+	subjectIDStrings := UUIDStrings(subjectIDs)
 	accessibleByUserID := ""
 	if len(subjectIDStrings) > 0 {
 		accessibleByUserID = subjectIDStrings[0]
@@ -482,7 +464,7 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 	if user.Department != nil {
 		departmentID = user.Department.ID
 	}
-	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
+	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return nil, err
 	}
@@ -605,7 +587,7 @@ func (s *DocumentAccessService) RequireResolvedRead(documentKind string, documen
 		return err
 	}
 
-	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
+	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return err
 	}
@@ -674,7 +656,7 @@ func (s *DocumentAccessService) HasAssignmentAccess(documentID uuid.UUID) (bool,
 		return false, nil
 	}
 
-	subjectIDs, err := s.getCurrentUserAndSubstitutionSubjectIDs()
+	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
 	if err != nil {
 		return false, err
 	}
@@ -749,4 +731,48 @@ func (s *DocumentAccessService) RequireReadAnyType(documentID uuid.UUID) error {
 		return err
 	}
 	return s.RequireReadResolved(doc)
+}
+
+// CollectUserIDsWithDocumentAction selects active notification recipients by explicit permission.
+func (access *DocumentAccessService) CollectUserIDsWithDocumentAction(
+	userRepo ports.UserStore,
+	kind string,
+	action string,
+	excluded map[uuid.UUID]struct{},
+) ([]uuid.UUID, error) {
+	if userRepo == nil || access == nil || access.accessRepo == nil {
+		return nil, nil
+	}
+
+	users, err := userRepo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	recipients := make([]uuid.UUID, 0)
+	for _, user := range users {
+		if !user.IsActive {
+			continue
+		}
+		if _, skip := excluded[user.ID]; skip {
+			continue
+		}
+
+		departmentID := ""
+		if user.DepartmentID != nil {
+			departmentID = user.DepartmentID.String()
+		} else if user.Department != nil {
+			departmentID = user.Department.ID.String()
+		}
+
+		allowed, err := access.accessRepo.HasPermission(kind, action, departmentID, user.ID.String())
+		if err != nil {
+			return nil, err
+		}
+		if allowed {
+			recipients = AppendUniqueUserID(recipients, user.ID)
+		}
+	}
+
+	return recipients, nil
 }

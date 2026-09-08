@@ -97,8 +97,7 @@ func TestDepartmentServiceDelegatesCRUDToServer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &testDepartmentClient{items: []dto.Department{*result}, result: result}
-			service := NewDepartmentService()
-			service.SetServerClient(client)
+			service := NewDepartmentService(client)
 
 			require.NoError(t, tt.call(service))
 			assert.Equal(t, tt.method, client.method)
@@ -110,8 +109,7 @@ func TestDepartmentServiceDelegatesCRUDToServer(t *testing.T) {
 func TestDepartmentServicePropagatesServerError(t *testing.T) {
 	want := errors.New("server failed")
 	client := &testDepartmentClient{err: want}
-	service := NewDepartmentService()
-	service.SetServerClient(client)
+	service := NewDepartmentService(client)
 
 	result, err := service.CreateDepartment("Legal", nil)
 
@@ -120,7 +118,7 @@ func TestDepartmentServicePropagatesServerError(t *testing.T) {
 }
 
 func TestDepartmentServiceRequiresServerClient(t *testing.T) {
-	service := NewDepartmentService()
+	service := NewDepartmentService(nil)
 
 	items, err := service.GetAllDepartments()
 	assert.Nil(t, items)

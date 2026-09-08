@@ -5,7 +5,3 @@
 export function GetBootstrapStatus() {
   return window['go']['services']['SystemService']['GetBootstrapStatus']();
 }
-
-export function Startup(arg1) {
-  return window['go']['services']['SystemService']['Startup'](arg1);
-}

@@ -9,25 +9,25 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // AdministrativeOrderService предоставляет дополнительные операции по приказам.
 type AdministrativeOrderService struct {
-	repo   AdministrativeOrderDocStore
-	auth   DocumentAccessPrincipal
-	access *DocumentAccessService
+	repo   ports.AdministrativeOrderDocStore
+	auth   ports.DocumentAccessPrincipal
+	access *serverservices.DocumentAccessService
 	server serverclient.AdministrativeOrderAcknowledgmentClient
-}
-type administrativeOrderAcknowledgmentOutboxStore interface {
-	MarkAcknowledgmentPersonWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error)
 }
 
 // NewAdministrativeOrderService создает сервис приказов.
 func NewAdministrativeOrderService(
-	repo AdministrativeOrderDocStore,
-	auth DocumentAccessPrincipal,
-	access *DocumentAccessService,
+	repo ports.AdministrativeOrderDocStore,
+	auth ports.DocumentAccessPrincipal,
+	access *serverservices.DocumentAccessService,
 ) *AdministrativeOrderService {
 	return &AdministrativeOrderService{
 		repo:   repo,
@@ -70,11 +70,11 @@ func (s *AdministrativeOrderService) MarkAcknowledged(personIDStr string) (*dto.
 		return nil, models.ErrUnauthorized
 	}
 
-	store, ok := s.repo.(administrativeOrderAcknowledgmentOutboxStore)
+	store, ok := s.repo.(ports.AdministrativeOrderAcknowledgmentOutboxStore)
 	if !ok {
 		return nil, fmt.Errorf("administrative order store must support atomic outbox operations")
 	}
-	event, buildErr := NewJournalOutboxEvent("administrative-order:"+person.DocumentID.String()+":acknowledge:"+personID.String(), models.CreateJournalEntryRequest{DocumentID: person.DocumentID, UserID: userID, Action: "ORDER_ACKNOWLEDGE", Details: fmt.Sprintf("Ознакомлен: %s", person.FullName)})
+	event, buildErr := servereffects.NewJournalOutboxEvent("administrative-order:"+person.DocumentID.String()+":acknowledge:"+personID.String(), models.CreateJournalEntryRequest{DocumentID: person.DocumentID, UserID: userID, Action: "ORDER_ACKNOWLEDGE", Details: fmt.Sprintf("Ознакомлен: %s", person.FullName)})
 	if buildErr != nil {
 		return nil, buildErr
 	}

@@ -67,14 +67,3 @@ func TestServiceSetOperationLifecycle(t *testing.T) {
 		})
 	}
 }
-
-func TestSystemServiceStartupStoresContext(t *testing.T) {
-	service := NewSystemService()
-	ctx := context.WithValue(context.Background(), "test-key", "test-value")
-
-	service.Startup(ctx)
-
-	if service.ctx != ctx {
-		t.Fatal("expected startup context to be stored")
-	}
-}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	desktopservices "github.com/Volkov-D-A/docs-register-and-track/internal/desktop/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ changes:
 			CloseLogger: func() { closeLoggerCalls.Add(1) },
 		},
 		wailsOptionsDependencies{
-			newThemeService: services.NewThemeService,
+			newThemeService: desktopservices.NewThemeService,
 		},
 	)
 	require.Nil(t, failure)
@@ -110,7 +111,7 @@ changes:
 `),
 		},
 		wailsOptionsDependencies{
-			newThemeService: services.NewThemeService,
+			newThemeService: desktopservices.NewThemeService,
 		},
 	)
 	require.Nil(t, failure)

@@ -1,4 +1,4 @@
-package services
+package effects_test
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 
 	"github.com/google/uuid"
@@ -23,14 +24,14 @@ func TestOutboxRejectsMismatchedDeduplicationCollisionIntegration(t *testing.T) 
 		VALUES ($1, $2, 'integration-hash', 'Collision User')`, userID, "collision-"+uuid.NewString())
 	require.NoError(t, err)
 
-	first, err := NewAdminAuditOutboxEvent("collision:"+uuid.NewString(), models.CreateAdminAuditLogRequest{
+	first, err := servereffects.NewAdminAuditOutboxEvent("collision:"+uuid.NewString(), models.CreateAdminAuditLogRequest{
 		UserID: userID, UserName: "Collision User", Action: "COLLISION_TEST", Details: "original",
 	})
 	require.NoError(t, err)
 	require.NoError(t, outboxRepo.Enqueue(first))
 	require.NoError(t, outboxRepo.Enqueue(first))
 
-	different, err := NewAdminAuditOutboxEvent(first.DeduplicationKey, models.CreateAdminAuditLogRequest{
+	different, err := servereffects.NewAdminAuditOutboxEvent(first.DeduplicationKey, models.CreateAdminAuditLogRequest{
 		UserID: userID, UserName: "Collision User", Action: "COLLISION_TEST", Details: "different",
 	})
 	require.NoError(t, err)

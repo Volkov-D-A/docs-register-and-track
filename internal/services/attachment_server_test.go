@@ -13,6 +13,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/coordination"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 func setupAttachmentService(t *testing.T, role string) (
@@ -52,7 +53,7 @@ func setupAttachmentService(t *testing.T, role string) (
 
 	settingsSvc := NewSettingsService(auth)
 	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	accessSvc := serverservices.NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewServerAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc, ServerAttachmentOptions{Assignments: assignmentRepo})
 	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, depRepo, assignmentRepo, ackRepo, userRepo, auth
@@ -126,7 +127,7 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 
 	settingsSvc := NewSettingsService(auth)
 	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(roles...), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	accessSvc := serverservices.NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(roles...), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewServerAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc, ServerAttachmentOptions{Assignments: assignmentRepo})
 	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, depRepo, assignmentRepo, ackRepo, userRepo, auth
@@ -154,7 +155,7 @@ func setupAttachmentServiceNotAuth(t *testing.T) *ServerAttachmentService {
 	auth := newTestPrincipal(userRepo)
 	settingsSvc := NewSettingsService(auth)
 	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	accessSvc := serverservices.NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 	return NewServerAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc, ServerAttachmentOptions{Assignments: assignmentRepo})
 }
 

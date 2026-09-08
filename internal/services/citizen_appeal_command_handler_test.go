@@ -13,9 +13,11 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 type citizenAppealHandlerDeps struct {
+	docRepo     *documentAccessDocumentStore
 	handler     *CitizenAppealCommandHandler
 	repo        *citizenAppealCommandStore
 	refRepo     *mocks.ReferenceStore
@@ -92,19 +94,21 @@ func setupCitizenAppealCommandHandler(t *testing.T, allowed map[models.DocumentK
 	nomRepo := mocks.NewNomenclatureStore(t)
 	refRepo := mocks.NewReferenceStore(t)
 	journalRepo := mocks.NewJournalStore(t)
-	access := NewDocumentAccessService(
+	docRepo := &documentAccessDocumentStore{}
+	access := serverservices.NewDocumentAccessService(
 		auth,
 		&documentAccessDepartmentStore{},
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}},
 		&kindActionDocumentAccessStore{allowed: allowed},
-		nil,
+		docRepo,
 	)
 	journal := NewJournalService(journalRepo, auth, access)
 	handler := NewCitizenAppealCommandHandler(repo, nomRepo, refRepo, auth, journal, access)
 
 	return &citizenAppealHandlerDeps{
 		handler:     handler,
+		docRepo:     docRepo,
 		repo:        repo,
 		refRepo:     refRepo,
 		journalRepo: journalRepo,
@@ -403,7 +407,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindCitizenAppeal, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
 			},
@@ -479,7 +483,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindCitizenAppeal, "read"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
 			},
@@ -498,7 +502,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindCitizenAppeal, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
 			},
@@ -521,7 +525,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindCitizenAppeal, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
 			},
@@ -554,7 +558,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			t,
 			allowDocumentActions(models.DocumentKindCitizenAppeal, "read", "update"),
 		)
-		deps.handler.access.documentRepo = &documentAccessDocumentStore{
+		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
 				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
 			},

@@ -12,18 +12,14 @@ import (
 
 var errServerReferenceClientNotConfigured = errors.New("docflow-server reference client is not configured")
 
-// ReferenceService предоставляет бизнес-логику для работы со справочниками.
+// ReferenceService предоставляет UI операции со справочниками.
 type ReferenceService struct {
 	auth   interface{ RequireAuthenticated() error }
 	server serverclient.ReferenceClient
 }
 
-func NewReferenceService(auth interface{ RequireAuthenticated() error }) *ReferenceService {
-	return &ReferenceService{auth: auth}
-}
-
-func (s *ReferenceService) SetServerClient(client serverclient.ReferenceClient) {
-	s.server = client
+func NewReferenceService(auth interface{ RequireAuthenticated() error }, client serverclient.ReferenceClient) *ReferenceService {
+	return &ReferenceService{auth: auth, server: client}
 }
 
 // GetDocumentTypes возвращает неизменяемый список типов документов из кода.
@@ -36,18 +32,6 @@ func (s *ReferenceService) GetDocumentTypes() ([]dto.DocumentType, error) {
 		items = append(items, dto.DocumentType{ID: name, Name: name})
 	}
 	return items, nil
-}
-
-func (s *ReferenceService) CreateDocumentType(string) (*dto.DocumentType, error) {
-	return nil, models.NewBadRequest("типы документов заданы в коде и не редактируются")
-}
-
-func (s *ReferenceService) UpdateDocumentType(string, string) error {
-	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
-}
-
-func (s *ReferenceService) DeleteDocumentType(string) error {
-	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
 }
 
 func (s *ReferenceService) GetOrganizations() ([]dto.Organization, error) {

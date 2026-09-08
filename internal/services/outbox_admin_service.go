@@ -7,24 +7,19 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // OutboxAdminService exposes operational state without granting the UI direct
 // database access. Every operation requires the existing administrator right.
 type OutboxAdminService struct {
-	repo   OutboxAdminStore
-	auth   SystemPermissionPrincipal
+	repo   ports.OutboxAdminStore
+	auth   ports.SystemPermissionPrincipal
 	server serverclient.OutboxAdminClient
 }
 
-type OutboxAdminStore interface {
-	Stats() (models.OutboxStats, error)
-	GetFailed(int) ([]models.FailedOutboxEvent, error)
-	Requeue(uuid.UUID) error
-}
-
-func NewOutboxAdminService(repo OutboxAdminStore, auth SystemPermissionPrincipal) *OutboxAdminService {
+func NewOutboxAdminService(repo ports.OutboxAdminStore, auth ports.SystemPermissionPrincipal) *OutboxAdminService {
 	return &OutboxAdminService{repo: repo, auth: auth}
 }
 

@@ -9,30 +9,27 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 // AdministrativeOrderCommandHandler инкапсулирует write-операции по приказам.
 type AdministrativeOrderCommandHandler struct {
-	repo    AdministrativeOrderDocStore
-	nomRepo NomenclatureStore
-	auth    DocumentCommandPrincipal
+	repo    ports.AdministrativeOrderDocStore
+	nomRepo ports.NomenclatureStore
+	auth    ports.DocumentCommandPrincipal
 	journal *JournalService
-	access  *DocumentAccessService
-}
-type administrativeOrderOutboxStore interface {
-	UpdateWithOutbox(models.UpdateAdministrativeOrderDocRequest, []models.OutboxEvent) (*models.AdministrativeOrderDocument, error)
-}
-type administrativeOrderJournalStore interface {
-	CreateWithJournal(models.CreateAdministrativeOrderDocRequest, string, string) (*models.AdministrativeOrderDocument, error)
+	access  *serverservices.DocumentAccessService
 }
 
 // NewAdministrativeOrderCommandHandler создает handler команд приказов.
 func NewAdministrativeOrderCommandHandler(
-	repo AdministrativeOrderDocStore,
-	nomRepo NomenclatureStore,
-	auth DocumentCommandPrincipal,
+	repo ports.AdministrativeOrderDocStore,
+	nomRepo ports.NomenclatureStore,
+	auth ports.DocumentCommandPrincipal,
 	journal *JournalService,
-	access *DocumentAccessService,
+	access *serverservices.DocumentAccessService,
 ) *AdministrativeOrderCommandHandler {
 	return &AdministrativeOrderCommandHandler{
 		repo:    repo,
@@ -122,7 +119,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req dto.AdministrativeOrder
 		AcknowledgmentFullNames: normalizeFullNames(req.AcknowledgmentFullNames),
 		CommandHash:             commandHash,
 	}
-	store, ok := h.repo.(administrativeOrderJournalStore)
+	store, ok := h.repo.(ports.AdministrativeOrderJournalStore)
 	if !ok {
 		return nil, fmt.Errorf("administrative order store must support atomic journal operations")
 	}
@@ -188,7 +185,7 @@ func (h *AdministrativeOrderCommandHandler) CreateAdminDraft(req dto.AdminDraftC
 		AcknowledgmentFullNames: []string{},
 		CommandHash:             commandHash,
 	}
-	store, ok := h.repo.(administrativeOrderJournalStore)
+	store, ok := h.repo.(ports.AdministrativeOrderJournalStore)
 	if !ok {
 		return nil, fmt.Errorf("administrative order store must support atomic journal operations")
 	}
@@ -258,12 +255,12 @@ func (h *AdministrativeOrderCommandHandler) Update(req dto.AdministrativeOrderUp
 		CancelledAt:             cancelledAt,
 		AcknowledgmentFullNames: normalizeFullNames(req.AcknowledgmentFullNames),
 	}
-	store, ok := h.repo.(administrativeOrderOutboxStore)
+	store, ok := h.repo.(ports.AdministrativeOrderOutboxStore)
 	if !ok {
 		return nil, fmt.Errorf("administrative order store must support atomic outbox operations")
 	}
 	currentUserID := actorID
-	event, buildErr := NewJournalOutboxEvent("administrative-order:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Приказ отредактирован"})
+	event, buildErr := servereffects.NewJournalOutboxEvent("administrative-order:"+uid.String()+":update:"+uuid.NewString(), models.CreateJournalEntryRequest{DocumentID: uid, UserID: currentUserID, Action: "UPDATE", Details: "Приказ отредактирован"})
 	if buildErr != nil {
 		return nil, buildErr
 	}

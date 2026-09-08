@@ -35,6 +35,7 @@ changes:
 func TestNewReleaseNoteServiceUsesUserConfigDir(t *testing.T) {
 	configDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configDir)
+	t.Setenv("AppData", configDir)
 
 	service, err := NewReleaseNoteService([]byte(`version: 1.2.0
 releasedAt: 2026-04-01

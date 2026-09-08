@@ -8,18 +8,19 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 // UserEventService предоставляет бизнес-логику персональных событий.
 type UserEventService struct {
-	repo   UserEventStore
-	auth   DocumentAccessPrincipal
+	repo   ports.UserEventStore
+	auth   ports.DocumentAccessPrincipal
 	server serverclient.UserEventClient
 }
 
 // NewUserEventService создает новый экземпляр UserEventService.
-func NewUserEventService(repo UserEventStore, auth DocumentAccessPrincipal) *UserEventService {
+func NewUserEventService(repo ports.UserEventStore, auth ports.DocumentAccessPrincipal) *UserEventService {
 	return &UserEventService{repo: repo, auth: auth}
 }
 

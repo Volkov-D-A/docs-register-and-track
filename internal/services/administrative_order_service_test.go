@@ -11,6 +11,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 type administrativeOrderServiceStore struct {
@@ -86,7 +87,7 @@ func setupAdministrativeOrderService(t *testing.T, allowed map[models.DocumentKi
 
 	store := &administrativeOrderServiceStore{}
 	docRepo := &documentAccessDocumentStore{docs: map[uuid.UUID]models.Document{}}
-	access := NewDocumentAccessService(
+	access := serverservices.NewDocumentAccessService(
 		auth,
 		&documentAccessDepartmentStore{},
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},

@@ -11,6 +11,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
@@ -32,7 +33,7 @@ type SettingsService struct {
 	schemaLifecycle SchemaLifecycle
 	migrationClient serverclient.MigrationClient
 	settingsClient  serverclient.SettingsClient
-	settingsStore   SettingsStore
+	settingsStore   ports.SettingsStore
 	migrationMu     sync.Mutex
 }
 
@@ -43,7 +44,7 @@ func NewSettingsService(authService settingsPrincipal) *SettingsService {
 
 // NewServerSettingsService provides request-local business services with
 // direct access to the server-owned settings repository.
-func NewServerSettingsService(store SettingsStore) *SettingsService {
+func NewServerSettingsService(store ports.SettingsStore) *SettingsService {
 	return &SettingsService{settingsStore: store}
 }
 

@@ -5,15 +5,16 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 // AdministrativeOrderQueryHandler предоставляет read-only операции по приказам.
 type AdministrativeOrderQueryHandler struct {
-	repo AdministrativeOrderDocStore
+	repo ports.AdministrativeOrderDocStore
 }
 
 // NewAdministrativeOrderQueryHandler создает query handler приказов.
-func NewAdministrativeOrderQueryHandler(repo AdministrativeOrderDocStore) *AdministrativeOrderQueryHandler {
+func NewAdministrativeOrderQueryHandler(repo ports.AdministrativeOrderDocStore) *AdministrativeOrderQueryHandler {
 	return &AdministrativeOrderQueryHandler{repo: repo}
 }
 
