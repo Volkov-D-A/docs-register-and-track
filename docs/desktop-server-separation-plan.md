@@ -1,6 +1,6 @@
 # План разделения desktop- и серверного кода
 
-Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября, этапы 13–15 — 9 сентября 2026 года.
+Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября, этапы 13–16 — 9 сентября 2026 года.
 
 Основание: аудит кода после разделения вложений в коммите `76e90f7` и
 [риск №3 из ревью перехода на сервер](server-transition-code-review.md).
@@ -811,12 +811,50 @@ bindings, тесты и импорты. Для каждого сервиса с�
   HTTP-контракты, SQL и бизнес-правила не менялись. Нативный GUI вручную
   не проверялся.
 
-- [ ] **16. Разделить регистрацию документов.**
+- [x] **16. Разделить регистрацию документов.**
   Desktop DocumentRegistrationService оставляет HTTP-вызовы; сервер получает
   независимый исполнитель и command handlers. Перевести внутренние типы и
   helpers, не создавая второго набора DTO.
   Результат: регистрация/изменение всех видов документов, номера, admin draft,
   override, права и атомарные эффекты проверены на серверном пути.
+
+  Реализация 09.09.2026:
+  - DocumentRegistrationService перенесён в `internal/desktop/services`;
+    HTTP-клиент, lifecycle и metrics передаются конструктору. В Wails остаются
+    Register, Update и CreateAdminDraft; два служебных setters удалены.
+  - Независимый DocumentCommandEngine, registry, четыре command handlers,
+    правила admin override, проверки количества листов и тесты перенесены в
+    `internal/server/services`. HTTP-фабрика использует новый исполнитель.
+    Удалена неиспользуемая зависимость handlers от JournalService; запись
+    эффектов остаётся через атомарные repository/outbox операции.
+  - Общие DTO сохранены. Старые реализации удалены без aliases и обёрток.
+    Сохранены серверные тесты прав и команд; добавлены проверки HTTP-адаптера,
+    метрик и отмены при shutdown, а также HTTP/PostgreSQL-сценарий для четырёх
+    видов: регистрация, идемпотентность, изменение, admin draft с литерой,
+    запрет регистрации без прав и отсутствие дублирования journal effects.
+  Commit: `refactor: separate document registration desktop and server`.
+
+  Проверки этапа 16:
+  - `make go-test go-vet` — успешно вне песочницы для локальных HTTP listeners.
+    После добавления тестов повторены прицельные race/vet затронутых пакетов.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/desktop/services ./internal/server/services -run 'DocumentRegistration|DocumentCommand|CommandHandler|AdminNumber|PageCounts'`
+    — успешно.
+  - `make wails-bindings` — успешно; diff JS/TS удаляет только два setters.
+  - `make frontend-lint frontend-build` — успешно.
+  - `npm --prefix frontend run test:components -- test/components/documentRegistration.test.tsx test/components/accessVisibility.test.tsx`
+    — успешно, 7 тестов.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make integration-test` — успешно вне песочницы, включая новый HTTP-тест
+    четырёх видов документов. При подготовке теста исправлены обязательные поля
+    fixture и учтены существующие форматы JSON journal effects. Финальный полный
+    PostgreSQL-прогон прошёл; контейнер, тестовый том и сеть удалены штатной целью.
+  - `make docs-links-check` — те же шесть прежних битых ссылок; новых ошибок нет.
+    `git diff --check` — успешно.
+
+  HTTP-контракты, SQL и бизнес-правила не менялись. Нативный GUI вручную
+  не проверялся.
 
 - [ ] **17. Разделить UserEventService.**
   Отделить UI-чтение/подтверждение событий от серверных операций, зависимостей

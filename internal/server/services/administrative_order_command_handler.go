@@ -11,7 +11,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
-	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 // AdministrativeOrderCommandHandler инкапсулирует write-операции по приказам.
@@ -19,8 +18,7 @@ type AdministrativeOrderCommandHandler struct {
 	repo    ports.AdministrativeOrderDocStore
 	nomRepo ports.NomenclatureStore
 	auth    ports.DocumentCommandPrincipal
-	journal *JournalService
-	access  *serverservices.DocumentAccessService
+	access  *DocumentAccessService
 }
 
 // NewAdministrativeOrderCommandHandler создает handler команд приказов.
@@ -28,14 +26,12 @@ func NewAdministrativeOrderCommandHandler(
 	repo ports.AdministrativeOrderDocStore,
 	nomRepo ports.NomenclatureStore,
 	auth ports.DocumentCommandPrincipal,
-	journal *JournalService,
-	access *serverservices.DocumentAccessService,
+	access *DocumentAccessService,
 ) *AdministrativeOrderCommandHandler {
 	return &AdministrativeOrderCommandHandler{
 		repo:    repo,
 		nomRepo: nomRepo,
 		auth:    auth,
-		journal: journal,
 		access:  access,
 	}
 }

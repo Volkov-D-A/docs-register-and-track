@@ -79,8 +79,6 @@
   "DocumentRegistrationService": [
     "CreateAdminDraft",
     "Register",
-    "SetOperationLifecycle",
-    "SetOperationMetrics",
     "Update"
   ],
   "JournalService": [

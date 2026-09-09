@@ -29,7 +29,7 @@ func (h stubDocumentKindCommandHandler) UpdateDocument(req any) (any, error) {
 	return h.updateFunc(req)
 }
 
-func TestDocumentRegistrationService_RegisterRoutesToKindHandler(t *testing.T) {
+func TestDocumentCommandEngine_RegisterRoutesToKindHandler(t *testing.T) {
 	t.Parallel()
 
 	expectedReq := dto.IncomingLetterRegisterRequest{Content: "test"}
@@ -51,7 +51,7 @@ func TestDocumentRegistrationService_RegisterRoutesToKindHandler(t *testing.T) {
 		},
 	}
 
-	service := NewDocumentRegistrationService(NewDocumentKindCommandRegistry(handler))
+	service := NewDocumentCommandEngine(NewDocumentKindCommandRegistry(handler), nil)
 
 	got, err := service.Register(string(models.DocumentKindIncomingLetter), expectedReq)
 	if err != nil {
@@ -62,7 +62,7 @@ func TestDocumentRegistrationService_RegisterRoutesToKindHandler(t *testing.T) {
 	}
 }
 
-func TestDocumentRegistrationService_UpdateRoutesToKindHandler(t *testing.T) {
+func TestDocumentCommandEngine_UpdateRoutesToKindHandler(t *testing.T) {
 	t.Parallel()
 
 	expectedReq := dto.OutgoingLetterUpdateRequest{ID: "doc-id"}
@@ -84,7 +84,7 @@ func TestDocumentRegistrationService_UpdateRoutesToKindHandler(t *testing.T) {
 		},
 	}
 
-	service := NewDocumentRegistrationService(NewDocumentKindCommandRegistry(handler))
+	service := NewDocumentCommandEngine(NewDocumentKindCommandRegistry(handler), nil)
 
 	got, err := service.Update(string(models.DocumentKindOutgoingLetter), expectedReq)
 	if err != nil {
@@ -95,10 +95,10 @@ func TestDocumentRegistrationService_UpdateRoutesToKindHandler(t *testing.T) {
 	}
 }
 
-func TestDocumentRegistrationService_UnsupportedKindReturnsForbidden(t *testing.T) {
+func TestDocumentCommandEngine_UnsupportedKindReturnsForbidden(t *testing.T) {
 	t.Parallel()
 
-	service := NewDocumentRegistrationService(NewDocumentKindCommandRegistry())
+	service := NewDocumentCommandEngine(NewDocumentKindCommandRegistry(), nil)
 
 	_, err := service.Register("unknown_kind", nil)
 	if !errors.Is(err, models.ErrForbidden) {
@@ -106,7 +106,7 @@ func TestDocumentRegistrationService_UnsupportedKindReturnsForbidden(t *testing.
 	}
 }
 
-func TestDocumentRegistrationService_NormalizesRegisterRequests(t *testing.T) {
+func TestDocumentCommandEngine_NormalizesRegisterRequests(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -226,7 +226,7 @@ func TestDocumentRegistrationService_NormalizesRegisterRequests(t *testing.T) {
 					return nil, nil
 				},
 			}
-			service := NewDocumentRegistrationService(NewDocumentKindCommandRegistry(handler))
+			service := NewDocumentCommandEngine(NewDocumentKindCommandRegistry(handler), nil)
 
 			got, err := service.Register(string(tt.kind), tt.payload)
 
@@ -236,7 +236,7 @@ func TestDocumentRegistrationService_NormalizesRegisterRequests(t *testing.T) {
 	}
 }
 
-func TestDocumentRegistrationService_NormalizesUpdateRequests(t *testing.T) {
+func TestDocumentCommandEngine_NormalizesUpdateRequests(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -334,7 +334,7 @@ func TestDocumentRegistrationService_NormalizesUpdateRequests(t *testing.T) {
 					return "updated", nil
 				},
 			}
-			service := NewDocumentRegistrationService(NewDocumentKindCommandRegistry(handler))
+			service := NewDocumentCommandEngine(NewDocumentKindCommandRegistry(handler), nil)
 
 			got, err := service.Update(string(tt.kind), tt.payload)
 
@@ -344,7 +344,7 @@ func TestDocumentRegistrationService_NormalizesUpdateRequests(t *testing.T) {
 	}
 }
 
-func TestDocumentRegistrationService_RejectsMalformedCommandPayload(t *testing.T) {
+func TestDocumentCommandEngine_RejectsMalformedCommandPayload(t *testing.T) {
 	t.Parallel()
 
 	handler := stubDocumentKindCommandHandler{
@@ -358,7 +358,7 @@ func TestDocumentRegistrationService_RejectsMalformedCommandPayload(t *testing.T
 			return nil, nil
 		},
 	}
-	service := NewDocumentRegistrationService(NewDocumentKindCommandRegistry(handler))
+	service := NewDocumentCommandEngine(NewDocumentKindCommandRegistry(handler), nil)
 
 	_, err := service.Register(string(models.DocumentKindIncomingLetter), map[string]any{
 		"content":      "test",
@@ -369,10 +369,10 @@ func TestDocumentRegistrationService_RejectsMalformedCommandPayload(t *testing.T
 	assert.Contains(t, err.Error(), "неверные поля команды документа")
 }
 
-func TestDocumentRegistrationService_UnsupportedUpdateKindReturnsForbidden(t *testing.T) {
+func TestDocumentCommandEngine_UnsupportedUpdateKindReturnsForbidden(t *testing.T) {
 	t.Parallel()
 
-	service := NewDocumentRegistrationService(NewDocumentKindCommandRegistry())
+	service := NewDocumentCommandEngine(NewDocumentKindCommandRegistry(), nil)
 
 	_, err := service.Update("unknown_kind", nil)
 

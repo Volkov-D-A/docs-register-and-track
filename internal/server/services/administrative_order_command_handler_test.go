@@ -7,22 +7,19 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 type administrativeOrderHandlerDeps struct {
-	docRepo     *documentAccessDocumentStore
-	handler     *AdministrativeOrderCommandHandler
-	repo        *administrativeOrderCommandStore
-	journalRepo *mocks.JournalStore
-	auth        *testPrincipal
-	user        *models.User
+	docRepo *documentAccessDocumentStore
+	handler *AdministrativeOrderCommandHandler
+	repo    *administrativeOrderCommandStore
+	auth    *attachmentPrincipalStub
+	user    *models.User
 }
 
 type administrativeOrderCommandStore struct {
@@ -100,16 +97,15 @@ func setupAdministrativeOrderCommandHandler(t *testing.T, allowed map[models.Doc
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
+	auth := newAttachmentPrincipalStub(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	repo := &administrativeOrderCommandStore{}
 	nomRepo := mocks.NewNomenclatureStore(t)
-	journalRepo := mocks.NewJournalStore(t)
 	docRepo := &documentAccessDocumentStore{}
-	access := serverservices.NewDocumentAccessService(
+	access := NewDocumentAccessService(
 		auth,
 		&documentAccessDepartmentStore{},
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
@@ -117,16 +113,14 @@ func setupAdministrativeOrderCommandHandler(t *testing.T, allowed map[models.Doc
 		&kindActionDocumentAccessStore{allowed: allowed},
 		docRepo,
 	)
-	journal := NewJournalService(journalRepo, auth, access)
-	handler := NewAdministrativeOrderCommandHandler(repo, nomRepo, auth, journal, access)
+	handler := NewAdministrativeOrderCommandHandler(repo, nomRepo, auth, access)
 
 	return &administrativeOrderHandlerDeps{
-		handler:     handler,
-		docRepo:     docRepo,
-		repo:        repo,
-		journalRepo: journalRepo,
-		auth:        auth,
-		user:        user,
+		handler: handler,
+		docRepo: docRepo,
+		repo:    repo,
+		auth:    auth,
+		user:    user,
 	}
 }
 
@@ -323,7 +317,6 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 		require.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, result)
 		require.NotNil(t, deps.repo.createReq)
-		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 
@@ -538,7 +531,6 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		require.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, result)
 		require.NotNil(t, deps.repo.updateReq)
-		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 

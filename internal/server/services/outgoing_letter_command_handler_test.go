@@ -13,24 +13,22 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 type outgoingLetterHandlerDeps struct {
-	docRepo     *documentAccessDocumentStore
-	handler     *OutgoingLetterCommandHandler
-	repo        *mocks.OutgoingDocStore
-	refRepo     *mocks.ReferenceStore
-	journalRepo *mocks.JournalStore
-	auth        *testPrincipal
-	user        *models.User
+	docRepo *documentAccessDocumentStore
+	handler *OutgoingLetterCommandHandler
+	repo    *mocks.OutgoingDocStore
+	refRepo *mocks.ReferenceStore
+	auth    *attachmentPrincipalStub
+	user    *models.User
 }
 
 func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.DocumentKind]map[string]bool) *outgoingLetterHandlerDeps {
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
+	auth := newAttachmentPrincipalStub(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
@@ -38,9 +36,8 @@ func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	repo := mocks.NewOutgoingDocStore(t)
 	refRepo := mocks.NewReferenceStore(t)
 	nomRepo := mocks.NewNomenclatureStore(t)
-	journalRepo := mocks.NewJournalStore(t)
 	docRepo := &documentAccessDocumentStore{}
-	access := serverservices.NewDocumentAccessService(
+	access := NewDocumentAccessService(
 		auth,
 		&documentAccessDepartmentStore{},
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
@@ -48,17 +45,15 @@ func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.Document
 		&kindActionDocumentAccessStore{allowed: allowed},
 		docRepo,
 	)
-	journal := NewJournalService(journalRepo, auth, access)
-	handler := NewOutgoingLetterCommandHandler(repo, refRepo, nomRepo, auth, journal, access)
+	handler := NewOutgoingLetterCommandHandler(repo, refRepo, nomRepo, auth, access)
 
 	return &outgoingLetterHandlerDeps{
-		handler:     handler,
-		docRepo:     docRepo,
-		repo:        repo,
-		refRepo:     refRepo,
-		journalRepo: journalRepo,
-		auth:        auth,
-		user:        user,
+		handler: handler,
+		docRepo: docRepo,
+		repo:    repo,
+		refRepo: refRepo,
+		auth:    auth,
+		user:    user,
 	}
 }
 
@@ -229,7 +224,6 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 
 		require.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, result)
-		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 
@@ -426,7 +420,6 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 
 		require.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, result)
-		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 

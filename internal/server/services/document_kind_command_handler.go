@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -11,12 +10,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 )
-
-type DocumentCommandClient interface {
-	RegisterDocument(context.Context, string, any) (any, error)
-	UpdateDocument(context.Context, string, any) (any, error)
-	CreateAdminDocumentDraft(context.Context, string, dto.AdminDraftCreateRequest) (any, error)
-}
 
 func documentCommandHash(req any) (string, error) {
 	data, err := json.Marshal(req)
@@ -65,48 +58,20 @@ func (r *DocumentKindCommandRegistry) Get(kind models.DocumentKind) (DocumentKin
 	return handler, nil
 }
 
-// DocumentRegistrationService предоставляет общий command API для регистрации и обновления документов.
-type DocumentRegistrationService struct {
-	registry  *DocumentKindCommandRegistry
-	client    DocumentCommandClient
-	lifecycle *operations.Lifecycle
-	metrics   *observability.Registry
+// DocumentCommandEngine предоставляет общий command API для регистрации и обновления документов.
+type DocumentCommandEngine struct {
+	registry *DocumentKindCommandRegistry
+	metrics  *observability.Registry
 }
 
-func NewDocumentRegistrationServiceWithClient(client DocumentCommandClient) *DocumentRegistrationService {
-	return &DocumentRegistrationService{client: client}
-}
-
-// NewDocumentRegistrationService создает новый экземпляр DocumentRegistrationService.
-func NewDocumentRegistrationService(registry *DocumentKindCommandRegistry) *DocumentRegistrationService {
-	return &DocumentRegistrationService{registry: registry}
-}
-
-func (s *DocumentRegistrationService) SetOperationLifecycle(lifecycle *operations.Lifecycle) {
-	s.lifecycle = lifecycle
-}
-
-func (s *DocumentRegistrationService) SetOperationMetrics(metrics *observability.Registry) {
-	s.metrics = metrics
+func NewDocumentCommandEngine(registry *DocumentKindCommandRegistry, metrics *observability.Registry) *DocumentCommandEngine {
+	return &DocumentCommandEngine{registry: registry, metrics: metrics}
 }
 
 // Register делегирует регистрацию документа обработчику по kindCode.
-func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, error) {
+func (s *DocumentCommandEngine) Register(kindCode string, req any) (any, error) {
 	return operations.Measure(s.metrics, "documents.register", func() (any, error) {
-		ctx, release := s.lifecycle.OperationContext()
-		defer release()
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-
 		kind := models.DocumentKind(kindCode)
-		if s.client != nil {
-			normalizedReq, err := dto.NormalizeDocumentRegisterRequest(kind, req)
-			if err != nil {
-				return nil, err
-			}
-			return s.client.RegisterDocument(ctx, kindCode, normalizedReq)
-		}
 		handler, err := s.registry.Get(kind)
 		if err != nil {
 			return nil, models.ErrForbidden
@@ -121,30 +86,14 @@ func (s *DocumentRegistrationService) Register(kindCode string, req any) (any, e
 		if err != nil {
 			return nil, err
 		}
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
 		return result, nil
 	})
 }
 
 // Update делегирует обновление документа обработчику по kindCode.
-func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, error) {
+func (s *DocumentCommandEngine) Update(kindCode string, req any) (any, error) {
 	return operations.Measure(s.metrics, "documents.update", func() (any, error) {
-		ctx, release := s.lifecycle.OperationContext()
-		defer release()
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-
 		kind := models.DocumentKind(kindCode)
-		if s.client != nil {
-			normalizedReq, err := dto.NormalizeDocumentUpdateRequest(kind, req)
-			if err != nil {
-				return nil, err
-			}
-			return s.client.UpdateDocument(ctx, kindCode, normalizedReq)
-		}
 		handler, err := s.registry.Get(kind)
 		if err != nil {
 			return nil, models.ErrForbidden
@@ -159,26 +108,14 @@ func (s *DocumentRegistrationService) Update(kindCode string, req any) (any, err
 		if err != nil {
 			return nil, err
 		}
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
 		return result, nil
 	})
 }
 
 // CreateAdminDraft создает административный черновик с зарезервированным номером.
-func (s *DocumentRegistrationService) CreateAdminDraft(kindCode string, req dto.AdminDraftCreateRequest) (any, error) {
+func (s *DocumentCommandEngine) CreateAdminDraft(kindCode string, req dto.AdminDraftCreateRequest) (any, error) {
 	return operations.Measure(s.metrics, "documents.create_admin_draft", func() (any, error) {
-		ctx, release := s.lifecycle.OperationContext()
-		defer release()
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-
 		kind := models.DocumentKind(kindCode)
-		if s.client != nil {
-			return s.client.CreateAdminDocumentDraft(ctx, kindCode, req)
-		}
 		handler, err := s.registry.Get(kind)
 		if err != nil {
 			return nil, models.ErrForbidden
@@ -190,9 +127,6 @@ func (s *DocumentRegistrationService) CreateAdminDraft(kindCode string, req dto.
 
 		result, err := draftHandler.CreateAdminDraft(req)
 		if err != nil {
-			return nil, err
-		}
-		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		return result, nil

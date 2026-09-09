@@ -21,15 +21,6 @@ func TestServiceSetOperationLifecycle(t *testing.T) {
 		get  func() *operations.Lifecycle
 	}{
 		{
-			name: "document registration service",
-			set:  (&DocumentRegistrationService{}).SetOperationLifecycle,
-			get: func() *operations.Lifecycle {
-				service := &DocumentRegistrationService{}
-				service.SetOperationLifecycle(lifecycle)
-				return service.lifecycle
-			},
-		},
-		{
 			name: "journal service",
 			set:  (&JournalService{}).SetOperationLifecycle,
 			get: func() *operations.Lifecycle {

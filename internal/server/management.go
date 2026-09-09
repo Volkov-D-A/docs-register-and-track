@@ -179,14 +179,13 @@ func newManagementAPI(app *App) *managementAPI {
 			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
-			registry := services.NewDocumentKindCommandRegistry(
-				services.NewIncomingLetterCommandHandler(incomingCommands, nomenclature, references, principal, nil, documentAccess),
-				services.NewOutgoingLetterCommandHandler(outgoingCommands, references, nomenclature, principal, nil, documentAccess),
-				services.NewCitizenAppealCommandHandler(citizenAppealCommands, nomenclature, references, principal, nil, documentAccess),
-				services.NewAdministrativeOrderCommandHandler(administrativeOrderCommands, nomenclature, principal, nil, documentAccess),
+			registry := serverservices.NewDocumentKindCommandRegistry(
+				serverservices.NewIncomingLetterCommandHandler(incomingCommands, nomenclature, references, principal, documentAccess),
+				serverservices.NewOutgoingLetterCommandHandler(outgoingCommands, references, nomenclature, principal, documentAccess),
+				serverservices.NewCitizenAppealCommandHandler(citizenAppealCommands, nomenclature, references, principal, documentAccess),
+				serverservices.NewAdministrativeOrderCommandHandler(administrativeOrderCommands, nomenclature, principal, documentAccess),
 			)
-			commands := services.NewDocumentRegistrationService(registry)
-			commands.SetOperationMetrics(app.metrics)
+			commands := serverservices.NewDocumentCommandEngine(registry, app.metrics)
 			return commands
 		},
 		assignments: func(user *models.User) assignmentAPI {

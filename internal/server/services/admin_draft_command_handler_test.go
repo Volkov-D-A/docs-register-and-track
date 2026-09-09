@@ -244,10 +244,10 @@ func (h *documentRegistrationServicePlainHandler) UpdateDocument(req any) (any, 
 	return nil, models.ErrForbidden
 }
 
-func TestDocumentRegistrationService_CreateAdminDraft(t *testing.T) {
+func TestDocumentCommandEngine_CreateAdminDraft(t *testing.T) {
 	t.Run("delegates to admin draft handler", func(t *testing.T) {
 		handler := &documentRegistrationServiceDraftHandler{kind: models.DocumentKindIncomingLetter}
-		service := NewDocumentRegistrationService(NewDocumentKindCommandRegistry(handler))
+		service := NewDocumentCommandEngine(NewDocumentKindCommandRegistry(handler), nil)
 		req := validAdminDraftCreateRequest(uuid.New())
 
 		result, err := service.CreateAdminDraft(string(models.DocumentKindIncomingLetter), req)
@@ -260,7 +260,7 @@ func TestDocumentRegistrationService_CreateAdminDraft(t *testing.T) {
 
 	t.Run("rejects handler without admin draft support", func(t *testing.T) {
 		handler := &documentRegistrationServicePlainHandler{kind: models.DocumentKindIncomingLetter}
-		service := NewDocumentRegistrationService(NewDocumentKindCommandRegistry(handler))
+		service := NewDocumentCommandEngine(NewDocumentKindCommandRegistry(handler), nil)
 
 		result, err := service.CreateAdminDraft(string(models.DocumentKindIncomingLetter), validAdminDraftCreateRequest(uuid.New()))
 

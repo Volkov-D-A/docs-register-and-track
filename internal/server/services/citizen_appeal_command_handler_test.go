@@ -7,23 +7,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 type citizenAppealHandlerDeps struct {
-	docRepo     *documentAccessDocumentStore
-	handler     *CitizenAppealCommandHandler
-	repo        *citizenAppealCommandStore
-	refRepo     *mocks.ReferenceStore
-	journalRepo *mocks.JournalStore
-	auth        *testPrincipal
-	user        *models.User
+	docRepo *documentAccessDocumentStore
+	handler *CitizenAppealCommandHandler
+	repo    *citizenAppealCommandStore
+	refRepo *mocks.ReferenceStore
+	auth    *attachmentPrincipalStub
+	user    *models.User
 }
 
 type citizenAppealCommandStore struct {
@@ -85,7 +82,7 @@ func setupCitizenAppealCommandHandler(t *testing.T, allowed map[models.DocumentK
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
+	auth := newAttachmentPrincipalStub(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
@@ -93,9 +90,8 @@ func setupCitizenAppealCommandHandler(t *testing.T, allowed map[models.DocumentK
 	repo := &citizenAppealCommandStore{}
 	nomRepo := mocks.NewNomenclatureStore(t)
 	refRepo := mocks.NewReferenceStore(t)
-	journalRepo := mocks.NewJournalStore(t)
 	docRepo := &documentAccessDocumentStore{}
-	access := serverservices.NewDocumentAccessService(
+	access := NewDocumentAccessService(
 		auth,
 		&documentAccessDepartmentStore{},
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
@@ -103,17 +99,15 @@ func setupCitizenAppealCommandHandler(t *testing.T, allowed map[models.DocumentK
 		&kindActionDocumentAccessStore{allowed: allowed},
 		docRepo,
 	)
-	journal := NewJournalService(journalRepo, auth, access)
-	handler := NewCitizenAppealCommandHandler(repo, nomRepo, refRepo, auth, journal, access)
+	handler := NewCitizenAppealCommandHandler(repo, nomRepo, refRepo, auth, access)
 
 	return &citizenAppealHandlerDeps{
-		handler:     handler,
-		docRepo:     docRepo,
-		repo:        repo,
-		refRepo:     refRepo,
-		journalRepo: journalRepo,
-		auth:        auth,
-		user:        user,
+		handler: handler,
+		docRepo: docRepo,
+		repo:    repo,
+		refRepo: refRepo,
+		auth:    auth,
+		user:    user,
 	}
 }
 
@@ -395,7 +389,6 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 		require.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, result)
 		require.NotNil(t, deps.repo.createReq)
-		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 
@@ -582,7 +575,6 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 		require.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, result)
 		require.NotNil(t, deps.repo.updateReq)
-		deps.journalRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
 }
 

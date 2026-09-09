@@ -11,7 +11,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
-	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 const (
@@ -32,8 +31,7 @@ type CitizenAppealCommandHandler struct {
 	nomRepo ports.NomenclatureStore
 	refRepo ports.ReferenceStore
 	auth    ports.DocumentCommandPrincipal
-	journal *JournalService
-	access  *serverservices.DocumentAccessService
+	access  *DocumentAccessService
 }
 
 // NewCitizenAppealCommandHandler создает handler команд обращений граждан.
@@ -42,15 +40,13 @@ func NewCitizenAppealCommandHandler(
 	nomRepo ports.NomenclatureStore,
 	refRepo ports.ReferenceStore,
 	auth ports.DocumentCommandPrincipal,
-	journal *JournalService,
-	access *serverservices.DocumentAccessService,
+	access *DocumentAccessService,
 ) *CitizenAppealCommandHandler {
 	return &CitizenAppealCommandHandler{
 		repo:    repo,
 		nomRepo: nomRepo,
 		refRepo: refRepo,
 		auth:    auth,
-		journal: journal,
 		access:  access,
 	}
 }

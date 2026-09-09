@@ -11,7 +11,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
-	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 // OutgoingLetterCommandHandler инкапсулирует write-операции по исходящим письмам.
@@ -20,8 +19,7 @@ type OutgoingLetterCommandHandler struct {
 	refRepo ports.ReferenceStore
 	nomRepo ports.NomenclatureStore
 	auth    ports.DocumentCommandPrincipal
-	journal *JournalService
-	access  *serverservices.DocumentAccessService
+	access  *DocumentAccessService
 }
 
 // Kind возвращает системный вид документа, поддерживаемый handler'ом.
@@ -35,15 +33,13 @@ func NewOutgoingLetterCommandHandler(
 	refRepo ports.ReferenceStore,
 	nomRepo ports.NomenclatureStore,
 	auth ports.DocumentCommandPrincipal,
-	journal *JournalService,
-	access *serverservices.DocumentAccessService,
+	access *DocumentAccessService,
 ) *OutgoingLetterCommandHandler {
 	return &OutgoingLetterCommandHandler{
 		repo:    repo,
 		refRepo: refRepo,
 		nomRepo: nomRepo,
 		auth:    auth,
-		journal: journal,
 		access:  access,
 	}
 }
