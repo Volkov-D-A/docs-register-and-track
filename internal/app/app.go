@@ -54,15 +54,15 @@ func NewBindingsWailsOptions() *options.App {
 			&desktopservices.ReferenceService{},
 			&desktopservices.DocumentAccessAdminService{},
 			&desktopservices.DocumentKindService{},
-			&services.DocumentQueryService{},
+			&desktopservices.DocumentQueryService{},
 			&services.DocumentRegistrationService{},
 			&services.AdministrativeOrderService{},
 			&services.AssignmentService{},
 			&services.DashboardService{},
 			&services.StatisticsService{},
 			&desktopservices.DepartmentService{},
-			&services.SettingsService{},
-			&services.AttachmentService{},
+			&desktopservices.SettingsService{},
+			&desktopservices.AttachmentService{},
 			&services.LinkService{},
 			&services.AcknowledgmentService{},
 			&desktopservices.SystemService{},
@@ -118,12 +118,9 @@ func newWailsOptionsWithDependencies(
 	authService := desktopservices.NewAuthService(serverClient, serverClient, operationLifecycle, metrics)
 	principal := desktopservices.NewPrincipal(authService, backgroundServices)
 	logger.GetAppUserID = principal.GetCurrentUserID
-	settingsService := services.NewSettingsService(principal)
-	services.ConfigureSchemaLifecycle(settingsService, backgroundServices)
+	settingsService := desktopservices.NewSettingsService(principal, serverClient, serverClient, backgroundServices)
 	adminAuditLogService := services.NewAdminAuditLogServiceWithClient(serverClient)
 	outboxAdminService := services.NewOutboxAdminServiceWithClient(serverClient)
-	settingsService.SetMigrationClient(serverClient)
-	settingsService.SetServerClient(serverClient)
 	userService := desktopservices.NewUserService(serverClient)
 	userSubstitutionService := desktopservices.NewUserSubstitutionService(serverClient)
 	nomenclatureService := desktopservices.NewNomenclatureService(serverClient)
@@ -131,9 +128,7 @@ func newWailsOptionsWithDependencies(
 	documentAccessAdminService := desktopservices.NewDocumentAccessAdminService(serverClient)
 	documentKindService := desktopservices.NewDocumentKindService(serverClient)
 	journalService := services.NewJournalServiceWithClient(serverClient)
-	documentQueryService := services.NewDocumentQueryService()
-	documentQueryService.SetServerClient(serverClient)
-	documentQueryService.SetOperationMetrics(metrics)
+	documentQueryService := desktopservices.NewDocumentQueryService(serverClient, metrics)
 	documentRegistrationService := services.NewDocumentRegistrationServiceWithClient(serverClient)
 	documentRegistrationService.SetOperationLifecycle(operationLifecycle)
 	documentRegistrationService.SetOperationMetrics(metrics)
@@ -142,7 +137,7 @@ func newWailsOptionsWithDependencies(
 	assignmentService := services.NewAssignmentServiceWithClient(serverClient)
 	departmentService := desktopservices.NewDepartmentService(serverClient)
 
-	attachmentService, startAttachments, err := services.NewDesktopAttachmentService(serverClient, services.DesktopAttachmentOptions{Lifecycle: operationLifecycle, Metrics: metrics})
+	attachmentService, startAttachments, err := desktopservices.NewDesktopAttachmentService(serverClient, desktopservices.DesktopAttachmentOptions{Lifecycle: operationLifecycle, Metrics: metrics})
 	if err != nil {
 		return nil, &startupdiag.Failure{Component: "attachments", ConfigPath: params.ConfigPath, Summary: "Не удалось настроить сервис вложений.", Err: err}
 	}

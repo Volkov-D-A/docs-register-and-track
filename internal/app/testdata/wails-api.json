@@ -74,9 +74,7 @@
   ],
   "DocumentQueryService": [
     "GetByID",
-    "GetList",
-    "SetOperationMetrics",
-    "SetServerClient"
+    "GetList"
   ],
   "DocumentRegistrationService": [
     "CreateAdminDraft",
@@ -129,16 +127,11 @@
   ],
   "SettingsService": [
     "GetAll",
-    "GetAllowedFileTypes",
-    "GetMaxFileSize",
     "GetMigrationStatus",
-    "GetOrganizationName",
     "GetOrganizationShortName",
     "IsAssignmentCompletionAttachmentsEnabled",
     "RollbackMigration",
     "RunMigrations",
-    "SetMigrationClient",
-    "SetServerClient",
     "Update"
   ],
   "StatisticsService": [

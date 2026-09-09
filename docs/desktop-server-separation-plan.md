@@ -1,6 +1,6 @@
 # План разделения desktop- и серверного кода
 
-Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября 2026 года.
+Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября, этапы 13–15 — 9 сентября 2026 года.
 
 Основание: аудит кода после разделения вложений в коммите `76e90f7` и
 [риск №3 из ревью перехода на сервер](server-transition-code-review.md).
@@ -668,12 +668,54 @@ namespace сразу обновляем frontend и bindings, без старо�
   Сессии, lifecycle и concurrency не менялись; race повторно не запускался.
   Нативный GUI вручную не проверялся.
 
-- [ ] **13. Разделить SettingsService.**
+- [x] **13. Разделить SettingsService.**
   Оставить управление настройками и миграциями в desktop/services, а чтение
   repository и серверную интерпретацию настроек — в server/services.
   Передать зависимости конструктором, не публиковать внутренние getters без UI.
   Результат: нет выбора settingsStore/settingsClient в одном объекте; default
   limits/types, maintenance и миграционные сценарии сохранены.
+
+  Реализация 09.09.2026:
+  - Desktop SettingsService перенесён в `internal/desktop/services`: HTTP-клиенты,
+    principal и узкий callback lifecycle передаются конструктором. Сохранены
+    семь UI-методов, проверки миграций без schema-readiness и сериализация
+    apply/rollback. Внутренние setters и три getter-метода без UI удалены.
+  - Независимый SettingsService в `internal/server/services` читает SettingsStore
+    и интерпретирует размер, типы файлов и разрешение файлов при завершении
+    поручения. Фабрика вложений и её тесты используют серверный тип напрямую.
+    Лимиты в HTTP-валидации используют серверную константу.
+  - Перенесены тесты desktop-операций и серверных defaults; добавлены проверки
+    отсутствующих HTTP-клиентов и граничных размеров файлов. Удалены смешанный
+    сервис, ConfigureSchemaLifecycle и неиспользуемые legacy migration helpers
+    и fixtures. Старых aliases и forwarding-обёрток нет.
+  - Обе Wails-регистрации переведены, bindings сгенерированы штатной командой;
+    точный API-снимок сокращён на пять методов. Namespace UI сохранён.
+  Commit: общий коммит этапов 13–15
+  `refactor: separate settings attachments and document queries`.
+
+  Проверки этапа 13:
+  - `make go-test go-vet` — успешно вне песочницы; sandbox запрещал создание
+    локального HTTP listener в существующем auth-тесте.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/desktop/services ./internal/app -run 'Settings|Migration|Lifecycle|Maintenance'`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/desktop/services ./internal/server/services -run Settings`
+    и `GOCACHE=/tmp/go-build-cache go vet ./internal/desktop/services ./internal/server/services`
+    — успешно после добавления граничных тестов.
+  - `make integration-test` — успешно вне песочницы с доступом к Docker;
+    PostgreSQL-сценарии настроек, audit outbox, миграций и вложений прошли.
+    Контейнер, тестовый том и сеть удалены штатной целью.
+  - `make wails-bindings` — успешно; diff JS/TS проверен.
+  - `make frontend-lint frontend-build` — успешно.
+  - `npm --prefix frontend run test:components -- test/components/adminTabs.test.tsx test/components/assignmentCompletionModal.test.tsx`
+    — успешно, 4 теста.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make docs-links-check` — те же шесть прежних битых ссылок, что в этапе 12;
+    новых ошибок нет. `git diff --check` — успешно.
+
+  HTTP-контракты, SQL и бизнес-правила не изменены. Нативный GUI вручную
+  не проверялся.
 
 ### Перенос и разделение предметных сервисов
 
@@ -681,16 +723,93 @@ namespace сразу обновляем frontend и bindings, без старо�
 bindings, тесты и импорты. Для каждого сервиса старый тип/файл удаляется в его
 этапе. Оставшиеся сервисы временно живут на прежнем месте, без новых обёрток.
 
-- [ ] **14. Перенести уже разделённые вложения.**
+- [x] **14. Перенести уже разделённые вложения.**
   Desktop AttachmentService — в desktop/services, ServerAttachmentService — в
   server/services. Общие правила имени разместить независимо от обеих сторон.
   Результат: ровно десять UI-методов; streaming, закрытие файлов/body,
   compensation, permissions и PostgreSQL lifecycle подтверждены тестами.
 
-- [ ] **15. Перенести уже разделённые запросы документов.**
+  Реализация 09.09.2026:
+  - AttachmentService и его тесты перенесены в `internal/desktop/services`,
+    ServerAttachmentService и серверные тесты — в `internal/server/services`.
+    Обновлены runtime/generator Wails-регистрации, HTTP-фабрика и проверка
+    соответствия attachmentAPI. Старые файлы удалены без aliases и обёрток.
+  - Общие правила имени файла и их тесты перенесены в независимый пакет
+    `internal/attachmentname`; пакет включён в проверку общих транзитивных
+    зависимостей. Проверка typed nil остаётся локальной в конструкторах.
+  - Сохранены тесты streaming, закрытия выбранного файла и HTTP body, ошибок
+    скачивания, compensation, прав, повторной проверки поручения после upload,
+    outbox-удаления и reconciliation. Серверные fixtures используют узкий
+    principal без desktop auth. Точный контракт проверяет десять UI-методов.
+  - Обновлены ссылки на реализации и тесты в серверном ревью.
+  Commit: общий коммит этапов 13–15
+  `refactor: separate settings attachments and document queries`.
+
+  Проверки этапа 14:
+  - `make integration-test` — успешно вне песочницы с доступом к Docker:
+    полный PostgreSQL-прогон, включая HTTP lifecycle вложений и outbox.
+    Первый запуск выявил зависимость перенесённого теста от старого fixture;
+    после исправления повторный прогон прошёл. Контейнер, том и сеть удалены.
+  - `make go-test` и `make go-vet` — успешно; полный Go-прогон выполнен вне
+    песочницы для локальных HTTP listeners. При переносе исправлены зависимости
+    тестов от старых fixtures и относительный путь к generated bindings.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/desktop/services ./internal/server/services ./internal/app -run 'Attachment|CompositionRoot'`
+    — успешно.
+  - `make wails-bindings` — успешно; дополнительных изменений bindings
+    относительно этапа 13 нет.
+  - `make frontend-lint frontend-build` — успешно.
+  - `npm --prefix frontend run test:components -- test/components/assignmentCompletionModal.test.tsx`
+    — успешно, 1 тест.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make docs-links-check` — те же шесть прежних битых ссылок; новых ошибок нет.
+    `git diff --check` — успешно.
+
+  HTTP-контракты, SQL и поведение операций не менялись. Нативный GUI вручную
+  не проверялся.
+
+- [x] **15. Перенести уже разделённые запросы документов.**
   Desktop DocumentQueryService — в desktop/services, Engine, registry и query
   handlers — на сервер. Удалить desktop-сеттеры.
   Результат: карточки, фильтры и ограничение области чтения сохранены.
+
+  Реализация 09.09.2026:
+  - DocumentQueryService перенесён в `internal/desktop/services`; HTTP-клиент
+    и metrics передаются конструктором. В Wails опубликованы только GetByID
+    и GetList, оба setters удалены. Runtime/generator регистрации и точный
+    снимок API обновлены, bindings сгенерированы штатной командой.
+  - DocumentQueryEngine, DocumentKindQueryRegistry и четыре query handlers
+    перенесены в `internal/server/services` вместе с тестами. HTTP-фабрика
+    использует новые типы и передаёт metrics при создании engine.
+    Старые файлы удалены, aliases и forwarding-обёрток нет.
+  - Сохранены проверки карточек, фильтров, пагинации и доступа. Дополнительно
+    проверены передача метрик через конструктор, ошибки HTTP-клиента и замена
+    переданной неограниченной AccessScope серверной ограниченной областью.
+  Commit: общий коммит этапов 13–15
+  `refactor: separate settings attachments and document queries`.
+
+  Проверки этапа 15:
+  - `make integration-test` — успешно вне песочницы с доступом к Docker;
+    полный PostgreSQL-прогон включает списки и карточки с серверным доступом,
+    фильтрацию и пагинацию. Контейнер, тестовый том и сеть удалены штатной целью.
+  - `make go-test go-vet` — успешно вне песочницы с поддержкой локальных
+    HTTP listeners; включает Wails-контракт и транзитивные границы импортов.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/desktop/services ./internal/server/services -run 'DocumentQuery|QueryHandler|QueryRegistry'`
+    — успешно.
+  - `make wails-bindings` — успешно; diff JS/TS удаляет только два setters
+    DocumentQueryService относительно этапа 14.
+  - `make frontend-lint frontend-build` — успешно.
+  - `npm --prefix frontend run test:components -- test/components/documentRegistration.test.tsx test/components/accessVisibility.test.tsx`
+    — успешно, 7 тестов.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make docs-links-check` — те же шесть прежних битых ссылок; новых ошибок нет.
+    `git diff --check` — успешно.
+
+  HTTP-контракты, SQL и бизнес-правила не менялись. Нативный GUI вручную
+  не проверялся.
 
 - [ ] **16. Разделить регистрацию документов.**
   Desktop DocumentRegistrationService оставляет HTTP-вызовы; сервер получает

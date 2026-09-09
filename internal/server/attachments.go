@@ -14,7 +14,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 var _ attachmentAPI = (*services.ServerAttachmentService)(nil)

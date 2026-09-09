@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -66,50 +65,24 @@ func (c *fakeServerMigrationClient) Rollback(_ context.Context, login, password 
 	return &c.status, nil
 }
 
-func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.SettingsStore) {
-	t.Helper()
-	settingsRepo := mocks.NewSettingsStore(t)
-	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
-	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
-
-	user := &models.User{
-		ID:       uuid.New(),
-		Login:    role + "_set",
-		FullName: role + " settings",
-
-		IsActive: true,
-	}
-	auth.currentUserID = user.ID
-	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
-
-	service := NewSettingsService(auth)
-	service.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
-	service.SetMigrationClient(&fakeServerMigrationClient{})
-	return service, settingsRepo
+type settingsTestPrincipal struct {
+	admin bool
+	login string
 }
 
-func setupSettingsServiceWithRoles(t *testing.T, roles []string) (*SettingsService, *mocks.SettingsStore, *testPrincipal, *models.User) {
-	t.Helper()
-	settingsRepo := mocks.NewSettingsStore(t)
-	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
-	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
-
-	user := &models.User{
-		ID:       uuid.New(),
-		Login:    "multi_role_set_" + uuid.New().String(),
-		FullName: "Multi Role Settings",
-
-		IsActive: true,
+func (p *settingsTestPrincipal) GetCurrentUser() (*dto.User, error) {
+	return &dto.User{Login: p.login}, nil
+}
+func (p *settingsTestPrincipal) RequireSystemPermissionWithoutSchemaCheck(string) error {
+	if !p.admin {
+		return models.ErrForbidden
 	}
-	auth.currentUserID = user.ID
-	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
-
-	service := NewSettingsService(auth)
-	service.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
-	service.SetMigrationClient(&fakeServerMigrationClient{})
-	return service, settingsRepo, auth, user
+	return nil
+}
+func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.SettingsStore) {
+	t.Helper()
+	store := mocks.NewSettingsStore(t)
+	return NewSettingsService(&settingsTestPrincipal{admin: role == "admin", login: role + "_set"}, &fakeServerSettingsClient{store: store}, &fakeServerMigrationClient{}, nil), store
 }
 
 func TestSettingsService_GetAll(t *testing.T) {
@@ -118,15 +91,6 @@ func TestSettingsService_GetAll(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
 		settings := []models.SystemSetting{{Key: "k1", Value: "v1"}}
 		repo.On("GetAll").Return(settings, nil).Once()
-		result, err := svc.GetAll()
-		require.NoError(t, err)
-		assert.Len(t, result, 1)
-	})
-
-	t.Run("allowed for user with admin role", func(t *testing.T) {
-		svc, repo, _, _ := setupSettingsServiceWithRoles(t, []string{"admin", "clerk"})
-		repo.On("GetAll").Return([]models.SystemSetting{{Key: "k1", Value: "v1"}}, nil).Once()
-
 		result, err := svc.GetAll()
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
@@ -215,134 +179,6 @@ func TestValidateRollbackMigrationRequest(t *testing.T) {
 	}
 }
 
-func TestMigrationCompatibilityAppError(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		msg  string
-	}{
-		{
-			name: "schema too new",
-			err: &models.MigrationCompatibilityError{
-				CurrentVersion:         8,
-				LatestAvailableVersion: 7,
-				SchemaTooNew:           true,
-			},
-			msg: "Версия схемы БД (8) новее миграций",
-		},
-		{
-			name: "dirty schema",
-			err: &models.MigrationCompatibilityError{
-				CurrentVersion:         7,
-				LatestAvailableVersion: 7,
-				Dirty:                  true,
-			},
-			msg: "Миграция БД версии 7 завершилась с ошибкой",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := migrationCompatibilityAppError(tt.err)
-			appErr, ok := models.AsAppError(err)
-			require.True(t, ok)
-			assert.Equal(t, "CONFLICT", appErr.Kind)
-			assert.Equal(t, 409, appErr.Code)
-			assert.Contains(t, appErr.Message, tt.msg)
-		})
-	}
-
-	err := migrationCompatibilityAppError(assert.AnError)
-	assert.ErrorIs(t, err, assert.AnError)
-}
-
-func TestSettingsService_GetMaxFileSize(t *testing.T) {
-	// Получение максимально допустимого размера загружаемых файлов в байтах
-	t.Run("from settings", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "25"}, nil).Once()
-		size, err := svc.GetMaxFileSize()
-		require.NoError(t, err)
-		assert.Equal(t, int64(25*1024*1024), size)
-	})
-
-	t.Run("default on error", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "max_file_size_mb").Return((*models.SystemSetting)(nil), assert.AnError).Once()
-		size, err := svc.GetMaxFileSize()
-		require.NoError(t, err)
-		assert.Equal(t, int64(15*1024*1024), size)
-	})
-
-	t.Run("default on empty setting", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: " "}, nil).Once()
-		size, err := svc.GetMaxFileSize()
-		require.NoError(t, err)
-		assert.Equal(t, int64(15*1024*1024), size)
-	})
-
-	t.Run("default on invalid setting", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "large"}, nil).Once()
-		size, err := svc.GetMaxFileSize()
-		require.NoError(t, err)
-		assert.Equal(t, int64(15*1024*1024), size)
-	})
-
-	t.Run("default on out of range setting", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Key: "max_file_size_mb", Value: "2048"}, nil).Once()
-		size, err := svc.GetMaxFileSize()
-		require.NoError(t, err)
-		assert.Equal(t, int64(DefaultAttachmentSizeMB*1024*1024), size)
-	})
-}
-
-func TestSettingsService_GetAllowedFileTypes(t *testing.T) {
-	// Получение списка разрешенных расширений загружаемых файлов
-	t.Run("from settings", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "allowed_file_types").Return(&models.SystemSetting{Key: "allowed_file_types", Value: ".pdf, .DOC, .txt"}, nil).Once()
-		types, err := svc.GetAllowedFileTypes()
-		require.NoError(t, err)
-		assert.Equal(t, []string{".pdf", ".doc", ".txt"}, types)
-	})
-
-	t.Run("default on error", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "allowed_file_types").Return((*models.SystemSetting)(nil), assert.AnError).Once()
-		types, err := svc.GetAllowedFileTypes()
-		require.NoError(t, err)
-		assert.Equal(t, []string{".pdf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods"}, types)
-	})
-
-	t.Run("empty setting returns default list", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "allowed_file_types").Return(&models.SystemSetting{Key: "allowed_file_types", Value: ""}, nil).Once()
-		types, err := svc.GetAllowedFileTypes()
-		require.NoError(t, err)
-		assert.Equal(t, []string{".pdf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods"}, types)
-	})
-}
-
-func TestSettingsService_GetOrganizationName(t *testing.T) {
-	// Получение названия нашей организации (используется для подстановки по умолчанию)
-	t.Run("from settings", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "organization_name").Return(&models.SystemSetting{Key: "organization_name", Value: "Custom Org"}, nil).Once()
-		name := svc.GetOrganizationName()
-		assert.Equal(t, "Custom Org", name)
-	})
-
-	t.Run("default on error", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "organization_name").Return((*models.SystemSetting)(nil), assert.AnError).Once()
-		name := svc.GetOrganizationName()
-		assert.Equal(t, "", name)
-	})
-}
-
 func TestSettingsService_GetOrganizationShortName(t *testing.T) {
 	t.Run("from settings", func(t *testing.T) {
 		svc, repo := setupSettingsService(t, "admin")
@@ -396,7 +232,7 @@ func TestSettingsService_RunMigrations(t *testing.T) {
 	t.Run("calls server as current admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
 		client := &fakeServerMigrationClient{}
-		svc.SetMigrationClient(client)
+		svc.migrationClient = client
 
 		require.NoError(t, svc.RunMigrations("Passw0rd!"))
 		assert.Equal(t, 1, client.applyCalls)
@@ -416,7 +252,7 @@ func TestSettingsService_RunMigrationsReconcilesSchemaLifecycle(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
 		client := &fakeServerMigrationClient{}
 		lifecycle := &fakeSchemaLifecycle{}
-		svc.SetMigrationClient(client)
+		svc.migrationClient = client
 		svc.schemaLifecycle = lifecycle
 
 		require.NoError(t, svc.RunMigrations("Passw0rd!"))
@@ -428,7 +264,7 @@ func TestSettingsService_RunMigrationsReconcilesSchemaLifecycle(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
 		client := &fakeServerMigrationClient{applyErr: assert.AnError}
 		lifecycle := &fakeSchemaLifecycle{}
-		svc.SetMigrationClient(client)
+		svc.migrationClient = client
 		svc.schemaLifecycle = lifecycle
 
 		require.Error(t, svc.RunMigrations("Passw0rd!"))
@@ -448,7 +284,7 @@ func TestSettingsService_GetMigrationStatus(t *testing.T) {
 
 	t.Run("success admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
-		svc.SetMigrationClient(&fakeServerMigrationClient{status: dto.MigrationStatus{CurrentVersion: 7, UpToDate: true}})
+		svc.migrationClient = &fakeServerMigrationClient{status: dto.MigrationStatus{CurrentVersion: 7, UpToDate: true}}
 		status, err := svc.GetMigrationStatus()
 		require.NoError(t, err)
 		assert.EqualValues(t, 7, status.CurrentVersion)
@@ -484,7 +320,7 @@ func TestSettingsService_RollbackMigration(t *testing.T) {
 	t.Run("success admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
 		client := &fakeServerMigrationClient{}
-		svc.SetMigrationClient(client)
+		svc.migrationClient = client
 		require.NoError(t, svc.RollbackMigration(validReq))
 		assert.Equal(t, 1, client.rollbackCalls)
 	})
@@ -503,7 +339,7 @@ func TestSettingsService_RollbackCoordinatesSchemaLifecycle(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
 		client := &fakeServerMigrationClient{}
 		lifecycle := &fakeSchemaLifecycle{}
-		svc.SetMigrationClient(client)
+		svc.migrationClient = client
 		svc.schemaLifecycle = lifecycle
 
 		require.NoError(t, svc.RollbackMigration(validReq))
@@ -515,11 +351,31 @@ func TestSettingsService_RollbackCoordinatesSchemaLifecycle(t *testing.T) {
 		svc, _ := setupSettingsService(t, "admin")
 		client := &fakeServerMigrationClient{rollbackErr: assert.AnError}
 		lifecycle := &fakeSchemaLifecycle{}
-		svc.SetMigrationClient(client)
+		svc.migrationClient = client
 		svc.schemaLifecycle = lifecycle
 
 		require.Error(t, svc.RollbackMigration(validReq))
 		assert.Equal(t, 1, client.rollbackCalls)
 		assert.Zero(t, lifecycle.reconcileCalls)
 	})
+}
+
+type fakeSchemaLifecycle struct{ reconcileCalls int }
+
+func (l *fakeSchemaLifecycle) ReconcileSchema() { l.reconcileCalls++ }
+
+func TestSettingsServiceMissingClients(t *testing.T) {
+	svc := NewSettingsService(&settingsTestPrincipal{admin: true}, nil, nil, nil)
+	_, err := svc.GetAll()
+	require.ErrorContains(t, err, "не настроен")
+	require.ErrorContains(t, svc.Update("key", "value"), "не настроен")
+	_, err = svc.GetMigrationStatus()
+	require.ErrorContains(t, err, "не настроен")
+	require.ErrorContains(t, svc.RunMigrations("password"), "не настроен")
+	require.ErrorContains(t, svc.RollbackMigration(models.RollbackMigrationRequest{
+		BackupCompleted: true, BackupReference: "backup", AcknowledgedDataLoss: true,
+		Confirmation: rollbackMigrationConfirmationPhrase, Password: "password",
+	}), "не настроен")
+	assert.Empty(t, svc.GetOrganizationShortName())
+	assert.False(t, svc.IsAssignmentCompletionAttachmentsEnabled())
 }

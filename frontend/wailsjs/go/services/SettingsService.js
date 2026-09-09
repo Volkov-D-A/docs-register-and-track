@@ -6,20 +6,8 @@ export function GetAll() {
   return window['go']['services']['SettingsService']['GetAll']();
 }
 
-export function GetAllowedFileTypes() {
-  return window['go']['services']['SettingsService']['GetAllowedFileTypes']();
-}
-
-export function GetMaxFileSize() {
-  return window['go']['services']['SettingsService']['GetMaxFileSize']();
-}
-
 export function GetMigrationStatus() {
   return window['go']['services']['SettingsService']['GetMigrationStatus']();
-}
-
-export function GetOrganizationName() {
-  return window['go']['services']['SettingsService']['GetOrganizationName']();
 }
 
 export function GetOrganizationShortName() {
@@ -36,14 +24,6 @@ export function RollbackMigration(arg1) {
 
 export function RunMigrations(arg1) {
   return window['go']['services']['SettingsService']['RunMigrations'](arg1);
-}
-
-export function SetMigrationClient(arg1) {
-  return window['go']['services']['SettingsService']['SetMigrationClient'](arg1);
-}
-
-export function SetServerClient(arg1) {
-  return window['go']['services']['SettingsService']['SetServerClient'](arg1);
 }
 
 export function Update(arg1, arg2) {

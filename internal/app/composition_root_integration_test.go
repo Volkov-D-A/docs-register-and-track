@@ -9,7 +9,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	desktopservices "github.com/Volkov-D-A/docs-register-and-track/internal/desktop/services"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 
 	"github.com/stretchr/testify/require"
 )

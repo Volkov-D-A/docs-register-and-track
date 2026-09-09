@@ -68,7 +68,7 @@ Endpoint `POST /api/v1/auth/setup` доступен без аутентифик�
 
 Статус на 7 сентября 2026 года: риск для вложений закрыт. Реализовано разделение: независимые `AttachmentService` (desktop) и `ServerAttachmentService` (HTTP-сервер) не содержат друг друга и не переключаются между локальным и серверным режимами.
 
-[Desktop-сервис](../internal/services/attachment_desktop.go) получает обязательный HTTP-клиент, lifecycle, metrics и адаптеры ОС через конструктор. Callback запуска хранит Wails-контекст под mutex и не публикуется как метод. [Серверный сервис](../internal/services/attachment_server.go) получает зависимости при создании, сохраняет проверки прав, streaming и transactional effects. Общая нормализация имён используется обеими реализациями.
+[Desktop-сервис](../internal/desktop/services/attachment_desktop.go) получает обязательный HTTP-клиент, lifecycle, metrics и адаптеры ОС через конструктор. Callback запуска хранит Wails-контекст под mutex и не публикуется как метод. [Серверный сервис](../internal/server/services/attachment_server.go) получает зависимости при создании, сохраняет проверки прав, streaming и transactional effects. Общая нормализация имён используется обеими реализациями.
 
 [Сгенерированные bindings](../frontend/wailsjs/go/services/AttachmentService.d.ts) содержат ровно десять UI-операций. Удалены серверные методы, `Startup` и сеттеры. Тесты проверяют точный набор методов Go/JS/TS, отсутствие серверного типа в обеих Wails-регистрациях и совпадение регистраций.
 
@@ -163,7 +163,7 @@ if user == nil || !security.VerifyPassword(user.PasswordHash, req.Password) {
 
 ### Закомментированные старые тесты вложений
 
-Исправлено при разделении вложений: закомментированный base64-блок удалён. Актуальные проверки аутентификации, лимита размера, типа файла и запрета загрузки участником выполняются в [серверных streaming-тестах](../internal/services/attachment_server_test.go). Выбор файлов и сохранение Downloads проверяются в [desktop-тестах](../internal/services/attachment_desktop_test.go).
+Исправлено при разделении вложений: закомментированный base64-блок удалён. Актуальные проверки аутентификации, лимита размера, типа файла и запрета загрузки участником выполняются в [серверных streaming-тестах](../internal/server/services/attachment_server_test.go). Выбор файлов и сохранение Downloads проверяются в [desktop-тестах](../internal/desktop/services/attachment_desktop_test.go).
 
 ## Недостающее тестовое покрытие
 

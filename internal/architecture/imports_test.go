@@ -22,7 +22,7 @@ func forbidden(owner, dependency string) bool {
 	desktop := within(owner, module+"internal/desktop")
 	server := within(owner, module+"internal/server") && owner != module+"internal/server"
 	shared := false
-	for _, root := range []string{"dto", "models", "operations", "observability", "releaseassets"} {
+	for _, root := range []string{"dto", "models", "operations", "observability", "releaseassets", "attachmentname"} {
 		shared = shared || within(owner, module+"internal/"+root)
 	}
 	if !desktop && !server && !shared {

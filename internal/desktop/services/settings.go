@@ -2,58 +2,34 @@ package services
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
 const rollbackMigrationConfirmationPhrase = "ОТКАТ МИГРАЦИИ"
-
-const (
-	DefaultAttachmentSizeMB = 15
-	MaximumAttachmentSizeMB = 1024
-)
 
 type settingsPrincipal interface {
 	GetCurrentUser() (*dto.User, error)
 	RequireSystemPermissionWithoutSchemaCheck(string) error
 }
 
-// SettingsService предоставляет бизнес-логику для работы с системными настройками.
+// SettingsService exposes settings and migration operations through the server API.
 type SettingsService struct {
 	authService     settingsPrincipal
-	schemaLifecycle SchemaLifecycle
+	schemaLifecycle interface{ ReconcileSchema() }
 	migrationClient serverclient.MigrationClient
 	settingsClient  serverclient.SettingsClient
-	settingsStore   ports.SettingsStore
 	migrationMu     sync.Mutex
 }
 
-// NewSettingsService создает новый экземпляр SettingsService.
-func NewSettingsService(authService settingsPrincipal) *SettingsService {
-	return &SettingsService{authService: authService}
-}
-
-// NewServerSettingsService provides request-local business services with
-// direct access to the server-owned settings repository.
-func NewServerSettingsService(store ports.SettingsStore) *SettingsService {
-	return &SettingsService{settingsStore: store}
-}
-
-func (s *SettingsService) SetMigrationClient(client serverclient.MigrationClient) {
-	s.migrationClient = client
-}
-
-func (s *SettingsService) SetServerClient(client serverclient.SettingsClient) {
-	s.settingsClient = client
+// NewSettingsService wires the desktop settings and migration clients.
+func NewSettingsService(auth settingsPrincipal, settings serverclient.SettingsClient, migrations serverclient.MigrationClient, lifecycle interface{ ReconcileSchema() }) *SettingsService {
+	return &SettingsService{authService: auth, settingsClient: settings, migrationClient: migrations, schemaLifecycle: lifecycle}
 }
 
 // GetAll возвращает все системные настройки.
@@ -156,53 +132,6 @@ func (s *SettingsService) currentMigrationLogin(password string) (string, error)
 	return user.Login, nil
 }
 
-// Вспомогательные методы для других сервисов
-
-// GetMaxFileSize возвращает максимальный допустимый размер файла в байтах.
-func (s *SettingsService) GetMaxFileSize() (int64, error) {
-	setting, err := s.getSetting("max_file_size_mb")
-	if err != nil {
-		return DefaultAttachmentSizeMB * 1024 * 1024, nil
-	}
-	if setting == nil || strings.TrimSpace(setting.Value) == "" {
-		return DefaultAttachmentSizeMB * 1024 * 1024, nil
-	}
-	mb, err := strconv.Atoi(setting.Value)
-	if err != nil || mb < 1 || mb > MaximumAttachmentSizeMB {
-		return DefaultAttachmentSizeMB * 1024 * 1024, nil
-	}
-	return int64(mb) * 1024 * 1024, nil
-}
-
-// GetAllowedFileTypes возвращает список разрешенных расширений файлов.
-func (s *SettingsService) GetAllowedFileTypes() ([]string, error) {
-	setting, err := s.getSetting("allowed_file_types")
-	if err != nil {
-		return []string{".pdf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods"}, nil
-	}
-	if setting == nil || strings.TrimSpace(setting.Value) == "" {
-		return []string{".pdf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods"}, nil
-	}
-	types := strings.Split(setting.Value, ",")
-	result := make([]string, 0, len(types))
-	for i, t := range types {
-		types[i] = strings.TrimSpace(strings.ToLower(t))
-		if types[i] != "" {
-			result = append(result, types[i])
-		}
-	}
-	return result, nil
-}
-
-// GetOrganizationName возвращает название основной организации из настроек.
-func (s *SettingsService) GetOrganizationName() string {
-	setting, err := s.getSetting("organization_name")
-	if err != nil || setting == nil || setting.Value == "" {
-		return ""
-	}
-	return setting.Value
-}
-
 // GetOrganizationShortName возвращает краткое название организации из настроек.
 func (s *SettingsService) GetOrganizationShortName() string {
 	setting, err := s.getSetting("organization_short_name")
@@ -243,33 +172,7 @@ func validateRollbackMigrationRequest(req models.RollbackMigrationRequest) error
 	return nil
 }
 
-func migrationCompatibilityAppError(err error) error {
-	var compatibilityErr *models.MigrationCompatibilityError
-	if !errors.As(err, &compatibilityErr) {
-		return err
-	}
-
-	if compatibilityErr.SchemaTooNew {
-		return models.NewConflict(fmt.Sprintf(
-			"Версия схемы БД (%d) новее миграций, встроенных в приложение (%d). Запустите совместимую версию приложения или выполните утвержденную процедуру обновления.",
-			compatibilityErr.CurrentVersion,
-			compatibilityErr.LatestAvailableVersion,
-		))
-	}
-	if compatibilityErr.Dirty {
-		return models.NewConflict(fmt.Sprintf(
-			"Миграция БД версии %d завершилась с ошибкой. Работа заблокирована до восстановления схемы по регламенту.",
-			compatibilityErr.CurrentVersion,
-		))
-	}
-
-	return models.NewConflict("Схема БД несовместима с текущей версией приложения")
-}
-
 func (s *SettingsService) getSetting(key string) (*models.SystemSetting, error) {
-	if s.settingsStore != nil {
-		return s.settingsStore.Get(key)
-	}
 	if s.settingsClient == nil {
 		return nil, models.NewConflict("Клиент настроек docflow-server не настроен")
 	}

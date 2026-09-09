@@ -15,7 +15,7 @@ type testPrincipal struct {
 		GetByID(uuid.UUID) (*models.User, error)
 	}
 	accessRepo      ports.DocumentAccessStore
-	schemaLifecycle SchemaLifecycle
+	schemaLifecycle interface{ CheckReady() error }
 }
 
 func newTestPrincipal(users interface {

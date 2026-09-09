@@ -7,12 +7,14 @@ import (
 	"log/slog"
 	"mime"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/attachmentname"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/coordination"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -20,7 +22,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
-	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 // ServerAttachmentService owns protected attachment operations for one HTTP request.
@@ -29,7 +30,7 @@ type ServerAttachmentService struct {
 	settingsService  ports.AttachmentSettings
 	authService      ports.AttachmentPrincipal
 	fileStorage      ports.FileStorage
-	access           *serverservices.DocumentAccessService
+	access           *DocumentAccessService
 	lifecycle        *operations.Lifecycle
 	metrics          *observability.Registry
 	storageMutations coordination.StorageMutationCoordinator
@@ -49,7 +50,7 @@ type ServerAttachmentOptions struct {
 // NewServerAttachmentService requires the repository, settings, principal, storage
 // and document access service. It panics on missing required dependencies,
 // which indicate a composition error rather than a request error.
-func NewServerAttachmentService(repo ports.AttachmentStore, settings ports.AttachmentSettings, principal ports.AttachmentPrincipal, storage ports.FileStorage, access *serverservices.DocumentAccessService, options ServerAttachmentOptions) *ServerAttachmentService {
+func NewServerAttachmentService(repo ports.AttachmentStore, settings ports.AttachmentSettings, principal ports.AttachmentPrincipal, storage ports.FileStorage, access *DocumentAccessService, options ServerAttachmentOptions) *ServerAttachmentService {
 	if attachmentDependencyMissing(repo) || attachmentDependencyMissing(settings) || attachmentDependencyMissing(principal) || attachmentDependencyMissing(storage) || access == nil {
 		panic("server attachment service: missing required dependency")
 	}
@@ -210,7 +211,7 @@ func (s *ServerAttachmentService) UploadContent(documentIDStr string, assignment
 		}
 	}
 
-	filename = safeDownloadFilename(filename)
+	filename = attachmentname.Normalize(filename)
 	if filename == "attachment" || len(filename) > 255 || size < 0 || content == nil {
 		return nil, models.NewBadRequest("файл для загрузки указан некорректно")
 	}
@@ -460,4 +461,18 @@ func (s *ServerAttachmentService) BulkDeleteOlderThan(dateStr string) (int, erro
 		return 0, fmt.Errorf("failed to queue attachment deletion: %w", err)
 	}
 	return len(attachments), nil
+}
+
+// Interface dependencies must also reject a typed nil pointer.
+func attachmentDependencyMissing(value any) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

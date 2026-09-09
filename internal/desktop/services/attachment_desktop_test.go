@@ -26,28 +26,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
 )
 
-func TestSafeDownloadFilename(t *testing.T) {
-	tests := []struct {
-		name     string
-		filename string
-		want     string
-	}{
-		{name: "keeps simple filename", filename: "report.pdf", want: "report.pdf"},
-		{name: "trims spaces", filename: "  report.pdf  ", want: "report.pdf"},
-		{name: "drops parent directories", filename: "../secret/report.pdf", want: "report.pdf"},
-		{name: "normalizes windows path", filename: `..\\secret\\report.pdf`, want: "report.pdf"},
-		{name: "drops control characters", filename: "report\n.pdf", want: "report.pdf"},
-		{name: "empty fallback", filename: "   ", want: "attachment"},
-		{name: "dot fallback", filename: ".", want: "attachment"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, safeDownloadFilename(tt.filename))
-		})
-	}
-}
-
 func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
 	// Проверка пути доступа к файлу для защиты от уязвимости Path Traversal
 	t.Run("valid path", func(t *testing.T) {
@@ -117,7 +95,7 @@ func TestDesktopAttachmentContract(t *testing.T) {
 	}
 	require.ElementsMatch(t, []string{"Upload", "UploadForAssignment", "GetList", "GetAssignmentFiles", "Delete", "BulkDeleteOlderThan", "ReconcileStorage", "DownloadToDisk", "OpenFile", "OpenFolder"}, names)
 	for _, ext := range []string{"js", "d.ts"} {
-		data, err := os.ReadFile("../../frontend/wailsjs/go/services/AttachmentService." + ext)
+		data, err := os.ReadFile("../../../frontend/wailsjs/go/services/AttachmentService." + ext)
 		require.NoError(t, err)
 		matches := regexp.MustCompile(`export function (\w+)\(`).FindAllStringSubmatch(string(data), -1)
 		var generated []string
@@ -378,4 +356,17 @@ func TestDesktopAttachmentMetricsFromConstructor(t *testing.T) {
 	require.Len(t, snapshots, 1)
 	require.Equal(t, "attachments.get_list", snapshots[0].Name)
 	require.Equal(t, int64(1), snapshots[0].Errors)
+}
+
+func requireAppError(t *testing.T, err error, kind string, code int, message string) *models.AppError {
+	t.Helper()
+
+	appErr, ok := models.AsAppError(err)
+	require.True(t, ok)
+	assert.Equal(t, kind, appErr.Kind)
+	assert.Equal(t, code, appErr.Code)
+	if message != "" {
+		assert.Contains(t, appErr.Message, message)
+	}
+	return appErr
 }

@@ -13,11 +13,10 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/coordination"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 func setupAttachmentService(t *testing.T, role string) (
-	*ServerAttachmentService, *mocks.AttachmentStore, *mocks.SettingsStore, *mocks.FileStorage, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *mocks.AcknowledgmentStore, *mocks.UserStore, *testPrincipal,
+	*ServerAttachmentService, *mocks.AttachmentStore, *mocks.SettingsStore, *mocks.FileStorage, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *mocks.AcknowledgmentStore, *mocks.UserStore, *attachmentPrincipalStub,
 ) {
 	t.Helper()
 	attachRepo := mocks.NewAttachmentStore(t)
@@ -37,7 +36,7 @@ func setupAttachmentService(t *testing.T, role string) (
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
+	auth := newAttachmentPrincipalStub(userRepo)
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(role))
 
 	user := &models.User{
@@ -51,9 +50,8 @@ func setupAttachmentService(t *testing.T, role string) (
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	settingsSvc := NewSettingsService(auth)
-	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
-	accessSvc := serverservices.NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	settingsSvc := NewSettingsService(settingsRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewServerAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc, ServerAttachmentOptions{Assignments: assignmentRepo})
 	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, depRepo, assignmentRepo, ackRepo, userRepo, auth
@@ -91,7 +89,7 @@ func (c *storageMutationCoordinatorStub) BeginStorageMutation(ctx context.Contex
 }
 
 func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
-	*ServerAttachmentService, *mocks.AttachmentStore, *mocks.SettingsStore, *mocks.FileStorage, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *mocks.AcknowledgmentStore, *mocks.UserStore, *testPrincipal,
+	*ServerAttachmentService, *mocks.AttachmentStore, *mocks.SettingsStore, *mocks.FileStorage, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *mocks.DepartmentStore, *mocks.AssignmentStore, *mocks.AcknowledgmentStore, *mocks.UserStore, *attachmentPrincipalStub,
 ) {
 	t.Helper()
 	attachRepo := mocks.NewAttachmentStore(t)
@@ -111,7 +109,7 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
+	auth := newAttachmentPrincipalStub(userRepo)
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
 
 	user := &models.User{
@@ -125,9 +123,8 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	settingsSvc := NewSettingsService(auth)
-	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
-	accessSvc := serverservices.NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(roles...), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	settingsSvc := NewSettingsService(settingsRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(roles...), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewServerAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc, ServerAttachmentOptions{Assignments: assignmentRepo})
 	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, depRepo, assignmentRepo, ackRepo, userRepo, auth
@@ -152,10 +149,9 @@ func setupAttachmentServiceNotAuth(t *testing.T) *ServerAttachmentService {
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
-	settingsSvc := NewSettingsService(auth)
-	settingsSvc.SetServerClient(&fakeServerSettingsClient{store: settingsRepo})
-	accessSvc := serverservices.NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	auth := newAttachmentPrincipalStub(userRepo)
+	settingsSvc := NewSettingsService(settingsRepo)
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 	return NewServerAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc, ServerAttachmentOptions{Assignments: assignmentRepo})
 }
 
@@ -454,4 +450,17 @@ func TestServerAttachmentConfiguration(t *testing.T) {
 	require.Panics(t, func() {
 		NewServerAttachmentService(missing, svc.settingsService, auth, storage, svc.access, ServerAttachmentOptions{})
 	})
+}
+
+func requireAppError(t *testing.T, err error, kind string, code int, message string) *models.AppError {
+	t.Helper()
+
+	appErr, ok := models.AsAppError(err)
+	require.True(t, ok)
+	assert.Equal(t, kind, appErr.Kind)
+	assert.Equal(t, code, appErr.Code)
+	if message != "" {
+		assert.Contains(t, appErr.Message, message)
+	}
+	return appErr
 }

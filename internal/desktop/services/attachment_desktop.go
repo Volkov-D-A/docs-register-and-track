@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/attachmentname"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
@@ -207,7 +209,7 @@ func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
 }
 
 func writeDownloadFileFromStorage(downloadDir, filename string, write func(*os.File) error) (string, error) {
-	cleanFilename := safeDownloadFilename(filename)
+	cleanFilename := attachmentname.Normalize(filename)
 	ext := filepath.Ext(cleanFilename)
 	base := strings.TrimSuffix(cleanFilename, ext)
 	for i := 0; i < 1000; i++ {
@@ -324,4 +326,18 @@ func (s *AttachmentService) OpenFolder(path string) error {
 		return fmt.Errorf("failed to open folder: %v", err)
 	}
 	return nil
+}
+
+// Interface dependencies must also reject a typed nil pointer.
+func attachmentDependencyMissing(value any) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

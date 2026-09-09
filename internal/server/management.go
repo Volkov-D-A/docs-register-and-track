@@ -136,11 +136,11 @@ func newManagementAPI(app *App) *managementAPI {
 	attachmentRepo := repository.NewAttachmentRepository(app.db)
 	attachmentRepo.SetOutbox(outboxRepo)
 	documents := repository.NewDocumentRepository(app.db)
-	queryRegistry := services.NewDocumentKindQueryRegistry(
-		services.NewIncomingLetterQueryHandler(repository.NewIncomingDocumentRepository(app.db)),
-		services.NewOutgoingLetterQueryHandler(repository.NewOutgoingDocumentRepository(app.db)),
-		services.NewCitizenAppealQueryHandler(repository.NewCitizenAppealRepository(app.db)),
-		services.NewAdministrativeOrderQueryHandler(repository.NewAdministrativeOrderRepository(app.db)),
+	queryRegistry := serverservices.NewDocumentKindQueryRegistry(
+		serverservices.NewIncomingLetterQueryHandler(repository.NewIncomingDocumentRepository(app.db)),
+		serverservices.NewOutgoingLetterQueryHandler(repository.NewOutgoingDocumentRepository(app.db)),
+		serverservices.NewCitizenAppealQueryHandler(repository.NewCitizenAppealRepository(app.db)),
+		serverservices.NewAdministrativeOrderQueryHandler(repository.NewAdministrativeOrderRepository(app.db)),
 	)
 	incomingCommands := repository.NewIncomingDocumentRepository(app.db)
 	outgoingCommands := repository.NewOutgoingDocumentRepository(app.db)
@@ -171,8 +171,7 @@ func newManagementAPI(app *App) *managementAPI {
 				requestDocumentPrincipal{user: user}, departments, assignments,
 				acknowledgments, access, documents, substitutions,
 			)
-			query := services.NewDocumentQueryEngine(queryRegistry, documentAccess)
-			query.SetOperationMetrics(app.metrics)
+			query := serverservices.NewDocumentQueryEngine(queryRegistry, documentAccess, app.metrics)
 			return query
 		},
 		documentCommands: func(user *models.User) documentCommandAPI {
@@ -254,7 +253,7 @@ func newManagementAPI(app *App) *managementAPI {
 		attachments: func(user *models.User) attachmentAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
-			service := services.NewServerAttachmentService(attachmentRepo, services.NewServerSettingsService(settings), principal, app.storage, documentAccess, services.ServerAttachmentOptions{Assignments: assignments, Substitutions: substitutions, Metrics: app.metrics})
+			service := serverservices.NewServerAttachmentService(attachmentRepo, serverservices.NewSettingsService(settings), principal, app.storage, documentAccess, serverservices.ServerAttachmentOptions{Assignments: assignments, Substitutions: substitutions, Metrics: app.metrics})
 			return service
 		},
 		adminAudit: func(user *models.User) adminAuditAPI {
