@@ -295,9 +295,8 @@ func TestAssignmentService_CreateEmitsUserEvents(t *testing.T) {
 	execID := uuid.New()
 	coExecID := uuid.New()
 
-	svc, repo, _, auth, incomingRepo := setupAssignmentService(t, "clerk")
-	eventStore := &fakeUserEventStore{}
-	svc.events = NewUserEventService(eventStore, auth)
+	svc, repo, _, _, incomingRepo := setupAssignmentService(t, "clerk")
+	svc.emitUserEvents = true
 	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
 		ID:             docID,
 		NomenclatureID: uuid.New(),
@@ -865,9 +864,7 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 			"incoming_letter": {"assign"},
 		}), nil)
 		executorID, _ := uuid.Parse(auth.GetCurrentUserID())
-
-		eventStore := &fakeUserEventStore{}
-		svc.events = NewUserEventService(eventStore, auth)
+		svc.emitUserEvents = true
 		controllerID := uuid.New()
 		userRepo.On("GetAll").Return([]models.User{
 			{ID: controllerID, IsActive: true},
@@ -908,9 +905,7 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 			"incoming_letter": {"assign"},
 		}), nil)
 		executorID, _ := uuid.Parse(auth.GetCurrentUserID())
-
-		eventStore := &fakeUserEventStore{}
-		svc.events = NewUserEventService(eventStore, auth)
+		svc.emitUserEvents = true
 		userRepo.On("GetAll").Return([]models.User{
 			{ID: executorID, IsActive: true},
 		}, nil).Once()
@@ -950,9 +945,7 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 		}), nil)
 		executorID, _ := uuid.Parse(auth.GetCurrentUserID())
 		coExecutorID := uuid.New()
-
-		eventStore := &fakeUserEventStore{}
-		svc.events = NewUserEventService(eventStore, auth)
+		svc.emitUserEvents = true
 		userRepo.On("GetAll").Return([]models.User{
 			{ID: coExecutorID, IsActive: true},
 			{ID: executorID, IsActive: true},
@@ -990,9 +983,8 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 	})
 
 	t.Run("returned notifies executor", func(t *testing.T) {
-		svc, repo, _, auth, _ := setupAssignmentService(t, "clerk")
-		eventStore := &fakeUserEventStore{}
-		svc.events = NewUserEventService(eventStore, auth)
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		svc.emitUserEvents = true
 		completedAt := time.Now()
 		existing := &models.Assignment{
 			ID:          assignmentID,

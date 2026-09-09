@@ -21,7 +21,6 @@ type AcknowledgmentService struct {
 	userRepo      ports.UserStore
 	auth          ports.DocumentAccessPrincipal
 	access        *serverservices.DocumentAccessService
-	events        *UserEventService
 	substitutions ports.UserSubstitutionStore
 	server        serverclient.AcknowledgmentClient
 }
@@ -34,16 +33,12 @@ func NewAcknowledgmentService(
 	userRepo ports.UserStore,
 	auth ports.DocumentAccessPrincipal,
 	access *serverservices.DocumentAccessService,
-	events ...*UserEventService,
 ) *AcknowledgmentService {
 	s := &AcknowledgmentService{
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
 		access:   access,
-	}
-	if len(events) > 0 {
-		s.events = events[0]
 	}
 	return s
 }

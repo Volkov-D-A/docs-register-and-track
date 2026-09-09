@@ -207,7 +207,7 @@ func newManagementAPI(app *App) *managementAPI {
 			return service
 		},
 		userEvents: func(user *models.User) userEventAPI {
-			return services.NewUserEventService(userEvents, requestDocumentPrincipal{user: user})
+			return serverservices.NewUserEventService(userEvents, requestDocumentPrincipal{user: user})
 		},
 		administrativeOrderAcknowledgments: func(user *models.User) administrativeOrderAcknowledgmentAPI {
 			principal := requestDocumentPrincipal{user: user}

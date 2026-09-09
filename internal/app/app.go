@@ -70,7 +70,7 @@ func NewBindingsWailsOptions() *options.App {
 			&desktopservices.ThemeService{},
 			&services.JournalService{},
 			&services.AdminAuditLogService{},
-			&services.UserEventService{},
+			&desktopservices.UserEventService{},
 			&services.OutboxAdminService{},
 		},
 	}
@@ -130,7 +130,7 @@ func newWailsOptionsWithDependencies(
 	journalService := services.NewJournalServiceWithClient(serverClient)
 	documentQueryService := desktopservices.NewDocumentQueryService(serverClient, metrics)
 	documentRegistrationService := desktopservices.NewDocumentRegistrationService(serverClient, operationLifecycle, metrics)
-	userEventService := services.NewUserEventServiceWithClient(serverClient)
+	userEventService := desktopservices.NewUserEventService(serverClient)
 	administrativeOrderService := services.NewAdministrativeOrderServiceWithClient(serverClient)
 	assignmentService := services.NewAssignmentServiceWithClient(serverClient)
 	departmentService := desktopservices.NewDepartmentService(serverClient)

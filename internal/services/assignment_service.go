@@ -22,7 +22,6 @@ type AssignmentService struct {
 	userRepo       ports.UserStore
 	auth           ports.DocumentAccessPrincipal
 	access         *serverservices.DocumentAccessService
-	events         *UserEventService
 	emitUserEvents bool
 	substitutions  ports.UserSubstitutionStore
 	server         serverclient.AssignmentClient
@@ -34,17 +33,12 @@ func NewAssignmentService(
 	userRepo ports.UserStore,
 	auth ports.DocumentAccessPrincipal,
 	access *serverservices.DocumentAccessService,
-	events ...*UserEventService,
 ) *AssignmentService {
 	s := &AssignmentService{
 		repo:     repo,
 		userRepo: userRepo,
 		auth:     auth,
 		access:   access,
-	}
-	if len(events) > 0 {
-		s.events = events[0]
-		s.emitUserEvents = events[0] != nil
 	}
 	return s
 }
@@ -72,7 +66,7 @@ func assignmentClientContext() (context.Context, context.CancelFunc) {
 }
 
 func (s *AssignmentService) assignmentEventsEnabled() bool {
-	return s.emitUserEvents || s.events != nil
+	return s.emitUserEvents
 }
 
 // SetSubstitutionStore подключает источник активных замещений.

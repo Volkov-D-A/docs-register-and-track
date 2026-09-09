@@ -122,7 +122,7 @@ func setupUserEventService(t *testing.T) (*UserEventService, *fakeUserEventStore
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newTestPrincipal(userRepo)
+	auth := newAttachmentPrincipalStub(userRepo)
 
 	user := &models.User{
 		ID:    uuid.New(),
@@ -212,22 +212,29 @@ func TestUserEventService_ReadMarkers(t *testing.T) {
 	assert.Equal(t, []uuid.UUID{user.ID}, store.markedAllFor)
 }
 
-func TestUserEventService_CreateValidation(t *testing.T) {
-	svc, _, _ := setupUserEventService(t)
+func TestUserEventServiceReadMarkersRejectOtherRecipient(t *testing.T) {
+	svc, store, user := setupUserEventService(t)
+	documentID := uuid.New()
+	foreignID := uuid.New()
+	store.items = []models.UserEvent{
+		{ID: uuid.New(), RecipientUserID: user.ID, DocumentID: documentID},
+		{ID: foreignID, RecipientUserID: uuid.New(), DocumentID: documentID},
+	}
+	require.Error(t, svc.MarkRead(foreignID.String()))
+	require.NoError(t, svc.MarkDocumentRead(documentID.String()))
+	require.NotNil(t, store.items[0].ReadAt)
+	require.Nil(t, store.items[1].ReadAt)
+	require.NoError(t, svc.MarkAllRead())
+	require.Nil(t, store.items[1].ReadAt)
+}
 
-	event, err := svc.create(models.CreateUserEventRequest{
-		DocumentID: uuid.New(),
-		EntityID:   uuid.New(),
-	})
-	require.Error(t, err)
-	requireAppError(t, err, "VALIDATION_ERROR", 400, "не указан получатель события")
-	assert.Nil(t, event)
-
-	event, err = svc.create(models.CreateUserEventRequest{
-		RecipientUserID: uuid.New(),
-		EntityID:        uuid.New(),
-	})
-	require.Error(t, err)
-	requireAppError(t, err, "VALIDATION_ERROR", 400, "не указан документ события")
-	assert.Nil(t, event)
+func TestUserEventServiceRequiresPrincipal(t *testing.T) {
+	svc := NewUserEventService(nil, nil)
+	_, err := svc.GetCurrentUserEvents(models.UserEventFilter{})
+	require.ErrorIs(t, err, models.ErrUnauthorized)
+	_, err = svc.GetUnreadCount()
+	require.ErrorIs(t, err, models.ErrUnauthorized)
+	require.ErrorIs(t, svc.MarkRead(uuid.NewString()), models.ErrUnauthorized)
+	require.ErrorIs(t, svc.MarkDocumentRead(uuid.NewString()), models.ErrUnauthorized)
+	require.ErrorIs(t, svc.MarkAllRead(), models.ErrUnauthorized)
 }

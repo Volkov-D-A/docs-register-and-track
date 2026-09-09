@@ -1,6 +1,6 @@
 # План разделения desktop- и серверного кода
 
-Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября, этапы 13–16 — 9 сентября 2026 года.
+Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября, этапы 13–17 — 9 сентября 2026 года.
 
 Основание: аудит кода после разделения вложений в коммите `76e90f7` и
 [риск №3 из ревью перехода на сервер](server-transition-code-review.md).
@@ -856,10 +856,45 @@ bindings, тесты и импорты. Для каждого сервиса с�
   HTTP-контракты, SQL и бизнес-правила не менялись. Нативный GUI вручную
   не проверялся.
 
-- [ ] **17. Разделить UserEventService.**
+- [x] **17. Разделить UserEventService.**
   Отделить UI-чтение/подтверждение событий от серверных операций, зависимостей
   repository и principal. Результат: формирование событий остаётся серверным,
   UI получает только свои события; потребители не требуют legacy-сервиса.
+
+  Реализация 09.09.2026:
+  - HTTP-адаптер UserEventService перенесён в `internal/desktop/services`,
+    клиент передаётся конструктору. Серверное чтение и подтверждение событий
+    перенесены в `internal/server/services` с request principal и repository.
+    Runtime/generator регистрации и HTTP-фабрика обновлены.
+  - Удалены смешанный сервис, неиспользуемый прямой метод create и остаточные
+    зависимости AssignmentService/AcknowledgmentService от UserEventService.
+    Формирование событий остаётся в серверных transactional outbox effects;
+    тесты поручений включают существующую настройку emitUserEvents напрямую.
+  - Сохранены проверки серверного чтения и подтверждения. Добавлены тесты
+    изоляции отметок по получателю, обязательного principal, HTTP-адаптера,
+    передачи фильтра/ID, ошибок клиента и отсутствующего клиента.
+  Commit: `refactor: separate user events desktop and server`.
+
+  Проверки этапа 17:
+  - `make go-test go-vet` — успешно вне песочницы для локальных HTTP listeners.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/desktop/services ./internal/server/services -run UserEvent`
+    — успешно; после финальных изменений повторены серверные race/vet.
+  - `make integration-test` — успешно вне песочницы; включает HTTP/PostgreSQL
+    сценарий ограничения событий получателем и сценарии transactional outbox.
+    Изолированный контейнер, том и сеть удалены штатной целью.
+  - `make wails-bindings` — успешно, generated JS/TS diff пустой: пять методов
+    и namespace сохранены. Wails-контракт и архитектурные тесты проходят.
+  - `make frontend-lint frontend-build` — успешно.
+  - `npm --prefix frontend run test:components -- test/components/accessVisibility.test.tsx`
+    — успешно, 4 теста.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make docs-links-check` — те же шесть прежних битых ссылок; новых ошибок нет.
+    `git diff --check` — успешно.
+
+  HTTP-контракты, SQL и бизнес-правила не менялись. Нативный GUI вручную
+  не проверялся.
 
 - [ ] **18. Разделить AssignmentService.**
   Перенести все HTTP-операции в desktop, серверу оставить поручения и серии,
