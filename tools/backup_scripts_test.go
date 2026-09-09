@@ -106,7 +106,7 @@ esac
 			calls := string(data)
 			if execute {
 				require.Contains(t, calls, "volume rm docflow_pgdata docflow_minio_data docflow_seaweedfs_data\n")
-				require.Contains(t, calls, "docker-compose.local-build.yaml up -d --build")
+				require.Contains(t, calls, "compose up -d --build")
 			} else {
 				require.NotContains(t, calls, "volume rm")
 				require.NotContains(t, calls, "compose down")

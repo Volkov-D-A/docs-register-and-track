@@ -59,8 +59,11 @@ services:
       - seq_data:/data
     restart: unless-stopped
   docflow-server:
-    image: hehelf/docflow-service:${DOCFLOW_SERVER_VERSION:?Set DOCFLOW_SERVER_VERSION in .env}
-    pull_policy: always
+    image: docflow-server:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: build/server/Dockerfile
     container_name: docflow_server
     environment:
       POSTGRES_CONTAINER: postgres

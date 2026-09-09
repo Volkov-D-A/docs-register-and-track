@@ -270,18 +270,21 @@ business, attachment и migration operations через HTTP API сервиса.
 Container image собирается через `build/server/Dockerfile` на distroless runtime
 под непривилегированным пользователем. В image не копируются production config
 и secrets; настройки передаются при запуске через env-файл или механизм
-оркестратора; JSON-конфигурацию сервер не читает. `docker-compose.yaml` всегда
-загружает `hehelf/docflow-service:${DOCFLOW_SERVER_VERSION}` из Docker Hub,
-запускает его рядом с PostgreSQL, SeaweedFS, Seq и Caddy и ожидает readiness PostgreSQL.
-Версия задаётся в `.env` рядом с версиями остальных контейнеров. Сборка
-исходников на production host не выполняется. Пустая схема bootstrap-ится
+оркестратора; JSON-конфигурацию сервер не читает. `docker-compose.yaml` собирает
+`docflow-server:local` из текущих исходников и запускает рядом с PostgreSQL,
+SeaweedFS, Seq и Caddy после готовности PostgreSQL и S3 probe.
+`docker-compose.prod.example.yaml` загружает
+`hehelf/docflow-service:${DOCFLOW_SERVER_VERSION}` из Docker Hub; версия задаётся
+в production environment. Сборка исходников на production host не выполняется.
+`docker-compose.integration.yaml` содержит тестовые PostgreSQL/SeaweedFS и
+сервер под профилем `smoke`. Пустая схема bootstrap-ится
 сервером автоматически; при обновлении существующей схемы процесс остаётся
 живым в maintenance и ждёт команды администратора. Docker healthcheck проверяет
 `/health/live`, а `/health/ready` остаётся 503 до готовности схемы и зависимостей.
 `make docker-server-push` после отдельного `docker login` проверяет соответствие
 `DOCFLOW_SERVER_VERSION` встроенной версии продукта, собирает и публикует
 immutable image tag из `.env`. Repository
-`hehelf/docflow-service` жёстко задан в Makefile и Compose. Makefile не принимает
+`hehelf/docflow-service` жёстко задан в Makefile и production-примере Compose. Makefile не принимает
 Docker Hub token.
 
 Management endpoints:

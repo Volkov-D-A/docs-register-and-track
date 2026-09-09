@@ -17,4 +17,4 @@ if [ "${1:-}" != --execute ]; then
 fi
 docker compose down --remove-orphans
 if [ "${#volumes[@]}" -gt 0 ]; then docker volume rm "${volumes[@]}"; fi
-docker compose -f docker-compose.yaml -f docker-compose.local-build.yaml up -d --build
+docker compose up -d --build

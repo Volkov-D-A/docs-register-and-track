@@ -10,6 +10,11 @@ S3-клиентами. [Релиз SeaweedFS](https://github.com/seaweedfs/seawe
 Filer, Volume, WebDAV, Admin и S3 не публикуются в пользовательскую сеть.
 Desktop работает с HTTP API Docflow. Одноузловой пример не обеспечивает HA.
 
+В проекте три Compose-файла: `docker-compose.yaml` для dev с локальной сборкой,
+`docker-compose.prod.example.yaml` для production и `docker-compose.integration.yaml`
+для тестов. В последнем профиль `smoke` дополнительно включает сервер;
+обычные интеграционные тесты запускают только PostgreSQL, SeaweedFS и S3 probe.
+
 ## Конфигурация и первый запуск
 
 Скопируйте [.envExample](../.envExample) в новый `.env` и задайте `S3_ENDPOINT`,
@@ -32,10 +37,11 @@ runtime secrets. Они монтируются в `/run/secrets`; сервер �
 Compose file secrets сохраняют права исходного файла. Храните их вне Git,
 в закрытом каталоге; настройте владельца/ACL для runtime пользователя.
 
-Проверка текущих исходников вместо опубликованного образа:
+Основной dev-стек всегда собирает сервер из текущих исходников.
+Production-пример использует опубликованный образ. Запуск dev:
 
 ```bash
-docker compose -f docker-compose.yaml -f docker-compose.local-build.yaml up -d --build
+make storage-up
 ```
 
 ## Переход dev на пустые данные
@@ -49,7 +55,7 @@ docker compose -f docker-compose.yaml -f docker-compose.local-build.yaml up -d -
 3. Для намеренного удаления dev-данных выполните `make storage-reset`.
 
 Скрипт выбирает только тома текущего Compose project с labels `pgdata`,
-`minio_data`, `seaweedfs_data`, затем собирает текущий сервер через local-build override и запускает чистый стек. Seq и Caddy volumes
+`minio_data`, `seaweedfs_data`, затем собирает текущий сервер из основного Compose и запускает чистый стек. Seq и Caddy volumes
 сохраняются. Пустая БД получает обычные embedded migrations. Скрипт сброса
 **не выполняется** интеграционными тестами и не запускался при переходе.
 
@@ -100,8 +106,8 @@ S3 mirror. При любой ошибке restore ранее работавши�
 
 Оба Compose test project удаляют только свои тестовые тома через EXIT trap.
 Порты integration — 55432/58333, smoke — 55433/58334/58080, только loopback.
-Не запускайте несколько экземпляров одной цели одновременно. Smoke требует
-Compose с поддержкой `!override` (2.24.4+). Его отчёты сохраняются в
+Не запускайте несколько экземпляров одной цели одновременно. Smoke включает профиль `smoke` в интеграционном Compose и задаёт отдельные порты
+через `DOCFLOW_TEST_POSTGRES_PORT`/`DOCFLOW_TEST_S3_PORT`. Его отчёты сохраняются в
 `build/transition-evidence/`; это локальные артефакты, исключённые из Git.
 CIFS mount в smoke заменён локальной директорией: SMB транспорт и устойчивость
 сетевой записи требуют отдельной эксплуатационной проверки. Desktop GUI на

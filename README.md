@@ -35,18 +35,17 @@ make storage-up
 
 `docker-compose.yaml`, `.envExample` and `config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains only the server connection settings and no PostgreSQL, SeaweedFS or Seq credentials/endpoints. Authenticated desktop technical logs are sent in bounded batches to `POST /api/v1/telemetry/logs`; `docflow-server` adds the session identity and forwards them through its logging pipeline to Seq.
 
-Set the immutable `DOCFLOW_SERVER_VERSION` in `.env` next to the versions of
-PostgreSQL, SeaweedFS, Seq and Caddy. Compose always pulls
-`hehelf/docflow-service:<version>` from Docker Hub and waits for PostgreSQL
-readiness before starting it; it never builds the server image on the target
-host. On a genuinely empty database the server applies its embedded bootstrap
+The main Compose file builds `docflow-server:local` from the current sources
+and waits for PostgreSQL and the S3 probe before starting it. The production
+example instead pulls `hehelf/docflow-service:<DOCFLOW_SERVER_VERSION>` from
+Docker Hub; set that immutable version in the production environment.
+On a genuinely empty database the server applies its embedded bootstrap
 migrations itself. For an existing outdated database it remains alive in
 maintenance mode; the outbox worker starts only after an administrator applies
 the migrations from the desktop UI. Start and inspect it with:
 
 ```bash
-docker compose pull docflow-server
-docker compose up -d
+make storage-up
 docker compose ps
 docker compose logs -f docflow-server
 ```

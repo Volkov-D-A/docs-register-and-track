@@ -3,7 +3,9 @@
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 ROOT=$PWD
-compose=(docker compose -p docflow-smoke -f docker-compose.integration.yaml -f docker-compose.smoke.yaml)
+# Keep smoke ports separate from ordinary integration tests.
+export DOCFLOW_TEST_POSTGRES_PORT=55433 DOCFLOW_TEST_S3_PORT=58334
+compose=(docker compose -p docflow-smoke -f docker-compose.integration.yaml --profile smoke)
 stage=$(mktemp -d /tmp/docflow-smoke.XXXXXXXX)
 evidence="$ROOT/build/transition-evidence"
 mkdir -p "$evidence" "$stage/bin" "$stage/share" "$stage/reports"
