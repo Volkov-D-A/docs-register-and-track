@@ -9,7 +9,7 @@
 # ==========================================
 # Версии сервисов
 # ==========================================
-MINIO_VERSION=RELEASE.2025-09-07T16-13-09Z
+SEAWEEDFS_VERSION=4.46
 POSTGRES_VERSION=18.3
 SEQ_VERSION=2025.2.16020-x64
 DOCFLOW_SERVER_VERSION=1.0.6
@@ -33,17 +33,17 @@ SEQ_URL=http://docflow_seq:80
 SEQ_ENABLED=true
 
 # ==========================================
-# Настройки MinIO
+# Настройки SeaweedFS
 # ==========================================
-MINIO_ROOT_USER=docflow
-MINIO_ROOT_PASSWORD=docflow_password
+S3_ACCESS_KEY_ID=docflow
+S3_SECRET_ACCESS_KEY=docflow_password
 # Адрес из Docker network. Для запуска docflow-server на хосте используйте
-# http://localhost:9000.
-MINIO_ENDPOINT=http://docflow_minio:9000
-MINIO_BUCKET=docflow-attachments
-# Если MINIO_ENDPOINT содержит http:// или https://, значение определяется
+# отдельный override с публикацией 8333 только на loopback.
+S3_ENDPOINT=http://seaweedfs:8333
+S3_BUCKET=docflow-attachments
+# Если S3_ENDPOINT содержит http:// или https://, значение определяется
 # автоматически. Переменная нужна только для endpoint без схемы.
-# MINIO_USE_SSL=false
+# S3_USE_SSL=false
 
 # ==========================================
 # Настройки PostgreSQL

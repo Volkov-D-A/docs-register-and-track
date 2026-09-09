@@ -16,16 +16,32 @@ services:
       retries: 12
       start_period: 10s
     restart: unless-stopped
-  minio:
-    image: minio/minio:${MINIO_VERSION}
-    container_name: docflow_minio
+  seaweedfs:
+    image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION:-4.46}
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_ACCESS_KEY_ID_FILE: /run/secrets/s3_access_key
+      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_key
     volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
+      # mini stores both filer/master metadata and volume data below /data.
+      - seaweedfs_data:/data
+      - ./scripts/seaweedfs-secrets.sh:/scripts/seaweedfs-secrets.sh:ro
+    entrypoint: ["/bin/sh", "/scripts/seaweedfs-secrets.sh"]
+    command: ["mini", "-dir=/data", "-s3.port=8333"]
+    secrets: [s3_access_key, s3_secret_key]
     restart: unless-stopped
+  s3-ready:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    entrypoint: ["/bin/sh", "/scripts/s3-ready.sh"]
+    secrets: [s3_access_key, s3_secret_key]
+    environment:
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY_ID_FILE: /run/secrets/s3_access_key
+      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_key
+    volumes:
+      - ./scripts/s3-ready.sh:/scripts/s3-ready.sh:ro
+    depends_on:
+      seaweedfs:
+        condition: service_started
   seq:
     image: datalust/seq:${SEQ_VERSION}
     container_name: docflow_seq
@@ -39,6 +55,7 @@ services:
     image: hehelf/docflow-service:${DOCFLOW_SERVER_VERSION:?Set DOCFLOW_SERVER_VERSION in .env}
     pull_policy: always
     container_name: docflow_server
+    secrets: [s3_access_key, s3_secret_key]
     environment:
       POSTGRES_CONTAINER: postgres
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -46,11 +63,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
-      MINIO_BUCKET: ${MINIO_BUCKET}
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY_ID_FILE: /run/secrets/s3_access_key
+      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_key
+      S3_USE_SSL: ${S3_USE_SSL:-false}
+      S3_BUCKET: ${S3_BUCKET}
       SEQ_URL: http://seq:80
       SEQ_ENABLED: ${SEQ_ENABLED:-true}
       DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS: ${DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS:-5}
@@ -64,8 +81,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio:
-        condition: service_started
+      s3-ready:
+        condition: service_completed_successfully
       seq:
         condition: service_started
     restart: unless-stopped
@@ -87,7 +104,7 @@ services:
     restart: unless-stopped
 volumes:
   pgdata:
-  minio_data:
+  seaweedfs_data:
   seq_data:
 
   caddy_data:
@@ -95,3 +112,9 @@ volumes:
     name: docflow-caddy-data
 
   caddy_config:
+
+secrets:
+  s3_access_key:
+    file: ${S3_ACCESS_KEY_FILE_PATH:?Set S3_ACCESS_KEY_FILE_PATH}
+  s3_secret_key:
+    file: ${S3_SECRET_KEY_FILE_PATH:?Set S3_SECRET_KEY_FILE_PATH}

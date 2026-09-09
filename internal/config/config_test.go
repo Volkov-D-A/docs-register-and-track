@@ -24,8 +24,8 @@ func TestDatabaseConfigConnectionString(t *testing.T) {
 	assert.Equal(t, expected, dbCfg.ConnectionString())
 }
 
-func TestMinioConfigGetSecretAccessKey(t *testing.T) {
-	cfg := MinioConfig{SecretAccessKey: "plain-secret"}
+func TestS3ConfigGetSecretAccessKey(t *testing.T) {
+	cfg := S3Config{SecretAccessKey: "plain-secret"}
 
 	assert.Equal(t, "plain-secret", cfg.GetSecretAccessKey())
 }

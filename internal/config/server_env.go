@@ -25,14 +25,19 @@ func applyServerEnvironment(cfg *Config) error {
 	stringValue("POSTGRES_PASSWORD", &cfg.Database.Password)
 	stringValue("POSTGRES_DB", &cfg.Database.DBName)
 	stringValue("POSTGRES_SSLMODE", &cfg.Database.SSLMode)
-	stringValue("MINIO_ROOT_USER", &cfg.Minio.AccessKeyID)
-	stringValue("MINIO_ROOT_PASSWORD", &cfg.Minio.SecretAccessKey)
-	stringValue("MINIO_BUCKET", &cfg.Minio.BucketName)
+	for _, secret := range []struct {
+		name   string
+		target *string
+	}{
+		{"S3_ACCESS_KEY_ID", &cfg.S3.AccessKeyID}, {"S3_SECRET_ACCESS_KEY", &cfg.S3.SecretAccessKey},
+	} {
+		if err := secretValue(secret.name, secret.target); err != nil {
+			return err
+		}
+	}
+	stringValue("S3_BUCKET", &cfg.S3.BucketName)
 	stringValue("SEQ_URL", &cfg.Seq.URL)
 	stringValue("DOCFLOW_SERVER_LISTEN_ADDRESS", &cfg.Server.ListenAddress)
-	if err := minioEndpointValue("MINIO_ENDPOINT", &cfg.Minio); err != nil {
-		return err
-	}
 
 	intValues := []struct {
 		name   string
@@ -53,7 +58,10 @@ func applyServerEnvironment(cfg *Config) error {
 		}
 	}
 
-	if err := boolValue("MINIO_USE_SSL", &cfg.Minio.UseSSL); err != nil {
+	if err := boolValue("S3_USE_SSL", &cfg.S3.UseSSL); err != nil {
+		return err
+	}
+	if err := s3EndpointValue("S3_ENDPOINT", &cfg.S3); err != nil {
 		return err
 	}
 	if err := boolValue("SEQ_ENABLED", &cfg.Seq.Enabled); err != nil {
@@ -62,7 +70,7 @@ func applyServerEnvironment(cfg *Config) error {
 	return nil
 }
 
-func minioEndpointValue(name string, target *MinioConfig) error {
+func s3EndpointValue(name string, target *S3Config) error {
 	value, ok := os.LookupEnv(name)
 	if !ok {
 		return nil
@@ -74,7 +82,7 @@ func minioEndpointValue(name string, target *MinioConfig) error {
 	}
 
 	parsed, err := url.Parse(value)
-	if err != nil || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return fmt.Errorf("%s must be an HTTP(S) URL without a path", name)
 	}
 	switch parsed.Scheme {
@@ -118,5 +126,23 @@ func boolValue(name string, target *bool) error {
 		return fmt.Errorf("%s must be true or false: %w", name, err)
 	}
 	*target = parsed
+	return nil
+}
+
+// secretValue supports runtime-mounted secrets, without legacy configuration aliases.
+func secretValue(name string, target *string) error {
+	path := os.Getenv(name + "_FILE")
+	if path == "" {
+		stringValue(name, target)
+		return nil
+	}
+	if os.Getenv(name) != "" {
+		return fmt.Errorf("set only one of %s and %s_FILE", name, name)
+	}
+	value, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s_FILE: %w", name, err)
+	}
+	*target = strings.TrimRight(string(value), "\r\n")
 	return nil
 }

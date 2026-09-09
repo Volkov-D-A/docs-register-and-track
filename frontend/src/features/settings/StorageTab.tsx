@@ -50,7 +50,7 @@ const StorageTab: React.FC = () => {
       const { ReconcileStorage } = await import('../../../wailsjs/go/services/AttachmentService');
       const result = await ReconcileStorage();
       setReconciliation(result);
-      if (!result.missingObjects.length && !result.orphanObjects.length) message.success('Расхождений между базой данных и MinIO не найдено');
+      if (!result.missingObjects.length && !result.orphanObjects.length) message.success('Расхождений между базой данных и объектным хранилищем не найдено');
     } catch (error: unknown) {
       message.error(formatAppError(error));
     } finally {
@@ -94,12 +94,12 @@ const StorageTab: React.FC = () => {
         </Form.Item>
       </Form>
       <Divider />
-      <Typography.Title level={4}>Сверка вложений с MinIO</Typography.Title>
+      <Typography.Title level={4}>Сверка вложений с объектным хранилищем</Typography.Title>
       <Typography.Paragraph type="secondary">
-        Проверка сопоставляет ссылки на вложения в базе данных с объектами в MinIO и ничего не изменяет автоматически.
+        Проверка сопоставляет ссылки на вложения в базе данных с объектами в объектном хранилище и ничего не изменяет автоматически.
       </Typography.Paragraph>
       <Button icon={<SearchOutlined />} onClick={() => void onReconcile()} loading={reconciling}>
-        Сверить с MinIO
+        Сверить с объектным хранилищем
       </Button>
       {reconciliation && <div style={{ marginTop: 16 }}>
         {!reconciliation.missingObjects.length && !reconciliation.orphanObjects.length && <Alert type="success" showIcon message="Расхождения не обнаружены" />}
@@ -114,7 +114,7 @@ const StorageTab: React.FC = () => {
           type="warning"
           showIcon
           message={`Файлы без ссылок: ${reconciliation.orphanObjects.length}`}
-          description={<><Typography.Paragraph style={{ marginTop: 8 }}>Проверьте список и резервную копию; после подтверждения ненужные объекты можно удалить из MinIO. Автоматическое удаление не выполняется.</Typography.Paragraph><List size="small" bordered dataSource={reconciliation.orphanObjects} renderItem={(path) => <List.Item><Typography.Text code>{path}</Typography.Text></List.Item>} /></>}
+          description={<><Typography.Paragraph style={{ marginTop: 8 }}>Проверьте список и резервную копию; после подтверждения ненужные объекты можно удалить из объектного хранилища. Автоматическое удаление не выполняется.</Typography.Paragraph><List size="small" bordered dataSource={reconciliation.orphanObjects} renderItem={(path) => <List.Item><Typography.Text code>{path}</Typography.Text></List.Item>} /></>}
           style={{ marginTop: 12 }}
         />}
       </div>}

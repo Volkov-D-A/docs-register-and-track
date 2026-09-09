@@ -1,8 +1,8 @@
-# Disposable PostgreSQL instance for integration tests. It is intentionally
+# Disposable PostgreSQL and SeaweedFS instances for integration tests. It is intentionally
 # separate from docker-compose.yaml, which serves the local development stack.
 services:
   postgres:
-    image: postgres:${POSTGRES_VERSION}-alpine
+    image: postgres:${POSTGRES_VERSION:-18.3}-alpine
     environment:
       POSTGRES_USER: docflow_integration
       POSTGRES_PASSWORD: docflow_integration
@@ -18,6 +18,29 @@ services:
       # PostgreSQL 18+ stores data in a versioned subdirectory under this
       # mount point; it also remains compatible with the development compose.
       - integration_pgdata:/var/lib/postgresql
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.46
+    command: mini -dir=/data -s3.port=8333
+    environment:
+      AWS_ACCESS_KEY_ID: docflow_integration
+      AWS_SECRET_ACCESS_KEY: docflow_integration_secret
+    ports:
+      - "127.0.0.1:58333:8333"
+    volumes:
+      - integration_s3data:/data
+  s3-ready:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    entrypoint: ["/bin/sh", "/scripts/s3-ready.sh"]
+    environment:
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY_ID: docflow_integration
+      S3_SECRET_ACCESS_KEY: docflow_integration_secret
+    volumes:
+      - ./scripts/s3-ready.sh:/scripts/s3-ready.sh:ro
+    depends_on:
+      seaweedfs:
+        condition: service_started
 
 volumes:
   integration_pgdata:
+  integration_s3data:

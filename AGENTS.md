@@ -3,7 +3,7 @@
 ## Архитектура
 
 - Docflow — приложение для регистрации и отслеживания документов: desktop на Go/Wails v2, frontend на React, TypeScript, Ant Design и Vite.
-- `docflow-server` отвечает за бизнес-операции, аутентификацию, PostgreSQL, MinIO, миграции и обработку transactional outbox. Desktop обращается к версионированному HTTP API; не добавляйте в него прямые подключения к БД и объектному хранилищу.
+- `docflow-server` отвечает за бизнес-операции, аутентификацию, PostgreSQL, SeaweedFS, миграции и обработку transactional outbox. Desktop обращается к версионированному HTTP API; не добавляйте в него прямые подключения к БД и объектному хранилищу.
 - Подробности архитектуры и настройки находятся в [README.md](README.md) и [docs/tech_docs.md](docs/tech_docs.md). Версии зависимостей и команды сверяйте с `go.mod`, `frontend/package.json` и `Makefile`.
 
 ## Окружение и запуск

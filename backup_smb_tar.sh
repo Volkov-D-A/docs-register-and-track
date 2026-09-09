@@ -42,6 +42,7 @@ cleanup() {
     rm -rf "$TMP_DIR"
   fi
 
+  resume_server || exit_code=1
   exit "$exit_code"
 }
 
@@ -65,14 +66,15 @@ chmod 600 "$PARTIAL_ARCHIVE_PATH" "$PARTIAL_MANIFEST_PATH"
 # ==========================================
 # БЛОК СБОРА ДАННЫХ
 # ==========================================
-mkdir -p "$TMP_DIR/minio_files"
+mkdir -p "$TMP_DIR/objects"
+prepare_s3_client
+quiesce_server
 
 echo "[2/5] Дамп базы данных PostgreSQL..."
 docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$POSTGRES_CONTAINER" pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB" > "$TMP_DIR/database.dump"
 
-echo "[3/5] Синхронизация файлов из MinIO..."
-docker run --rm --network host --entrypoint sh -v "$TMP_DIR/minio_files:/files" minio/mc \
-  -c "mc alias set myminio $MINIO_ENDPOINT $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD > /dev/null && mc mirror myminio/$MINIO_BUCKET /files > /dev/null"
+echo "[3/5] Синхронизация файлов из SeaweedFS..."
+s3_mc mirror "objects/$S3_BUCKET" /files > /dev/null
 
 # ==========================================
 # БЛОК АРХИВАЦИИ
@@ -81,7 +83,7 @@ echo "[4/5] Создание и проверка tar.gz архива на сет
 cd "$TMP_DIR"
 # dd with conv=fsync calls fsync on the output descriptor before closing it.
 # pipefail preserves a tar failure even if dd successfully flushes partial data.
-tar -czf - database.dump minio_files/ |
+tar -czf - database.dump objects/ |
   dd of="$PARTIAL_ARCHIVE_PATH" conv=fsync status=none
 tar -tzf "$PARTIAL_ARCHIVE_PATH" > /dev/null
 
@@ -91,13 +93,13 @@ ARCHIVE_SHA256="${ARCHIVE_SHA256%% *}"
 CREATED_AT="$(date -Is)"
 
 {
-  printf 'format_version=1\n'
+  printf 'format_version=2\n'
   printf 'archive=%s\n' "$ARCHIVE_NAME"
   printf 'created_at=%s\n' "$CREATED_AT"
   printf 'size_bytes=%s\n' "$ARCHIVE_SIZE"
   printf 'sha256=%s\n' "$ARCHIVE_SHA256"
   printf 'postgres_database=%s\n' "$POSTGRES_DB"
-  printf 'minio_bucket=%s\n' "$MINIO_BUCKET"
+  printf 's3_bucket=%s\n' "$S3_BUCKET"
 } | dd of="$PARTIAL_MANIFEST_PATH" conv=fsync status=none
 
 # The manifest is the commit marker and therefore must be published last.

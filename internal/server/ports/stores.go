@@ -182,7 +182,7 @@ type AttachmentStore interface {
 	GetOlderThan(date time.Time) ([]models.Attachment, error)
 }
 
-// FileStorage — интерфейс для работы с внешним файловым хранилищем (например, MinIO).
+// FileStorage — интерфейс для работы с внешним файловым хранилищем через S3.
 type FileStorage interface {
 	// UploadFile загружает файл в хранилище.
 	UploadFile(ctx context.Context, objectName string, data io.Reader, size int64, contentType string) error

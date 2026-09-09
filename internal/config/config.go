@@ -21,7 +21,7 @@ const (
 // Config хранит основную конфигурацию приложения.
 type Config struct {
 	Database DatabaseConfig     `json:"database"`
-	Minio    MinioConfig        `json:"minio"`
+	S3       S3Config           `json:"s3"`
 	Seq      SeqConfig          `json:"seq"`
 	Outbox   OutboxWorkerConfig `json:"outbox,omitempty"`
 	Server   ServerConfig       `json:"server,omitempty"`
@@ -63,8 +63,8 @@ type DatabaseConfig struct {
 	SSLMode  string `json:"sslmode"`
 }
 
-// MinioConfig хранит настройки подключения к MinIO.
-type MinioConfig struct {
+// S3Config хранит настройки подключения к объектному хранилищу.
+type S3Config struct {
 	Endpoint        string `json:"endpoint"`
 	AccessKeyID     string `json:"accessKeyId"`
 	SecretAccessKey string `json:"secretAccessKey"`
@@ -73,7 +73,7 @@ type MinioConfig struct {
 }
 
 // GetSecretAccessKey возвращает ключ доступа, полученный из server environment.
-func (m MinioConfig) GetSecretAccessKey() string {
+func (m S3Config) GetSecretAccessKey() string {
 	return m.SecretAccessKey
 }
 

@@ -14,8 +14,8 @@ func validConfig() *config.Config {
 		Database: config.DatabaseConfig{
 			Host: "postgres", Port: 5432, User: "docflow", Password: "plain-test-password", DBName: "docflow", SSLMode: "require",
 		},
-		Minio: config.MinioConfig{
-			Endpoint: "minio:9000", AccessKeyID: "docflow", SecretAccessKey: "plain-test-secret", BucketName: "docflow-attachments",
+		S3: config.S3Config{
+			Endpoint: "seaweedfs:8333", AccessKeyID: "docflow", SecretAccessKey: "plain-test-secret", BucketName: "docflow-attachments",
 		},
 		Seq:    config.SeqConfig{Enabled: true, URL: "https://seq.example.test"},
 		Server: config.ServerConfig{SessionTTLHours: 12},
@@ -32,8 +32,8 @@ func TestValidateConfig(t *testing.T) {
 		{name: "missing database host", change: func(cfg *config.Config) { cfg.Database.Host = "" }},
 		{name: "invalid database port", change: func(cfg *config.Config) { cfg.Database.Port = 70000 }},
 		{name: "encrypted database password", change: func(cfg *config.Config) { cfg.Database.Password = "ENC:legacy" }},
-		{name: "missing minio secret", change: func(cfg *config.Config) { cfg.Minio.SecretAccessKey = "" }},
-		{name: "encrypted minio secret", change: func(cfg *config.Config) { cfg.Minio.SecretAccessKey = "ENC:legacy" }},
+		{name: "missing s3 secret", change: func(cfg *config.Config) { cfg.S3.SecretAccessKey = "" }},
+		{name: "encrypted s3 secret", change: func(cfg *config.Config) { cfg.S3.SecretAccessKey = "ENC:legacy" }},
 		{name: "invalid seq URL", change: func(cfg *config.Config) { cfg.Seq.URL = "seq" }},
 		{name: "invalid listen address", change: func(cfg *config.Config) { cfg.Server.ListenAddress = "8080" }},
 		{name: "invalid polling interval", change: func(cfg *config.Config) { cfg.Outbox.PollingIntervalSeconds = 61 }},

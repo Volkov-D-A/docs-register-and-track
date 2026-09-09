@@ -224,12 +224,12 @@ const SystemStatisticsTab: React.FC = () => {
         description={`Отсутствуют объектов: ${stats?.attachments?.missingObjects ?? 0}; лишних объектов: ${stats?.attachments?.orphanObjects ?? 0}.`}
       />}
 
-      {refreshActive && !pollTimedOut && <Typography.Text type="secondary">Выполняется фоновая сверка MinIO. Показаны данные последней завершённой сверки.</Typography.Text>}
+      {refreshActive && !pollTimedOut && <Typography.Text type="secondary">Выполняется фоновая сверка объектного хранилища. Показаны данные последней завершённой сверки.</Typography.Text>}
       {pollTimedOut && <Alert type="warning" showIcon message="Сверка ещё не завершена" description="Автоматическое ожидание остановлено. Проверьте состояние ещё раз вручную." />}
-      {storageStatus?.state === 'failed' && <Alert type="error" showIcon message="Сверка MinIO завершилась с ошибкой" description={storageStatus.lastError || 'Повторите попытку.'} />}
+      {storageStatus?.state === 'failed' && <Alert type="error" showIcon message="Сверка объектного хранилища завершилась с ошибкой" description={storageStatus.lastError || 'Повторите попытку.'} />}
 
       <Space>
-        {refreshedAt && <Typography.Text type="secondary">Последняя полная сверка MinIO: {new Date(refreshedAt).toLocaleString('ru-RU')}</Typography.Text>}
+        {refreshedAt && <Typography.Text type="secondary">Последняя полная сверка объектного хранилища: {new Date(refreshedAt).toLocaleString('ru-RU')}</Typography.Text>}
         {stats?.generatedAt && <Typography.Text type="secondary">Сводка сформирована: {new Date(stats.generatedAt).toLocaleString('ru-RU')}</Typography.Text>}
         <Button
           icon={<ReloadOutlined />}

@@ -1,0 +1,8 @@
+# Use after the main compose file to verify the current source tree.
+services:
+  docflow-server:
+    image: docflow-server:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: build/server/Dockerfile

@@ -14,7 +14,7 @@
 - поручения, соисполнители, статусы исполнения и контроль сроков;
 - ознакомления пользователей с документами и приказами;
 - связи между документами и граф связей;
-- вложения документов в MinIO;
+- вложения документов в SeaweedFS;
 - журнал действий по документам и административный аудит;
 - статистика по документам, поручениям и системе.
 
@@ -29,7 +29,7 @@ Backend:
 - Wails v2.13.0;
 - PostgreSQL через `database/sql`, `lib/pq`;
 - миграции через `golang-migrate`;
-- MinIO через `minio-go`;
+- SeaweedFS через `minio-go`;
 - structured logging через `slog` и Seq;
 - тесты: Go `testing`, `testify`, `go-sqlmock`.
 
@@ -50,7 +50,7 @@ Frontend:
 
 - Wails CLI v2;
 - Makefile как основной entrypoint для dev/build/release checks;
-- Docker Compose для локальных PostgreSQL, MinIO, Seq, `docflow-server` и Caddy;
+- Docker Compose для локальных PostgreSQL, SeaweedFS, Seq, `docflow-server` и Caddy;
 - Linux `amd64` и Windows `amd64` являются production target. macOS не входит в текущий release target.
 
 ## Высокоуровневая Архитектура
@@ -75,7 +75,7 @@ Wails desktop app
 │   ├── dto/           frontend-facing mapping
 │   ├── repository/    SQL persistence and transactions
 │   ├── services/      auth, permissions, business workflows, Wails API
-│   ├── storage/       MinIO object storage
+│   ├── storage/       SeaweedFS object storage
 │   ├── outbox/        delivery worker для событий и удаления файлов
 │   ├── logger/        slog, Seq, Wails adapter
 │   ├── startupdiag/   startup diagnostics
@@ -110,9 +110,9 @@ Frontend отвечает за:
 
 Frontend не должен:
 
-- обращаться к PostgreSQL или MinIO напрямую;
+- обращаться к PostgreSQL или SeaweedFS напрямую;
 - принимать решения авторизации вместо backend;
-- зависеть от raw Go/PostgreSQL/MinIO error text;
+- зависеть от raw Go/PostgreSQL/SeaweedFS error text;
 - показывать технические детали ошибок пользователю;
 - отправлять регистрацию документа без `idempotencyKey`.
 
@@ -207,7 +207,7 @@ Production error envelope для frontend:
 - после успешного apply сервер повторно проверяет `UpToDate`/compatibility и
   запускает worker без рестарта процесса или контейнера;
 - rollback считается destructive operation;
-- rollback требует fresh PostgreSQL+MinIO backup, backup reference, data-loss acknowledgment, control phrase and audit entries;
+- rollback требует fresh PostgreSQL+SeaweedFS backup, backup reference, data-loss acknowledgment, control phrase and audit entries;
 - после успешного rollback сервер остаётся в maintenance, а desktop maintenance
   gate блокирует обычные защищённые операции до повторного apply;
 - в режиме обслуживания администратору остаются доступны аутентификация, статус миграций и их применение для восстановления;
@@ -216,18 +216,18 @@ Production error envelope для frontend:
 
 ## Слой Storage
 
-MinIO хранит physical attachment objects. PostgreSQL хранит attachment metadata.
+SeaweedFS хранит physical attachment objects. PostgreSQL хранит attachment metadata.
 
 Правила:
 
 - upload сначала пишет объект, затем metadata и journal-outbox; ошибка БД запускает compensating delete объекта;
-- delete сначала атомарно скрывает metadata и ставит `attachment_delete` в outbox, worker повторяет удаление MinIO и финализацию строки;
-- при рассинхронизации восстанавливать PostgreSQL и MinIO только из согласованного backup-набора;
+- delete сначала атомарно скрывает metadata и ставит `attachment_delete` в outbox, worker повторяет удаление SeaweedFS и финализацию строки;
+- при рассинхронизации восстанавливать PostgreSQL и SeaweedFS только из согласованного backup-набора;
 - размер и расширения задаются системными настройками; fallback: 15 MB и `.pdf,.doc,.docx,.odt,.xls,.xlsx,.ods`;
 - attachment downloads to local disk must not overwrite existing files;
-- MinIO startup bucket check has timeout;
+- SeaweedFS startup bucket check has timeout;
 - системная статистика читает persisted storage snapshot из PostgreSQL; точная
-  сверка MinIO выполняется только через `RefreshStorageUsage`, координируется с
+  сверка SeaweedFS выполняется только через `RefreshStorageUsage`, координируется с
   attachment mutations и сохраняет новый snapshot после полного scan;
 - file operations must participate in operation lifecycle cancellation.
 
@@ -250,7 +250,7 @@ worker, останавливает его перед rollback и включае�
 Lifecycle реализован в `internal/background` и используется Wails composition
 root как schema maintenance gate, а standalone `docflow-server` — как lifecycle
 реального worker. Desktop composition root не создаёт PostgreSQL repositories,
-MinIO client или outbox consumer. Команды и transactional events фиксируются
+SeaweedFS client или outbox consumer. Команды и transactional events фиксируются
 сервером, а единственный consumer читает `event_outbox` внутри server process.
 Переключение production выполняется централизованно только после закрытия уже
 запущенных процессов предыдущей desktop-версии.
@@ -262,7 +262,7 @@ MinIO client или outbox consumer. Команды и transactional events фи
 
 `docflow-server` предоставляет команды `run`, `check-config`, `healthcheck` и
 `version`, а также liveness/readiness и административный API миграций. Он проверяет актуальность embedded migrations,
-подключение к PostgreSQL и MinIO, использует graceful shutdown и отправляет
+подключение к PostgreSQL и SeaweedFS, использует graceful shutdown и отправляет
 в Seq только значимые operational events, warnings и errors. Периодические
 metric snapshots в operational log не отправляются. Desktop выполняет все
 business, attachment и migration operations через HTTP API сервиса.
@@ -272,7 +272,7 @@ Container image собирается через `build/server/Dockerfile` на d
 и secrets; настройки передаются при запуске через env-файл или механизм
 оркестратора; JSON-конфигурацию сервер не читает. `docker-compose.yaml` всегда
 загружает `hehelf/docflow-service:${DOCFLOW_SERVER_VERSION}` из Docker Hub,
-запускает его рядом с PostgreSQL, MinIO, Seq и Caddy и ожидает readiness PostgreSQL.
+запускает его рядом с PostgreSQL, SeaweedFS, Seq и Caddy и ожидает readiness PostgreSQL.
 Версия задаётся в `.env` рядом с версиями остальных контейнеров. Сборка
 исходников на production host не выполняется. Пустая схема bootstrap-ится
 сервером автоматически; при обновлении существующей схемы процесс остаётся
@@ -287,7 +287,7 @@ Docker Hub token.
 Management endpoints:
 
 - `GET /health/live` — процесс и HTTP listener работают;
-- `GET /health/ready` — схема, PostgreSQL и MinIO готовы к обычной работе;
+- `GET /health/ready` — схема, PostgreSQL и SeaweedFS готовы к обычной работе;
 - `GET /api/v1/admin/migrations` — status embedded/schema versions;
 - `POST /api/v1/admin/migrations/apply` — apply всех ожидающих миграций;
 - `POST /api/v1/admin/migrations/rollback` — rollback одной миграции с backup
@@ -312,7 +312,7 @@ trust store.
 - storage statistics;
 - document registration command wrapper.
 
-Правило: новые потенциально долгие DB/MinIO/file/statistics operations должны использовать lifecycle-aware context или явно объяснять, почему это не нужно.
+Правило: новые потенциально долгие DB/SeaweedFS/file/statistics operations должны использовать lifecycle-aware context или явно объяснять, почему это не нужно.
 
 ## Логирование И Audit Trail
 
@@ -346,7 +346,7 @@ trust store.
 ## Конфигурация И Секреты
 
 `docflow-server` читает подключения, Seq и параметры outbox исключительно из
-runtime environment. PostgreSQL и MinIO используют те же credentials, которыми
+runtime environment. PostgreSQL и SeaweedFS используют те же credentials, которыми
 инициализируются контейнеры; отдельные service accounts на текущем этапе не
 создаются. Полный перечень и локальные примеры приведены в `.envExample`.
 JSON-файл серверу не требуется.
@@ -373,8 +373,8 @@ development.
 Secrets:
 
 - production secrets never committed;
-- PostgreSQL/MinIO credentials передаются только серверу через runtime environment;
-- desktop `config.json` не содержит PostgreSQL/MinIO credentials;
+- PostgreSQL/SeaweedFS credentials передаются только серверу через runtime environment;
+- desktop `config.json` не содержит PostgreSQL/SeaweedFS credentials;
 - `.env`, `/etc/docflow/backup.env` и CIFS credentials file должны иметь `0600` или эквивалентный строгий ACL;
 - generated release evidence and logs must not contain passwords or tokens.
 
@@ -504,7 +504,7 @@ user-event outbox фиксируются одной PostgreSQL-транзакц�
 
 ### Attachments
 
-- Физический файл в MinIO.
+- Физический файл в SeaweedFS.
 - Metadata row in PostgreSQL.
 - Upload validates size and extension.
 - Delete should remove object and metadata consistently.
@@ -581,7 +581,7 @@ Legacy/UX profile labels:
 - acknowledgments and view/confirm marks;
 - administrative orders and acknowledgment people;
 - document links;
-- attachment metadata and MinIO objects;
+- attachment metadata and SeaweedFS objects;
 - system settings;
 - `document_journal`;
 - `admin_audit_log`;
@@ -601,7 +601,7 @@ Legacy/UX profile labels:
 - attachment metadata и journal event после успешной загрузки объекта;
 - attachment delete intent и outbox event.
 
-Операции между PostgreSQL, MinIO и SMB не могут быть общей SQL-транзакцией. Для них используются compensation, outbox/saga и атомарная публикация backup archive + manifest.
+Операции между PostgreSQL, SeaweedFS и SMB не могут быть общей SQL-транзакцией. Для них используются compensation, outbox/saga и атомарная публикация backup archive + manifest.
 
 ## Идемпотентность
 
@@ -611,7 +611,7 @@ Legacy/UX profile labels:
 - отдельные повторяемые бизнес-переходы получают разные outbox keys;
 
 - migrations `Up()` when no change;
-- MinIO bucket creation/check on startup;
+- SeaweedFS bucket creation/check on startup;
 - organization/resolution executor find-or-create;
 - document registration by `idempotency_key`;
 - saving existing system setting value;
@@ -708,7 +708,7 @@ make go-vet
 
 Backup/restore contract:
 
-- PostgreSQL and MinIO are backed up together;
+- PostgreSQL and SeaweedFS are backed up together;
 - Seq logs are excluded;
 - целевые RPO 1 день и RTO 1-2 дня требуют подтверждения production-процессом;
 - retention: 15 days;
@@ -724,13 +724,15 @@ Rules:
 - scripts строго разбирают root-owned `/etc/docflow/backup.env` либо путь из `DOCFLOW_BACKUP_ENV_FILE`, не исполняя файл как shell-код;
 - backup config и `SMB_CREDENTIALS_FILE` должны находиться вне Git, не быть symlink и иметь режим `0600`;
 - archive и manifest сначала создаются под скрытыми временными именами на том же SMB mount, сбрасываются через `fsync` и публикуются атомарным rename;
-- manifest v1 является commit marker и содержит имя архива, время, размер, SHA-256, имя БД и bucket;
+- manifest v2 является commit marker и содержит имя архива, время, размер, SHA-256, имя БД и bucket;
 - restore до распаковки проверяет безопасное имя, manifest, размер, SHA-256 и `tar -tzf`;
-- legacy archive без manifest доступен только с явным `--allow-legacy-without-manifest`;
-- restore must validate PostgreSQL before mirroring MinIO;
-- if PostgreSQL restore/validation fails, MinIO restore must not run;
-- release requires manual PostgreSQL+MinIO test restore evidence;
-- текущая передача части MinIO credentials в Docker shell command остаётся известным security debt из `docs/bugs.md`.
+- формат v2 содержит `database.dump`, `objects/` и поле `s3_bucket`; старые архивы и restore без manifest не поддерживаются;
+- restore must validate PostgreSQL before mirroring SeaweedFS;
+- if PostgreSQL restore/validation fails, SeaweedFS restore must not run;
+- release requires manual PostgreSQL+SeaweedFS test restore evidence;
+- S3 credentials сериализуются в закрытый JSON-конфиг `mc`; контейнер работает в `S3_NETWORK`, credentials не интерполируются в shell-код;
+- backup останавливает единственный docflow-server вместе с outbox и возобновляет его при выходе; restore после ошибки оставляет сервер остановленным;
+- `make storage-smoke-test` проверяет текущую сборку, restart и реальный PostgreSQL/S3 restore; CIFS mount в этом тесте заменён локальным каталогом.
 
 ## Release And Versioning
 
@@ -771,7 +773,7 @@ smoke или backup restore: это отдельные автоматическ�
 
 Common targets:
 
-- `make storage-up` - start local PostgreSQL/MinIO/Seq/docflow-server/Caddy stack;
+- `make storage-up` - start local PostgreSQL/SeaweedFS/Seq/docflow-server/Caddy stack;
 - `make storage-down` - stop the local stack without deleting volumes;
 - `make storage-reset` - destructively reset and restart the local stack;
 - `make dev` - Wails dev;
@@ -800,7 +802,7 @@ PostgreSQL из `docker-compose.integration.yaml`, передаёт безопа
 `make integration-db-down`.
 
 Integration coverage composition root собирает Wails options только с server
-URL и локальным theme service, без PostgreSQL и MinIO. Тест проверяет состав
+URL и локальным theme service, без PostgreSQL и SeaweedFS. Тест проверяет состав
 bindings, startup/shutdown и logger callback. Отдельные server integration tests
 проверяют обработку outbox и полный lifecycle вложения на реальной PostgreSQL с
 поддельным object storage. Production `NewWailsOptions` создаёт API adapters и
@@ -863,7 +865,7 @@ Rule: a change is not production-ready just because local unit tests pass. Relea
 - Keep `npm audit --audit-level=critical` in release gate.
 - Dependency inventories и license review при необходимости выполняются отдельным production-процессом; текущий `release-gate` их не генерирует.
 - Do not commit secrets.
-- Supply PostgreSQL and MinIO credentials to `docflow-server` through the approved runtime secret-delivery mechanism.
+- Supply PostgreSQL and SeaweedFS credentials to `docflow-server` through the approved runtime secret-delivery mechanism.
 - Keep technical logs free of passwords and tokens.
 
 ## Install And Runtime Targets
@@ -889,7 +891,7 @@ Target OS smoke must include:
 - default shortcut/cwd;
 - path with spaces and Cyrillic characters;
 - missing/invalid config diagnostics;
-- DB/MinIO/Seq unavailable diagnostics.
+- DB/SeaweedFS/Seq unavailable diagnostics.
 
 ## Known Release State
 
@@ -925,3 +927,6 @@ High-risk changes requiring extra care:
 - release gates;
 - config/secrets;
 - technical logging and audit trail.
+
+Актуальные параметры SeaweedFS 4.46, runtime secrets, сброс dev-стека и проверка
+backup/restore v2 описаны в [инструкции хранилища](seaweedfs-operations.md).

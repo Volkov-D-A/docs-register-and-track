@@ -8,3 +8,5 @@ frontend/.test-build
 /build/release-evidence/
 /build/performance/
 /build/bin/
+
+/build/transition-evidence/

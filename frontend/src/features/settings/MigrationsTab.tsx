@@ -167,7 +167,7 @@ const MigrationsTab: React.FC = () => {
       </Space>
       <div>
         <Typography.Text type="secondary">
-          Перед запуском миграций убедитесь, что все пользователи завершили работу. Перед откатом требуется свежая резервная копия PostgreSQL и MinIO.
+          Перед запуском миграций убедитесь, что все пользователи завершили работу. Перед откатом требуется свежая резервная копия PostgreSQL и хранилища вложений.
         </Typography.Text>
       </div>
 
@@ -226,7 +226,7 @@ const MigrationsTab: React.FC = () => {
                 validator: (_, checked) => checked ? Promise.resolve() : Promise.reject(new Error('Подтвердите наличие свежей резервной копии')),
               }]}
             >
-              <Checkbox>Свежая резервная копия PostgreSQL и MinIO создана и проверена</Checkbox>
+              <Checkbox>Свежая резервная копия PostgreSQL и хранилища вложений создана и проверена</Checkbox>
             </Form.Item>
             <Form.Item
               name="backupReference"

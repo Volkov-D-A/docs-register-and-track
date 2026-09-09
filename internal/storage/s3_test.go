@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewMinioServiceInvalidEndpoint(t *testing.T) {
-	service, err := NewMinioService(config.MinioConfig{
+func TestNewS3StorageInvalidEndpoint(t *testing.T) {
+	service, err := NewS3Storage(config.S3Config{
 		Endpoint:        "http://bad endpoint",
 		AccessKeyID:     "access",
 		SecretAccessKey: "secret",
@@ -19,5 +19,5 @@ func TestNewMinioServiceInvalidEndpoint(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, service)
-	assert.Contains(t, err.Error(), "failed to init minio client")
+	assert.Contains(t, err.Error(), "failed to init s3 client")
 }

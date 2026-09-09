@@ -127,7 +127,7 @@ HTTP-клиенты сохраняют идентификатор в обёрт�
 - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
 ```
 
-Каталога `caddy` в корне репозитория нет. Фактический файл находится в `build/caddy/Caddyfile`, и основной [`docker-compose.yaml`](../docker-compose.yaml#L95) использует именно этот путь. Инструкция по внутреннему CA также оперирует `build/caddy`: [`docs/https-internal-ca-setup.md`](https-internal-ca-setup.md#L83).
+Каталога `caddy` в корне репозитория нет. Фактический файл находится в `build/caddy/Caddyfile`, и основной [`docker-compose.yaml`](../docker-compose.yaml#L95) использует именно этот путь. Инструкция по внутреннему CA также оперирует `build/caddy`: `docs/https-internal-ca-setup.md` (исторический путь, отсутствует в текущем дереве).
 
 `docker compose config` не выявляет отсутствие bind-source и успешно формирует конфигурацию, но запуск Caddy с таким mount завершится ошибкой или создаст каталог вместо ожидаемого файла — в зависимости от окружения Docker.
 
@@ -149,7 +149,7 @@ if user == nil || !security.VerifyPassword(user.PasswordHash, req.Password) {
 
 ### Совмещение desktop- и server-ролей в сервисах
 
-`AuthService` сохраняет прямой repository/database fallback, хотя production desktop создаётся с server client, а сервер использует собственные обработчики. Этот путь преимущественно поддерживается старыми тестами и усложняет понимание доверенной границы: [`internal/services/auth_service.go`](../internal/services/auth_service.go).
+`AuthService` сохраняет прямой repository/database fallback, хотя production desktop создаётся с server client, а сервер использует собственные обработчики. Этот путь преимущественно поддерживается старыми тестами и усложняет понимание доверенной границы: `internal/services/auth_service.go` (исторический путь, отсутствует в текущем дереве).
 
 Вложения разделены на независимые desktop- и server-типы; смешанная реализация и legacy-конструкторы удалены (см. риск №3).
 
@@ -157,7 +157,7 @@ if user == nil || !security.VerifyPassword(user.PasswordHash, req.Password) {
 
 ### Неиспользуемые зависимости `UserService`
 
-Поля `userRepo` и `auth` всё ещё находятся в `UserService`: [`internal/services/user_service.go`](../internal/services/user_service.go#L15), тогда как актуальные операции используют `server`/`executors`. Конструктор с repository поддерживает старую форму объекта, но повышает риск случайного возврата прямого доступа к данным.
+Поля `userRepo` и `auth` всё ещё находятся в `UserService`: `internal/services/user_service.go` (исторический путь, отсутствует в текущем дереве), тогда как актуальные операции используют `server`/`executors`. Конструктор с repository поддерживает старую форму объекта, но повышает риск случайного возврата прямого доступа к данным.
 
 Рекомендация: удалить поля и legacy-конструктор после проверки всех production composition roots и тестов; оставить обязательные server interfaces в конструкторе, чтобы некорректное состояние нельзя было создать.
 
@@ -173,7 +173,7 @@ if user == nil || !security.VerifyPassword(user.PasswordHash, req.Password) {
 2. Проверки защиты bootstrap admin секретом или локальным доверенным каналом отложены: риск №2 принят для текущей модели эксплуатации; вернуться к ним при её изменении.
 3. Истечение, отзыв, деактивация и reset password очищают desktop-сессию и возвращают UI на login.
 4. Wails bindings соответствуют allowlist и не содержат внутренних `Set*`, streaming и repository-oriented методов.
-5. TLS handshake отклоняет сертификат от другого CA и сертификат с неверным DNS-именем. Эти сценарии прямо перечислены в [`docs/https-internal-ca-setup.md`](https-internal-ca-setup.md#L349), но текущие тесты проверяют главным образом загрузку PEM/root pool.
+5. TLS handshake отклоняет сертификат от другого CA и сертификат с неверным DNS-именем. Эти сценарии прямо перечислены в `docs/https-internal-ca-setup.md` (исторический путь, отсутствует в текущем дереве), но текущие тесты проверяют главным образом загрузку PEM/root pool.
 6. Production Compose действительно поднимает Caddy и проходит HTTPS health check.
 7. Есть нагрузочные/конкурентные тесты rate limiter, telemetry ingest и streaming больших вложений.
 8. Ошибки `5xx` не содержат SQL, DSN, filesystem paths и внутренних сообщений зависимостей.

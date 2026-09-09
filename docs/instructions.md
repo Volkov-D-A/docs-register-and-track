@@ -78,3 +78,9 @@ password=...
 SMB_CREDENTIALS_FILE=/etc/docflow/smb.credentials
 SMB_VERS=3.0
 SMB_SEC=ntlmssp
+
+# Хранилище вложений SeaweedFS
+
+Для первого запуска, сброса dev-данных и согласованного backup/restore используйте
+[инструкцию эксплуатации SeaweedFS](seaweedfs-operations.md). Формат архивов — v2;
+старые архивы MinIO не поддерживаются. PostgreSQL и хранилище сбрасываются вместе.

@@ -15,15 +15,15 @@ import (
 
 const storageUsageRefreshTimeout = 30 * time.Second
 
-// MinioService предоставляет сервис для работы с объектным хранилищем MinIO.
-type MinioService struct {
+// S3Storage предоставляет сервис для работы с объектным S3-хранилищем.
+type S3Storage struct {
 	client     *minio.Client
 	bucketName string
 }
 
-// NewMinioService создает новый экземпляр MinioService.
-func NewMinioService(cfg config.MinioConfig) (*MinioService, error) {
-	client, err := newMinioClient(cfg)
+// NewS3Storage создает новый экземпляр S3Storage.
+func NewS3Storage(cfg config.S3Config) (*S3Storage, error) {
+	client, err := newS3Client(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -45,16 +45,16 @@ func NewMinioService(cfg config.MinioConfig) (*MinioService, error) {
 		slog.Info("Bucket created", "bucket", cfg.BucketName)
 	}
 
-	return &MinioService{
+	return &S3Storage{
 		client:     client,
 		bucketName: cfg.BucketName,
 	}, nil
 }
 
-// CheckMinio verifies that the configured bucket is reachable without creating
+// CheckS3 verifies that the configured bucket is reachable without creating
 // or modifying storage. It is used by standalone server health checks.
-func CheckMinio(ctx context.Context, cfg config.MinioConfig) error {
-	client, err := newMinioClient(cfg)
+func CheckS3(ctx context.Context, cfg config.S3Config) error {
+	client, err := newS3Client(cfg)
 	if err != nil {
 		return err
 	}
@@ -68,36 +68,38 @@ func CheckMinio(ctx context.Context, cfg config.MinioConfig) error {
 		return fmt.Errorf("check bucket exists failed: %w", err)
 	}
 	if !exists {
-		return fmt.Errorf("minio bucket %q does not exist", cfg.BucketName)
+		return fmt.Errorf("s3 bucket %q does not exist", cfg.BucketName)
 	}
 	return nil
 }
 
-func newMinioClient(cfg config.MinioConfig) (*minio.Client, error) {
+func newS3Client(cfg config.S3Config) (*minio.Client, error) {
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.GetSecretAccessKey(), ""),
-		Secure: cfg.UseSSL,
+		Creds:        credentials.NewStaticV4(cfg.AccessKeyID, cfg.GetSecretAccessKey(), ""),
+		Secure:       cfg.UseSSL,
+		Region:       "us-east-1",
+		BucketLookup: minio.BucketLookupPath,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to init minio client: %w", err)
+		return nil, fmt.Errorf("failed to init s3 client: %w", err)
 	}
 	return client, nil
 }
 
-// UploadFile загружает файл в MinIO.
-func (m *MinioService) UploadFile(ctx context.Context, objectName string, data io.Reader, size int64, contentType string) error {
+// UploadFile загружает файл в объектное хранилище.
+func (m *S3Storage) UploadFile(ctx context.Context, objectName string, data io.Reader, size int64, contentType string) error {
 	_, err := m.client.PutObject(ctx, m.bucketName, objectName, data, size, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to upload file to minio: %w", err)
+		return fmt.Errorf("failed to upload file to s3: %w", err)
 	}
 	return nil
 }
 
 // DownloadFileToWriter streams a bounded object directly to writer.
-func (m *MinioService) DownloadFileToWriter(ctx context.Context, objectName string, writer io.Writer, maxSize int64) error {
+func (m *S3Storage) DownloadFileToWriter(ctx context.Context, objectName string, writer io.Writer, maxSize int64) error {
 	info, err := m.client.StatObject(ctx, m.bucketName, objectName, minio.StatObjectOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to stat object: %w", err)
@@ -107,7 +109,7 @@ func (m *MinioService) DownloadFileToWriter(ctx context.Context, objectName stri
 	}
 	obj, err := m.client.GetObject(ctx, m.bucketName, objectName, minio.GetObjectOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get object from minio: %w", err)
+		return fmt.Errorf("failed to get object from s3: %w", err)
 	}
 	defer obj.Close()
 
@@ -122,18 +124,18 @@ func (m *MinioService) DownloadFileToWriter(ctx context.Context, objectName stri
 	return nil
 }
 
-// DeleteFile удаляет файл из MinIO.
-func (m *MinioService) DeleteFile(ctx context.Context, objectName string) error {
+// DeleteFile удаляет файл из объектного хранилища.
+func (m *S3Storage) DeleteFile(ctx context.Context, objectName string) error {
 	err := m.client.RemoveObject(ctx, m.bucketName, objectName, minio.RemoveObjectOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to remove object from minio: %w", err)
+		return fmt.Errorf("failed to remove object from s3: %w", err)
 	}
 	return nil
 }
 
 // RefreshStorageUsage performs a complete object scan and returns an exact
 // byte count for the persisted aggregate.
-func (m *MinioService) RefreshStorageUsage(ctx context.Context) (objectCount int, totalBytes int64, err error) {
+func (m *S3Storage) RefreshStorageUsage(ctx context.Context) (objectCount int, totalBytes int64, err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -142,7 +144,7 @@ func (m *MinioService) RefreshStorageUsage(ctx context.Context) (objectCount int
 	objectCh := m.client.ListObjects(refreshCtx, m.bucketName, minio.ListObjectsOptions{Recursive: true})
 	for obj := range objectCh {
 		if obj.Err != nil {
-			return 0, 0, fmt.Errorf("failed to list objects in minio: %w", obj.Err)
+			return 0, 0, fmt.Errorf("failed to list objects in s3: %w", obj.Err)
 		}
 		objectCount++
 		totalBytes += obj.Size
@@ -151,11 +153,11 @@ func (m *MinioService) RefreshStorageUsage(ctx context.Context) (objectCount int
 }
 
 // ListObjectNames is used by the read-only attachment reconciliation command.
-func (m *MinioService) ListObjectNames(ctx context.Context) ([]string, error) {
+func (m *S3Storage) ListObjectNames(ctx context.Context) ([]string, error) {
 	objects := make([]string, 0)
 	for object := range m.client.ListObjects(ctx, m.bucketName, minio.ListObjectsOptions{Recursive: true}) {
 		if object.Err != nil {
-			return nil, fmt.Errorf("failed to list objects in minio: %w", object.Err)
+			return nil, fmt.Errorf("failed to list objects in s3: %w", object.Err)
 		}
 		objects = append(objects, object.Key)
 	}

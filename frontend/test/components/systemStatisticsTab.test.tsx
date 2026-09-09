@@ -60,14 +60,14 @@ describe('SystemStatisticsTab storage lifecycle', () => {
       await Promise.resolve();
     });
     expect(getStorageStatus).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/Выполняется фоновая сверка MinIO/)).toBeInTheDocument();
+    expect(screen.getByText(/Выполняется фоновая сверка объектного хранилища/)).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
     });
     expect(getStorageStatus).toHaveBeenCalledTimes(2);
     expect(screen.getByText('8 MB')).toBeInTheDocument();
-    expect(screen.queryByText(/Выполняется фоновая сверка MinIO/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Выполняется фоновая сверка объектного хранилища/)).not.toBeInTheDocument();
   });
 
   test('a failed refresh can be retried from the component', async () => {
@@ -75,17 +75,17 @@ describe('SystemStatisticsTab storage lifecycle', () => {
     installWailsMock({
       StatisticsService: {
         GetSystemStatistics: vi.fn().mockResolvedValue(systemStats),
-        GetStorageStatisticsStatus: vi.fn().mockResolvedValue({ state: 'failed', storageObjects: 1, storageSize: '1 MB', lastError: 'MinIO недоступен' }),
+        GetStorageStatisticsStatus: vi.fn().mockResolvedValue({ state: 'failed', storageObjects: 1, storageSize: '1 MB', lastError: 'объектное хранилище недоступно' }),
         RetryStorageStatisticsRefresh: retry,
       },
     });
     const user = userEvent.setup();
     renderWithApp(<SystemStatisticsTab />);
 
-    expect(await screen.findByText('Сверка MinIO завершилась с ошибкой')).toBeInTheDocument();
+    expect(await screen.findByText('Сверка объектного хранилища завершилась с ошибкой')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Повторить сверку/ }));
     await waitFor(() => expect(retry).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('9 MB')).toBeInTheDocument();
-    expect(screen.queryByText('Сверка MinIO завершилась с ошибкой')).not.toBeInTheDocument();
+    expect(screen.queryByText('Сверка объектного хранилища завершилась с ошибкой')).not.toBeInTheDocument();
   });
 });

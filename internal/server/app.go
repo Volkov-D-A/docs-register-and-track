@@ -39,7 +39,7 @@ type App struct {
 
 type dependencies struct {
 	connectDatabase func(config.DatabaseConfig) (*database.DB, error)
-	newStorage      func(config.MinioConfig) (serverStorage, error)
+	newStorage      func(config.S3Config) (serverStorage, error)
 }
 
 type serverStorage interface {
@@ -51,8 +51,8 @@ type serverStorage interface {
 func New(cfg *config.Config) (*App, error) {
 	return newWithDependencies(cfg, dependencies{
 		connectDatabase: database.Connect,
-		newStorage: func(cfg config.MinioConfig) (serverStorage, error) {
-			return storage.NewMinioService(cfg)
+		newStorage: func(cfg config.S3Config) (serverStorage, error) {
+			return storage.NewS3Storage(cfg)
 		},
 	})
 }
@@ -79,9 +79,9 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 
 	metrics := observability.NewRegistry(256)
 	db.SetMetrics(metrics)
-	objectStorage, err := deps.newStorage(cfg.Minio)
+	objectStorage, err := deps.newStorage(cfg.S3)
 	if err != nil {
-		return nil, fmt.Errorf("connect MinIO: %w", err)
+		return nil, fmt.Errorf("connect S3: %w", err)
 	}
 
 	outboxRepo := repository.NewOutboxRepository(db)
@@ -213,8 +213,8 @@ func HealthCheck(ctx context.Context, cfg *config.Config) error {
 	if status == nil || !status.UpToDate || !status.Compatible {
 		return fmt.Errorf("database schema is not ready")
 	}
-	if err := storage.CheckMinio(ctx, cfg.Minio); err != nil {
-		return fmt.Errorf("check MinIO: %w", err)
+	if err := storage.CheckS3(ctx, cfg.S3); err != nil {
+		return fmt.Errorf("check S3: %w", err)
 	}
 	return nil
 }

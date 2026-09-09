@@ -4,11 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrations3"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -94,7 +100,25 @@ func TestAttachmentAPIStreamsAndPersistsLifecycleIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, allowed)
 
-	storage := &attachmentIntegrationStorage{objects: make(map[string][]byte)}
+	realStorage, _, s3cfg := integrations3.Open(t)
+	target, err := url.Parse("http://" + s3cfg.Endpoint)
+	require.NoError(t, err)
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	// Preserve the signed Host header on forwarding. Drop traffic to model outage.
+	var unavailable atomic.Bool
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if unavailable.Load() {
+			<-r.Context().Done()
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+	defer gateway.Close()
+	s3cfg.Endpoint = strings.TrimPrefix(gateway.URL, "http://")
+	storage, err := storage.NewS3Storage(s3cfg)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id,permission,is_allowed) VALUES ($1,'admin',TRUE)`, userID)
+	require.NoError(t, err)
 	api := newIntegrationManagementAPI(t, &App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32), storage: storage})
 	login := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"login":"attachment-user","password":"`+password+`"}`))
 	loginResponse := httptest.NewRecorder()
@@ -106,6 +130,11 @@ func TestAttachmentAPIStreamsAndPersistsLifecycleIntegration(t *testing.T) {
 	require.NoError(t, json.NewDecoder(loginResponse.Body).Decode(&session))
 
 	content := []byte("%PDF integration")
+	statistics := repository.NewStatisticsRepository(db)
+	refreshToken := uuid.New()
+	startedRefresh, err := statistics.TryStartStorageStatisticsRefresh(refreshToken, time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	require.True(t, startedRefresh)
 	upload := httptest.NewRequest(http.MethodPost, "/api/v1/documents/"+document.ID.String()+"/attachments", bytes.NewReader(content))
 	upload.Header.Set("Authorization", "Bearer "+session.AccessToken)
 	upload.Header.Set("Content-Disposition", `attachment; filename="report.pdf"`)
@@ -117,6 +146,12 @@ func TestAttachmentAPIStreamsAndPersistsLifecycleIntegration(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(uploadResponse.Body).Decode(&uploaded))
 	require.NotEmpty(t, uploaded.ID)
+	require.Error(t, statistics.SaveStorageStatisticsSnapshot(refreshToken, models.StorageStatisticsSnapshot{ObjectCount: 0, TotalBytes: 0, RefreshedAt: time.Now()}), "upload must invalidate overlapping scan")
+	var storedCount int
+	var storedBytes int64
+	require.NoError(t, db.QueryRow(`SELECT object_count,total_bytes FROM storage_statistics`).Scan(&storedCount, &storedBytes))
+	require.Equal(t, 1, storedCount)
+	require.Equal(t, int64(len(content)), storedBytes)
 
 	download := httptest.NewRequest(http.MethodGet, "/api/v1/attachments/"+uploaded.ID+"/content", nil)
 	download.Header.Set("Authorization", "Bearer "+session.AccessToken)
@@ -124,6 +159,34 @@ func TestAttachmentAPIStreamsAndPersistsLifecycleIntegration(t *testing.T) {
 	api.Handler().ServeHTTP(downloadResponse, download)
 	require.Equal(t, http.StatusOK, downloadResponse.Code)
 	require.Equal(t, content, downloadResponse.Body.Bytes())
+
+	// A metadata write failure must compensate the already uploaded S3 object.
+	_, err = db.Exec(`CREATE FUNCTION reject_test_attachment() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected metadata failure'; END $$;
+ CREATE TRIGGER reject_test_attachment BEFORE INSERT ON attachments FOR EACH ROW EXECUTE FUNCTION reject_test_attachment();`)
+	require.NoError(t, err)
+	failedUpload := httptest.NewRequest(http.MethodPost, "/api/v1/documents/"+document.ID.String()+"/attachments", bytes.NewReader(content))
+	failedUpload.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	failedUpload.Header.Set("Content-Disposition", `attachment; filename="failed.pdf"`)
+	failedResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(failedResponse, failedUpload)
+	require.GreaterOrEqual(t, failedResponse.Code, 400)
+	_, err = db.Exec(`DROP TRIGGER reject_test_attachment ON attachments; DROP FUNCTION reject_test_attachment();`)
+	require.NoError(t, err)
+	names, err := realStorage.ListObjectNames(context.Background())
+	require.NoError(t, err)
+	require.Len(t, names, 1)
+	storedKey := names[0]
+	require.NoError(t, realStorage.DeleteFile(context.Background(), storedKey))
+	require.NoError(t, realStorage.UploadFile(context.Background(), "orphan.bin", bytes.NewReader(content), int64(len(content)), "application/pdf"))
+	reconciliation := httptest.NewRequest(http.MethodGet, "/api/v1/admin/attachments/reconciliation", nil)
+	reconciliation.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	recResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(recResponse, reconciliation)
+	require.Equal(t, http.StatusOK, recResponse.Code, recResponse.Body.String())
+	require.Contains(t, recResponse.Body.String(), storedKey)
+	require.Contains(t, recResponse.Body.String(), "orphan.bin")
+	require.NoError(t, realStorage.DeleteFile(context.Background(), "orphan.bin"))
+	require.NoError(t, realStorage.UploadFile(context.Background(), storedKey, bytes.NewReader(content), int64(len(content)), "application/pdf"))
 
 	deleteRequest := httptest.NewRequest(http.MethodDelete, "/api/v1/attachments/"+uploaded.ID, nil)
 	deleteRequest.Header.Set("Authorization", "Bearer "+session.AccessToken)
@@ -142,4 +205,39 @@ func TestAttachmentAPIStreamsAndPersistsLifecycleIntegration(t *testing.T) {
 	var outboxEvents int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM event_outbox WHERE processed_at IS NULL AND event_type IN ($1, $2)`, models.OutboxEventFileDelete, models.OutboxEventJournal).Scan(&outboxEvents))
 	require.GreaterOrEqual(t, outboxEvents, 3)
+	worker, err := outbox.NewWorkerWithOptions(repository.NewOutboxRepository(db), repository.NewUserEventRepository(db), repository.NewJournalRepository(db), repository.NewAdminAuditLogRepository(db), repository.NewAttachmentRepository(db), storage, outbox.Options{ConsumerTimeout: time.Second})
+	require.NoError(t, err)
+	unavailable.Store(true)
+	started := time.Now()
+	require.NoError(t, worker.ProcessOnceContext(context.Background()))
+	require.Less(t, time.Since(started), 5*time.Second)
+	var attempts int
+	require.NoError(t, db.QueryRow(`SELECT attempts FROM event_outbox WHERE event_type=$1 AND processed_at IS NULL`, models.OutboxEventFileDelete).Scan(&attempts))
+	require.Equal(t, 1, attempts)
+	names, err = realStorage.ListObjectNames(context.Background())
+	require.NoError(t, err)
+	require.Len(t, names, 1)
+	unavailable.Store(false)
+	refreshToken = uuid.New()
+	startedRefresh, err = statistics.TryStartStorageStatisticsRefresh(refreshToken, time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	require.True(t, startedRefresh)
+	_, err = db.Exec(`UPDATE event_outbox SET available_at=CURRENT_TIMESTAMP WHERE event_type=$1`, models.OutboxEventFileDelete)
+	require.NoError(t, err)
+	require.NoError(t, worker.ProcessOnceContext(context.Background()))
+	names, err = realStorage.ListObjectNames(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, names)
+	require.Error(t, statistics.SaveStorageStatisticsSnapshot(refreshToken, models.StorageStatisticsSnapshot{ObjectCount: 1, TotalBytes: int64(len(content)), RefreshedAt: time.Now()}), "delete must invalidate overlapping scan")
+	// Simulate redelivery after acknowledgement loss; statistics must not decrement twice.
+	_, err = db.Exec(`UPDATE event_outbox SET processed_at=NULL, available_at=CURRENT_TIMESTAMP WHERE event_type=$1`, models.OutboxEventFileDelete)
+	require.NoError(t, err)
+	require.NoError(t, worker.ProcessOnceContext(context.Background()))
+	var attachments int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM attachments`).Scan(&attachments))
+	require.Zero(t, attachments)
+	require.NoError(t, db.QueryRow(`SELECT object_count,total_bytes FROM storage_statistics`).Scan(&storedCount, &storedBytes))
+	require.Zero(t, storedCount)
+	require.Zero(t, storedBytes)
+
 }

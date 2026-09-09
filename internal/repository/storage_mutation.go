@@ -34,7 +34,7 @@ type storageMutation struct {
 
 var _ coordination.StorageMutation = (*storageMutation)(nil)
 
-// BeginStorageMutation registers the operation before MinIO can change. The
+// BeginStorageMutation registers the operation before object storage can change. The
 // registration invalidates an overlapping bucket scan and is renewed until
 // Finish is called.
 func (r *AttachmentRepository) BeginStorageMutation(parent context.Context) (coordination.StorageMutation, error) {

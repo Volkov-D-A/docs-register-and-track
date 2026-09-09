@@ -77,7 +77,7 @@ go-test:
 	$(MAKE) release-assets
 	GOCACHE=$(GOCACHE) go test $(GO_PACKAGES)
 
-# Запускает изолированный PostgreSQL, выполняет тесты с суффиксом Integration
+# Запускает изолированные PostgreSQL и SeaweedFS, выполняет тесты Integration
 # и всегда удаляет контейнер вместе с тестовым volume.
 check-integration-env:
 	@command -v docker >/dev/null 2>&1 || (echo "docker is required for PostgreSQL integration tests" >&2; exit 1)
@@ -90,7 +90,8 @@ integration-test: check-integration-env
 		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \
 		$(INTEGRATION_COMPOSE) up -d --wait; \
-		DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1
+		$(INTEGRATION_COMPOSE) run --rm s3-ready; \
+		DOCFLOW_INTEGRATION_S3_ENDPOINT=127.0.0.1:58333 DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1
 
 # Generates a local baseline only. It intentionally has no pass/fail latency
 # threshold because Docker and developer hardware are not stable benchmark hosts.
@@ -100,6 +101,7 @@ db-performance-check: check-integration-env
 		trap cleanup EXIT INT TERM; \
 		mkdir -p $(PERFORMANCE_DIR); \
 		$(INTEGRATION_COMPOSE) up -d --wait; \
+		$(INTEGRATION_COMPOSE) run --rm s3-ready; \
 		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
 		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -deep-page $(PERFORMANCE_DEEP_PAGE) | tee $(PERFORMANCE_DIR)/summary.txt
 
@@ -139,7 +141,7 @@ release-gate:
 # УПРАВЛЕНИЕ ЛОКАЛЬНЫМ СТЕКОМ (DOCKER)
 # ==========================================
 
-# Запуск PostgreSQL, MinIO, Seq, docflow-server и Caddy в фоновом режиме
+# Запуск PostgreSQL, SeaweedFS, Seq, docflow-server и Caddy в фоновом режиме
 storage-up:
 	docker compose up -d
 
@@ -147,7 +149,10 @@ storage-up:
 storage-down:
 	docker compose down
 
-# ПОЛНЫЙ СБРОС: удаляет контейнеры и тома локального стека, затем поднимает его заново
+# СБРОС ДАННЫХ DEV: PostgreSQL и хранилище; тома Seq/Caddy сохраняются.
 storage-reset:
-	docker compose down -v
-	docker compose up -d
+	bash scripts/reset-dev-storage.sh --execute
+
+.PHONY: storage-smoke-test
+storage-smoke-test: check-docker
+	bash scripts/integration-smoke.sh

@@ -5,15 +5,15 @@ Wails desktop application for registering and tracking documents. The app uses:
 - Go backend with Wails bindings;
 - React + Ant Design frontend;
 - PostgreSQL for relational data;
-- MinIO for attachments;
+- SeaweedFS for attachments;
 - Seq for technical logs.
 
-`docflow-server` owns PostgreSQL, MinIO, transactional outbox consumption,
+`docflow-server` owns PostgreSQL, SeaweedFS, transactional outbox consumption,
 database migrations, authentication and all business operations. The desktop
 uses the versioned HTTP API and does not create database or object-storage
 connections.
 
-The repository keeps application code and a compact maintained documentation set. Review findings and their current status are tracked in [`docs/bugs.md`](docs/bugs.md); production readiness is determined by the release gate plus environment-specific smoke and recovery checks.
+The repository keeps application code and a compact maintained documentation set. Historical review findings are recorded in the [server transition review](docs/server-transition-code-review.md); production readiness is determined by the release gate plus environment-specific smoke and recovery checks.
 
 ## Local Development
 
@@ -22,7 +22,7 @@ Prerequisites:
 - Go version required by `go.mod`;
 - Node.js and npm compatible with `frontend/package-lock.json`;
 - Wails CLI v2;
-- Docker Compose for local PostgreSQL, MinIO, Seq, `docflow-server` and Caddy;
+- Docker Compose for local PostgreSQL, SeaweedFS, Seq, `docflow-server` and Caddy;
 - Linux WebKit dependencies required by Wails on the target developer OS.
 
 Start local infrastructure:
@@ -33,10 +33,10 @@ cp config.example.json config/config.json
 make storage-up
 ```
 
-`docker-compose.yaml`, `.envExample` and `config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains only the server connection settings and no PostgreSQL, MinIO or Seq credentials/endpoints. Authenticated desktop technical logs are sent in bounded batches to `POST /api/v1/telemetry/logs`; `docflow-server` adds the session identity and forwards them through its logging pipeline to Seq.
+`docker-compose.yaml`, `.envExample` and `config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains only the server connection settings and no PostgreSQL, SeaweedFS or Seq credentials/endpoints. Authenticated desktop technical logs are sent in bounded batches to `POST /api/v1/telemetry/logs`; `docflow-server` adds the session identity and forwards them through its logging pipeline to Seq.
 
 Set the immutable `DOCFLOW_SERVER_VERSION` in `.env` next to the versions of
-PostgreSQL, MinIO, Seq and Caddy. Compose always pulls
+PostgreSQL, SeaweedFS, Seq and Caddy. Compose always pulls
 `hehelf/docflow-service:<version>` from Docker Hub and waits for PostgreSQL
 readiness before starting it; it never builds the server image on the target
 host. On a genuinely empty database the server applies its embedded bootstrap
@@ -101,8 +101,8 @@ make dev
 
 The local `docflow-server` is started by `make storage-up` as part of the
 Compose stack; a second standalone server process is not required. Fill the
-PostgreSQL, MinIO, Seq and outbox values before starting the stack.
-The same database and MinIO credentials are used both to initialize the local
+PostgreSQL, SeaweedFS, Seq and outbox values before starting the stack.
+The same database and SeaweedFS credentials are used both to initialize the local
 containers and to connect `docflow-server`; no duplicate service credentials
 are required. The example contains placeholders and is not a production
 secret-delivery mechanism. The server reads its configuration exclusively from
@@ -124,7 +124,7 @@ checks that this version matches the generated release asset and Wails product
 version. The Makefile never accepts or stores a Docker Hub password/token. The
 runtime image contains only the static server binary. Pass `.env` with
 `--env-file` or the equivalent orchestrator mechanism.
-PostgreSQL and MinIO passwords must be supplied as runtime secrets; production
+PostgreSQL and SeaweedFS passwords must be supplied as runtime secrets; production
 secret delivery must be verified on the target host.
 
 Run automated checks:
@@ -156,7 +156,7 @@ Maintained project documentation:
 
 - [Technical reference](docs/tech_docs.md)
 - [Server service implementation plan](docs/server-service-implementation-plan.md)
-- [Review findings and fixes](docs/bugs.md)
+- [Server transition review](docs/server-transition-code-review.md)
 - [Setup and backup/restore instructions](docs/instructions.md)
 - [Release notes source](docs/releases.yaml)
 
@@ -235,7 +235,7 @@ configuration.
 
 Safety rules:
 
-- create a fresh PostgreSQL+MinIO backup before migration rollback;
+- create a fresh PostgreSQL+SeaweedFS backup before migration rollback;
 - enter the current administrator password for every schema-changing command;
 - never run an older binary against a newer DB schema;
 - stop application use if migration status is dirty;
@@ -251,8 +251,13 @@ Use:
 - `restore_smb_tar.sh`
 - [setup and backup/restore instructions](docs/instructions.md)
 
-Release requires a successful manual test restore of PostgreSQL and MinIO from an actual backup archive or production-like backup set.
+Release requires a successful manual test restore of PostgreSQL and SeaweedFS from an actual backup archive or production-like backup set.
 
 ## Diagnostics
 
-Operator-facing startup behavior, logging and recovery constraints are described in the [technical reference](docs/tech_docs.md). Remaining diagnostics and security debt are tracked in [review findings](docs/bugs.md).
+Operator-facing startup behavior, logging and recovery constraints are described in the [technical reference](docs/tech_docs.md). Historical findings are available in the [server transition review](docs/server-transition-code-review.md).
+
+SeaweedFS configuration, runtime secrets, dev reset and backup/restore v2 are
+covered in the [storage operations guide](docs/seaweedfs-operations.md).
+Run `make storage-smoke-test` to verify the current server build, restart
+persistence and PostgreSQL/S3 restore in disposable volumes.

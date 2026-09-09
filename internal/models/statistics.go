@@ -181,7 +181,7 @@ const (
 )
 
 // StorageStatisticsStatus is a lightweight view used while the UI waits for
-// a background MinIO scan. It deliberately excludes unrelated system counts.
+// a background object storage scan. It deliberately excludes unrelated system counts.
 type StorageStatisticsStatus struct {
 	StorageObjects int                           `json:"storageObjects"`
 	StorageSize    string                        `json:"storageSize"`

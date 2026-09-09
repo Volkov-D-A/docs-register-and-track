@@ -12,23 +12,18 @@ load_backup_config
 # Проверка аргументов
 # ==========================================
 ARCHIVE_NAME="${1:-}"
-LEGACY_MODE="${2:-}"
 
-if [ "$#" -gt 2 ]; then
+if [ "$#" -gt 1 ]; then
   echo "Ошибка: Слишком много параметров."
   exit 1
 fi
 if [ -z "$ARCHIVE_NAME" ]; then
   echo "Ошибка: Не указано имя файла резервной копии."
-  echo "Использование: sudo ./restore_smb_tar.sh backup_20260304_120000_123456789.tar.gz [--allow-legacy-without-manifest]"
+  echo "Использование: sudo ./restore_smb_tar.sh backup_20260304_120000_123456789.tar.gz"
   exit 1
 fi
 if [[ ! "$ARCHIVE_NAME" =~ ^backup_[0-9]{8}_[0-9]{6}(_[0-9]{9})?\.tar\.gz$ ]]; then
   echo "Ошибка: Недопустимое имя резервной копии: $ARCHIVE_NAME"
-  exit 1
-fi
-if [ -n "$LEGACY_MODE" ] && [ "$LEGACY_MODE" != "--allow-legacy-without-manifest" ]; then
-  echo "Ошибка: Неизвестный параметр: $LEGACY_MODE"
   exit 1
 fi
 
@@ -46,7 +41,7 @@ case "$REPORT_DIR" in
     exit 1
     ;;
 esac
-REPORT_FILE="$REPORT_DIR/restore_$(date +%Y%m%d_%H%M%S).log"
+REPORT_FILE="$REPORT_DIR/restore_$(date +%Y%m%d_%H%M%S_%N).log"
 MOUNTED=0
 BACKUP_VERIFICATION=""
 VERIFIED_SHA256=""
@@ -56,6 +51,7 @@ echo "Начало процесса восстановления из файла
 
 cleanup() {
   local exit_code=$?
+  if [ "${RESTORE_DUMP_COPIED:-0}" = 1 ]; then restore_cleanup; fi
 
   if [ "$MOUNTED" -eq 1 ]; then
     echo "Отключение сетевой папки..."
@@ -67,6 +63,9 @@ cleanup() {
     rm -rf "$TMP_DIR"
   fi
 
+  if [ "$exit_code" -ne 0 ] && [ "${SERVER_WAS_RUNNING:-0}" = 1 ]; then
+    echo "Сервер оставлен остановленным после ошибки восстановления." >&2
+  fi
   exit "$exit_code"
 }
 
@@ -83,7 +82,7 @@ write_report_header() {
     echo "archive_sha256=$VERIFIED_SHA256"
     echo "postgres_container=$POSTGRES_CONTAINER"
     echo "postgres_db=$POSTGRES_DB"
-    echo "minio_bucket=$MINIO_BUCKET"
+    echo "s3_bucket=$S3_BUCKET"
     echo
   } > "$REPORT_FILE"
   chmod 600 "$REPORT_FILE"
@@ -102,18 +101,18 @@ verify_manifest() {
     key="${line%%=*}"
     value="${line#*=}"
     case "$key" in
-      format_version|archive|created_at|size_bytes|sha256|postgres_database|minio_bucket) ;;
+      format_version|archive|created_at|size_bytes|sha256|postgres_database|s3_bucket) ;;
       *) echo "Ошибка: Неизвестное поле manifest: $key"; return 1 ;;
     esac
     [[ ! -v "fields[$key]" ]] || { echo "Ошибка: Поле manifest повторяется: $key"; return 1; }
     fields["$key"]="$value"
   done < "$MANIFEST_PATH"
 
-  [[ "${fields[format_version]:-}" == "1" ]] || { echo "Ошибка: Неподдерживаемая версия manifest."; return 1; }
+  [[ "${fields[format_version]:-}" == "2" ]] || { echo "Ошибка: Неподдерживаемая версия manifest."; return 1; }
   [[ "${fields[archive]:-}" == "$ARCHIVE_NAME" ]] || { echo "Ошибка: Имя архива не соответствует manifest."; return 1; }
   [[ "${fields[size_bytes]:-}" =~ ^[0-9]+$ ]] || { echo "Ошибка: Некорректный размер в manifest."; return 1; }
   [[ "${fields[sha256]:-}" =~ ^[0-9a-f]{64}$ ]] || { echo "Ошибка: Некорректная SHA-256 в manifest."; return 1; }
-  [[ -n "${fields[created_at]:-}" && -n "${fields[postgres_database]:-}" && -n "${fields[minio_bucket]:-}" ]] || {
+  [[ -n "${fields[created_at]:-}" && -n "${fields[postgres_database]:-}" && -n "${fields[s3_bucket]:-}" ]] || {
     echo "Ошибка: Manifest не содержит обязательных метаданных."
     return 1
   }
@@ -124,24 +123,13 @@ verify_manifest() {
   actual_checksum="${checksum_output%% *}"
   [[ "$actual_checksum" == "${fields[sha256]}" ]] || { echo "Ошибка: SHA-256 архива не соответствует manifest."; return 1; }
 
-  BACKUP_VERIFICATION="manifest-v1"
+  BACKUP_VERIFICATION="manifest-v2"
   VERIFIED_SIZE="$actual_size"
   VERIFIED_SHA256="$actual_checksum"
 }
 
 verify_backup_artifact() {
-  if [ -f "$MANIFEST_PATH" ]; then
-    verify_manifest
-  elif [ "$LEGACY_MODE" = "--allow-legacy-without-manifest" ]; then
-    echo "ВНИМАНИЕ: восстановление legacy backup без checksum и manifest."
-    BACKUP_VERIFICATION="legacy-unverified"
-    VERIFIED_SIZE="$(stat -c '%s' -- "$ARCHIVE_PATH")"
-    VERIFIED_SHA256=""
-  else
-    echo "Ошибка: Для архива отсутствует manifest: $MANIFEST_PATH"
-    echo "Для осознанного восстановления старой копии укажите --allow-legacy-without-manifest."
-    return 1
-  fi
+  verify_manifest
 
   tar -tzf "$ARCHIVE_PATH" > /dev/null || {
     echo "Ошибка: Архив поврежден или имеет неверный формат."
@@ -179,14 +167,16 @@ if [ ! -f "$TMP_DIR/database.dump" ]; then
   exit 1
 fi
 
-if [ ! -d "$TMP_DIR/minio_files" ]; then
-  echo "Ошибка: в архиве отсутствует каталог minio_files/."
+if [ ! -d "$TMP_DIR/objects" ]; then
+  echo "Ошибка: в архиве отсутствует каталог objects/."
   exit 1
 fi
 
 # ==========================================
 # БЛОК ВОССТАНОВЛЕНИЯ (PostgreSQL)
 # ==========================================
+prepare_s3_client
+quiesce_server
 echo "[3/5] Восстановление базы данных PostgreSQL..."
 
 # Копируем файл внутрь контейнера во временную папку (это решает проблему с потоком)
@@ -195,40 +185,40 @@ docker cp "$TMP_DIR/database.dump" "$POSTGRES_CONTAINER":/tmp/database_restore.d
 restore_cleanup() {
   docker exec "$POSTGRES_CONTAINER" rm -f /tmp/database_restore.dump > /dev/null 2>&1 || true
 }
-trap 'restore_cleanup; cleanup' EXIT
+RESTORE_DUMP_COPIED=1
 
 echo "pg_restore_started_at=$(date -Is)" >> "$REPORT_FILE"
 if ! docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$POSTGRES_CONTAINER" \
   pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --exit-on-error /tmp/database_restore.dump \
   >> "$REPORT_FILE" 2>&1; then
-  echo "Ошибка: pg_restore завершился неуспешно. MinIO не будет восстановлен. Отчет: $REPORT_FILE"
+  echo "Ошибка: pg_restore завершился неуспешно. SeaweedFS не будет восстановлен. Отчет: $REPORT_FILE"
   exit 1
 fi
 echo "pg_restore_finished_at=$(date -Is)" >> "$REPORT_FILE"
 
 restore_cleanup
-trap cleanup EXIT
+RESTORE_DUMP_COPIED=0
 
 echo "Проверка восстановленной БД..." | tee -a "$REPORT_FILE"
 docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$POSTGRES_CONTAINER" \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
+  -c 'DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM schema_migrations) OR EXISTS (SELECT 1 FROM schema_migrations WHERE dirty) THEN RAISE EXCEPTION $message$restored schema is missing or dirty$message$; END IF; END $$;' \
   -c "SELECT version, dirty FROM schema_migrations ORDER BY version DESC LIMIT 1;" \
   -c "SELECT COUNT(*) AS documents_count FROM documents;" \
   >> "$REPORT_FILE" 2>&1
 
 # ==========================================
-# БЛОК ВОССТАНОВЛЕНИЯ ФАЙЛОВ (MinIO)
+# БЛОК ВОССТАНОВЛЕНИЯ ФАЙЛОВ (SeaweedFS)
 # ==========================================
-echo "[4/5] Проверка бакета и восстановление файлов в MinIO..."
-docker run --rm --network host --entrypoint sh -v "$TMP_DIR/minio_files:/files" minio/mc \
-  -c "mc alias set myminio $MINIO_ENDPOINT $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD > /dev/null && \
-      (mc ls myminio/$MINIO_BUCKET > /dev/null 2>&1 || mc mb myminio/$MINIO_BUCKET > /dev/null) && \
-      mc mirror --overwrite --remove /files myminio/$MINIO_BUCKET > /dev/null"
+echo "[4/5] Проверка бакета и восстановление файлов в SeaweedFS..."
+s3_mc mb --ignore-existing "objects/$S3_BUCKET" > /dev/null
+s3_mc mirror --overwrite --remove /files "objects/$S3_BUCKET" > /dev/null
 
 # ==========================================
 # ОЧИСТКА
 # ==========================================
 echo "[5/5] Очистка локальных временных файлов..."
+resume_server
 echo "restore_finished_at=$(date -Is)" >> "$REPORT_FILE"
 
 echo "✅ Восстановление успешно завершено! Отчет: $REPORT_FILE"

@@ -35,7 +35,7 @@ func TestServerProcessesOutboxWithoutWailsIntegration(t *testing.T) {
 	cfg.Server.ListenAddress = "127.0.0.1:0"
 	application, err := newWithDependencies(cfg, dependencies{
 		connectDatabase: func(config.DatabaseConfig) (*database.DB, error) { return db, nil },
-		newStorage:      func(config.MinioConfig) (serverStorage, error) { return testStorage{}, nil },
+		newStorage:      func(config.S3Config) (serverStorage, error) { return testStorage{}, nil },
 	})
 	require.NoError(t, err)
 	defer application.Close()

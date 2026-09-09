@@ -13,7 +13,7 @@ describe('critical administration tabs', () => {
     const reconcile = vi.fn().mockReturnValue(pending.promise);
     installWailsMock({ AttachmentService: { ReconcileStorage: reconcile } });
     renderWithApp(<StorageTab />);
-    const button = screen.getByRole('button', { name: /Сверить с MinIO/ });
+    const button = screen.getByRole('button', { name: /Сверить с объектным хранилищем/ });
 
     fireEvent.click(button);
     fireEvent.click(button);

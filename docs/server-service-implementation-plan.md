@@ -13,14 +13,14 @@
 административные audit/outbox операции и вложения реализованы через server API.
 Первичная настройка администратора и lookup исполнителей также принадлежат
 серверу. Desktop composition root больше не создаёт подключения к PostgreSQL
-или MinIO; HTTPS и сетевое закрытие инфраструктуры от рабочих мест пока не
+или S3; HTTPS и сетевое закрытие инфраструктуры от рабочих мест пока не
 выполнены.
 
 Реализовано к текущей точке:
 
 - отдельный entrypoint `cmd/docflow-server`;
 - команды `run`, `check-config`, `healthcheck` и `version`;
-- server composition root для PostgreSQL, MinIO и outbox consumers;
+- server composition root для PostgreSQL, S3 и outbox consumers;
 - общий schema-dependent lifecycle в `internal/background`;
 - встроенный outbox consumer удалён из desktop composition root;
 - PostgreSQL advisory lease обеспечивает один server-worker и сериализует
@@ -89,7 +89,7 @@
   outbox сохраняются атомарно.
 - dashboard и все документные, порученческие, системные и storage statistics
   читаются и запускаются через server API; системные права проверяются по
-  bearer principal, а MinIO scan выполняется сервером без credentials desktop.
+  bearer principal, а S3 scan выполняется сервером без credentials desktop.
 - административный журнал и состояние outbox читаются через server API;
   terminal failures возвращаются в очередь только защищённой admin-командой,
   а desktop не может создавать или подделывать записи аудита.
@@ -98,7 +98,7 @@
   request body ограничен системной настройкой, storage path не раскрывается;
 - первичная настройка администратора и список исполнителей перенесены в API;
   production desktop composition root больше не создаёт PostgreSQL pool,
-  repositories или MinIO client.
+  repositories или S3 client.
 
 Контрольные коммиты:
 
@@ -129,7 +129,7 @@
 | 6. Attachments API | Завершён | Production-like предельные размеры и cancellation smoke |
 | 7. Close direct access | Частично | Код desktop переключён; остались credentials rotation, firewall и сетевой cutover |
 
-До целевого production-состояния остаются HTTPS, удаление старых DB/MinIO
+До целевого production-состояния остаются HTTPS, удаление старых DB/S3
 credentials с уже установленных рабочих мест, firewall cutover, реальный
 backup/restore test и production-like load/end-to-end проверки.
 
@@ -232,7 +232,7 @@ client. Сервер получает principal только из bearer-сес�
 link mutation + journal outbox сохранена.
 
 После них перенесены dashboard и statistics: оперативные поручения, обзорные
-данные, отчёты, фильтры, системные показатели и lifecycle сверки MinIO работают
+данные, отчёты, фильтры, системные показатели и lifecycle сверки S3 работают
 через typed server client. Сервер проверяет статистические права по bearer
 principal и сам владеет storage scan; desktop composition root больше не
 создаёт dashboard/statistics repository.
@@ -244,16 +244,16 @@ requeue выполняется защищённой admin-командой. `Log
 
 В текущем рабочем срезе вложения перенесены через streaming API. Desktop
 сохраняет только UI-операции выбора, локальной записи и открытия файла; сервер
-владеет metadata, permissions, MinIO и outbox. Одновременно перенесены
+владеет metadata, permissions, S3 и outbox. Одновременно перенесены
 `NeedsInitialSetup`, `InitialSetup` и `GetExecutors`, после чего из production
-desktop composition root удалены PostgreSQL repositories/pool и MinIO client.
+desktop composition root удалены PostgreSQL repositories/pool и S3 client.
 HTTP/client/unit tests, полный Go-прогон, frontend tests/build и PostgreSQL
 integration lifecycle upload/download/delete проходят.
 
 После него рекомендуемый порядок:
 
 1. HTTPS и rollout доверенного CA.
-2. Ротация старых credentials и firewall cutover PostgreSQL/MinIO.
+2. Ротация старых credentials и firewall cutover PostgreSQL/S3.
 3. Production-like load, cancellation и backup/restore проверки.
 
 До использования credentials и временных паролей через недоверенную или
@@ -265,13 +265,13 @@ CA на рабочих местах. Текущий HTTP — только вре
 Создать постоянно работающий серверный процесс `docflow-server`, который
 сначала возьмёт на себя обработку transactional outbox и регламентные задачи,
 а затем станет единственной доверенной точкой доступа desktop-приложения к
-PostgreSQL и MinIO.
+PostgreSQL и S3.
 
 Целевой результат:
 
 - outbox обрабатывается независимо от того, запущены ли рабочие места;
-- PostgreSQL и MinIO не доступны с пользовательских ПК;
-- в desktop-конфигурации нет PostgreSQL/MinIO credentials;
+- PostgreSQL и S3 не доступны с пользовательских ПК;
+- в desktop-конфигурации нет PostgreSQL/S3 credentials;
 - аутентификация, авторизация и аудит выполняются на сервере;
 - React продолжает вызывать локальные Wails bindings, а локальный Go-слой
   постепенно заменяет repositories на HTTPS API client;
@@ -284,7 +284,7 @@ PostgreSQL и MinIO.
 До реализации этапа 1 каждый Wails-процесс:
 
 - напрямую подключается к PostgreSQL;
-- напрямую обращается к MinIO;
+- напрямую обращается к S3;
 - создаёт собственный `AuthService` и хранит один `currentUserID` в памяти;
 - запускает outbox worker через `internal/app/background_lifecycle.go`;
 - отправляет технические логи в Seq;
@@ -307,7 +307,7 @@ worker:
 - зависшие claims освобождаются по timeout;
 - обработанные строки удаляются по retention;
 - есть статистика очереди и административный requeue;
-- удаление вложений из MinIO уже является отдельным consumer.
+- удаление вложений из S3 уже является отдельным consumer.
 
 Главное ограничение для HTTP-сервера: текущий `AuthService` хранит единственного
 пользователя процесса. На многопользовательском сервере идентичность должна
@@ -334,13 +334,13 @@ cmd/docflow-server/main.go
 
 ```text
 Стадия A
-Desktop ──► PostgreSQL / MinIO
+Desktop ──► PostgreSQL / S3
                   ▲
                   │
           docflow-server worker
 
 Стадия B
-Desktop ──HTTPS──► docflow-server ──► PostgreSQL / MinIO / Seq
+Desktop ──HTTPS──► docflow-server ──► PostgreSQL / S3 / Seq
 ```
 
 На стадии A desktop и сервер взаимодействуют косвенно через outbox в
@@ -350,17 +350,17 @@ PostgreSQL. На стадии B desktop знает только HTTPS URL сер
 
 ### 3.3. Секреты не выдаются desktop-клиенту
 
-Сервис не должен возвращать постоянные PostgreSQL или MinIO credentials после
+Сервис не должен возвращать постоянные PostgreSQL или S3 credentials после
 аутентификации. Иначе пользователь сможет обойти application-level permissions
-прямым SQL или прямым вызовом MinIO.
+прямым SQL или прямым вызовом S3.
 
 В целевом состоянии:
 
 - PostgreSQL credentials принадлежат только серверу;
-- MinIO credentials принадлежат только серверу;
+- S3 credentials принадлежат только серверу;
 - desktop получает только серверную сессию;
 - файлы сначала передаются потоково через API;
-- presigned MinIO URL рассматривается позднее только как оптимизация и не
+- presigned S3 URL рассматривается позднее только как оптимизация и не
   содержит постоянных credentials.
 
 ### 3.4. Wails остаётся фасадом для React
@@ -416,7 +416,7 @@ internal/
 ├── outbox/                     existing worker and consumers
 ├── services/                   shared business use cases
 ├── repository/                 server-side persistence
-└── storage/                    server-side MinIO client
+└── storage/                    server-side S3 client
 ```
 
 Имена каталогов могут уточняться при реализации. Важны границы:
@@ -491,14 +491,14 @@ security-модель реализации.
    - outbox repository;
    - user event, journal и audit repositories;
    - attachment repository;
-   - MinIO storage;
+   - S3 storage;
    - observability registry и Seq logger.
 4. Перенести общий schema-dependent lifecycle из GUI-ориентированного слоя в
    пакет, доступный обоим процессам, либо создать серверный эквивалент без
    дублирования правил совместимости схемы.
 5. Добавить серверную конфигурацию:
    - PostgreSQL;
-   - MinIO;
+   - S3;
    - Seq;
    - polling interval;
    - batch size;
@@ -565,7 +565,7 @@ payload, и только после успешного cutover новый цен
   эффекта;
 - restart после claim до `MarkProcessed`;
 - недоступность PostgreSQL на старте и восстановление;
-- недоступность MinIO при `attachment_delete` и последующий retry;
+- недоступность S3 при `attachment_delete` и последующий retry;
 - остановка при incompatible/dirty schema;
 - отсутствие credentials в logs и process arguments.
 
@@ -603,7 +603,7 @@ metrics backend.
 4. Создать отдельный production deployment manifest вне локального
    `docker-compose.yaml` либо явно разделить `compose.dev.yaml` и
    `compose.production.yaml`.
-5. Подключить PostgreSQL, MinIO и Seq через внутреннюю сеть.
+5. Подключить PostgreSQL, S3 и Seq через внутреннюю сеть.
 6. Не публиковать worker endpoint в пользовательскую сеть.
 7. Передавать секреты файлами с правами `0600`, Docker secrets или утверждённым
    secret provider. Не помещать секреты в image, repository и command line.
@@ -632,7 +632,7 @@ metrics backend.
 - latency consumers по `event_type`;
 - DB pool open/in-use/wait count/wait duration;
 - operation latency и error count;
-- MinIO request latency/errors;
+- S3 request latency/errors;
 - process CPU/RAM/goroutines;
 - build version и uptime.
 
@@ -653,8 +653,8 @@ log содержит только значимые события, warnings и e
 - oldest pending age выше SLO;
 - worker не ready;
 - PostgreSQL connection saturation;
-- повторяющиеся MinIO failures;
-- диск PostgreSQL/MinIO/Seq приближается к лимиту;
+- повторяющиеся S3 failures;
+- диск PostgreSQL/S3/Seq приближается к лимиту;
 - частые рестарты процесса.
 
 ### Критерий завершения
@@ -712,7 +712,7 @@ GET /api/v1/system/compatibility?clientVersion=...
 - API version входит в URL;
 - неизвестные JSON fields для command requests отклоняются после согласования
   compatibility policy;
-- внутренние PostgreSQL/MinIO errors не попадают в response.
+- внутренние PostgreSQL/S3 errors не попадают в response.
 
 ### Desktop API client
 
@@ -808,7 +808,7 @@ POST /api/v1/auth/change-password
 POST /api/v1/auth/change-required-password
 ```
 
-Login response не возвращает DB/MinIO/Seq credentials.
+Login response не возвращает DB/S3/Seq credentials.
 
 ### Refactoring services
 
@@ -981,27 +981,27 @@ GET    /api/v1/admin/attachments/reconciliation
 - delete сохраняет модель hide metadata + outbox physical delete;
 - download проверяет document access до чтения объекта;
 - response задаёт безопасный `Content-Disposition`;
-- client cancellation отменяет MinIO operation;
+- client cancellation отменяет S3 operation;
 - checksum сохраняется/проверяется, если это входит в утверждённый контракт;
 - reverse proxy limits согласованы с application limits.
 
 В реализации application setting ограничен диапазоном `1..1024` МБ, а Caddy
 задаёт независимый hard ceiling `1GB`; более низкий runtime limit проверяется
-сервером до передачи body в MinIO.
+сервером до передачи body в S3.
 
 ### Возможная оптимизация: presigned URL
 
 Вводится только после нагрузочных измерений. Сервис выдаёт короткоживущий URL
 для одного object key и одной операции. Нужны отдельные состояния
 `upload-issued`, `uploaded`, `confirmed`, очистка orphan objects и server-side
-проверка metadata/checksum. Постоянные MinIO credentials клиенту не выдаются.
+проверка metadata/checksum. Постоянные S3 credentials клиенту не выдаются.
 
 ### Критерий завершения
 
-- desktop не имеет MinIO credentials;
-- MinIO endpoint закрыт от пользовательской сети;
+- desktop не имеет S3 credentials;
+- S3 endpoint закрыт от пользовательской сети;
 - upload/download/delete и cancellation проверены на предельных размерах;
-- backup/restore согласованности PostgreSQL+MinIO повторно протестирован.
+- backup/restore согласованности PostgreSQL+S3 повторно протестирован.
 
 Функциональный код и automated integration выполнены. Предельные
 production-like размеры, cancellation через реальный reverse proxy и повторный
@@ -1012,28 +1012,28 @@ restore остаются release/cutover проверками.
 ### Работы
 
 1. Убедиться, что все production Wails services используют API adapters.
-2. Удалить PostgreSQL и MinIO поля из desktop production config.
+2. Удалить PostgreSQL и S3 поля из desktop production config.
 3. Удалить database/storage construction из Wails runtime composition root.
 4. Оставить локальными только:
    - theme и desktop preferences;
    - файловый диалог и сохранение скачанного файла;
    - API client;
    - UI-specific orchestration.
-5. На firewall/network уровне запретить рабочим местам PostgreSQL и MinIO.
+5. На firewall/network уровне запретить рабочим местам PostgreSQL и S3.
 6. Сменить прежние общие credentials, поскольку они могли сохраниться на ПК.
 7. Удалять direct repository path каждого сценария одновременно с его
    централизованным API cutover; embedded outbox worker уже удалён на этапе 1.
 8. Обновить backup/restore, installation, diagnostics и incident runbooks.
 
 Migration ownership уже перенесён на server management API. Отдельные
-least-privilege DB и MinIO identities отложены по принятому решению и не
+least-privilege DB и S3 identities отложены по принятому решению и не
 являются условием текущей разработки, но остаются рекомендуемым production
 hardening после функционального cutover.
 
 ### Критерий завершения
 
 Чистое рабочее место с desktop-конфигурацией, содержащей только server URL, не
-может непосредственно подключиться к PostgreSQL или MinIO, но поддерживает все
+может непосредственно подключиться к PostgreSQL или S3, но поддерживает все
 утверждённые пользовательские сценарии через API.
 
 ## 6. API и compatibility policy
@@ -1079,7 +1079,7 @@ hardening после функционального cutover.
 ### Timeouts и retry
 
 - каждый handler имеет deadline;
-- DB/MinIO вызовы используют request context;
+- DB/S3 вызовы используют request context;
 - GET может быть повторён desktop-клиентом ограниченно при transport error;
 - command повторяется только с idempotency key;
 - `429` и временные `503` могут содержать `Retry-After`;
@@ -1102,7 +1102,7 @@ hardening после функционального cutover.
 - новая server-версия проверяет schema до readiness;
 - dirty и too-new schema блокируют business API и worker;
 - health остаётся доступен в maintenance;
-- backup PostgreSQL и MinIO обязателен перед rollback migration;
+- backup PostgreSQL и S3 обязателен перед rollback migration;
 - rollback сервера не означает автоматический rollback схемы;
 - migration lock предотвращает параллельный запуск.
 
@@ -1145,7 +1145,7 @@ Backup/restore не следует автоматически включать �
 - секреты отсутствуют в argv и image layers;
 - отдельный непривилегированный OS/container user;
 - DB role без права создания superuser/изменения инфраструктуры;
-- отдельная MinIO policy только для нужного bucket/prefix;
+- отдельная S3 policy только для нужного bucket/prefix;
 - Seq ingestion identity без административного доступа;
 - uniform authentication errors;
 - login rate limiting и lockout;
@@ -1194,7 +1194,7 @@ Backup/restore не следует автоматически включать �
 ### Integration tests
 
 - disposable PostgreSQL;
-- MinIO test container для attachment flows;
+- S3 test container для attachment flows;
 - login -> authorized command -> audit/outbox;
 - параллельные principals;
 - lost response + повтор с idempotency key;
@@ -1223,7 +1223,7 @@ Backup/restore не следует автоматически включать �
 - burst регистрации с idempotency keys;
 - параллельные uploads/downloads;
 - накопленный outbox backlog;
-- медленный MinIO/Seq;
+- медленный S3/Seq;
 - DB pool saturation.
 
 Результаты сравниваются с baseline этапа 0. Нельзя считать миграцию успешной
@@ -1238,7 +1238,7 @@ Backup/restore не следует автоматически включать �
 
 1. На тестовом контуре проверить новый desktop как producer без consumer, а
    server-worker — как единственный обработчик совместимой очереди.
-2. Развернуть `docflow-server` рядом с PostgreSQL/MinIO, но не допускать
+2. Развернуть `docflow-server` рядом с PostgreSQL/S3, но не допускать
    production consumption до начала окна обслуживания.
 3. Объявить окно обслуживания и запретить новые входы.
 4. Закрыть все Wails-приложения и проверить отсутствие старых процессов/DB
@@ -1292,7 +1292,7 @@ Backup/restore не следует автоматически включать �
 - применение миграций;
 - просмотр метрик и correlation по request ID;
 - terminal outbox failure и requeue;
-- PostgreSQL/MinIO/Seq outage;
+- PostgreSQL/S3/Seq outage;
 - TLS certificate renewal;
 - session revocation;
 - backup/restore и проверка согласованности;
@@ -1303,7 +1303,7 @@ Backup/restore не следует автоматически включать �
 
 - приложения;
 - PostgreSQL;
-- MinIO;
+- S3;
 - TLS/DNS;
 - backup и тестового restore;
 - реакции на alerts;
@@ -1396,8 +1396,8 @@ offline-режима:
 - `docflow-server` воспроизводимо собирается, разворачивается и обновляется;
 - outbox и регламентные задачи не зависят от запущенных desktop;
 - все защищённые server operations используют request-scoped identity;
-- desktop содержит только server URL и не содержит DB/MinIO secrets;
-- PostgreSQL и MinIO недоступны из пользовательской сети;
+- desktop содержит только server URL и не содержит DB/S3 secrets;
+- PostgreSQL и S3 недоступны из пользовательской сети;
 - все доменные permissions проверяются сервером;
 - команды с неопределённым результатом безопасно повторяются;
 - вложения передаются потоково или через ограниченные presigned URL;

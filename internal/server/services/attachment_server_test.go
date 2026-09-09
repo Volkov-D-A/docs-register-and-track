@@ -165,7 +165,7 @@ func TestServerAttachmentUploadStreamsContent(t *testing.T) {
 	settingsRepo.On("Get", "allowed_file_types").Return(&models.SystemSetting{Key: "allowed_file_types", Value: ".txt"}, nil).Once()
 	storage.On("UploadFile", mock.Anything, mock.AnythingOfType("string"), mock.Anything, int64(13), "text/plain; charset=utf-8").
 		Run(func(mock.Arguments) {
-			assert.True(t, coordinator.started, "mutation must be registered before MinIO upload")
+			assert.True(t, coordinator.started, "mutation must be registered before S3 upload")
 		}).
 		Return(nil).Once()
 	repo.On("CreateWithOutbox", mock.AnythingOfType("*models.Attachment"), mock.MatchedBy(func(effects []models.OutboxEvent) bool {

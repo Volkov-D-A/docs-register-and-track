@@ -158,7 +158,7 @@ func (s *SettingsService) IsAssignmentCompletionAttachmentsEnabled() bool {
 
 func validateRollbackMigrationRequest(req models.RollbackMigrationRequest) error {
 	if !req.BackupCompleted {
-		return models.NewBadRequest("Перед откатом миграции подтвердите свежую резервную копию PostgreSQL и MinIO")
+		return models.NewBadRequest("Перед откатом миграции подтвердите свежую резервную копию PostgreSQL и хранилища вложений")
 	}
 	if strings.TrimSpace(req.BackupReference) == "" {
 		return models.NewBadRequest("Укажите идентификатор или путь к резервной копии перед откатом миграции")

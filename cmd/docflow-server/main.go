@@ -73,7 +73,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return &startupdiag.Failure{
 			Component: "configuration",
 			Summary:   "Не удалось загрузить конфигурацию docflow-server.",
-			NextStep:  "Проверьте переменные PostgreSQL, MinIO, Seq и outbox.",
+			NextStep:  "Проверьте переменные PostgreSQL, S3, Seq и outbox.",
 			Err:       err,
 		}
 	}
@@ -115,7 +115,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return &startupdiag.Failure{
 			Component: "server startup",
 			Summary:   "Не удалось создать docflow-server.",
-			NextStep:  "Проверьте PostgreSQL, миграции, MinIO, environment и технический лог.",
+			NextStep:  "Проверьте PostgreSQL, миграции, объектное хранилище, environment и технический лог.",
 			Err:       err,
 		}
 	}
@@ -127,7 +127,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return &startupdiag.Failure{
 			Component: "server runtime",
 			Summary:   "docflow-server остановлен из-за ошибки.",
-			NextStep:  "Проверьте состояние схемы, PostgreSQL, MinIO и технический лог.",
+			NextStep:  "Проверьте состояние схемы, PostgreSQL, объектное хранилище и технический лог.",
 			Err:       err,
 		}
 	}
