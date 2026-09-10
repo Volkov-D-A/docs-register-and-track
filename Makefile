@@ -89,7 +89,7 @@ integration-test: check-integration-env
 	@set -eu; \
 		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \
-		$(INTEGRATION_COMPOSE) up -d --wait; \
+		$(INTEGRATION_COMPOSE) up -d --build --wait; \
 		$(INTEGRATION_COMPOSE) run --rm s3-ready; \
 		DOCFLOW_INTEGRATION_S3_ENDPOINT=127.0.0.1:58333 DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1
 
@@ -100,7 +100,7 @@ db-performance-check: check-integration-env
 		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \
 		mkdir -p $(PERFORMANCE_DIR); \
-		$(INTEGRATION_COMPOSE) up -d --wait; \
+		$(INTEGRATION_COMPOSE) up -d --build --wait; \
 		$(INTEGRATION_COMPOSE) run --rm s3-ready; \
 		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
 		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -deep-page $(PERFORMANCE_DEEP_PAGE) | tee $(PERFORMANCE_DIR)/summary.txt
@@ -108,7 +108,7 @@ db-performance-check: check-integration-env
 # Эти цели полезны при ручной отладке интеграционных тестов. Данные не
 # предназначены для сохранения: integration-db-down удаляет volume.
 integration-db-up: check-integration-env
-	$(INTEGRATION_COMPOSE) up -d --wait
+	$(INTEGRATION_COMPOSE) up -d --build --wait
 
 integration-db-down: check-integration-env
 	$(INTEGRATION_COMPOSE) down -v --remove-orphans

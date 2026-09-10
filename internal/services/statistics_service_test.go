@@ -477,7 +477,7 @@ func TestStatisticsServiceStorageStatusDoesNotRunUnrelatedSystemQueries(t *testi
 func TestStatisticsServiceStorageStatusExposesFailureAndRetriesExplicitly(t *testing.T) {
 	svc, store, storage, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
 	store.refreshLeaseGranted = true
-	storage.err = errors.New("minio unavailable")
+	storage.err = errors.New("object storage unavailable")
 
 	status, err := svc.GetStorageStatisticsStatus()
 	require.NoError(t, err)

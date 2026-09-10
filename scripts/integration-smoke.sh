@@ -5,19 +5,27 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 ROOT=$PWD
 # Keep smoke ports separate from ordinary integration tests.
 export DOCFLOW_TEST_POSTGRES_PORT=55433 DOCFLOW_TEST_S3_PORT=58334
-compose=(docker compose -p docflow-smoke -f docker-compose.integration.yaml --profile smoke)
+export DOCFLOW_TEST_SERVER_PORT=${DOCFLOW_TEST_SERVER_PORT:-58480}
+compose=(docker compose -p docflow-smoke -f docker-compose.integration.yaml -f docker-compose.backup-smoke.yaml --profile smoke)
 stage=$(mktemp -d /tmp/docflow-smoke.XXXXXXXX)
 evidence="$ROOT/build/transition-evidence"
-mkdir -p "$evidence" "$stage/bin" "$stage/share" "$stage/reports"
+mkdir -p "$evidence" "$stage/bin" "$stage/share" "$stage/reports" "$stage/remote"
+chmod 755 "$stage/remote"
+export DOCFLOW_SMOKE_KEY_FILE="$stage/settings-key" DOCFLOW_SMOKE_ARCHIVE_DIR="$stage/remote"
+python3 -c 'import base64; print(base64.b64encode(bytes(range(32))).decode())' > "$DOCFLOW_SMOKE_KEY_FILE"
+chmod 644 "$DOCFLOW_SMOKE_KEY_FILE"
+docker compose -p docflow-backup-test -f docker-compose.backup-test.yaml up -d --build
 cleanup() {
   result=$?
+  docker rm -f docflow-smoke-recovery >/dev/null 2>&1 || true
   "${compose[@]}" logs --no-color > "$evidence/containers.log" 2>&1 || true
   "${compose[@]}" down -v --remove-orphans || true
+  docker compose -p docflow-backup-test -f docker-compose.backup-test.yaml down -v --remove-orphans || true
   rm -rf -- "$stage"
   exit "$result"
 }
 trap cleanup EXIT
-# Simulate only CIFS mount operations, not Docker, pg_dump, pg_restore, mc or tar.
+# Simulate only CIFS mount operations, not Docker, pg_dump, pg_restore, S3 transfers or tar.
 for command in mount.cifs umount; do
   printf '#!/bin/sh\nexit 0\n' > "$stage/bin/$command"
 done
@@ -43,7 +51,7 @@ CONFIG
 chmod 600 "$stage/backup.env" "$stage/credentials"
 export DOCFLOW_BACKUP_ENV_FILE="$stage/backup.env" RESTORE_REPORT_DIR="$stage/reports"
 export DOCFLOW_INTEGRATION_DSN='postgres://docflow_integration:docflow_integration@127.0.0.1:55433/docflow_test_outbox?sslmode=disable'
-export DOCFLOW_INTEGRATION_SERVER_URL=http://127.0.0.1:58080
+export DOCFLOW_INTEGRATION_SERVER_URL=http://127.0.0.1:$DOCFLOW_TEST_SERVER_PORT
 export GOCACHE=${GOCACHE:-/tmp/go-build-cache}
 "${compose[@]}" up -d --build --wait
 # Fresh server has applied the ordinary embedded migrations and created its bucket.
@@ -80,11 +88,33 @@ PYMANIFEST
 if PATH="$stage/bin:$PATH" bash ./restore_smb_tar.sh "$bad_archive" > "$evidence/restore-rejected.log" 2>&1; then
   echo 'Invalid PostgreSQL dump unexpectedly restored' >&2; exit 1
 fi
-if docker run --rm --network docflow-smoke_default -e MC_HOST_objects=http://docflow_integration:docflow_integration_secret@seaweedfs:8333 minio/mc:RELEASE.2025-08-13T08-35-41Z ls objects/docflow-test-smoke >/dev/null 2>&1; then
+chmod 755 "$stage/share"
+chmod 644 "$stage/share/"*.tar.gz "$stage/share/"*.manifest
+if "${compose[@]}" run --rm --no-deps -v "$stage/share:/restore:ro" docflow-server restore "/restore/$bad_archive" > "$evidence/server-restore-rejected.log" 2>&1; then
+  echo 'Server accepted invalid PostgreSQL dump' >&2; exit 1
+fi
+if "${compose[@]}" run --rm --no-deps docflow-server storage bucket-check >/dev/null 2>&1; then
   echo 'S3 bucket was created after failed PostgreSQL restore' >&2; exit 1
 fi
 PATH="$stage/bin:$PATH" bash ./restore_smb_tar.sh "$archive" | tee "$evidence/restore.log"
 cp "$stage/reports/"*.log "$evidence/"
 "${compose[@]}" up -d --no-build --wait
 DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/restored-api.log"
-printf 'PASS: built server, restart, logical backup/restore; SMB transport not exercised.\n' | tee "$evidence/result.txt"
+# Verify that the autonomous command also reads the original v2 format.
+"${compose[@]}" down -v --remove-orphans
+"${compose[@]}" up -d --wait postgres seaweedfs s3-ready
+"${compose[@]}" run --rm --no-deps -v "$stage/share:/restore:ro" docflow-server restore "/restore/$archive" | tee "$evidence/server-v2-restore.log"
+"${compose[@]}" up -d --no-build --wait
+DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/server-v2-restored-api.log"
+go test ./internal/server -run '^TestBuiltServerBackupIntegration$' -count=1 -v | tee "$evidence/server-backup.log"
+"${compose[@]}" down -v --remove-orphans
+# Recovery UI can authenticate and list SMB copies while PostgreSQL/S3 are absent.
+"${compose[@]}" run --rm -d --no-deps --name docflow-smoke-recovery -p 127.0.0.1:58481:8081 \
+  -e DOCFLOW_RECOVERY_SECRET_FILE=/run/secrets/settings_key -e DOCFLOW_RECOVERY_LISTEN_ADDRESS=:8081 docflow-server recovery
+DOCFLOW_RECOVERY_TEST_URL=http://127.0.0.1:58481 go test ./internal/server -run '^TestBuiltRecoveryPanelWithoutDatabaseIntegration$' -count=1 -v | tee "$evidence/recovery-panel.log"
+docker stop docflow-smoke-recovery >/dev/null
+"${compose[@]}" up -d --wait postgres seaweedfs s3-ready
+"${compose[@]}" run --rm --no-deps -v "$stage/remote:/restore:ro" docflow-server restore "/restore/$(basename "$stage/remote/"*.tar.gz)" | tee "$evidence/server-restore.log"
+"${compose[@]}" up -d --no-build --wait
+DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/server-restored-api.log"
+printf 'PASS: built server, restart, legacy v2 and server v3 backup/restore; direct SMB verified.\n' | tee "$evidence/result.txt"

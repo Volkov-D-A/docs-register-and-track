@@ -30,15 +30,15 @@ services:
     secrets: [s3_access_key, s3_secret_key]
     restart: unless-stopped
   s3-ready:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
-    entrypoint: ["/bin/sh", "/scripts/s3-ready.sh"]
+    image: hehelf/docflow-service:${DOCFLOW_SERVER_VERSION:?Set DOCFLOW_SERVER_VERSION in .env}
+    command: ["storage", "check"]
+    healthcheck:
+      disable: true
     secrets: [s3_access_key, s3_secret_key]
     environment:
       S3_ENDPOINT: http://seaweedfs:8333
       S3_ACCESS_KEY_ID_FILE: /run/secrets/s3_access_key
       S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_key
-    volumes:
-      - ./scripts/s3-ready.sh:/scripts/s3-ready.sh:ro
     depends_on:
       seaweedfs:
         condition: service_started

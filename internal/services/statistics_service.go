@@ -29,13 +29,14 @@ const (
 
 // StatisticsService предоставляет бизнес-логику раздела статистики.
 type StatisticsService struct {
-	repo        ports.StatisticsStore
-	auth        ports.StatisticsPrincipal
-	storage     ports.StorageInfoProvider
-	lifecycle   *operations.Lifecycle
-	metrics     *observability.Registry
-	server      serverclient.StatisticsClient
-	diagnostics ports.SystemDiagnosticsProvider
+	refreshRunner func(func())
+	repo          ports.StatisticsStore
+	auth          ports.StatisticsPrincipal
+	storage       ports.StorageInfoProvider
+	lifecycle     *operations.Lifecycle
+	metrics       *observability.Registry
+	server        serverclient.StatisticsClient
+	diagnostics   ports.SystemDiagnosticsProvider
 }
 
 // NewStatisticsService создает новый экземпляр StatisticsService.
@@ -465,7 +466,11 @@ func (s *StatisticsService) ensureStorageStatisticsStatus(record models.StorageS
 		}
 		if started {
 			record.RefreshActive = true
-			go s.refreshStorageStatistics(token)
+			if s.refreshRunner != nil {
+				s.refreshRunner(func() { s.refreshStorageStatistics(token) })
+			} else {
+				go s.refreshStorageStatistics(token)
+			}
 		} else {
 			record, err = s.repo.GetStorageStatisticsRefreshRecord()
 			if err != nil {
@@ -709,3 +714,6 @@ func monthLabel(month int) string {
 	}
 	return labels[month-1]
 }
+
+// ConfigureStorageRefreshRunner lets the server drain detached refreshes before backup.
+func ConfigureStorageRefreshRunner(s *StatisticsService, run func(func())) { s.refreshRunner = run }

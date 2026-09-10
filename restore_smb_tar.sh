@@ -211,8 +211,7 @@ docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$POSTGRES_CONTAINER" \
 # БЛОК ВОССТАНОВЛЕНИЯ ФАЙЛОВ (SeaweedFS)
 # ==========================================
 echo "[4/5] Проверка бакета и восстановление файлов в SeaweedFS..."
-s3_mc mb --ignore-existing "objects/$S3_BUCKET" > /dev/null
-s3_mc mirror --overwrite --remove /files "objects/$S3_BUCKET" > /dev/null
+s3_transfer import /files > /dev/null
 
 # ==========================================
 # ОЧИСТКА

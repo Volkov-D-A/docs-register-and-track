@@ -6,6 +6,7 @@ import NomenclatureTab from '../features/settings/NomenclatureTab';
 import DepartmentsTab from '../features/settings/DepartmentsTab';
 import UsersTab from '../features/settings/UsersTab';
 import SystemSettingsTab from '../features/settings/SystemSettingsTab';
+import BackupTab from '../features/settings/BackupTab';
 import StorageTab from '../features/settings/StorageTab';
 import MigrationsTab from '../features/settings/MigrationsTab';
 import AuditLogTab from '../features/settings/AuditLogTab';
@@ -29,6 +30,7 @@ const SettingsPage: React.FC = () => {
       { key: 'departments', label: 'Отделы', icon: <ApartmentOutlined />, children: <DepartmentsTab /> },
       { key: 'users', label: 'Пользователи', icon: <TeamOutlined />, children: <UsersTab /> },
       { key: 'system', label: 'Настройки', icon: <SettingOutlined />, children: <SystemSettingsTab /> },
+      { key: 'backups', label: 'Резервные копии', icon: <DatabaseOutlined />, children: <BackupTab /> },
       { key: 'storage', label: 'Хранилище', icon: <CloudServerOutlined />, children: <StorageTab /> },
       { key: 'migrations', label: 'Миграции', icon: <DatabaseOutlined />, children: <MigrationsTab /> },
       { key: 'auditLog', label: 'Журнал', icon: <FileSearchOutlined />, children: <AuditLogTab /> },

@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/background"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
@@ -26,6 +29,8 @@ import (
 const shutdownTimeout = 30 * time.Second
 
 type App struct {
+	detached  sync.WaitGroup
+	backups   *backup.Service
 	db        *database.DB
 	cfg       *config.Config
 	metrics   *observability.Registry
@@ -120,9 +125,31 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 			(&sessionCleaner{store: repository.NewServerSessionRepository(db)}).Run,
 		),
 	}
+	api := newManagementAPI(app)
+	app.backups = &backup.Service{DB: db.DB, PostgreSQL: backup.PostgreSQL{Config: cfg.Database}, S3: cfg.S3, Directory: cfg.Backup.Directory, MaxBytes: cfg.Backup.MaxBytes, Version: version, Snapshot: func(ctx context.Context, fn func(context.Context) error) error {
+		return api.backupSnapshot(ctx, func(ctx context.Context) error {
+			finished := make(chan struct{})
+			go func() { app.detached.Wait(); close(finished) }()
+			select {
+			case <-finished:
+				return fn(ctx)
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+	}}
+	if cfg.Backup.KeyFile != "" {
+		box, err := backup.LoadSecretBox(cfg.Backup.KeyFile)
+		if err != nil {
+			slog.Error("backup settings key unavailable")
+		} else {
+			app.backups.Box = box
+		}
+	}
+	api.backupService = app.backups
 	app.http = &http.Server{
 		Addr:              listenAddress,
-		Handler:           newManagementAPI(app).Handler(),
+		Handler:           api.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		// Attachment uploads are streamed and may legitimately outlive ordinary
 		// JSON requests; request-local contexts still cancel abandoned transfers.
@@ -144,6 +171,18 @@ func (a *App) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if a.cfg.Backup.Directory != "" {
+		if _, err := os.Stat(filepath.Join(a.cfg.Backup.Directory, "recovery-required")); err == nil {
+			return fmt.Errorf("recovery is incomplete; ordinary startup is blocked")
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	instance, err := acquireInstance(ctx, a.db.DB)
+	if err != nil {
+		return err
+	}
+	defer releaseInstance(instance)
 	initialized, err := a.db.IsApplicationSchemaInitialized(ctx)
 	if err != nil {
 		return fmt.Errorf("check database initialization: %w", err)
@@ -157,6 +196,10 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	a.lifecycle.SetApplicationContext(ctx)
 	a.lifecycle.ReconcileSchema()
+	backupCtx, stopBackups := context.WithCancel(ctx)
+	backupDone := make(chan struct{})
+	go func() { defer close(backupDone); a.backups.Run(backupCtx) }()
+	defer func() { stopBackups(); <-backupDone }()
 	httpErr := make(chan error, 1)
 	go func() {
 		slog.Info("docflow management API started", "listen_address", a.http.Addr)
@@ -178,6 +221,8 @@ func (a *App) Run(ctx context.Context) error {
 	if err := a.http.Shutdown(stopCtx); err != nil {
 		return fmt.Errorf("stop management API: %w", err)
 	}
+	stopBackups()
+	<-backupDone
 	if err := a.lifecycle.Stop(stopCtx); err != nil {
 		return fmt.Errorf("stop background services: %w", err)
 	}

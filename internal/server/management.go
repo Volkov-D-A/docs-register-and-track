@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
@@ -38,6 +39,8 @@ type rollbackRequest struct {
 }
 
 type managementAPI struct {
+	backupService                      *backup.Service
+	backupPending                      atomic.Bool
 	cfg                                *config.Config
 	serverVersion                      string
 	readinessCheck                     func(context.Context, *config.Config) error
@@ -247,6 +250,7 @@ func newManagementAPI(app *App) *managementAPI {
 				newServerDiagnostics(app, outboxRepo, repository.NewServerSessionRepository(app.db)),
 			)
 			service.SetOperationMetrics(app.metrics)
+			services.ConfigureStorageRefreshRunner(service, func(fn func()) { app.detached.Add(1); go func() { defer app.detached.Done(); fn() }() })
 			return service
 		},
 		attachments: func(user *models.User) attachmentAPI {
@@ -286,6 +290,7 @@ func newManagementAPI(app *App) *managementAPI {
 func (api *managementAPI) Handler() http.Handler {
 	mux := http.NewServeMux()
 	control := http.NewServeMux()
+	api.backupRoutes(mux, control)
 	control.HandleFunc("GET /health/live", api.live)
 	control.HandleFunc("GET /health/ready", api.ready)
 	control.HandleFunc("GET /api/v1/system/status", api.systemStatus)

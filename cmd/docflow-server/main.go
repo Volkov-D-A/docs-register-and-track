@@ -25,6 +25,10 @@ Usage:
   docflow-server run
   docflow-server check-config
   docflow-server healthcheck
+  docflow-server recovery
+  docflow-server restore ARCHIVE
+  docflow-server storage check|bucket-check
+  docflow-server storage export|import DIRECTORY
   docflow-server version
 `
 
@@ -56,6 +60,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		fmt.Fprintln(stdout, version)
 		return nil
+	}
+
+	if args[0] == "recovery" || args[0] == "restore" {
+		return runRecovery(args, stdout)
+	}
+	if args[0] == "storage" {
+		return runStorage(args[1:], stdout)
 	}
 
 	command := args[0]

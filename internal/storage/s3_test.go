@@ -21,3 +21,12 @@ func TestNewS3StorageInvalidEndpoint(t *testing.T) {
 	assert.Nil(t, service)
 	assert.Contains(t, err.Error(), "failed to init s3 client")
 }
+
+func TestLegacyObjectPaths(t *testing.T) {
+	for _, key := range []string{"../escape", "/absolute", "a/../b", "a//b", "a\\b", "C:escape", ".", "a/", ""} {
+		assert.False(t, safeObjectPath(key), key)
+	}
+	for _, key := range []string{"file.bin", "папка/имя с пробелами.pdf"} {
+		assert.True(t, safeObjectPath(key), key)
+	}
+}

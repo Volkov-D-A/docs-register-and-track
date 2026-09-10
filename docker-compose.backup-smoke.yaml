@@ -1,0 +1,18 @@
+services:
+  docflow-server:
+    environment:
+      DOCFLOW_BACKUP_DIRECTORY: /var/lib/docflow/backups
+      DOCFLOW_SETTINGS_KEY_FILE: /run/secrets/settings_key
+    secrets: [settings_key]
+    volumes:
+      - backup_staging:/var/lib/docflow/backups
+    networks: [default, backup_transport]
+secrets:
+  settings_key:
+    file: ${DOCFLOW_SMOKE_KEY_FILE:?Set test key file}
+volumes:
+  backup_staging:
+networks:
+  backup_transport:
+    external: true
+    name: docflow-backup-test_default

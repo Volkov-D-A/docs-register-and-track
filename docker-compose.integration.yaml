@@ -29,14 +29,18 @@ services:
     volumes:
       - integration_s3data:/data
   s3-ready:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
-    entrypoint: ["/bin/sh", "/scripts/s3-ready.sh"]
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: build/server/Dockerfile
+    image: docflow-server:integration
+    command: ["storage", "check"]
+    healthcheck:
+      disable: true
     environment:
       S3_ENDPOINT: http://seaweedfs:8333
       S3_ACCESS_KEY_ID: docflow_integration
       S3_SECRET_ACCESS_KEY: docflow_integration_secret
-    volumes:
-      - ./scripts/s3-ready.sh:/scripts/s3-ready.sh:ro
     depends_on:
       seaweedfs:
         condition: service_started
@@ -44,7 +48,7 @@ services:
   docflow-server:
     profiles: [smoke]
     image: docflow-server:integration
-    pull_policy: build
+    pull_policy: never
     build:
       context: .
       dockerfile: build/server/Dockerfile
@@ -63,7 +67,7 @@ services:
       DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS: 1
       SEQ_ENABLED: false
     ports:
-      - "127.0.0.1:58080:8080"
+      - "127.0.0.1:${DOCFLOW_TEST_SERVER_PORT:-58080}:8080"
     depends_on:
       postgres:
         condition: service_healthy

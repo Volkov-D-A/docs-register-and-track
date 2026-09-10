@@ -1,0 +1,10 @@
+# Isolated Samba fixture; never use its credentials outside tests.
+services:
+  samba:
+    build:
+      context: .
+      dockerfile: build/integration-smb/Dockerfile
+    ports:
+      - "127.0.0.1:5445:445"
+    tmpfs:
+      - /shares/backups:uid=1000,gid=1000,mode=0700

@@ -57,30 +57,16 @@ git branch -D test-major-updates
 cd frontend
 npm ci
 
-# Подготовка окружения для бэкапа
+# Резервное копирование
 
-command -v mount.cifs
-dpkg -s cifs-utils
-
-Если пакет не установлен:
-sudo apt update
-sudo apt install -y cifs-utils
-
-Перед запуском нужно один раз подготовить конфигурацию:
-sudo install -d -m 700 /etc/docflow
-sudo install -m 600 backup.env.example /etc/docflow/backup.env
-sudo install -d -m 700 /var/log/docflow
-sudo nano /etc/docflow/backup.env
-И создать /etc/docflow/smb.credentials с правами 600:
-username=...
-password=...
-В /etc/docflow/backup.env укажите:
-SMB_CREDENTIALS_FILE=/etc/docflow/smb.credentials
-SMB_VERS=3.0
-SMB_SEC=ntlmssp
+Настройки SMB, расписание и история находятся в административной панели.
+Первичная установка ключей, Compose и аварийное восстановление описаны в
+[серверной инструкции резервирования](server-backup-operations.md).
+Монтирование CIFS на хосте для новой процедуры не требуется.
 
 # Хранилище вложений SeaweedFS
 
-Для первого запуска, сброса dev-данных и согласованного backup/restore используйте
-[инструкцию эксплуатации SeaweedFS](seaweedfs-operations.md). Формат архивов — v2;
-старые архивы MinIO не поддерживаются. PostgreSQL и хранилище сбрасываются вместе.
+Для первого запуска и сброса dev-данных используйте
+[инструкцию эксплуатации SeaweedFS](seaweedfs-operations.md).
+PostgreSQL и хранилище сбрасываются вместе. Новый backup использует v3;
+автономная команда также читает v2 с исходным manifest.

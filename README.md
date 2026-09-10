@@ -155,6 +155,7 @@ Maintained project documentation:
 
 - [Technical reference](docs/tech_docs.md)
 - [Server service implementation plan](docs/server-service-implementation-plan.md)
+- [Server backup and MinIO removal plan](docs/server-backup-implementation-plan.md)
 - [Server transition review](docs/server-transition-code-review.md)
 - [Setup and backup/restore instructions](docs/instructions.md)
 - [Release notes source](docs/releases.yaml)
@@ -244,11 +245,9 @@ The backend blocks newer/dirty schema states for login and migration operations.
 
 ## Backup And Restore
 
-Use:
-
-- `backup_smb_tar.sh`
-- `restore_smb_tar.sh`
-- [setup and backup/restore instructions](docs/instructions.md)
+Configure direct SMB access and the schedule in Settings → Backups.
+See [server backup and recovery](docs/server-backup-operations.md) for Compose
+secrets, persistent staging and autonomous recovery without the main database.
 
 Release requires a successful manual test restore of PostgreSQL and SeaweedFS from an actual backup archive or production-like backup set.
 
@@ -256,7 +255,7 @@ Release requires a successful manual test restore of PostgreSQL and SeaweedFS fr
 
 Operator-facing startup behavior, logging and recovery constraints are described in the [technical reference](docs/tech_docs.md). Historical findings are available in the [server transition review](docs/server-transition-code-review.md).
 
-SeaweedFS configuration, runtime secrets, dev reset and backup/restore v2 are
+SeaweedFS configuration, runtime secrets, dev reset and S3 operations are
 covered in the [storage operations guide](docs/seaweedfs-operations.md).
 Run `make storage-smoke-test` to verify the current server build, restart
 persistence and PostgreSQL/S3 restore in disposable volumes.

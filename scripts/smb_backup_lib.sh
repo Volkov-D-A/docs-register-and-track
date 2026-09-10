@@ -48,24 +48,18 @@ prepare_s3_client() {
   : "${S3_NETWORK:?не задан S3_NETWORK}" "${S3_ENDPOINT:?не задан S3_ENDPOINT}"
   : "${S3_ACCESS_KEY_ID:?не задан S3_ACCESS_KEY_ID}" "${S3_SECRET_ACCESS_KEY:?не задан S3_SECRET_ACCESS_KEY}" "${S3_BUCKET:?не задан S3_BUCKET}"
   [[ "$S3_BUCKET" =~ ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$ ]] || { echo 'Неверное имя S3 bucket.' >&2; return 1; }
-  mkdir -m 700 "$TMP_DIR/mc"
-  # JSON encoding preserves spaces, quotes, dollars and other secret characters.
-  # Credentials are never interpolated into executable shell source or argv.
-  python3 - "$TMP_DIR/mc/config.json" <<'PYCONFIG'
-import json, os, sys
-endpoint = os.environ['S3_ENDPOINT']
-if '://' not in endpoint:
-    endpoint = ('https://' if os.environ.get('S3_USE_SSL', 'false').lower() in ('true', '1') else 'http://') + endpoint
-with open(os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as f:
-    json.dump({'version': '10', 'aliases': {'objects': {
-        'url': endpoint, 'accessKey': os.environ['S3_ACCESS_KEY_ID'],
-        'secretKey': os.environ['S3_SECRET_ACCESS_KEY'], 'api': 'S3v4', 'path': 'on'
-    }}}, f)
-PYCONFIG
+  mkdir -m 700 "$TMP_DIR/s3-secrets"
+  printf '%s' "$S3_ACCESS_KEY_ID" > "$TMP_DIR/s3-secrets/access"
+  printf '%s' "$S3_SECRET_ACCESS_KEY" > "$TMP_DIR/s3-secrets/secret"
+  chmod 600 "$TMP_DIR/s3-secrets/"*
+  S3_CLIENT_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$DOCFLOW_SERVER_CONTAINER")"
 }
 
-s3_mc() {
-  docker run --rm --user "$(id -u):$(id -g)" --network "$S3_NETWORK" --entrypoint mc \
-    -v "$TMP_DIR/mc:/mc" -v "$TMP_DIR/objects:/files" \
-    minio/mc:RELEASE.2025-08-13T08-35-41Z --config-dir /mc "$@"
+s3_transfer() {
+  docker run --rm --user "$(id -u):$(id -g)" --network "$S3_NETWORK" \
+    -e S3_ENDPOINT -e S3_BUCKET -e S3_USE_SSL \
+    -e S3_ACCESS_KEY_ID_FILE=/run/s3-secrets/access \
+    -e S3_SECRET_ACCESS_KEY_FILE=/run/s3-secrets/secret \
+    -v "$TMP_DIR/s3-secrets:/run/s3-secrets:ro" -v "$TMP_DIR/objects:/files" \
+    "$S3_CLIENT_IMAGE" storage "$@"
 }

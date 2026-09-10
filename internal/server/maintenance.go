@@ -13,7 +13,7 @@ func (api *managementAPI) requireReadySchema(next http.Handler) http.Handler {
 			writeAPIError(w, http.StatusServiceUnavailable, "maintenance", errors.New("Сервис временно недоступен: обслуживание базы данных."))
 		}
 		// A pending migration also rejects new requests while existing ones drain.
-		if !api.schemaRequests.TryRLock() {
+		if api.backupPending.Load() || !api.schemaRequests.TryRLock() {
 			unavailable()
 			return
 		}

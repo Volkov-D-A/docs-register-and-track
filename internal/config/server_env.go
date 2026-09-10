@@ -20,6 +20,16 @@ func LoadServer() (*Config, error) {
 }
 
 func applyServerEnvironment(cfg *Config) error {
+	stringValue("DOCFLOW_BACKUP_DIRECTORY", &cfg.Backup.Directory)
+	stringValue("DOCFLOW_SETTINGS_KEY_FILE", &cfg.Backup.KeyFile)
+	cfg.Backup.MaxBytes = 20 << 30
+	if raw := os.Getenv("DOCFLOW_BACKUP_MAX_BYTES"); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value < 1 || value > 1<<50 {
+			return fmt.Errorf("invalid DOCFLOW_BACKUP_MAX_BYTES")
+		}
+		cfg.Backup.MaxBytes = value
+	}
 	stringValue("POSTGRES_CONTAINER", &cfg.Database.Host)
 	stringValue("POSTGRES_USER", &cfg.Database.User)
 	stringValue("POSTGRES_PASSWORD", &cfg.Database.Password)

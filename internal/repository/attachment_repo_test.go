@@ -31,7 +31,7 @@ func TestAttachmentRepository_CreateWithOutbox(t *testing.T) {
 	attachment := &models.Attachment{
 		DocumentID:  uuid.New(),
 		Filename:    "test.txt",
-		StoragePath: "minio/path",
+		StoragePath: "objects/path",
 		FileSize:    11,
 		ContentType: "text/plain",
 		UploadedBy:  uuid.New(),
@@ -191,7 +191,7 @@ func TestAttachmentRepository_GetByID(t *testing.T) {
 		mock.ExpectQuery(`SELECT id, document_id, filename, storage_path, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE id = \$1 AND deletion_requested_at IS NULL`).
 			WithArgs(attachmentID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "filename", "storage_path", "file_size", "content_type", "uploaded_by", "uploaded_at"}).
-				AddRow(attachmentID, uuid.New(), "test.txt", "minio-path", 11, "text/plain", uuid.New(), time.Now()))
+				AddRow(attachmentID, uuid.New(), "test.txt", "object-path", 11, "text/plain", uuid.New(), time.Now()))
 
 		attachment, err := repo.GetByID(attachmentID)
 

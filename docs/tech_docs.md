@@ -29,7 +29,7 @@ Backend:
 - Wails v2.13.0;
 - PostgreSQL через `database/sql`, `lib/pq`;
 - миграции через `golang-migrate`;
-- SeaweedFS через `minio-go`;
+- SeaweedFS через AWS SDK for Go v2;
 - structured logging через `slog` и Seq;
 - тесты: Go `testing`, `testify`, `go-sqlmock`.
 
@@ -267,8 +267,8 @@ SeaweedFS client или outbox consumer. Команды и transactional events 
 metric snapshots в operational log не отправляются. Desktop выполняет все
 business, attachment и migration operations через HTTP API сервиса.
 
-Container image собирается через `build/server/Dockerfile` на distroless runtime
-под непривилегированным пользователем. В image не копируются production config
+Container image собирается через `build/server/Dockerfile` на runtime PostgreSQL 18 Alpine
+под непривилегированным пользователем, со штатными `pg_dump` и `pg_restore`. В image не копируются production config
 и secrets; настройки передаются при запуске через env-файл или механизм
 оркестратора; JSON-конфигурацию сервер не читает. `docker-compose.yaml` собирает
 `docflow-server:local` из текущих исходников и запускает рядом с PostgreSQL,
@@ -709,33 +709,24 @@ make go-vet
 
 ## Backup, Restore И Recovery
 
-Backup/restore contract:
+Сервер отвечает за согласованный снимок PostgreSQL/SeaweedFS, прямую SMB-передачу,
+расписание и retention. Временный режим обслуживания дожидается запросов, outbox,
+очистки сессий и сверки статистики; передача начинается после снятия барьера.
 
-- PostgreSQL and SeaweedFS are backed up together;
-- Seq logs are excluded;
-- целевые RPO 1 день и RTO 1-2 дня требуют подтверждения production-процессом;
-- retention: 15 days;
-- offsite copy is handled by the approved production process.
+Настройки SMB и AES-GCM ciphertext пароля хранятся в `backup_settings`. Ключ
+передаётся через Compose secret и не включается в архив. Постоянный staging volume
+хранит задания и неотправленные архивы. Новые копии используют v3 с checksum dump
+и каждого объекта, внешним manifest-маркером публикации и проверкой чтением с NAS.
 
-Scripts:
+`docflow-server recovery` предоставляет автономную панель с отдельным секретом;
+`restore ARCHIVE` работает с локальными v3 и legacy v2. Основная БД не нужна для
+входа в recovery. Восстановление допускается только в пустые цели; при неуспехе
+маркер на staging блокирует обычный запуск. После успеха сессии отзываются,
+расписание выключается. Seq и ключи не входят в backup; шифрование архива отдельно
+не реализовано. Production RPO/RTO подтверждаются реальным пробным восстановлением.
 
-- `backup_smb_tar.sh`;
-- `restore_smb_tar.sh`.
-
-Rules:
-
-- scripts строго разбирают root-owned `/etc/docflow/backup.env` либо путь из `DOCFLOW_BACKUP_ENV_FILE`, не исполняя файл как shell-код;
-- backup config и `SMB_CREDENTIALS_FILE` должны находиться вне Git, не быть symlink и иметь режим `0600`;
-- archive и manifest сначала создаются под скрытыми временными именами на том же SMB mount, сбрасываются через `fsync` и публикуются атомарным rename;
-- manifest v2 является commit marker и содержит имя архива, время, размер, SHA-256, имя БД и bucket;
-- restore до распаковки проверяет безопасное имя, manifest, размер, SHA-256 и `tar -tzf`;
-- формат v2 содержит `database.dump`, `objects/` и поле `s3_bucket`; старые архивы и restore без manifest не поддерживаются;
-- restore must validate PostgreSQL before mirroring SeaweedFS;
-- if PostgreSQL restore/validation fails, SeaweedFS restore must not run;
-- release requires manual PostgreSQL+SeaweedFS test restore evidence;
-- S3 credentials сериализуются в закрытый JSON-конфиг `mc`; контейнер работает в `S3_NETWORK`, credentials не интерполируются в shell-код;
-- backup останавливает единственный docflow-server вместе с outbox и возобновляет его при выходе; restore после ошибки оставляет сервер остановленным;
-- `make storage-smoke-test` проверяет текущую сборку, restart и реальный PostgreSQL/S3 restore; CIFS mount в этом тесте заменён локальным каталогом.
+Подробности, установка, ограничения и проверки:
+[серверное резервирование](server-backup-operations.md).
 
 ## Release And Versioning
 

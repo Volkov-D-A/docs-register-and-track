@@ -3,7 +3,13 @@
 import {models} from '../models';
 import {dto} from '../models';
 
+export function CancelBackup(arg1:string):Promise<void>;
+
+export function CheckBackupConnection():Promise<void>;
+
 export function GetAll():Promise<Array<models.SystemSetting>>;
+
+export function GetBackupSettings():Promise<models.BackupSettingsResponse>;
 
 export function GetMigrationStatus():Promise<dto.MigrationStatus>;
 
@@ -11,8 +17,16 @@ export function GetOrganizationShortName():Promise<string>;
 
 export function IsAssignmentCompletionAttachmentsEnabled():Promise<boolean>;
 
+export function ListBackups():Promise<Array<models.BackupJob>>;
+
+export function RetryBackup(arg1:string):Promise<void>;
+
 export function RollbackMigration(arg1:models.RollbackMigrationRequest):Promise<void>;
 
 export function RunMigrations(arg1:string):Promise<void>;
+
+export function SaveBackupSettings(arg1:models.BackupSettingsUpdate):Promise<void>;
+
+export function StartBackup():Promise<models.BackupJob>;
 
 export function Update(arg1:string,arg2:string):Promise<void>;

@@ -10,7 +10,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -o /out/docflow-server ./cmd/docflow-server
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM postgres:18.3-alpine
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Docflow Server" \
@@ -19,7 +19,8 @@ LABEL org.opencontainers.image.title="Docflow Server" \
       org.opencontainers.image.source="https://github.com/Volkov-D-A/docs-register-and-track"
 
 COPY --from=build /out/docflow-server /usr/local/bin/docflow-server
-USER nonroot:nonroot
+RUN mkdir -p /var/lib/docflow/backups && chown -R 65532:65532 /var/lib/docflow
+USER 65532:65532
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD ["/usr/local/bin/docflow-server", "healthcheck"]
 ENTRYPOINT ["/usr/local/bin/docflow-server"]

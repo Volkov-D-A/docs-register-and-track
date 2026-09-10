@@ -1,8 +1,8 @@
 # Эксплуатация SeaweedFS
 
-Docflow использует SeaweedFS **4.46**, `minio-go/v7` **v7.3.0** и S3 CLI
-`minio/mc:RELEASE.2025-08-13T08-35-41Z`. SDK и CLI являются совместимыми
-S3-клиентами. [Релиз SeaweedFS](https://github.com/seaweedfs/seaweedfs/releases/tag/4.46)
+Docflow использует SeaweedFS **4.46** и AWS SDK for Go v2. Проверку готовности,
+экспорт и импорт выполняет `docflow-server storage`; отдельный S3 CLI не нужен.
+[Релиз SeaweedFS](https://github.com/seaweedfs/seaweedfs/releases/tag/4.46)
 и [описание mini](https://github.com/seaweedfs/seaweedfs/wiki/Quick-Start-with-weed-mini).
 
 `weed mini -dir=/data -s3.port=8333` хранит данные и метаданные в одном постоянном
@@ -55,7 +55,7 @@ make storage-up
 3. Для намеренного удаления dev-данных выполните `make storage-reset`.
 
 Скрипт выбирает только тома текущего Compose project с labels `pgdata`,
-`minio_data`, `seaweedfs_data`, затем собирает текущий сервер из основного Compose и запускает чистый стек. Seq и Caddy volumes
+`seaweedfs_data`, затем собирает текущий сервер из основного Compose и запускает чистый стек. Seq и Caddy volumes
 сохраняются. Пустая БД получает обычные embedded migrations. Скрипт сброса
 **не выполняется** интеграционными тестами и не запускался при переходе.
 
@@ -67,31 +67,11 @@ PostgreSQL и object-storage volumes по проверенным labels, сох�
 
 ## Backup и restore
 
-Настройте [backup.env.example](../backup.env.example), в том числе
-`DOCFLOW_SERVER_CONTAINER`, `POSTGRES_CONTAINER` и `S3_NETWORK` реального Compose
-project. S3 endpoint должен разрешаться внутри этой сети; `localhost` контейнера
-не указывает на SeaweedFS. На хосте нужны Docker Compose V2, bash, Python 3,
-GNU tar/coreutils и cifs-utils. `pg_dump`/`pg_restore` запускаются в PostgreSQL
-контейнере, `mc` — в закреплённом образе.
-
-```bash
-sudo bash backup_smb_tar.sh
-sudo bash restore_smb_tar.sh backup_20260909_120000_123456789.tar.gz
-```
-
-Backup останавливает сервер и outbox, делает PostgreSQL dump и S3 mirror,
-публикует архив и manifest v2 атомарно, затем возобновляет ранее работавший сервер.
-При внешних писателях остановите их тоже. Формат: `database.dump`, `objects/`,
-manifest с `s3_bucket`, размером и SHA-256. Секреты записываются в JSON с правами
-0600 во временном каталоге 0700, удаляемом при выходе.
-
-Restore предназначен для пустого целевого стека. Он проверяет manifest/checksum,
-останавливает сервер, восстанавливает и проверяет PostgreSQL, затем выполняет
-S3 mirror. При любой ошибке restore ранее работавший сервер остаётся остановленным;
-изучите отчёт, исправьте причину и повторите восстановление согласованного набора.
-После успеха сервер возобновляется, только если работал до restore. Отчёты по
-умолчанию — `/var/log/docflow/restore_reports`, вне репозитория. Формат v1 и
-архивы без manifest отклоняются.
+Основная процедура — [серверное резервирование и recovery](server-backup-operations.md).
+SMB-подключение выполняется напрямую сервером; настройки и расписание находятся
+в панели. Compose secrets передают ключ настроек, постоянный volume хранит staging.
+Новый формат v3 включает checksum каждого объекта; legacy v2 читается автономной
+командой с исходным manifest. MinIO SDK и CLI больше не используются.
 
 ## Воспроизводимые проверки
 

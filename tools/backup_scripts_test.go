@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"os"
@@ -11,35 +10,23 @@ import (
 	"testing"
 )
 
-func TestBackupCredentialsAreLiteralJSON(t *testing.T) {
+func TestBackupCredentialsAreLiteralFiles(t *testing.T) {
 	stage := t.TempDir()
 	secret := `a space ' " $(touch /tmp/docflow-secret-injection) ; $HOME`
 	script := `set -eu
+docker() { echo test-image; }
 source ../scripts/smb_backup_lib.sh
 prepare_s3_client
 `
 	cmd := exec.Command("bash", "-c", script)
-	cmd.Env = append(os.Environ(), "TMP_DIR="+stage, "S3_NETWORK=test-network", "S3_ENDPOINT=storage:8333", "S3_USE_SSL=true", "S3_ACCESS_KEY_ID=literal-access", "S3_SECRET_ACCESS_KEY="+secret, "S3_BUCKET=docflow-test")
+	cmd.Env = append(os.Environ(), "TMP_DIR="+stage, "DOCFLOW_SERVER_CONTAINER=test", "S3_NETWORK=test-network", "S3_ENDPOINT=storage:8333", "S3_USE_SSL=true", "S3_ACCESS_KEY_ID=literal-access", "S3_SECRET_ACCESS_KEY="+secret, "S3_BUCKET=docflow-test")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("prepare: %v: %s", err, out)
 	}
-	path := filepath.Join(stage, "mc", "config.json")
+	path := filepath.Join(stage, "s3-secrets", "secret")
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var result struct {
-		Aliases map[string]struct {
-			URL    string `json:"url"`
-			Secret string `json:"secretKey"`
-		} `json:"aliases"`
-	}
-	if err := json.Unmarshal(raw, &result); err != nil {
-		t.Fatal(err)
-	}
-	if result.Aliases["objects"].Secret != secret || result.Aliases["objects"].URL != "https://storage:8333" {
-		t.Fatalf("credentials or SSL changed")
-	}
+	require.NoError(t, err)
+	require.Equal(t, secret, string(raw))
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +74,6 @@ printf '%s\n' "$*" >> "$CALL_LOG"
 case "$*" in
  'compose config --format json') echo '{"name":"docflow"}' ;;
  'volume ls '*com.docker.compose.volume=pgdata) echo docflow_pgdata ;;
- 'volume ls '*com.docker.compose.volume=minio_data) echo docflow_minio_data ;;
  'volume ls '*com.docker.compose.volume=seaweedfs_data) echo docflow_seaweedfs_data ;;
 esac
 `
@@ -105,7 +91,7 @@ esac
 			require.NoError(t, err)
 			calls := string(data)
 			if execute {
-				require.Contains(t, calls, "volume rm docflow_pgdata docflow_minio_data docflow_seaweedfs_data\n")
+				require.Contains(t, calls, "volume rm docflow_pgdata docflow_seaweedfs_data\n")
 				require.Contains(t, calls, "compose up -d --build")
 			} else {
 				require.NotContains(t, calls, "volume rm")

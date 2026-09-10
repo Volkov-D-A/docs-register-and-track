@@ -4,7 +4,7 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 project=$(docker compose config --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])')
 volumes=()
-for kind in pgdata minio_data seaweedfs_data; do
+for kind in pgdata seaweedfs_data; do
   listed=$(docker volume ls -q --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.volume=$kind")
   while IFS= read -r volume; do
     [ -z "$volume" ] || volumes+=("$volume")

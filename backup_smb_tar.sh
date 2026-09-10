@@ -74,7 +74,7 @@ echo "[2/5] Дамп базы данных PostgreSQL..."
 docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$POSTGRES_CONTAINER" pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB" > "$TMP_DIR/database.dump"
 
 echo "[3/5] Синхронизация файлов из SeaweedFS..."
-s3_mc mirror "objects/$S3_BUCKET" /files > /dev/null
+s3_transfer export /files > /dev/null
 
 # ==========================================
 # БЛОК АРХИВАЦИИ

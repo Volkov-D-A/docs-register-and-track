@@ -271,7 +271,7 @@ func TestAttachmentService_Delete(t *testing.T) {
 		att := &models.Attachment{
 			ID:          attID,
 			DocumentID:  uuid.New(),
-			StoragePath: "minio/path",
+			StoragePath: "objects/path",
 		}
 		repo.On("GetByID", attID).Return(att, nil).Once()
 		repo.On("MarkDeletingWithEffects", *att, mock.MatchedBy(func(effects []models.OutboxEvent) bool {
@@ -286,7 +286,7 @@ func TestAttachmentService_Delete(t *testing.T) {
 		att := &models.Attachment{
 			ID:          attID,
 			DocumentID:  uuid.New(),
-			StoragePath: "minio/path",
+			StoragePath: "objects/path",
 		}
 		repo.On("GetByID", attID).Return(att, nil).Once()
 		repo.On("MarkDeletingWithEffects", *att, mock.Anything).Return(nil).Once()
@@ -296,7 +296,7 @@ func TestAttachmentService_Delete(t *testing.T) {
 
 	t.Run("queues deletion intent without synchronous storage finalization", func(t *testing.T) {
 		svc, repo, _, _, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
-		att := &models.Attachment{ID: attID, DocumentID: uuid.New(), StoragePath: "minio/path"}
+		att := &models.Attachment{ID: attID, DocumentID: uuid.New(), StoragePath: "objects/path"}
 		repo.On("GetByID", attID).Return(att, nil).Once()
 		repo.On("MarkDeletingWithEffects", *att, mock.Anything).Return(nil).Once()
 

@@ -19,7 +19,14 @@ const (
 )
 
 // Config хранит основную конфигурацию приложения.
+type BackupConfig struct {
+	Directory string `json:"-"`
+	KeyFile   string `json:"-"`
+	MaxBytes  int64  `json:"-"`
+}
+
 type Config struct {
+	Backup   BackupConfig       `json:"-"`
 	Database DatabaseConfig     `json:"database"`
 	S3       S3Config           `json:"s3"`
 	Seq      SeqConfig          `json:"seq"`

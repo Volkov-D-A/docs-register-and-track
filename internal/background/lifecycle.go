@@ -106,27 +106,28 @@ func (l *Lifecycle) reconcileSchemaLocked() {
 	l.state = running
 	l.mu.Unlock()
 
-	go l.runWorker(workerContext, done)
-	if l.startupWork != nil {
+	go func() {
+		startupDone := make(chan struct{})
 		go func() {
-			if err := l.startupWork(workerContext); err != nil && workerContext.Err() == nil {
-				slog.Warn("schema-dependent startup work failed", "error", err)
+			defer close(startupDone)
+			if l.startupWork != nil {
+				if err := l.startupWork(workerContext); err != nil && workerContext.Err() == nil {
+					slog.Warn("schema-dependent startup work failed", "error", err)
+				}
 			}
 		}()
-	}
-}
-
-func (l *Lifecycle) runWorker(ctx context.Context, done chan struct{}) {
-	defer close(done)
-	l.worker.Run(ctx)
-
-	l.mu.Lock()
-	if l.workerDone == done {
-		l.state = stopped
-		l.workerCancel = nil
-		l.workerDone = nil
-	}
-	l.mu.Unlock()
+		l.worker.Run(workerContext)
+		cancel()
+		<-startupDone
+		l.mu.Lock()
+		if l.workerDone == done {
+			l.state = stopped
+			l.workerCancel = nil
+			l.workerDone = nil
+		}
+		close(done)
+		l.mu.Unlock()
+	}()
 }
 
 func (l *Lifecycle) PrepareRollback() error {

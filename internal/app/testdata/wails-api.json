@@ -124,12 +124,19 @@
     "MarkCurrentViewed"
   ],
   "SettingsService": [
+    "CancelBackup",
+    "CheckBackupConnection",
     "GetAll",
+    "GetBackupSettings",
     "GetMigrationStatus",
     "GetOrganizationShortName",
     "IsAssignmentCompletionAttachmentsEnabled",
+    "ListBackups",
+    "RetryBackup",
     "RollbackMigration",
     "RunMigrations",
+    "SaveBackupSettings",
+    "StartBackup",
     "Update"
   ],
   "StatisticsService": [

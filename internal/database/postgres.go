@@ -453,3 +453,12 @@ func applyMigrationCompatibility(s *dto.MigrationStatus) {
 	s.UpToDate = s.CurrentVersion == s.LatestAvailableVersion && !s.Dirty
 	s.Compatible = !s.Dirty && !s.SchemaTooNew
 }
+
+// LatestSchemaVersion reads the embedded migration catalog without a database.
+func LatestSchemaVersion() (uint, error) {
+	catalog, err := inspectMigrationCatalog(DefaultMigrationsPath)
+	if err != nil {
+		return 0, err
+	}
+	return catalog.LatestAvailableVersion, nil
+}
