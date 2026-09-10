@@ -151,7 +151,7 @@ storage-down:
 
 # СБРОС ДАННЫХ DEV: PostgreSQL и хранилище; тома Seq/Caddy сохраняются.
 storage-reset:
-	bash scripts/reset-dev-storage.sh --execute
+	docker compose down -v
 
 .PHONY: storage-smoke-test
 storage-smoke-test: check-docker
