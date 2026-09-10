@@ -180,6 +180,9 @@ lint/test/build and critical npm vulnerabilities. Docker with Compose and
 performance checks, target-OS smoke and backup restore remain separate checks
 described in the technical reference.
 
+Test Compose files, helper scripts and fixture images are grouped in
+[`testing/`](testing/README.md); existing Make targets remain unchanged.
+
 ## Production Build
 
 Linux test build:

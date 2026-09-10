@@ -10,7 +10,7 @@ FRONTEND_DIR = frontend
 GOCACHE ?= /tmp/go-build-cache
 GOVULNCHECK ?= $(shell command -v govulncheck 2>/dev/null || echo "go run golang.org/x/vuln/cmd/govulncheck@latest")
 GO_PACKAGES = . ./cmd/... ./internal/... ./tools/...
-INTEGRATION_COMPOSE = docker compose -p docflow-integration -f docker-compose.integration.yaml
+INTEGRATION_COMPOSE = docker compose --env-file $(if $(wildcard .env),.env,/dev/null) -p docflow-integration -f testing/compose/integration.yaml
 INTEGRATION_DSN = postgres://docflow_integration:docflow_integration@127.0.0.1:55432/docflow_test_outbox?sslmode=disable
 PERFORMANCE_DIR = build/performance
 PERFORMANCE_DOCUMENTS ?= 10000
@@ -155,4 +155,4 @@ storage-reset:
 
 .PHONY: storage-smoke-test
 storage-smoke-test: check-docker
-	bash scripts/integration-smoke.sh
+	bash testing/scripts/integration-smoke.sh

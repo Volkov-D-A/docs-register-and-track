@@ -11,7 +11,7 @@ Filer, Volume, WebDAV, Admin и S3 не публикуются в пользов
 Desktop работает с HTTP API Docflow. Одноузловой пример не обеспечивает HA.
 
 В проекте три Compose-файла: `docker-compose.yaml` для dev с локальной сборкой,
-`docker-compose.prod.example.yaml` для production и `docker-compose.integration.yaml`
+`docker-compose.prod.example.yaml` для production и `testing/compose/integration.yaml`
 для тестов. В последнем профиль `smoke` дополнительно включает сервер;
 обычные интеграционные тесты запускают только PostgreSQL, SeaweedFS и S3 probe.
 

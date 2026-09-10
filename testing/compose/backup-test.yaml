@@ -2,8 +2,8 @@
 services:
   samba:
     build:
-      context: .
-      dockerfile: build/integration-smb/Dockerfile
+      context: ../..
+      dockerfile: testing/images/samba/Dockerfile
     ports:
       - "127.0.0.1:5445:445"
     tmpfs:

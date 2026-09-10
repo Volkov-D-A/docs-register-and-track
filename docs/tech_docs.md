@@ -276,7 +276,7 @@ SeaweedFS, Seq и Caddy после готовности PostgreSQL и S3 probe.
 `docker-compose.prod.example.yaml` загружает
 `hehelf/docflow-service:${DOCFLOW_SERVER_VERSION}` из Docker Hub; версия задаётся
 в production environment. Сборка исходников на production host не выполняется.
-`docker-compose.integration.yaml` содержит тестовые PostgreSQL/SeaweedFS и
+`testing/compose/integration.yaml` содержит тестовые PostgreSQL/SeaweedFS и
 сервер под профилем `smoke`. Пустая схема bootstrap-ится
 сервером автоматически; при обновлении существующей схемы процесс остаётся
 живым в maintenance и ждёт команды администратора. Docker healthcheck проверяет
@@ -789,7 +789,7 @@ Common targets:
 - `make build-windows`.
 
 `make integration-test` проверяет prerequisites, запускает изолированный
-PostgreSQL из `docker-compose.integration.yaml`, передаёт безопасный
+PostgreSQL из `testing/compose/integration.yaml`, передаёт безопасный
 `DOCFLOW_INTEGRATION_DSN` для `docflow_test_outbox` и после тестов всегда
 удаляет контейнер и volume. Этот target входит в обязательный `release-gate`.
 Для ручной отладки доступны `make integration-db-up` и

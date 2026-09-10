@@ -31,7 +31,7 @@ services:
   s3-ready:
     pull_policy: never
     build:
-      context: .
+      context: ../..
       dockerfile: build/server/Dockerfile
     image: docflow-server:integration
     command: ["storage", "check"]
@@ -50,7 +50,7 @@ services:
     image: docflow-server:integration
     pull_policy: never
     build:
-      context: .
+      context: ../..
       dockerfile: build/server/Dockerfile
     environment:
       POSTGRES_CONTAINER: postgres

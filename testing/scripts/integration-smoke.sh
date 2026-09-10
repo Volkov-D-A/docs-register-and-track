@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Real PostgreSQL/S3 and built API; only the SMB mount is replaced by a local directory.
 set -euo pipefail
-cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 ROOT=$PWD
+# Preserve the root development environment after moving Compose files.
+compose_env=/dev/null
+if [[ -f "$ROOT/.env" ]]; then compose_env="$ROOT/.env"; fi
 # Keep smoke ports separate from ordinary integration tests.
 export DOCFLOW_TEST_POSTGRES_PORT=55433 DOCFLOW_TEST_S3_PORT=58334
 export DOCFLOW_TEST_SERVER_PORT=${DOCFLOW_TEST_SERVER_PORT:-58480}
-compose=(docker compose -p docflow-smoke -f docker-compose.integration.yaml -f docker-compose.backup-smoke.yaml --profile smoke)
+compose=(docker compose --env-file "$compose_env" -p docflow-smoke -f testing/compose/integration.yaml -f testing/compose/backup-smoke.yaml --profile smoke)
 stage=$(mktemp -d /tmp/docflow-smoke.XXXXXXXX)
 evidence="$ROOT/build/transition-evidence"
 mkdir -p "$evidence" "$stage/bin" "$stage/share" "$stage/reports" "$stage/remote"
@@ -14,13 +17,13 @@ chmod 755 "$stage/remote"
 export DOCFLOW_SMOKE_KEY_FILE="$stage/settings-key" DOCFLOW_SMOKE_ARCHIVE_DIR="$stage/remote"
 python3 -c 'import base64; print(base64.b64encode(bytes(range(32))).decode())' > "$DOCFLOW_SMOKE_KEY_FILE"
 chmod 644 "$DOCFLOW_SMOKE_KEY_FILE"
-docker compose -p docflow-backup-test -f docker-compose.backup-test.yaml up -d --build
+docker compose --env-file "$compose_env" -p docflow-backup-test -f testing/compose/backup-test.yaml up -d --build
 cleanup() {
   result=$?
   docker rm -f docflow-smoke-recovery >/dev/null 2>&1 || true
   "${compose[@]}" logs --no-color > "$evidence/containers.log" 2>&1 || true
   "${compose[@]}" down -v --remove-orphans || true
-  docker compose -p docflow-backup-test -f docker-compose.backup-test.yaml down -v --remove-orphans || true
+  docker compose --env-file "$compose_env" -p docflow-backup-test -f testing/compose/backup-test.yaml down -v --remove-orphans || true
   rm -rf -- "$stage"
   exit "$result"
 }
