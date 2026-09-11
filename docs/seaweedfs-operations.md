@@ -11,14 +11,14 @@ Filer, Volume, WebDAV, Admin и S3 не публикуются в пользов
 Desktop работает с HTTP API Docflow. Одноузловой пример не обеспечивает HA.
 
 В проекте три Compose-файла: `docker-compose.yaml` для dev с локальной сборкой,
-`docker-compose.prod.example.yaml` для production и `testing/compose/integration.yaml`
+`docs/examples/docker-compose.prod.example.yaml` для production и `testing/compose/integration.yaml`
 для тестов. В последнем профиль `smoke` дополнительно включает сервер;
 обычные интеграционные тесты запускают только PostgreSQL, SeaweedFS и S3 probe.
 
 ## Конфигурация и первый запуск
 
-Скопируйте [.envExample](../.envExample) в новый `.env` и задайте `S3_ENDPOINT`,
-`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` и при необходимости
+Скопируйте [.envExample](examples/.envExample) в новый `.env` и задайте `S3_ENDPOINT`,
+`S3_ACCESS_KEY_ID`, `S3_SECRET_KEY_FILE_PATH`, `S3_BUCKET` и при необходимости
 `S3_USE_SSL`. Схема `http://` или `https://` имеет приоритет над SSL-флагом.
 Переменные `MINIO_*` больше не читаются. SDK использует Static V4,
 регион `us-east-1` и path-style URL.
@@ -29,16 +29,15 @@ SeaweedFS получает credentials через `AWS_ACCESS_KEY_ID`/`AWS_SECRE
 создание временного bucket, запись, чтение и удаление до запуска приложения.
 Read-only проверка приложения никогда не создаёт bucket.
 
-Для production используйте [пример Compose](../docker-compose.prod.example.yaml):
-`S3_ACCESS_KEY_FILE_PATH` и `S3_SECRET_KEY_FILE_PATH` указывают на внешние файлы
-runtime secrets. Они монтируются в `/run/secrets`; сервер читает их через
-`S3_ACCESS_KEY_ID_FILE`/`S3_SECRET_ACCESS_KEY_FILE`. Не задавайте одновременно
+В dev и [production Compose](examples/docker-compose.prod.example.yaml):
+`S3_ACCESS_KEY_ID` задаёт логин в `.env`, а `S3_SECRET_KEY_FILE_PATH` указывает
+на внешний файл с секретным ключом. Он монтируется в `/run/secrets`; сервер
+читает его через `S3_SECRET_ACCESS_KEY_FILE`. Не задавайте одновременно
 секрет и его `_FILE`. Учтите доступ на чтение для UID 65532 сервера: локальные
 Compose file secrets сохраняют права исходного файла. Храните их вне Git,
 в закрытом каталоге; настройте владельца/ACL для runtime пользователя.
 
-Основной dev-стек всегда собирает сервер из текущих исходников.
-Production-пример использует опубликованный образ. Запуск dev:
+Оба стека используют опубликованный образ сервера из Docker Hub. Запуск dev:
 
 ```bash
 make storage-up

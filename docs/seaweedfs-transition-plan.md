@@ -33,7 +33,7 @@
 | [Контракт хранения](../internal/server/ports/stores.go) и [вложения](../internal/server/services/attachment_server.go) | Данные идут через сервер; ключ объекта — UUID с расширением, `StoragePath` хранит ключ, а не URL. Формат ключей, HTTP API и схему БД менять не требуется. |
 | [Сборка сервера](../internal/server/app.go), [валидация](../internal/server/config.go) | `MinioConfig`, `NewMinioService`, `CheckMinio`, сообщения ошибок. Проверка bucket вызывается также для healthcheck. |
 | [Конфигурация](../internal/config/config.go), [переменные окружения](../internal/config/server_env.go) | Поле `Minio`, переменные `MINIO_*`, разбор HTTP(S) endpoint и SSL. Нужно обновить связанные тесты. |
-| [Локальный Compose](../docker-compose.yaml), [production-пример](../docker-compose.prod.example.yaml), [Makefile](../Makefile) | Контейнер MinIO, том `minio_data`, endpoint `http://minio:9000`, зависимость `service_started`. Серверный образ скачивается с `pull_policy: always`: для проверки изменённого кода нужен локальный build override или новый опубликованный образ. |
+| [Локальный Compose](../docker-compose.yaml), [production-пример](examples/docker-compose.prod.example.yaml), [Makefile](../Makefile) | Контейнер MinIO, том `minio_data`, endpoint `http://minio:9000`, зависимость `service_started`. Серверный образ скачивается с `pull_policy: always`: для проверки изменённого кода нужен локальный build override или новый опубликованный образ. |
 | [Интеграционный стек](../testing/compose/integration.yaml) | Сейчас содержит только PostgreSQL. [Тест адаптера](../internal/storage/s3_test.go) проверяет некорректный endpoint, но не реальную S3-совместимость. |
 | Прежние `backup_smb_tar.sh`, `restore_smb_tar.sh`, `scripts/smb_backup_lib.sh`, `backup.env.example` (удалены) | `minio/mc`, `mc mirror`, `MINIO_*`, каталог архива `minio_files/`, поле manifest `minio_bucket`. Это дополнительный объём сверх смены Compose. |
 | UI и документация | Упоминания MinIO в настройках хранилища, статистике, подтверждении rollback миграций и desktop-валидации; README, tech_docs, AGENTS.md и актуальные инструкции эксплуатации. |
@@ -71,7 +71,7 @@ Endpoint внутри Compose планируется как `http://seaweedfs:83
 
 ### 2. Обновить конфигурацию и инфраструктуру
 
-- [x] В обоих Compose заменить MinIO на SeaweedFS; заменить переменную версии в `.envExample`, создать новый том, обновить зависимости и комментарии Makefile.
+- [x] В обоих Compose заменить MinIO на SeaweedFS; заменить переменную версии в `docs/examples/.envExample`, создать новый том, обновить зависимости и комментарии Makefile.
 - [x] Ввести `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_USE_SSL`; согласованно обновить Go, Compose, примеры и backup env. Старые `MINIO_*` aliases не нужны.
 - [x] Сохранить разбор endpoint с HTTP(S), явно определить приоритет схемы URL над SSL-флагом и проверить конфликтующие значения тестом: текущая загрузка применяет bool после URL.
 - [x] Сохранить создание bucket приложением для первого запуска, учесть соответствующее право identity. Read-only healthcheck bucket не создаёт.

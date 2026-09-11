@@ -28,17 +28,46 @@ Prerequisites:
 Start local infrastructure:
 
 ```bash
-cp .envExample .env
-cp config.example.json config/config.json
+cp docs/examples/.envExample .env
+cp docs/examples/config.example.json config/config.json
+# Prepare secret files and set their paths in .env (see below).
 make storage-up
 ```
 
-`docker-compose.yaml`, `.envExample` and `config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains only the server connection settings and no PostgreSQL, SeaweedFS or Seq credentials/endpoints. Authenticated desktop technical logs are sent in bounded batches to `POST /api/v1/telemetry/logs`; `docflow-server` adds the session identity and forwards them through its logging pipeline to Seq.
+`docker-compose.yaml`, `docs/examples/.envExample` and `docs/examples/config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains only the server connection settings and no PostgreSQL, SeaweedFS or Seq credentials/endpoints. Authenticated desktop technical logs are sent in bounded batches to `POST /api/v1/telemetry/logs`; `docflow-server` adds the session identity and forwards them through its logging pipeline to Seq.
 
-The main Compose file builds `docflow-server:local` from the current sources
-and waits for PostgreSQL and the S3 probe before starting it. The production
-example instead pulls `hehelf/docflow-service:<DOCFLOW_SERVER_VERSION>` from
-Docker Hub; set that immutable version in the production environment.
+Both Compose files pull `hehelf/docflow-service:<DOCFLOW_SERVER_VERSION>` from
+Docker Hub; set the published version in `.env`. Local source changes require a
+new image. Both wait for PostgreSQL and the S3 probe and include backup storage.
+Keep settings and usernames (`POSTGRES_USER`, `S3_ACCESS_KEY_ID`,
+`SEQ_ADMIN_USERNAME`) in `.env` beside Compose. Before starting, create four
+secret files outside Git, for example in `/etc/docflow/secrets`. Each file
+contains only its value, without `NAME=` or quotes:
+
+| Variable in `.env` | File contents |
+| --- | --- |
+| `POSTGRES_PASSWORD_FILE_PATH` | PostgreSQL password |
+| `SEQ_ADMIN_PASSWORD_FILE_PATH` | Initial Seq administrator password |
+| `S3_SECRET_KEY_FILE_PATH` | S3 secret access key |
+| `DOCFLOW_SETTINGS_KEY_PATH` | Settings encryption key |
+
+Create the encryption key as described in [backup setup](docs/server-backup-operations.md).
+Use a protected host directory (mode `0700`). The PostgreSQL password, S3 secret
+and settings key must be readable by server UID 65532 (owner 65532, mode `0400`).
+The supplied Seq image starts as root; its password file can be owned by root
+with mode `0400`. Compose file secrets preserve host file permissions.
+Set the four absolute file paths in `.env`; Compose mounts only the required
+secrets into each service. Keep existing passwords and the settings key when
+migrating an existing deployment. Changing these files does not change an
+existing PostgreSQL role password or Seq account password; Seq uses this password
+only for initialization ([Seq configuration](https://docs.datalust.co/docs/environment-variables)).
+The server image must include support for `POSTGRES_PASSWORD_FILE`; build and
+publish the updated server and set its version before deploying this Compose.
+The only environment difference is Caddy: dev exposes HTTP on
+`DOCFLOW_SERVER_PORT` (default 8080); production exposes HTTPS on port 443 using
+`./caddy/Caddyfile` and persistent certificate storage. Provide that production
+Caddyfile on the host and create the external `docflow-caddy-data` volume before
+starting production. Preserve existing certificate storage when upgrading.
 On a genuinely empty database the server applies its embedded bootstrap
 migrations itself. For an existing outdated database it remains alive in
 maintenance mode; the outbox worker starts only after an administrator applies

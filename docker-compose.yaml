@@ -1,21 +1,15 @@
-# LOCAL DEVELOPMENT EXAMPLE ONLY.
-# docker-compose.yaml поднимает PostgreSQL/SeaweedFS/Seq/docflow-server/Caddy для
-# закрытого dev-контура.
-# Production topology, versions, secrets and network boundaries are defined by
-# approved external production documentation, not by this compose file.
+# Development: HTTP. Production example differs only in Caddy TLS configuration.
 services:
   postgres:
-    # Используем alpine-версию, так как она весит в разы меньше и быстрее скачивается
     image: postgres:${POSTGRES_VERSION}-alpine
     container_name: docflow_db
+    secrets: [postgres_password]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_DB: ${POSTGRES_DB}
       PGDATA: /var/lib/postgresql/data
     volumes:
-      # Маппим на /var/lib/postgresql (VOLUME из Dockerfile образа),
-      # чтобы Docker не создавал анонимный том для этого пути.
       - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -27,26 +21,35 @@ services:
   seaweedfs:
     image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION:-4.46}
     environment:
-      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_key
     volumes:
       # mini stores both filer/master metadata and volume data below /data.
       - seaweedfs_data:/data
-    command: mini -dir=/data -s3.port=8333
+    # Read mounted secrets inside the container; $$ prevents Compose interpolation.
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        AWS_ACCESS_KEY_ID=$$S3_ACCESS_KEY_ID
+        AWS_SECRET_ACCESS_KEY=$$(cat "$$S3_SECRET_ACCESS_KEY_FILE")
+        : "$${AWS_ACCESS_KEY_ID:?empty S3 access key}" "$${AWS_SECRET_ACCESS_KEY:?empty S3 secret key}"
+        export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+        exec weed "$$@"
+      - seaweedfs
+    command: ["mini", "-dir=/data", "-s3.port=8333"]
+    secrets: [s3_secret_key]
     restart: unless-stopped
   s3-ready:
-    pull_policy: build
-    build:
-      context: .
-      dockerfile: build/server/Dockerfile
-    image: docflow-server:local
+    image: hehelf/docflow-service:${DOCFLOW_SERVER_VERSION:?Set DOCFLOW_SERVER_VERSION in .env}
     command: ["storage", "check"]
     healthcheck:
       disable: true
+    secrets: [s3_secret_key]
     environment:
       S3_ENDPOINT: http://seaweedfs:8333
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY}
+      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_key
     depends_on:
       seaweedfs:
         condition: service_started
@@ -54,31 +57,35 @@ services:
     image: datalust/seq:${SEQ_VERSION}
     container_name: docflow_seq
     environment:
-      # Подтверждение лицензионного соглашения (обязательно для запуска)
       - ACCEPT_EULA=Y
-      # Опционально: можно сразу задать пароль администратора
-      - SEQ_FIRSTRUN_ADMINPASSWORD=${SEQ_ADMIN_PASSWORD}
+      - SEQ_FIRSTRUN_ADMINUSERNAME=${SEQ_ADMIN_USERNAME:-admin}
+    secrets: [seq_admin_password]
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        test -s /run/secrets/seq_admin_password
+        exec /bin/seqentry --default-admin-password-stdin < /run/secrets/seq_admin_password
     volumes:
-      # Сохраняем логи в volume, чтобы они не пропали при перезапуске контейнера
       - seq_data:/data
     restart: unless-stopped
   docflow-server:
-    image: docflow-server:local
-    pull_policy: build
-    build:
-      context: .
-      dockerfile: build/server/Dockerfile
+    image: hehelf/docflow-service:${DOCFLOW_SERVER_VERSION:?Set DOCFLOW_SERVER_VERSION in .env}
+    pull_policy: always
     container_name: docflow_server
+    secrets: [postgres_password, s3_secret_key, settings_key]
+    volumes:
+      - backup_staging:/var/lib/docflow/backups
     environment:
       POSTGRES_CONTAINER: postgres
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
       S3_ENDPOINT: http://seaweedfs:8333
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_key
       S3_USE_SSL: ${S3_USE_SSL:-false}
       S3_BUCKET: ${S3_BUCKET}
       SEQ_URL: http://seq:80
@@ -89,6 +96,9 @@ services:
       DOCFLOW_OUTBOX_CONSUMER_TIMEOUT_SECONDS: ${DOCFLOW_OUTBOX_CONSUMER_TIMEOUT_SECONDS:-30}
       DOCFLOW_OUTBOX_PROCESSED_RETENTION_DAYS: ${DOCFLOW_OUTBOX_PROCESSED_RETENTION_DAYS:-90}
       DOCFLOW_OUTBOX_CLEANUP_INTERVAL_MINUTES: ${DOCFLOW_OUTBOX_CLEANUP_INTERVAL_MINUTES:-60}
+      DOCFLOW_BACKUP_DIRECTORY: /var/lib/docflow/backups
+      DOCFLOW_BACKUP_MAX_BYTES: ${DOCFLOW_BACKUP_MAX_BYTES:-21474836480}
+      DOCFLOW_SETTINGS_KEY_FILE: /run/secrets/settings_key
       DOCFLOW_SERVER_LISTEN_ADDRESS: :8080
       DOCFLOW_AUTH_SESSION_TTL_HOURS: ${DOCFLOW_AUTH_SESSION_TTL_HOURS:-12}
     depends_on:
@@ -117,3 +127,14 @@ volumes:
   pgdata:
   seaweedfs_data:
   seq_data:
+  backup_staging:
+
+secrets:
+  postgres_password:
+    file: ${POSTGRES_PASSWORD_FILE_PATH:?Set POSTGRES_PASSWORD_FILE_PATH}
+  seq_admin_password:
+    file: ${SEQ_ADMIN_PASSWORD_FILE_PATH:?Set SEQ_ADMIN_PASSWORD_FILE_PATH}
+  s3_secret_key:
+    file: ${S3_SECRET_KEY_FILE_PATH:?Set S3_SECRET_KEY_FILE_PATH}
+  settings_key:
+    file: ${DOCFLOW_SETTINGS_KEY_PATH:?Set DOCFLOW_SETTINGS_KEY_PATH}

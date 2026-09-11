@@ -270,12 +270,14 @@ business, attachment и migration operations через HTTP API сервиса.
 Container image собирается через `build/server/Dockerfile` на runtime PostgreSQL 18 Alpine
 под непривилегированным пользователем, со штатными `pg_dump` и `pg_restore`. В image не копируются production config
 и secrets; настройки передаются при запуске через env-файл или механизм
-оркестратора; JSON-конфигурацию сервер не читает. `docker-compose.yaml` собирает
-`docflow-server:local` из текущих исходников и запускает рядом с PostgreSQL,
-SeaweedFS, Seq и Caddy после готовности PostgreSQL и S3 probe.
-`docker-compose.prod.example.yaml` загружает
-`hehelf/docflow-service:${DOCFLOW_SERVER_VERSION}` из Docker Hub; версия задаётся
-в production environment. Сборка исходников на production host не выполняется.
+оркестратора; JSON-конфигурацию сервер не читает. Оба Compose-файла загружают
+`hehelf/docflow-service:${DOCFLOW_SERVER_VERSION}` из Docker Hub и запускают сервер
+рядом с PostgreSQL, SeaweedFS, Seq и Caddy после готовности PostgreSQL и S3 probe.
+Оба хранят настройки и логины в `.env`, а пароли PostgreSQL/Seq, секретный ключ S3
+и ключ шифрования настроек — в файловых secrets. Оба используют постоянный том
+резервных копий. Отличие dev от production — HTTP вместо HTTPS в Caddy,
+включая порт, Caddyfile и хранилище сертификатов. Локальные изменения исходников
+требуют нового образа; версия задаётся в `.env`.
 `testing/compose/integration.yaml` содержит тестовые PostgreSQL/SeaweedFS и
 сервер под профилем `smoke`. Пустая схема bootstrap-ится
 сервером автоматически; при обновлении существующей схемы процесс остаётся
@@ -351,7 +353,7 @@ trust store.
 `docflow-server` читает подключения, Seq и параметры outbox исключительно из
 runtime environment. PostgreSQL и SeaweedFS используют те же credentials, которыми
 инициализируются контейнеры; отдельные service accounts на текущем этапе не
-создаются. Полный перечень и локальные примеры приведены в `.envExample`.
+создаются. Полный перечень и локальные примеры приведены в `docs/examples/.envExample`.
 JSON-файл серверу не требуется.
 
 Desktop не получает адрес или credentials Seq. После входа он отправляет
@@ -383,7 +385,7 @@ Secrets:
 
 Example configs:
 
-- `.envExample`, `config.example.json`, `docker-compose.yaml` are local/dev only;
+- `docs/examples/.envExample`, `docs/examples/config.example.json`, `docker-compose.yaml` are local/dev only;
 - localhost endpoints, disabled TLS and weak sample passwords are not production defaults.
 
 ## Business Rules

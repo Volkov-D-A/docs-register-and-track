@@ -121,7 +121,7 @@ HTTP-клиенты сохраняют идентификатор в обёрт�
 
 Исходное наблюдение ревью (относится к структуре локального репозитория):
 
-В [`docker-compose.prod.example.yaml`](../docker-compose.prod.example.yaml#L75) указан bind mount:
+В [`docs/examples/docker-compose.prod.example.yaml`](examples/docker-compose.prod.example.yaml#L75) указан bind mount:
 
 ```yaml
 - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro

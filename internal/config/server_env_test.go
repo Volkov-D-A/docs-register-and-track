@@ -76,3 +76,20 @@ func TestS3RuntimeSecretFile(t *testing.T) {
 	_, err = LoadServer()
 	require.ErrorContains(t, err, "S3_SECRET_ACCESS_KEY_FILE")
 }
+
+func TestPostgresRuntimeSecretFile(t *testing.T) {
+	path := t.TempDir() + "/password"
+	require.NoError(t, os.WriteFile(path, []byte(" literal $() ' password \r\n"), 0600))
+	t.Setenv("POSTGRES_PASSWORD_FILE", path)
+	t.Setenv("POSTGRES_PASSWORD", "")
+	cfg, err := LoadServer()
+	require.NoError(t, err)
+	require.Equal(t, " literal $() ' password ", cfg.Database.Password)
+	t.Setenv("POSTGRES_PASSWORD", "conflict")
+	_, err = LoadServer()
+	require.ErrorContains(t, err, "set only one of POSTGRES_PASSWORD and POSTGRES_PASSWORD_FILE")
+	t.Setenv("POSTGRES_PASSWORD", "")
+	t.Setenv("POSTGRES_PASSWORD_FILE", path+"-absent")
+	_, err = LoadServer()
+	require.ErrorContains(t, err, "POSTGRES_PASSWORD_FILE")
+}

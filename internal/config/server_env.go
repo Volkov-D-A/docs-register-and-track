@@ -32,13 +32,13 @@ func applyServerEnvironment(cfg *Config) error {
 	}
 	stringValue("POSTGRES_CONTAINER", &cfg.Database.Host)
 	stringValue("POSTGRES_USER", &cfg.Database.User)
-	stringValue("POSTGRES_PASSWORD", &cfg.Database.Password)
 	stringValue("POSTGRES_DB", &cfg.Database.DBName)
 	stringValue("POSTGRES_SSLMODE", &cfg.Database.SSLMode)
 	for _, secret := range []struct {
 		name   string
 		target *string
 	}{
+		{"POSTGRES_PASSWORD", &cfg.Database.Password},
 		{"S3_ACCESS_KEY_ID", &cfg.S3.AccessKeyID}, {"S3_SECRET_ACCESS_KEY", &cfg.S3.SecretAccessKey},
 	} {
 		if err := secretValue(secret.name, secret.target); err != nil {

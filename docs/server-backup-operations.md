@@ -12,10 +12,14 @@ Docflow создаёт согласованные копии PostgreSQL и Seawe
 3. Файл в Linux-контейнере должен читаться UID `65532`. Используйте владельца
    `65532`, режим `0400` и закрытый каталог на хосте.
 4. Задайте `DOCFLOW_SETTINGS_KEY_PATH` — абсолютный путь файла на Docker-хосте.
-   Подключите [Compose override](../docker-compose.backup.example.yaml):
+   Настройки резервирования встроены в [dev Compose](../docker-compose.yaml) и
+   [production Compose](examples/docker-compose.prod.example.yaml). Запустите нужный стек:
 
 ```bash
-docker compose -f docker-compose.yaml -f docker-compose.backup.example.yaml up -d --build
+# Dev
+docker compose up -d
+# Production (из корня репозитория; .env и caddy/ находятся там же)
+docker compose --project-directory . --env-file .env -f docs/examples/docker-compose.prod.example.yaml up -d
 ```
 
 В production используйте опубликованный образ и настройки своего окружения.
