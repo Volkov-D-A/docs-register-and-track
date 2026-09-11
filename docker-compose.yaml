@@ -26,17 +26,8 @@ services:
     volumes:
       # mini stores both filer/master metadata and volume data below /data.
       - seaweedfs_data:/data
-    # Read mounted secrets inside the container; $$ prevents Compose interpolation.
-    entrypoint:
-      - /bin/sh
-      - -ec
-      - |
-        AWS_ACCESS_KEY_ID=$$S3_ACCESS_KEY_ID
-        AWS_SECRET_ACCESS_KEY=$$(cat "$$S3_SECRET_ACCESS_KEY_FILE")
-        : "$${AWS_ACCESS_KEY_ID:?empty S3 access key}" "$${AWS_SECRET_ACCESS_KEY:?empty S3 secret key}"
-        export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-        exec weed "$$@"
-      - seaweedfs
+      - ./scripts/seaweedfs-entrypoint.sh:/usr/local/bin/docflow-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/docflow-entrypoint.sh"]
     command: ["mini", "-dir=/data", "-s3.port=8333"]
     secrets: [s3_secret_key]
     restart: unless-stopped
@@ -60,14 +51,10 @@ services:
       - ACCEPT_EULA=Y
       - SEQ_FIRSTRUN_ADMINUSERNAME=${SEQ_ADMIN_USERNAME:-admin}
     secrets: [seq_admin_password]
-    entrypoint:
-      - /bin/sh
-      - -ec
-      - |
-        test -s /run/secrets/seq_admin_password
-        exec /bin/seqentry --default-admin-password-stdin < /run/secrets/seq_admin_password
+    entrypoint: ["/bin/sh", "/usr/local/bin/docflow-entrypoint.sh"]
     volumes:
       - seq_data:/data
+      - ./scripts/seq-entrypoint.sh:/usr/local/bin/docflow-entrypoint.sh:ro
     restart: unless-stopped
   docflow-server:
     image: hehelf/docflow-service:${DOCFLOW_SERVER_VERSION:?Set DOCFLOW_SERVER_VERSION in .env}

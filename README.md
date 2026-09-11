@@ -68,6 +68,12 @@ The only environment difference is Caddy: dev exposes HTTP on
 `./caddy/Caddyfile` and persistent certificate storage. Provide that production
 Caddyfile on the host and create the external `docflow-caddy-data` volume before
 starting production. Preserve existing certificate storage when upgrading.
+Copy [seaweedfs-entrypoint.sh](scripts/seaweedfs-entrypoint.sh) and
+[seq-entrypoint.sh](scripts/seq-entrypoint.sh) to `scripts/` beside the deployed
+Compose file. Both environments mount these startup scripts read-only and run
+them with `/bin/sh`; preserve LF line endings. When running the production
+example directly from this repository, use `--project-directory .` from the
+repository root so that `scripts/` and `caddy/` resolve correctly.
 On a genuinely empty database the server applies its embedded bootstrap
 migrations itself. For an existing outdated database it remains alive in
 maintenance mode; the outbox worker starts only after an administrator applies
