@@ -176,6 +176,7 @@ func newWailsOptionsWithDependencies(
 		}
 	}
 
+	eventsCtx, stopEvents := context.WithCancel(context.Background())
 	wailsOptions := &options.App{
 		Title:  "Система регистрации документов",
 		Width:  1280,
@@ -187,6 +188,7 @@ func newWailsOptionsWithDependencies(
 		LogLevel:       wailslogger.ERROR,
 		ErrorFormatter: formatBackendError,
 		OnStartup: func(ctx context.Context) {
+			serverClient.ConfigureEvents(eventsCtx, func(event serverclient.LiveEvent) { wailsruntime.EventsEmit(ctx, "server:event", event) })
 			serverClient.SetSessionEndedHandler(func(state serverclient.SessionState) {
 				wailsruntime.EventsEmit(ctx, "auth:session-ended", state)
 			})
@@ -197,6 +199,7 @@ func newWailsOptionsWithDependencies(
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {
+			stopEvents()
 			serverClient.SetSessionEndedHandler(nil)
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()

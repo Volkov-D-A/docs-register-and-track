@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
@@ -29,6 +31,7 @@ import (
 const shutdownTimeout = 30 * time.Second
 
 type App struct {
+	events    *liveevents.Bus
 	detached  sync.WaitGroup
 	backups   *backup.Service
 	db        *database.DB
@@ -89,6 +92,7 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		}
 	}()
 
+	events := &liveevents.Bus{}
 	metrics := observability.NewRegistry(256)
 	db.SetMetrics(metrics)
 	objectStorage, err := deps.newStorage(cfg.S3)
@@ -114,12 +118,14 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		return nil, fmt.Errorf("create outbox worker: %w", err)
 	}
 	worker.SetMetrics(metrics)
+	worker.OnUserEvent = func(userID string) { events.Publish("user:" + userID) }
 	listenAddress := strings.TrimSpace(cfg.Server.ListenAddress)
 	if listenAddress == "" {
 		listenAddress = ":8080"
 	}
 
 	app := &App{
+		events:    events,
 		db:        db,
 		cfg:       cfg,
 		metrics:   metrics,
@@ -153,6 +159,7 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 			app.backups.Box = box
 		}
 	}
+	app.backups.Events = events
 	api.backupService = app.backups
 	schema, err := database.LatestSchemaVersion()
 	if err != nil {
@@ -247,6 +254,7 @@ func (a *App) Run(ctx context.Context) error {
 	backupDone := make(chan struct{})
 	go func() { defer close(backupDone); a.backups.Run(backupCtx) }()
 	defer func() { stopBackups(); <-backupDone }()
+	a.http.BaseContext = func(net.Listener) context.Context { return ctx }
 	httpErr := make(chan error, 1)
 	go func() {
 		slog.Info("docflow management API started", "listen_address", a.http.Addr)

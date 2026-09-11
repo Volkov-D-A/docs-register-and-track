@@ -32,6 +32,19 @@ func newBlockedApp(cfg *config.Config) (*App, error) {
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, 200, op)
 	})
+	mux.HandleFunc("GET /api/v1/admin/backups/operations/{id}/events", func(w http.ResponseWriter, r *http.Request) {
+		token, _ := bearerToken(r.Header.Get("Authorization"))
+		op, err := s.OperationStatus(r.PathValue("id"), token)
+		if err != nil {
+			writeAPIError(w, 403, "forbidden", models.ErrForbidden)
+			return
+		}
+		op.State = "recovery_required"
+		op.CanCancel = false
+		op.Error = "Восстановление прервано. Требуется проверка локального журнала и полный сброс окружения."
+		beginEvents(w)
+		_ = writeEvent(w, "operation", op)
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, 503, "maintenance", errors.New("recovery required"))
 	})

@@ -20,6 +20,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
@@ -39,6 +40,7 @@ type rollbackRequest struct {
 }
 
 type managementAPI struct {
+	events                             *liveevents.Bus
 	replacementRequests                sync.RWMutex
 	replacementPending                 atomic.Bool
 	backupService                      *backup.Service
@@ -156,6 +158,7 @@ func newManagementAPI(app *App) *managementAPI {
 	citizenAppealCommands.SetOutbox(outboxRepo)
 	administrativeOrderCommands.SetOutbox(outboxRepo)
 	return &managementAPI{
+		events:         app.events,
 		cfg:            app.cfg,
 		serverVersion:  app.version,
 		readinessCheck: HealthCheck,
@@ -402,6 +405,10 @@ func (api *managementAPI) Handler() http.Handler {
 	control.HandleFunc("POST /api/v1/admin/migrations/rollback", api.rollback)
 	control.Handle("/", api.requireReadySchema(mux))
 	return requestLogging(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/events" {
+			api.sessionEvents(w, r)
+			return
+		}
 		// Status capabilities never consult the database and remain usable while
 		// all other routes (including migration controls) are drained.
 		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/admin/backups/operations/") {

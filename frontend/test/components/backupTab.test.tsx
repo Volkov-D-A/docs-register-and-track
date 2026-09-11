@@ -28,3 +28,37 @@ test('backup settings preserve a stored password and retry a staged archive', as
   fireEvent.click(screen.getByRole('button', { name: 'Повторить отправку' }));
   await waitFor(() => expect(retry).toHaveBeenCalledWith('backup-id'));
 }, 15000);
+
+test('an unconfigured SMB connection is not queried until settings are saved', async () => {
+  const settings = {
+    smb: { host: '', share: '', directory: '', user: '', domain: '' },
+    enabled: false, time: '02:00', timezone: 'Asia/Yekaterinburg', weekdays: [1],
+    retentionDays: 15, keepCopies: 3, passwordSet: false,
+  };
+  const getSettings = vi.fn().mockResolvedValue({ settings, issue: '', nextRun: '' });
+  const catalog = vi.fn().mockResolvedValue([]);
+  const save = vi.fn().mockResolvedValue(undefined);
+  const jobs = vi.fn().mockResolvedValue([]);
+  installWailsMock({ SettingsService: {
+    GetBackupSettings: getSettings, SaveBackupSettings: save,
+    ListBackups: jobs, ListBackupCopies: catalog,
+  } });
+  renderWithApp(<BackupTab />);
+  await waitFor(() => expect(jobs).toHaveBeenCalled());
+  expect(screen.getByText('Сначала заполните и сохраните настройки SMB-подключения и пароль.')).toBeInTheDocument();
+  expect(catalog).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Обновить каталог' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Создать копию' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Проверить сохранённое подключение' })).toBeDisabled();
+  expect(screen.queryByText('Каталог SMB недоступен')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Сервер SMB'), { target: { value: 'nas' } });
+  fireEvent.change(screen.getByLabelText('Общая папка'), { target: { value: 'backups' } });
+  fireEvent.change(screen.getByLabelText('Пользователь'), { target: { value: 'backup' } });
+  fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'secret' } });
+  expect(catalog).not.toHaveBeenCalled();
+  getSettings.mockResolvedValue({ settings: { ...settings, smb: { ...settings.smb, host: 'nas', share: 'backups', user: 'backup' }, passwordSet: true }, issue: '', nextRun: '' });
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+  await waitFor(() => expect(catalog).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole('button', { name: 'Обновить каталог' })).toBeEnabled();
+  expect(screen.queryByText('Сначала заполните и сохраните настройки SMB-подключения и пароль.')).not.toBeInTheDocument();
+}, 15000);

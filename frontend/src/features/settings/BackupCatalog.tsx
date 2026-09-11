@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Checkbox, Modal, Space, Table, Typography } from 'antd';
 import { models } from '../../../wailsjs/go/models';
+import { onServerEvent } from '../../events/serverEvents';
 import { formatAppError } from '../../utils/appError';
 
 const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted', 'rolled_back', 'rollback_failed', 'recovery_required']);
@@ -20,30 +21,55 @@ export default function BackupCatalog({ copies, loading, onChanged }: { copies: 
   const [visible, setVisible] = useState(false);
   const [verification, setVerification] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
-  const [pollingExpired, setPollingExpired] = useState(false);
+  const [observationExpired, setObservationExpired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const running = !!operation && !terminal.has(operation.job.state);
+  const operationID = operation?.job.id;
+  const statusToken = operation?.statusToken;
+  const expiresAt = operation?.expiresAt;
+  const handledCompletion = useRef('');
   useEffect(() => {
-    if (!operation || terminal.has(operation.job.state) || pollingExpired) return;
+    if (!operationID || !statusToken || !expiresAt) return;
     let disposed = false;
-    const timer = window.setTimeout(() => { void (async () => {
+    const accept = (job: models.BackupOperation) => {
+      if (disposed || job.id !== operationID) return;
+      setOperation(current => {
+        if (!current || current.job.id !== job.id) return current;
+        if (current.job.updatedAt && job.updatedAt && new Date(job.updatedAt).getTime() < new Date(current.job.updatedAt).getTime()) return current;
+        return { ...current, job };
+      });
+      setError('');
+    };
+    const unsubscribe = onServerEvent(event => {
+      if (event.topic === 'operation' && event.operation) accept(event.operation);
+    });
+    // Subscribe before the snapshot to recover events emitted before mounting.
+    void (async () => {
       try {
-        if (Date.now() >= new Date(operation.expiresAt).getTime()) { setPollingExpired(true); setError('Срок наблюдения истёк. Задание продолжает выполняться на сервере; после завершения войдите заново.'); return; }
         const api = await import('../../../wailsjs/go/services/SettingsService');
-        const job = await api.GetBackupOperation(operation.job.id, operation.statusToken);
-        if (disposed) return;
-        setOperation({ ...operation, job });
-        setError('');
-        if (job.kind === 'verify' && job.state === 'completed') setVerification(job.id);
-        if (terminal.has(job.state) && job.kind !== 'restore') await onChanged();
-      } catch (e) { if (!disposed) { setError(formatAppError(e)); setOperation({ ...operation }); } }
-    })(); }, 1500);
-    return () => { disposed = true; window.clearTimeout(timer); };
-  }, [operation, onChanged, pollingExpired]);
+        accept(await api.GetBackupOperation(operationID, statusToken));
+      } catch (e) { if (!disposed) setError(formatAppError(e)); }
+    })();
+    return () => { disposed = true; unsubscribe(); };
+  }, [operationID, statusToken, expiresAt]);
+  useEffect(() => {
+    if (!operation || terminal.has(operation.job.state) || observationExpired) return;
+    const timer = window.setTimeout(() => {
+      setObservationExpired(true);
+      setError('Срок наблюдения истёк. Задание продолжает выполняться на сервере; после завершения войдите заново.');
+    }, Math.min(2147483647, Math.max(0, new Date(operation.expiresAt).getTime() - Date.now())));
+    return () => window.clearTimeout(timer);
+  }, [operation, observationExpired]);
+  useEffect(() => {
+    if (!operation || !terminal.has(operation.job.state) || handledCompletion.current === operation.job.id) return;
+    handledCompletion.current = operation.job.id;
+    if (operation.job.kind === 'verify' && operation.job.state === 'completed') setVerification(operation.job.id);
+    if (operation.job.kind !== 'restore') void onChanged();
+  }, [operation, onChanged]);
   const start = async (kind: string) => {
     if (!selection) return;
-    setBusy(true); setPollingExpired(false); setError('');
+    setBusy(true); setObservationExpired(false); setError('');
     try {
       const api = await import('../../../wailsjs/go/services/SettingsService');
       setOperation(await api.StartBackupOperation(kind, models.BackupOperationRequest.createFrom({

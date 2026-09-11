@@ -96,7 +96,12 @@ func (s *Service) persistOperation(op *operation) error {
 	if err = os.Rename(name, filepath.Join(s.Directory, op.ID+".operation.json")); err != nil {
 		return err
 	}
-	return syncDirectory(s.Directory)
+	if err := syncDirectory(s.Directory); err != nil {
+		return err
+	}
+	s.Events.Publish("operation:" + op.ID)
+	s.Events.Publish("backups")
+	return nil
 }
 
 func (s *Service) OperationStatus(id, token string) (models.BackupOperation, error) {

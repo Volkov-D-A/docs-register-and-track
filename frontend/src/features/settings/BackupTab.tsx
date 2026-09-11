@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Form, Input, InputNumber, Select, Space, Switch, Table, Typography } from 'antd';
+import { onServerEvent } from '../../events/serverEvents';
 import BackupCatalog from './BackupCatalog';
 import { models } from '../../../wailsjs/go/models';
 import { formatAppError } from '../../utils/appError';
@@ -23,11 +24,24 @@ export default function BackupTab() {
   const [busy, setBusy] = useState(false);
   const completedJobs = useRef('');
   const [passwordSet, setPasswordSet] = useState(false);
+  const [connectionConfigured, setConnectionConfigured] = useState(false);
+  const savedConnectionConfigured = useRef(false);
+  const updateConnection = useCallback((settings: models.BackupSettings) => {
+    const configured = !!(settings.smb.host.trim() && settings.smb.share.trim() && settings.smb.user.trim() && settings.passwordSet);
+    savedConnectionConfigured.current = configured;
+    setConnectionConfigured(configured);
+    setPasswordSet(settings.passwordSet);
+  }, []);
   const reloadJobs = useCallback(async () => {
     const api = await import('../../../wailsjs/go/services/SettingsService');
     setJobs(await api.ListBackups() ?? []);
   }, []);
   const reloadCatalog = useCallback(async () => {
+    if (!savedConnectionConfigured.current) {
+      setCopies([]);
+      setCatalogIssue('');
+      return;
+    }
     setCatalogBusy(true);
     try {
       const api = await import('../../../wailsjs/go/services/SettingsService');
@@ -44,14 +58,19 @@ export default function BackupTab() {
         const response = await api.GetBackupSettings();
         if (disposed) return;
         form.setFieldsValue({ settings: response.settings, password: '', clearPassword: false });
-        setNextRun(response.nextRun); setIssue(response.issue); setPasswordSet(response.settings.passwordSet);
+        setNextRun(response.nextRun); setIssue(response.issue); updateConnection(response.settings);
         await reloadJobs();
         await reloadCatalog();
       } catch (error) { if (!disposed) message.error(formatAppError(error)); }
     })();
-    const timer = window.setInterval(() => { void reloadJobs().catch(() => undefined); }, 5000);
-    return () => { disposed = true; window.clearInterval(timer); };
-  }, [form, message, reloadJobs, reloadCatalog]);
+    return () => { disposed = true; };
+  }, [form, message, reloadJobs, reloadCatalog, updateConnection]);
+  useEffect(() => onServerEvent((event) => {
+    if (event.topic === 'backups' || event.topic === 'resync') {
+      void reloadJobs().catch(() => undefined);
+      if (event.topic === 'resync') void reloadCatalog();
+    }
+  }), [reloadJobs, reloadCatalog]);
   useEffect(() => {
     const finished = jobs.filter(job => !job.kind && ['completed', 'deleted'].includes(job.state)).map(job => job.id + job.state).join(',');
     if (completedJobs.current && completedJobs.current !== finished) void reloadCatalog();
@@ -70,7 +89,7 @@ export default function BackupTab() {
       const api = await import('../../../wailsjs/go/services/SettingsService');
       await api.SaveBackupSettings(models.BackupSettingsUpdate.createFrom(values));
       const response = await api.GetBackupSettings();
-      setPasswordSet(response.settings.passwordSet); setNextRun(response.nextRun);
+      updateConnection(response.settings); setNextRun(response.nextRun); setIssue(response.issue);
       form.setFieldsValue({ password: '', clearPassword: false });
       await reloadCatalog();
     }, 'Настройки сохранены')}>
@@ -95,14 +114,15 @@ export default function BackupTab() {
       </Space>
       <Space wrap>
         <Button type="primary" htmlType="submit" loading={busy}>Сохранить</Button>
-        <Button disabled={busy || !!issue} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CheckBackupConnection(), 'Подключение и файловые операции проверены')}>Проверить сохранённое подключение</Button>
-        <Button disabled={busy || !!issue} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).StartBackup(), 'Задание создано')}>Создать копию</Button>
+        <Button disabled={busy || !!issue || !connectionConfigured} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CheckBackupConnection(), 'Подключение и файловые операции проверены')}>Проверить сохранённое подключение</Button>
+        <Button disabled={busy || !!issue || !connectionConfigured} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).StartBackup(), 'Задание создано')}>Создать копию</Button>
       </Space>
     </Form>
     {nextRun && <Typography.Text>Следующий запуск: {new Date(nextRun).toLocaleString()}</Typography.Text>}
     <Typography.Title level={4}>Каталог копий на SMB</Typography.Title>
     <Typography.Text>Каталог доступен независимо от локальной истории. Наличие manifest и совпадение размера не означают полную проверку архива.</Typography.Text>
-    <Button loading={catalogBusy} onClick={() => void reloadCatalog()}>Обновить каталог</Button>
+    <Button disabled={!connectionConfigured} loading={catalogBusy} onClick={() => void reloadCatalog()}>Обновить каталог</Button>
+    {!connectionConfigured && <Alert type="info" showIcon title="Сначала заполните и сохраните настройки SMB-подключения и пароль." />}
     {catalogIssue && <Alert type="error" showIcon title="Каталог SMB недоступен" description={catalogIssue} />}
     <BackupCatalog copies={copies} loading={catalogBusy} onChanged={reloadCatalog} />
     <Typography.Title level={4}>История заданий</Typography.Title>

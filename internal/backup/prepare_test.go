@@ -19,6 +19,7 @@ func TestPrepareRejectsFutureSchemaBeforeRunningPostgresTools(t *testing.T) {
 	digest, size, err := FileDigest(dump)
 	require.NoError(t, err)
 	m := Manifest{ID: uuid.NewString(), Format: 3, Schema: 999, CreatedAt: time.Now().UTC(), DatabaseSHA256: digest, DatabaseSize: size, Objects: []Object{}}
+	require.NoError(t, writeJSONFile(filepath.Join(stage, "manifest.json"), m))
 	archive := filepath.Join(t.TempDir(), m.ID+".tar.gz")
 	require.NoError(t, Pack(context.Background(), stage, archive, m))
 	_, err = PrepareRestore(context.Background(), PostgreSQL{}, archive, filepath.Join(t.TempDir(), "contents"), 1024, 12)

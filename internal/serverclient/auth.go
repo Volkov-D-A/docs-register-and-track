@@ -124,6 +124,7 @@ func (c *Client) Login(ctx context.Context, login, password string) (*dto.User, 
 	if oldCancel != nil {
 		oldCancel()
 	}
+	c.startSessionEvents()
 	return result.User, nil
 }
 

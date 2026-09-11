@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -140,4 +141,39 @@ func TestStagingSpaceRejectsExhaustedBudget(t *testing.T) {
 	s := &Service{Directory: t.TempDir(), MaxBytes: 1024}
 	require.NoError(t, os.WriteFile(filepath.Join(s.Directory, "retained-archive"), make([]byte, 600), 0600))
 	require.ErrorContains(t, s.checkStagingSpace(), "недостаточно места")
+}
+
+func TestPersistedBackupChangesNotifyObservers(t *testing.T) {
+	s, op, _ := testOperation(t)
+	s.Events = &liveevents.Bus{}
+	operations, stop := s.Events.Subscribe("operation:" + op.ID)
+	defer stop()
+	jobs, stopJobs := s.Events.Subscribe("backups")
+	defer stopJobs()
+	op.State = "completed"
+	require.NoError(t, s.persistOperation(op))
+	select {
+	case <-operations:
+	default:
+		t.Fatal("missing operation event")
+	}
+	select {
+	case <-jobs:
+	default:
+		t.Fatal("missing history event")
+	}
+	job := &Job{ID: uuid.NewString(), State: "queued"}
+	require.NoError(t, s.persist(job))
+	select {
+	case <-jobs:
+	default:
+		t.Fatal("missing creation event")
+	}
+	s.Directory = filepath.Join(s.Directory, "missing")
+	require.Error(t, s.persist(job))
+	select {
+	case <-jobs:
+		t.Fatal("failed persistence emitted an event")
+	default:
+	}
 }

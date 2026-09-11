@@ -10,10 +10,10 @@ import {
     MarkRead,
 } from '../../../wailsjs/go/services/UserEventService';
 import { emitUserEventsReceived, onUserEventsDocumentRead } from '../../events/userEvents';
+import { onServerEvent } from '../../events/serverEvents';
 import { CoalescedRequest } from '../../utils/coalescedRequest';
 
 const { Text } = Typography;
-const USER_EVENTS_POLL_INTERVAL_MS = 30000;
 
 type UserEventsButtonProps = {
     onOpenEvent: (event: dto.UserEvent) => void;
@@ -98,13 +98,9 @@ const UserEventsButton: React.FC<UserEventsButtonProps> = ({ onOpenEvent }) => {
         }
     }, [open, loadEvents]);
 
-    useEffect(() => {
-        const intervalID = window.setInterval(() => {
-            void loadEvents(false, true);
-        }, USER_EVENTS_POLL_INTERVAL_MS);
-
-        return () => window.clearInterval(intervalID);
-    }, [loadEvents]);
+    useEffect(() => onServerEvent((event) => {
+        if (event.topic === 'user-events' || event.topic === 'resync') void loadEvents(false, true);
+    }), [loadEvents]);
 
     useEffect(() => onUserEventsDocumentRead((documentId) => {
         const now = new Date().toISOString();

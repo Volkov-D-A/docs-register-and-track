@@ -150,6 +150,7 @@ func (api *managementAPI) markUserEventRead(w http.ResponseWriter, r *http.Reque
 		writeUserError(w, err)
 		return
 	}
+	api.events.Publish("user:" + authenticatedFromContext(r.Context()).User.ID.String())
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -158,6 +159,7 @@ func (api *managementAPI) markDocumentUserEventsRead(w http.ResponseWriter, r *h
 		writeUserError(w, err)
 		return
 	}
+	api.events.Publish("user:" + authenticatedFromContext(r.Context()).User.ID.String())
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -166,6 +168,7 @@ func (api *managementAPI) markAllUserEventsRead(w http.ResponseWriter, r *http.R
 		writeUserError(w, err)
 		return
 	}
+	api.events.Publish("user:" + authenticatedFromContext(r.Context()).User.ID.String())
 	w.WriteHeader(http.StatusNoContent)
 }
 

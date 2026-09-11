@@ -23,6 +23,8 @@ type MigrationClient interface {
 }
 
 type Client struct {
+	eventsContext   context.Context
+	onEvent         func(LiveEvent)
 	baseURL         string
 	http            *http.Client
 	tokenMu         sync.RWMutex

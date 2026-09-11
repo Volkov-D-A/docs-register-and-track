@@ -22,6 +22,8 @@ type FileDeleter interface {
 }
 
 type Worker struct {
+	// OnUserEvent is configured before Run and called after durable delivery.
+	OnUserEvent       func(string)
 	outbox            *repository.OutboxRepository
 	events            *repository.UserEventRepository
 	journal           *repository.JournalRepository
@@ -272,7 +274,11 @@ func (w *Worker) process(parent context.Context, event models.OutboxEvent) error
 		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
 			return fmt.Errorf("invalid user_event payload: %w", err)
 		}
-		return w.events.CreateFromOutbox(payload.Request, event.DeduplicationKey)
+		err := w.events.CreateFromOutbox(payload.Request, event.DeduplicationKey)
+		if err == nil && w.OnUserEvent != nil {
+			w.OnUserEvent(payload.Request.RecipientUserID.String())
+		}
+		return err
 	case models.OutboxEventJournal:
 		var payload models.CreateJournalEntryRequest
 		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {

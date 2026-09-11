@@ -30,6 +30,9 @@ func (c *Client) StartBackupOperation(ctx context.Context, kind string, req mode
 		return out, fmt.Errorf("invalid backup operation")
 	}
 	err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/admin/backups/catalog/"+kind, req, 202, &out)
+	if err == nil {
+		c.observeOperation(out)
+	}
 	return out, err
 }
 

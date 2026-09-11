@@ -58,6 +58,7 @@ func (api *managementAPI) backupSnapshot(ctx context.Context, fn func(context.Co
 	return fn(ctx)
 }
 func (api *managementAPI) backupRoutes(mux, control *http.ServeMux) {
+	control.HandleFunc("GET /api/v1/admin/backups/operations/{id}/events", api.operationEvents)
 	for _, kind := range []string{"verify", "restore", "delete"} {
 		mux.Handle("POST /api/v1/admin/backups/catalog/"+kind, api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !api.backupAvailable(w) {

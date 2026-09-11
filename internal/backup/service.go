@@ -15,6 +15,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/backup/smb"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/google/uuid"
 )
@@ -39,6 +40,7 @@ func (j Job) View() JobView {
 }
 
 type Service struct {
+	Events     *liveevents.Bus
 	DB         *sql.DB
 	PostgreSQL PostgreSQL
 	S3         config.S3Config
@@ -224,7 +226,11 @@ func (s *Service) persist(job *Job) error {
 		return err
 	}
 	defer dir.Close()
-	return dir.Sync()
+	if err := dir.Sync(); err != nil {
+		return err
+	}
+	s.Events.Publish("backups")
+	return nil
 }
 func (s *Service) Start(ctx context.Context, actor string, due time.Time) (JobView, error) {
 	if err := s.Ready(); err != nil {

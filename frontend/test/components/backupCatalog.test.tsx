@@ -30,3 +30,18 @@ test('legacy deletion and incomplete recovery stay disabled', () => {
   expect(screen.getByRole('button', { name: 'Удалить' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Восстановить' })).toBeDisabled();
 });
+
+test('operation completion arrives through a server event without repeated status requests', async () => {
+  const job = { id: 'verify-live', kind: 'verify', state: 'queued', updatedAt: '2026-09-10T00:00:00Z' };
+  const start = vi.fn().mockResolvedValue({ job, statusToken: 'capability', expiresAt: '2099-01-01T00:00:00Z' });
+  const status = vi.fn().mockResolvedValue(job);
+  const changed = vi.fn().mockResolvedValue(undefined);
+  installWailsMock({ SettingsService: { StartBackupOperation: start, GetBackupOperation: status } });
+  renderWithApp(<BackupCatalog copies={[copy]} loading={false} onChanged={changed} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Проверить' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Проверить выбранную копию' }));
+  await waitFor(() => expect(status).toHaveBeenCalledTimes(1));
+  fireEvent(window, new CustomEvent('server:event', { detail: { topic: 'operation', revision: 0, operation: { ...job, state: 'completed', updatedAt: '2026-09-10T00:00:01Z' } } }));
+  await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+  expect(status).toHaveBeenCalledTimes(1);
+});

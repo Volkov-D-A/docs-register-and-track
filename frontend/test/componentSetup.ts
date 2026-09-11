@@ -33,3 +33,12 @@ vi.stubGlobal('IntersectionObserver', ObserverMock);
 vi.stubGlobal('ShadowRoot', class ShadowRootMock {});
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
 Object.defineProperty(window, 'scrollTo', { configurable: true, value: vi.fn() });
+
+// Wails event transport for components that subscribe to server notifications.
+vi.mock('../wailsjs/runtime/runtime', () => ({
+  EventsOn: (name: string, callback: (value: unknown) => void) => {
+    const handler = (event: Event) => callback((event as CustomEvent).detail);
+    window.addEventListener(name, handler);
+    return () => window.removeEventListener(name, handler);
+  },
+}));
