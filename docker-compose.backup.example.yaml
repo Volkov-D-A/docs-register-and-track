@@ -1,5 +1,5 @@
 # Add with: docker compose -f docker-compose.yaml -f docker-compose.backup.example.yaml up -d --build
-# Prepare two independent random keys outside Git before first use.
+# Prepare a random settings encryption key outside Git before first use.
 services:
   docflow-server:
     environment:
@@ -9,41 +9,9 @@ services:
     secrets: [settings_key]
     volumes:
       - backup_staging:/var/lib/docflow/backups
-  recovery:
-    profiles: [recovery]
-    image: docflow-server:local
-    command: [recovery]
-    healthcheck:
-      disable: true
-    environment:
-      DOCFLOW_BACKUP_DIRECTORY: /var/lib/docflow/backups
-      DOCFLOW_BACKUP_MAX_BYTES: ${DOCFLOW_BACKUP_MAX_BYTES:-21474836480}
-      DOCFLOW_RECOVERY_SECRET_FILE: /run/secrets/recovery_key
-      DOCFLOW_RECOVERY_LISTEN_ADDRESS: :8081
-      POSTGRES_CONTAINER: postgres
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
-      S3_ENDPOINT: http://seaweedfs:8333
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
-      S3_BUCKET: ${S3_BUCKET}
-    secrets: [recovery_key]
-    volumes:
-      - backup_staging:/var/lib/docflow/backups
-    ports:
-      - "127.0.0.1:18081:8081"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      seaweedfs:
-        condition: service_started
+
 volumes:
   backup_staging:
 secrets:
   settings_key:
     file: ${DOCFLOW_SETTINGS_KEY_PATH:?Set DOCFLOW_SETTINGS_KEY_PATH}
-  recovery_key:
-    file: ${DOCFLOW_RECOVERY_KEY_PATH:?Set DOCFLOW_RECOVERY_KEY_PATH}

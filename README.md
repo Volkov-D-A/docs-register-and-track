@@ -250,7 +250,7 @@ The backend blocks newer/dirty schema states for login and migration operations.
 
 Configure direct SMB access and the schedule in Settings → Backups.
 See [server backup and recovery](docs/server-backup-operations.md) for Compose
-secrets, persistent staging and autonomous recovery without the main database.
+secrets, persistent staging, and restoration through the ordinary admin panel, including after a complete target reset.
 
 Release requires a successful manual test restore of PostgreSQL and SeaweedFS from an actual backup archive or production-like backup set.
 

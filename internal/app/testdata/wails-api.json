@@ -125,18 +125,22 @@
   ],
   "SettingsService": [
     "CancelBackup",
+    "CancelBackupOperation",
     "CheckBackupConnection",
     "GetAll",
+    "GetBackupOperation",
     "GetBackupSettings",
     "GetMigrationStatus",
     "GetOrganizationShortName",
     "IsAssignmentCompletionAttachmentsEnabled",
+    "ListBackupCopies",
     "ListBackups",
     "RetryBackup",
     "RollbackMigration",
     "RunMigrations",
     "SaveBackupSettings",
     "StartBackup",
+    "StartBackupOperation",
     "Update"
   ],
   "StatisticsService": [

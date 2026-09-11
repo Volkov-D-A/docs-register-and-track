@@ -29,21 +29,8 @@ func Restore(ctx context.Context, pg PostgreSQL, s3cfg config.S3Config, archive,
 		return err
 	}
 	defer os.RemoveAll(work)
-	var m Manifest
-	if _, statErr := os.Stat(archive + ".manifest"); statErr == nil {
-		m, err = UnpackV2(ctx, archive, filepath.Join(work, "contents"), maxBytes)
-	} else {
-		m, err = Unpack(ctx, archive, filepath.Join(work, "contents"), maxBytes)
-	}
+	prepared, err := PrepareRestore(ctx, pg, archive, filepath.Join(work, "contents"), maxBytes, schema)
 	if err != nil {
-		return err
-	}
-	if m.Schema > schema {
-		return fmt.Errorf("backup requires a newer application")
-	}
-
-	dump := filepath.Join(work, "contents", "database.dump")
-	if err = pg.ValidateDump(ctx, dump); err != nil {
 		return err
 	}
 	db, err := pg.Open(ctx)
@@ -68,6 +55,19 @@ func Restore(ctx context.Context, pg PostgreSQL, s3cfg config.S3Config, archive,
 		defer cancel()
 		conn.ExecContext(limited, "SELECT pg_advisory_unlock($1)", InstanceLeaseID)
 	}()
+	return RestorePrepared(ctx, pg, s3cfg, prepared, staging, schema, true)
+}
+
+// RestorePrepared is for a coordinator already holding the server lifetime
+// lease. It still requires an empty database and bucket.
+func RestorePrepared(ctx context.Context, pg PostgreSQL, s3cfg config.S3Config, prepared PreparedRestore, staging string, schema int, finalize bool) error {
+	m := prepared.Manifest
+	dump := filepath.Join(prepared.Directory, "database.dump")
+	db, err := pg.Open(ctx)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
 	if err = pg.RequireEmpty(ctx); err != nil {
 		return err
 	}
@@ -96,8 +96,12 @@ func Restore(ctx context.Context, pg PostgreSQL, s3cfg config.S3Config, archive,
 		}
 	}
 	marker := filepath.Join(staging, "recovery-required")
-	if err = durableMarker(marker, []byte(m.ID+"\n")); err != nil {
-		return err
+	if finalize {
+		if err = durableMarker(marker, []byte(m.ID+"\n")); err != nil {
+			return err
+		}
+	} else if _, err = os.Stat(marker); err != nil {
+		return fmt.Errorf("replacement marker is required: %w", err)
 	}
 	if err = pg.Restore(ctx, dump); err != nil {
 		return err
@@ -118,7 +122,7 @@ func Restore(ctx context.Context, pg PostgreSQL, s3cfg config.S3Config, archive,
 		return err
 	}
 	for _, obj := range m.Objects {
-		file, err := os.Open(filepath.Join(work, "contents", obj.File))
+		file, err := os.Open(filepath.Join(prepared.Directory, obj.File))
 		if err != nil {
 			return err
 		}
@@ -140,11 +144,14 @@ func Restore(ctx context.Context, pg PostgreSQL, s3cfg config.S3Config, archive,
 			return fmt.Errorf("restored object checksum mismatch")
 		}
 	}
+	if !finalize {
+		return nil
+	}
 	if _, err = db.ExecContext(ctx, "UPDATE server_sessions SET revoked_at=now() WHERE revoked_at IS NULL"); err != nil {
 		return err
 	}
 	if restoredSchema >= 12 {
-		if _, err = db.ExecContext(ctx, `UPDATE backup_settings SET settings=jsonb_set(settings,'{settings,enabled}','false')`); err != nil {
+		if _, err = db.ExecContext(ctx, `UPDATE backup_settings SET settings=jsonb_set(jsonb_set(jsonb_set(settings,'{settings,enabled}','false'),'{settings,passwordSet}','false'),'{secret}','{}')`); err != nil {
 			return err
 		}
 	}

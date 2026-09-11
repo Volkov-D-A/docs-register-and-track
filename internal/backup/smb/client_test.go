@@ -33,4 +33,16 @@ func TestSMBRoundtripIntegration(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 	require.NoError(t, client.Check(ctx))
+	other, err := Open(ctx, cfg, os.Getenv("DOCFLOW_INTEGRATION_SMB_PASSWORD"))
+	require.NoError(t, err)
+	defer other.Close()
+	release, err := client.Lock(ctx)
+	require.NoError(t, err)
+	_, err = other.Lock(ctx)
+	require.Error(t, err, "a live SMB handle must prevent another operation")
+	release()
+	// The old lock file remains, but its closed handle no longer owns it.
+	releaseOther, err := other.Lock(ctx)
+	require.NoError(t, err)
+	releaseOther()
 }

@@ -17,6 +17,7 @@ test('backup settings preserve a stored password and retry a staged archive', as
     SaveBackupSettings: save,
     ListBackups: vi.fn().mockResolvedValue([{ id: 'backup-id', state: 'staged', createdAt: '2026-09-10T00:00:00Z', updatedAt: '2026-09-10T00:00:00Z', attempts: 5, archiveSize: 1024 }]),
     RetryBackup: retry,
+    ListBackupCopies: vi.fn().mockResolvedValue([]),
   } });
   renderWithApp(<BackupTab />);
   expect(await screen.findByDisplayValue('freenas')).toBeInTheDocument();

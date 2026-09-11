@@ -54,6 +54,13 @@ type serverStorage interface {
 }
 
 func New(cfg *config.Config) (*App, error) {
+	if cfg.Backup.Directory != "" {
+		if _, err := os.Stat(filepath.Join(cfg.Backup.Directory, "recovery-required")); err == nil {
+			return newBlockedApp(cfg)
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
 	return newWithDependencies(cfg, dependencies{
 		connectDatabase: database.Connect,
 		newStorage: func(cfg config.S3Config) (serverStorage, error) {
@@ -147,6 +154,42 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		}
 	}
 	api.backupService = app.backups
+	schema, err := database.LatestSchemaVersion()
+	if err != nil {
+		return nil, err
+	}
+	app.backups.Schema = int(schema)
+	app.backups.Replace = func(ctx context.Context, fn func(context.Context) error) error {
+		api.replacementPending.Store(true)
+		defer func() {
+			_, err := os.Stat(filepath.Join(cfg.Backup.Directory, "recovery-required"))
+			if os.IsNotExist(err) {
+				api.replacementPending.Store(false)
+			}
+		}()
+		for !api.replacementRequests.TryLock() {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(25 * time.Millisecond):
+			}
+		}
+		defer api.replacementRequests.Unlock()
+		return app.backups.Snapshot(ctx, fn)
+	}
+	app.backups.Reload = func(ctx context.Context) error {
+		fresh, err := database.Connect(cfg.Database)
+		if err != nil {
+			return err
+		}
+		old := app.db.DB
+		app.db.DB = fresh.DB
+		app.backups.DB = fresh.DB
+		api.authMu.Lock()
+		api.authFailures = make(map[string]authFailure)
+		api.authMu.Unlock()
+		return old.Close()
+	}
 	app.http = &http.Server{
 		Addr:              listenAddress,
 		Handler:           api.Handler(),
@@ -165,6 +208,9 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 }
 
 func (a *App) Run(ctx context.Context) error {
+	if a != nil && a.db == nil && a.http != nil {
+		return a.runBlocked(ctx)
+	}
 	if a == nil || a.lifecycle == nil {
 		return fmt.Errorf("server application is not initialized")
 	}
@@ -178,6 +224,7 @@ func (a *App) Run(ctx context.Context) error {
 			return err
 		}
 	}
+	// The reserved sql.Conn keeps the lifetime lease when the ordinary pool is replaced.
 	instance, err := acquireInstance(ctx, a.db.DB)
 	if err != nil {
 		return err

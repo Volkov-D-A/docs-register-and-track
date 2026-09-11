@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/backup"
@@ -37,7 +39,14 @@ func (api *managementAPI) backupSnapshot(ctx context.Context, fn func(context.Co
 	if err := api.lifecycle.PrepareRollback(); err != nil {
 		return err
 	}
-	defer api.lifecycle.CompleteRollback(false)
+	defer func() {
+		blocked := false
+		if api.backupService != nil {
+			_, err := os.Stat(filepath.Join(api.backupService.Directory, "recovery-required"))
+			blocked = err == nil || !os.IsNotExist(err)
+		}
+		api.lifecycle.CompleteRollback(blocked)
+	}()
 	release, acquired, err := api.acquireLease(ctx)
 	if err != nil {
 		return err
@@ -49,6 +58,51 @@ func (api *managementAPI) backupSnapshot(ctx context.Context, fn func(context.Co
 	return fn(ctx)
 }
 func (api *managementAPI) backupRoutes(mux, control *http.ServeMux) {
+	for _, kind := range []string{"verify", "restore", "delete"} {
+		mux.Handle("POST /api/v1/admin/backups/catalog/"+kind, api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !api.backupAvailable(w) {
+				return
+			}
+			var req models.BackupOperationRequest
+			if err := decodeJSON(r, &req); err != nil {
+				writeAPIError(w, 400, "invalid_request", err)
+				return
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+			result, err := api.backupService.StartOperation(ctx, kind, req, authenticatedFromContext(r.Context()).User.ID.String())
+			if err != nil {
+				writeAPIError(w, 409, "backup_operation_failed", err)
+				return
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			writeJSON(w, 202, result)
+		})))
+	}
+	control.HandleFunc("GET /api/v1/admin/backups/operations/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if !api.backupAvailable(w) {
+			return
+		}
+		token, _ := bearerToken(r.Header.Get("Authorization"))
+		status, err := api.backupService.OperationStatus(r.PathValue("id"), token)
+		if err != nil {
+			writeAPIError(w, 403, "forbidden", models.ErrForbidden)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, 200, status)
+	})
+	mux.Handle("POST /api/v1/admin/backups/operations/{id}/cancel", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !api.backupAvailable(w) {
+			return
+		}
+		if err := api.backupService.CancelOperation(r.PathValue("id")); err != nil {
+			writeAPIError(w, 409, "backup_cancel_failed", err)
+			return
+		}
+		w.WriteHeader(204)
+	})))
+	mux.Handle("GET /api/v1/admin/backups/catalog", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.backupCatalog)))
 	mux.Handle("GET /api/v1/admin/backups/settings", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.backupSettings)))
 	mux.Handle("PUT /api/v1/admin/backups/settings", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.saveBackupSettings)))
 	mux.Handle("POST /api/v1/admin/backups/check", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.checkBackup)))
@@ -63,6 +117,20 @@ func (api *managementAPI) backupAvailable(w http.ResponseWriter) bool {
 		return false
 	}
 	return true
+}
+
+func (api *managementAPI) backupCatalog(w http.ResponseWriter, r *http.Request) {
+	if !api.backupAvailable(w) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	copies, err := api.backupService.Catalog(ctx)
+	if err != nil {
+		writeAPIError(w, 503, "backup_catalog_failed", err)
+		return
+	}
+	writeJSON(w, 200, copies)
 }
 func (api *managementAPI) backupSettings(w http.ResponseWriter, r *http.Request) {
 	if !api.backupAvailable(w) {

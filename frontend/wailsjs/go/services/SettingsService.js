@@ -6,12 +6,20 @@ export function CancelBackup(arg1) {
   return window['go']['services']['SettingsService']['CancelBackup'](arg1);
 }
 
+export function CancelBackupOperation(arg1) {
+  return window['go']['services']['SettingsService']['CancelBackupOperation'](arg1);
+}
+
 export function CheckBackupConnection() {
   return window['go']['services']['SettingsService']['CheckBackupConnection']();
 }
 
 export function GetAll() {
   return window['go']['services']['SettingsService']['GetAll']();
+}
+
+export function GetBackupOperation(arg1, arg2) {
+  return window['go']['services']['SettingsService']['GetBackupOperation'](arg1, arg2);
 }
 
 export function GetBackupSettings() {
@@ -28,6 +36,10 @@ export function GetOrganizationShortName() {
 
 export function IsAssignmentCompletionAttachmentsEnabled() {
   return window['go']['services']['SettingsService']['IsAssignmentCompletionAttachmentsEnabled']();
+}
+
+export function ListBackupCopies() {
+  return window['go']['services']['SettingsService']['ListBackupCopies']();
 }
 
 export function ListBackups() {
@@ -52,6 +64,10 @@ export function SaveBackupSettings(arg1) {
 
 export function StartBackup() {
   return window['go']['services']['SettingsService']['StartBackup']();
+}
+
+export function StartBackupOperation(arg1, arg2) {
+  return window['go']['services']['SettingsService']['StartBackupOperation'](arg1, arg2);
 }
 
 export function Update(arg1, arg2) {

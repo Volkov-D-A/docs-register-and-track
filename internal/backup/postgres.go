@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -130,6 +131,50 @@ func (p PostgreSQL) ValidateDump(ctx context.Context, file string) error {
 	}
 	return nil
 }
+
+// DumpSchema reads only schema_migrations data without executing archive SQL.
+func (p PostgreSQL) DumpSchema(ctx context.Context, file string) (int, error) {
+	cmd, cleanup, err := p.command(ctx, "pg_restore", "--data-only", "--table=schema_migrations", "--file=-", file)
+	if err != nil {
+		return 0, err
+	}
+	defer cleanup()
+	var output bytes.Buffer
+	cmd.Stdout = &boundedWriter{out: &output, remaining: 64 << 10}
+	if err = cmd.Run(); err != nil {
+		return 0, fmt.Errorf("cannot inspect dump schema: %w", err)
+	}
+	version := 0
+	inCopy := false
+	for _, line := range strings.Split(output.String(), "\n") {
+		if strings.HasPrefix(line, "COPY public.schema_migrations ") && strings.HasSuffix(line, " FROM stdin;") {
+			if inCopy || version != 0 {
+				return 0, fmt.Errorf("duplicate schema data")
+			}
+			inCopy = true
+			continue
+		}
+		if !inCopy {
+			continue
+		}
+		if line == `\.` {
+			inCopy = false
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) != 2 || fields[1] != "f" || version != 0 {
+			return 0, fmt.Errorf("invalid or dirty dump schema")
+		}
+		version, err = strconv.Atoi(fields[0])
+		if err != nil || version < 1 {
+			return 0, fmt.Errorf("invalid dump schema version")
+		}
+	}
+	if version < 1 || inCopy {
+		return 0, fmt.Errorf("missing dump schema version")
+	}
+	return version, nil
+}
 func (p PostgreSQL) RequireEmpty(ctx context.Context) error {
 	db, err := p.Open(ctx)
 	if err != nil {
@@ -150,7 +195,7 @@ func (p PostgreSQL) Restore(ctx context.Context, file string) error {
 	if err := p.RequireEmpty(ctx); err != nil {
 		return err
 	}
-	cmd, cleanup, err := p.command(ctx, "pg_restore", "--exit-on-error", "--single-transaction", "--no-owner", "--no-acl", "--dbname="+p.Config.DBName, file)
+	cmd, cleanup, err := p.command(ctx, "pg_restore", "--exit-on-error", "--single-transaction", "--clean", "--if-exists", "--no-owner", "--no-acl", "--dbname="+p.Config.DBName, file)
 	if err != nil {
 		return err
 	}

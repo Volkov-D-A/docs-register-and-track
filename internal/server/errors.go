@@ -20,6 +20,8 @@ type apiErrorResponse struct {
 // Only server-owned messages belong here. Unknown errors never supply public text.
 var publicAPIMessages = map[string]string{
 	"backup_unavailable":            "Резервирование не настроено на сервере.",
+	"backup_catalog_failed":         "Каталог SMB недоступен. Проверьте сохранённое подключение и права на папку.",
+	"backup_operation_failed":       "Операция не запущена. Проверьте выбранную копию, подтверждение и незавершённые задания.",
 	"backup_settings_failed":        "Не удалось сохранить настройки резервирования. Проверьте поля и подключение ключа на сервере.",
 	"backup_check_failed":           "Не удалось проверить SMB. Проверьте адрес, учётные данные и права на выбранную папку.",
 	"backup_start_failed":           "Не удалось создать задание. Проверьте настройки, свободное место и незавершённые копии.",

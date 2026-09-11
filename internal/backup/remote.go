@@ -3,7 +3,6 @@ package backup
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -33,29 +32,10 @@ func digestReader(reader io.Reader, limit int64) (string, int64, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), n, err
 }
 func ReadMarker(ctx context.Context, client *smb.Client, id string) (RemoteCopy, error) {
-	var m RemoteCopy
-	if _, err := uuid.Parse(id); err != nil {
-		return m, err
+	if copyFormat(id) != 3 {
+		return RemoteCopy{}, fmt.Errorf("invalid v3 copy identifier")
 	}
-	file, err := client.Open(ctx, id+".manifest.json")
-	if err != nil {
-		return m, err
-	}
-	defer file.Close()
-	raw, err := io.ReadAll(io.LimitReader(file, 4097))
-	if err != nil {
-		return m, err
-	}
-	if len(raw) > 4096 {
-		return m, fmt.Errorf("oversized remote manifest")
-	}
-	if err = json.Unmarshal(raw, &m); err != nil {
-		return m, err
-	}
-	if m.ID != id || m.Format != 3 || m.Size < 0 || len(m.SHA256) != 64 {
-		return m, fmt.Errorf("invalid remote manifest")
-	}
-	return m, nil
+	return readCopyMarker(ctx, client, id)
 }
 func RemoteCopies(ctx context.Context, client *smb.Client) ([]RemoteCopy, error) {
 	entries, err := client.List(ctx)
@@ -81,6 +61,11 @@ func RemoteCopies(ctx context.Context, client *smb.Client) ([]RemoteCopy, error)
 	return out, nil
 }
 func DownloadCopy(ctx context.Context, client *smb.Client, id, directory string, maxBytes int64) (string, error) {
+	release, err := client.Lock(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
 	lock := "." + id + ".restore-lock"
 	if _, err := uuid.Parse(id); err != nil {
 		return "", err

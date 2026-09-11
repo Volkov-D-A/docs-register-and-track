@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -88,42 +87,4 @@ func TestBuiltServerBackupIntegration(t *testing.T) {
 	archive, err := backup.DownloadCopy(ctx, client, job.ID, directory, 1<<30)
 	require.NoError(t, err)
 	require.NoError(t, os.Chmod(archive, 0644))
-}
-
-func TestBuiltRecoveryPanelWithoutDatabaseIntegration(t *testing.T) {
-	base := os.Getenv("DOCFLOW_RECOVERY_TEST_URL")
-	if base == "" {
-		t.Skip("run storage smoke")
-	}
-	key, err := os.ReadFile(os.Getenv("DOCFLOW_SMOKE_KEY_FILE"))
-	require.NoError(t, err)
-	client := http.Client{Timeout: 35 * time.Second}
-	call := func(method, path string, body io.Reader, authorized bool) *http.Response {
-		req, err := http.NewRequest(method, base+path, body)
-		require.NoError(t, err)
-		if authorized {
-			req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(key)))
-		}
-		res, err := client.Do(req)
-		require.NoError(t, err)
-		t.Cleanup(func() { res.Body.Close() })
-		return res
-	}
-	require.Eventually(t, func() bool {
-		res, err := client.Get(base + "/")
-		if err != nil {
-			return false
-		}
-		res.Body.Close()
-		return res.StatusCode == 200
-	}, 10*time.Second, 100*time.Millisecond)
-	require.Equal(t, 401, call("GET", "/status", nil, false).StatusCode)
-	require.Equal(t, 200, call("GET", "/status", nil, true).StatusCode)
-	res := call("POST", "/copies", strings.NewReader(`{"smb":{"host":"samba","share":"backups","user":"docflow"},"password":"integration-password"}`), true)
-	raw, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	require.Equal(t, 200, res.StatusCode, string(raw))
-	var copies []backup.RemoteCopy
-	require.NoError(t, json.Unmarshal(raw, &copies))
-	require.NotEmpty(t, copies)
 }

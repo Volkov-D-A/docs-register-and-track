@@ -39,6 +39,8 @@ type rollbackRequest struct {
 }
 
 type managementAPI struct {
+	replacementRequests                sync.RWMutex
+	replacementPending                 atomic.Bool
 	backupService                      *backup.Service
 	backupPending                      atomic.Bool
 	cfg                                *config.Config
@@ -399,7 +401,20 @@ func (api *managementAPI) Handler() http.Handler {
 	control.HandleFunc("POST /api/v1/admin/migrations/apply", api.apply)
 	control.HandleFunc("POST /api/v1/admin/migrations/rollback", api.rollback)
 	control.Handle("/", api.requireReadySchema(mux))
-	return requestLogging(control, api.metrics)
+	return requestLogging(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Status capabilities never consult the database and remain usable while
+		// all other routes (including migration controls) are drained.
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/admin/backups/operations/") {
+			control.ServeHTTP(w, r)
+			return
+		}
+		if api.replacementPending.Load() || !api.replacementRequests.TryRLock() {
+			writeAPIError(w, 503, "maintenance", errors.New("Выполняется восстановление"))
+			return
+		}
+		defer api.replacementRequests.RUnlock()
+		control.ServeHTTP(w, r)
+	}), api.metrics)
 }
 
 func (api *managementAPI) live(w http.ResponseWriter, _ *http.Request) {
@@ -434,6 +449,10 @@ func (api *managementAPI) status(w http.ResponseWriter, _ *http.Request) {
 func (api *managementAPI) apply(w http.ResponseWriter, r *http.Request) {
 	api.migration.Lock()
 	defer api.migration.Unlock()
+	if api.backupService != nil && api.backupService.Busy() {
+		writeAPIError(w, 409, "maintenance", errors.New("дождитесь операции с резервной копией"))
+		return
+	}
 
 	user, ok := api.authenticateAdmin(w, r)
 	if !ok {
@@ -471,6 +490,10 @@ func (api *managementAPI) apply(w http.ResponseWriter, r *http.Request) {
 func (api *managementAPI) rollback(w http.ResponseWriter, r *http.Request) {
 	api.migration.Lock()
 	defer api.migration.Unlock()
+	if api.backupService != nil && api.backupService.Busy() {
+		writeAPIError(w, 409, "maintenance", errors.New("дождитесь операции с резервной копией"))
+		return
+	}
 
 	user, ok := api.authenticateAdmin(w, r)
 	if !ok {

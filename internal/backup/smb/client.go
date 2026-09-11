@@ -58,6 +58,27 @@ type Client struct {
 	directory string
 }
 
+// Lock holds an open handle denying FILE_SHARE_DELETE. An orphan left by a
+// disconnected process can be removed, but a live owner's handle prevents it.
+func (c *Client) Lock(ctx context.Context) (func(), error) {
+	name, err := c.name(".docflow-operation-lock")
+	if err != nil {
+		return nil, err
+	}
+	share := c.share.WithContext(ctx)
+	file, err := share.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		if err = share.Remove(name); err != nil {
+			return nil, fmt.Errorf("SMB занят другой операцией: %w", err)
+		}
+		file, err = share.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			return nil, fmt.Errorf("SMB занят другой операцией: %w", err)
+		}
+	}
+	return func() { file.Close() }, nil
+}
+
 func Open(ctx context.Context, cfg Config, password string) (*Client, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err

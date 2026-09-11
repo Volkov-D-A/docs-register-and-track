@@ -48,13 +48,30 @@ type Service struct {
 	Box        *SecretBox
 	// Snapshot executes fn under the application's maintenance barrier.
 	Snapshot func(context.Context, func(context.Context) error) error
-	mu       sync.Mutex
-	active   string
-	cancel   context.CancelFunc
-	done     chan struct{}
+	// Replace executes the destructive coordinator under full maintenance.
+	Replace func(context.Context, func(context.Context) error) error
+	Reload  func(context.Context) error
+	Schema  int
+	mu      sync.Mutex
+	active  string
+	cancel  context.CancelFunc
+	done    chan struct{}
+}
+
+func (s *Service) Busy() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.active != "" || s.noPendingWork() != nil
 }
 
 func (s *Service) Ready() error {
+	if s.Directory != "" {
+		if _, err := os.Stat(filepath.Join(s.Directory, "recovery-required")); err == nil {
+			return fmt.Errorf("незавершённое восстановление; обычные операции заблокированы")
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
 	if s.Box == nil {
 		return fmt.Errorf("ключ настроек резервирования не подключён")
 	}
@@ -135,6 +152,14 @@ func (s *Service) Jobs() ([]JobView, error) {
 	for _, job := range jobs {
 		views = append(views, job.View())
 	}
+	ops, err := s.operations()
+	if err != nil {
+		return nil, err
+	}
+	for _, op := range ops {
+		views = append(views, JobView{ID: op.ID, Kind: op.Kind, CopyID: op.CopyID, State: op.State, CreatedAt: op.CreatedAt, UpdatedAt: op.UpdatedAt, Error: op.Error, ArchiveSize: op.Copy.Size})
+	}
+	sort.Slice(views, func(i, j int) bool { return views[i].CreatedAt.After(views[j].CreatedAt) })
 	return views, nil
 }
 func (s *Service) jobs() ([]Job, error) {
@@ -209,6 +234,9 @@ func (s *Service) Start(ctx context.Context, actor string, due time.Time) (JobVi
 	defer s.mu.Unlock()
 	if s.active != "" {
 		return JobView{}, fmt.Errorf("резервирование уже выполняется")
+	}
+	if err := s.noPendingOperations(); err != nil {
+		return JobView{}, err
 	}
 	cfg, err := (SettingsRepository{s.DB}).Load(ctx)
 	if err != nil {
@@ -292,7 +320,9 @@ func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	for {
-		s.tick(ctx)
+		if !s.runOperation(ctx) {
+			s.tick(ctx)
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -471,42 +501,46 @@ func (s *Service) execute(ctx context.Context, job *Job) error {
 		return err
 	}
 	// Retention errors do not invalidate the newly verified copy.
-	if err = s.retention(ctx, client, job.Target.Settings); err != nil {
+	if err = s.retention(ctx, client, job.Target.Settings, job.Actor); err != nil {
 		job.Error = "Копия создана; очистка старых копий не выполнена"
 		return s.persist(job)
 	}
 	return nil
 }
 
-func (s *Service) retention(ctx context.Context, client *smb.Client, settings Settings) error {
+func (s *Service) retention(ctx context.Context, client *smb.Client, settings Settings, actor string) error {
+	release, err := client.Lock(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	copies, err := RemoteCopies(ctx, client)
 	if err != nil {
 		return err
 	}
-	if len(copies) <= settings.KeepCopies {
-		return nil
-	}
-	for _, copy := range copies[:settings.KeepCopies] {
-		if err = client.Verify(ctx, copy.ID+".tar.gz", copy.Size, copy.SHA256); err != nil {
-			return err
-		}
-	}
 	cutoff := time.Now().AddDate(0, 0, -settings.RetentionDays)
-	for _, copy := range copies[settings.KeepCopies:] {
+	for i := len(copies) - 1; i >= settings.KeepCopies; i-- {
+		copy := copies[i]
 		if copy.CreatedAt.IsZero() || !copy.CreatedAt.Before(cutoff) {
 			continue
 		}
-		err = func() error {
-			lock := "." + copy.ID + ".restore-lock"
-			if err := client.Write(ctx, lock, strings.NewReader("retention")); err != nil {
-				return nil
-			}
-			defer client.Remove(context.WithoutCancel(ctx), lock)
-			if err := client.Remove(ctx, copy.ID+".manifest.json"); err != nil {
-				return err
-			}
-			return client.Remove(ctx, copy.ID+".tar.gz")
-		}()
+		op := operation{BackupOperation: models.BackupOperation{ID: uuid.NewString(), CopyID: copy.ID, Kind: "delete", State: "deleting", CreatedAt: time.Now().UTC()}, Actor: actor, Copy: copy, Target: StoredSettings{Settings: settings}}
+		if err = s.persistOperation(&op); err != nil {
+			return err
+		}
+		err = s.deleteRemote(ctx, client, copy, settings.KeepCopies)
+		if err == nil {
+			err = s.markDeleted(copy.ID)
+		}
+		if err != nil {
+			op.State = "failed"
+			op.Error = err.Error()
+		} else {
+			op.State = "completed"
+		}
+		if journalErr := s.persistOperation(&op); journalErr != nil {
+			return journalErr
+		}
 		if err != nil {
 			return err
 		}

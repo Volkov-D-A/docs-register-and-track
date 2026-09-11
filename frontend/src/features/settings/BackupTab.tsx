@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Form, Input, InputNumber, Select, Space, Switch, Table, Typography } from 'antd';
+import BackupCatalog from './BackupCatalog';
 import { models } from '../../../wailsjs/go/models';
 import { formatAppError } from '../../utils/appError';
 
 const labels: Record<string, string> = {
   queued: 'В очереди', snapshotting: 'Создание снимка', staged: 'Ожидает отправки',
   transferring: 'Передача на SMB', verifying: 'Проверка', completed: 'Готово',
+  deleting: 'Удаление', deleted: 'Удалено с SMB', downloading: 'Скачивание', safety_snapshot: 'Страховочная копия', replacing: 'Замена данных', finalizing: 'Завершение', restoring: 'Восстановление', migrating: 'Миграции', clearing_database: 'Подготовка БД', clearing_objects: 'Подготовка файлов', rolled_back: 'Исходное состояние возвращено', rollback_failed: 'Откат не выполнен', recovery_required: 'Требуется сброс окружения',
   failed: 'Ошибка', cancelled: 'Отменено', interrupted: 'Прервано перезапуском',
 };
 
@@ -13,13 +15,26 @@ export default function BackupTab() {
   const { message } = App.useApp();
   const [form] = Form.useForm<models.BackupSettingsUpdate>();
   const [jobs, setJobs] = useState<models.BackupJob[]>([]);
+  const [copies, setCopies] = useState<models.BackupCopy[]>([]);
+  const [catalogIssue, setCatalogIssue] = useState('');
+  const [catalogBusy, setCatalogBusy] = useState(false);
   const [issue, setIssue] = useState('');
   const [nextRun, setNextRun] = useState('');
   const [busy, setBusy] = useState(false);
+  const completedJobs = useRef('');
   const [passwordSet, setPasswordSet] = useState(false);
   const reloadJobs = useCallback(async () => {
     const api = await import('../../../wailsjs/go/services/SettingsService');
     setJobs(await api.ListBackups() ?? []);
+  }, []);
+  const reloadCatalog = useCallback(async () => {
+    setCatalogBusy(true);
+    try {
+      const api = await import('../../../wailsjs/go/services/SettingsService');
+      setCopies(await api.ListBackupCopies() ?? []);
+      setCatalogIssue('');
+    } catch (error) { setCopies([]); setCatalogIssue(formatAppError(error)); }
+    finally { setCatalogBusy(false); }
   }, []);
   useEffect(() => {
     let disposed = false;
@@ -31,11 +46,17 @@ export default function BackupTab() {
         form.setFieldsValue({ settings: response.settings, password: '', clearPassword: false });
         setNextRun(response.nextRun); setIssue(response.issue); setPasswordSet(response.settings.passwordSet);
         await reloadJobs();
+        await reloadCatalog();
       } catch (error) { if (!disposed) message.error(formatAppError(error)); }
     })();
     const timer = window.setInterval(() => { void reloadJobs().catch(() => undefined); }, 5000);
     return () => { disposed = true; window.clearInterval(timer); };
-  }, [form, message, reloadJobs]);
+  }, [form, message, reloadJobs, reloadCatalog]);
+  useEffect(() => {
+    const finished = jobs.filter(job => !job.kind && ['completed', 'deleted'].includes(job.state)).map(job => job.id + job.state).join(',');
+    if (completedJobs.current && completedJobs.current !== finished) void reloadCatalog();
+    completedJobs.current = finished || 'none';
+  }, [jobs, reloadCatalog]);
   const action = async (work: () => Promise<unknown>, success: string) => {
     setBusy(true);
     try { await work(); message.success(success); await reloadJobs(); }
@@ -51,6 +72,7 @@ export default function BackupTab() {
       const response = await api.GetBackupSettings();
       setPasswordSet(response.settings.passwordSet); setNextRun(response.nextRun);
       form.setFieldsValue({ password: '', clearPassword: false });
+      await reloadCatalog();
     }, 'Настройки сохранены')}>
       <Space align="start" wrap>
         <Form.Item name={['settings', 'smb', 'host']} label="Сервер SMB" rules={[{ required: true }]}><Input placeholder="nas.example.local" /></Form.Item>
@@ -78,13 +100,21 @@ export default function BackupTab() {
       </Space>
     </Form>
     {nextRun && <Typography.Text>Следующий запуск: {new Date(nextRun).toLocaleString()}</Typography.Text>}
+    <Typography.Title level={4}>Каталог копий на SMB</Typography.Title>
+    <Typography.Text>Каталог доступен независимо от локальной истории. Наличие manifest и совпадение размера не означают полную проверку архива.</Typography.Text>
+    <Button loading={catalogBusy} onClick={() => void reloadCatalog()}>Обновить каталог</Button>
+    {catalogIssue && <Alert type="error" showIcon title="Каталог SMB недоступен" description={catalogIssue} />}
+    <BackupCatalog copies={copies} loading={catalogBusy} onChanged={reloadCatalog} />
+    <Typography.Title level={4}>История заданий</Typography.Title>
     <Table rowKey="id" dataSource={jobs} pagination={{ pageSize: 10 }} columns={[
+      { title: 'Операция', dataIndex: 'kind', render: value => ({ verify: 'Проверка', restore: 'Восстановление', delete: 'Удаление' }[String(value)] ?? 'Создание копии') },
+      { title: 'ID копии', render: (_, job) => job.copyId || job.id },
       { title: 'Создано', dataIndex: 'createdAt', render: value => new Date(value).toLocaleString() },
       { title: 'Состояние', dataIndex: 'state', render: value => labels[value] ?? value },
       { title: 'Размер', dataIndex: 'archiveSize', render: value => value ? `${(value / 1024 / 1024).toFixed(1)} МБ` : '—' },
       { title: 'Ошибка', dataIndex: 'error' },
-      { title: 'Действия', render: (_, job) => ['snapshotting', 'transferring', 'verifying'].includes(job.state) ? <Button onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CancelBackup(job.id), 'Отмена запрошена')}>Отменить</Button> : ['staged', 'cancelled'].includes(job.state) && job.archiveSize > 0 ? <Button onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).RetryBackup(job.id), 'Повторная отправка запланирована')}>Повторить отправку</Button> : null },
+      { title: 'Действия', render: (_, job) => job.kind ? null : ['snapshotting', 'transferring', 'verifying'].includes(job.state) ? <Button onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CancelBackup(job.id), 'Отмена запрошена')}>Отменить</Button> : ['staged', 'cancelled'].includes(job.state) && job.archiveSize > 0 ? <Button onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).RetryBackup(job.id), 'Повторная отправка запланирована')}>Повторить отправку</Button> : null },
     ]} />
-    <Alert type="info" showIcon title="Аварийное восстановление" description="Восстановление выполняется в отдельном режиме сервера при остановленном приложении, в пустую базу и пустое файловое хранилище. Панель восстановления доступна даже при потере основной базы; для входа нужен аварийный ключ." />
+
   </Space>;
 }
