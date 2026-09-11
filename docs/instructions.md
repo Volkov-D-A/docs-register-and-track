@@ -60,5 +60,12 @@ npm ci
 # Настройка ключа шифрования
 Создайте ключ шифрования SMB-пароля вне Git: `openssl rand -base64 32`. Сохраните результат в защищённом файле и сделайте отдельную защищённую копию. Файл в Linux-контейнере должен читаться UID `65532`. Используйте владельца `65532`, режим `0400` и закрытый каталог на хосте. Задайте `DOCFLOW_SETTINGS_KEY_PATH` — абсолютный путь файла на Docker-хосте.
 
+# Добавление volume для хранения сертификата
+ docker volume create docflow-caddy-data
+ docker volume inspect docflow-caddy-data
+ docker compose config
+
 # Извлечение сертификата
-docker compose cp   caddy:/data/caddy/pki/authorities/local/root.crt   /tmp/docflow-root-ca.crt
+docker compose run --rm --no-deps caddy   caddy validate   --config /etc/caddy/Caddyfile   --adapter caddyfile
+docker compose up -d --force-recreate caddy
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt /tmp/docflow-root-ca.crt
