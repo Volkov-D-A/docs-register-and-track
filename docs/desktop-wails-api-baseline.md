@@ -34,6 +34,11 @@ UI: реальные CallExpression, разрешённые TypeScript checker (
 
 ## AssignmentService
 
+Обновление 12.09.2026, этап 18: runtime/generator используют
+`internal/desktop/services.AssignmentService`, 11 пользовательских методов.
+`SetSubstitutionStore` удалён из bindings; сервер получает замещения и настройку
+событий через конструктор. Таблица ниже сохраняет исходный снимок этапа 1.
+
 | Метод | UI | Внутренние Go-обращения |
 | --- | --- | --- |
 | `CancelSeries` | `frontend/src/components/AssignmentSeriesModal.tsx:106` | — |

@@ -198,7 +198,7 @@ func (s *AcknowledgmentService) Create(
 	}
 	effects = append(effects, journal)
 	for _, user := range ack.Users {
-		request := models.CreateUserEventRequest{RecipientUserID: user.UserID, ActorUserID: &creatorUUID, DocumentID: docUUID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, EntityType: models.UserEventEntityAcknowledgment, EntityID: ack.ID, EventType: models.UserEventAcknowledgmentCreated, Title: "Новое ознакомление", Message: "Вам направлен документ на ознакомление", Metadata: userEventMetadata(map[string]string{"status": "pending"})}
+		request := models.CreateUserEventRequest{RecipientUserID: user.UserID, ActorUserID: &creatorUUID, DocumentID: docUUID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, EntityType: models.UserEventEntityAcknowledgment, EntityID: ack.ID, EventType: models.UserEventAcknowledgmentCreated, Title: "Новое ознакомление", Message: "Вам направлен документ на ознакомление", Metadata: servereffects.UserEventMetadata(map[string]string{"status": "pending"})}
 		event, buildErr := servereffects.NewUserEventOutboxEvent("ack:"+ack.ID.String()+":created:"+user.UserID.String(), request)
 		if buildErr != nil {
 			return nil, buildErr
@@ -318,7 +318,7 @@ func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 		return nil, models.ErrForbidden
 	}
 	res, err := s.repo.GetAllActive(models.AcknowledgmentFilter{
-		AllowedDocumentKinds: documentKindCodes(allowedKinds),
+		AllowedDocumentKinds: serverservices.DocumentKindCodes(allowedKinds),
 	})
 	if err != nil {
 		return nil, err
@@ -433,7 +433,7 @@ func (s *AcknowledgmentService) acknowledgmentConfirmedEventRequests(ack *models
 		return nil
 	}
 
-	excluded := eventActorExcluded(s.auth)
+	excluded := servereffects.EventActorExcluded(s.auth)
 	requests := make([]models.CreateUserEventRequest, 0)
 	recipients := serverservices.AppendUniqueUserID(nil, ack.CreatorID)
 	controlRecipients, err := s.access.CollectUserIDsWithDocumentAction(s.userRepo, ack.DocumentKind, "acknowledge", excluded)
@@ -458,7 +458,7 @@ func (s *AcknowledgmentService) acknowledgmentConfirmedEventRequests(ack *models
 			EventType:       models.UserEventAcknowledgmentConfirmed,
 			Title:           "Ознакомление подтверждено",
 			Message:         "Пользователь подтвердил ознакомление с документом",
-			Metadata: userEventMetadata(map[string]string{
+			Metadata: servereffects.UserEventMetadata(map[string]string{
 				"status": "completed",
 			}),
 		})

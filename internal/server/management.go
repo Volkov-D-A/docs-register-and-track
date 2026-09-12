@@ -201,9 +201,7 @@ func newManagementAPI(app *App) *managementAPI {
 			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
-			service := services.NewServerAssignmentService(assignments, users, principal, documentAccess)
-			service.SetSubstitutionStore(substitutions)
-			return service
+			return serverservices.NewAssignmentService(assignments, users, principal, documentAccess, substitutions, true)
 		},
 		acknowledgments: func(user *models.User) acknowledgmentAPI {
 			principal := requestDocumentPrincipal{user: user}

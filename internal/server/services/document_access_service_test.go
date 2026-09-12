@@ -903,10 +903,15 @@ func (s *kindActionDocumentAccessStore) HasPermission(kind, action, departmentID
 }
 
 type userSubstitutionStoreStub struct {
+	isActive map[[2]uuid.UUID]bool
 	ports.UserSubstitutionStore
 	activePrincipals []uuid.UUID
 }
 
 func (s *userSubstitutionStoreStub) GetActivePrincipalIDs(uuid.UUID) ([]uuid.UUID, error) {
 	return s.activePrincipals, nil
+}
+
+func (s *userSubstitutionStoreStub) IsActiveSubstitute(substituteID, principalID uuid.UUID) (bool, error) {
+	return s.isActive[[2]uuid.UUID{substituteID, principalID}], nil
 }

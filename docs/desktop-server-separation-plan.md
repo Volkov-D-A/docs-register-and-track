@@ -1,6 +1,6 @@
 # План разделения desktop- и серверного кода
 
-Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября, этапы 13–17 — 9 сентября 2026 года.
+Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября, этапы 13–17 — 9 сентября 2026 года. Этап 18 завершён 12 сентября 2026 года.
 
 Основание: аудит кода после разделения вложений в коммите `76e90f7` и
 [риск №3 из ревью перехода на сервер](server-transition-code-review.md).
@@ -38,6 +38,19 @@ repository, БД, object storage и transactional outbox. Общие пакет�
 Остаются один репозиторий и один `go.mod`. Выделение микросервисов, нескольких
 Go-модулей, переделка схемы БД и исправление остальных рисков ревью не входят в
 план. Принятое решение по риску №2 не меняется.
+
+## Актуализация после SeaweedFS и серверного резервирования
+
+12.09.2026: проверен код на `563a111` после этапа 17 (`226736a`). Этапы 1–17
+сохранены; после завершения этапа 18 следующий этап — 19. SeaweedFS использует серверный S3Storage,
+управление резервированием из desktop идёт через HTTP. Новые пакеты backup
+(включая SMB) и liveevents принадлежат серверу; до переноса на этапе 27 их
+границы проверяются отдельно. Актуальные зависимости и сценарии добавлены в
+[карту владельцев](desktop-server-boundaries.md#актуализация-после-этапа-17).
+
+Поддержка архивов v2/v3 — действующий сценарий восстановления данных. Запрет
+совместимости в этом плане относится к промежуточным API и путям Go-пакетов,
+а не к форматам резервных копий; `backup/legacy.go` переносится с покрытием.
 
 ## Подтверждённое исходное состояние
 
@@ -896,11 +909,61 @@ bindings, тесты и импорты. Для каждого сервиса с�
   HTTP-контракты, SQL и бизнес-правила не менялись. Нативный GUI вручную
   не проверялся.
 
-- [ ] **18. Разделить AssignmentService.**
+- [x] **18. Разделить AssignmentService.**
   Перенести все HTTP-операции в desktop, серверу оставить поручения и серии,
   замещения, переходы статусов и outbox. Настройки событий передать при создании.
   Результат: create/update, исполнение, возврат, завершение итерации и создание
   следующей, история серии и вложения проходят существующие сценарии.
+
+  Реализация 12.09.2026: HTTP-адаптер перенесён в desktop/services,
+  серверные поручения и серии — в server/services. Обе регистрации Wails и
+  серверный composition root переведены на новые конструкторы; замещения и
+  настройка событий передаются при создании. Старые конструкторы и
+  SetSubstitutionStore удалены, namespace services и 11 пользовательских
+  методов сохранены. Helpers событий перенесены в server/effects, коды типов
+  документов — в server/services; ознакомления и dashboard используют новые
+  функции без forwarding-обёрток. Тесты серверного поведения перенесены вместе
+  с реализацией, добавлены тесты desktop-контекста, ошибок и параметров серии.
+  Backup/liveevents получили архитектурные ограничения до физического переноса.
+  Commit: не создан; изменения в рабочем дереве.
+
+  Проверки:
+
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/server/services ./internal/server/effects ./internal/services ./internal/server ./internal/app ./internal/architecture -count=1`
+    — успешно; тесты с внешними integration-переменными пропущены.
+  - `GOCACHE=/tmp/go-build-cache go test ./internal/desktop/services -run Assignment -count=1`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go vet ./internal/desktop/services ./internal/server/services ./internal/server/effects ./internal/services ./internal/server ./internal/app ./internal/architecture`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/app ./internal/server/services ./internal/desktop/services -run 'Assignment|CompositionRoot' -count=1`
+    — успешно.
+  - `make wails-bindings` — успешно; удалён служебный метод, остальные API
+    сохранены. Изменения models.ts/runtime — нормализация пробелов и EOF
+    штатным генератором, поля DTO не менялись.
+  - `make frontend-lint frontend-build` — успешно.
+  - Из frontend: `npm run test:components -- test/components/assignmentCompletionModal.test.tsx test/components/assignmentSeriesControls.test.tsx test/components/assignmentSeriesModal.test.tsx`
+    — успешно, 4 теста.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    и `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make docs-links-check` — успешно.
+  - `make integration-test` — не запущен: Docker Compose недоступен в текущей
+    WSL-дистрибуции; повтор вне песочницы дал тот же результат. Docker CLI
+    сообщает, что нужно включить WSL integration в Docker Desktop.
+    Контейнеры и тома этой попыткой не создавались.
+
+  - После запуска Docker повторный `make integration-test` вне песочницы
+    остановился на публикации PostgreSQL-порта 55432; порт 55439 дал тот же
+    отказ Docker `/forwards/expose` (500). Повтор с другим портом:
+    `DOCFLOW_TEST_POSTGRES_PORT=15432 make integration-test INTEGRATION_DSN='postgres://docflow_integration:docflow_integration@127.0.0.1:15432/docflow_test_outbox?sslmode=disable'`
+    — успешно, полный прогон цели с PostgreSQL/SeaweedFS, включая repository,
+    серверные HTTP-сценарии, transactional effects и S3. Все тестовые контейнеры,
+    тома и сеть удалены штатным cleanup; завершение с кодом 0.
+
+  Этап завершён 12.09.2026 после успешной интеграционной проверки.
+  Windows/ручной GUI и полный storage-smoke-test
+  не выполнялись; для этого переноса без изменения storage/backup они остаются
+  проверками соответствующих инфраструктурных этапов и этапа 29.
 
 - [ ] **19. Разделить AcknowledgmentService.**
   Выделить desktop-адаптер и серверную реализацию, передать substitutions/events
@@ -928,6 +991,8 @@ bindings, тесты и импорты. Для каждого сервиса с�
   и system diagnostics принадлежат серверу. Передать metrics/diagnostics
   конструктору. Результат: фильтры, права на отчёты, timeout, refresh/lease и
   метрики проверены; desktop не содержит storage и серверной диагностики.
+  Передать refreshRunner конструктору серверного сервиса; сохранить учёт
+  detached refresh и ожидание их завершения перед снимком backup.
 
 ### Завершение структуры каталогов
 
@@ -936,23 +1001,36 @@ bindings, тесты и импорты. Для каждого сервиса с�
   серверное логирование. Общую обработку записей оставить независимой;
   узкие интерфейсы определить у потребителя.
   Результат: серверное логирование не импортирует desktop HTTP-клиент,
-  desktop-конфигурация не требует серверной инфраструктуры.
+  desktop-конфигурация не требует серверной инфраструктуры. BackupConfig
+  (постоянный каталог, ключ настроек, лимит места), PostgreSQL и S3 принадлежат
+  серверу; backup и storage переводятся на серверную конфигурацию вместе.
 
 - [ ] **25. Перенести HTTP-клиент и desktop composition root.**
   Перевести serverclient и app в desktop, обновить main, генератор Wails,
   lifecycle и tooling. Проверить оставшиеся background/schema зависимости.
   Результат: корневой Wails main собирает только desktop-граф; серверный
   production-код не импортирует desktop. HTTP-тесты могут использовать клиент.
+  Сохранить SSE reconnect/cancellation и Wails-доставку `server:event`, завершение
+  подписки сессии и отдельное наблюдение восстановления через statusToken.
+  Проверить race и отсутствие токенов в событиях Wails.
 
 - [ ] **26. Перенести database и repository.**
   Перенести database вместе с embedded migrations, затем repository в server.
   Одновременно обновить импорты, пути в tests/tools и конфигурацию генераторов.
   Результат: схемы и SQL не изменены, миграции доступны серверной сборке,
-  PostgreSQL integration suite проходит.
+  PostgreSQL integration suite проходит. Обновить также импорты backup,
+  LatestSchemaVersion и миграцию 012_backups. После восстановления репозитории,
+  workers и backup должны использовать заменённое подключение к БД;
+  сохранить instance lease при замене пула.
 
 - [ ] **27. Перенести storage и оставшуюся серверную инфраструктуру.**
   Перевести object storage, серверные workers/координаторы по карте этапа 1;
   общий код не переносить на сервер только ради очистки дерева.
+  Явно перенести backup вместе с smb и liveevents в server, обновить cmd,
+  testutil/integrations3, smoke tooling и прямых потребителей S3 helpers.
+  Сохранить барьер maintenance: ожидание запросов и refresh, остановку workers,
+  lease, блокировку recovery-required и возобновление после восстановления.
+  SSE публикуется после долговечной записи user event, не заменяет outbox.
   Результат: streaming/outbox/reconciliation сохранены, Dockerfile и команды
   запуска используют актуальные пути, прежние каталоги удалены.
 
@@ -962,6 +1040,8 @@ bindings, тесты и импорты. Для каждого сервиса с�
   database/repository/storage; server не зависит от desktop и Wails; общие
   пакеты не зависят от обеих сторон. Проверять runtime и generator Bind,
   точные списки UI-методов, отсутствие lifecycle/setters и серверных типов.
+  Включить backup/smb и liveevents; сохранить пользовательские HTTP-методы
+  резервирования в актуальном снимке Wails API.
   Результат: проверки добавлены в штатные цели/CI и предотвращают возврат смешения.
 
 - [ ] **29. Итоговая проверка и обновление архитектурной документации.**
@@ -969,6 +1049,11 @@ bindings, тесты и импорты. Для каждого сервиса с�
   PostgreSQL integration suite, frontend lint/test/build и повторную генерацию
   bindings. Проверить server build с `CGO_ENABLED=0`, desktop Linux/Windows и
   нативные сценарии выбора/скачивания/открытия файлов, login/logout, maintenance.
+  Дополнительно выполнить `make storage-smoke-test`: реальный PostgreSQL,
+  SeaweedFS и SMB, restart/recreate хранилища, backup, replacement/reset restore
+  v2/v3 и чтение восстановленных вложений. Обычный integration-test не заменяет
+  этот прогон. Проверить race для backup, liveevents, serverclient/background
+  и координации server, права SSE и scoped statusToken во время maintenance.
   Обновить README, tech_docs, ревью и команды, удалить устаревшие описания.
   Результат: все критерии ниже подтверждены, ограничения явно записаны.
 
@@ -1019,3 +1104,9 @@ PostgreSQL-интеграция не выполнялась. Перед этап
 две на отсутствующий `docs/bugs.md` и две на
 `docs/https-internal-ca-setup.md`. Эти дефекты не относятся к разделению;
 новые ссылки плана должны быть корректными независимо от них.
+
+Обновление 12.09.2026: `make docs-links-check` проходит. Прежние ошибки ссылок
+больше не блокируют проверку. В анализе готовности прошли архитектурные тесты,
+контракт Wails API, прицельные Go-тесты/vet и сборки server (CGO_ENABLED=0) и
+desktop Linux (webkit2_41). Интеграция PostgreSQL/SeaweedFS/SMB, race, frontend,
+Windows и ручной GUI в этом анализе не выполнялись; это не результат этапа 29.

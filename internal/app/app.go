@@ -57,7 +57,7 @@ func NewBindingsWailsOptions() *options.App {
 			&desktopservices.DocumentQueryService{},
 			&desktopservices.DocumentRegistrationService{},
 			&services.AdministrativeOrderService{},
-			&services.AssignmentService{},
+			&desktopservices.AssignmentService{},
 			&services.DashboardService{},
 			&services.StatisticsService{},
 			&desktopservices.DepartmentService{},
@@ -132,7 +132,7 @@ func newWailsOptionsWithDependencies(
 	documentRegistrationService := desktopservices.NewDocumentRegistrationService(serverClient, operationLifecycle, metrics)
 	userEventService := desktopservices.NewUserEventService(serverClient)
 	administrativeOrderService := services.NewAdministrativeOrderServiceWithClient(serverClient)
-	assignmentService := services.NewAssignmentServiceWithClient(serverClient)
+	assignmentService := desktopservices.NewAssignmentService(serverClient)
 	departmentService := desktopservices.NewDepartmentService(serverClient)
 
 	attachmentService, startAttachments, err := desktopservices.NewDesktopAttachmentService(serverClient, desktopservices.DesktopAttachmentOptions{Lifecycle: operationLifecycle, Metrics: metrics})

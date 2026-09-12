@@ -34,10 +34,6 @@ export function GetSeriesHistory(arg1) {
   return window['go']['services']['AssignmentService']['GetSeriesHistory'](arg1);
 }
 
-export function SetSubstitutionStore(arg1) {
-  return window['go']['services']['AssignmentService']['SetSubstitutionStore'](arg1);
-}
-
 export function Update(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['services']['AssignmentService']['Update'](arg1, arg2, arg3, arg4, arg5);
 }

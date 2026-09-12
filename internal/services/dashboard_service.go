@@ -77,7 +77,7 @@ func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
 			}
 			filter.AccessibleByUserIDs = serverservices.UUIDStrings(subjectIDs)
 		} else if len(readableKinds) < len(models.AllDocumentKindSpecs()) {
-			filter.AllowedDocumentKinds = documentKindCodes(readableKinds)
+			filter.AllowedDocumentKinds = serverservices.DocumentKindCodes(readableKinds)
 			subjectIDs, err := s.access.GetCurrentUserAndSubstitutionSubjectIDs()
 			if err != nil {
 				return nil, err

@@ -21,6 +21,8 @@ func forbidden(owner, dependency string) bool {
 	}
 	desktop := within(owner, module+"internal/desktop")
 	server := within(owner, module+"internal/server") && owner != module+"internal/server"
+	// Server infrastructure added after step 17 is protected before its move.
+	server = server || within(owner, module+"internal/backup") || within(owner, module+"internal/liveevents")
 	shared := false
 	for _, root := range []string{"dto", "models", "operations", "observability", "releaseassets", "attachmentname"} {
 		shared = shared || within(owner, module+"internal/"+root)
@@ -35,7 +37,7 @@ func forbidden(owner, dependency string) bool {
 		return true
 	}
 	if desktop || shared {
-		for _, root := range []string{"server", "database", "repository", "storage", "outbox", "background", "coordination"} {
+		for _, root := range []string{"server", "database", "repository", "storage", "outbox", "background", "coordination", "backup", "liveevents"} {
 			if within(dependency, module+"internal/"+root) {
 				return true
 			}
@@ -83,6 +85,16 @@ func TestBoundaryPolicy(t *testing.T) {
 		{"internal/dto", "internal/database", true},
 		{"internal/serverclient", "internal/database", true},
 		{"internal/background", "internal/database", true},
+		{"internal/desktop/services", "internal/backup", true},
+		{"internal/desktop/services", "internal/backup/smb", true},
+		{"internal/models", "internal/liveevents", true},
+		{"internal/backup", "internal/serverclient", true},
+		{"internal/backup/smb", "internal/desktop/services", true},
+		{"internal/liveevents", "internal/services", true},
+		{"internal/liveevents", "internal/app", true},
+		{"internal/backup", "internal/storage", false},
+		{"internal/backup", "internal/database", false},
+		{"internal/backup", "internal/liveevents", false},
 		{"internal/desktop/services", "internal/dto", false},
 		{"internal/server/services", "internal/server/ports", false},
 		{"internal/services", "internal/database", false},
@@ -93,5 +105,10 @@ func TestBoundaryPolicy(t *testing.T) {
 	}
 	if !forbidden(module+"internal/server/services", "github.com/wailsapp/wails/v2/pkg/runtime") {
 		t.Fatal("server must reject Wails")
+	}
+	for _, owner := range []string{"backup", "backup/smb", "liveevents"} {
+		if !forbidden(module+"internal/"+owner, "github.com/wailsapp/wails/v2/pkg/runtime") {
+			t.Errorf("%s must reject Wails", owner)
+		}
 	}
 }

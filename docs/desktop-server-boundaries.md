@@ -104,3 +104,44 @@ serverclient, background и app удалены прямые импорты datab
 сохраняет транзитивную связь через legacy AuthService в services до этапа 6.
 Проверка архитектуры уже запрещает возврат database в serverclient/background.
 Исходная таблица выше сохранена как снимок этапа 1.
+
+## Актуализация после этапа 17
+
+12.09.2026, код `563a111`; исходные таблицы выше остаются историческим снимком.
+Desktop не зависит от database/storage/backup. Сервер пока получает старые
+services и serverclient; окончательное закрытие composition root — этап 28.
+
+| Пакет / зависимость | Владелец и действие |
+| --- | --- |
+| backup → config, database, storage, models, liveevents, backup/smb | Сервер; конфигурация этап 24, импорты database этап 26, перенос в server/backup этап 27 |
+| backup/smb → models | Сервер; перенос вместе с backup, прямой SMB остаётся вне desktop |
+| liveevents → sync | Серверная шина уведомлений об изменении данных; server/liveevents на этапе 27 |
+| storage → config, AWS SDK v2 | Серверный SeaweedFS S3 adapter и helpers для backup/CLI; перенос этап 27 |
+| serverclient/events → models | Desktop SSE, сессия и scoped operation status; перенос этап 25 |
+| desktop/services/backup → models, serverclient | Пользовательские методы SettingsService, уже отделены |
+| services/StatisticsService → refreshRunner | Сервер учитывает фоновые refresh через app.detached; конструктор и ожидание перед backup сохраняются на этапе 23 |
+| server/app → backup Snapshot/Replace/Reload | Серверный maintenance, lease, остановка workers и замена DB pool; сохранить на этапах 26–27 |
+| testutil/integrations3 → config, storage | Тестовая инфраструктура; обновить с этапами 24/27 |
+
+До переноса backup/** и liveevents/** проверяются как серверные пакеты:
+запрещены транзитивные desktop, serverclient, Wails и старые services/app.
+Desktop и общие пакеты не могут импортировать backup/liveevents. Проверка
+производственного графа автоматически охватывает их новые подпакеты.
+
+Дополнительные сценарии для переноса:
+
+- Backup: согласованный снимок БД/S3, SMB-передача, verify/delete, восстановление
+  v2/v3, replacement/reset, recovery-required, смена пула без потери lease.
+- Maintenance: ожидание активных запросов и detached refresh, остановка worker
+  вместе со startup work, корректное возобновление после восстановления.
+- SSE: доставка после сохранения user event, фильтрация admin topics, повторная
+  проверка сессии, reconnect и отмена; scoped statusToken доступен во время
+  восстановления и не передаётся через Wails events.
+- Wails: новые пользовательские backup-методы уже внесены в JSON-снимок;
+  служебные методы по-прежнему удаляются при разделении.
+
+Покрытие: server/backup_test.go, restore_status_test.go, events_test.go,
+serverclient/events_test.go и backup_test.go, background/lifecycle_test.go,
+backup/*_test.go. Реальный storage/backup/restore проверяет
+`make storage-smoke-test` с изолированными PostgreSQL/SeaweedFS/SMB;
+`make integration-test` остаётся отдельной проверкой SQL и транзакций.

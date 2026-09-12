@@ -1,4 +1,4 @@
-package services
+package effects
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	ports "github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
-func userEventMetadata(values map[string]string) string {
+func UserEventMetadata(values map[string]string) string {
 	if len(values) == 0 {
 		return "{}"
 	}
@@ -19,14 +19,14 @@ func userEventMetadata(values map[string]string) string {
 	return string(data)
 }
 
-func documentNumberLabel(number string) string {
+func DocumentNumberLabel(number string) string {
 	if number == "" {
 		return "без номера"
 	}
 	return number
 }
 
-func eventActorID(auth ports.DocumentAccessPrincipal) *uuid.UUID {
+func EventActorID(auth ports.DocumentAccessPrincipal) *uuid.UUID {
 	if auth == nil {
 		return nil
 	}
@@ -37,9 +37,9 @@ func eventActorID(auth ports.DocumentAccessPrincipal) *uuid.UUID {
 	return &currentUserID
 }
 
-func eventActorExcluded(auth ports.DocumentAccessPrincipal) map[uuid.UUID]struct{} {
+func EventActorExcluded(auth ports.DocumentAccessPrincipal) map[uuid.UUID]struct{} {
 	excluded := make(map[uuid.UUID]struct{})
-	actorID := eventActorID(auth)
+	actorID := EventActorID(auth)
 	if actorID != nil {
 		excluded[*actorID] = struct{}{}
 	}
