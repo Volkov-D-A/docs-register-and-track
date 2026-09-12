@@ -733,7 +733,7 @@ Seq и ключи не входят в backup; шифрование архиво
 Production RPO/RTO подтверждаются пробным восстановлением.
 
 Подробности, установка, ограничения и проверки:
-[серверное резервирование](server-backup-operations.md).
+[серверное резервирование](instructions.md#серверное-резервирование-и-восстановление).
 
 ## Release And Versioning
 
@@ -930,7 +930,7 @@ High-risk changes requiring extra care:
 - technical logging and audit trail.
 
 Актуальные параметры SeaweedFS 4.46, runtime secrets, сброс dev-стека и проверка
-backup/restore v2 описаны в [инструкции хранилища](seaweedfs-operations.md).
+backup/restore v2/v3 описаны в [инструкции хранилища](instructions.md#эксплуатация-seaweedfs).
 
 
 ## Уведомления сервера (SSE)

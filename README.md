@@ -51,7 +51,7 @@ contains only its value, without `NAME=` or quotes:
 | `S3_SECRET_KEY_FILE_PATH` | S3 secret access key |
 | `DOCFLOW_SETTINGS_KEY_PATH` | Settings encryption key |
 
-Create the encryption key as described in [backup setup](docs/server-backup-operations.md).
+Create the encryption key as described in [backup setup](docs/instructions.md#серверное-резервирование-и-восстановление).
 Use a protected host directory (mode `0700`). The PostgreSQL password, S3 secret
 and settings key must be readable by server UID 65532 (owner 65532, mode `0400`).
 The supplied Seq image starts as root; its password file can be owned by root
@@ -190,7 +190,6 @@ Maintained project documentation:
 
 - [Technical reference](docs/tech_docs.md)
 - [Server service implementation plan](docs/server-service-implementation-plan.md)
-- [Server backup and MinIO removal plan](docs/server-backup-implementation-plan.md)
 - [Server transition review](docs/server-transition-code-review.md)
 - [Setup and backup/restore instructions](docs/instructions.md)
 - [Release notes source](docs/releases.yaml)
@@ -284,7 +283,7 @@ The backend blocks newer/dirty schema states for login and migration operations.
 ## Backup And Restore
 
 Configure direct SMB access and the schedule in Settings → Backups.
-See [server backup and recovery](docs/server-backup-operations.md) for Compose
+See [server backup and recovery](docs/instructions.md#серверное-резервирование-и-восстановление) for Compose
 secrets, persistent staging, and restoration through the ordinary admin panel, including after a complete target reset.
 
 Release requires a successful manual test restore of PostgreSQL and SeaweedFS from an actual backup archive or production-like backup set.
@@ -294,6 +293,6 @@ Release requires a successful manual test restore of PostgreSQL and SeaweedFS fr
 Operator-facing startup behavior, logging and recovery constraints are described in the [technical reference](docs/tech_docs.md). Historical findings are available in the [server transition review](docs/server-transition-code-review.md).
 
 SeaweedFS configuration, runtime secrets, dev reset and S3 operations are
-covered in the [storage operations guide](docs/seaweedfs-operations.md).
+covered in the [storage operations guide](docs/instructions.md#эксплуатация-seaweedfs).
 Run `make storage-smoke-test` to verify the current server build, restart
 persistence and PostgreSQL/S3 restore in disposable volumes.
