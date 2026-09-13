@@ -31,7 +31,7 @@ export DOCFLOW_INTEGRATION_DSN="postgres://docflow_integration:docflow_integrati
 export DOCFLOW_INTEGRATION_SERVER_URL=http://127.0.0.1:$DOCFLOW_TEST_SERVER_PORT
 export GOCACHE=${GOCACHE:-/tmp/go-build-cache}
 "${compose[@]}" up -d --build --wait
-DOCFLOW_INTEGRATION_SMB_HOST=127.0.0.1 DOCFLOW_INTEGRATION_SMB_PORT=5445 DOCFLOW_INTEGRATION_SMB_SHARE=backups DOCFLOW_INTEGRATION_SMB_USER=docflow DOCFLOW_INTEGRATION_SMB_PASSWORD=integration-password go test ./internal/backup/smb -run Integration -count=1 -v | tee "$evidence/smb-lock.log"
+DOCFLOW_INTEGRATION_SMB_HOST=127.0.0.1 DOCFLOW_INTEGRATION_SMB_PORT=5445 DOCFLOW_INTEGRATION_SMB_SHARE=backups DOCFLOW_INTEGRATION_SMB_USER=docflow DOCFLOW_INTEGRATION_SMB_PASSWORD=integration-password go test ./internal/server/backup/smb -run Integration -count=1 -v | tee "$evidence/smb-lock.log"
 # Fresh server has applied the ordinary embedded migrations and created its bucket.
 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/api-seed.log"
 "${compose[@]}" restart seaweedfs

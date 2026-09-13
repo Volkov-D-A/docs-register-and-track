@@ -5,7 +5,3 @@
 export function GetByDocumentID(arg1) {
   return window['go']['services']['JournalService']['GetByDocumentID'](arg1);
 }
-
-export function SetOperationLifecycle(arg1) {
-  return window['go']['services']['JournalService']['SetOperationLifecycle'](arg1);
-}

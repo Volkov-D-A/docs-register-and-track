@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 )
 
 var errServerNomenclatureClientNotConfigured = errors.New("docflow-server nomenclature client is not configured")

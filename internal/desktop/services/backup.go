@@ -2,7 +2,7 @@ package services
 
 import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/serverclient"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 )
 
 func (s *SettingsService) StartBackupOperation(kind string, req models.BackupOperationRequest) (models.BackupOperationStarted, error) {

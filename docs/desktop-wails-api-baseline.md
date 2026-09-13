@@ -5,7 +5,22 @@ UI: реальные CallExpression, разрешённые TypeScript checker (
 «—» означает отсутствие прямого вызова в production UI. Go: обращения к методам вне тестов, разрешённые go/types по типу получателя
 (включая передачу метода как callback). Служебные методы подлежат удалению.
 
+Обновление 13.09.2026, этап 25: composition root и контрактный тест находятся
+в `internal/desktop/app`, снимок — `internal/desktop/app/testdata/wails-api.json`.
+HTTP-клиент перенесён в `internal/desktop/serverclient`; Wails namespaces сохранены.
+
+Обновление 13.09.2026, этап 28: актуальный снимок содержит 25 сервисов и
+126 пользовательских методов без служебных исключений. Исторические таблицы
+ниже не являются разрешением публиковать удалённые методы. Контрактный тест
+проверяет также пакеты bound-типов и вложенные типы аргументов/результатов.
+
 ## AcknowledgmentService
+
+Обновление 12.09.2026, этап 19: runtime/generator используют
+`internal/desktop/services.AcknowledgmentService`, 8 пользовательских методов.
+`SetSubstitutionStore` удалён из bindings; сервер получает замещения через
+конструктор и формирует события через server/effects. Таблица ниже сохраняет
+исходный снимок этапа 1.
 
 | Метод | UI | Внутренние Go-обращения |
 | --- | --- | --- |
@@ -21,12 +36,20 @@ UI: реальные CallExpression, разрешённые TypeScript checker (
 
 ## AdminAuditLogService
 
+Обновление 13.09.2026, этап 21: runtime/generator используют
+`internal/desktop/services.AdminAuditLogService`; доступен только `GetAll`.
+`LogAction` удалён из bindings. Таблица ниже сохраняет исходный снимок.
+
 | Метод | UI | Внутренние Go-обращения |
 | --- | --- | --- |
 | `GetAll` | `frontend/src/features/settings/AuditLogTab.tsx:40` | — |
 | `LogAction` | — | — |
 
 ## AdministrativeOrderService
+
+Обновление 13.09.2026, этап 20: runtime/generator используют
+`internal/desktop/services.AdministrativeOrderService`; `MarkAcknowledged`
+сохраняет сигнатуру и namespace, серверная реализация находится отдельно.
 
 | Метод | UI | Внутренние Go-обращения |
 | --- | --- | --- |
@@ -99,6 +122,11 @@ UI: реальные CallExpression, разрешённые TypeScript checker (
 
 ## DashboardService
 
+Обновление 13.09.2026, этап 22: runtime/generator используют
+`internal/desktop/services.DashboardService`; доступен только `GetActivity`.
+`SetOperationMetrics` удалён из bindings, метрики передаются серверному
+конструктору. Таблица ниже сохраняет исходный снимок.
+
 | Метод | UI | Внутренние Go-обращения |
 | --- | --- | --- |
 | `GetActivity` | `frontend/src/pages/DashboardPage.tsx:53` | — |
@@ -150,12 +178,21 @@ UI: реальные CallExpression, разрешённые TypeScript checker (
 
 ## JournalService
 
+Обновление 13.09.2026, этап 21: runtime/generator используют
+`internal/desktop/services.JournalService`; доступен только `GetByDocumentID`.
+`SetOperationLifecycle` удалён из bindings. Таблица ниже сохраняет исходный снимок.
+
 | Метод | UI | Внутренние Go-обращения |
 | --- | --- | --- |
 | `GetByDocumentID` | `frontend/src/components/JournalList.tsx:36` | — |
 | `SetOperationLifecycle` (служебный) | — | — |
 
 ## LinkService
+
+Обновление 13.09.2026, этап 20: runtime/generator используют
+`internal/desktop/services.LinkService`, четыре пользовательские операции.
+`SetOperationLifecycle` и `SetOperationMetrics` удалены из bindings; зависимости
+передаются серверному конструктору. Таблица ниже сохраняет исходный снимок.
 
 | Метод | UI | Внутренние Go-обращения |
 | --- | --- | --- |
@@ -178,6 +215,10 @@ UI: реальные CallExpression, разрешённые TypeScript checker (
 | `Update` | `frontend/src/features/settings/NomenclatureTab.tsx:50` | — |
 
 ## OutboxAdminService
+
+Обновление 13.09.2026, этап 22: runtime/generator используют
+`internal/desktop/services.OutboxAdminService`; `GetStats`, `GetFailed` и
+`Requeue` сохранили сигнатуры. Проверки прав выполняются серверной реализацией.
 
 | Метод | UI | Внутренние Go-обращения |
 | --- | --- | --- |
@@ -231,6 +272,13 @@ UI: реальные CallExpression, разрешённые TypeScript checker (
 | `Update` | `frontend/src/features/settings/SystemSettingsTab.tsx:45`, `frontend/src/hooks/useOrganizationSetup.ts:84`, `frontend/src/hooks/useOrganizationSetup.ts:85` | — |
 
 ## StatisticsService
+
+Обновление 13.09.2026, этап 23: runtime/generator используют
+`internal/desktop/services.StatisticsService`; девять пользовательских методов
+сохранены. `SetOperationLifecycle` и `SetOperationMetrics` удалены; параметры
+диагностики и обновления хранилища передаются серверному конструктору.
+Generated models больше не содержат observability.Registry и operations.Lifecycle.
+Таблица ниже сохраняет исходный снимок.
 
 | Метод | UI | Внутренние Go-обращения |
 | --- | --- | --- |

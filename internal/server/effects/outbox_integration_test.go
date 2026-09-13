@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 

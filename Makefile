@@ -48,11 +48,13 @@ dev:
 build-linux:
 	$(MAKE) release-assets
 	wails build -tags $(TAGS) -platform linux/amd64
+	node $(FRONTEND_DIR)/scripts/normalize-wails-bindings.mjs
 
 # Кросс-компиляция готового .exe для Windows (для конечных пользователей)
 build-windows:
 	$(MAKE) release-assets
 	wails build -platform windows/amd64
+	node $(FRONTEND_DIR)/scripts/normalize-wails-bindings.mjs
 
 check-docker:
 	@command -v docker >/dev/null 2>&1 || (echo "docker is required" >&2; exit 1)
@@ -102,7 +104,7 @@ db-performance-check: check-integration-env
 		mkdir -p $(PERFORMANCE_DIR); \
 		$(INTEGRATION_COMPOSE) up -d --build --wait; \
 		$(INTEGRATION_COMPOSE) run --rm s3-ready; \
-		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
+		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/server/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
 		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -deep-page $(PERFORMANCE_DEEP_PAGE) | tee $(PERFORMANCE_DIR)/summary.txt
 
 # Эти цели полезны при ручной отладке интеграционных тестов. Данные не

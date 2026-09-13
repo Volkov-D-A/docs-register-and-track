@@ -1,6 +1,6 @@
 # План разделения desktop- и серверного кода
 
-Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября, этапы 13–17 — 9 сентября 2026 года. Этап 18 завершён 12 сентября 2026 года.
+Дата: 7 сентября 2026 года. Статус: выполняется; этапы 1–12 завершены 8 сентября, этапы 13–17 — 9 сентября 2026 года. Этап 18 завершён 12 сентября 2026 года. Реализация этапов 19–28 завершена 13 сентября. Накопленные автоматические проверки этапов 19–28 прошли. Этап 29 остаётся открытым только для ручной проверки нативного GUI; результаты приведены ниже.
 
 Основание: аудит кода после разделения вложений в коммите `76e90f7` и
 [риск №3 из ревью перехода на сервер](server-transition-code-review.md).
@@ -42,7 +42,7 @@ Go-модулей, переделка схемы БД и исправление 
 ## Актуализация после SeaweedFS и серверного резервирования
 
 12.09.2026: проверен код на `563a111` после этапа 17 (`226736a`). Этапы 1–17
-сохранены; после завершения этапа 18 следующий этап — 19. SeaweedFS использует серверный S3Storage,
+сохранены; после реализации этапов 19–28 следующий этап — 29. SeaweedFS использует серверный S3Storage,
 управление резервированием из desktop идёт через HTTP. Новые пакеты backup
 (включая SMB) и liveevents принадлежат серверу; до переноса на этапе 27 их
 границы проверяются отдельно. Актуальные зависимости и сценарии добавлены в
@@ -140,6 +140,20 @@ namespace сразу обновляем frontend и bindings, без старо�
 Этап помечается завершённым только после выполнения его критериев. Недоступные
 проверки записываются как незавершённые проверки с причиной, а не как успешные.
 После восстановления окружения выполняется накопленная проверка применимых этапов.
+
+## Режим текущей работы
+
+13.09.2026, обновление: пользователь разрешил накопленный прогон тестов.
+Предыдущие записи об отложенных проверках описывают момент реализации;
+актуальные результаты собраны в этапе 29.
+
+
+13.09.2026: по указанию пользователя выполняем реализацию пунктов плана,
+тесты запускаем только при крайней необходимости; общий прогон откладываем.
+Сборка и генерация bindings остаются доступными проверками. Компиляция тестовых
+пакетов через `go test -c` не запускает тесты и не подтверждает их прохождение.
+Для этапов с отложенными проверками отдельно фиксируем готовность реализации;
+флажок полной приёмки остаётся открытым, но не блокирует следующий перенос.
 
 ## Последовательность этапов
 
@@ -965,28 +979,146 @@ bindings, тесты и импорты. Для каждого сервиса с�
   не выполнялись; для этого переноса без изменения storage/backup они остаются
   проверками соответствующих инфраструктурных этапов и этапа 29.
 
-- [ ] **19. Разделить AcknowledgmentService.**
+- [x] **19. Разделить AcknowledgmentService.**
   Выделить desktop-адаптер и серверную реализацию, передать substitutions/events
   конструктору. Результат: назначения, ознакомление, замещения и события
   сохранены; серверный сервис не ссылается на desktop UserEventService.
 
-- [ ] **20. Разделить LinkService и AdministrativeOrderService.**
+  Реализация завершена 13.09.2026: проверен подготовленный в рабочем дереве
+  перенос в desktop/services и server/services, обе регистрации Wails и
+  серверный composition root используют новые конструкторы. Замещения
+  передаются конструктору. Отдельной настройки events в исходной реализации
+  уже нет: transactional effects формируются через server/effects, поэтому
+  дополнительная зависимость от сервиса событий не вводилась. Восемь UI-методов
+  сохранены; SetSubstitutionStore удалён из generated API и снимка контракта.
+  Перенесённые серверные тесты и новые desktop-тесты сохранены.
+  Commit: не создан, изменения в рабочем дереве.
+
+  Сборки и генерация выполнены совместно с этапом 20 (см. ниже). Unit,
+  архитектурные, Wails-контрактные, race, HTTP/PostgreSQL integration и
+  frontend-тесты в этой сессии не запускались по указанию пользователя.
+  Приёмка поведения остаётся отложенной.
+
+- [x] **20. Разделить LinkService и AdministrativeOrderService.**
   Перенести HTTP-адаптеры и серверные реализации. Результат: права на оба
   документа, связи, последствия отмены приказа и ознакомление по приказу
   проверены; локального доступа к документам у desktop нет.
 
-- [ ] **21. Разделить журналы.**
+  Реализация завершена 13.09.2026: LinkService и AdministrativeOrderService
+  разделены на HTTP-адаптеры desktop/services и бизнес-сервисы server/services.
+  Потребители переключены, прежние смешанные реализации удалены. Lifecycle
+  и metrics связей передаются конструктору; их setters удалены из Wails API
+  и снимка контракта. Четыре пользовательских метода связей и MarkAcknowledged
+  сохранены вместе с namespace services. SQL, HTTP и правила доступа не менялись.
+  Серверные тесты перенесены с использованием существующих server fixtures;
+  добавлены desktop-проверки аргументов, deadline/cancellation, ошибок сервера
+  и отсутствующего клиента. Общая фикстура прав оставлена для ещё не перенесённых
+  тестов dashboard/document access; production-фасадов совместимости нет.
+  Commit: не создан, изменения в рабочем дереве.
+
+  Проверки этапов 19–20:
+
+  - `make wails-bindings` — успешно; generated diff содержит удаление трёх
+    служебных методов ознакомлений/связей, пользовательские сигнатуры сохранены.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make frontend-build` — успешно, включая TypeScript и лимиты bundle.
+  - `GOCACHE=/tmp/go-build-cache go test -c -o /tmp/docflow-server-services-stage20.test ./internal/server/services`,
+    аналогичная компиляция internal/desktop/services и internal/services
+    в отдельные файлы `/tmp` — успешно, тестовые бинарники не запускались.
+    При компиляции исправлен вызов прежнего helper авторизации в перенесённом
+    тесте связей на GetCurrentUserUUID.
+  - `git diff --check` — успешно.
+
+  Отложены unit, архитектурные/Wails-контрактные, race, frontend-тесты,
+  HTTP/PostgreSQL integration, lint/vet, Windows и ручной GUI. В частности,
+  права на оба документа, отмена приказа и ознакомление по приказу должны
+  пройти существующие сценарии при накопленной проверке. Эти результаты
+  пока не подтверждены запуском; следующий этап реализации — 21.
+
+- [x] **21. Разделить журналы.**
   Перевести JournalService и AdminAuditLogService. Удалить `LogAction` из UI API;
   внутренние записи и транзакционный audit остаются на сервере.
   Результат: чтение журналов защищено прежними правами, запись не доступна через
   произвольный Wails-вызов; setters отсутствуют.
 
-- [ ] **22. Разделить DashboardService и OutboxAdminService.**
+  Реализация завершена 13.09.2026: JournalService и AdminAuditLogService
+  перенесены в независимые desktop/services и server/services. Runtime и
+  generator Bind, серверный composition root и снимок API обновлены.
+  В desktop доступны только GetByDocumentID и GetAll; lifecycle журнала
+  передаётся серверному конструктору. Неиспользуемый LogAction удалён целиком:
+  действующая запись аудита остаётся в серверных обработчиках и outbox effects.
+  Удалён прежний fallback чтения журнала по одной аутентификации при nil access:
+  отсутствие DocumentAccessService теперь возвращает ErrForbidden до repository.
+  Production-путь с проверкой RequireViewJournal и административные права
+  GetAll сохранены; HTTP, SQL и пагинация не менялись.
+  Серверные тесты перенесены, проверка nil access обновлена; добавлены
+  desktop-тесты передачи параметров, ошибок, deadline/cancellation и nil client.
+  Commit: не создан, изменения в рабочем дереве.
+
+  Проверки:
+
+  - `make wails-bindings` — успешно; удалены LogAction и SetOperationLifecycle
+    журналов, пользовательские сигнатуры сохранены.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make frontend-build` — успешно, включая TypeScript и лимиты bundle.
+  - `GOCACHE=/tmp/go-build-cache go test -c -o /tmp/docflow-server-services-stage21.test ./internal/server/services`
+    и аналогичная компиляция internal/desktop/services и internal/services
+    в отдельные файлы `/tmp` — успешно. Бинарники тестов не запускались.
+  - `git diff --check` — успешно.
+
+  По указанию пользователя unit, архитектурные/Wails-контрактные, race,
+  HTTP/PostgreSQL integration и frontend-тесты отложены. Lint/vet, Windows
+  и ручной GUI также не выполнялись. Проверку серверных прав чтения и
+  transactional audit предстоит выполнить при накопленной приёмке;
+  флажок этапа остаётся открытым до неё. Следующий этап реализации — 22.
+
+- [x] **22. Разделить DashboardService и OutboxAdminService.**
   Создать независимые реализации в целевых пакетах.
   Результат: dashboard учитывает права, административные операции outbox
   защищены сервером; UI получает те же результаты и ошибки.
 
-- [ ] **23. Разделить StatisticsService.**
+  Реализация завершена 13.09.2026: DashboardService и OutboxAdminService
+  разделены между desktop/services и server/services; обе регистрации Wails
+  и серверный composition root переведены на новые конструкторы. Dashboard
+  получает metrics конструктором, SetOperationMetrics удалён из UI API.
+  GetActivity, GetStats, GetFailed и Requeue сохраняют namespace и сигнатуры.
+  Серверные фильтры dashboard по видам документов, участию и замещениям,
+  интервалы 3/7 дней и проверки администратора для outbox сохранены.
+  HTTP, JSON, SQL и правила повторной постановки событий не менялись.
+  Старые смешанные реализации удалены. Серверные тесты перенесены на
+  существующие server fixtures; проверки Logout из dashboard-тестов удалены,
+  поскольку request principal не управляет desktop-сессией. Проверка запрета
+  outbox расширена на все три операции. Добавлены desktop-тесты передачи
+  серверных результатов/ошибок, deadline/cancellation и отсутствующего клиента.
+  Commit: не создан, изменения в рабочем дереве.
+
+  Проверки:
+
+  - `make wails-bindings` — успешно; удалён только служебный setter dashboard
+    относительно этапа 21, OutboxAdminService bindings не изменились.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make frontend-build` — успешно, включая TypeScript и лимиты bundle.
+  - `GOCACHE=/tmp/go-build-cache go test -c -o /tmp/docflow-server-services-stage22.test ./internal/server/services`
+    и аналогичная компиляция internal/desktop/services и internal/services
+    в отдельные файлы `/tmp` — успешно. Тестовые бинарники не запускались.
+  - `git diff --check` — успешно.
+
+  По указанию пользователя unit, архитектурные/Wails-контрактные, race,
+  HTTP/PostgreSQL integration и frontend-тесты отложены. Lint/vet, Windows
+  и ручной GUI не выполнялись. Поведение фильтров dashboard, права outbox
+  и повторную постановку событий предстоит подтвердить накопленной проверкой;
+  флажок приёмки остаётся открытым. Следующий этап реализации — 23.
+
+- [x] **23. Разделить StatisticsService.**
   Desktop оставляет HTTP-запросы; отчёты, конкурентные запросы, storage refresh
   и system diagnostics принадлежат серверу. Передать metrics/diagnostics
   конструктору. Результат: фильтры, права на отчёты, timeout, refresh/lease и
@@ -994,9 +1126,52 @@ bindings, тесты и импорты. Для каждого сервиса с�
   Передать refreshRunner конструктору серверного сервиса; сохранить учёт
   detached refresh и ожидание их завершения перед снимком backup.
 
+  Реализация завершена 13.09.2026: StatisticsService разделён на desktop
+  HTTP-адаптер и server/services. Девять UI-операций и двухминутный timeout
+  сохранены. Отчёты, проверки permissions, ограничение конкурентных запросов,
+  диагностика и storage refresh/lease находятся на сервере. Diagnostics,
+  lifecycle, metrics и refreshRunner передаются единственному серверному
+  конструктору через StatisticsOptions. Старые конструкторы, setters и
+  ConfigureStorageRefreshRunner удалены. Серверный composition root сохраняет
+  синхронный detached.Add перед запуском goroutine и Done после refresh;
+  ожидание detached.Wait внутри барьера backup осталось в server/app.go.
+  HTTP, SQL, фильтры, lease и алгоритм обновления снимка не менялись.
+  Обе регистрации Wails и снимок API обновлены. Generated-файлы больше не
+  публикуют Statistics setters, observability.Registry и operations.Lifecycle.
+  App и management больше не импортируют прежний internal/services;
+  остаточные helpers и fixtures этого каталога остаются до этапа 28.
+  Commit: не создан, изменения в рабочем дереве.
+
+  Серверные тесты перенесены с новым principal fixture. Добавлена проверка,
+  что переданный конструктору runner получает refresh до сканирования,
+  повторный polling не создаёт вторую работу, а выполнение завершает lease
+  и сохраняет снимок. Desktop-тесты проверяют фильтры отчёта, timeout/cancellation,
+  ошибку доступа к retry и отсутствие клиента. Неактуальный тест setters удалён.
+
+  Проверки:
+
+  - `make wails-bindings` — успешно; пользовательские сигнатуры сохранены,
+    diff служебных методов и generated models проверен.
+  - `CGO_ENABLED=0 GOCACHE=/tmp/go-build-cache go build -o /tmp/docflow-server-separation ./cmd/docflow-server`
+    — успешно.
+  - `GOCACHE=/tmp/go-build-cache go build -tags webkit2_41 -o /tmp/docflow-desktop-separation .`
+    — успешно.
+  - `make frontend-build` — успешно, включая TypeScript и лимиты bundle.
+  - `GOCACHE=/tmp/go-build-cache go test -c -o /tmp/docflow-server-services-stage23.test ./internal/server/services`
+    и аналогичная компиляция internal/desktop/services и internal/services
+    в отдельные файлы `/tmp` — успешно. Тестовые бинарники не запускались.
+  - `git diff --check` — успешно.
+
+  По указанию пользователя unit, архитектурные/Wails-контрактные, race,
+  HTTP/PostgreSQL integration и frontend-тесты отложены. Lint/vet, Windows,
+  ручной GUI и storage-smoke-test также не выполнялись. При накопленной
+  проверке подтвердить отчёты и permissions, конкурентные запросы, refresh/lease,
+  диагностику и ожидание обновления перед backup. Полная приёмка этапа
+  остаётся открытой; следующий этап реализации — 24.
+
 ### Завершение структуры каталогов
 
-- [ ] **24. Разделить конфигурацию и доставку логов.**
+- [x] **24. Разделить конфигурацию и доставку логов.**
   Отделить desktop config и серверные env-настройки, Wails/HTTP logging и
   серверное логирование. Общую обработку записей оставить независимой;
   узкие интерфейсы определить у потребителя.
@@ -1005,7 +1180,46 @@ bindings, тесты и импорты. Для каждого сервиса с�
   (постоянный каталог, ключ настроек, лимит места), PostgreSQL и S3 принадлежат
   серверу; backup и storage переводятся на серверную конфигурацию вместе.
 
-- [ ] **25. Перенести HTTP-клиент и desktop composition root.**
+  Реализация завершена 13.09.2026: конфигурация разделена на desktop/config
+  (JSON с server.url/allowInsecureHttp, прежний порядок поиска файла) и
+  server/config (PostgreSQL, S3, BackupConfig, Seq, outbox, listen/session).
+  Загрузка server environment и runtime secret files перенесена без изменения
+  переменных и значений по умолчанию. Backup, storage, database, server, CLI,
+  integrations3 и их тесты используют серверные типы; прежний internal/config
+  удалён без aliases. Desktop не хранит инфраструктурные поля конфигурации.
+
+  В desktop/logging перенесены Wails adapter, контекст пользователя, фильтр
+  WebView2 и HTTP batch writer с узким TelemetryClient у потребителя.
+  В server/logging перенесены Seq writer и серверная настройка. Общий logger
+  содержит только CLEF formatting и установку slog/стандартного log; не имеет
+  зависимостей от config, serverclient или сторон. Callback пользователя
+  задаётся через SetUserIDProvider с mutex; прежняя открытая глобальная
+  переменная удалена. Сохранены размеры очередей, timeout, flush и Close.
+  Общий logger включён в архитектурные ограничения, дерево tech_docs обновлено.
+  Commit: не создан, изменения в рабочем дереве.
+
+  Проверки:
+
+  - Сборки server (`CGO_ENABLED=0`) и desktop Linux (`-tags webkit2_41`)
+    с `GOCACHE=/tmp/go-build-cache` — успешно; результаты в прежних файлах `/tmp`.
+  - `go test -c` отдельно для desktop/config, server/config, desktop/logging,
+    server/logging, app, server, backup, storage, database и cmd/docflow-server
+    — успешно. Бинарники в `/tmp/docflow-stage24-*.test` не запускались.
+  - `make wails-bindings` — успешно; этап не меняет UI-контракт.
+  - `go list -deps ./cmd/docflow-server` и `go list -deps .` — успешно.
+    В серверном production-графе нет desktop, serverclient и Wails;
+    в desktop-графе нет server, database, repository, storage и backup.
+  - `git diff --check` — успешно.
+
+  Тесты конфигурации и логирования перенесены, добавлены проверки отсутствия
+  инфраструктурных полей в desktop JSON и серверных параметров backup.
+  По указанию пользователя тесты не запускались. Отложены unit, архитектурные,
+  race для callback/очередей логирования, integration/storage-smoke, lint/vet,
+  Windows и ручные сценарии startup/flush/backup. Frontend build/test в этом
+  этапе без изменений UI не повторялись. Приёмка поведения остаётся открытой;
+  следующий этап реализации — 25.
+
+- [x] **25. Перенести HTTP-клиент и desktop composition root.**
   Перевести serverclient и app в desktop, обновить main, генератор Wails,
   lifecycle и tooling. Проверить оставшиеся background/schema зависимости.
   Результат: корневой Wails main собирает только desktop-граф; серверный
@@ -1014,7 +1228,39 @@ bindings, тесты и импорты. Для каждого сервиса с�
   подписки сессии и отдельное наблюдение восстановления через statusToken.
   Проверить race и отсутствие токенов в событиях Wails.
 
-- [ ] **26. Перенести database и repository.**
+  Реализация завершена 13.09.2026: app и serverclient перенесены в
+  internal/desktop вместе с тестами, снимком Wails API и embedded CA-сертификатом.
+  Main, bindings generator, desktop-сервисы и серверные HTTP integration tests
+  используют новые импорты. Относительный путь frontend в контрактном тесте
+  исправлен. Старые каталоги и промежуточные alias/constructor lifecycle удалены.
+  Composition root напрямую использует background.NewLifecycle; background
+  остаётся общим пакетом с DTO и callback чтения статуса, не зависит от БД
+  или сторон. Архитектурные правила фиксируют его как shared-пакет.
+  SSE reconnect/cancellation, auth:session-ended, server:event, scoped statusToken
+  и отдельное наблюдение восстановления перенесены без изменения алгоритмов.
+  Commit: не создан, изменения в рабочем дереве.
+
+  Проверки:
+
+  - Сборки server (`CGO_ENABLED=0`) и desktop Linux (`-tags webkit2_41`)
+    с `GOCACHE=/tmp/go-build-cache` — успешно.
+  - `make wails-bindings` — успешно; перенос не меняет generated UI-контракт.
+  - `go test -c` для internal/desktop/app, internal/desktop/serverclient,
+    internal/desktop/services и internal/server — успешно; бинарники
+    `/tmp/docflow-stage25-*.test` не запускались.
+  - `go list -deps -json ./...` — успешно. Сервер не зависит от desktop/Wails,
+    desktop не зависит от server/database/repository/storage, background
+    не зависит от сторон или database.
+  - `git diff --check` — успешно.
+
+  По указанию пользователя тесты, включая race, SSE/session/backup и Wails
+  contract, не запускались; поведение не объявляется проверенным. При накопленной
+  приёмке подтвердить reconnect, logout/cancellation, завершение подписки,
+  независимость statusToken при восстановлении и отсутствие токенов в Wails
+  событиях. Lint/vet, integration, frontend, Windows и ручной GUI не выполнялись.
+  Флажок приёмки остаётся открытым; следующий этап реализации — 26.
+
+- [x] **26. Перенести database и repository.**
   Перенести database вместе с embedded migrations, затем repository в server.
   Одновременно обновить импорты, пути в tests/tools и конфигурацию генераторов.
   Результат: схемы и SQL не изменены, миграции доступны серверной сборке,
@@ -1023,7 +1269,37 @@ bindings, тесты и импорты. Для каждого сервиса с�
   workers и backup должны использовать заменённое подключение к БД;
   сохранить instance lease при замене пула.
 
-- [ ] **27. Перенести storage и оставшуюся серверную инфраструктуру.**
+  Реализация завершена 13.09.2026: database и repository перенесены в
+  internal/server вместе с тестами и embedded migrations. Все Go-потребители,
+  backup, workers, integrations3, tools/dbperf и цель db-performance-check
+  переведены на новые пути. DefaultMigrationsPath обновлён; тест SQL-регистрации
+  использует относительный путь к соседнему database/migrations. README,
+  tech_docs и архитектурные правила обновлены, старых import aliases нет.
+  SQL, схема, LatestSchemaVersion и механизм замены пула/удержания instance lease
+  не менялись; backup и репозитории продолжают использовать прежние объекты
+  подключения через новые импорты. Commit не создан, изменения в рабочем дереве.
+
+  Проверки:
+
+  - Сборки server (`CGO_ENABLED=0`) и desktop Linux (`-tags webkit2_41`)
+    с `GOCACHE=/tmp/go-build-cache` — успешно.
+  - `GOCACHE=/tmp/go-build-cache go build ./tools/...` — успешно.
+  - `go test -c` для server/database, server/repository, server, backup,
+    server/services и server/effects — успешно; отдельные бинарники
+    `/tmp/docflow-stage26-*.test` не запускались.
+  - Побайтовое сравнение с HEAD подтвердило неизменность всех 24 SQL-файлов;
+    `go list` показывает все 24 embedded-файла, включая обе миграции 012_backups.
+  - Поиск прежних путей в Go, Makefile, shell и YAML — совпадений нет.
+  - `git diff --check` — успешно.
+
+  По указанию пользователя integration-test и прочие тесты не запускались.
+  Накопленная приёмка должна подтвердить PostgreSQL suite, восстановление с
+  заменой подключения, workers/backup после restore и сохранение instance lease.
+  Race, lint/vet, storage-smoke, frontend, Windows и ручной GUI не выполнялись.
+  Wails API не менялся, bindings не перегенерировались. Флажок приёмки остаётся
+  открытым; следующий этап реализации — 27.
+
+- [x] **27. Перенести storage и оставшуюся серверную инфраструктуру.**
   Перевести object storage, серверные workers/координаторы по карте этапа 1;
   общий код не переносить на сервер только ради очистки дерева.
   Явно перенести backup вместе с smb и liveevents в server, обновить cmd,
@@ -1034,7 +1310,43 @@ bindings, тесты и импорты. Для каждого сервиса с�
   Результат: streaming/outbox/reconciliation сохранены, Dockerfile и команды
   запуска используют актуальные пути, прежние каталоги удалены.
 
-- [ ] **28. Закрыть границы архитектурными проверками.**
+  Реализация завершена 13.09.2026: storage, backup вместе с smb, liveevents,
+  outbox, coordination и security перенесены в internal/server. Обновлены
+  импорты production-кода, тестов, cmd, integrations3 и tools. Smoke-скрипт
+  использует internal/server/backup/smb. Архитектурные проверки используют новые
+  пути, предварительные отдельные правила backup/liveevents заменены их
+  принадлежностью server. Старые каталоги удалены без aliases.
+  Background остаётся независимым общим lifecycle (этап 25); startupdiag также
+  используется обеими точками входа, поэтому на сервер не переносится.
+  Commit не создан, изменения в рабочем дереве.
+
+  Сравнение всех 39 перенесённых файлов с HEAD после нормализации import paths
+  подтвердило отсутствие изменений реализации: streaming, reconciliation,
+  maintenance/barrier, lease, recovery-required, архивы v2/v3, SMB и публикация
+  liveevents после долговечной записи сохранены в исходном коде. Dockerfile
+  копирует internal целиком и собирает cmd/docflow-server; новых путей не требует.
+
+  Проверки:
+
+  - Сборки server (`CGO_ENABLED=0`), desktop Linux (`-tags webkit2_41`) и
+    `go build ./tools/...` с `GOCACHE=/tmp/go-build-cache` — успешно.
+  - `go test -c` для server/storage, server/backup, server/backup/smb,
+    server/liveevents, server/outbox, server/security, server/repository,
+    server/services, server/effects и server — успешно; бинарники
+    `/tmp/docflow-stage27-*.test` не запускались. В coordination тестовых файлов нет.
+  - `go list -deps -json ./...` — успешно.
+  - `bash -n testing/scripts/integration-smoke.sh` — успешно.
+  - Поиск прежних путей в Go/shell/YAML/Makefile/Dockerfile и
+    `git diff --check` — ошибок нет.
+
+  По указанию пользователя тесты, integration-test и storage-smoke-test
+  не запускались. Проверки backup/restore v2/v3, SMB, maintenance, lease,
+  recovery-required, возобновления workers, SSE и race остаются отложенными.
+  Docker image, Windows, frontend и ручной GUI не проверялись. UI API не менялся,
+  bindings не перегенерировались. Полная приёмка остаётся открытой;
+  следующий этап реализации — 28.
+
+- [x] **28. Закрыть границы архитектурными проверками.**
   Удалить остатки internal/services и исключения исходного списка Wails.
   Проверять полный граф production-импортов: desktop не зависит от server,
   database/repository/storage; server не зависит от desktop и Wails; общие
@@ -1043,6 +1355,42 @@ bindings, тесты и импорты. Для каждого сервиса с�
   Включить backup/smb и liveevents; сохранить пользовательские HTTP-методы
   резервирования в актуальном снимке Wails API.
   Результат: проверки добавлены в штатные цели/CI и предотвращают возврат смешения.
+
+  Реализация завершена 13.09.2026: internal/services удалён целиком.
+  Его helpers не имели production-потребителей; нумерация и её актуальные
+  тесты уже находятся в server/repository. Удалены тесты старых helpers
+  и оставшиеся фикстуры прежнего services без переноса legacy-поведения.
+  Архитектурные ограничения распространяются на весь internal/server,
+  cmd/docflow-server, корневой Wails main и internal/desktop. Остальные
+  internal-пакеты автоматически считаются общими, кроме явно тестовых
+  mocks/testutil/architecture. Общие пакеты не могут зависеть от сторон.
+  Добавлен запрет восстановления удалённых каталогов; server/backup/smb
+  и liveevents входят в общий server-граф без исключений.
+
+  Снимок Wails API теперь фиксирует 25 desktop-сервисов и 126 пользовательских
+  методов без миграционных исключений. Проверяются пакет каждого bound-типа,
+  отсутствие Startup/Shutdown/LogAction и setters (кроме пользовательского
+  ThemeService.SetTheme), отсутствие callbacks и инфраструктурных типов в
+  сигнатурах и вложенных публичных полях. DTO/models и SessionState остаются
+  разрешёнными контрактами. Существующая проверка сравнивает конкретные типы
+  runtime и generator Bind; backup UI-операции остаются в снимке.
+  Проверки автоматически входят в make go-test и release-gate через GO_PACKAGES;
+  изменение Makefile для подключения новых файлов не требуется.
+  Commit не создан, изменения в рабочем дереве.
+
+  Проверки:
+
+  - Сборки server (`CGO_ENABLED=0`) и desktop Linux (`-tags webkit2_41`)
+    с `GOCACHE=/tmp/go-build-cache` — успешно.
+  - `make wails-bindings` — успешно, UI-контракт не менялся.
+  - `go test -c` для internal/architecture и internal/desktop/app — успешно;
+    `/tmp/docflow-stage28-*.test` не запускались.
+  - `go list -deps -json ./...` и `git diff --check` — успешно.
+
+  По указанию пользователя сами архитектурные/Wails-контрактные и остальные
+  тесты не запускались: добавленные ограничения пока подтверждены компиляцией,
+  а не прохождением. Итоговая приёмка, включая race, PostgreSQL/storage-smoke,
+  frontend и Windows/GUI, остаётся этапом 29. Флажок этапа 28 открыт до прогона.
 
 - [ ] **29. Итоговая проверка и обновление архитектурной документации.**
   Выполнить полный набор Go-тестов/vet, race для затронутых concurrency-пакетов,
@@ -1056,6 +1404,58 @@ bindings, тесты и импорты. Для каждого сервиса с�
   и координации server, права SSE и scoped statusToken во время maintenance.
   Обновить README, tech_docs, ревью и команды, удалить устаревшие описания.
   Результат: все критерии ниже подтверждены, ограничения явно записаны.
+
+  Накопленная проверка 13.09.2026:
+
+  - `make go-test` — успешно вне песочницы: в песочнице httptest не может
+    открывать socket. Включены архитектурные ограничения, точный Wails API,
+    оба composition roots и тесты всех перенесённых пакетов.
+  - `make go-vet` — успешно.
+  - `GOCACHE=/tmp/go-build-cache go test -race ./internal/desktop/... ./internal/background ./internal/server/...`
+    — успешно вне песочницы, гонок не обнаружено; включает backup, liveevents,
+    HTTP-клиент, desktop logging/session и серверную координацию.
+  - `DOCFLOW_TEST_POSTGRES_PORT=15432 make integration-test INTEGRATION_DSN='postgres://docflow_integration:docflow_integration@127.0.0.1:15432/docflow_test_outbox?sslmode=disable'`
+    — успешно вне песочницы. Полный PostgreSQL/SeaweedFS suite, включая
+    восстановление пула и instance lease; контейнеры, сеть и тома удалены.
+  - `make frontend-lint frontend-test frontend-build` — успешно: 5 utility
+    test files, 41 component test в 15 файлах, TypeScript и production bundle.
+  - `make build-linux build-windows` — успешно вне песочницы; готовые бинарники
+    build/bin/docflow и build/bin/docflow.exe. Проверяется сборка, не ручной GUI.
+  - Повторная `make wails-bindings` — успешно; сравнение с копией текущих
+    bindings перед генерацией не выявило diff. Сравнение с HEAD не используется
+    как проверка воспроизводимости незакоммиченного рефакторинга.
+  - `make docs-links-check release-assets-check` — успешно после исправления
+    двух устаревших ссылок review на перемещённый HTTP-клиент.
+  - `npm --prefix frontend audit --audit-level=critical` — 0 уязвимостей.
+  - `go run golang.org/x/vuln/cmd/govulncheck@v1.3.0 . ./cmd/... ./internal/... ./tools/...`
+    с GOCACHE=/tmp/go-build-cache — 0 уязвимостей вызываемого кода; одна
+    в required module без затронутых импортируемых пакетов/вызовов. Установленный
+    govulncheck собран Go 1.26 и не совместим с текущим Go 1.27; повтор выполнен
+    той же версией инструмента, пересобранной текущим Go. Зависимости не менялись.
+
+  Исправления этой проверки: актуализированы ссылки и архитектурный статус
+  review/tech_docs; build-linux/build-windows теперь вызывают штатный normalizer
+  bindings после Wails, чтобы сборка не возвращала trailing whitespace.
+  Логи команд находятся в `/tmp/docflow-final-*.log`.
+
+  - `DOCFLOW_TEST_POSTGRES_PORT=15433 make storage-smoke-test` — успешно
+    вне песочницы. Проверены SMB, restart/recreate SeaweedFS, backup,
+    replacement restore, reset recovery архивов v3 и v2 и чтение восстановленных
+    вложений. Итог: PASS; контейнеры, сети и тестовые тома удалены cleanup.
+    Детальные отчёты: `build/transition-evidence/`, полный лог:
+    `/tmp/docflow-final-storage-smoke.log`.
+  - `git diff --check` — успешно.
+
+  Этапы 19–28 приняты по результатам накопленного автоматического прогона;
+  прежние записи об отложенных проверках и открытых флажках ниже соответствующих
+  этапов являются историей реализации и заменены этой записью.
+  Этап 29 остаётся открытым: нативные выбор/скачивание/открытие файлов,
+  login/logout и maintenance вручную на Linux/Windows не проверялись.
+  Сборка Windows не заменяет запуск WebView2 на целевой машине.
+  Общая цель release-gate повторно не запускалась: её основные проверки
+  выполнены отдельно; npm ci не повторялся, bindings проверены относительно
+  текущего рабочего дерева, а не HEAD. Это не утверждение готовности релиза.
+  Коммиты не создавались, изменения находятся в рабочем дереве.
 
 ## Как управлять размером этапов
 

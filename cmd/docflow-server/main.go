@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
+	logger "github.com/Volkov-D-A/docs-register-and-track/internal/server/logging"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
 )
 

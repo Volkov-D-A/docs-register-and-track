@@ -59,25 +59,36 @@ Frontend:
 Wails desktop app
 ├── main.go
 │   ├── загружает config
-│   ├── инициализирует slog/Seq
+│   ├── инициализирует slog и доставку логов через HTTP
 │   ├── встраивает frontend и release notes
-│   └── запускает Wails с options из internal/app
+│   └── запускает Wails с options из internal/desktop/app
 │
 ├── cmd/docflow-server/
 │   └── HTTP API, migrations, storage access и outbox worker
 │
 ├── internal/
-│   ├── background/    общий schema-dependent lifecycle
-│   ├── app/           composition root, Wails bindings и shutdown
-│   ├── config/        desktop config и server environment loading
-│   ├── database/      PostgreSQL connection, embedded migrations
+│   ├── background/    независимый lifecycle с функцией чтения статуса
+│   ├── desktop/
+│   │   ├── app/       composition root, Wails bindings и shutdown
+│   │   ├── serverclient/ HTTP, сессии, SSE и отмена запросов
+│   │   ├── config/    локальный адрес HTTP API
+│   │   ├── logging/   Wails adapter и HTTP-доставка логов
+│   │   └── services/  Wails API и HTTP-адаптеры
+│   ├── server/
+│   │   ├── config/    PostgreSQL, S3, backup, Seq и outbox из окружения
+│   │   ├── logging/   серверная настройка slog и доставка в Seq
+│   │   ├── services/  права и бизнес-операции
+│   │   ├── database/  PostgreSQL connection и embedded migrations
+│   │   ├── repository/ SQL persistence и транзакции
+│   │   ├── storage/   SeaweedFS object storage
+│   │   ├── backup/    архивы, восстановление и SMB
+│   │   ├── liveevents/ SSE-уведомления
+│   │   ├── outbox/    доставка событий и удаление файлов
+│   │   ├── coordination/ блокировки storage
+│   │   └── security/  пароли и токены
 │   ├── models/        domain entities, requests, app errors
 │   ├── dto/           frontend-facing mapping
-│   ├── repository/    SQL persistence and transactions
-│   ├── services/      auth, permissions, business workflows, Wails API
-│   ├── storage/       SeaweedFS object storage
-│   ├── outbox/        delivery worker для событий и удаления файлов
-│   ├── logger/        slog, Seq, Wails adapter
+│   ├── logger/        независимые CLEF formatting и установка slog
 │   ├── startupdiag/   startup diagnostics
 │   └── releaseassets/ embedded release notes
 │
@@ -138,7 +149,7 @@ Frontend не должен:
 Wails bridge:
 
 - serializes calls между React и Go;
-- exposing происходит через `Bind` в `internal/app/app.go`;
+- exposing происходит через `Bind` в `internal/desktop/app/app.go`;
 - frontend использует generated bindings в `frontend/wailsjs`;
 - backend errors проходят через `ErrorFormatter`.
 
@@ -181,7 +192,7 @@ Production error envelope для frontend:
 
 ## Слой Repository И Database
 
-`internal/repository` владеет SQL и транзакциями. `internal/database` владеет connection/migrations/schema status.
+`internal/server/repository` владеет SQL и транзакциями. `internal/server/database` владеет connection/migrations/schema status.
 
 Правила:
 
@@ -196,7 +207,7 @@ Production error envelope для frontend:
 
 Критичные migration rules:
 
-- migrations лежат в `internal/database/migrations`;
+- migrations лежат в `internal/server/database/migrations`;
 - runtime UI migration management сохраняется в production для пользователя с `admin`;
 - schema-dependent background services запускаются общим lifecycle только при `UpToDate` и совместимой схеме;
 - desktop UI не исполняет SQL миграций и обращается к management API
@@ -701,7 +712,7 @@ make go-vet
 
 ## Database Development Rules
 
-- New schema changes require migrations in `internal/database/migrations`.
+- New schema changes require migrations in `internal/server/database/migrations`.
 - Migrations must be embedded and compatible with release build.
 - For constraints/index changes, add focused tests where practical.
 - Do not add performance indexes just because a query has a seq scan on small baseline data.
@@ -898,7 +909,7 @@ Target OS smoke must include:
 
 Текущая согласованная версия release metadata: `1.0.6` в `docs/releases.yaml`, generated release asset и `wails.json`.
 
-Актуальные результаты ревью и статусы исправлений ведутся в `docs/bugs.md`; этот справочник не утверждает отсутствие открытых проблем. Production approval требует clean-worktree release gate, target OS smoke и реального backup/restore test.
+Актуальные результаты ревью и статусы исправлений ведутся в `docs/server-transition-code-review.md` и `docs/desktop-server-separation-plan.md`; этот справочник не утверждает отсутствие открытых проблем. Production approval требует clean-worktree release gate, target OS smoke и реального backup/restore test.
 
 ## Practical Change Checklist
 

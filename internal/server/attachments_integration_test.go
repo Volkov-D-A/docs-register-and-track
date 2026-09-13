@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrations3"
 	"io"
 	"net/http"
@@ -21,12 +21,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 )
 

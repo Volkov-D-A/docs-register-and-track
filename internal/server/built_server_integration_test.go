@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"

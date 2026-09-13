@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
 )
 
 func runStorage(args []string, out io.Writer) error {

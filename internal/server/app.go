@@ -14,18 +14,18 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/background"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/backup"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/liveevents"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/storage"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
 )
 
 const shutdownTimeout = 30 * time.Second

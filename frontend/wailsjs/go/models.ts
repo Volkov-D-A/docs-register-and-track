@@ -3358,40 +3358,6 @@ export namespace models {
 
 }
 
-export namespace observability {
-
-	export class Registry {
-
-
-	    static createFrom(source: any = {}) {
-	        return new Registry(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-
-	    }
-	}
-
-}
-
-export namespace operations {
-
-	export class Lifecycle {
-
-
-	    static createFrom(source: any = {}) {
-	        return new Lifecycle(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-
-	    }
-	}
-
-}
-
 export namespace serverclient {
 
 	export class SessionState {

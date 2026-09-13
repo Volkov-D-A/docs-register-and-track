@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/attachmentname"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/coordination"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/coordination"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"

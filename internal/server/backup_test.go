@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/backup"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/stretchr/testify/require"
 )
 

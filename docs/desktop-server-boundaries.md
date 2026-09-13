@@ -145,3 +145,155 @@ serverclient/events_test.go и backup_test.go, background/lifecycle_test.go,
 backup/*_test.go. Реальный storage/backup/restore проверяет
 `make storage-smoke-test` с изолированными PostgreSQL/SeaweedFS/SMB;
 `make integration-test` остаётся отдельной проверкой SQL и транзакций.
+
+## Разделение ознакомлений, этап 19
+
+12.09.2026: `AcknowledgmentService` перенесён из смешанного services в два
+независимых пакета. Desktop/services зависит только от dto и serverclient;
+server/services получает repository ports, request principal, document access
+и substitutions при создании. События создаются через server/effects и
+передаются атомарным операциям repository; desktop UserEventService не нужен.
+Старый конструктор HTTP-ветки и SetSubstitutionStore удалены, 8 UI-операций
+сохранены. Архитектурный тест автоматически проверяет оба новых production-графа.
+
+Перенесены серверные тесты создания/чтения/удаления, просмотра и подтверждения,
+прав, повторного подтверждения, замещений и transactional effects. Добавлены
+проверки bulk-списка собственных и замещаемых ознакомлений с дедупликацией и
+фильтром документа, а также desktop HTTP-контекста, аргументов, ошибок и
+отсутствующего клиента. Серверный путь проверяется существующим
+`TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration`.
+
+## Разделение связей и операций приказов, этап 20
+
+13.09.2026: LinkService и AdministrativeOrderService разделены между
+internal/desktop/services и internal/server/services. Desktop содержит только
+HTTP-вызовы с ограниченным временем запроса; проверка доступа к обоим документам,
+фильтрация графа, отмена приказа и transactional journal остаются на сервере.
+Lifecycle и metrics LinkService передаются конструктору. Обе регистрации Wails
+используют desktop-типы; SetOperationLifecycle и SetOperationMetrics удалены
+из bindings. Четыре операции связей и MarkAcknowledged сохранены.
+
+Поведенческие тесты перенесены на сервер, desktop-тесты добавлены. Тесты этапов
+19–20 не запускались по указанию пользователя; успешная компиляция тестовых
+пакетов не означает подтверждения сценариев. Детали отложенной приёмки находятся
+в плане разделения.
+
+## Разделение журналов, этап 21
+
+13.09.2026: JournalService и AdminAuditLogService разделены между
+internal/desktop/services и internal/server/services. Desktop публикует только
+GetByDocumentID и GetAll через HTTP. Проверки RequireViewJournal и системного
+права администратора выполняются сервером; отсутствие document access запрещает
+чтение. Lifecycle журнала передаётся конструктору. Старый неиспользуемый
+LogAction удалён; audit записывают существующие серверные обработчики и
+transactional outbox effects. Служебных setters в Wails API этих журналов нет.
+
+Сборки и генерация bindings успешны. Тесты перенесены и скомпилированы,
+но не запускались по указанию пользователя; проверка поведения отложена.
+
+## Разделение dashboard и администрирования outbox, этап 22
+
+13.09.2026: DashboardService и OutboxAdminService перенесены из смешанного
+internal/services в независимые desktop/services и server/services.
+Desktop выполняет HTTP-запросы; сервер применяет фильтры dashboard по правам,
+участию и замещениям, проверяет право администратора во всех операциях outbox.
+Метрики dashboard передаются серверному конструктору; SetOperationMetrics
+удалён из Wails API. Четыре пользовательских метода сохранили сигнатуры.
+
+Серверные тесты перенесены, desktop-тесты добавлены. Сборки, генерация bindings
+и компиляция тестовых пакетов успешны; тесты не запускались по указанию
+пользователя. Приёмка поведения остаётся отложенной.
+
+## Разделение статистики, этап 23
+
+13.09.2026: StatisticsService разделён между desktop/services и server/services.
+Desktop содержит девять HTTP-операций с timeout две минуты. Сервер владеет
+проверками прав, отчётами, конкурентными запросами, диагностикой и storage
+refresh/lease. StatisticsOptions передаёт diagnostics, lifecycle, metrics
+и refreshRunner конструктору; служебные setters и отдельная функция настройки
+runner удалены. Сервер регистрирует detached refresh до запуска и завершает
+учёт после работы; backup по-прежнему ждёт detached.Wait внутри своего барьера.
+
+Runtime/generator публикуют desktop-тип. Сборки и генерация успешны, тесты
+перенесены и скомпилированы без запуска по указанию пользователя. Проверки
+поведения и race отложены. App и server/management больше не импортируют
+internal/services; окончательная очистка остаточных helpers относится к этапу 28.
+
+## Разделение конфигурации и логирования, этап 24
+
+13.09.2026: desktop/config содержит только локальную конфигурацию API;
+server/config владеет PostgreSQL, S3, BackupConfig, Seq, outbox и серверными
+env-настройками. Прежний internal/config удалён, все потребители и тесты
+переведены. Backup/storage/database и integrations3 используют server/config.
+
+Desktop/logging владеет Wails adapter, user context, WebView2 filter и
+HTTP batch writer. Server/logging владеет Seq writer и серверной настройкой.
+Общий logger содержит независимые CLEF formatting и установку slog, включён
+в правила shared-импортов. Desktop writer определяет узкий TelemetryClient;
+callback пользователя защищён mutex при замене и чтении.
+
+Сборки и компиляция тестов успешны, тесты не запускались. `go list -deps`
+подтвердил отсутствие desktop/serverclient/Wails у сервера и отсутствие
+server/database/repository/storage/backup у desktop. Это проверка зависимостей,
+а не подтверждение сценариев логирования или восстановления данных.
+
+## Перенос HTTP-клиента и composition root, этап 25
+
+13.09.2026: app и serverclient находятся в internal/desktop. Main и generator
+импортируют desktop/app; desktop-сервисы и серверные HTTP integration tests —
+desktop/serverclient. Снимок Wails API и embedded CA перенесены с пакетами.
+Общий background.Lifecycle используется напрямую без alias/forwarding constructor;
+он получает функцию чтения статуса и не зависит от инфраструктуры или сторон.
+Архитектурные правила разрешают desktop использовать этот независимый пакет
+и запрещают background импортировать любую сторону.
+
+SSE/session/restore observation перенесены без изменения реализации. Сборки,
+генерация bindings, компиляция тестов и проверка графов успешны. Тесты, включая
+race и сценарии отсутствия токенов в Wails, отложены по указанию пользователя.
+
+## Перенос database и repository, этап 26
+
+13.09.2026: database и repository находятся в internal/server. Потребители,
+backup, workers, tools/dbperf, Makefile и тесты используют новые пути.
+DefaultMigrationsPath указывает на internal/server/database/migrations;
+все 24 SQL-файла перенесены без изменений и включены в embedded filesystem.
+Механизм замены подключения после restore и lifetime instance lease не менялся.
+
+Сборки приложений и tools, компиляция тестов успешны. PostgreSQL suite,
+проверки восстановления и race не запускались по указанию пользователя;
+их результаты остаются частью отложенной приёмки.
+
+## Перенос серверной инфраструктуры, этап 27
+
+13.09.2026: storage, backup/smb, liveevents, outbox, coordination и security
+перенесены в internal/server; обновлены cmd, integrations3, tools, тесты
+и SMB-команда smoke-скрипта. Пакеты автоматически подпадают под server-границы.
+Общие background и startupdiag остаются независимыми: их используют обе стороны.
+
+Все 39 перенесённых файлов совпадают с HEAD за исключением импортов.
+Алгоритмы streaming, maintenance, lease, recovery-required, backup v2/v3,
+SMB и долговечной публикации событий не менялись. Сборки и компиляция тестов
+успешны, но тесты и storage-smoke не запускались по указанию пользователя.
+
+## Закрытие границ, этап 28
+
+13.09.2026: internal/services и его неиспользуемые helpers/fixtures удалены.
+Политика проверяет обе production-точки входа и все транзитивные зависимости;
+новые общие internal-пакеты автоматически запрещают зависимости от сторон.
+Отдельная проверка запрещает возвращение удалённых каталогов. Test support
+(mocks/testutil/architecture) выделен явно и не расширяет production-исключения.
+
+Wails-контракт содержит 25 desktop-сервисов и 126 пользовательских методов.
+Проверяются конкретные runtime/generator Bind, JS/TS-снимки, владелец bound-типов,
+служебные методы и вложенные типы сигнатур. Backup UI-операции сохранены.
+Проверки включены в make go-test/release-gate штатным набором пакетов.
+Сборки и компиляция проверок успешны; тесты не запускались по указанию пользователя.
+
+## Накопленная проверка, этап 29
+
+13.09.2026: Go-тесты (включая границы и Wails API), vet, race, PostgreSQL/SeaweedFS
+integration, frontend lint/test/build и повторная генерация bindings прошли.
+Готовы Wails-сборки Linux и Windows. Storage-smoke прошёл SMB, restart/recreate,
+backup, replacement restore и reset recovery v2/v3 с чтением вложений;
+временные контейнеры и тома удалены. Этапы 19–28 приняты.
+Остаётся ручной GUI-smoke на целевых ОС; этап 29 не отмечен полностью завершённым.

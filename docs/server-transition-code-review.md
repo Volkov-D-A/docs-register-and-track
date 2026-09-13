@@ -66,13 +66,16 @@ Endpoint `POST /api/v1/auth/setup` доступен без аутентифик�
 
 ### 3. Средний приоритет: Wails публикует внутренние методы серверных сервисов
 
-Статус на 7 сентября 2026 года: риск для вложений закрыт. Реализовано разделение: независимые `AttachmentService` (desktop) и `ServerAttachmentService` (HTTP-сервер) не содержат друг друга и не переключаются между локальным и серверным режимами.
+Статус на 13 сентября 2026 года: архитектурная часть риска закрыта для всех
+сервисов. Desktop и server разделены по пакетам, прежний internal/services
+удалён. Wails публикует только 25 desktop-сервисов и 126 пользовательских
+методов; служебные setters, Startup и LogAction отсутствуют.
 
-[Desktop-сервис](../internal/desktop/services/attachment_desktop.go) получает обязательный HTTP-клиент, lifecycle, metrics и адаптеры ОС через конструктор. Callback запуска хранит Wails-контекст под mutex и не публикуется как метод. [Серверный сервис](../internal/server/services/attachment_server.go) получает зависимости при создании, сохраняет проверки прав, streaming и transactional effects. Общая нормализация имён используется обеими реализациями.
-
-[Сгенерированные bindings](../frontend/wailsjs/go/services/AttachmentService.d.ts) содержат ровно десять UI-операций. Удалены серверные методы, `Startup` и сеттеры. Тесты проверяют точный набор методов Go/JS/TS, отсутствие серверного типа в обеих Wails-регистрациях и совпадение регистраций.
-
-Избыточные методы других Wails-сервисов и разделение пакетов включены в [пошаговый план разделения desktop- и серверного кода](desktop-server-separation-plan.md). Реализация этого плана ещё не начата. Проверки вложений: `go test`, `go test -race` и `go vet` для services/server/serverclient/app; frontend lint и production build; 7 UI-тестов. Bindings перегенерированы, повторная генерация воспроизводима. PostgreSQL-интеграция не выполнялась: Docker Desktop недоступен в WSL. Нативный GUI вручную не проверялся. Проверка ссылок выявляет четыре прежние проблемы: отсутствуют `docs/bugs.md` и `docs/https-internal-ca-setup.md` (по две ссылки).
+Точный контракт Go/JS/TS, совпадение runtime/generator Bind и транзитивные
+границы обеих точек входа проверяются штатными Go-тестами. Накопленные Go-тесты,
+vet, race, PostgreSQL/SeaweedFS integration и frontend-проверки прошли.
+Linux/Windows сборки готовы. Нативные GUI-сценарии остаются ручной приёмкой;
+полная запись результатов находится в [плане разделения](desktop-server-separation-plan.md).
 
 ### 4. Средний приоритет: клиент не завершает сессию после `401 Unauthorized`
 
@@ -84,7 +87,7 @@ Desktop использует состояние сессии HTTP-клиента
 
 Исходное наблюдение ревью:
 
-Общий HTTP-код клиентских операций декодирует ошибку, но не очищает token при `401`: [`internal/serverclient/users.go`](../internal/serverclient/users.go#L93), [`internal/serverclient/auth.go`](../internal/serverclient/auth.go#L220). Frontend store сбрасывает пользователя в основном при явном logout или смене пароля: [`frontend/src/store/useAuthStore.ts`](../frontend/src/store/useAuthStore.ts#L135).
+Общий HTTP-код клиентских операций декодирует ошибку, но не очищает token при `401`: [`internal/desktop/serverclient/users.go`](../internal/desktop/serverclient/users.go#L93), [`internal/desktop/serverclient/auth.go`](../internal/desktop/serverclient/auth.go#L220). Frontend store сбрасывает пользователя в основном при явном logout или смене пароля: [`frontend/src/store/useAuthStore.ts`](../frontend/src/store/useAuthStore.ts#L135).
 
 Сценарии воспроизведения:
 
@@ -149,7 +152,7 @@ if user == nil || !security.VerifyPassword(user.PasswordHash, req.Password) {
 
 ### Совмещение desktop- и server-ролей в сервисах
 
-`AuthService` сохраняет прямой repository/database fallback, хотя production desktop создаётся с server client, а сервер использует собственные обработчики. Этот путь преимущественно поддерживается старыми тестами и усложняет понимание доверенной границы: `internal/services/auth_service.go` (исторический путь, отсутствует в текущем дереве).
+Исправлено 13.09.2026: desktop AuthService использует только HTTP-клиент; прежний repository/database fallback удалён. Историческое наблюдение: Этот путь преимущественно поддерживается старыми тестами и усложняет понимание доверенной границы: `internal/services/auth_service.go` (исторический путь, отсутствует в текущем дереве).
 
 Вложения разделены на независимые desktop- и server-типы; смешанная реализация и legacy-конструкторы удалены (см. риск №3).
 
@@ -157,7 +160,7 @@ if user == nil || !security.VerifyPassword(user.PasswordHash, req.Password) {
 
 ### Неиспользуемые зависимости `UserService`
 
-Поля `userRepo` и `auth` всё ещё находятся в `UserService`: `internal/services/user_service.go` (исторический путь, отсутствует в текущем дереве), тогда как актуальные операции используют `server`/`executors`. Конструктор с repository поддерживает старую форму объекта, но повышает риск случайного возврата прямого доступа к данным.
+Исправлено 13.09.2026: desktop UserService содержит только HTTP-клиент, прежние поля и конструктор удалены. Историческое наблюдение о `UserService`: `internal/services/user_service.go` (исторический путь, отсутствует в текущем дереве), тогда как актуальные операции используют `server`/`executors`. Конструктор с repository поддерживает старую форму объекта, но повышает риск случайного возврата прямого доступа к данным.
 
 Рекомендация: удалить поля и legacy-конструктор после проверки всех production composition roots и тестов; оставить обязательные server interfaces в конструкторе, чтобы некорректное состояние нельзя было создать.
 

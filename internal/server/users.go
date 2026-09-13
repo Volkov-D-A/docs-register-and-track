@@ -11,7 +11,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
 )
 

@@ -5,7 +5,3 @@
 export function GetAll(arg1, arg2) {
   return window['go']['services']['AdminAuditLogService']['GetAll'](arg1, arg2);
 }
-
-export function LogAction(arg1, arg2, arg3, arg4) {
-  return window['go']['services']['AdminAuditLogService']['LogAction'](arg1, arg2, arg3, arg4);
-}

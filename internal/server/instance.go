@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/backup"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"time"
 )
 

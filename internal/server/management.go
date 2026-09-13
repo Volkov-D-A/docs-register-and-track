@@ -16,17 +16,16 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/backup"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/liveevents"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/repository"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/security"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/services"
 )
 
 const rollbackConfirmationPhrase = "ОТКАТ МИГРАЦИИ"
@@ -208,9 +207,7 @@ func newManagementAPI(app *App) *managementAPI {
 			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
-			service := services.NewAcknowledgmentService(acknowledgments, users, principal, documentAccess)
-			service.SetSubstitutionStore(substitutions)
-			return service
+			return serverservices.NewAcknowledgmentService(acknowledgments, users, principal, documentAccess, substitutions)
 		},
 		userEvents: func(user *models.User) userEventAPI {
 			return serverservices.NewUserEventService(userEvents, requestDocumentPrincipal{user: user})
@@ -220,41 +217,39 @@ func newManagementAPI(app *App) *managementAPI {
 			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
-			return services.NewAdministrativeOrderService(administrativeOrderCommands, principal, documentAccess)
+			return serverservices.NewAdministrativeOrderService(administrativeOrderCommands, principal, documentAccess)
 		},
 		links: func(user *models.User) linkAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
-			service := services.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal)
-			service.SetOperationMetrics(app.metrics)
-			return service
+			return serverservices.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal, nil, app.metrics)
 		},
 		journal: func(user *models.User) journalAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
-			return services.NewJournalService(journal, principal, documentAccess)
+			return serverservices.NewJournalService(journal, documentAccess, nil)
 		},
 		dashboard: func(user *models.User) dashboardAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
-			service := services.NewDashboardService(dashboard, principal, documentAccess)
-			service.SetOperationMetrics(app.metrics)
-			return service
+			return serverservices.NewDashboardService(dashboard, principal, documentAccess, app.metrics)
 		},
 		statistics: func(user *models.User) statisticsAPI {
-			service := services.NewStatisticsServiceWithDiagnostics(
-				statistics,
-				requestDocumentPrincipal{user: user},
-				app.storage,
-				newServerDiagnostics(app, outboxRepo, repository.NewServerSessionRepository(app.db)),
+			return serverservices.NewStatisticsService(
+				statistics, requestDocumentPrincipal{user: user}, app.storage,
+				serverservices.StatisticsOptions{
+					Diagnostics: newServerDiagnostics(app, outboxRepo, repository.NewServerSessionRepository(app.db)),
+					Metrics:     app.metrics,
+					RefreshRunner: func(fn func()) {
+						app.detached.Add(1)
+						go func() { defer app.detached.Done(); fn() }()
+					},
+				},
 			)
-			service.SetOperationMetrics(app.metrics)
-			services.ConfigureStorageRefreshRunner(service, func(fn func()) { app.detached.Add(1); go func() { defer app.detached.Done(); fn() }() })
-			return service
 		},
 		attachments: func(user *models.User) attachmentAPI {
 			principal := requestDocumentPrincipal{user: user}
@@ -263,10 +258,10 @@ func newManagementAPI(app *App) *managementAPI {
 			return service
 		},
 		adminAudit: func(user *models.User) adminAuditAPI {
-			return services.NewAdminAuditLogService(adminAudit, requestDocumentPrincipal{user: user})
+			return serverservices.NewAdminAuditLogService(adminAudit, requestDocumentPrincipal{user: user})
 		},
 		outboxAdmin: func(user *models.User) outboxAdminAPI {
-			return services.NewOutboxAdminService(outboxRepo, requestDocumentPrincipal{user: user})
+			return serverservices.NewOutboxAdminService(outboxRepo, requestDocumentPrincipal{user: user})
 		},
 		authUsers:    users,
 		initialSetup: users,

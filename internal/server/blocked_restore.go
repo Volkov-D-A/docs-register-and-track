@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/backup"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 

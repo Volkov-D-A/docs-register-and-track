@@ -5,7 +5,7 @@ package main
 import (
 	"github.com/wailsapp/wails/v2"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/app"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/app"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
 )
 

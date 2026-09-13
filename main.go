@@ -8,9 +8,9 @@ import (
 
 	"github.com/wailsapp/wails/v2"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/app"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/app"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/config"
+	logger "github.com/Volkov-D-A/docs-register-and-track/internal/desktop/logging"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
 )
 
@@ -48,7 +48,7 @@ func main() {
 		})
 	}
 
-	_, closeLogger := logger.InitDesktop(serverClient)
+	_, closeLogger := logger.Init(serverClient)
 	var closeLoggerOnce sync.Once
 	closeLoggerSafely := func() {
 		closeLoggerOnce.Do(closeLogger)

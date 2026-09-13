@@ -236,7 +236,7 @@ Before release, verify that About UI, release notes, binary metadata and install
 ## Database And Migrations
 
 Migrations are embedded in `docflow-server` from
-`internal/database/migrations`. Admin users inspect, apply and roll back them in
+`internal/server/database/migrations`. Admin users inspect, apply and roll back them in
 `Settings -> Migrations`, but the desktop process never executes migration SQL:
 it calls the server management API. Apply/rollback temporarily stops the
 server worker, takes a PostgreSQL advisory lease, changes the schema, records an

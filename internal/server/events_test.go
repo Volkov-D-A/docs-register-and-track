@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/backup"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/liveevents"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"

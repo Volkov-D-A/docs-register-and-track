@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/outbox"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
 )
 
 func ValidateConfig(cfg *config.Config) error {

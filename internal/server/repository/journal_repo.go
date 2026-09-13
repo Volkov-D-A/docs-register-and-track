@@ -1,0 +1,86 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+
+	"github.com/google/uuid"
+)
+
+// JournalRepository предоставляет методы для работы с журналом действий.
+type JournalRepository struct {
+	db *database.DB
+}
+
+// NewJournalRepository создает новый экземпляр JournalRepository.
+func NewJournalRepository(db *database.DB) *JournalRepository {
+	return &JournalRepository{db: db}
+}
+
+func (r *JournalRepository) Create(ctx context.Context, req models.CreateJournalEntryRequest) (uuid.UUID, error) {
+	return r.create(ctx, req, "")
+}
+func (r *JournalRepository) CreateFromOutbox(ctx context.Context, req models.CreateJournalEntryRequest, key string) (uuid.UUID, error) {
+	return r.create(ctx, req, key)
+}
+func (r *JournalRepository) create(ctx context.Context, req models.CreateJournalEntryRequest, key string) (uuid.UUID, error) {
+	query := `
+		INSERT INTO document_journal (document_id, user_id, action, details, outbox_deduplication_key)
+		VALUES ($1, $2, $3, $4, NULLIF($5, '')) ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING
+		RETURNING id
+	`
+	var id uuid.UUID
+	err := r.db.QueryRowContext(ctx, query, req.DocumentID, req.UserID, req.Action, req.Details, key).Scan(&id)
+	if err == sql.ErrNoRows && key != "" {
+		return uuid.Nil, nil
+	}
+	return id, err
+}
+
+func (r *JournalRepository) GetByDocumentID(ctx context.Context, documentID uuid.UUID) ([]models.JournalEntry, error) {
+	query := `
+		SELECT j.id, j.document_id, j.user_id, 
+		       u.full_name, 
+		       j.action, j.details, j.created_at
+		FROM document_journal j
+		JOIN users u ON j.user_id = u.id
+		WHERE j.document_id = $1
+		ORDER BY j.created_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, query, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []models.JournalEntry
+	for rows.Next() {
+		var entry models.JournalEntry
+		err := rows.Scan(
+			&entry.ID,
+			&entry.DocumentID,
+			&entry.UserID,
+			&entry.UserName,
+			&entry.Action,
+			&entry.Details,
+			&entry.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Возвращаем пустой массив вместо nil для корректной сериализации в JSON
+	if entries == nil {
+		entries = []models.JournalEntry{}
+	}
+
+	return entries, nil
+}
