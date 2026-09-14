@@ -4,7 +4,7 @@ import { onServerEvent } from '../../events/serverEvents';
 import BackupProgress from './BackupProgress';
 import BackupCatalog from './BackupCatalog';
 import { models } from '../../../wailsjs/go/models';
-import { formatAppError } from '../../utils/appError';
+import { formatAppError, normalizeAppError } from '../../utils/appError';
 
 export default function BackupTab() {
   const { message } = App.useApp();
@@ -13,6 +13,7 @@ export default function BackupTab() {
   const [jobs, setJobs] = useState<models.BackupJob[]>([]);
   const [copies, setCopies] = useState<models.BackupCopy[]>([]);
   const [catalogIssue, setCatalogIssue] = useState('');
+  const [catalogDeferred, setCatalogDeferred] = useState(false);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [issue, setIssue] = useState('');
   const [nextRun, setNextRun] = useState('');
@@ -36,6 +37,7 @@ export default function BackupTab() {
     if (!savedConnectionConfigured.current) {
       setCopies([]);
       setCatalogIssue('');
+      setCatalogDeferred(false);
       return;
     }
     setCatalogBusy(true);
@@ -43,9 +45,30 @@ export default function BackupTab() {
       const api = await import('../../../wailsjs/go/services/SettingsService');
       setCopies(await api.ListBackupCopies() ?? []);
       setCatalogIssue('');
-    } catch (error) { setCopies([]); setCatalogIssue(formatAppError(error)); }
+      setCatalogDeferred(false);
+    } catch (error) {
+      if (normalizeAppError(error).code === 'MAINTENANCE') {
+        setCatalogIssue('');
+        setCatalogDeferred(true);
+      } else {
+        setCatalogDeferred(false);
+        setCopies([]);
+        setCatalogIssue(formatAppError(error));
+      }
+    }
     finally { setCatalogBusy(false); }
   }, []);
+  useEffect(() => {
+    if (!catalogDeferred) return;
+    let disposed = false;
+    let timer: number;
+    const retry = async () => {
+      await reloadCatalog();
+      if (!disposed) timer = window.setTimeout(() => { void retry(); }, 3000);
+    };
+    timer = window.setTimeout(() => { void retry(); }, 3000);
+    return () => { disposed = true; window.clearTimeout(timer); };
+  }, [catalogDeferred, reloadCatalog]);
   useEffect(() => {
     let disposed = false;
     void (async () => {
@@ -68,9 +91,9 @@ export default function BackupTab() {
     }
   }), [reloadJobs, reloadCatalog]);
   useEffect(() => {
-    const finished = jobs.filter(job => !job.kind && ['completed', 'deleted'].includes(job.state)).map(job => job.id + job.state).join(',');
+    const finished = jobs.filter(job => !job.kind && ['completed', 'deleted'].includes(job.state)).map(job => job.id + job.state).join(',') || 'none';
     if (completedJobs.current && completedJobs.current !== finished) void reloadCatalog();
-    completedJobs.current = finished || 'none';
+    completedJobs.current = finished;
   }, [jobs, reloadCatalog]);
   const action = async (work: () => Promise<unknown>, success: string) => {
     setBusy(true);
@@ -117,6 +140,7 @@ export default function BackupTab() {
     <Typography.Title level={4}>Каталог копий на SMB</Typography.Title>
     <Button disabled={!connectionConfigured} loading={catalogBusy} onClick={() => void reloadCatalog()}>Обновить каталог</Button>
     {!connectionConfigured && <Alert type="info" showIcon title="Сначала заполните и сохраните настройки SMB-подключения и пароль." />}
+    {catalogDeferred && <Alert type="info" showIcon title="Обновление каталога отложено до завершения обслуживания сервера." />}
     {catalogIssue && <Alert type="error" showIcon title="Каталог SMB недоступен" description={catalogIssue} />}
     <BackupCatalog copies={copies} loading={catalogBusy} onChanged={reloadCatalog} />
     {jobs.slice(0, 1).map(job => <Space key={job.id} orientation="vertical" style={{ width: '100%' }}>

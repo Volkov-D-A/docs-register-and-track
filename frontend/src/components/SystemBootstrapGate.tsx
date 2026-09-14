@@ -30,7 +30,7 @@ export default function SystemBootstrapGate({ children }: SystemBootstrapGatePro
     if (loading && status === null) {
         return (
             <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
-                <Spin size="large" tip="Проверка сервера…" />
+                <Spin size="large" description="Проверка сервера…" />
             </div>
         );
     }

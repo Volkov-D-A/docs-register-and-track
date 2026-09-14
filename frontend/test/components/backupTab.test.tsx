@@ -67,3 +67,33 @@ test('an unconfigured SMB connection is not queried until settings are saved', a
   expect(screen.getByRole('button', { name: 'Обновить каталог' })).toBeEnabled();
   expect(screen.queryByText('Сначала заполните и сохраните настройки SMB-подключения и пароль.')).not.toBeInTheDocument();
 }, 15000);
+
+test('backup progress does not refresh an unchanged catalog and maintenance preserves copies', async () => {
+  const settings = {
+    smb: { host: 'nas', share: 'backups', directory: '', user: 'backup', domain: '' },
+    enabled: false, time: '02:00', timezone: 'Asia/Yekaterinburg', weekdays: [1],
+    retentionDays: 15, keepCopies: 3, passwordSet: true,
+  };
+  const job = { id: 'backup-live', state: 'queued', createdAt: '2026-09-14T00:00:00Z', updatedAt: '2026-09-14T00:00:00Z', archiveSize: 0 };
+  const jobs = vi.fn().mockResolvedValue([job]);
+  const catalog = vi.fn().mockResolvedValue([{ id: 'saved-copy', format: 3, createdAt: job.createdAt, size: 1024, verification: 'verified' }]);
+  installWailsMock({ SettingsService: {
+    GetBackupSettings: vi.fn().mockResolvedValue({ settings, issue: '', nextRun: '' }),
+    ListBackups: jobs, ListBackupCopies: catalog,
+    StartBackup: vi.fn().mockImplementation(async () => { jobs.mockResolvedValue([{ ...job, state: 'snapshotting' }]); }),
+  } });
+  renderWithApp(<BackupTab />);
+  expect(await screen.findByText('saved-copy')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Создать копию' }));
+  expect(await screen.findByText('Создание снимка')).toBeInTheDocument();
+  expect(catalog).toHaveBeenCalledTimes(1);
+  catalog.mockRejectedValueOnce(JSON.stringify({ code: 'MAINTENANCE', status: 503, message: 'Обслуживание' }));
+  fireEvent.click(await screen.findByRole('button', { name: /Обновить каталог/ }));
+  expect(await screen.findByText('Обновление каталога отложено до завершения обслуживания сервера.')).toBeInTheDocument();
+  expect(screen.getByText('saved-copy')).toBeInTheDocument();
+  expect(screen.queryByText('Каталог SMB недоступен')).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByText('Обновление каталога отложено до завершения обслуживания сервера.')).not.toBeInTheDocument(), { timeout: 5000 });
+  catalog.mockRejectedValueOnce(JSON.stringify({ code: 'INTERNAL_ERROR', status: 503, message: 'SMB unavailable' }));
+  fireEvent.click(await screen.findByRole('button', { name: /Обновить каталог/ }));
+  expect(await screen.findByText('Каталог SMB недоступен')).toBeInTheDocument();
+}, 15000);
