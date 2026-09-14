@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Alert, Button, Checkbox, Modal, Space, Table, Typography } from 'antd';
 import BackupProgress from './BackupProgress';
 import { models } from '../../../wailsjs/go/models';
@@ -6,7 +7,7 @@ import { onServerEvent } from '../../events/serverEvents';
 import { formatAppError } from '../../utils/appError';
 
 const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted', 'rolled_back', 'rollback_failed', 'recovery_required']);
-export default function BackupCatalog({ copies, loading, onChanged }: { copies: models.BackupCopy[]; loading: boolean; onChanged: () => Promise<void> }) {
+export default function BackupCatalog({ copies, loading, onChanged, actionsContainer }: { copies: models.BackupCopy[]; loading: boolean; onChanged: () => Promise<void>; actionsContainer?: HTMLElement | null }) {
   const [selection, setSelection] = useState<{ copy: models.BackupCopy; kind: 'verify' | 'restore' | 'delete' }>();
   const [operation, setOperation] = useState<Pick<models.BackupOperationStarted, 'job' | 'statusToken' | 'expiresAt'>>();
   const [visible, setVisible] = useState(false);
@@ -87,7 +88,7 @@ export default function BackupCatalog({ copies, loading, onChanged }: { copies: 
         <Button danger disabled={running || !copy.canDelete} onClick={() => select(copy, 'delete')}>Удалить</Button>
       </Space> },
     ]} />
-    {operation && <Button onClick={() => setVisible(true)}>Состояние операции</Button>}
+    {actionsContainer && createPortal(<Button disabled={!operation} onClick={() => setVisible(true)}>Последние операции</Button>, actionsContainer)}
     <Modal open={!!selection && visible} title={selection?.kind === 'restore' ? 'Восстановление копии' : selection?.kind === 'delete' ? 'Удаление копии' : 'Проверка копии'} footer={null} onCancel={() => setVisible(false)}>
       {selection && <Space orientation="vertical" style={{ width: '100%' }}>
         <Typography.Text>ID: {selection.copy.id}</Typography.Text>
@@ -98,7 +99,7 @@ export default function BackupCatalog({ copies, loading, onChanged }: { copies: 
         {error && <Alert type="error" title={error} />}
         {operation?.job.canCancel && running && <Button onClick={() => { void (async () => { try { await (await import('../../../wailsjs/go/services/SettingsService')).CancelBackupOperation(operation.job.id); } catch (e) { setError(formatAppError(e)); } })(); }}>Отменить задание</Button>}
         {!running && selection.kind !== 'delete' && !verification && <Button loading={busy} onClick={() => void start('verify')}>Проверить выбранную копию</Button>}
-        {!running && (selection.kind === 'delete' || (selection.kind === 'restore' && verification && operation?.job.kind === 'verify')) && <>
+        {!running && ((selection.kind === 'delete' && operation?.job.state !== 'completed') || (selection.kind === 'restore' && verification && operation?.job.kind === 'verify')) && <>
           <Checkbox checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)}>Подтверждаю {selection.kind === 'delete' ? 'удаление выбранной копии' : 'замену текущих данных выбранной копией'}</Checkbox>
           <Button danger type="primary" disabled={!acknowledged} loading={busy} onClick={() => void start(selection.kind)}>{selection.kind === 'delete' ? 'Удалить подтверждённую копию' : 'Заменить данные'}</Button>
         </>}

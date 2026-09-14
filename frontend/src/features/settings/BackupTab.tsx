@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, App, Button, Collapse, Form, Input, InputNumber, Select, Space, Switch, Typography } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
+import { Alert, App, Button, Collapse, Form, Input, InputNumber, Modal, Select, Space, Switch, Typography } from 'antd';
 import { onServerEvent } from '../../events/serverEvents';
 import BackupProgress from './BackupProgress';
 import BackupCatalog from './BackupCatalog';
@@ -11,6 +12,11 @@ export default function BackupTab() {
   const [form] = Form.useForm<models.BackupSettingsUpdate>();
   const [panels, setPanels] = useState<string[]>(['connection', 'schedule']);
   const [jobs, setJobs] = useState<models.BackupJob[]>([]);
+  const [creationVisible, setCreationVisible] = useState(false);
+  const [catalogActionsContainer, setCatalogActionsContainer] = useState<HTMLSpanElement | null>(null);
+  const [creationJobID, setCreationJobID] = useState<string>();
+  const creationJob = jobs.find(job => !job.kind && job.id === creationJobID);
+  const creationRunning = !!creationJob && ['queued', 'snapshotting', 'transferring', 'verifying'].includes(creationJob.state);
   const [copies, setCopies] = useState<models.BackupCopy[]>([]);
   const [catalogIssue, setCatalogIssue] = useState('');
   const [catalogDeferred, setCatalogDeferred] = useState(false);
@@ -116,8 +122,6 @@ export default function BackupTab() {
         <Form.Item name={['settings', 'smb', 'host']} label="Сервер SMB" rules={[{ required: true }]}><Input placeholder="nas.example.local" /></Form.Item>
         <Form.Item name={['settings', 'smb', 'share']} label="Общая папка" rules={[{ required: true }]}><Input placeholder="backups" /></Form.Item>
         <Form.Item name={['settings', 'smb', 'directory']} label="Подкаталог"><Input placeholder="docflow" /></Form.Item>
-      </Space>
-      <Space align="start" wrap>
         <Form.Item name={['settings', 'smb', 'user']} label="Пользователь" rules={[{ required: true }]}><Input autoComplete="off" /></Form.Item>
         <Form.Item name="password" label={passwordSet ? 'Новый пароль (текущий сохранён)' : 'Пароль'}><Input.Password autoComplete="new-password" /></Form.Item>
         <Form.Item name="clearPassword" label="Удалить сохранённый пароль" valuePropName="checked"><Switch /></Form.Item>
@@ -133,22 +137,38 @@ export default function BackupTab() {
       <Space wrap style={{ marginTop: 16 }}>
         <Button type="primary" htmlType="submit" loading={busy}>Сохранить</Button>
         <Button disabled={busy || !!issue || !connectionConfigured} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CheckBackupConnection(), 'Подключение и файловые операции проверены')}>Проверить сохранённое подключение</Button>
-        <Button disabled={busy || !!issue || !connectionConfigured} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).StartBackup(), 'Задание создано')}>Создать копию</Button>
+        <Button disabled={busy || !!issue || !connectionConfigured} onClick={() => {
+          const latest = jobs.find(job => !job.kind);
+          const resumable = latest && (['queued', 'snapshotting', 'transferring', 'verifying', 'staged'].includes(latest.state) || (latest.state === 'cancelled' && latest.archiveSize > 0));
+          setCreationJobID(resumable ? latest.id : undefined);
+          setCreationVisible(true);
+        }}>Создать копию</Button>
+        <span ref={setCatalogActionsContainer} />
       </Space>
     </Form>
     {nextRun && <Typography.Text>Следующий запуск: {new Date(nextRun).toLocaleString()}</Typography.Text>}
-    <Typography.Title level={4}>Каталог копий на SMB</Typography.Title>
-    <Button disabled={!connectionConfigured} loading={catalogBusy} onClick={() => void reloadCatalog()}>Обновить каталог</Button>
+    <Space align="center">
+      <Typography.Title level={4} style={{ margin: 0 }}>Каталог копий на SMB</Typography.Title>
+      <Button type="text" icon={<ReloadOutlined />} aria-label="Обновить каталог" title="Обновить каталог" disabled={!connectionConfigured} loading={catalogBusy} onClick={() => void reloadCatalog()} />
+    </Space>
     {!connectionConfigured && <Alert type="info" showIcon title="Сначала заполните и сохраните настройки SMB-подключения и пароль." />}
     {catalogDeferred && <Alert type="info" showIcon title="Обновление каталога отложено до завершения обслуживания сервера." />}
     {catalogIssue && <Alert type="error" showIcon title="Каталог SMB недоступен" description={catalogIssue} />}
-    <BackupCatalog copies={copies} loading={catalogBusy} onChanged={reloadCatalog} />
-    {jobs.slice(0, 1).map(job => <Space key={job.id} orientation="vertical" style={{ width: '100%' }}>
-      <Typography.Title level={4}>Текущее задание</Typography.Title>
-      <Typography.Text>{job.kind === 'restore' ? 'Восстановление' : job.kind === 'verify' ? 'Проверка' : job.kind === 'delete' ? 'Удаление' : 'Создание копии'} · {job.copyId || job.id}</Typography.Text>
-      <BackupProgress stages={job.stages} state={job.state} error={job.error} />
-      {!job.kind && ['snapshotting', 'transferring', 'verifying'].includes(job.state) && <Button onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CancelBackup(job.id), 'Отмена запрошена')}>Отменить</Button>}
-      {!job.kind && ['staged', 'cancelled'].includes(job.state) && job.archiveSize > 0 && <Button onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).RetryBackup(job.id), 'Повторная отправка запланирована')}>Повторить отправку</Button>}
-    </Space>)}
+    <BackupCatalog copies={copies} loading={catalogBusy} onChanged={reloadCatalog} actionsContainer={catalogActionsContainer} />
+    <Modal destroyOnHidden open={creationVisible} title="Создание резервной копии" footer={null} onCancel={() => setCreationVisible(false)}>
+      <Space orientation="vertical" style={{ width: '100%' }}>
+        {creationJob && <>
+          <Typography.Text>ID: {creationJob.id}</Typography.Text>
+          <BackupProgress stages={creationJob.stages} state={creationJob.state} error={creationJob.error} />
+          {['snapshotting', 'transferring', 'verifying'].includes(creationJob.state) && <Button disabled={busy} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CancelBackup(creationJob.id), 'Отмена запрошена')}>Отменить</Button>}
+          {['staged', 'cancelled'].includes(creationJob.state) && creationJob.archiveSize > 0 && <Button disabled={busy} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).RetryBackup(creationJob.id), 'Повторная отправка запланирована')}>Повторить отправку</Button>}
+        </>}
+        <Button type="primary" loading={busy} disabled={creationRunning || !!issue || !connectionConfigured} onClick={() => void action(async () => {
+          const job = await (await import('../../../wailsjs/go/services/SettingsService')).StartBackup();
+          setCreationJobID(job.id);
+          setJobs(current => [job, ...current.filter(existing => existing.id !== job.id)]);
+        }, 'Задание создано')}>Начать создание копии</Button>
+      </Space>
+    </Modal>
   </Space>;
 }

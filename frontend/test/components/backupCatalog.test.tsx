@@ -45,3 +45,42 @@ test('operation completion arrives through a server event without repeated statu
   await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
   expect(status).toHaveBeenCalledTimes(1);
 });
+
+test('successful deletion removes confirmation controls and keeps the result visible', async () => {
+  const job = { id: 'delete-live', kind: 'delete', state: 'queued', updatedAt: '2026-09-10T00:00:00Z' };
+  const start = vi.fn().mockResolvedValue({ job, statusToken: 'capability', expiresAt: '2099-01-01T00:00:00Z' });
+  const status = vi.fn().mockResolvedValue(job);
+  const changed = vi.fn().mockResolvedValue(undefined);
+  installWailsMock({ SettingsService: { StartBackupOperation: start, GetBackupOperation: status } });
+  renderWithApp(<BackupCatalog copies={[copy]} loading={false} onChanged={changed} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+  expect(screen.getByRole('button', { name: 'Удалить подтверждённую копию' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Подтверждаю удаление выбранной копии' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Удалить подтверждённую копию' }));
+  await waitFor(() => expect(status).toHaveBeenCalledTimes(1));
+  expect(start).toHaveBeenCalledWith('delete', expect.objectContaining({ copyId: copy.id, confirmation: copy.deleteConfirmation }));
+  fireEvent(window, new CustomEvent('server:event', { detail: { topic: 'operation', revision: 0, operation: { ...job, state: 'completed', updatedAt: '2026-09-10T00:00:01Z' } } }));
+  expect(await screen.findByText('Завершено')).toBeInTheDocument();
+  expect(screen.queryByRole('checkbox', { name: 'Подтверждаю удаление выбранной копии' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Удалить подтверждённую копию' })).not.toBeInTheDocument();
+  expect(start).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+});
+
+test('the latest operations button is rendered in the shared actions container', async () => {
+  const job = { id: 'verify-actions', kind: 'verify', state: 'completed' };
+  installWailsMock({ SettingsService: {
+    StartBackupOperation: vi.fn().mockResolvedValue({ job, statusToken: 'capability', expiresAt: '2099-01-01T00:00:00Z' }),
+    GetBackupOperation: vi.fn().mockResolvedValue(job),
+  } });
+  const actionsContainer = document.createElement('div');
+  const { container } = renderWithApp(<BackupCatalog copies={[copy]} loading={false} onChanged={vi.fn().mockResolvedValue(undefined)} actionsContainer={actionsContainer} />);
+  container.appendChild(actionsContainer);
+  expect(screen.getByRole('button', { name: 'Последние операции' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Проверить' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Проверить выбранную копию' }));
+  const latest = await screen.findByRole('button', { name: 'Последние операции' });
+  expect(actionsContainer).toContainElement(latest);
+  await waitFor(() => expect(latest).toBeEnabled());
+  expect(screen.queryByRole('button', { name: 'Состояние операции' })).not.toBeInTheDocument();
+});

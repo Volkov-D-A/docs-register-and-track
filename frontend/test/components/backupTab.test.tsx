@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { ConfigProvider } from 'antd';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import BackupTab from '../../src/features/settings/BackupTab';
 import { installWailsMock, renderWithApp } from '../componentTestUtils';
@@ -19,7 +20,7 @@ test('backup settings preserve a stored password and retry a staged archive', as
     RetryBackup: retry,
     ListBackupCopies: vi.fn().mockResolvedValue([]),
   } });
-  renderWithApp(<BackupTab />);
+  renderWithApp(<ConfigProvider theme={{ token: { motion: false } }}><BackupTab /></ConfigProvider>);
   await waitFor(() => expect(screen.getByLabelText('Сервер SMB')).toHaveValue('freenas'));
   expect(screen.getByRole('button', { name: 'Настройки подключения' })).toHaveAttribute('aria-expanded', 'false');
   expect(screen.queryByText('Домен (если нужен)')).not.toBeInTheDocument();
@@ -30,7 +31,11 @@ test('backup settings preserve a stored password and retry a staged archive', as
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
   await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
   expect(save.mock.calls[0][0]).toMatchObject({ password: '', clearPassword: false, settings: { smb: { host: 'freenas' } } });
-  fireEvent.click(screen.getByRole('button', { name: 'Повторить отправку' }));
+  expect(screen.queryByText('Ожидает отправки')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Создать копию' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getByText('Ожидает отправки')).toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Повторить отправку' }));
   await waitFor(() => expect(retry).toHaveBeenCalledWith('backup-id'));
 }, 15000);
 
@@ -48,7 +53,7 @@ test('an unconfigured SMB connection is not queried until settings are saved', a
     GetBackupSettings: getSettings, SaveBackupSettings: save,
     ListBackups: jobs, ListBackupCopies: catalog,
   } });
-  renderWithApp(<BackupTab />);
+  renderWithApp(<ConfigProvider theme={{ token: { motion: false } }}><BackupTab /></ConfigProvider>);
   await waitFor(() => expect(jobs).toHaveBeenCalled());
   expect(screen.getByText('Сначала заполните и сохраните настройки SMB-подключения и пароль.')).toBeInTheDocument();
   expect(catalog).not.toHaveBeenCalled();
@@ -75,17 +80,32 @@ test('backup progress does not refresh an unchanged catalog and maintenance pres
     retentionDays: 15, keepCopies: 3, passwordSet: true,
   };
   const job = { id: 'backup-live', state: 'queued', createdAt: '2026-09-14T00:00:00Z', updatedAt: '2026-09-14T00:00:00Z', archiveSize: 0 };
-  const jobs = vi.fn().mockResolvedValue([job]);
+  const jobs = vi.fn().mockResolvedValue([]);
   const catalog = vi.fn().mockResolvedValue([{ id: 'saved-copy', format: 3, createdAt: job.createdAt, size: 1024, verification: 'verified' }]);
   installWailsMock({ SettingsService: {
     GetBackupSettings: vi.fn().mockResolvedValue({ settings, issue: '', nextRun: '' }),
     ListBackups: jobs, ListBackupCopies: catalog,
-    StartBackup: vi.fn().mockImplementation(async () => { jobs.mockResolvedValue([{ ...job, state: 'snapshotting' }]); }),
+    StartBackup: vi.fn().mockImplementation(async () => {
+      const started = { ...job, state: 'snapshotting' };
+      jobs.mockResolvedValue([started]);
+      return started;
+    }),
   } });
-  renderWithApp(<BackupTab />);
+  renderWithApp(<ConfigProvider theme={{ token: { motion: false } }}><BackupTab /></ConfigProvider>);
   expect(await screen.findByText('saved-copy')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Создать копию' }));
-  expect(await screen.findByText('Создание снимка')).toBeInTheDocument();
+  const dialog = await screen.findByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Начать создание копии' }));
+  expect(await within(dialog).findByText('Создание снимка')).toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Начать создание копии' })).toBeDisabled();
+  fireEvent.click(within(dialog).getByRole('button', { name: /close/i }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 5000 });
+  expect(screen.queryByText('Создание снимка')).not.toBeInTheDocument();
+  expect(screen.queryByText('Текущее задание')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Создать копию' }));
+  expect(await within(await screen.findByRole('dialog')).findByText('Создание снимка')).toBeInTheDocument();
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /close/i }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 5000 });
   expect(catalog).toHaveBeenCalledTimes(1);
   catalog.mockRejectedValueOnce(JSON.stringify({ code: 'MAINTENANCE', status: 503, message: 'Обслуживание' }));
   fireEvent.click(await screen.findByRole('button', { name: /Обновить каталог/ }));
@@ -96,4 +116,40 @@ test('backup progress does not refresh an unchanged catalog and maintenance pres
   catalog.mockRejectedValueOnce(JSON.stringify({ code: 'INTERNAL_ERROR', status: 503, message: 'SMB unavailable' }));
   fireEvent.click(await screen.findByRole('button', { name: /Обновить каталог/ }));
   expect(await screen.findByText('Каталог SMB недоступен')).toBeInTheDocument();
+}, 15000);
+
+test('a new creation dialog does not show the previous completed backup', async () => {
+  const settings = {
+    smb: { host: 'nas', share: 'backups', directory: '', user: 'backup', domain: '' },
+    enabled: false, time: '02:00', timezone: 'Asia/Yekaterinburg', weekdays: [1],
+    retentionDays: 15, keepCopies: 3, passwordSet: true,
+  };
+  const previous = { id: 'previous-copy', state: 'completed', archiveSize: 1024 };
+  const created = { ...previous, id: 'new-copy' };
+  const jobs = vi.fn().mockResolvedValue([previous]);
+  const start = vi.fn().mockImplementation(async () => {
+    jobs.mockResolvedValue([created, previous]);
+    return created;
+  });
+  installWailsMock({ SettingsService: {
+    GetBackupSettings: vi.fn().mockResolvedValue({ settings, issue: '', nextRun: '' }),
+    ListBackups: jobs, ListBackupCopies: vi.fn().mockResolvedValue([]), StartBackup: start,
+  } });
+  renderWithApp(<ConfigProvider theme={{ token: { motion: false } }}><BackupTab /></ConfigProvider>);
+  await waitFor(() => expect(jobs).toHaveBeenCalled());
+  fireEvent.click(screen.getByRole('button', { name: 'Создать копию' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).queryByText(/previous-copy/)).not.toBeInTheDocument();
+  expect(within(dialog).queryByText('Завершено')).not.toBeInTheDocument();
+  expect(start).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Начать создание копии' }));
+  expect(await within(dialog).findByText('ID: new-copy')).toBeInTheDocument();
+  expect(within(dialog).getByText('Завершено')).toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: /close/i }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Создать копию' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Создать копию' }));
+  const reopened = await screen.findByRole('dialog');
+  expect(within(reopened).queryByText(/new-copy|previous-copy|Завершено/)).not.toBeInTheDocument();
+  expect(within(reopened).getByRole('button', { name: 'Начать создание копии' })).toBeEnabled();
 }, 15000);
