@@ -1,6 +1,6 @@
 # Техническая документация проекта
 
-Дата обновления: 2026-08-30
+Дата обновления: 2026-09-14
 Статус: основной справочник для дальнейшей разработки
 
 ## Назначение
@@ -54,6 +54,24 @@ Frontend:
 - Linux `amd64` и Windows `amd64` являются production target. macOS не входит в текущий release target.
 
 ## Высокоуровневая Архитектура
+
+Разделение desktop и сервера завершено 14 сентября 2026 года. Desktop отвечает
+за Wails API, локальные пользовательские файлы, интерфейс ОС и HTTP-клиент;
+сервер — за аутентификацию, права, бизнес-операции, БД, object storage и outbox.
+Production-зависимости проверяются транзитивно: desktop не импортирует server,
+server не импортирует desktop и Wails, общие пакеты не зависят от обеих сторон.
+Эти ограничения закреплены в `internal/architecture/imports_test.go`.
+
+Wails публикует 25 desktop-сервисов и 126 пользовательских методов без служебных
+setters, Startup и LogAction. Актуальный контракт хранится в
+`internal/desktop/app/testdata/wails-api.json`; тесты проверяют Go/JS/TS и
+совпадение регистраций runtime и генератора.
+
+Приёмка включает успешные Go-тесты, vet, race, PostgreSQL/SeaweedFS integration,
+frontend lint/test/build, генерацию bindings, сборки server без CGO и desktop
+Linux/Windows, а также storage smoke с SMB, restart/recreate SeaweedFS и
+backup/restore v2/v3. Пользователь подтвердил успешные ручные проверки
+Linux/Windows: выбор, скачивание и открытие файлов, login/logout и maintenance.
 
 ```text
 Wails desktop app
@@ -909,7 +927,7 @@ Target OS smoke must include:
 
 Текущая согласованная версия release metadata: `1.0.6` в `docs/releases.yaml`, generated release asset и `wails.json`.
 
-Актуальные результаты ревью и статусы исправлений ведутся в `docs/server-transition-code-review.md` и `docs/desktop-server-separation-plan.md`; этот справочник не утверждает отсутствие открытых проблем. Production approval требует clean-worktree release gate, target OS smoke и реального backup/restore test.
+Актуальные результаты ревью и статусы исправлений ведутся в [ревью перехода на сервер](server-transition-code-review.md); этот справочник не утверждает отсутствие открытых проблем. Завершение архитектурного разделения не заменяет приёмку релиза: production approval требует clean-worktree release gate, target OS smoke и реального backup/restore test.
 
 ## Practical Change Checklist
 
