@@ -134,20 +134,3 @@ func TestS3PaginationIntegration(t *testing.T) {
 	require.Equal(t, 1005, count)
 	require.Equal(t, total, size)
 }
-
-func TestS3LegacyBackupRestoreIntegration(t *testing.T) {
-	source, _, cfg := integrations3.Open(t)
-	target, _, targetCfg := integrations3.Open(t)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	content := []byte("%PDF test legacy backup\x00\xff")
-	key := "папка/file with spaces.pdf"
-	require.NoError(t, source.UploadFile(ctx, key, bytes.NewReader(content), int64(len(content)), "application/pdf"))
-	directory := t.TempDir()
-	require.NoError(t, storage.ExportDirectory(ctx, cfg, directory))
-	require.NoError(t, storage.ImportDirectory(ctx, targetCfg, directory))
-	var result bytes.Buffer
-	require.NoError(t, target.DownloadFileToWriter(ctx, key, &result, int64(len(content))))
-	require.Equal(t, content, result.Bytes())
-	require.ErrorContains(t, storage.ImportDirectory(ctx, targetCfg, directory), "empty bucket")
-}

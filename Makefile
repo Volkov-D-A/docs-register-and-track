@@ -81,7 +81,6 @@ integration-test: check-integration-env
 		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \
 		$(INTEGRATION_COMPOSE) up -d --build --wait; \
-		$(INTEGRATION_COMPOSE) run --rm s3-ready; \
 		DOCFLOW_INTEGRATION_S3_ENDPOINT=127.0.0.1:58333 DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1
 
 # Generates a local baseline only. It intentionally has no pass/fail latency
@@ -92,7 +91,6 @@ db-performance-check: check-integration-env
 		trap cleanup EXIT INT TERM; \
 		mkdir -p $(PERFORMANCE_DIR); \
 		$(INTEGRATION_COMPOSE) up -d --build --wait; \
-		$(INTEGRATION_COMPOSE) run --rm s3-ready; \
 		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/server/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
 		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -deep-page $(PERFORMANCE_DEEP_PAGE) | tee $(PERFORMANCE_DIR)/summary.txt
 

@@ -25,8 +25,6 @@ Usage:
   docflow-server run
   docflow-server check-config
   docflow-server healthcheck
-  docflow-server storage check|bucket-check
-  docflow-server storage export|import DIRECTORY
   docflow-server version
 `
 
@@ -58,10 +56,6 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		fmt.Fprintln(stdout, version)
 		return nil
-	}
-
-	if args[0] == "storage" {
-		return runStorage(args[1:], stdout)
 	}
 
 	command := args[0]

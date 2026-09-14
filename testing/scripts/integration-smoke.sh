@@ -35,11 +35,11 @@ DOCFLOW_INTEGRATION_SMB_HOST=127.0.0.1 DOCFLOW_INTEGRATION_SMB_PORT=5445 DOCFLOW
 # Fresh server has applied the ordinary embedded migrations and created its bucket.
 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/api-seed.log"
 "${compose[@]}" restart seaweedfs
-"${compose[@]}" run --rm s3-ready
+"${compose[@]}" up -d --no-deps --wait --wait-timeout 120 seaweedfs
 DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/restart.log"
 # Recreate the container too: metadata must not depend on its writable layer.
 "${compose[@]}" up -d --no-deps --force-recreate seaweedfs
-"${compose[@]}" run --rm s3-ready
+"${compose[@]}" up -d --no-deps --wait --wait-timeout 120 seaweedfs
 DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/recreate.log"
 "${compose[@]}" exec -T seaweedfs sh -c 'ls -d /data/*/' > "$evidence/storage-directories.txt"
 
