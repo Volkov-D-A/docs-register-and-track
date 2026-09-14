@@ -16,13 +16,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
@@ -74,6 +74,7 @@ type managementAPI struct {
 	outboxAdmin                        func(*models.User) outboxAdminAPI
 	audit                              adminAuditStore
 	authUsers                          authUserStore
+	verifyLoginPassword                func(string, string) bool
 	initialSetup                       initialSetupStore
 	authSettings                       authSettingsStore
 	sessions                           authSessionStore

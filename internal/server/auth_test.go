@@ -11,13 +11,67 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 )
 
 type fakeAuthUsers struct{ user *models.User }
+
+func TestDummyLoginPasswordHashMatchesPasswordCost(t *testing.T) {
+	hash, err := security.HashPassword("Passw0rd!")
+	require.NoError(t, err)
+	wantCost, err := bcrypt.Cost([]byte(hash))
+	require.NoError(t, err)
+	gotCost, err := bcrypt.Cost([]byte(dummyLoginPasswordHash))
+	require.NoError(t, err)
+	require.Equal(t, wantCost, gotCost)
+	require.True(t, security.VerifyPassword(dummyLoginPasswordHash, "docflow-dummy-password"))
+}
+
+func TestLoginVerifiesPasswordOnceForUnknownAndKnownUsers(t *testing.T) {
+	hash, err := security.HashPassword("Passw0rd!")
+	require.NoError(t, err)
+	user := &models.User{ID: uuid.New(), Login: "user", PasswordHash: hash, IsActive: true}
+	for _, tc := range []struct {
+		name     string
+		user     *models.User
+		password string
+		wantHash string
+	}{
+		{"unknown user", nil, "wrong-password", dummyLoginPasswordHash},
+		{"known user", user, "wrong-password", hash},
+		{"matching dummy password", nil, "docflow-dummy-password", dummyLoginPasswordHash},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			sessions := &fakeAuthSessions{}
+			api := &managementAPI{
+				authUsers: &fakeAuthUsers{user: tc.user},
+				sessions:  sessions,
+				verifyLoginPassword: func(gotHash, password string) bool {
+					calls++
+					assert.Equal(t, tc.wantHash, gotHash)
+					assert.Equal(t, tc.password, password)
+					return security.VerifyPassword(gotHash, password)
+				},
+			}
+			body, err := json.Marshal(loginRequest{Login: "user", Password: tc.password})
+			require.NoError(t, err)
+			response := httptest.NewRecorder()
+			api.login(response, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body)))
+			require.Equal(t, 1, calls)
+			require.Equal(t, http.StatusUnauthorized, response.Code)
+			var result map[string]any
+			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
+			assert.Equal(t, "invalid_credentials", result["code"])
+			assert.Equal(t, "неверный логин или пароль", result["error"])
+			assert.Nil(t, sessions.session)
+		})
+	}
+}
 
 func (f *fakeAuthUsers) GetByLogin(login string) (*models.User, error) {
 	if f.user != nil && f.user.Login == login {

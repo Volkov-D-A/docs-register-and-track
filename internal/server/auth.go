@@ -106,6 +106,10 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
+// Precomputed at the same cost as security.HashPassword. This is not a secret:
+// even a matching password must never authenticate a missing user.
+const dummyLoginPasswordHash = "$2a$10$oX7wdAvC/jdaOH5ATrmOfOaI8Xh8f.dmqu4Te6snz0A3epLu/tpN2"
+
 type loginResponse struct {
 	AccessToken string    `json:"accessToken"`
 	ExpiresAt   time.Time `json:"expiresAt"`
@@ -140,7 +144,16 @@ func (api *managementAPI) login(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "authentication_failed", err)
 		return
 	}
-	if user == nil || !security.VerifyPassword(user.PasswordHash, req.Password) {
+	hash := dummyLoginPasswordHash
+	if user != nil {
+		hash = user.PasswordHash
+	}
+	verifyPassword := api.verifyLoginPassword
+	if verifyPassword == nil {
+		verifyPassword = security.VerifyPassword
+	}
+	passwordValid := verifyPassword(hash, req.Password)
+	if user == nil || !passwordValid {
 		api.recordAuthenticationFailure(authKey, time.Now())
 		if user != nil {
 			attempts, active, incrementErr := api.authUsers.IncrementFailedLoginAttempts(user.ID)
