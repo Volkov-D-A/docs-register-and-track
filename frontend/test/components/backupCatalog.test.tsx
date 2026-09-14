@@ -66,21 +66,3 @@ test('successful deletion removes confirmation controls and keeps the result vis
   expect(start).toHaveBeenCalledTimes(1);
   await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
 });
-
-test('the latest operations button is rendered in the shared actions container', async () => {
-  const job = { id: 'verify-actions', kind: 'verify', state: 'completed' };
-  installWailsMock({ SettingsService: {
-    StartBackupOperation: vi.fn().mockResolvedValue({ job, statusToken: 'capability', expiresAt: '2099-01-01T00:00:00Z' }),
-    GetBackupOperation: vi.fn().mockResolvedValue(job),
-  } });
-  const actionsContainer = document.createElement('div');
-  const { container } = renderWithApp(<BackupCatalog copies={[copy]} loading={false} onChanged={vi.fn().mockResolvedValue(undefined)} actionsContainer={actionsContainer} />);
-  container.appendChild(actionsContainer);
-  expect(screen.getByRole('button', { name: 'Последние операции' })).toBeDisabled();
-  fireEvent.click(screen.getByRole('button', { name: 'Проверить' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Проверить выбранную копию' }));
-  const latest = await screen.findByRole('button', { name: 'Последние операции' });
-  expect(actionsContainer).toContainElement(latest);
-  await waitFor(() => expect(latest).toBeEnabled());
-  expect(screen.queryByRole('button', { name: 'Состояние операции' })).not.toBeInTheDocument();
-});

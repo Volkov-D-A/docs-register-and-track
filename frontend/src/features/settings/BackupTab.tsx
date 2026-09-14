@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ReloadOutlined } from '@ant-design/icons';
-import { Alert, App, Button, Collapse, Form, Input, InputNumber, Modal, Select, Space, Switch, Typography } from 'antd';
+import { PlusOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { Alert, App, Button, Form, Input, InputNumber, Modal, Select, Space, Switch, Typography } from 'antd';
 import { onServerEvent } from '../../events/serverEvents';
 import BackupProgress from './BackupProgress';
 import BackupCatalog from './BackupCatalog';
+import BackupJournal from './BackupJournal';
 import { models } from '../../../wailsjs/go/models';
 import { formatAppError, normalizeAppError } from '../../utils/appError';
 
 export default function BackupTab() {
   const { message } = App.useApp();
   const [form] = Form.useForm<models.BackupSettingsUpdate>();
-  const [panels, setPanels] = useState<string[]>(['connection', 'schedule']);
   const [jobs, setJobs] = useState<models.BackupJob[]>([]);
   const [creationVisible, setCreationVisible] = useState(false);
-  const [catalogActionsContainer, setCatalogActionsContainer] = useState<HTMLSpanElement | null>(null);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const [creationJobID, setCreationJobID] = useState<string>();
   const creationJob = jobs.find(job => !job.kind && job.id === creationJobID);
   const creationRunning = !!creationJob && ['queued', 'snapshotting', 'transferring', 'verifying'].includes(creationJob.state);
@@ -33,7 +33,6 @@ export default function BackupTab() {
     savedConnectionConfigured.current = configured;
     setConnectionConfigured(configured);
     setPasswordSet(settings.passwordSet);
-    setPanels([...(configured ? [] : ['connection']), ...(settings.time && settings.timezone && settings.weekdays?.length ? [] : ['schedule'])]);
   }, []);
   const reloadJobs = useCallback(async () => {
     const api = await import('../../../wailsjs/go/services/SettingsService');
@@ -107,54 +106,58 @@ export default function BackupTab() {
     catch (error) { message.error(formatAppError(error)); }
     finally { setBusy(false); }
   };
-  return <Space orientation="vertical" style={{ width: '100%' }} size="large">
+  return <Space orientation="vertical" style={{ width: '100%' }} size="small">
     {issue && <Alert type="warning" showIcon title={issue} />}
-    <Form form={form} layout="vertical" onFinish={values => void action(async () => {
-      const api = await import('../../../wailsjs/go/services/SettingsService');
-      await api.SaveBackupSettings(models.BackupSettingsUpdate.createFrom({ ...form.getFieldsValue(true), ...values }));
-      const response = await api.GetBackupSettings();
-      updateConnection(response.settings); setNextRun(response.nextRun); setIssue(response.issue);
-      form.setFieldsValue({ password: '', clearPassword: false });
-      await reloadCatalog();
-    }, 'Настройки сохранены')}>
-      <Collapse activeKey={panels} onChange={keys => setPanels(Array.isArray(keys) ? keys : [keys])} items={[{ key: 'connection', label: 'Настройки подключения', forceRender: true, children: <>
-      <Space align="start" wrap>
-        <Form.Item name={['settings', 'smb', 'host']} label="Сервер SMB" rules={[{ required: true }]}><Input placeholder="nas.example.local" /></Form.Item>
-        <Form.Item name={['settings', 'smb', 'share']} label="Общая папка" rules={[{ required: true }]}><Input placeholder="backups" /></Form.Item>
-        <Form.Item name={['settings', 'smb', 'directory']} label="Подкаталог"><Input placeholder="docflow" /></Form.Item>
-        <Form.Item name={['settings', 'smb', 'user']} label="Пользователь" rules={[{ required: true }]}><Input autoComplete="off" /></Form.Item>
-        <Form.Item name="password" label={passwordSet ? 'Новый пароль (текущий сохранён)' : 'Пароль'}><Input.Password autoComplete="new-password" /></Form.Item>
-        <Form.Item name="clearPassword" label="Удалить сохранённый пароль" valuePropName="checked"><Switch /></Form.Item>
-      </Space>
-      </> }, { key: 'schedule', label: 'Настройки расписания', forceRender: true, children: <Space align="start" wrap>
-        <Form.Item name={['settings', 'enabled']} label="По расписанию" valuePropName="checked"><Switch /></Form.Item>
-        <Form.Item name={['settings', 'time']} label="Время" rules={[{ required: true }]}><Input type="time" /></Form.Item>
-        <Form.Item name={['settings', 'timezone']} label="Часовой пояс" rules={[{ required: true }]}><Input placeholder="Asia/Yekaterinburg" /></Form.Item>
-        <Form.Item name={['settings', 'weekdays']} label="Дни недели" rules={[{ required: true }]}><Select mode="multiple" style={{ minWidth: 270 }} options={['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'].map((label, value) => ({ label, value }))} /></Form.Item>
-        <Form.Item name={['settings', 'retentionDays']} label="Хранить, дней"><InputNumber min={1} max={3650} /></Form.Item>
-        <Form.Item name={['settings', 'keepCopies']} label="Сохранять минимум копий"><InputNumber min={1} max={1000} /></Form.Item>
-      </Space> }]} />
-      <Space wrap style={{ marginTop: 16 }}>
-        <Button type="primary" htmlType="submit" loading={busy}>Сохранить</Button>
-        <Button disabled={busy || !!issue || !connectionConfigured} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CheckBackupConnection(), 'Подключение и файловые операции проверены')}>Проверить сохранённое подключение</Button>
-        <Button disabled={busy || !!issue || !connectionConfigured} onClick={() => {
-          const latest = jobs.find(job => !job.kind);
-          const resumable = latest && (['queued', 'snapshotting', 'transferring', 'verifying', 'staged'].includes(latest.state) || (latest.state === 'cancelled' && latest.archiveSize > 0));
-          setCreationJobID(resumable ? latest.id : undefined);
-          setCreationVisible(true);
-        }}>Создать копию</Button>
-        <span ref={setCatalogActionsContainer} />
-      </Space>
-    </Form>
+    <Modal forceRender open={settingsVisible} title="Настройки резервного копирования" width={800} footer={null} onCancel={() => setSettingsVisible(false)}>
+      <Form form={form} layout="vertical" onFinish={values => void action(async () => {
+        const api = await import('../../../wailsjs/go/services/SettingsService');
+        await api.SaveBackupSettings(models.BackupSettingsUpdate.createFrom({ ...form.getFieldsValue(true), ...values }));
+        const response = await api.GetBackupSettings();
+        updateConnection(response.settings); setNextRun(response.nextRun); setIssue(response.issue);
+        form.setFieldsValue({ password: '', clearPassword: false });
+        await reloadCatalog();
+      }, 'Настройки сохранены')}>
+        <Typography.Title level={5}>Настройки подключения</Typography.Title>
+        <Space align="start" wrap>
+          <Form.Item name={['settings', 'smb', 'host']} label="Сервер SMB" rules={[{ required: true }]}><Input placeholder="nas.example.local" /></Form.Item>
+          <Form.Item name={['settings', 'smb', 'share']} label="Общая папка" rules={[{ required: true }]}><Input placeholder="backups" /></Form.Item>
+          <Form.Item name={['settings', 'smb', 'directory']} label="Подкаталог"><Input placeholder="docflow" /></Form.Item>
+          <Form.Item name={['settings', 'smb', 'user']} label="Пользователь" rules={[{ required: true }]}><Input autoComplete="off" /></Form.Item>
+          <Form.Item name="password" label={passwordSet ? 'Новый пароль (текущий сохранён)' : 'Пароль'}><Input.Password autoComplete="new-password" /></Form.Item>
+          <Form.Item name="clearPassword" label="Удалить сохранённый пароль" valuePropName="checked"><Switch /></Form.Item>
+        </Space>
+        <Typography.Title level={5}>Настройки расписания</Typography.Title>
+        <Space align="start" wrap>
+          <Form.Item name={['settings', 'enabled']} label="По расписанию" valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name={['settings', 'time']} label="Время" rules={[{ required: true }]}><Input type="time" /></Form.Item>
+          <Form.Item name={['settings', 'timezone']} label="Часовой пояс" rules={[{ required: true }]}><Input placeholder="Asia/Yekaterinburg" /></Form.Item>
+          <Form.Item name={['settings', 'weekdays']} label="Дни недели" rules={[{ required: true }]}><Select mode="multiple" style={{ minWidth: 270 }} options={['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'].map((label, value) => ({ label, value }))} /></Form.Item>
+          <Form.Item name={['settings', 'retentionDays']} label="Хранить, дней"><InputNumber min={1} max={3650} /></Form.Item>
+          <Form.Item name={['settings', 'keepCopies']} label="Сохранять минимум копий"><InputNumber min={1} max={1000} /></Form.Item>
+        </Space>
+        <Space wrap style={{ marginTop: 16 }}>
+          <Button type="primary" htmlType="submit" loading={busy}>Сохранить</Button>
+          <Button disabled={busy || !!issue || !connectionConfigured} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CheckBackupConnection(), 'Подключение и файловые операции проверены')}>Проверить сохранённое подключение</Button>
+        </Space>
+      </Form>
+    </Modal>
     {nextRun && <Typography.Text>Следующий запуск: {new Date(nextRun).toLocaleString()}</Typography.Text>}
     <Space align="center">
       <Typography.Title level={4} style={{ margin: 0 }}>Каталог копий на SMB</Typography.Title>
+      <BackupJournal jobs={jobs} onRefresh={reloadJobs} />
+      <Button type="text" icon={<SettingOutlined />} aria-label="Настройки резервного копирования" title="Настройки резервного копирования" onClick={() => setSettingsVisible(true)} />
       <Button type="text" icon={<ReloadOutlined />} aria-label="Обновить каталог" title="Обновить каталог" disabled={!connectionConfigured} loading={catalogBusy} onClick={() => void reloadCatalog()} />
+      <Button type="text" icon={<PlusOutlined />} aria-label="Создать копию" title="Создать копию" disabled={busy || !!issue || !connectionConfigured} onClick={() => {
+        const latest = jobs.find(job => !job.kind);
+        const resumable = latest && (['queued', 'snapshotting', 'transferring', 'verifying', 'staged'].includes(latest.state) || (latest.state === 'cancelled' && latest.archiveSize > 0));
+        setCreationJobID(resumable ? latest.id : undefined);
+        setCreationVisible(true);
+      }} />
     </Space>
     {!connectionConfigured && <Alert type="info" showIcon title="Сначала заполните и сохраните настройки SMB-подключения и пароль." />}
     {catalogDeferred && <Alert type="info" showIcon title="Обновление каталога отложено до завершения обслуживания сервера." />}
     {catalogIssue && <Alert type="error" showIcon title="Каталог SMB недоступен" description={catalogIssue} />}
-    <BackupCatalog copies={copies} loading={catalogBusy} onChanged={reloadCatalog} actionsContainer={catalogActionsContainer} />
+    <BackupCatalog copies={copies} loading={catalogBusy} onChanged={reloadCatalog} />
     <Modal destroyOnHidden open={creationVisible} title="Создание резервной копии" footer={null} onCancel={() => setCreationVisible(false)}>
       <Space orientation="vertical" style={{ width: '100%' }}>
         {creationJob && <>
@@ -163,11 +166,11 @@ export default function BackupTab() {
           {['snapshotting', 'transferring', 'verifying'].includes(creationJob.state) && <Button disabled={busy} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).CancelBackup(creationJob.id), 'Отмена запрошена')}>Отменить</Button>}
           {['staged', 'cancelled'].includes(creationJob.state) && creationJob.archiveSize > 0 && <Button disabled={busy} onClick={() => void action(async () => (await import('../../../wailsjs/go/services/SettingsService')).RetryBackup(creationJob.id), 'Повторная отправка запланирована')}>Повторить отправку</Button>}
         </>}
-        <Button type="primary" loading={busy} disabled={creationRunning || !!issue || !connectionConfigured} onClick={() => void action(async () => {
+        {creationJob?.state !== 'completed' && <Button type="primary" loading={busy} disabled={creationRunning || !!issue || !connectionConfigured} onClick={() => void action(async () => {
           const job = await (await import('../../../wailsjs/go/services/SettingsService')).StartBackup();
           setCreationJobID(job.id);
           setJobs(current => [job, ...current.filter(existing => existing.id !== job.id)]);
-        }, 'Задание создано')}>Начать создание копии</Button>
+        }, 'Задание создано')}>Начать создание копии</Button>}
       </Space>
     </Modal>
   </Space>;

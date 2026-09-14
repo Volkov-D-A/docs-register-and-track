@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Alert, Button, Checkbox, Modal, Space, Table, Typography } from 'antd';
+import { Alert, Button, Checkbox, ConfigProvider, Modal, Space, Table, Typography } from 'antd';
 import BackupProgress from './BackupProgress';
 import { models } from '../../../wailsjs/go/models';
 import { onServerEvent } from '../../events/serverEvents';
 import { formatAppError } from '../../utils/appError';
 
 const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted', 'rolled_back', 'rollback_failed', 'recovery_required']);
-export default function BackupCatalog({ copies, loading, onChanged, actionsContainer }: { copies: models.BackupCopy[]; loading: boolean; onChanged: () => Promise<void>; actionsContainer?: HTMLElement | null }) {
+export default function BackupCatalog({ copies, loading, onChanged }: { copies: models.BackupCopy[]; loading: boolean; onChanged: () => Promise<void> }) {
   const [selection, setSelection] = useState<{ copy: models.BackupCopy; kind: 'verify' | 'restore' | 'delete' }>();
   const [operation, setOperation] = useState<Pick<models.BackupOperationStarted, 'job' | 'statusToken' | 'expiresAt'>>();
   const [visible, setVisible] = useState(false);
@@ -75,20 +74,21 @@ export default function BackupCatalog({ copies, loading, onChanged, actionsConta
     setVisible(true); setSelection({ copy, kind }); setOperation(undefined); setVerification(''); setAcknowledged(false); setError('');
   };
   return <>
-    <Table rowKey="id" dataSource={copies} loading={loading} pagination={{ pageSize: 10 }} columns={[
-      { title: 'ID копии', dataIndex: 'id' },
-      { title: 'Формат', dataIndex: 'format', render: value => `v${value}` },
-      { title: 'Дата копии', dataIndex: 'createdAt', render: value => new Date(value).toLocaleString() },
-      { title: 'Размер архива', dataIndex: 'size', render: value => `${(value / 1024 / 1024).toFixed(1)} МБ` },
-      { title: 'Проверка', dataIndex: 'verification', render: value => ({ incomplete: 'Неполный комплект', deleting: 'Удаление не завершено', verified: 'Проверен' }[String(value)] ?? 'Архив не проверен') },
-      { title: 'Примечание', dataIndex: 'issue' },
-      { title: 'Действия', render: (_, copy: models.BackupCopy) => <Space wrap>
-        <Button disabled={running || ['incomplete', 'deleting'].includes(copy.verification)} onClick={() => select(copy, 'verify')}>Проверить</Button>
-        <Button disabled={running || ['incomplete', 'deleting'].includes(copy.verification)} onClick={() => select(copy, 'restore')}>Восстановить</Button>
-        <Button danger disabled={running || !copy.canDelete} onClick={() => select(copy, 'delete')}>Удалить</Button>
-      </Space> },
-    ]} />
-    {actionsContainer && createPortal(<Button disabled={!operation} onClick={() => setVisible(true)}>Последние операции</Button>, actionsContainer)}
+    <ConfigProvider componentSize="small" theme={{ token: { fontSize: 12 }, components: { Table: { cellFontSizeSM: 12, cellPaddingBlockSM: 6, cellPaddingInlineSM: 8 } } }}>
+      <Table size="small" rowKey="id" dataSource={copies} loading={loading} pagination={{ pageSize: 10 }} columns={[
+        { title: 'ID копии', dataIndex: 'id' },
+        { title: 'Формат', dataIndex: 'format', render: value => `v${value}` },
+        { title: 'Дата копии', dataIndex: 'createdAt', render: value => new Date(value).toLocaleString() },
+        { title: 'Размер архива', dataIndex: 'size', render: value => `${(value / 1024 / 1024).toFixed(1)} МБ` },
+        { title: 'Проверка', dataIndex: 'verification', render: value => ({ incomplete: 'Неполный комплект', deleting: 'Удаление не завершено', verified: 'Проверен' }[String(value)] ?? 'Архив не проверен') },
+        { title: 'Примечание', dataIndex: 'issue' },
+        { title: 'Действия', render: (_, copy: models.BackupCopy) => <Space size={4} wrap>
+          <Button disabled={running || ['incomplete', 'deleting'].includes(copy.verification)} onClick={() => select(copy, 'verify')}>Проверить</Button>
+          <Button disabled={running || ['incomplete', 'deleting'].includes(copy.verification)} onClick={() => select(copy, 'restore')}>Восстановить</Button>
+          <Button danger disabled={running || !copy.canDelete} onClick={() => select(copy, 'delete')}>Удалить</Button>
+        </Space> },
+      ]} />
+    </ConfigProvider>
     <Modal open={!!selection && visible} title={selection?.kind === 'restore' ? 'Восстановление копии' : selection?.kind === 'delete' ? 'Удаление копии' : 'Проверка копии'} footer={null} onCancel={() => setVisible(false)}>
       {selection && <Space orientation="vertical" style={{ width: '100%' }}>
         <Typography.Text>ID: {selection.copy.id}</Typography.Text>

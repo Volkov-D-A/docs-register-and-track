@@ -13,24 +13,35 @@ test('backup settings preserve a stored password and retry a staged archive', as
   };
   const save = vi.fn().mockResolvedValue(undefined);
   const retry = vi.fn().mockResolvedValue(undefined);
+  const check = vi.fn().mockResolvedValue(undefined);
   installWailsMock({ SettingsService: {
     GetBackupSettings: vi.fn().mockResolvedValue({ settings, issue: '', nextRun: '' }),
     SaveBackupSettings: save,
     ListBackups: vi.fn().mockResolvedValue([{ id: 'backup-id', state: 'staged', createdAt: '2026-09-10T00:00:00Z', updatedAt: '2026-09-10T00:00:00Z', attempts: 5, archiveSize: 1024 }]),
-    RetryBackup: retry,
+    RetryBackup: retry, CheckBackupConnection: check,
     ListBackupCopies: vi.fn().mockResolvedValue([]),
   } });
   renderWithApp(<ConfigProvider theme={{ token: { motion: false } }}><BackupTab /></ConfigProvider>);
-  await waitFor(() => expect(screen.getByLabelText('Сервер SMB')).toHaveValue('freenas'));
-  expect(screen.getByRole('button', { name: 'Настройки подключения' })).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Журнал операций резервирования' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Настройки резервного копирования' }));
+  const settingsDialog = await screen.findByRole('dialog', { name: 'Настройки резервного копирования' });
+  await waitFor(() => expect(within(settingsDialog).getByLabelText('Сервер SMB')).toHaveValue('freenas'));
+  await waitFor(() => expect(within(settingsDialog).getByRole('heading', { name: 'Настройки подключения' })).toBeVisible());
+  expect(within(settingsDialog).getByRole('heading', { name: 'Настройки расписания' })).toBeVisible();
+  expect(within(settingsDialog).getByLabelText('Сервер SMB')).toBeVisible();
+  expect(within(settingsDialog).getByLabelText('Время')).toBeVisible();
   expect(screen.queryByText('Домен (если нужен)')).not.toBeInTheDocument();
   expect(screen.queryByText('История заданий')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByText('Настройки подключения'));
-  expect(screen.getByRole('button', { name: 'Настройки подключения' })).toHaveAttribute('aria-expanded', 'true');
   expect(screen.getByLabelText('Новый пароль (текущий сохранён)')).toHaveValue('');
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
   await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
   expect(save.mock.calls[0][0]).toMatchObject({ password: '', clearPassword: false, settings: { smb: { host: 'freenas' } } });
+  await waitFor(() => expect(within(settingsDialog).getByRole('button', { name: 'Проверить сохранённое подключение' })).toBeEnabled());
+  fireEvent.click(within(settingsDialog).getByRole('button', { name: 'Проверить сохранённое подключение' }));
+  await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+  fireEvent.click(within(settingsDialog).getByRole('button', { name: /close/i }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   expect(screen.queryByText('Ожидает отправки')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Создать копию' }));
   const dialog = await screen.findByRole('dialog');
@@ -59,6 +70,7 @@ test('an unconfigured SMB connection is not queried until settings are saved', a
   expect(catalog).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Обновить каталог' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Создать копию' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Настройки резервного копирования' }));
   expect(screen.getByRole('button', { name: 'Проверить сохранённое подключение' })).toBeDisabled();
   expect(screen.queryByText('Каталог SMB недоступен')).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Сервер SMB'), { target: { value: 'nas' } });
@@ -145,6 +157,7 @@ test('a new creation dialog does not show the previous completed backup', async 
   fireEvent.click(within(dialog).getByRole('button', { name: 'Начать создание копии' }));
   expect(await within(dialog).findByText('ID: new-copy')).toBeInTheDocument();
   expect(within(dialog).getByText('Завершено')).toBeInTheDocument();
+  expect(within(dialog).queryByRole('button', { name: 'Начать создание копии' })).not.toBeInTheDocument();
   fireEvent.click(within(dialog).getByRole('button', { name: /close/i }));
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   await waitFor(() => expect(screen.getByRole('button', { name: 'Создать копию' })).toBeEnabled());
