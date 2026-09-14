@@ -43,16 +43,25 @@ func (s *Service) flushAudit(ctx context.Context) {
 		actors[op.ID] = op.Actor
 	}
 	for _, job := range jobs {
+		operation := map[string]string{"": "Создание копии", "restore": "Восстановление", "delete": "Удаление"}[job.Kind]
+		if operation == "" || !operationFinished(job.State) {
+			continue
+		}
 		actor := actors[job.ID]
-		for i, stage := range job.Stages {
-			details := fmt.Sprintf("Операция %s; задание %s; копия %s; этап %s", map[string]string{"": "Создание копии", "verify": "Проверка", "restore": "Восстановление", "delete": "Удаление"}[job.Kind], job.ID, job.CopyID, stage.State)
-			if stage.Error != "" {
-				details += "; " + stage.Error
-			}
-			_, err = s.DB.ExecContext(ctx, `INSERT INTO admin_audit_log (user_id, user_name, action, details, created_at, outbox_deduplication_key) SELECT u.id, COALESCE(u.full_name, CASE WHEN $4 = 'schedule' THEN 'Расписание' ELSE 'Пользователь ' || $4 END), 'BACKUP', $1, $2, $3 FROM (SELECT 1) seed LEFT JOIN users u ON u.id::text = $4 ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING`, details, stage.StartedAt, fmt.Sprintf("backup:%s:%d", job.ID, i), actor)
-			if err != nil {
-				return
-			}
+		result := map[string]string{
+			"completed": "Успешно", "failed": "Ошибка", "cancelled": "Отменено",
+			"interrupted": "Прервано перезапуском", "rolled_back": "Исходное состояние восстановлено",
+			"rollback_failed": "Не удалось вернуть исходное состояние", "recovery_required": "Требуется сброс окружения",
+		}[job.State]
+		details := fmt.Sprintf("Операция %s; задание %s; копия %s; результат: %s", operation, job.ID, job.CopyID, result)
+		if job.Error != "" {
+			details += "; " + job.Error
+		}
+		// Keep the terminal stage key compatible with previously recorded results.
+		key := fmt.Sprintf("backup:%s:%d", job.ID, len(job.Stages)-1)
+		_, err = s.DB.ExecContext(ctx, `INSERT INTO admin_audit_log (user_id, user_name, action, details, created_at, outbox_deduplication_key) SELECT u.id, COALESCE(u.full_name, CASE WHEN $4 = 'schedule' THEN 'Расписание' ELSE 'Пользователь ' || $4 END), 'BACKUP', $1, $2, $3 FROM (SELECT 1) seed LEFT JOIN users u ON u.id::text = $4 ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING`, details, job.UpdatedAt, key, actor)
+		if err != nil {
+			return
 		}
 	}
 }

@@ -9,7 +9,7 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:install": "npm ci",
   "info": {
-    "productVersion": "1.0.6"
+    "productVersion": "1.0.7"
   },
   "name": "docflow",
   "outputfilename": "docflow"

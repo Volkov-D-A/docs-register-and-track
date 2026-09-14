@@ -3,6 +3,8 @@ package backup
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"github.com/DATA-DOG/go-sqlmock"
 	_ "github.com/lib/pq"
 	"os"
 	"strings"
@@ -67,4 +69,35 @@ func TestBackupAuditIntegration(t *testing.T) {
 	var count int
 	require.NoError(t, db.QueryRow(`SELECT count(*) FROM admin_audit_log WHERE user_id IS NULL AND user_name='Расписание'`).Scan(&count))
 	require.Equal(t, 1, count)
+}
+
+func TestAuditRecordsOnlyFinalBackupResults(t *testing.T) {
+	for _, kind := range []string{"", "restore", "delete"} {
+		for _, state := range []string{"completed", "failed", "cancelled", "interrupted", "rolled_back", "rollback_failed", "recovery_required"} {
+			t.Run(kind+"/"+state, func(t *testing.T) {
+				db, mock, err := sqlmock.New()
+				require.NoError(t, err)
+				defer db.Close()
+				s := &Service{DB: db, Directory: t.TempDir()}
+				id := "a2b959cd-c532-4904-85d9-bf007a0d2467"
+				at := time.Now().UTC()
+				stages := []models.BackupStage{{State: "queued", StartedAt: at}, {State: "verifying", StartedAt: at}}
+				if kind == "" {
+					job := Job{ID: id, State: state, Actor: "schedule", Stages: stages}
+					require.NoError(t, s.persist(&job))
+				} else {
+					op := operation{BackupOperation: models.BackupOperation{ID: id, CopyID: id, Kind: kind, State: state, Stages: stages}, Actor: "schedule"}
+					require.NoError(t, s.persistOperation(&op))
+				}
+				// A newer verification result and an in-progress backup must not be audited.
+				verify := operation{BackupOperation: models.BackupOperation{ID: "a2b959cd-c532-4904-85d9-bf007a0d2468", CopyID: id, Kind: "verify", State: "completed", CreatedAt: at}, Actor: "schedule"}
+				require.NoError(t, s.persistOperation(&verify))
+				pending := Job{ID: "a2b959cd-c532-4904-85d9-bf007a0d2469", State: "staged", CreatedAt: at.Add(time.Second), Actor: "schedule"}
+				require.NoError(t, s.persist(&pending))
+				mock.ExpectExec("INSERT INTO admin_audit_log").WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), fmt.Sprintf("backup:%s:2", id), "schedule").WillReturnResult(sqlmock.NewResult(1, 1))
+				s.flushAudit(context.Background())
+				require.NoError(t, mock.ExpectationsWereMet())
+			})
+		}
+	}
 }
