@@ -20,7 +20,12 @@ test('backup settings preserve a stored password and retry a staged archive', as
     ListBackupCopies: vi.fn().mockResolvedValue([]),
   } });
   renderWithApp(<BackupTab />);
-  expect(await screen.findByDisplayValue('freenas')).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByLabelText('Сервер SMB')).toHaveValue('freenas'));
+  expect(screen.getByRole('button', { name: 'Настройки подключения' })).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByText('Домен (если нужен)')).not.toBeInTheDocument();
+  expect(screen.queryByText('История заданий')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('Настройки подключения'));
+  expect(screen.getByRole('button', { name: 'Настройки подключения' })).toHaveAttribute('aria-expanded', 'true');
   expect(screen.getByLabelText('Новый пароль (текущий сохранён)')).toHaveValue('');
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
   await waitFor(() => expect(save).toHaveBeenCalledTimes(1));

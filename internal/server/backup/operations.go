@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup/smb"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup/smb"
 	"github.com/google/uuid"
 )
 
@@ -72,6 +72,7 @@ func (s *Service) operation(id string) (operation, error) {
 
 func (s *Service) persistOperation(op *operation) error {
 	op.UpdatedAt = time.Now().UTC()
+	op.Stages = appendStage(op.Stages, op.State, op.Error, op.UpdatedAt)
 	raw, err := json.Marshal(op)
 	if err != nil {
 		return err

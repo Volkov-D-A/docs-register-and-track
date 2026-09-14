@@ -1,20 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Checkbox, Modal, Space, Table, Typography } from 'antd';
+import BackupProgress from './BackupProgress';
 import { models } from '../../../wailsjs/go/models';
 import { onServerEvent } from '../../events/serverEvents';
 import { formatAppError } from '../../utils/appError';
 
 const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted', 'rolled_back', 'rollback_failed', 'recovery_required']);
-const phases: Record<string, string> = {
-  finalizing: 'Завершение восстановления', queued: 'Ожидание запуска', downloading: 'Скачивание', verifying: 'Проверка архива и базы данных',
-  safety_snapshot: 'Создание и проверка страховочной копии', replacing: 'Замена данных',
-  clearing_database: 'Подготовка базы данных', clearing_objects: 'Подготовка файлового хранилища',
-  restoring: 'Восстановление данных и проверка вложений', migrating: 'Обновление схемы',
-  rolling_back: 'Возврат исходного состояния', rolled_back: 'Исходное состояние восстановлено',
-  rollback_failed: 'Не удалось восстановить исходное состояние', recovery_required: 'Требуется сброс окружения',
-  completed: 'Завершено', failed: 'Ошибка', cancelled: 'Отменено', interrupted: 'Прервано', deleting: 'Удаление',
-};
-
 export default function BackupCatalog({ copies, loading, onChanged }: { copies: models.BackupCopy[]; loading: boolean; onChanged: () => Promise<void> }) {
   const [selection, setSelection] = useState<{ copy: models.BackupCopy; kind: 'verify' | 'restore' | 'delete' }>();
   const [operation, setOperation] = useState<Pick<models.BackupOperationStarted, 'job' | 'statusToken' | 'expiresAt'>>();
@@ -103,7 +94,7 @@ export default function BackupCatalog({ copies, loading, onChanged }: { copies: 
         <Typography.Text>{new Date(selection.copy.createdAt).toLocaleString()} · {(selection.copy.size / 1024 / 1024).toFixed(1)} МБ</Typography.Text>
         {selection.kind === 'restore' && <Alert type="warning" showIcon title="Текущие данные будут заменены" description="Документы, файлы, пользователи и права будут заменены данными копии. Потребуется пароль пользователя из архива. После восстановления нужно войти заново, сохранить пароль SMB и явно включить расписание. Поддерживаются только выделенные БД и файловое хранилище Docflow." />}
         {selection.kind === 'delete' && <Alert type="warning" title="Удаляются архив и manifest на SMB" description="Локальный архив и история сохранятся. Сервер проверит минимум исправных копий; последнюю проверенную копию удалить нельзя." />}
-        {operation && <Alert type={operation.job.error ? 'error' : operation.job.state === 'completed' ? 'success' : 'info'} title={phases[operation.job.state] ?? (operation.job.state.startsWith('rollback_') ? 'Возврат исходного состояния' : operation.job.state)} description={operation.job.error || 'Закрытие окна не прерывает задание на сервере.'} />}
+        {operation && <BackupProgress stages={operation.job.stages} state={operation.job.state} error={operation.job.error} />}
         {error && <Alert type="error" title={error} />}
         {operation?.job.canCancel && running && <Button onClick={() => { void (async () => { try { await (await import('../../../wailsjs/go/services/SettingsService')).CancelBackupOperation(operation.job.id); } catch (e) { setError(formatAppError(e)); } })(); }}>Отменить задание</Button>}
         {!running && selection.kind !== 'delete' && !verification && <Button loading={busy} onClick={() => void start('verify')}>Проверить выбранную копию</Button>}

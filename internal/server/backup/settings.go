@@ -10,8 +10,8 @@ import (
 	"time"
 	_ "time/tzdata"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup/smb"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup/smb"
 )
 
 type Settings models.BackupSettings
@@ -119,7 +119,7 @@ func (r SettingsRepository) Save(ctx context.Context, value StoredSettings, acto
 	if _, err = tx.ExecContext(ctx, `INSERT INTO backup_settings(id,settings) VALUES(true,$1) ON CONFLICT(id) DO UPDATE SET settings=excluded.settings`, raw); err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO backup_audit(actor,action) VALUES($1,'settings_updated')`, actor); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO admin_audit_log(user_id,user_name,action,details) SELECT id,full_name,'BACKUP','Изменены настройки резервного копирования' FROM users WHERE id::text=$1`, actor); err != nil {
 		return err
 	}
 	return tx.Commit()

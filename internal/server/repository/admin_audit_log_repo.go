@@ -2,8 +2,8 @@ package repository
 
 import (
 	"database/sql"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/google/uuid"
 )
@@ -49,7 +49,7 @@ func (r *AdminAuditLogRepository) GetAll(limit, offset int) ([]models.AdminAudit
 	}
 
 	query := `
-		SELECT id, user_id, user_name, action, COALESCE(details, ''), created_at
+		SELECT id, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'::uuid), user_name, action, COALESCE(details, ''), created_at
 		FROM admin_audit_log
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2

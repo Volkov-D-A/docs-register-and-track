@@ -4,6 +4,7 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { formatAppError } from '../../utils/appError';
 
 const actionLabels: Record<string, string> = {
+  BACKUP: 'Резервное копирование',
   SETTINGS_UPDATE: 'Изменение настроек',
   USER_CREATE: 'Создание пользователя',
   USER_UPDATE: 'Обновление пользователя',

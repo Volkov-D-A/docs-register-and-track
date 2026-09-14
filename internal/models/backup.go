@@ -30,16 +30,23 @@ type BackupSettingsResponse struct {
 	Settings BackupSettings `json:"settings"`
 	Issue    string         `json:"issue"`
 }
+type BackupStage struct {
+	State     string    `json:"state"`
+	StartedAt time.Time `json:"startedAt"`
+	Error     string    `json:"error,omitempty"`
+}
+
 type BackupJob struct {
-	Kind        string    `json:"kind"`
-	CopyID      string    `json:"copyId"`
-	ID          string    `json:"id"`
-	State       string    `json:"state"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	Error       string    `json:"error,omitempty"`
-	Attempts    int       `json:"attempts"`
-	ArchiveSize int64     `json:"archiveSize"`
+	Stages      []BackupStage `json:"stages"`
+	Kind        string        `json:"kind"`
+	CopyID      string        `json:"copyId"`
+	ID          string        `json:"id"`
+	State       string        `json:"state"`
+	CreatedAt   time.Time     `json:"createdAt"`
+	UpdatedAt   time.Time     `json:"updatedAt"`
+	Error       string        `json:"error,omitempty"`
+	Attempts    int           `json:"attempts"`
+	ArchiveSize int64         `json:"archiveSize"`
 }
 
 // BackupCopy describes the remote set, independently of local job history.
@@ -63,14 +70,15 @@ type BackupOperationRequest struct {
 }
 
 type BackupOperation struct {
-	ID        string    `json:"id"`
-	CopyID    string    `json:"copyId"`
-	Kind      string    `json:"kind"`
-	State     string    `json:"state"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	Error     string    `json:"error"`
-	CanCancel bool      `json:"canCancel"`
+	Stages    []BackupStage `json:"stages"`
+	ID        string        `json:"id"`
+	CopyID    string        `json:"copyId"`
+	Kind      string        `json:"kind"`
+	State     string        `json:"state"`
+	CreatedAt time.Time     `json:"createdAt"`
+	UpdatedAt time.Time     `json:"updatedAt"`
+	Error     string        `json:"error"`
+	CanCancel bool          `json:"canCancel"`
 }
 
 type BackupOperationStarted struct {

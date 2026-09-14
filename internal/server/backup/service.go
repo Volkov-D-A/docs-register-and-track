@@ -13,30 +13,31 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup/smb"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/google/uuid"
 )
 
 type Job struct {
-	ID            string         `json:"id"`
-	State         string         `json:"state"`
-	CreatedAt     time.Time      `json:"createdAt"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
-	Error         string         `json:"error,omitempty"`
-	Attempts      int            `json:"attempts"`
-	ArchiveSize   int64          `json:"archiveSize"`
-	ArchiveSHA256 string         `json:"archiveSha256"`
-	Actor         string         `json:"actor"`
-	ScheduledFor  time.Time      `json:"scheduledFor,omitempty"`
-	Target        StoredSettings `json:"target"`
+	Stages        []models.BackupStage `json:"stages"`
+	ID            string               `json:"id"`
+	State         string               `json:"state"`
+	CreatedAt     time.Time            `json:"createdAt"`
+	UpdatedAt     time.Time            `json:"updatedAt"`
+	Error         string               `json:"error,omitempty"`
+	Attempts      int                  `json:"attempts"`
+	ArchiveSize   int64                `json:"archiveSize"`
+	ArchiveSHA256 string               `json:"archiveSha256"`
+	Actor         string               `json:"actor"`
+	ScheduledFor  time.Time            `json:"scheduledFor,omitempty"`
+	Target        StoredSettings       `json:"target"`
 }
 type JobView = models.BackupJob
 
 func (j Job) View() JobView {
-	return JobView{ID: j.ID, State: j.State, CreatedAt: j.CreatedAt, UpdatedAt: j.UpdatedAt, Error: j.Error, Attempts: j.Attempts, ArchiveSize: j.ArchiveSize}
+	return JobView{Stages: j.Stages, ID: j.ID, State: j.State, CreatedAt: j.CreatedAt, UpdatedAt: j.UpdatedAt, Error: j.Error, Attempts: j.Attempts, ArchiveSize: j.ArchiveSize}
 }
 
 type Service struct {
@@ -159,7 +160,7 @@ func (s *Service) Jobs() ([]JobView, error) {
 		return nil, err
 	}
 	for _, op := range ops {
-		views = append(views, JobView{ID: op.ID, Kind: op.Kind, CopyID: op.CopyID, State: op.State, CreatedAt: op.CreatedAt, UpdatedAt: op.UpdatedAt, Error: op.Error, ArchiveSize: op.Copy.Size})
+		views = append(views, JobView{Stages: op.Stages, ID: op.ID, Kind: op.Kind, CopyID: op.CopyID, State: op.State, CreatedAt: op.CreatedAt, UpdatedAt: op.UpdatedAt, Error: op.Error, ArchiveSize: op.Copy.Size})
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].CreatedAt.After(views[j].CreatedAt) })
 	return views, nil
@@ -195,6 +196,7 @@ func (s *Service) jobs() ([]Job, error) {
 }
 func (s *Service) persist(job *Job) error {
 	job.UpdatedAt = time.Now().UTC()
+	job.Stages = appendStage(job.Stages, job.State, job.Error, job.UpdatedAt)
 	raw, err := json.Marshal(job)
 	if err != nil {
 		return err
@@ -329,6 +331,7 @@ func (s *Service) Run(ctx context.Context) {
 		if !s.runOperation(ctx) {
 			s.tick(ctx)
 		}
+		s.flushAudit(ctx)
 		select {
 		case <-ctx.Done():
 			return
