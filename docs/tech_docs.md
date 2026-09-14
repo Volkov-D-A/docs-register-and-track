@@ -183,9 +183,11 @@ Production error envelope для frontend:
 
 Правило: frontend contract - стабильные `code/status/safe message`, а не `err.Error()` и не текст PostgreSQL/storage.
 
-После изменения public Go service signatures нужно выполнить
-`make wails-bindings`, проверить и закоммитить изменения в `frontend/wailsjs`,
-а затем запустить `make wails-bindings-check` и frontend build.
+Bindings автоматически генерируются Wails при `make dev`, `make build-linux`
+и `make build-windows` через обычный `main.go` клиента. Для генерации нужен
+корректный клиентский `config.json`; работающий сервер не требуется.
+После изменения public Go service signatures проверьте и закоммитьте
+полученные изменения в `frontend/wailsjs`.
 
 ## Слой Backend Services
 

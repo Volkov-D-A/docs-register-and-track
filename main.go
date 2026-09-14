@@ -21,10 +21,6 @@ var assets embed.FS
 var releaseNotesSource []byte
 
 func main() {
-	if runBindingsGenerator() {
-		return
-	}
-
 	configPath := config.GetDefaultConfigPath()
 	cfg, err := config.Load(configPath)
 	if err != nil {

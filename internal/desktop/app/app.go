@@ -42,40 +42,6 @@ func NewDesktopServerClient(cfg *config.Config) (*serverclient.Client, error) {
 	return serverclient.NewWithOptions(serverURL, serverclient.Options{AllowInsecureHTTP: cfg.Server.AllowInsecureHTTP})
 }
 
-// NewBindingsWailsOptions returns the public service types needed by the Wails
-// bindings generator without constructing runtime infrastructure dependencies.
-func NewBindingsWailsOptions() *options.App {
-	return &options.App{
-		Bind: []interface{}{
-			&desktopservices.AuthService{},
-			&desktopservices.UserService{},
-			&desktopservices.UserSubstitutionService{},
-			&desktopservices.NomenclatureService{},
-			&desktopservices.ReferenceService{},
-			&desktopservices.DocumentAccessAdminService{},
-			&desktopservices.DocumentKindService{},
-			&desktopservices.DocumentQueryService{},
-			&desktopservices.DocumentRegistrationService{},
-			&desktopservices.AdministrativeOrderService{},
-			&desktopservices.AssignmentService{},
-			&desktopservices.DashboardService{},
-			&desktopservices.StatisticsService{},
-			&desktopservices.DepartmentService{},
-			&desktopservices.SettingsService{},
-			&desktopservices.AttachmentService{},
-			&desktopservices.LinkService{},
-			&desktopservices.AcknowledgmentService{},
-			&desktopservices.SystemService{},
-			&desktopservices.ReleaseNoteService{},
-			&desktopservices.ThemeService{},
-			&desktopservices.JournalService{},
-			&desktopservices.AdminAuditLogService{},
-			&desktopservices.UserEventService{},
-			&desktopservices.OutboxAdminService{},
-		},
-	}
-}
-
 type wailsOptionsDependencies struct {
 	newThemeService func() (*desktopservices.ThemeService, error)
 }

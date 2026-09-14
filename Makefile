@@ -1,11 +1,10 @@
-.PHONY: dev build-linux build-windows docker-server-push check-docker check-docflow-server-version clean release-assets release-assets-check wails-bindings wails-bindings-check docs-links-check check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate storage-up storage-down storage-reset
+.PHONY: dev build-linux build-windows docker-server-push check-docker check-docflow-server-version clean release-assets release-assets-check docs-links-check check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate storage-up storage-down storage-reset
 
 # Загружаем переменные из .env (если файл существует)
 -include .env
 
 # Переменные
 TAGS = webkit2_41
-WAILS ?= wails
 FRONTEND_DIR = frontend
 GOCACHE ?= /tmp/go-build-cache
 GOVULNCHECK ?= $(shell command -v govulncheck 2>/dev/null || echo "go run golang.org/x/vuln/cmd/govulncheck@latest")
@@ -25,16 +24,6 @@ release-assets:
 
 release-assets-check:
 	GOCACHE=$(GOCACHE) go run ./tools/releasegen -source docs/releases.yaml -out internal/releaseassets/current_release.yaml -wails-config wails.json -check
-
-wails-bindings:
-	@command -v $(WAILS) >/dev/null 2>&1 || (echo "Wails CLI is required to generate bindings." >&2; exit 1)
-	@expected="$$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"; actual="$$($(WAILS) version | sed -n '1p')"; test "$$actual" = "$$expected" || (echo "Wails CLI version $$actual does not match go.mod version $$expected." >&2; exit 1)
-	GOCACHE=$(GOCACHE) $(WAILS) generate module -nocolour -tags $(TAGS)
-	node $(FRONTEND_DIR)/scripts/normalize-wails-bindings.mjs
-
-wails-bindings-check: wails-bindings
-	@git diff --exit-code HEAD -- frontend/wailsjs
-	@test -z "$$(git ls-files --others --exclude-standard -- frontend/wailsjs)" || (git status --short -- frontend/wailsjs; echo "Untracked Wails bindings detected. Regenerate and commit frontend/wailsjs." >&2; exit 1)
 
 docs-links-check:
 	node tools/check-markdown-links.mjs

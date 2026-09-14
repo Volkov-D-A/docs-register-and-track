@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/config"
 
 	"github.com/stretchr/testify/require"
 )
@@ -19,8 +22,14 @@ func TestWailsAPIContract(t *testing.T) {
 	require.NoError(t, err)
 	var expected map[string][]string
 	require.NoError(t, json.Unmarshal(data, &expected))
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	releaseNotes, err := os.ReadFile("../../releaseassets/current_release.yaml")
+	require.NoError(t, err)
+	appOptions, failure := NewWailsOptions(&config.Config{}, WailsOptionsParams{ReleaseNotesSource: releaseNotes})
+	require.Nil(t, failure)
+	t.Cleanup(func() { appOptions.OnShutdown(context.Background()) })
 	actual := map[string][]string{}
-	for _, binding := range NewBindingsWailsOptions().Bind {
+	for _, binding := range appOptions.Bind {
 		typ := reflect.TypeOf(binding)
 		name := typ.Elem().Name()
 		require.Equal(t, "github.com/Volkov-D-A/docs-register-and-track/internal/desktop/services", typ.Elem().PkgPath())

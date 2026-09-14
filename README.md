@@ -205,7 +205,7 @@ make release-gate
 ```
 
 The gate checks the release environment, generated release asset, internal
-documentation links, Wails bindings, Go unit and PostgreSQL integration tests,
+documentation links, Go unit and PostgreSQL integration tests,
 Go vet/vulnerability scan, clean frontend dependency installation, frontend
 lint/test/build and critical npm vulnerabilities. Docker with Compose and
 `POSTGRES_VERSION` are required for the disposable integration database. DB
