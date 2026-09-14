@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 func setupAdminAuditLogRepository(t *testing.T) (*AdminAuditLogRepository, sqlmock.Sqlmock, func()) {
@@ -62,17 +62,16 @@ func TestAdminAuditLogRepository_CreateFromOutboxTreatsDuplicateAsDelivered(t *t
 }
 
 func TestAdminAuditLogRepository_GetAll(t *testing.T) {
-	repo, mock, cleanup := setupAdminAuditLogRepository(t)
-	defer cleanup()
-
 	t.Run("success", func(t *testing.T) {
+		repo, mock, cleanup := setupAdminAuditLogRepository(t)
+		defer cleanup()
 		entryID := uuid.New()
 		userID := uuid.New()
 		now := time.Now()
 
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM admin_audit_log`).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(11))
-		mock.ExpectQuery(`SELECT id, user_id, user_name, action, COALESCE\(details, ''\), created_at\s+FROM admin_audit_log`).
+		mock.ExpectQuery(`SELECT id, COALESCE\(user_id, '00000000-0000-0000-0000-000000000000'::uuid\), user_name, action, COALESCE\(details, ''\), created_at\s+FROM admin_audit_log`).
 			WithArgs(10, 20).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "user_id", "user_name", "action", "details", "created_at",
@@ -90,6 +89,8 @@ func TestAdminAuditLogRepository_GetAll(t *testing.T) {
 	})
 
 	t.Run("count error", func(t *testing.T) {
+		repo, mock, cleanup := setupAdminAuditLogRepository(t)
+		defer cleanup()
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM admin_audit_log`).
 			WillReturnError(sql.ErrConnDone)
 

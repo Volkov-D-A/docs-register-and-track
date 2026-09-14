@@ -927,7 +927,7 @@ Target OS smoke must include:
 
 Текущая согласованная версия release metadata: `1.0.6` в `docs/releases.yaml`, generated release asset и `wails.json`.
 
-Актуальные результаты ревью и статусы исправлений ведутся в [ревью перехода на сервер](server-transition-code-review.md); этот справочник не утверждает отсутствие открытых проблем. Завершение архитектурного разделения не заменяет приёмку релиза: production approval требует clean-worktree release gate, target OS smoke и реального backup/restore test.
+Этот справочник не утверждает отсутствие открытых проблем. Завершение архитектурного разделения не заменяет приёмку релиза: production approval требует clean-worktree release gate, target OS smoke и реального backup/restore test.
 
 ## Practical Change Checklist
 
