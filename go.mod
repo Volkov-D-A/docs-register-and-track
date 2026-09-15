@@ -1,6 +1,6 @@
 module github.com/Volkov-D-A/docs-register-and-track
 
-go 1.26.5
+go 1.27.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
