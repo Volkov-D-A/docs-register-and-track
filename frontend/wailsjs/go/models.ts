@@ -769,7 +769,25 @@ export namespace dto {
 		    return a;
 		}
 	}
+	export class BuildIdentity {
+	    number: string;
+	    revision: string;
+	    fingerprint?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new BuildIdentity(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.number = source["number"];
+	        this.revision = source["revision"];
+	        this.fingerprint = source["fingerprint"];
+	    }
+	}
 	export class CompatibilityResult {
+	    buildProtocol: number;
+	    serverBuild: BuildIdentity;
 	    compatible: boolean;
 	    code: string;
 	    apiVersion: string;
@@ -783,6 +801,8 @@ export namespace dto {
 
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.buildProtocol = source["buildProtocol"];
+	        this.serverBuild = this.convertValues(source["serverBuild"], BuildIdentity);
 	        this.compatible = source["compatible"];
 	        this.code = source["code"];
 	        this.apiVersion = source["apiVersion"];
@@ -790,6 +810,24 @@ export namespace dto {
 	        this.minimumClientVersion = source["minimumClientVersion"];
 	        this.maximumClientVersion = source["maximumClientVersion"];
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class BootstrapStatus {
 	    state: string;
@@ -829,6 +867,7 @@ export namespace dto {
 		    return a;
 		}
 	}
+
 	export class DocumentResolution {
 	    id: string;
 	    resolution?: string;
@@ -3066,6 +3105,9 @@ export namespace models {
 	    }
 	}
 	export class SystemServiceStatistics {
+	    buildVersion: string;
+	    sourceRevision: string;
+	    sourceDirty: boolean;
 	    version: string;
 	    apiVersion: string;
 	    state: string;
@@ -3083,6 +3125,9 @@ export namespace models {
 
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.buildVersion = source["buildVersion"];
+	        this.sourceRevision = source["sourceRevision"];
+	        this.sourceDirty = source["sourceDirty"];
 	        this.version = source["version"];
 	        this.apiVersion = source["apiVersion"];
 	        this.state = source["state"];
@@ -3164,6 +3209,9 @@ export namespace models {
 	    }
 	}
 	export class SystemStatistics {
+	    clientBuildVersion: string;
+	    clientRevision: string;
+	    clientDirty: boolean;
 	    userCount: number;
 	    totalDocuments: number;
 	    dbSize: string;
@@ -3189,6 +3237,9 @@ export namespace models {
 
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.clientBuildVersion = source["clientBuildVersion"];
+	        this.clientRevision = source["clientRevision"];
+	        this.clientDirty = source["clientDirty"];
 	        this.userCount = source["userCount"];
 	        this.totalDocuments = source["totalDocuments"];
 	        this.dbSize = source["dbSize"];

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
 	"io"
 	"net/http"
 	"net/url"
@@ -53,13 +54,20 @@ func (c *Client) SystemStatus(ctx context.Context) (*dto.SystemStatus, error) {
 }
 
 func (c *Client) Compatibility(ctx context.Context, clientVersion string) (*dto.CompatibilityResult, error) {
-	query := url.Values{"clientVersion": []string{clientVersion}}
+	return c.compatibility(ctx, clientVersion, buildinfo.Current())
+}
+
+func (c *Client) compatibility(ctx context.Context, clientVersion string, identity buildinfo.Identity) (*dto.CompatibilityResult, error) {
+	query := url.Values{"clientVersion": {clientVersion}, "buildProtocol": {"2"}}
+	if identity.Valid() {
+		query.Set("clientBuild", identity.String())
+	}
 	var result dto.CompatibilityResult
 	if err := c.doSystemGET(ctx, "/api/v1/system/compatibility?"+query.Encode(), &result); err != nil {
 		return nil, err
 	}
-	validCode := result.Code == "compatible" || result.Code == "client_too_old" || result.Code == "client_too_new"
-	if result.APIVersion != "v1" || result.ServerVersion == "" || !validCode || result.Compatible != (result.Code == "compatible") {
+	validCode := result.Code == "compatible" || result.Code == "client_too_old" || result.Code == "client_too_new" || result.Code == "build_mismatch" || result.Code == "build_identity_required"
+	if result.BuildProtocol != buildinfo.Protocol || (result.Compatible && (result.ServerVersion != clientVersion || !identity.Matches(buildinfo.Identity(result.ServerBuild)))) || result.APIVersion != "v1" || result.ServerVersion == "" || !validCode || result.Compatible != (result.Code == "compatible") {
 		return nil, &SystemRequestError{Kind: SystemErrorProtocol, Err: fmt.Errorf("compatibility response violates API contract")}
 	}
 	return &result, nil

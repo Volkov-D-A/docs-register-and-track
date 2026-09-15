@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 )
 
 // SystemService предоставляет проверку совместимости и готовности сервера для фронтенда.
@@ -47,6 +47,9 @@ func (s *SystemService) GetBootstrapStatus() *dto.BootstrapStatus {
 	}
 	if !compatibility.Compatible {
 		message := "Версия приложения несовместима с сервером. Установите актуальную версию приложения."
+		if compatibility.Code == "build_mismatch" || compatibility.Code == "build_identity_required" {
+			message = "Сборки приложения и сервера не соответствуют друг другу. Обратитесь к администратору для установки согласованных сборок."
+		}
 		if compatibility.Code == "client_too_new" {
 			message = "Версия приложения новее версии сервера. Сначала обновите сервер."
 		}

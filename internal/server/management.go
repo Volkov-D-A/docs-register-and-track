@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
 	"io"
 	"log/slog"
 	"net"
@@ -45,6 +46,7 @@ type managementAPI struct {
 	backupService                      *backup.Service
 	backupPending                      atomic.Bool
 	cfg                                *config.Config
+	serverBuild                        buildinfo.Identity
 	serverVersion                      string
 	readinessCheck                     func(context.Context, *config.Config) error
 	metrics                            *observability.Registry
@@ -161,6 +163,7 @@ func newManagementAPI(app *App) *managementAPI {
 		events:         app.events,
 		cfg:            app.cfg,
 		serverVersion:  app.version,
+		serverBuild:    buildinfo.Current(),
 		readinessCheck: HealthCheck,
 		metrics:        app.metrics,
 		migrations:     app.db,

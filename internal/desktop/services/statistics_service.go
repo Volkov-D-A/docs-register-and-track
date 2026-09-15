@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"errors"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 // StatisticsService exposes server-owned reports and storage status through HTTP.
@@ -82,7 +84,19 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 	}
 	ctx, cancel := statisticsClientContext()
 	defer cancel()
-	return s.server.GetSystemStatistics(ctx)
+	stats, err := s.server.GetSystemStatistics(ctx)
+	if err != nil || stats == nil {
+		return stats, err
+	}
+	release, err := releaseassets.CurrentVersion()
+	if err != nil {
+		return nil, err
+	}
+	identity := buildinfo.Current()
+	stats.ClientBuildVersion = identity.Version(release)
+	stats.ClientRevision = identity.Revision
+	stats.ClientDirty = identity.Fingerprint != ""
+	return stats, nil
 }
 
 func (s *StatisticsService) GetStorageStatisticsStatus() (*models.StorageStatisticsStatus, error) {

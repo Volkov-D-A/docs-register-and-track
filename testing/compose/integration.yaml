@@ -42,6 +42,10 @@ services:
     build:
       context: ../..
       dockerfile: build/server/Dockerfile
+      args:
+        VERSION: ${DOCFLOW_SMOKE_VERSION:-}
+        BUILD_IDENTITY: ${DOCFLOW_SMOKE_BUILD_IDENTITY:-}
+        LOCAL_BUILD: "1"
     environment:
       POSTGRES_CONTAINER: postgres
       POSTGRES_PORT: 5432

@@ -6,6 +6,8 @@ import SystemStatisticsTab from '../../src/features/statistics/SystemStatisticsT
 import { installWailsMock, renderWithApp } from '../componentTestUtils';
 
 const systemStats = {
+  clientBuildVersion: '1.0.6.213',
+  clientRevision: 'client-commit',
   userCount: 2,
   totalDocuments: 4,
   dbSize: '10 MB',
@@ -13,7 +15,7 @@ const systemStats = {
   storageSize: '0 B',
   storageRefreshInProgress: false,
   generatedAt: '2026-09-01T12:00:00Z',
-  service: { version: '1.0.6', state: 'ready', uptimeSeconds: 3660, schemaCurrentVersion: 12, schemaRequiredVersion: 12 },
+  service: { buildVersion: '1.0.6.214', sourceRevision: 'server-commit', version: '1.0.6', state: 'ready', uptimeSeconds: 3660, schemaCurrentVersion: 12, schemaRequiredVersion: 12 },
   usage: { activeUsers15m: 3, activeSessions: 4 },
   api: { requestsSinceStart: 100, clientErrorsSinceStart: 2, serverErrorsSinceStart: 1, deadlineExceededSinceStart: 0, p95Milliseconds: 18, inFlight: 1, sampleWindow: 256 },
   database: { poolInUse: 2, poolOpen: 4, poolMax: 20, waitCountSinceStart: 1, operationsSinceStart: 200, operationErrorsSinceStart: 0, operationP95Milliseconds: 8 },
@@ -36,6 +38,8 @@ describe('SystemStatisticsTab storage lifecycle', () => {
     renderWithApp(<SystemStatisticsTab />);
 
     expect(await screen.findByText('1.0.6')).toBeInTheDocument();
+    expect(screen.getByText(/1\.0\.6\.213/)).toBeInTheDocument();
+    expect(screen.getByText(/1\.0\.6\.214/)).toBeInTheDocument();
     expect(screen.getByText('Активные пользователи, 15 мин.')).toBeInTheDocument();
     expect(screen.getByText('p95, окно до 256 запросов')).toBeInTheDocument();
     expect(screen.getByText('Фоновая очередь')).toBeInTheDocument();

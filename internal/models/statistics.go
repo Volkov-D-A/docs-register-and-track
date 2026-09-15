@@ -82,6 +82,9 @@ type AssignmentStatisticsReport struct {
 
 // SystemStatistics описывает системную статистику.
 type SystemStatistics struct {
+	ClientBuildVersion       string                     `json:"clientBuildVersion"`
+	ClientRevision           string                     `json:"clientRevision"`
+	ClientDirty              bool                       `json:"clientDirty"`
 	UserCount                int                        `json:"userCount"`
 	TotalDocuments           int                        `json:"totalDocuments"`
 	DBSize                   string                     `json:"dbSize"`
@@ -101,6 +104,9 @@ type SystemStatistics struct {
 }
 
 type SystemServiceStatistics struct {
+	BuildVersion          string    `json:"buildVersion"`
+	SourceRevision        string    `json:"sourceRevision"`
+	SourceDirty           bool      `json:"sourceDirty"`
 	Version               string    `json:"version"`
 	APIVersion            string    `json:"apiVersion"`
 	State                 string    `json:"state"`

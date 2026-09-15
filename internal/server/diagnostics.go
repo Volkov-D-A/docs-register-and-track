@@ -2,12 +2,13 @@ package server
 
 import (
 	"fmt"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
 	"log/slog"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 type diagnosticsOutbox interface {
@@ -59,7 +60,8 @@ func (d *serverDiagnostics) GetSystemDiagnostics() (*models.SystemDiagnostics, e
 }
 
 func (d *serverDiagnostics) serviceStatistics(now time.Time) models.SystemServiceStatistics {
-	result := models.SystemServiceStatistics{Version: d.app.version, APIVersion: systemAPIVersion, State: "not_ready", StartedAt: d.app.startedAt}
+	identity := buildinfo.Current()
+	result := models.SystemServiceStatistics{BuildVersion: identity.Version(d.app.version), SourceRevision: identity.Revision, SourceDirty: identity.Fingerprint != "", Version: d.app.version, APIVersion: systemAPIVersion, State: "not_ready", StartedAt: d.app.startedAt}
 	if !d.app.startedAt.IsZero() {
 		result.UptimeSeconds = max(0, int64(now.Sub(d.app.startedAt).Seconds()))
 	}

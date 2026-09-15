@@ -50,8 +50,16 @@ services:
       - ./scripts/seq-entrypoint.sh:/usr/local/bin/docflow-entrypoint.sh:ro
     restart: unless-stopped
   docflow-server:
-    image: hehelf/docflow-service:${DOCFLOW_SERVER_VERSION:?Set DOCFLOW_SERVER_VERSION in .env}
-    pull_policy: always
+    image: docflow-service-local:dev
+    pull_policy: never
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    build:
+      context: .
+      dockerfile: build/server/Dockerfile
+      args:
+        VERSION: ${DOCFLOW_LOCAL_VERSION:-}
+        BUILD_IDENTITY: ${DOCFLOW_LOCAL_IDENTITY:-}
+        LOCAL_BUILD: "1"
     container_name: docflow_server
     secrets: [postgres_password, s3_secret_key, settings_key]
     volumes:

@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
 	"io"
 	"log/slog"
 	"os"
@@ -25,6 +27,7 @@ Usage:
   docflow-server run
   docflow-server check-config
   docflow-server healthcheck
+  docflow-server build-info
   docflow-server version
 `
 
@@ -45,6 +48,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
 		return fmt.Errorf("command is required")
+	}
+	if args[0] == "build-info" && len(args) == 1 {
+		return json.NewEncoder(stdout).Encode(buildinfo.Current())
 	}
 	if args[0] == "version" {
 		if len(args) != 1 {

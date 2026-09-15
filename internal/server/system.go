@@ -2,12 +2,13 @@ package server
 
 import (
 	"fmt"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 const systemAPIVersion = "v1"
@@ -69,14 +70,29 @@ func (api *managementAPI) systemCompatibility(w http.ResponseWriter, r *http.Req
 		return
 	}
 	code := "compatible"
-	compatible := client == server
+	raw := r.URL.Query().Get("clientBuild")
+	var clientBuild buildinfo.Identity
+	if raw != "" {
+		clientBuild, err = buildinfo.Parse(raw)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, "invalid_client_build", err)
+			return
+		}
+	}
+	if raw == "" || r.URL.Query().Get("buildProtocol") != "2" || !api.serverBuild.Valid() {
+		code = "build_identity_required"
+	} else if !api.serverBuild.Matches(clientBuild) {
+		code = "build_mismatch"
+	}
 	if client.less(server) {
 		code = "client_too_old"
 	} else if server.less(client) {
 		code = "client_too_new"
 	}
 	writeJSON(w, http.StatusOK, dto.CompatibilityResult{
-		Compatible:           compatible,
+		Compatible:           code == "compatible",
+		BuildProtocol:        buildinfo.Protocol,
+		ServerBuild:          dto.BuildIdentity(api.serverBuild),
 		Code:                 code,
 		APIVersion:           systemAPIVersion,
 		ServerVersion:        api.serverVersion,

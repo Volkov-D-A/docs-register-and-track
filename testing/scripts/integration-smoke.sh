@@ -9,6 +9,12 @@ if [[ -f "$ROOT/.env" ]]; then compose_env="$ROOT/.env"; fi
 # Keep smoke ports separate from ordinary integration tests.
 export DOCFLOW_TEST_POSTGRES_PORT=${DOCFLOW_TEST_POSTGRES_PORT:-55433} DOCFLOW_TEST_S3_PORT=${DOCFLOW_TEST_S3_PORT:-58334}
 export DOCFLOW_TEST_SERVER_PORT=${DOCFLOW_TEST_SERVER_PORT:-58480}
+# Embed the same local source identity as development desktop builds.
+export DOCFLOW_SMOKE_VERSION
+DOCFLOW_SMOKE_VERSION=$(GOCACHE="${GOCACHE:-/tmp/go-build-cache}" go run ./cmd/docflow-server version)
+export DOCFLOW_SMOKE_BUILD_IDENTITY
+DOCFLOW_SMOKE_BUILD_IDENTITY=$(DOCFLOW_LOCAL_BUILD=1 GOCACHE="${GOCACHE:-/tmp/go-build-cache}" go run ./tools/buildmeta identity)
+
 compose=(docker compose --env-file "$compose_env" -p docflow-smoke -f testing/compose/integration.yaml -f testing/compose/backup-smoke.yaml --profile smoke)
 stage=$(mktemp -d /tmp/docflow-smoke.XXXXXXXX)
 evidence="$ROOT/build/transition-evidence"

@@ -36,9 +36,11 @@ make storage-up
 
 `docker-compose.yaml`, `docs/examples/.envExample` and `docs/examples/config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains only the server connection settings and no PostgreSQL, SeaweedFS or Seq credentials/endpoints. Authenticated desktop technical logs are sent in bounded batches to `POST /api/v1/telemetry/logs`; `docflow-server` adds the session identity and forwards them through its logging pipeline to Seq.
 
-Both Compose files pull `hehelf/docflow-service:<DOCFLOW_SERVER_VERSION>` from
-Docker Hub; set the published version in `.env`. Local source changes require a
-new image. Both wait for PostgreSQL and the S3 probe and include backup storage.
+The root Compose file builds `docflow-service-local:dev` from local sources via
+`make storage-up` or `make dev-server`. The production example pulls
+`hehelf/docflow-service:<DOCFLOW_SERVER_IMAGE_TAG>` from Docker Hub (falling back
+to `DOCFLOW_SERVER_VERSION`); set the published tag in the production `.env`.
+Both wait for PostgreSQL and the S3 probe and include backup storage.
 Keep settings and usernames (`POSTGRES_USER`, `S3_ACCESS_KEY_ID`,
 `SEQ_ADMIN_USERNAME`) in `.env` beside Compose. Before starting, create four
 secret files outside Git, for example in `/etc/docflow/secrets`. Each file
@@ -130,7 +132,7 @@ make release-assets
 Run the app in development mode:
 
 ```bash
-make dev
+make dev-client
 ```
 
 The local `docflow-server` is started by `make storage-up` as part of the
@@ -155,7 +157,8 @@ make docker-server-push
 The Docker Hub repository is fixed as `hehelf/docflow-service`; Makefile and
 Compose read `DOCFLOW_SERVER_VERSION` from `.env`. Before building, the target
 checks that this version matches the generated release asset and Wails product
-version. The Makefile never accepts or stores a Docker Hub password/token. The
+version. Images receive immutable tags `<release>.<commit-count>-<full-SHA>`;
+set `DOCFLOW_SERVER_IMAGE_TAG` in the production `.env` to the resulting tag. The Makefile never accepts or stores a Docker Hub password/token. The
 runtime image contains only the static server binary. Pass `.env` with
 `--env-file` or the equivalent orchestrator mechanism.
 PostgreSQL and SeaweedFS passwords must be supplied as runtime secrets; production
@@ -294,3 +297,73 @@ SeaweedFS configuration, runtime secrets, dev reset and S3 operations are
 covered in the [storage operations guide](docs/instructions.md#эксплуатация-seaweedfs).
 Run `make storage-smoke-test` to verify the current server build, restart
 persistence and PostgreSQL/S3 restore in disposable volumes.
+
+## Internal build identity
+
+The public release stays three-component (for example `1.0.7`). Desktop and server
+also embed the Git commit count and full revision. Connection requires matching
+release and source identity; old binaries without this contract are rejected.
+Update or roll back client and server together. Internal versions and revisions
+are displayed only in system statistics. The server's technical `build-info`
+command prints its embedded identity without loading service configuration.
+
+`make build-linux`, `make build-windows` and Docker publication
+require committed sources and full Git history. Rebuilding one commit gives the
+same identity on all platforms. Do not build distributed binaries using plain
+`go build`: without injected metadata they cannot pass compatibility checks.
+
+For local development, run `make dev-server` (or `make storage-up`) to build the
+current sources and start/update the whole Compose stack, then `make dev-client`
+to launch Wails. No commit, Docker Hub publication or manual image tag in `.env`
+is needed. Existing secrets and service configuration are still required.
+After edits, rebuild the server and restart/rebuild the client from the same
+source state. The client command does not restart containers.
+
+`make storage-down` stops the whole stack and preserves data. `make storage-reset`
+deletes all named Compose volumes (including PostgreSQL, SeaweedFS, Seq and backup
+staging) and starts the stack again. All storage commands use the root Compose
+file. If sources change during compilation, the server update is cancelled.
+Use the Make targets for rebuilding: plain `docker compose build` lacks the
+source metadata supplied by the wrapper. The production Compose example remains
+configured to pull published images from Docker Hub.
+
+For local packaged desktop builds, prefix the build command with
+`DOCFLOW_LOCAL_BUILD=1`. Local builds compare a normalized source fingerprint in
+addition to the commit; rebuild both sides after edits. Wails uses the compiler
+wrapper to recalculate identity on each Go rebuild. Frontend hot reload does not
+recompile the embedded Go identity; restart/rebuild both sides before checking a
+changed frontend snapshot. Publication always requires clean sources.
+
+The fingerprint includes tracked and new nonignored files, with text CRLF
+normalized to LF. Generated Wails bindings, temporary Windows resources, build
+output, local configuration and secrets are excluded centrally in
+`tools/buildmeta/main.go`. Git-ignored source files cannot participate: add build
+inputs to Git. Even documentation commits change the strict source identity.
+Docker receives validated metadata through `BUILD_IDENTITY` and `VERSION` build
+arguments because `.git` is excluded from its context. For an exported source
+archive, retain the identity generated from that exact clean Git checkout and
+supply these arguments when building; metadata must not be guessed.
+
+## Make command guide
+
+`make` shows the main commands without starting a build:
+
+| Purpose | Commands |
+| --- | --- |
+| Development | `dev-client`, `dev-server` |
+| Whole local Compose stack | `storage-up`, `storage-down`, `storage-reset` |
+| Production artifacts | `build-linux`, `build-windows`, `docker-server-push` |
+| Main checks | `release-gate` |
+
+The individual gate steps remain available through `build/make/checks.mk`;
+`make help-checks` lists them and the additional diagnostic commands. They are
+useful for focused checks without rerunning the whole gate. `storage-smoke-test`
+checks the real storage/API/backup lifecycle, while `db-performance-check`
+measures database performance; neither is part of `release-gate`.
+`integration-db-up` / `integration-db-down` support manual integration debugging.
+`release-assets` regenerates release metadata; `clean` removes local binaries only.
+
+The redundant `dev`, `dev-local`, `build-server`, `build-server-dev` and
+`docker-server-build` targets were removed. Server development uses Compose;
+production server compilation is part of `docker-server-push`. Prerequisite
+checks and the compiler wrapper use internal targets prefixed with `_`.

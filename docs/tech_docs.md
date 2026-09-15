@@ -183,7 +183,7 @@ Production error envelope для frontend:
 
 Правило: frontend contract - стабильные `code/status/safe message`, а не `err.Error()` и не текст PostgreSQL/storage.
 
-Bindings автоматически генерируются Wails при `make dev`, `make build-linux`
+Bindings автоматически генерируются Wails при `make dev-client`, `make build-linux`
 и `make build-windows` через обычный `main.go` клиента. Для генерации нужен
 корректный клиентский `config.json`; работающий сервер не требуется.
 После изменения public Go service signatures проверьте и закоммитьте
@@ -301,14 +301,18 @@ business, attachment и migration operations через HTTP API сервиса.
 Container image собирается через `build/server/Dockerfile` на runtime PostgreSQL 18 Alpine
 под непривилегированным пользователем, со штатными `pg_dump` и `pg_restore`. В image не копируются production config
 и secrets; настройки передаются при запуске через env-файл или механизм
-оркестратора; JSON-конфигурацию сервер не читает. Оба Compose-файла загружают
-`hehelf/docflow-service:${DOCFLOW_SERVER_VERSION}` из Docker Hub и запускают сервер
-рядом с PostgreSQL, SeaweedFS, Seq и Caddy после готовности PostgreSQL и S3 probe.
+оркестратора; JSON-конфигурацию сервер не читает. Корневой `docker-compose.yaml`
+собирает `docflow-service-local:dev` из исходников через `make storage-up` / `make dev-server`.
+Команды автоматически передают версию и идентичность сборки, не меняя `.env`.
+`make dev-client` отдельно запускает клиент после обновления стека. Production-пример загружает
+`hehelf/docflow-service:${DOCFLOW_SERVER_IMAGE_TAG}` (fallback: `DOCFLOW_SERVER_VERSION`)
+из Docker Hub. Оба запускают сервер рядом с PostgreSQL, SeaweedFS, Seq и Caddy
+после готовности PostgreSQL и S3 probe.
 Оба хранят настройки и логины в `.env`, а пароли PostgreSQL/Seq, секретный ключ S3
 и ключ шифрования настроек — в файловых secrets. Оба используют постоянный том
 резервных копий. Отличие dev от production — HTTP вместо HTTPS в Caddy,
 включая порт, Caddyfile и хранилище сертификатов. Локальные изменения исходников
-требуют нового образа; версия задаётся в `.env`.
+требуют повторного `make dev-server`; тег локального образа выбирается автоматически.
 `testing/compose/integration.yaml` содержит тестовые PostgreSQL/SeaweedFS и
 сервер под профилем `smoke`. Пустая схема bootstrap-ится
 сервером автоматически; при обновлении существующей схемы процесс остаётся
@@ -316,7 +320,8 @@ Container image собирается через `build/server/Dockerfile` на r
 `/health/live`, а `/health/ready` остаётся 503 до готовности схемы и зависимостей.
 `make docker-server-push` после отдельного `docker login` проверяет соответствие
 `DOCFLOW_SERVER_VERSION` встроенной версии продукта, собирает и публикует
-immutable image tag из `.env`. Repository
+immutable image tag `<release>.<число-коммитов>-<SHA>`. Для запуска этот тег задаётся
+в `DOCFLOW_SERVER_IMAGE_TAG` в `.env`. Repository
 `hehelf/docflow-service` жёстко задан в Makefile и production-примере Compose. Makefile не принимает
 Docker Hub token.
 
@@ -803,28 +808,20 @@ smoke или backup restore: это отдельные автоматическ�
 
 ## Supported Make Targets
 
-Common targets:
+Основные команды (`make` показывает справку):
 
-- `make storage-up` - start local PostgreSQL/SeaweedFS/Seq/docflow-server/Caddy stack;
-- `make storage-down` - stop the local stack without deleting volumes;
-- `make storage-reset` - destructively reset and restart the local stack;
-- `make dev` - Wails dev;
-- `make release-assets` - generate embedded release assets;
-- `make release-assets-check` - verify generated release assets;
-- `make check-integration-env` - проверить Docker Compose и версию PostgreSQL;
-- `make go-test`;
-- `make go-vet`;
-- `make integration-test`;
-- `make frontend-ci`;
-- `make frontend-build`;
-- `make frontend-lint`;
-- `make frontend-test`;
-- `make db-performance-check`;
-- `make npm-audit`;
-- `make govulncheck`;
-- `make release-gate`;
-- `make build-linux`;
-- `make build-windows`.
+- Разработка: `make dev-client`, `make dev-server`.
+- Весь локальный Compose-стек: `make storage-up`, `make storage-down`, `make storage-reset`.
+- Продакшен: `make build-linux`, `make build-windows`, `make docker-server-push`.
+- Основная проверка: `make release-gate`.
+
+`storage-up` и `dev-server` собирают текущий локальный сервер и запускают весь стек.
+`storage-reset` удаляет все именованные тома Compose, включая Seq и staging бэкапов.
+Проверки и диагностические цели вынесены в `build/make/checks.mk`, но по-прежнему
+доступны через корневой Makefile. `make help-checks` показывает их назначения.
+В частности, сохранены все 11 шагов release-gate, отдельные `storage-smoke-test`
+и `db-performance-check`, ручное управление интеграционной БД, `release-assets`
+и `clean`. Служебные prerequisite-цели имеют префикс `_`.
 
 `make integration-test` проверяет prerequisites, запускает изолированный
 PostgreSQL из `testing/compose/integration.yaml`, передаёт безопасный
@@ -998,3 +995,23 @@ UI загружает актуальное состояние. Шина собы
 передают их через существующий reverse_proxy; отдельные порты не нужны.
 Изменения SMB-файлов вне Docflow этим каналом не обнаруживаются. Пересчёт статистики
 хранилища пока использует существующий ограниченный опрос и не переведён на SSE.
+
+### Внутренняя идентификация сборок
+
+`internal/buildinfo` хранит встроенные номер коммита (`git rev-list --count HEAD`),
+полный SHA и опциональный отпечаток локальных исходников. Публичная версия релиза
+не меняет формат. `tools/buildmeta` служит Go compiler wrapper для Wails и пересчитывает
+метаданные перед каждым `go build`, объединяя свои `-ldflags` с флагами Wails.
+
+Compatibility API принимает `buildProtocol=2` и `clientBuild=number:revision:fingerprint`.
+Ответ содержит `buildProtocol` и `serverBuild`. При одинаковом релизе требуется точное
+совпадение идентичностей. Неизвестные сборки не совпадают даже между собой.
+`build_mismatch` и `build_identity_required` блокируют вход; новый desktop отвергает
+ответы старого сервера без нового контракта. Проверка выполняется перед входом,
+не заменяет авторизацию HTTP API и не контролирует уже открытую сессию после
+обновления сервера.
+
+Системная статистика дополняется сборкой сервера из бинарника сервера и сборкой
+клиента из desktop-адаптера. Номер и SHA не выводятся на экран подключения или
+в окно «О программе». Разные исходники даже с совместимым API требуют пересборки
+и согласованного обновления обеих сторон; изменения схемы БД не требуются.

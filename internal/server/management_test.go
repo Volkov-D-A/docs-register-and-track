@@ -141,7 +141,7 @@ func TestManagementAPICompatibilityUsesExactReleaseVersion(t *testing.T) {
 		code    string
 		ok      bool
 	}{
-		{"1.0.6", "compatible", true},
+		{"1.0.6", "build_identity_required", false},
 		{"1.0.5", "client_too_old", false},
 		{"1.0.7", "client_too_new", false},
 	}

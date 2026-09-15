@@ -18,14 +18,23 @@ type SystemStatus struct {
 	Schema        SystemSchemaStatus `json:"schema"`
 }
 
+// BuildIdentity is the wire representation of source build metadata.
+type BuildIdentity struct {
+	Number      string `json:"number"`
+	Revision    string `json:"revision"`
+	Fingerprint string `json:"fingerprint,omitempty"`
+}
+
 // CompatibilityResult describes whether a desktop build can use this server.
 type CompatibilityResult struct {
-	Compatible           bool   `json:"compatible"`
-	Code                 string `json:"code"`
-	APIVersion           string `json:"apiVersion"`
-	ServerVersion        string `json:"serverVersion"`
-	MinimumClientVersion string `json:"minimumClientVersion"`
-	MaximumClientVersion string `json:"maximumClientVersion"`
+	BuildProtocol        int           `json:"buildProtocol"`
+	ServerBuild          BuildIdentity `json:"serverBuild"`
+	Compatible           bool          `json:"compatible"`
+	Code                 string        `json:"code"`
+	APIVersion           string        `json:"apiVersion"`
+	ServerVersion        string        `json:"serverVersion"`
+	MinimumClientVersion string        `json:"minimumClientVersion"`
+	MaximumClientVersion string        `json:"maximumClientVersion"`
 }
 
 // BootstrapStatus is returned to the frontend before authentication starts.

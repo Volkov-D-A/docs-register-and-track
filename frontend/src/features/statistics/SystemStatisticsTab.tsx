@@ -170,6 +170,8 @@ const SystemStatisticsTab: React.FC = () => {
             <Descriptions column={1} size="small">
               <Descriptions.Item label="Состояние"><Tag color={state.color}>{state.label}</Tag></Descriptions.Item>
               <Descriptions.Item label="Версия">{stats?.service?.version || 'Нет данных'}</Descriptions.Item>
+              <Descriptions.Item label="Сборка клиента">{stats?.clientBuildVersion || 'Не определена'}{stats?.clientDirty ? ' (локальная)' : ''} / {stats?.clientRevision}</Descriptions.Item>
+              <Descriptions.Item label="Сборка сервера">{stats?.service?.buildVersion || 'Не определена'}{stats?.service?.sourceDirty ? ' (локальная)' : ''} / {stats?.service?.sourceRevision}</Descriptions.Item>
               <Descriptions.Item label="Запущен">
                 {stats?.service?.startedAt ? new Date(stats.service.startedAt).toLocaleString('ru-RU') : 'Нет данных'}
               </Descriptions.Item>

@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 )
 
 type fakeSystemClient struct {
@@ -119,4 +119,15 @@ func TestSystemServiceConcurrentStartupAndRequests(t *testing.T) {
 		assert.Equal(t, "ready", service.GetBootstrapStatus().State)
 	}
 	wg.Wait()
+}
+
+func TestSystemServiceBuildMismatchHidesInternalIdentity(t *testing.T) {
+	for _, code := range []string{"build_mismatch", "build_identity_required"} {
+		service, _ := NewSystemService(fakeSystemClient{compatibility: &dto.CompatibilityResult{Code: code}}, "1.0.7")
+		result := service.GetBootstrapStatus()
+		assert.Equal(t, code, result.State)
+		assert.Nil(t, result.System)
+		assert.Contains(t, result.Message, "согласованных сборок")
+		assert.NotContains(t, result.Message, "1.0.7")
+	}
 }

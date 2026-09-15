@@ -2,7 +2,10 @@ package serverclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"io"
 	"net/http"
 	"strings"
@@ -15,6 +18,7 @@ import (
 func TestSystemClientUsesPublicEndpoints(t *testing.T) {
 	client, err := New("https://server.test")
 	require.NoError(t, err)
+	identity := buildinfo.Identity{Number: "213", Revision: strings.Repeat("a", 40)}
 	request := 0
 	client.http.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		request++
@@ -22,13 +26,15 @@ func TestSystemClientUsesPublicEndpoints(t *testing.T) {
 		if request == 1 {
 			assert.Equal(t, "/api/v1/system/compatibility", r.URL.Path)
 			assert.Equal(t, "1.0.6", r.URL.Query().Get("clientVersion"))
-			return jsonResponse(`{"compatible":true,"code":"compatible","apiVersion":"v1","serverVersion":"1.0.6"}`), nil
+			assert.Equal(t, identity.String(), r.URL.Query().Get("clientBuild"))
+			body, _ := json.Marshal(dto.CompatibilityResult{Compatible: true, Code: "compatible", APIVersion: "v1", ServerVersion: "1.0.6", BuildProtocol: buildinfo.Protocol, ServerBuild: dto.BuildIdentity(identity)})
+			return jsonResponse(string(body)), nil
 		}
 		assert.Equal(t, "/api/v1/system/status", r.URL.Path)
 		return jsonResponse(`{"status":"ready","code":"ready","apiVersion":"v1","serverVersion":"1.0.6"}`), nil
 	})
 
-	compatibility, err := client.Compatibility(context.Background(), "1.0.6")
+	compatibility, err := client.compatibility(context.Background(), "1.0.6", identity)
 	require.NoError(t, err)
 	assert.True(t, compatibility.Compatible)
 	status, err := client.SystemStatus(context.Background())
@@ -54,4 +60,18 @@ func TestSystemClientClassifiesTransportAndProtocolErrors(t *testing.T) {
 
 func jsonResponse(body string) *http.Response {
 	return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}
+}
+
+func TestSystemClientRejectsLegacyAndMismatchedBuilds(t *testing.T) {
+	client, err := New("https://server.test")
+	require.NoError(t, err)
+	identity := buildinfo.Identity{Number: "213", Revision: strings.Repeat("a", 40)}
+	for _, body := range []string{
+		`{"compatible":true,"code":"compatible","apiVersion":"v1","serverVersion":"1.0.6"}`,
+		`{"compatible":true,"code":"compatible","apiVersion":"v1","serverVersion":"1.0.6","buildProtocol":2,"serverBuild":{"number":"213","revision":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}`,
+	} {
+		client.http.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) { return jsonResponse(body), nil })
+		_, err := client.compatibility(context.Background(), "1.0.6", identity)
+		require.Error(t, err)
+	}
 }

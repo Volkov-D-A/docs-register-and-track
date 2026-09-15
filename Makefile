@@ -1,148 +1,103 @@
-.PHONY: dev build-linux build-windows docker-server-push check-docker check-docflow-server-version clean release-assets release-assets-check docs-links-check check-integration-env go-test integration-test integration-db-up integration-db-down db-performance-check go-vet govulncheck frontend-ci frontend-build frontend-lint frontend-test npm-audit release-gate storage-up storage-down storage-reset
-
-# Загружаем переменные из .env (если файл существует)
+# Основные команды Docflow. Без аргументов make показывает справку.
+.DEFAULT_GOAL := help
 -include .env
 
-# Переменные
 TAGS = webkit2_41
 FRONTEND_DIR = frontend
 GOCACHE ?= /tmp/go-build-cache
-GOVULNCHECK ?= $(shell command -v govulncheck 2>/dev/null || echo "go run golang.org/x/vuln/cmd/govulncheck@latest")
-GO_PACKAGES = . ./cmd/... ./internal/... ./tools/...
-INTEGRATION_COMPOSE = docker compose --env-file $(if $(wildcard .env),.env,/dev/null) -p docflow-integration -f testing/compose/integration.yaml
-INTEGRATION_DSN = postgres://docflow_integration:docflow_integration@127.0.0.1:55432/docflow_test_outbox?sslmode=disable
-PERFORMANCE_DIR = build/performance
-PERFORMANCE_DOCUMENTS ?= 10000
-PERFORMANCE_PAGE_SIZE ?= 50
-PERFORMANCE_DEEP_PAGE ?= 0
-SERVER_DOCKERFILE = build/server/Dockerfile
 DOCKER_PLATFORM ?= linux/amd64
 DOCKERHUB_IMAGE = hehelf/docflow-service
 
-release-assets:
-	GOCACHE=$(GOCACHE) go generate ./internal/releaseassets
+.PHONY: help help-checks dev-client dev-server storage-up storage-down storage-reset build-linux build-windows docker-server-push release-gate release-assets _build-compiler _check-docker _check-docflow-server-version
 
-release-assets-check:
-	GOCACHE=$(GOCACHE) go run ./tools/releasegen -source docs/releases.yaml -out internal/releaseassets/current_release.yaml -wails-config wails.json -check
+help:
+	@printf '%s\n' \
+	  'Разработка:' \
+	  '  make dev-client          Запустить клиент Wails' \
+	  '  make dev-server          Собрать локальный сервер и обновить Compose-стек' \
+	  'Локальный стек:' \
+	  '  make storage-up          Собрать сервер и запустить весь стек' \
+	  '  make storage-down        Остановить стек, сохранив данные' \
+	  '  make storage-reset       Удалить данные Compose и запустить стек заново' \
+	  'Продакшен:' \
+	  '  make build-linux         Собрать клиент Linux' \
+	  '  make build-windows       Собрать клиент Windows' \
+	  '  make docker-server-push  Собрать и опубликовать сервер в Docker Hub' \
+	  'Проверки:' \
+	  '  make release-gate        Выполнить основной набор проверок' \
+	  '  make help-checks         Показать точечные проверки и обслуживание'
 
-docs-links-check:
-	node tools/check-markdown-links.mjs
+help-checks:
+	@printf '%s\n' \
+	  'Этапы release-gate (можно запускать отдельно):' \
+	  '  release-assets-check docs-links-check go-test integration-test go-vet govulncheck' \
+	  '  frontend-ci frontend-lint frontend-test frontend-build npm-audit' \
+	  'Дополнительные проверки, не входящие в release-gate:' \
+	  '  storage-smoke-test       Проверка API, хранилищ и backup/restore в отдельном стеке' \
+	  '  db-performance-check     Измерения производительности PostgreSQL' \
+	  '  integration-db-up/down   Ручной запуск/удаление интеграционной БД' \
+	  'Обслуживание:' \
+	  '  release-assets           Обновить встроенные сведения о релизе' \
+	  '  clean                    Удалить локальные бинарники из build/bin'
 
-# Запуск режима разработки с правильным WebKit для Ubuntu 24.04
-dev:
+# Разработка
+# Сервер обновляется отдельно; dev-client не перезапускает контейнеры.
+dev-client: _build-compiler
 	$(MAKE) release-assets
-	wails dev -tags $(TAGS)
+	DOCFLOW_LOCAL_BUILD=1 wails dev -tags $(TAGS) -compiler "$(CURDIR)/build/bin/docflow-go"
 
-# Сборка готового бинарника для тестирования в Linux
-build-linux:
+dev-server: release-assets _build-compiler _check-docker
+	GOCACHE=$(GOCACHE) DOCKER_PLATFORM=$(DOCKER_PLATFORM) bash tools/dev-server.sh
+
+# Весь локальный стек: PostgreSQL, SeaweedFS, Seq, сервер и Caddy.
+storage-up: dev-server
+
+storage-down:
+	docker compose -f docker-compose.yaml down
+
+# Удаляются все именованные тома Compose, включая БД, файлы, Seq и staging бэкапов.
+storage-reset:
+	docker compose -f docker-compose.yaml down -v
+	$(MAKE) storage-up
+
+# Продакшен
+build-linux: _build-compiler
 	$(MAKE) release-assets
-	wails build -tags $(TAGS) -platform linux/amd64
+	wails build -tags $(TAGS) -platform linux/amd64 -compiler "$(CURDIR)/build/bin/docflow-go"
 	node $(FRONTEND_DIR)/scripts/normalize-wails-bindings.mjs
 
-# Кросс-компиляция готового .exe для Windows (для конечных пользователей)
-build-windows:
+build-windows: _build-compiler
 	$(MAKE) release-assets
-	wails build -platform windows/amd64
+	wails build -platform windows/amd64 -compiler "$(CURDIR)/build/bin/docflow-go"
 	node $(FRONTEND_DIR)/scripts/normalize-wails-bindings.mjs
 
-check-docker:
-	@command -v docker >/dev/null 2>&1 || (echo "docker is required" >&2; exit 1)
-	@docker info >/dev/null 2>&1 || (echo "docker daemon is not available" >&2; exit 1)
-
-check-docflow-server-version: release-assets-check
-	@test -n "$(DOCFLOW_SERVER_VERSION)" || (echo "DOCFLOW_SERVER_VERSION is required in .env" >&2; exit 1)
-	@actual="$$(GOCACHE=$(GOCACHE) go run ./cmd/docflow-server version)"; \
-		test "$$actual" = "$(DOCFLOW_SERVER_VERSION)" || (echo "DOCFLOW_SERVER_VERSION $(DOCFLOW_SERVER_VERSION) does not match embedded product version $$actual" >&2; exit 1)
-
-# Перед публикацией выполните docker login. Токен Docker Hub не передаётся Makefile.
-docker-server-push: check-docker check-docflow-server-version
-	docker build --platform $(DOCKER_PLATFORM) --build-arg VERSION=$(DOCFLOW_SERVER_VERSION) -f $(SERVER_DOCKERFILE) -t $(DOCKERHUB_IMAGE):$(DOCFLOW_SERVER_VERSION) .
-	docker push $(DOCKERHUB_IMAGE):$(DOCFLOW_SERVER_VERSION)
-
-# Очистка кэша сборки и папки build/bin
-clean:
-	rm -rf build/bin/*
-
-# Запуск тестов
-go-test:
-	$(MAKE) release-assets
-	GOCACHE=$(GOCACHE) go test $(GO_PACKAGES)
-
-# Запускает изолированные PostgreSQL и SeaweedFS, выполняет тесты Integration
-# и всегда удаляет контейнер вместе с тестовым volume.
-check-integration-env:
-	@command -v docker >/dev/null 2>&1 || (echo "docker is required for PostgreSQL integration tests" >&2; exit 1)
-	@docker compose version >/dev/null 2>&1 || (echo "docker compose is required for PostgreSQL integration tests" >&2; exit 1)
-	@docker info >/dev/null 2>&1 || (echo "docker daemon is not available for PostgreSQL integration tests" >&2; exit 1)
-	@test -n "$(POSTGRES_VERSION)" || (echo "POSTGRES_VERSION is required for PostgreSQL integration tests" >&2; exit 1)
-
-integration-test: check-integration-env
+# Сборка и публикация используют один идентификатор. Перед запуском — docker login.
+docker-server-push: override export DOCFLOW_LOCAL_BUILD=0
+docker-server-push: _check-docker _check-docflow-server-version _build-compiler
 	@set -eu; \
-		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
-		trap cleanup EXIT INT TERM; \
-		$(INTEGRATION_COMPOSE) up -d --build --wait; \
-		DOCFLOW_INTEGRATION_S3_ENDPOINT=127.0.0.1:58333 DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1
-
-# Generates a local baseline only. It intentionally has no pass/fail latency
-# threshold because Docker and developer hardware are not stable benchmark hosts.
-db-performance-check: check-integration-env
-	@set -eu; \
-		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
-		trap cleanup EXIT INT TERM; \
-		mkdir -p $(PERFORMANCE_DIR); \
-		$(INTEGRATION_COMPOSE) up -d --build --wait; \
-		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/server/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
-		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -deep-page $(PERFORMANCE_DEEP_PAGE) | tee $(PERFORMANCE_DIR)/summary.txt
-
-# Эти цели полезны при ручной отладке интеграционных тестов. Данные не
-# предназначены для сохранения: integration-db-down удаляет volume.
-integration-db-up: check-integration-env
-	$(INTEGRATION_COMPOSE) up -d --build --wait
-
-integration-db-down: check-integration-env
-	$(INTEGRATION_COMPOSE) down -v --remove-orphans
-
-go-vet:
-	GOCACHE=$(GOCACHE) go vet $(GO_PACKAGES)
-
-govulncheck:
-	GOCACHE=$(GOCACHE) $(GOVULNCHECK) $(GO_PACKAGES)
-
-frontend-ci:
-	cd $(FRONTEND_DIR) && npm ci
-
-frontend-build:
-	cd $(FRONTEND_DIR) && npm run build
-
-frontend-lint:
-	cd $(FRONTEND_DIR) && npm run lint
-
-frontend-test:
-	cd $(FRONTEND_DIR) && npm test
-
-npm-audit:
-	cd $(FRONTEND_DIR) && npm audit --audit-level=critical
+	 identity="$$(build/bin/docflow-go identity)"; \
+	 tag="$(DOCFLOW_SERVER_VERSION).$$(printf '%s' "$$identity" | cut -d: -f1)-$$(printf '%s' "$$identity" | cut -d: -f2)"; \
+	 docker build --platform $(DOCKER_PLATFORM) --build-arg VERSION=$(DOCFLOW_SERVER_VERSION) --build-arg BUILD_IDENTITY="$$identity" --build-arg LOCAL_BUILD=0 -f build/server/Dockerfile -t $(DOCKERHUB_IMAGE):$$tag .; \
+	 test "$$identity" = "$$(build/bin/docflow-go identity)" || { echo 'Sources changed during image build; publication cancelled' >&2; exit 1; }; \
+	 docker push $(DOCKERHUB_IMAGE):$$tag
 
 release-gate:
 	@./tools/release-gate.sh
 
-# ==========================================
-# УПРАВЛЕНИЕ ЛОКАЛЬНЫМ СТЕКОМ (DOCKER)
-# ==========================================
+# Служебные зависимости; вручную запускать не требуется.
+release-assets:
+	GOCACHE=$(GOCACHE) go generate ./internal/releaseassets
 
-# Запуск PostgreSQL, SeaweedFS, Seq, docflow-server и Caddy в фоновом режиме
-storage-up:
-	docker compose up -d
+_build-compiler:
+	GOCACHE=$(GOCACHE) go build -o build/bin/docflow-go ./tools/buildmeta
 
-# Остановка локального стека (данные СОХРАНЯЮТСЯ)
-storage-down:
-	docker compose down
+_check-docker:
+	@command -v docker >/dev/null 2>&1 || (echo "docker is required" >&2; exit 1)
+	@docker info >/dev/null 2>&1 || (echo "docker daemon is not available" >&2; exit 1)
 
-# СБРОС ДАННЫХ DEV: PostgreSQL и хранилище; тома Seq/Caddy сохраняются.
-storage-reset:
-	docker compose down -v
-	docker compose up -d
+_check-docflow-server-version: release-assets-check
+	@test -n "$(DOCFLOW_SERVER_VERSION)" || (echo "DOCFLOW_SERVER_VERSION is required in .env" >&2; exit 1)
+	@actual="$$(GOCACHE=$(GOCACHE) go run ./cmd/docflow-server version)"; \
+		test "$$actual" = "$(DOCFLOW_SERVER_VERSION)" || (echo "DOCFLOW_SERVER_VERSION $(DOCFLOW_SERVER_VERSION) does not match embedded product version $$actual" >&2; exit 1)
 
-.PHONY: storage-smoke-test
-storage-smoke-test: check-docker
-	bash testing/scripts/integration-smoke.sh
+include build/make/checks.mk
