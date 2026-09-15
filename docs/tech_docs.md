@@ -25,7 +25,7 @@
 Backend:
 
 - Go module `github.com/Volkov-D-A/docs-register-and-track`;
-- Go `1.26.5`;
+- Go `1.27.1`;
 - Wails v2.13.0;
 - PostgreSQL через `database/sql`, `lib/pq`;
 - миграции через `golang-migrate`;
