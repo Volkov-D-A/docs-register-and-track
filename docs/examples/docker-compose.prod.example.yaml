@@ -52,7 +52,7 @@ services:
       - ./scripts/seq-entrypoint.sh:/usr/local/bin/docflow-entrypoint.sh:ro
     restart: unless-stopped
   docflow-server:
-    image: hehelf/docflow-service:${DOCFLOW_SERVER_IMAGE_TAG:-${DOCFLOW_SERVER_VERSION:?Set DOCFLOW_SERVER_VERSION in .env}}
+    image: hehelf/docflow-service:${DOCFLOW_SERVER_IMAGE_TAG:-latest}
     pull_policy: always
     container_name: docflow_server
     secrets: [postgres_password, s3_secret_key, settings_key]

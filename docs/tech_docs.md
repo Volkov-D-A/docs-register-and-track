@@ -305,7 +305,7 @@ Container image собирается через `build/server/Dockerfile` на r
 собирает `docflow-service-local:dev` из исходников через `make storage-up` / `make dev-server`.
 Команды автоматически передают версию и идентичность сборки, не меняя `.env`.
 `make dev-client` отдельно запускает клиент после обновления стека. Production-пример загружает
-`hehelf/docflow-service:${DOCFLOW_SERVER_IMAGE_TAG}` (fallback: `DOCFLOW_SERVER_VERSION`)
+`hehelf/docflow-service:${DOCFLOW_SERVER_IMAGE_TAG}` (по умолчанию: `latest`)
 из Docker Hub. Оба запускают сервер рядом с PostgreSQL, SeaweedFS, Seq и Caddy
 после готовности PostgreSQL и S3 probe.
 Оба хранят настройки и логины в `.env`, а пароли PostgreSQL/Seq, секретный ключ S3
@@ -321,7 +321,10 @@ Container image собирается через `build/server/Dockerfile` на r
 `make docker-server-push` после отдельного `docker login` проверяет соответствие
 `DOCFLOW_SERVER_VERSION` встроенной версии продукта, собирает и публикует
 immutable image tag `<release>.<число-коммитов>-<SHA>`. Для запуска этот тег задаётся
-в `DOCFLOW_SERVER_IMAGE_TAG` в `.env`. Repository
+в `DOCFLOW_SERVER_IMAGE_TAG` в `.env` для фиксации сборки. Также публикуется тег
+`latest`, который production Compose использует по умолчанию. Обновление сервера:
+`docker compose up -d --pull always docflow-server`; публикация сама по себе
+не перезапускает работающие контейнеры. Repository
 `hehelf/docflow-service` жёстко задан в Makefile и production-примере Compose. Makefile не принимает
 Docker Hub token.
 

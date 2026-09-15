@@ -28,7 +28,7 @@ func TestReleaseGateMakeTargetsRemainAvailable(t *testing.T) {
 }
 
 func TestDockerPublicationRequiresSuccessfulStableCleanBuild(t *testing.T) {
-	for _, scenario := range []string{"success", "failed-build", "changed-sources"} {
+	for _, scenario := range []string{"success", "failed-build", "changed-sources", "failed-push"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			write := func(name, content string) {
@@ -55,6 +55,7 @@ if test -f changed; then echo '364:other:'; else echo '363:revision:'; fi
 `)
 			write("bin/docker", `#!/bin/sh
 printf '%s\n' "$*" >> calls
+if test "$SCENARIO" = failed-push && test "$1" = push; then exit 1; fi
 if test "$1" = build; then
  case "$SCENARIO" in
   failed-build) exit 1;;
@@ -77,9 +78,17 @@ fi
 				t.Fatalf("not a clean build: %s", calls)
 			}
 			pushed := strings.Contains(string(calls), "push hehelf/docflow-service:1.0.7.363-revision")
-			if pushed != (scenario == "success") {
+			if pushed != (scenario == "success" || scenario == "failed-push") {
 				t.Fatalf("unexpected publication: %s", calls)
 			}
+			latest := strings.Contains(string(calls), "push hehelf/docflow-service:latest")
+			if latest != (scenario == "success") {
+				t.Fatalf("unexpected latest publication: %s", calls)
+			}
+			if latest && !strings.Contains(string(calls), "push hehelf/docflow-service:1.0.7.363-revision\ntag hehelf/docflow-service:1.0.7.363-revision hehelf/docflow-service:latest\npush hehelf/docflow-service:latest") {
+				t.Fatalf("latest must follow the exact image publication: %s", calls)
+			}
+
 		})
 	}
 }

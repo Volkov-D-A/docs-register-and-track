@@ -79,7 +79,9 @@ docker-server-push: _check-docker _check-docflow-server-version _build-compiler
 	 tag="$(DOCFLOW_SERVER_VERSION).$$(printf '%s' "$$identity" | cut -d: -f1)-$$(printf '%s' "$$identity" | cut -d: -f2)"; \
 	 docker build --platform $(DOCKER_PLATFORM) --build-arg VERSION=$(DOCFLOW_SERVER_VERSION) --build-arg BUILD_IDENTITY="$$identity" --build-arg LOCAL_BUILD=0 -f build/server/Dockerfile -t $(DOCKERHUB_IMAGE):$$tag .; \
 	 test "$$identity" = "$$(build/bin/docflow-go identity)" || { echo 'Sources changed during image build; publication cancelled' >&2; exit 1; }; \
-	 docker push $(DOCKERHUB_IMAGE):$$tag
+	 docker push $(DOCKERHUB_IMAGE):$$tag; \
+	 docker tag $(DOCKERHUB_IMAGE):$$tag $(DOCKERHUB_IMAGE):latest; \
+	 docker push $(DOCKERHUB_IMAGE):latest
 
 release-gate:
 	@./tools/release-gate.sh

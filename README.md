@@ -38,8 +38,7 @@ make storage-up
 
 The root Compose file builds `docflow-service-local:dev` from local sources via
 `make storage-up` or `make dev-server`. The production example pulls
-`hehelf/docflow-service:<DOCFLOW_SERVER_IMAGE_TAG>` from Docker Hub (falling back
-to `DOCFLOW_SERVER_VERSION`); set the published tag in the production `.env`.
+`hehelf/docflow-service:<DOCFLOW_SERVER_IMAGE_TAG>` from Docker Hub (default: `latest`); optionally pin a published tag in the production `.env`.
 Both wait for PostgreSQL and the S3 probe and include backup storage.
 Keep settings and usernames (`POSTGRES_USER`, `S3_ACCESS_KEY_ID`,
 `SEQ_ADMIN_USERNAME`) in `.env` beside Compose. Before starting, create four
@@ -158,7 +157,11 @@ The Docker Hub repository is fixed as `hehelf/docflow-service`; Makefile and
 Compose read `DOCFLOW_SERVER_VERSION` from `.env`. Before building, the target
 checks that this version matches the generated release asset and Wails product
 version. Images receive immutable tags `<release>.<commit-count>-<full-SHA>`;
-set `DOCFLOW_SERVER_IMAGE_TAG` in the production `.env` to the resulting tag. The Makefile never accepts or stores a Docker Hub password/token. The
+the same image is then published as `latest`. Production Compose uses `latest`
+by default; set `DOCFLOW_SERVER_IMAGE_TAG` to a full tag to pin a build.
+On the server, run `docker compose up -d --pull always docflow-server` to update.
+A running container does not update itself when an image is published.
+The desktop still needs to match the deployed server build. The Makefile never accepts or stores a Docker Hub password/token. The
 runtime image contains only the static server binary. Pass `.env` with
 `--env-file` or the equivalent orchestrator mechanism.
 PostgreSQL and SeaweedFS passwords must be supplied as runtime secrets; production
