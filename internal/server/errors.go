@@ -36,7 +36,7 @@ var publicAPIMessages = map[string]string{
 	"invalid_rollback_confirmation": "Подтвердите резервное копирование и последствия отката.",
 	"authentication_required":       "Требуется авторизация.",
 	"invalid_credentials":           "Неверный логин или пароль.",
-	"authentication_rate_limited":   "Слишком много неудачных попыток. Повторите позже.",
+	"authentication_rate_limited":   "Слишком много попыток аутентификации. Повторите позже.",
 }
 
 func publicAPIMessage(status int, code string, err error) string {

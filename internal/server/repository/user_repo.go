@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 )
 
@@ -702,6 +702,9 @@ func (r *UserRepository) IncrementFailedLoginAttempts(userID uuid.UUID) (int, bo
 // IncrementFailedLoginAttemptsWithOutbox writes the lock audit only for the
 // transition that reaches the lock threshold, in the same transaction.
 func (r *UserRepository) IncrementFailedLoginAttemptsWithOutbox(userID uuid.UUID, lockEffect models.OutboxEvent) (int, bool, error) {
+	if r.outbox == nil {
+		return 0, false, ErrOutboxNotConfigured
+	}
 	tx, err := r.db.Begin()
 	if err != nil {
 		return 0, false, err
@@ -717,7 +720,7 @@ func (r *UserRepository) IncrementFailedLoginAttemptsWithOutbox(userID uuid.UUID
 			return 0, false, fmt.Errorf("failed to revoke locked user sessions: %w", err)
 		}
 	}
-	if attempts == 5 && !isActive && r.outbox != nil {
+	if attempts == 5 && !isActive {
 		if err := r.outbox.EnqueueTx(tx, lockEffect); err != nil {
 			return 0, false, err
 		}

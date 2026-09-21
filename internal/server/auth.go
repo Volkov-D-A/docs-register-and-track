@@ -28,7 +28,7 @@ type authUserStore interface {
 	GetByLogin(string) (*models.User, error)
 	GetByID(uuid.UUID) (*models.User, error)
 	UpdatePassword(uuid.UUID, string) error
-	IncrementFailedLoginAttempts(uuid.UUID) (int, bool, error)
+	IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error)
 	ResetFailedLoginAttempts(uuid.UUID) error
 }
 
@@ -110,6 +110,21 @@ type loginRequest struct {
 // even a matching password must never authenticate a missing user.
 const dummyLoginPasswordHash = "$2a$10$oX7wdAvC/jdaOH5ATrmOfOaI8Xh8f.dmqu4Te6snz0A3epLu/tpN2"
 
+// verifyAuthenticationPassword always checks one hash, even for a missing user.
+// A matching dummy password must never authenticate an unknown account.
+func (api *managementAPI) verifyAuthenticationPassword(user *models.User, password string) bool {
+	hash := dummyLoginPasswordHash
+	if user != nil {
+		hash = user.PasswordHash
+	}
+	verify := api.verifyPasswordHash
+	if verify == nil {
+		verify = security.VerifyPassword
+	}
+	valid := verify(hash, password)
+	return user != nil && valid
+}
+
 type loginResponse struct {
 	AccessToken string    `json:"accessToken"`
 	ExpiresAt   time.Time `json:"expiresAt"`
@@ -136,7 +151,7 @@ func (api *managementAPI) login(w http.ResponseWriter, r *http.Request) {
 	login := strings.TrimSpace(req.Login)
 	authKey := remoteHost(r.RemoteAddr) + "\x00" + login
 	if !api.authenticationAllowed(authKey, time.Now()) {
-		writeAPIError(w, http.StatusTooManyRequests, "authentication_rate_limited", errors.New("too many authentication failures; retry later"))
+		writeAPIError(w, http.StatusTooManyRequests, "authentication_rate_limited", errors.New("too many authentication attempts; retry later"))
 		return
 	}
 	user, err := api.authUsers.GetByLogin(login)
@@ -144,25 +159,15 @@ func (api *managementAPI) login(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "authentication_failed", err)
 		return
 	}
-	hash := dummyLoginPasswordHash
-	if user != nil {
-		hash = user.PasswordHash
-	}
-	verifyPassword := api.verifyLoginPassword
-	if verifyPassword == nil {
-		verifyPassword = security.VerifyPassword
-	}
-	passwordValid := verifyPassword(hash, req.Password)
-	if user == nil || !passwordValid {
+	if !api.verifyAuthenticationPassword(user, req.Password) {
 		api.recordAuthenticationFailure(authKey, time.Now())
 		if user != nil {
-			attempts, active, incrementErr := api.authUsers.IncrementFailedLoginAttempts(user.ID)
+			attempts, active, incrementErr := api.recordFailedLogin(user, "Учётная запись заблокирована после 5 неверных попыток входа через docflow-server")
 			if incrementErr != nil {
 				writeAPIError(w, http.StatusInternalServerError, "authentication_failed", incrementErr)
 				return
 			}
 			if attempts >= 5 || !active {
-				api.auditAction(user, "USER_LOCKED", "Учётная запись заблокирована после 5 неверных попыток входа через docflow-server")
 				writeAPIError(w, http.StatusForbidden, "user_locked", models.ErrUserLocked)
 				return
 			}
@@ -247,7 +252,7 @@ func (api *managementAPI) changeRequiredPassword(w http.ResponseWriter, r *http.
 	login := strings.TrimSpace(req.Login)
 	authKey := remoteHost(r.RemoteAddr) + "\x00" + login
 	if !api.authenticationAllowed(authKey, time.Now()) {
-		writeAPIError(w, http.StatusTooManyRequests, "authentication_rate_limited", errors.New("too many authentication failures; retry later"))
+		writeAPIError(w, http.StatusTooManyRequests, "authentication_rate_limited", errors.New("too many authentication attempts; retry later"))
 		return
 	}
 	user, err := api.authUsers.GetByLogin(login)
@@ -255,16 +260,15 @@ func (api *managementAPI) changeRequiredPassword(w http.ResponseWriter, r *http.
 		writeAPIError(w, http.StatusInternalServerError, "password_change_failed", err)
 		return
 	}
-	if user == nil || !security.VerifyPassword(user.PasswordHash, req.OldPassword) {
+	if !api.verifyAuthenticationPassword(user, req.OldPassword) {
 		api.recordAuthenticationFailure(authKey, time.Now())
 		if user != nil {
-			attempts, active, incrementErr := api.authUsers.IncrementFailedLoginAttempts(user.ID)
+			attempts, active, incrementErr := api.recordFailedLogin(user, "Учётная запись заблокирована после 5 неверных попыток обязательной смены пароля")
 			if incrementErr != nil {
 				writeAPIError(w, http.StatusInternalServerError, "password_change_failed", incrementErr)
 				return
 			}
 			if attempts >= 5 || !active {
-				api.auditAction(user, "USER_LOCKED", "Учётная запись заблокирована после 5 неверных попыток обязательной смены пароля")
 				writeAPIError(w, http.StatusForbidden, "user_locked", models.ErrUserLocked)
 				return
 			}
@@ -292,6 +296,16 @@ func (api *managementAPI) changeRequiredPassword(w http.ResponseWriter, r *http.
 	api.clearAuthenticationFailures(authKey)
 	api.auditAction(user, "USER_PASSWORD_CHANGED", "Выполнена обязательная смена пароля через docflow-server; все активные сессии отозваны")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (api *managementAPI) recordFailedLogin(user *models.User, details string) (int, bool, error) {
+	// A fresh key lets a later lock after an administrator unlocks the account
+	// produce its own audit. The repository enqueues only at the lock threshold.
+	effect, err := userAuditEffect(user, "user:"+user.ID.String()+":locked:"+uuid.NewString(), "USER_LOCKED", details)
+	if err != nil {
+		return 0, false, err
+	}
+	return api.authUsers.IncrementFailedLoginAttemptsWithOutbox(user.ID, effect)
 }
 
 func (api *managementAPI) updatePassword(user *models.User, newPassword string) error {

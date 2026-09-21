@@ -197,17 +197,11 @@ func (s *ServerAttachmentService) UploadContent(documentIDStr string, assignment
 		return nil, err
 	}
 
-	canUploadDirectly := s.access.RequireDocumentAction(documentID, "upload") == nil
-	if assignmentID == nil && !canUploadDirectly {
-		if !s.settingsService.IsAssignmentCompletionAttachmentsEnabled() {
-			return nil, models.NewForbidden("загрузка файлов при завершении поручения отключена в настройках")
-		}
-		hasAssignmentAccess, accessErr := s.access.HasAssignmentAccess(documentID)
-		if accessErr != nil {
-			return nil, accessErr
-		}
-		if !hasAssignmentAccess {
-			return nil, models.ErrForbidden
+	// Executor uploads must use the assignment route, which validates the
+	// executor, assignment status and current series iteration.
+	if assignmentID == nil {
+		if err := s.access.RequireDocumentAction(documentID, "upload"); err != nil {
+			return nil, err
 		}
 	}
 
@@ -411,6 +405,9 @@ func (s *ServerAttachmentService) AuthorizeDownload(idStr string) (*models.Attac
 	if err := s.access.RequireReadAnyType(attachment.DocumentID); err != nil {
 		return nil, err
 	}
+	if err := validateAttachmentDownloadSize(attachment.FileSize); err != nil {
+		return nil, err
+	}
 	return attachment, nil
 }
 
@@ -418,11 +415,37 @@ func (s *ServerAttachmentService) StreamAttachment(ctx context.Context, attachme
 	if attachment == nil {
 		return models.NewNotFound("вложение не найдено")
 	}
-	maxSize, _ := s.settingsService.GetMaxFileSize()
-	if err := s.fileStorage.DownloadFileToWriter(ctx, attachment.StoragePath, writer, maxSize); err != nil {
+	if err := validateAttachmentDownloadSize(attachment.FileSize); err != nil {
 		return err
 	}
+	// The upload setting governs new files only. Existing files keep their
+	// recorded size as the download bound, up to the absolute safety limit.
+	counted := &attachmentDownloadWriter{Writer: writer}
+	if err := s.fileStorage.DownloadFileToWriter(ctx, attachment.StoragePath, counted, attachment.FileSize); err != nil {
+		return err
+	}
+	if counted.written != attachment.FileSize {
+		return fmt.Errorf("attachment content size does not match stored metadata")
+	}
 	return nil
+}
+
+func validateAttachmentDownloadSize(size int64) error {
+	if size < 0 || size > int64(MaximumAttachmentSizeMB)*1024*1024 {
+		return fmt.Errorf("stored attachment size is outside the supported download range")
+	}
+	return nil
+}
+
+type attachmentDownloadWriter struct {
+	io.Writer
+	written int64
+}
+
+func (w *attachmentDownloadWriter) Write(p []byte) (int, error) {
+	n, err := w.Writer.Write(p)
+	w.written += int64(n)
+	return n, err
 }
 
 func (s *ServerAttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {

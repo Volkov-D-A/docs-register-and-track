@@ -25,7 +25,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
@@ -76,7 +75,7 @@ type managementAPI struct {
 	outboxAdmin                        func(*models.User) outboxAdminAPI
 	audit                              adminAuditStore
 	authUsers                          authUserStore
-	verifyLoginPassword                func(string, string) bool
+	verifyPasswordHash                 func(string, string) bool
 	initialSetup                       initialSetupStore
 	authSettings                       authSettingsStore
 	sessions                           authSessionStore
@@ -85,6 +84,8 @@ type managementAPI struct {
 	schemaRequests                     sync.RWMutex
 	authMu                             sync.Mutex
 	authFailures                       map[string]authFailure
+	authIPAttempts                     map[string]authFailure
+	authGlobalAttempts                 authFailure
 }
 
 type authFailure struct {
@@ -566,11 +567,11 @@ func (api *managementAPI) authenticateAdmin(w http.ResponseWriter, r *http.Reque
 	}
 	authKey := remoteHost(r.RemoteAddr) + "\x00" + strings.TrimSpace(login)
 	if !api.authenticationAllowed(authKey, time.Now()) {
-		writeAPIError(w, http.StatusTooManyRequests, "authentication_rate_limited", errors.New("too many authentication failures; retry later"))
+		writeAPIError(w, http.StatusTooManyRequests, "authentication_rate_limited", errors.New("too many authentication attempts; retry later"))
 		return nil, false
 	}
 	user, err := api.users.GetByLogin(strings.TrimSpace(login))
-	if err != nil || user == nil || !security.VerifyPassword(user.PasswordHash, password) || !user.IsActive || user.PasswordChangeRequired || !contains(user.SystemPermissions, models.SystemPermissionAdmin) {
+	if err != nil || !api.verifyAuthenticationPassword(user, password) || !user.IsActive || !contains(user.SystemPermissions, models.SystemPermissionAdmin) || api.passwordChangeRequired(user) {
 		api.recordAuthenticationFailure(authKey, time.Now())
 		time.Sleep(200 * time.Millisecond)
 		writeAPIError(w, http.StatusUnauthorized, "invalid_credentials", errors.New("invalid administrator credentials"))
@@ -594,12 +595,66 @@ func (api *managementAPI) authenticationAllowed(key string, now time.Time) bool 
 	if api.authFailures == nil {
 		api.authFailures = make(map[string]authFailure)
 	}
-	failure, ok := api.authFailures[key]
-	if !ok || !now.Before(failure.resetAt) {
-		delete(api.authFailures, key)
+	if api.authIPAttempts == nil {
+		api.authIPAttempts = make(map[string]authFailure)
+	}
+	if !now.Before(api.authGlobalAttempts.resetAt) {
+		api.authGlobalAttempts = authFailure{resetAt: now.Add(time.Minute)}
+		removeExpiredAuthenticationEntries(api.authFailures, now)
+		removeExpiredAuthenticationEntries(api.authIPAttempts, now)
+	}
+	if api.authGlobalAttempts.count >= maxAuthenticationAttemptsPerMinute {
+		return false
+	}
+	host, _, _ := strings.Cut(key, "\x00")
+	ip := api.authIPAttempts[host]
+	if !now.Before(ip.resetAt) {
+		ip = authFailure{resetAt: now.Add(time.Minute)}
+	}
+	if ip.count >= maxAuthenticationAttemptsPerIPPerMinute {
+		return false
+	}
+	failure := api.authFailures[key]
+	if !now.Before(failure.resetAt) {
+		failure = authFailure{resetAt: now.Add(time.Minute)}
+	}
+	if failure.count >= 5 {
+		return false
+	}
+	if !authenticationEntryAvailable(api.authFailures, key, now) ||
+		!authenticationEntryAvailable(api.authIPAttempts, host, now) {
+		return false
+	}
+	// Reserve capacity and consume both budgets atomically before looking up a
+	// user or checking bcrypt. In-flight and successful attempts count as well.
+	api.authFailures[key] = failure
+	ip.count++
+	api.authIPAttempts[host] = ip
+	api.authGlobalAttempts.count++
+	return true
+}
+
+const (
+	maxAuthenticationAttemptsPerIPPerMinute = 30
+	maxAuthenticationAttemptsPerMinute      = 300
+)
+
+func removeExpiredAuthenticationEntries(entries map[string]authFailure, now time.Time) {
+	for key, entry := range entries {
+		if !now.Before(entry.resetAt) {
+			delete(entries, key)
+		}
+	}
+}
+
+func authenticationEntryAvailable(entries map[string]authFailure, key string, now time.Time) bool {
+	if _, exists := entries[key]; exists {
 		return true
 	}
-	return failure.count < 5
+	if len(entries) >= maxAuthenticationFailureKeys {
+		removeExpiredAuthenticationEntries(entries, now)
+	}
+	return len(entries) < maxAuthenticationFailureKeys
 }
 
 func (api *managementAPI) recordAuthenticationFailure(key string, now time.Time) {
@@ -608,14 +663,7 @@ func (api *managementAPI) recordAuthenticationFailure(key string, now time.Time)
 	if api.authFailures == nil {
 		api.authFailures = make(map[string]authFailure)
 	}
-	if len(api.authFailures) >= maxAuthenticationFailureKeys {
-		for existingKey, existingFailure := range api.authFailures {
-			if !now.Before(existingFailure.resetAt) {
-				delete(api.authFailures, existingKey)
-			}
-		}
-	}
-	if _, exists := api.authFailures[key]; !exists && len(api.authFailures) >= maxAuthenticationFailureKeys {
+	if !authenticationEntryAvailable(api.authFailures, key, now) {
 		return
 	}
 	failure := api.authFailures[key]

@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/coordination"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/coordination"
 )
 
 func setupAttachmentService(t *testing.T, role string) (
@@ -401,7 +401,6 @@ func TestServerAttachmentUploadValidation(t *testing.T) {
 	}{
 		{"too large", "clerk", "test.txt", "1", "", "размер файла", 2 * 1024 * 1024},
 		{"forbidden type", "clerk", "test.exe", "10", ".txt", "тип файла", 1},
-		{"participant disabled", "", "test.txt", "", "", "отключена", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, _, settings, _, _, _, _, _, _, _, _ := setupAttachmentService(t, tc.role)
@@ -410,9 +409,6 @@ func TestServerAttachmentUploadValidation(t *testing.T) {
 			}
 			if tc.allowed != "" {
 				settings.On("Get", "allowed_file_types").Return(&models.SystemSetting{Value: tc.allowed}, nil).Once()
-			}
-			if tc.role == "" {
-				settings.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{Value: "false"}, nil).Once()
 			}
 			item, err := svc.UploadContent(uuid.NewString(), nil, tc.filename, tc.size, strings.NewReader("x"))
 			require.Nil(t, item)
@@ -424,6 +420,24 @@ func TestServerAttachmentUploadValidation(t *testing.T) {
 		_, err := svc.UploadContent(uuid.NewString(), nil, "test.txt", 1, strings.NewReader("x"))
 		require.ErrorIs(t, err, models.ErrUnauthorized)
 	})
+}
+
+func TestDocumentAttachmentUploadRequiresUploadPermissionDespiteAssignmentAccess(t *testing.T) {
+	for _, enabled := range []string{"true", "false"} {
+		t.Run("completion attachments enabled="+enabled, func(t *testing.T) {
+			// This participant has assignment read access, but no upload permission.
+			svc, repo, settings, storage, _, _, _, _, _, _, _ := setupAttachmentService(t, "")
+			settings.On("Get", "assignment_completion_attachments_enabled").
+				Return(&models.SystemSetting{Value: enabled}, nil).Maybe()
+
+			item, err := svc.UploadContent(uuid.NewString(), nil, "report.txt", 1, strings.NewReader("x"))
+
+			require.Nil(t, item)
+			require.ErrorIs(t, err, models.ErrForbidden)
+			storage.AssertNotCalled(t, "UploadFile", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "CreateWithOutbox", mock.Anything, mock.Anything)
+		})
+	}
 }
 
 func TestServerAttachmentUploadCompensatesMetadataFailure(t *testing.T) {

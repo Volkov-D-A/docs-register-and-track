@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -83,6 +84,7 @@ func testManagementAPI(t *testing.T) (*managementAPI, *fakeManagementMigrations,
 		migrations:    migrations,
 		lifecycle:     lifecycle,
 		serverVersion: "1.0.6",
+		authSettings:  fakeAuthSettings{},
 		users: fakeAdminUsers{user: &models.User{
 			ID:                uuid.New(),
 			Login:             "admin",
@@ -226,6 +228,52 @@ func TestManagementAPIApplyRejectsInvalidCredentials(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, res.Code)
 	assert.Zero(t, migrations.applyCalls)
+}
+
+func TestMigrationAPIEnforcesPasswordLifetime(t *testing.T) {
+	expired := time.Now().AddDate(0, 0, -30)
+	recent := time.Now().Add(-time.Hour)
+	for _, operation := range []string{"apply", "rollback"} {
+		for _, tc := range []struct {
+			name     string
+			lifetime string
+			changed  *time.Time
+			required bool
+			allowed  bool
+		}{
+			{name: "expired without required flag", lifetime: "1", changed: &expired},
+			{name: "missing change date", lifetime: "1"},
+			{name: "unexpired password", lifetime: "1", changed: &recent, allowed: true},
+			{name: "expiration disabled", lifetime: "0", changed: &expired, allowed: true},
+			{name: "explicit change required", lifetime: "0", changed: &recent, required: true},
+		} {
+			t.Run(operation+"/"+tc.name, func(t *testing.T) {
+				api, migrations, lifecycle, audit := testManagementAPI(t)
+				api.authSettings = scenarioAuthSettings{value: tc.lifetime}
+				user := api.users.(fakeAdminUsers).user
+				user.PasswordChangedAt = tc.changed
+				user.PasswordChangeRequired = tc.required
+				body := strings.NewReader(`{"backupCompleted":true,"backupReference":"backup-42","acknowledgedDataLoss":true,"confirmation":"ОТКАТ МИГРАЦИИ"}`)
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/migrations/"+operation, body)
+				req.SetBasicAuth("admin", "Passw0rd!")
+				res := httptest.NewRecorder()
+
+				api.Handler().ServeHTTP(res, req)
+
+				if tc.allowed {
+					require.Equal(t, http.StatusOK, res.Code)
+					require.Equal(t, 1, migrations.applyCalls+migrations.rollbackCalls)
+				} else {
+					require.Equal(t, http.StatusUnauthorized, res.Code)
+					require.Contains(t, res.Body.String(), `"code":"invalid_credentials"`)
+					require.Zero(t, migrations.applyCalls)
+					require.Zero(t, migrations.rollbackCalls)
+					require.Zero(t, lifecycle.prepareCalls)
+					require.Empty(t, audit.actions)
+				}
+			})
+		}
+	}
 }
 
 func TestManagementAPIReadinessReportsMaintenance(t *testing.T) {

@@ -12,7 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 )
@@ -112,14 +115,18 @@ func TestServerRepeatedLockoutsAuditIntegration(t *testing.T) {
 			_, err = db.Exec(`UPDATE users SET is_active=TRUE,failed_login_attempts=0 WHERE id=$1`, id)
 			require.NoError(t, err)
 		}
-		for attempt := 1; attempt <= 5; attempt++ {
-			request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(`{"login":"lock-audit","password":"wrong"}`))
+		for attempt := 1; attempt <= 6; attempt++ {
+			path, body := "/api/v1/auth/login", `{"login":"lock-audit","password":"wrong"}`
+			if cycle > 0 {
+				path, body = "/api/v1/auth/change-required-password", `{"login":"lock-audit","oldPassword":"wrong","newPassword":"NewPassw0rd!"}`
+			}
+			request := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 			// Exercise the account counter independently of per-address throttling.
-			request.RemoteAddr = fmt.Sprintf("192.0.2.%d:1234", cycle*5+attempt)
+			request.RemoteAddr = fmt.Sprintf("192.0.2.%d:1234", cycle*6+attempt)
 			response := httptest.NewRecorder()
 			api.Handler().ServeHTTP(response, request)
 			status := http.StatusUnauthorized
-			if attempt == 5 {
+			if attempt >= 5 {
 				status = http.StatusForbidden
 			}
 			require.Equal(t, status, response.Code, response.Body.String())
@@ -128,7 +135,11 @@ func TestServerRepeatedLockoutsAuditIntegration(t *testing.T) {
 		var attempts, count int
 		require.NoError(t, db.QueryRow(`SELECT is_active,failed_login_attempts FROM users WHERE id=$1`, id).Scan(&active, &attempts))
 		require.False(t, active)
-		require.Equal(t, 5, attempts)
+		require.Equal(t, 6, attempts)
+		require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM event_outbox WHERE event_type=$1 AND payload->>'UserID'=$2 AND payload->>'Action'='USER_LOCKED'`, models.OutboxEventAudit, id.String()).Scan(&count))
+		require.Equal(t, cycle+1, count, "only one event per lock, including after reactivation")
+		worker := outbox.NewWorker(repository.NewOutboxRepository(db), nil, nil, repository.NewAdminAuditLogRepository(db), nil, nil)
+		require.NoError(t, worker.ProcessOnce())
 		require.NoError(t, db.QueryRow(`SELECT COUNT(DISTINCT id) FROM admin_audit_log WHERE user_id=$1 AND action='USER_LOCKED'`, id).Scan(&count))
 		require.Equal(t, cycle+1, count)
 	}

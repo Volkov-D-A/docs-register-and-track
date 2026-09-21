@@ -26,7 +26,7 @@ func (s *scenarioAuthUsers) GetByLogin(login string) (*models.User, error) {
 	}
 	return s.fakeAuthUsers.GetByLogin(login)
 }
-func (s *scenarioAuthUsers) IncrementFailedLoginAttempts(uuid.UUID) (int, bool, error) {
+func (s *scenarioAuthUsers) IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error) {
 	s.increments++
 	s.user.FailedLoginAttempts++
 	if s.user.FailedLoginAttempts >= 5 {

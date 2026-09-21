@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 )
 
@@ -31,7 +31,7 @@ func (s parallelAuthUsers) GetByLogin(login string) (*models.User, error) {
 }
 func (s parallelAuthUsers) GetByID(id uuid.UUID) (*models.User, error) { return s.users[id], nil }
 func (parallelAuthUsers) UpdatePassword(uuid.UUID, string) error       { return nil }
-func (parallelAuthUsers) IncrementFailedLoginAttempts(uuid.UUID) (int, bool, error) {
+func (parallelAuthUsers) IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error) {
 	return 0, true, nil
 }
 func (parallelAuthUsers) ResetFailedLoginAttempts(uuid.UUID) error { return nil }

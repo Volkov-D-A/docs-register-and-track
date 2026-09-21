@@ -31,7 +31,7 @@ func TestDummyLoginPasswordHashMatchesPasswordCost(t *testing.T) {
 	require.True(t, security.VerifyPassword(dummyLoginPasswordHash, "docflow-dummy-password"))
 }
 
-func TestLoginVerifiesPasswordOnceForUnknownAndKnownUsers(t *testing.T) {
+func TestAuthenticationRoutesVerifyPasswordOnceForUnknownAndKnownUsers(t *testing.T) {
 	hash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
 	user := &models.User{ID: uuid.New(), Login: "user", PasswordHash: hash, IsActive: true}
@@ -45,31 +45,45 @@ func TestLoginVerifiesPasswordOnceForUnknownAndKnownUsers(t *testing.T) {
 		{"known user", user, "wrong-password", hash},
 		{"matching dummy password", nil, "docflow-dummy-password", dummyLoginPasswordHash},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			calls := 0
-			sessions := &fakeAuthSessions{}
-			api := &managementAPI{
-				authUsers: &fakeAuthUsers{user: tc.user},
-				sessions:  sessions,
-				verifyLoginPassword: func(gotHash, password string) bool {
-					calls++
-					assert.Equal(t, tc.wantHash, gotHash)
-					assert.Equal(t, tc.password, password)
-					return security.VerifyPassword(gotHash, password)
-				},
-			}
-			body, err := json.Marshal(loginRequest{Login: "user", Password: tc.password})
-			require.NoError(t, err)
-			response := httptest.NewRecorder()
-			api.login(response, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body)))
-			require.Equal(t, 1, calls)
-			require.Equal(t, http.StatusUnauthorized, response.Code)
-			var result map[string]any
-			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
-			assert.Equal(t, "invalid_credentials", result["code"])
-			assert.Equal(t, "неверный логин или пароль", result["error"])
-			assert.Nil(t, sessions.session)
-		})
+		for _, route := range []string{"login", "change-required-password", "migration"} {
+			t.Run(route+"/"+tc.name, func(t *testing.T) {
+				calls := 0
+				sessions := &fakeAuthSessions{}
+				api := &managementAPI{
+					users:     fakeAdminUsers{user: tc.user},
+					authUsers: &fakeAuthUsers{user: tc.user},
+					sessions:  sessions,
+					verifyPasswordHash: func(gotHash, password string) bool {
+						calls++
+						assert.Equal(t, tc.wantHash, gotHash)
+						assert.Equal(t, tc.password, password)
+						return security.VerifyPassword(gotHash, password)
+					},
+				}
+				var input any = loginRequest{Login: "user", Password: tc.password}
+				if route == "change-required-password" {
+					input = changeRequiredPasswordRequest{Login: "user", OldPassword: tc.password, NewPassword: "NewPassw0rd!"}
+				}
+				body, err := json.Marshal(input)
+				require.NoError(t, err)
+				response := httptest.NewRecorder()
+				request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/"+route, bytes.NewReader(body))
+				if route == "migration" {
+					request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/migrations/apply", nil)
+					request.SetBasicAuth("user", tc.password)
+				}
+				api.Handler().ServeHTTP(response, request)
+				require.Equal(t, 1, calls)
+				require.Equal(t, http.StatusUnauthorized, response.Code)
+				var result map[string]any
+				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
+				assert.Equal(t, "invalid_credentials", result["code"])
+				if route != "migration" {
+					assert.Equal(t, "неверный логин или пароль", result["error"])
+				}
+				assert.Nil(t, sessions.session)
+			})
+		}
 	}
 }
 
@@ -85,7 +99,7 @@ func (f *fakeAuthUsers) GetByID(id uuid.UUID) (*models.User, error) {
 	}
 	return nil, nil
 }
-func (f *fakeAuthUsers) IncrementFailedLoginAttempts(uuid.UUID) (int, bool, error) {
+func (f *fakeAuthUsers) IncrementFailedLoginAttemptsWithOutbox(uuid.UUID, models.OutboxEvent) (int, bool, error) {
 	return 1, true, nil
 }
 func (f *fakeAuthUsers) ResetFailedLoginAttempts(uuid.UUID) error { return nil }
