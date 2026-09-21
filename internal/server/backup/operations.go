@@ -54,7 +54,7 @@ func (s *Service) operations() ([]operation, error) {
 
 func (s *Service) operation(id string) (operation, error) {
 	var op operation
-	if copyFormat(id) != 3 {
+	if !validCopyID(id) {
 		return op, fmt.Errorf("invalid operation identifier")
 	}
 	raw, err := os.ReadFile(filepath.Join(s.Directory, id+".operation.json"))
@@ -64,7 +64,7 @@ func (s *Service) operation(id string) (operation, error) {
 	if err = json.Unmarshal(raw, &op); err != nil {
 		return op, err
 	}
-	if op.ID != id || copyFormat(op.CopyID) == 0 {
+	if op.ID != id || !validCopyID(op.CopyID) {
 		return op, fmt.Errorf("invalid operation journal")
 	}
 	return op, nil
@@ -125,7 +125,7 @@ func (s *Service) StartOperation(ctx context.Context, kind string, req models.Ba
 	if kind != "verify" && kind != "restore" && kind != "delete" {
 		return out, fmt.Errorf("invalid operation")
 	}
-	if copyFormat(req.CopyID) == 0 {
+	if !validCopyID(req.CopyID) {
 		return out, fmt.Errorf("invalid copy identifier")
 	}
 	s.mu.Lock()
@@ -172,7 +172,7 @@ func (s *Service) StartOperation(ctx context.Context, kind string, req models.Ba
 		}
 	}
 	if kind == "delete" && op.Copy.Format != 3 {
-		return out, fmt.Errorf("удаление v2 не поддерживается")
+		return out, fmt.Errorf("неверный идентификатор или формат резервной копии")
 	}
 	confirmationKind := kind
 	if kind == "verify" {

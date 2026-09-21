@@ -7,27 +7,18 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup/smb"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup/smb"
 	"github.com/google/uuid"
 )
 
-var legacyCopyID = regexp.MustCompile(`^backup_[0-9]{8}_[0-9]{6}(_[0-9]{9})?$`)
-
-func copyFormat(id string) int {
-	if parsed, err := uuid.Parse(id); err == nil && parsed.String() == id {
-		return 3
-	}
-	if legacyCopyID.MatchString(id) {
-		return 2
-	}
-	return 0
+func validCopyID(id string) bool {
+	parsed, err := uuid.Parse(id)
+	return err == nil && parsed.String() == id
 }
 
 type remoteReader interface {
@@ -35,51 +26,23 @@ type remoteReader interface {
 	Open(context.Context, string) (io.ReadCloser, error)
 }
 
-func markerName(id string) string {
-	if copyFormat(id) == 2 {
-		return id + ".tar.gz.manifest"
-	}
-	return id + ".manifest.json"
-}
+func markerName(id string) string { return id + ".manifest.json" }
 
 func parseCopyMarker(id string, raw []byte) (RemoteCopy, error) {
-	m := RemoteCopy{ID: id, Format: copyFormat(id)}
-	if m.Format == 0 || len(raw) > 8192 {
-		return m, fmt.Errorf("invalid copy manifest")
+	var m RemoteCopy
+	if !validCopyID(id) {
+		return m, fmt.Errorf("invalid copy identifier")
 	}
-	if m.Format == 3 {
-		if len(raw) > 4096 {
-			return m, fmt.Errorf("oversized remote manifest")
-		}
-		if err := json.Unmarshal(raw, &m); err != nil {
-			return m, err
-		}
-		if m.ID != id || m.Format != 3 {
-			return m, fmt.Errorf("invalid remote manifest identity")
-		}
-	} else {
-		fields := map[string]string{}
-		for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
-			key, value, ok := strings.Cut(line, "=")
-			if _, duplicate := fields[key]; !ok || duplicate {
-				return m, fmt.Errorf("invalid legacy manifest")
-			}
-			fields[key] = value
-		}
-		if fields["format_version"] != "2" || fields["archive"] != id+".tar.gz" {
-			return m, fmt.Errorf("invalid legacy manifest identity")
-		}
-		var err error
-		m.Size, err = strconv.ParseInt(fields["size_bytes"], 10, 64)
-		if err != nil {
-			return m, err
-		}
-		m.SHA256 = fields["sha256"]
-		m.CreatedAt, err = time.Parse("20060102_150405", strings.TrimPrefix(id, "backup_")[:15])
-		if err != nil {
-			return m, err
-		}
+	if len(raw) > 4096 {
+		return m, fmt.Errorf("oversized remote manifest")
 	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return m, err
+	}
+	if m.ID != id || m.Format != 3 {
+		return m, fmt.Errorf("invalid remote manifest identity")
+	}
+
 	digest, err := hex.DecodeString(m.SHA256)
 	if err != nil || len(digest) != 32 || m.Size < 0 || m.Size >= 1<<60 || m.CreatedAt.IsZero() {
 		return m, fmt.Errorf("invalid remote manifest metadata")
@@ -88,7 +51,7 @@ func parseCopyMarker(id string, raw []byte) (RemoteCopy, error) {
 }
 
 func readCopyMarker(ctx context.Context, remote remoteReader, id string) (RemoteCopy, error) {
-	if copyFormat(id) == 0 {
+	if !validCopyID(id) {
 		return RemoteCopy{}, fmt.Errorf("invalid copy identifier")
 	}
 	f, err := remote.Open(ctx, markerName(id))
@@ -96,7 +59,7 @@ func readCopyMarker(ctx context.Context, remote remoteReader, id string) (Remote
 		return RemoteCopy{}, err
 	}
 	defer f.Close()
-	raw, err := io.ReadAll(io.LimitReader(f, 8193))
+	raw, err := io.ReadAll(io.LimitReader(f, 4097))
 	if err != nil {
 		return RemoteCopy{}, err
 	}
@@ -117,10 +80,10 @@ func Catalog(ctx context.Context, remote remoteReader) ([]models.BackupCopy, err
 			continue
 		}
 		files[entry.Name()] = entry
-		for _, suffix := range []string{".tar.gz.manifest", ".manifest.json", ".delete.json", ".tar.gz"} {
+		for _, suffix := range []string{".manifest.json", ".delete.json", ".tar.gz"} {
 			if strings.HasSuffix(entry.Name(), suffix) {
 				id := strings.TrimSuffix(entry.Name(), suffix)
-				if copyFormat(id) != 0 {
+				if validCopyID(id) {
 					ids[id] = true
 				}
 				break
@@ -132,7 +95,7 @@ func Catalog(ctx context.Context, remote remoteReader) ([]models.BackupCopy, err
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		copy := models.BackupCopy{ID: id, Format: copyFormat(id), Verification: "incomplete"}
+		copy := models.BackupCopy{ID: id, Format: 3, Verification: "incomplete"}
 		archive, exists := files[id+".tar.gz"]
 		if exists {
 			copy.Size = archive.Size()
@@ -154,14 +117,11 @@ func Catalog(ctx context.Context, remote remoteReader) ([]models.BackupCopy, err
 			copy.Size = m.Size
 			copy.SHA256 = m.SHA256
 			copy.Verification = "unverified"
-			copy.CanDelete = copy.Format == 3
-			if copy.Format == 2 {
-				copy.Issue = "Удаление копий v2 через панель не поддерживается"
-			}
+			copy.CanDelete = true
 		}
 		if _, deleting := files[id+".delete.json"]; deleting {
 			copy.Verification = "deleting"
-			copy.CanDelete = copy.Format == 3
+			copy.CanDelete = true
 			copy.Issue = "Удаление не завершено; повторите операцию"
 			if m, err := readDeletion(ctx, remote, id); err == nil {
 				copy.CreatedAt = m.CreatedAt

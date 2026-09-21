@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -14,33 +14,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLinkRepository_Create(t *testing.T) {
+func TestLinkRepository_CreateWithOutbox(t *testing.T) {
 	// Создание новой связи между документами
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	repo := NewLinkRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
 	ctx := context.Background()
 
-	link := &models.DocumentLink{
+	link := &models.DocumentLink{ID: uuid.New(),
 		SourceID:  uuid.New(),
 		TargetID:  uuid.New(),
 		LinkType:  "reply",
 		CreatedBy: uuid.New(),
 	}
 
-	query := `INSERT INTO document_links \( source_document_id, target_document_id, link_type, created_by \) VALUES \(\$1, \$2, \$3, \$4\) RETURNING id, created_at`
+	query := `INSERT INTO document_links`
 
 	now := time.Now()
-	newID := uuid.New()
+	mock.ExpectBegin()
 	mock.ExpectQuery(query).
-		WithArgs(link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(newID, now))
+		WithArgs(link.ID, link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(now))
 
-	err = repo.Create(ctx, link)
+	mock.ExpectCommit()
+	err = repo.CreateWithOutbox(ctx, link, nil)
 	require.NoError(t, err)
-	assert.Equal(t, newID, link.ID)
+	assert.Equal(t, now, link.CreatedAt)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -74,18 +76,19 @@ func TestLinkRepositoryAtomicMethodsRequireOutbox(t *testing.T) {
 	require.ErrorIs(t, repo.DeleteWithOutbox(context.Background(), uuid.New(), nil), ErrOutboxNotConfigured)
 }
 
-func TestLinkRepository_CreateAndCancelOrder(t *testing.T) {
+func TestLinkRepository_CreateAndCancelOrderWithOutbox(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 	repo := NewLinkRepository(&database.DB{DB: db})
-	link := &models.DocumentLink{SourceID: uuid.New(), TargetID: uuid.New(), LinkType: "order_cancels", CreatedBy: uuid.New()}
+	repo.SetOutbox(NewOutboxRepository(repo.db))
+	link := &models.DocumentLink{ID: uuid.New(), SourceID: uuid.New(), TargetID: uuid.New(), LinkType: "order_cancels", CreatedBy: uuid.New()}
 	createdAt := time.Now()
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO document_links`).
-		WithArgs(link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(uuid.New(), createdAt))
+		WithArgs(link.ID, link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(createdAt))
 	mock.ExpectExec(`UPDATE documents d`).
 		WithArgs(link.TargetID, models.DocumentKindAdministrativeOrder, createdAt).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -94,7 +97,7 @@ func TestLinkRepository_CreateAndCancelOrder(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	err = repo.CreateAndCancelOrder(context.Background(), link)
+	err = repo.CreateAndCancelOrderWithOutbox(context.Background(), link, nil)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -128,20 +131,24 @@ func TestLinkRepositoryCreateAndCancelOrderWithOutboxRollsBackOnEnqueueFailure(t
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestLinkRepository_Delete(t *testing.T) {
+func TestLinkRepository_DeleteWithOutbox(t *testing.T) {
 	// Удаление связи между документами по её ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	repo := NewLinkRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
 	ctx := context.Background()
 	id := uuid.New()
 
 	query := `DELETE FROM document_links WHERE id = \$1`
+	mock.ExpectBegin()
 	mock.ExpectExec(query).WithArgs(id).WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = repo.Delete(ctx, id)
+	mock.ExpectCommit()
+
+	err = repo.DeleteWithOutbox(ctx, id, nil)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -219,7 +226,7 @@ func TestLinkRepository_GetByDocumentID(t *testing.T) {
 		"link_type", "created_by", "created_at",
 		"source_number", "target_number", "target_subject",
 	}).AddRow(
-		uuid.New(), "incoming", docID, "outgoing", uuid.New(),
+		uuid.New(), "incoming_letter", docID, "outgoing_letter", uuid.New(),
 		"reply", uuid.New(), now,
 		"INC-001", "OUT-002", "Subject Test",
 	)
@@ -251,7 +258,7 @@ func TestLinkRepository_GetGraph(t *testing.T) {
 	rows := sqlmock.NewRows([]string{
 		"id", "source_type", "source_id", "target_type", "target_id",
 		"link_type", "created_by", "created_at",
-	}).AddRow(uuid.New(), "incoming", rootID, "outgoing", uuid.New(), "reply", uuid.New(), now)
+	}).AddRow(uuid.New(), "incoming_letter", rootID, "outgoing_letter", uuid.New(), "reply", uuid.New(), now)
 
 	mock.ExpectQuery(query).WithArgs(rootID).WillReturnRows(rows)
 

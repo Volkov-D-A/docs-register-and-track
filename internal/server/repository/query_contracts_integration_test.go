@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 )
 
@@ -154,8 +154,9 @@ func TestLinkGraphAndOutboxLifecycleIntegration(t *testing.T) {
 		execSQL(t, sqlDB, `INSERT INTO documents (id, kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, 'outgoing_letter', $2, $3, $4, CURRENT_DATE, $5, 'graph', 1, $6)`, ids[i], nom, uuid.New(), "GR/"+string(rune('0'+i)), models.DocumentTypeLetter, user)
 	}
 	links := NewLinkRepository(db)
+	links.SetOutbox(NewOutboxRepository(db))
 	for _, pair := range [][2]int{{0, 1}, {1, 2}, {2, 0}, {2, 3}} {
-		if err := links.Create(context.Background(), &models.DocumentLink{SourceID: ids[pair[0]], TargetID: ids[pair[1]], LinkType: "related", CreatedBy: user}); err != nil {
+		if err := links.CreateWithOutbox(context.Background(), &models.DocumentLink{ID: uuid.New(), SourceID: ids[pair[0]], TargetID: ids[pair[1]], LinkType: "related", CreatedBy: user}, nil); err != nil {
 			t.Fatalf("create graph edge: %v", err)
 		}
 	}

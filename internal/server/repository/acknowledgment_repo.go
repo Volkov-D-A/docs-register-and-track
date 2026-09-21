@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // AcknowledgmentRepository предоставляет методы для работы с задачами на ознакомление в БД.
@@ -25,16 +25,7 @@ func NewAcknowledgmentRepository(db *database.DB) *AcknowledgmentRepository {
 	return &AcknowledgmentRepository{db: db}
 }
 
-// Create создает новую задачу на ознакомление в БД.
-func (r *AcknowledgmentRepository) Create(a *models.Acknowledgment) error {
-	return r.create(a, nil)
-}
-
 func (r *AcknowledgmentRepository) CreateWithOutbox(a *models.Acknowledgment, effects []models.OutboxEvent) error {
-	return r.create(a, effects)
-}
-
-func (r *AcknowledgmentRepository) create(a *models.Acknowledgment, effects []models.OutboxEvent) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
@@ -189,48 +180,6 @@ func (r *AcknowledgmentRepository) attachAcknowledgmentUsers(items []models.Ackn
 	return items, nil
 }
 
-// GetPendingForUser возвращает список невыполненных задач на ознакомление для конкретного пользователя.
-func (r *AcknowledgmentRepository) GetPendingForUser(userID uuid.UUID) ([]models.Acknowledgment, error) {
-	// Выборка ознакомлений, которые пользователь ещё не подтвердил
-	query := `
-		SELECT 
-			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
-			u.full_name as creator_name,
-			d.registration_number as doc_number
-		FROM acknowledgment_users au
-		JOIN acknowledgments a ON au.acknowledgment_id = a.id
-		JOIN documents d ON d.id = a.document_id
-		JOIN users u ON a.creator_id = u.id
-		WHERE au.user_id = $1 AND au.confirmed_at IS NULL
-		ORDER BY a.created_at DESC
-	`
-	rows, err := r.db.Query(query, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make([]models.Acknowledgment, 0)
-	for rows.Next() {
-		var a models.Acknowledgment
-		var docNumber string
-		err := rows.Scan(
-			&a.ID, &a.DocumentID, &a.DocumentKind, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt,
-			&a.CreatorName, &docNumber,
-		)
-		if err != nil {
-			return nil, err
-		}
-		a.DocumentNumber = docNumber
-
-		result = append(result, a)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return r.attachAcknowledgmentUsers(result)
-}
-
 // GetPendingForUsers returns pending acknowledgements grouped by recipient
 // subject. This supports active substitutions without one query per subject.
 func (r *AcknowledgmentRepository) GetPendingForUsers(userIDs []uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
@@ -340,34 +289,7 @@ func (r *AcknowledgmentRepository) GetAccessibleDocumentIDs(userID uuid.UUID, do
 	return result, nil
 }
 
-// MarkViewed отмечает задачу как просмотренную пользователем.
-func (r *AcknowledgmentRepository) MarkViewed(ackID, userID uuid.UUID) error {
-	query := `
-		UPDATE acknowledgment_users
-		SET viewed_at = $1
-		WHERE acknowledgment_id = $2 AND user_id = $3 AND viewed_at IS NULL
-	`
-	res, err := r.db.Exec(query, time.Now(), ackID, userID)
-	if err != nil {
-		return err
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return models.ErrForbidden
-	}
-	return nil
-}
-
-// MarkViewedWithOutbox changes the acknowledgement state and persists its
-// journal event in one database transaction.
 func (r *AcknowledgmentRepository) MarkViewedWithOutbox(ackID, userID uuid.UUID, effects []models.OutboxEvent) error {
-	return r.markViewed(ackID, userID, effects)
-}
-
-func (r *AcknowledgmentRepository) markViewed(ackID, userID uuid.UUID, effects []models.OutboxEvent) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
@@ -530,18 +452,7 @@ func (r *AcknowledgmentRepository) GetAllActive(filter models.AcknowledgmentFilt
 	return result, nil
 }
 
-// Delete удаляет задачу на ознакомление по её ID.
-func (r *AcknowledgmentRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM acknowledgments WHERE id = $1`, id)
-	return err
-}
-
-// DeleteWithOutbox removes an acknowledgement and its side effects atomically.
 func (r *AcknowledgmentRepository) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
-	return r.delete(id, effects)
-}
-
-func (r *AcknowledgmentRepository) delete(id uuid.UUID, effects []models.OutboxEvent) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err

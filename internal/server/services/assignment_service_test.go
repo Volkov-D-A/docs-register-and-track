@@ -16,33 +16,6 @@ import (
 
 // ---------- helpers ----------
 
-// atomicAssignmentStore lets service tests assert the effects handed to the
-// repository transaction without reintroducing a post-commit publisher.
-type atomicAssignmentStore struct {
-	*mocks.AssignmentStore
-	effects []models.OutboxEvent
-}
-
-func (s *atomicAssignmentStore) CreateWithOutbox(_ uuid.UUID, documentID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.AssignmentStore.Create(documentID, executorID, content, deadline, coExecutorIDs)
-}
-
-func (s *atomicAssignmentStore) UpdateWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, status, report string, completedAt *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.AssignmentStore.Update(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)
-}
-
-func (s *atomicAssignmentStore) UpdateDetailsWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, expectedUpdatedAt time.Time, effects []models.OutboxEvent) (*models.Assignment, error) {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.AssignmentStore.UpdateDetailsWithOutbox(id, executorID, content, deadline, coExecutorIDs, expectedUpdatedAt, effects)
-}
-
-func (s *atomicAssignmentStore) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
-	s.effects = append([]models.OutboxEvent(nil), effects...)
-	return s.AssignmentStore.Delete(id)
-}
-
 func setupAssignmentService(t *testing.T, role string) (
 	*AssignmentService, *mocks.AssignmentStore, *mocks.UserStore, *attachmentPrincipalStub, *mocks.IncomingDocStore,
 ) {
@@ -171,9 +144,9 @@ func TestAssignmentService_Create(t *testing.T) {
 			Content:    "Выполнить",
 			Status:     "new",
 		}
-		repo.On("Create", docID, execID, "Выполнить",
+		repo.On("CreateWithOutbox", mock.Anything, docID, execID, "Выполнить",
 			mock.AnythingOfType("*time.Time"), []string(nil),
-		).Return(expected, nil).Once()
+			mock.Anything).Return(expected, nil).Once()
 
 		result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "2025-12-31", nil)
 		require.NoError(t, err)
@@ -192,9 +165,9 @@ func TestAssignmentService_Create(t *testing.T) {
 			Content:    "Выполнить",
 			Status:     "new",
 		}
-		repo.On("Create", docID, execID, "Выполнить",
+		repo.On("CreateWithOutbox", mock.Anything, docID, execID, "Выполнить",
 			(*time.Time)(nil), []string(nil),
-		).Return(expected, nil).Once()
+			mock.Anything).Return(expected, nil).Once()
 
 		result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "", nil)
 		require.NoError(t, err)
@@ -234,43 +207,43 @@ func TestAssignmentServiceCreatePassesJournalAndUserEffectsToAtomicStore(t *test
 	docID, executorID := uuid.New(), uuid.New()
 	svc, repo, _, _, incomingRepo := setupAssignmentService(t, "clerk")
 	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
-	atomicRepo := &atomicAssignmentStore{AssignmentStore: repo}
+	atomicRepo := repo
 	svc.repo = atomicRepo
-	repo.On("Create", docID, executorID, "Выполнить", (*time.Time)(nil), []string(nil)).Return(&models.Assignment{ID: uuid.New(), DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
+	repo.On("CreateWithOutbox", mock.Anything, docID, executorID, "Выполнить", (*time.Time)(nil), []string(nil), mock.Anything).Return(&models.Assignment{ID: uuid.New(), DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
 
 	_, err := svc.Create(docID.String(), executorID.String(), "Выполнить", "", nil)
 	require.NoError(t, err)
-	require.Len(t, atomicRepo.effects, 2)
-	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
-	assert.Equal(t, models.OutboxEventUserEvent, atomicRepo.effects[1].EventType)
+	require.Len(t, atomicRepo.Effects, 2)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.Effects[0].EventType)
+	assert.Equal(t, models.OutboxEventUserEvent, atomicRepo.Effects[1].EventType)
 }
 
 func TestAssignmentServiceUpdatePassesJournalAndUserEffectsToAtomicStore(t *testing.T) {
 	docID, assignmentID, executorID := uuid.New(), uuid.New(), uuid.New()
 	svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
-	atomicRepo := &atomicAssignmentStore{AssignmentStore: repo}
+	atomicRepo := repo
 	svc.repo = atomicRepo
 	repo.On("GetByID", assignmentID).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
-	repo.On("UpdateDetailsWithOutbox", assignmentID, executorID, "Исправить", (*time.Time)(nil), []string(nil), mock.Anything).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
+	repo.On("UpdateDetailsWithOutbox", assignmentID, executorID, "Исправить", (*time.Time)(nil), []string(nil), mock.Anything, mock.Anything).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
 
 	_, err := svc.Update(assignmentID.String(), executorID.String(), "Исправить", "", nil)
 	require.NoError(t, err)
-	require.Len(t, atomicRepo.effects, 2)
-	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
-	assert.Equal(t, models.OutboxEventUserEvent, atomicRepo.effects[1].EventType)
+	require.Len(t, atomicRepo.Effects, 2)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.Effects[0].EventType)
+	assert.Equal(t, models.OutboxEventUserEvent, atomicRepo.Effects[1].EventType)
 }
 
 func TestAssignmentServiceDeletePassesJournalEffectToAtomicStore(t *testing.T) {
 	docID, assignmentID, executorID := uuid.New(), uuid.New(), uuid.New()
 	svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
-	atomicRepo := &atomicAssignmentStore{AssignmentStore: repo}
+	atomicRepo := repo
 	svc.repo = atomicRepo
 	repo.On("GetByID", assignmentID).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
-	repo.On("Delete", assignmentID).Return(nil).Once()
+	repo.On("DeleteWithOutbox", assignmentID, mock.Anything).Return(nil).Once()
 
 	require.NoError(t, svc.Delete(assignmentID.String()))
-	require.Len(t, atomicRepo.effects, 1)
-	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
+	require.Len(t, atomicRepo.Effects, 1)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.Effects[0].EventType)
 }
 
 func TestAssignmentServiceUpdateStatusPassesJournalEffectToAtomicStore(t *testing.T) {
@@ -278,15 +251,15 @@ func TestAssignmentServiceUpdateStatusPassesJournalEffectToAtomicStore(t *testin
 	svc, repo, _, auth, _ := setupAssignmentService(t, "executor")
 	executorID, err := auth.GetCurrentUserUUID()
 	require.NoError(t, err)
-	atomicRepo := &atomicAssignmentStore{AssignmentStore: repo}
+	atomicRepo := repo
 	svc.repo = atomicRepo
 	repo.On("GetByID", assignmentID).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "new"}, nil).Once()
-	repo.On("Update", assignmentID, executorID, "", (*time.Time)(nil), "in_progress", "", (*time.Time)(nil), []string(nil)).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "in_progress"}, nil).Once()
+	repo.On("UpdateWithOutbox", assignmentID, executorID, "", (*time.Time)(nil), "in_progress", "", (*time.Time)(nil), []string(nil), mock.Anything).Return(&models.Assignment{ID: assignmentID, DocumentID: docID, ExecutorID: executorID, Status: "in_progress"}, nil).Once()
 
 	_, err = svc.UpdateStatus(assignmentID.String(), "in_progress", "")
 	require.NoError(t, err)
-	require.Len(t, atomicRepo.effects, 1)
-	assert.Equal(t, models.OutboxEventJournal, atomicRepo.effects[0].EventType)
+	require.Len(t, atomicRepo.Effects, 1)
+	assert.Equal(t, models.OutboxEventJournal, atomicRepo.Effects[0].EventType)
 }
 
 func TestAssignmentService_CreateEmitsUserEvents(t *testing.T) {
@@ -312,9 +285,9 @@ func TestAssignmentService_CreateEmitsUserEvents(t *testing.T) {
 		Status:         "new",
 		CoExecutorIDs:  []string{coExecID.String()},
 	}
-	repo.On("Create", docID, execID, "Выполнить",
+	repo.On("CreateWithOutbox", mock.Anything, docID, execID, "Выполнить",
 		(*time.Time)(nil), []string{coExecID.String()},
-	).Return(expected, nil).Once()
+		mock.Anything).Return(expected, nil).Once()
 
 	result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "", []string{coExecID.String()})
 	require.NoError(t, err)
@@ -347,7 +320,7 @@ func TestAssignmentService_Update(t *testing.T) {
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("UpdateDetailsWithOutbox", assignmentID, execID, "Новое",
 			(*time.Time)(nil), []string(nil), mock.Anything,
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:         assignmentID,
 			DocumentID: docID,
 			ExecutorID: execID,
@@ -367,7 +340,7 @@ func TestAssignmentService_Update(t *testing.T) {
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
 		repo.On("UpdateDetailsWithOutbox", assignmentID, execID, "Обновлено",
 			(*time.Time)(nil), []string(nil), mock.Anything,
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:         assignmentID,
 			DocumentID: docID,
 			ExecutorID: execID,
@@ -467,10 +440,10 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		svc2 := NewAssignmentService(repo, userRepo, authSvc, accessSvc, nil, false)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
-		repo.On("Update", assignmentID, execID, "Контент",
+		repo.On("UpdateWithOutbox", assignmentID, execID, "Контент",
 			(*time.Time)(nil), "in_progress", "",
 			(*time.Time)(nil), []string(nil),
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:     assignmentID,
 			Status: "in_progress",
 		}, nil).Once()
@@ -508,10 +481,10 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		svc2 := NewAssignmentService(repo, userRepo, authSvc, accessSvc, nil, false)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
-		repo.On("Update", assignmentID, execID, "Контент",
+		repo.On("UpdateWithOutbox", assignmentID, execID, "Контент",
 			(*time.Time)(nil), "completed", "Отчёт",
 			mock.AnythingOfType("*time.Time"), []string(nil),
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:     assignmentID,
 			Status: "completed",
 			Report: "Отчёт",
@@ -555,10 +528,10 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		}, false)
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
-		repo.On("Update", assignmentID, execID, "Контент",
+		repo.On("UpdateWithOutbox", assignmentID, execID, "Контент",
 			(*time.Time)(nil), "in_progress", "",
 			(*time.Time)(nil), []string(nil),
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:     assignmentID,
 			Status: "in_progress",
 		}, nil).Once()
@@ -584,10 +557,10 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		}
 
 		repo.On("GetByID", assignmentID).Return(completedAssignment, nil).Once()
-		repo.On("Update", assignmentID, execID, "Контент",
+		repo.On("UpdateWithOutbox", assignmentID, execID, "Контент",
 			(*time.Time)(nil), "finished", "Отчёт исполнителя",
 			completedAssignment.CompletedAt, []string(nil),
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:     assignmentID,
 			Status: "finished",
 			Report: "Отчёт исполнителя",
@@ -630,10 +603,10 @@ func TestAssignmentService_UpdateStatus(t *testing.T) {
 		}
 
 		repo.On("GetByID", assignmentID).Return(completedAssignment, nil).Once()
-		repo.On("Update", assignmentID, execID, "Контент",
+		repo.On("UpdateWithOutbox", assignmentID, execID, "Контент",
 			(*time.Time)(nil), "returned", "Нужно исправить замечания",
 			(*time.Time)(nil), []string(nil),
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:     assignmentID,
 			Status: "returned",
 			Report: "Нужно исправить замечания",
@@ -878,10 +851,10 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 			Status:       "in_progress",
 		}
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
-		repo.On("Update", assignmentID, executorID, "Контент",
+		repo.On("UpdateWithOutbox", assignmentID, executorID, "Контент",
 			(*time.Time)(nil), "completed", "Отчет",
 			mock.AnythingOfType("*time.Time"), []string(nil),
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:           assignmentID,
 			DocumentID:   docID,
 			DocumentKind: "incoming_letter",
@@ -917,10 +890,10 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 			Status:       "in_progress",
 		}
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
-		repo.On("Update", assignmentID, executorID, "Контент",
+		repo.On("UpdateWithOutbox", assignmentID, executorID, "Контент",
 			(*time.Time)(nil), "completed", "Отчет",
 			mock.AnythingOfType("*time.Time"), []string(nil),
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:           assignmentID,
 			DocumentID:   docID,
 			DocumentKind: "incoming_letter",
@@ -959,10 +932,10 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 			Status:        "in_progress",
 		}
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
-		repo.On("Update", assignmentID, executorID, "Контент",
+		repo.On("UpdateWithOutbox", assignmentID, executorID, "Контент",
 			(*time.Time)(nil), "completed", "Отчет",
 			mock.AnythingOfType("*time.Time"), []string{coExecutorID.String()},
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:            assignmentID,
 			DocumentID:    docID,
 			DocumentKind:  "incoming_letter",
@@ -994,10 +967,10 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 			CompletedAt: &completedAt,
 		}
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
-		repo.On("Update", assignmentID, execID, "Контент",
+		repo.On("UpdateWithOutbox", assignmentID, execID, "Контент",
 			(*time.Time)(nil), "returned", "Нужно доработать",
 			(*time.Time)(nil), []string(nil),
-		).Return(&models.Assignment{
+			mock.Anything).Return(&models.Assignment{
 			ID:         assignmentID,
 			DocumentID: docID,
 			ExecutorID: execID,
@@ -1273,7 +1246,7 @@ func TestAssignmentService_Delete(t *testing.T) {
 		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
 
 		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
-		repo.On("Delete", assignmentID).Return(nil).Once()
+		repo.On("DeleteWithOutbox", assignmentID, mock.Anything).Return(nil).Once()
 
 		err := svc.Delete(assignmentID.String())
 		require.NoError(t, err)

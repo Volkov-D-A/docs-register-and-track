@@ -124,22 +124,6 @@ func (k DocumentKind) SupportsAction(action string) bool {
 	return false
 }
 
-// NormalizeDocumentKind приводит legacy- и системные коды к системному виду документа.
-func NormalizeDocumentKind(kind string) DocumentKind {
-	switch kind {
-	case "incoming", string(DocumentKindIncomingLetter):
-		return DocumentKindIncomingLetter
-	case "outgoing", string(DocumentKindOutgoingLetter):
-		return DocumentKindOutgoingLetter
-	case string(DocumentKindCitizenAppeal):
-		return DocumentKindCitizenAppeal
-	case string(DocumentKindAdministrativeOrder):
-		return DocumentKindAdministrativeOrder
-	default:
-		return DocumentKind(kind)
-	}
-}
-
 // Label возвращает человекочитаемое имя вида документа.
 func (k DocumentKind) Label() string {
 	spec, ok := GetDocumentKindSpec(k)

@@ -137,19 +137,8 @@ type ReferenceStore interface {
 	DeleteResolutionExecutor(id uuid.UUID) error
 }
 
-// AssignmentStore — интерфейс для работы с поручениями в хранилище.
-type AssignmentStore interface {
-	Create(
-		documentID uuid.UUID, executorID uuid.UUID, content string,
-		deadline *time.Time, coExecutorIDs []string,
-	) (*models.Assignment, error)
-	Update(
-		id uuid.UUID, executorID uuid.UUID,
-		content string, deadline *time.Time,
-		status, report string, completedAt *time.Time,
-		coExecutorIDs []string,
-	) (*models.Assignment, error)
-	Delete(id uuid.UUID) error
+// AssignmentReader provides assignment queries and access checks.
+type AssignmentReader interface {
 	GetByID(id uuid.UUID) (*models.Assignment, error)
 	GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error)
 	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
@@ -193,26 +182,22 @@ type FileStorage interface {
 
 // LinkStore — интерфейс для работы со связями между документами в хранилище.
 type LinkStore interface {
-	Create(ctx context.Context, link *models.DocumentLink) error
-	CreateAndCancelOrder(ctx context.Context, link *models.DocumentLink) error
-	Delete(ctx context.Context, id uuid.UUID) error
+	CreateWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error
+	DeleteWithOutbox(ctx context.Context, id uuid.UUID, effects []models.OutboxEvent) error
+	CreateAndCancelOrderWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.DocumentLink, error)
 	GetByDocumentID(ctx context.Context, docID uuid.UUID) ([]models.DocumentLink, error)
 	GetGraph(ctx context.Context, rootID uuid.UUID) ([]models.DocumentLink, error)
 }
 
-// AcknowledgmentStore — интерфейс для работы с задачами на ознакомление в хранилище.
-type AcknowledgmentStore interface {
-	Create(a *models.Acknowledgment) error
+// AcknowledgmentReader provides acknowledgment queries and access checks.
+type AcknowledgmentReader interface {
 	GetByID(id uuid.UUID) (*models.Acknowledgment, error)
 	GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error)
-	GetPendingForUser(userID uuid.UUID) ([]models.Acknowledgment, error)
 	GetAllActive(filter models.AcknowledgmentFilter) ([]models.Acknowledgment, error)
 	GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error)
 	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
 	GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
-	MarkViewed(ackID, userID uuid.UUID) error
-	Delete(id uuid.UUID) error
 }
 
 // UserEventStore — интерфейс для работы с персональными событиями.

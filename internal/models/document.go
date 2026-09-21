@@ -63,22 +63,6 @@ func IsAllowedDocumentType(value string) bool {
 	return ok
 }
 
-func (k DocumentKind) IsIncoming() bool {
-	return k == DocumentKindIncomingLetter
-}
-
-func (k DocumentKind) IsOutgoing() bool {
-	return k == DocumentKindOutgoingLetter
-}
-
-func (k DocumentKind) IsCitizenAppeal() bool {
-	return k == DocumentKindCitizenAppeal
-}
-
-func (k DocumentKind) IsAdministrativeOrder() bool {
-	return k == DocumentKindAdministrativeOrder
-}
-
 // Document — общая корневая сущность документа.
 type Document struct {
 	ID                   uuid.UUID    `json:"-"`

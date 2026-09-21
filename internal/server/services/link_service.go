@@ -28,8 +28,6 @@ type LinkService struct {
 	metrics                 *observability.Registry
 }
 
-var errLinkOutboxStoreRequired = fmt.Errorf("link store must support atomic outbox operations")
-
 // NewLinkService создает новый экземпляр LinkService.
 func NewLinkService(
 	repo ports.LinkStore,
@@ -109,18 +107,14 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 			CreatedAt:  time.Now(),
 		}
 
-		repo, ok := s.repo.(ports.LinkOutboxStore)
-		if !ok {
-			return nil, errLinkOutboxStoreRequired
-		}
 		effects, buildErr := linkJournalEffects(link, userID, "LINK_CREATE", "Создана связь с другим документом")
 		if buildErr != nil {
 			return nil, buildErr
 		}
 		if linkType == "order_cancels" {
-			err = repo.CreateAndCancelOrderWithOutbox(ctx, link, effects)
+			err = s.repo.CreateAndCancelOrderWithOutbox(ctx, link, effects)
 		} else {
-			err = repo.CreateWithOutbox(ctx, link, effects)
+			err = s.repo.CreateWithOutbox(ctx, link, effects)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to create link: %w", err)
@@ -153,15 +147,11 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 		}
 
 		currentUserID, _ := s.authService.GetCurrentUserUUID()
-		repo, ok := s.repo.(ports.LinkOutboxStore)
-		if !ok {
-			return errLinkOutboxStoreRequired
-		}
 		effects, buildErr := linkJournalEffects(link, currentUserID, "LINK_DELETE", "Удалена связь с документом")
 		if buildErr != nil {
 			return buildErr
 		}
-		return repo.DeleteWithOutbox(ctx, id, effects)
+		return s.repo.DeleteWithOutbox(ctx, id, effects)
 	})
 }
 
@@ -272,7 +262,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 				dateStr = doc.RegistrationDate.Format("02.01.2006")
 			}
 
-			switch models.NormalizeDocumentKind(docType) {
+			switch models.DocumentKind(docType) {
 			case models.DocumentKindIncomingLetter:
 				if doc, ok := graphCards.incoming[id]; ok {
 					label = doc.IncomingNumber
@@ -390,7 +380,7 @@ func (s *LinkService) loadGraphCards(documentKinds map[uuid.UUID]string) (graphC
 	}
 	idsByKind := map[models.DocumentKind][]uuid.UUID{}
 	for id, kindCode := range documentKinds {
-		idsByKind[models.NormalizeDocumentKind(kindCode)] = append(idsByKind[models.NormalizeDocumentKind(kindCode)], id)
+		idsByKind[models.DocumentKind(kindCode)] = append(idsByKind[models.DocumentKind(kindCode)], id)
 	}
 	if ids := idsByKind[models.DocumentKindIncomingLetter]; len(ids) > 0 {
 		cards, err := s.incomingDocRepo.GetByIDs(ids)

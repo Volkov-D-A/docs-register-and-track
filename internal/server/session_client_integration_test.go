@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/background"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
 )
 
@@ -50,7 +50,7 @@ func TestDesktopSessionInvalidationIntegration(t *testing.T) {
 			auth := services.NewAuthService(client, client, nil, nil)
 			_, err = auth.Login("session-client", "Passw0rd!")
 			require.NoError(t, err)
-			require.True(t, auth.IsAuthenticated())
+			require.True(t, auth.GetSessionState().Authenticated)
 			require.Equal(t, userID.String(), auth.GetSessionState().UserID)
 			var notifications atomic.Int32
 			client.SetSessionEndedHandler(func(state serverclient.SessionState) {
@@ -70,7 +70,7 @@ func TestDesktopSessionInvalidationIntegration(t *testing.T) {
 			require.NoError(t, err)
 			_, err = client.Me(context.Background())
 			require.ErrorIs(t, err, models.ErrUnauthorized)
-			assert.False(t, auth.IsAuthenticated())
+			assert.False(t, auth.GetSessionState().Authenticated)
 			assert.Empty(t, auth.GetSessionState().UserID)
 			_, err = client.Me(context.Background())
 			require.ErrorIs(t, err, models.ErrUnauthorized)

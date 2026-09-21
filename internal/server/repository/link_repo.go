@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // LinkRepository предоставляет методы для работы со связями между документами в БД.
@@ -29,21 +29,6 @@ func NewLinkRepository(db *database.DB) *LinkRepository {
 	return &LinkRepository{db: db}
 }
 
-// Create — создать новую связь между документами
-func (r *LinkRepository) Create(ctx context.Context, link *models.DocumentLink) error {
-	query := `
-		INSERT INTO document_links (
-			source_document_id, target_document_id,
-			link_type, created_by
-		) VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at
-	`
-
-	return r.db.QueryRowContext(ctx, query,
-		link.SourceID, link.TargetID, link.LinkType, link.CreatedBy,
-	).Scan(&link.ID, &link.CreatedAt)
-}
-
 func (r *LinkRepository) CreateWithOutbox(ctx context.Context, link *models.DocumentLink, effects []models.OutboxEvent) error {
 	if r.outbox == nil {
 		return ErrOutboxNotConfigured
@@ -60,26 +45,6 @@ func (r *LinkRepository) CreateWithOutbox(ctx context.Context, link *models.Docu
 		if err := r.outbox.EnqueueTx(tx, effect); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
-}
-
-// CreateAndCancelOrder создаёт отменяющую связь и помечает целевой приказ отменённым в одной транзакции.
-func (r *LinkRepository) CreateAndCancelOrder(ctx context.Context, link *models.DocumentLink) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO document_links (source_document_id, target_document_id, link_type, created_by)
-		VALUES ($1, $2, $3, $4) RETURNING id, created_at
-	`, link.SourceID, link.TargetID, link.LinkType, link.CreatedBy).Scan(&link.ID, &link.CreatedAt); err != nil {
-		return err
-	}
-	if err := cancelAdministrativeOrderByLink(ctx, tx, link.TargetID, link.CreatedAt); err != nil {
-		return err
 	}
 	return tx.Commit()
 }
@@ -122,13 +87,6 @@ func cancelAdministrativeOrderByLink(ctx context.Context, executor linkSQLExecut
 		return fmt.Errorf("failed to cancel administrative order by link: %w", err)
 	}
 	return nil
-}
-
-// Delete — удалить связь по ID
-func (r *LinkRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM document_links WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
-	return err
 }
 
 func (r *LinkRepository) DeleteWithOutbox(ctx context.Context, id uuid.UUID, effects []models.OutboxEvent) error {

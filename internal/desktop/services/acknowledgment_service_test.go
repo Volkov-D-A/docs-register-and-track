@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,7 +80,6 @@ func TestAcknowledgmentAdapterMissingClient(t *testing.T) {
 	require.ErrorIs(t, err, errAcknowledgmentClientNotConfigured)
 	_, err = service.GetAllActive()
 	require.ErrorIs(t, err, errAcknowledgmentClientNotConfigured)
-	require.ErrorIs(t, service.MarkViewed(""), errAcknowledgmentClientNotConfigured)
 	require.ErrorIs(t, service.MarkConfirmed(""), errAcknowledgmentClientNotConfigured)
 	require.ErrorIs(t, service.Delete(""), errAcknowledgmentClientNotConfigured)
 }

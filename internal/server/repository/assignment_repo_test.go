@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -36,7 +36,7 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 			"created_at", "updated_at",
 			"doc_number", "doc_subject",
 		}).AddRow(
-			assignID, uuid.New(), "incoming",
+			assignID, uuid.New(), "incoming_letter",
 			uuid.New(), "Иванов И.И.",
 			"Выполнить задачу", now, "new", nil, nil,
 			nil, nil, nil, false,
@@ -73,18 +73,22 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 	})
 }
 
-func TestAssignmentRepository_Delete(t *testing.T) {
+func TestAssignmentRepository_DeleteWithOutbox(t *testing.T) {
 	// Удаление поручения по его ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
 	assignID := uuid.New()
 
+	mock.ExpectBegin()
 	mock.ExpectExec(`DELETE FROM assignments WHERE id = \$1`).WithArgs(assignID).WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = repo.Delete(assignID)
+	mock.ExpectCommit()
+
+	err = repo.DeleteWithOutbox(assignID, nil)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -146,13 +150,14 @@ func TestAssignmentRepositoryUpdateDetailsRejectsStaleSnapshot(t *testing.T) {
 	require.NoError(t, mockDB.ExpectationsWereMet())
 }
 
-func TestAssignmentRepository_Create(t *testing.T) {
+func TestAssignmentRepository_CreateWithOutbox(t *testing.T) {
 	// Создание нового поручения с привязкой соисполнителей
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
 	assignID := uuid.New()
 	now := time.Now()
 	docID := uuid.New()
@@ -161,19 +166,14 @@ func TestAssignmentRepository_Create(t *testing.T) {
 
 	mock.ExpectBegin()
 
-	insertQuery := `INSERT INTO assignments (
-			document_id, executor_id,
-			content, deadline, status
-		)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at, updated_at`
+	insertQuery := `INSERT INTO assignments (id, document_id, executor_id, content, deadline, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at, updated_at`
 
 	mock.ExpectQuery(regexp.QuoteMeta(insertQuery)).WithArgs(
-		docID, execID, "Текст", &now, "new",
-	).WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(assignID, now, now))
+		assignID, docID, execID, "Текст", &now, "new",
+	).WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at"}).AddRow(now, now))
 
-	mock.ExpectPrepare(`INSERT INTO assignment_co_executors \(assignment_id, user_id\) VALUES \(\$1, \$2\)`).
-		ExpectExec().WithArgs(assignID, coExecID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO assignment_co_executors \(assignment_id, user_id\) VALUES \(\$1, \$2\)`).
+		WithArgs(assignID, coExecID).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	mock.ExpectCommit()
 
@@ -187,25 +187,26 @@ func TestAssignmentRepository_Create(t *testing.T) {
 		"series_id", "iteration_number", "planned_deadline", "is_series_current",
 		"created_at", "updated_at",
 		"doc_number", "doc_subject",
-	}).AddRow(assignID, docID, "incoming", execID, "Иванов", "Текст", now, "new", nil, nil, nil, nil, nil, false, now, now, "", "")
+	}).AddRow(assignID, docID, "incoming_letter", execID, "Иванов", "Текст", now, "new", nil, nil, nil, nil, nil, false, now, now, "", "")
 
 	mock.ExpectQuery(expectedGetQuery).WithArgs(assignID).WillReturnRows(rows)
 	mock.ExpectQuery(`SELECT u.id, u.login, u.full_name FROM assignment_co_executors`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "full_name"}))
 
-	assign, err := repo.Create(docID, execID, "Текст", &now, []string{coExecID.String()})
+	assign, err := repo.CreateWithOutbox(assignID, docID, execID, "Текст", &now, []string{coExecID.String()}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, assign)
 	assert.Equal(t, assignID, assign.ID)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAssignmentRepository_Update(t *testing.T) {
+func TestAssignmentRepository_UpdateWithOutbox(t *testing.T) {
 	// Обновление существующего поручения и списка соисполнителей
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo.SetOutbox(NewOutboxRepository(repo.db))
 	assignID := uuid.New()
 	execID := uuid.New()
 	coExecID := uuid.New()
@@ -213,13 +214,13 @@ func TestAssignmentRepository_Update(t *testing.T) {
 
 	mock.ExpectBegin()
 
-	updateQuery := `UPDATE assignments SET executor_id = \$1, content = \$2, deadline = \$3, status = \$4, report = \$5, completed_at = \$6, updated_at = NOW\(\) WHERE id = \$7`
+	updateQuery := `UPDATE assignments SET executor_id=\$1, content=\$2, deadline=\$3, status=\$4, report=\$5, completed_at=\$6, updated_at=NOW\(\) WHERE id=\$7`
 	mock.ExpectExec(updateQuery).WithArgs(execID, "Обновленный текст", &now, "in_progress", "Отчет", &now, assignID).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	mock.ExpectExec(`DELETE FROM assignment_co_executors WHERE assignment_id = \$1`).WithArgs(assignID).WillReturnResult(sqlmock.NewResult(1, 1))
 
-	mock.ExpectPrepare(`INSERT INTO assignment_co_executors \(assignment_id, user_id\) VALUES \(\$1, \$2\)`).
-		ExpectExec().WithArgs(assignID, coExecID).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO assignment_co_executors \(assignment_id, user_id\) VALUES \(\$1, \$2\)`).
+		WithArgs(assignID, coExecID).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	mock.ExpectCommit()
 
@@ -232,12 +233,12 @@ func TestAssignmentRepository_Update(t *testing.T) {
 		"series_id", "iteration_number", "planned_deadline", "is_series_current",
 		"created_at", "updated_at",
 		"doc_number", "doc_subject",
-	}).AddRow(assignID, uuid.New(), "incoming", execID, "Иванов", "Обновленный текст", now, "in_progress", "Отчет", now, nil, nil, nil, false, now, now, "", "")
+	}).AddRow(assignID, uuid.New(), "incoming_letter", execID, "Иванов", "Обновленный текст", now, "in_progress", "Отчет", now, nil, nil, nil, false, now, now, "", "")
 
 	mock.ExpectQuery(expectedGetQuery).WithArgs(assignID).WillReturnRows(rows)
 	mock.ExpectQuery(`SELECT(.*)FROM assignment_co_executors(.*)`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "full_name"}))
 
-	assign, err := repo.Update(assignID, execID, "Обновленный текст", &now, "in_progress", "Отчет", &now, []string{coExecID.String()})
+	assign, err := repo.UpdateWithOutbox(assignID, execID, "Обновленный текст", &now, "in_progress", "Отчет", &now, []string{coExecID.String()}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, assign)
 	assert.Equal(t, assignID, assign.ID)
@@ -269,7 +270,7 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 		"content", "deadline", "status", "report", "completed_at",
 		"series_id", "iteration_number", "planned_deadline", "is_series_current",
 		"created_at", "updated_at", "doc_number", "doc_subject",
-	}).AddRow(uuid.New(), uuid.New(), "incoming", uuid.New(), "Executor", "Content", now, "new", nil, nil, nil, nil, nil, false, now, now, "doc-1", "subj-1"))
+	}).AddRow(uuid.New(), uuid.New(), "incoming_letter", uuid.New(), "Executor", "Content", now, "new", nil, nil, nil, nil, nil, false, now, now, "doc-1", "subj-1"))
 
 	// Co-executors fetching
 	mock.ExpectQuery(`SELECT(.*)FROM assignment_co_executors(.*)`).

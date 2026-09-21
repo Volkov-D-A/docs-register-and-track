@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 )
 
 // AcknowledgmentService exposes acknowledgment operations through the HTTP API.
@@ -71,15 +71,6 @@ func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 	ctx, cancel := acknowledgmentClientContext()
 	defer cancel()
 	return s.server.ListActiveAcknowledgments(ctx)
-}
-
-func (s *AcknowledgmentService) MarkViewed(ackID string) error {
-	if s.server == nil {
-		return errAcknowledgmentClientNotConfigured
-	}
-	ctx, cancel := acknowledgmentClientContext()
-	defer cancel()
-	return s.server.MarkAcknowledgmentViewed(ctx, ackID)
 }
 
 func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {

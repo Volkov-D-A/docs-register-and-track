@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
 type testReferenceClient struct {
@@ -86,7 +85,7 @@ func TestReferenceServiceDelegatesDirectoriesToServer(t *testing.T) {
 		executors:     []dto.ResolutionExecutor{{ID: id, Name: "Executor"}},
 		executor:      &dto.ResolutionExecutor{ID: id, Name: "Executor"},
 	}
-	service := NewReferenceService(nil, client)
+	service := NewReferenceService(client)
 
 	organizations, err := service.GetOrganizations()
 	require.NoError(t, err)
@@ -115,9 +114,6 @@ func TestReferenceServiceDelegatesDirectoriesToServer(t *testing.T) {
 	_, err = service.SearchResolutionExecutors("Exec")
 	require.NoError(t, err)
 	assert.Equal(t, "Exec", client.query)
-	_, err = service.FindOrCreateResolutionExecutor("Executor")
-	require.NoError(t, err)
-	assert.Equal(t, "resolve-executor", client.method)
 	require.NoError(t, service.UpdateResolutionExecutor(id, "Chief"))
 	assert.Equal(t, "update-executor", client.method)
 	require.NoError(t, service.DeleteResolutionExecutor(id))
@@ -127,7 +123,7 @@ func TestReferenceServiceDelegatesDirectoriesToServer(t *testing.T) {
 
 func TestReferenceServicePropagatesServerError(t *testing.T) {
 	want := errors.New("server failed")
-	service := NewReferenceService(nil, &testReferenceClient{err: want})
+	service := NewReferenceService(&testReferenceClient{err: want})
 
 	items, err := service.GetOrganizations()
 	assert.Nil(t, items)
@@ -136,7 +132,7 @@ func TestReferenceServicePropagatesServerError(t *testing.T) {
 }
 
 func TestReferenceServiceRequiresServerClient(t *testing.T) {
-	service := NewReferenceService(nil, nil)
+	service := NewReferenceService(nil)
 
 	items, err := service.GetOrganizations()
 	assert.Nil(t, items)
@@ -146,25 +142,4 @@ func TestReferenceServiceRequiresServerClient(t *testing.T) {
 	executors, err := service.GetResolutionExecutors()
 	assert.Nil(t, executors)
 	require.ErrorIs(t, err, errServerReferenceClientNotConfigured)
-}
-
-type referenceAuthStub struct{ err error }
-
-func (a referenceAuthStub) RequireAuthenticated() error { return a.err }
-
-func TestReferenceServiceDocumentTypes(t *testing.T) {
-	service := NewReferenceService(referenceAuthStub{}, nil)
-	items, err := service.GetDocumentTypes()
-	require.NoError(t, err)
-	expected := make([]dto.DocumentType, 0)
-	for _, name := range models.AllowedDocumentTypes() {
-		expected = append(expected, dto.DocumentType{ID: name, Name: name})
-	}
-	assert.Equal(t, expected, items)
-
-	want := errors.New("unauthenticated")
-	service = NewReferenceService(referenceAuthStub{err: want}, nil)
-	items, err = service.GetDocumentTypes()
-	require.ErrorIs(t, err, want)
-	assert.Nil(t, items)
 }

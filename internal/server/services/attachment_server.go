@@ -15,11 +15,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/attachmentname"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/coordination"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/coordination"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
@@ -34,13 +34,13 @@ type ServerAttachmentService struct {
 	lifecycle        *operations.Lifecycle
 	metrics          *observability.Registry
 	storageMutations coordination.StorageMutationCoordinator
-	assignments      ports.AssignmentStore
+	assignments      ports.AssignmentReader
 	substitutions    ports.UserSubstitutionStore
 }
 
 // ServerAttachmentOptions contains optional request dependencies.
 type ServerAttachmentOptions struct {
-	Assignments      ports.AssignmentStore
+	Assignments      ports.AssignmentReader
 	Substitutions    ports.UserSubstitutionStore
 	Metrics          *observability.Registry
 	Lifecycle        *operations.Lifecycle

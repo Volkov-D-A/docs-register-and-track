@@ -78,29 +78,15 @@ export const getDocumentKindColor = (kind: string): string => (
     getDocumentKindMeta(kind)?.color || 'blue'
 );
 
-export const hasDocumentKindAction = (kind: string, action: string): boolean => (
-    getDocumentKindMeta(kind)?.availableActions?.includes(action) ?? false
-);
-
 export const getDocumentPageKey = (kind: string): DocumentPageKey => (
     getDocumentKindMeta(kind)?.pageKey || 'incoming'
 );
 
-export const pageToDocumentKind = (page: DocumentPageKey): RegistrationKind => (
-    page === 'outgoing'
-        ? DOCUMENT_KIND_OUTGOING_LETTER
-        : page === 'appeals'
-            ? DOCUMENT_KIND_CITIZEN_APPEAL
-            : page === 'orders'
-                ? DOCUMENT_KIND_ADMINISTRATIVE_ORDER
-                : DOCUMENT_KIND_INCOMING_LETTER
-);
-
 export const isIncomingKind = (kind: string): boolean => (
-    kind === DOCUMENT_KIND_INCOMING_LETTER || kind === 'incoming'
+    kind === DOCUMENT_KIND_INCOMING_LETTER
 );
 export const isOutgoingKind = (kind: string): boolean => (
-    kind === DOCUMENT_KIND_OUTGOING_LETTER || kind === 'outgoing'
+    kind === DOCUMENT_KIND_OUTGOING_LETTER
 );
 export const isCitizenAppealKind = (kind: string): boolean => (
     kind === DOCUMENT_KIND_CITIZEN_APPEAL

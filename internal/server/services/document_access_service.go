@@ -12,8 +12,8 @@ import (
 type DocumentAccessService struct {
 	auth               ports.DocumentAccessPrincipal
 	depRepo            ports.DepartmentStore
-	assignmentRepo     ports.AssignmentStore
-	acknowledgmentRepo ports.AcknowledgmentStore
+	assignmentRepo     ports.AssignmentReader
+	acknowledgmentRepo ports.AcknowledgmentReader
 	substitutionRepo   ports.UserSubstitutionStore
 	accessRepo         ports.DocumentAccessStore
 	documentRepo       ports.DocumentStore
@@ -23,8 +23,8 @@ type DocumentAccessService struct {
 func NewDocumentAccessService(
 	auth ports.DocumentAccessPrincipal,
 	depRepo ports.DepartmentStore,
-	assignmentRepo ports.AssignmentStore,
-	acknowledgmentRepo ports.AcknowledgmentStore,
+	assignmentRepo ports.AssignmentReader,
+	acknowledgmentRepo ports.AcknowledgmentReader,
 	accessRepo ports.DocumentAccessStore,
 	documentRepo ports.DocumentStore,
 	substitutionRepos ...ports.UserSubstitutionStore,
@@ -204,43 +204,6 @@ func (s *DocumentAccessService) GetCurrentUserAndSubstitutionSubjectIDs() ([]uui
 		ids = append(ids, principalID)
 	}
 	return ids, nil
-}
-
-func (s *DocumentAccessService) GetAvailableActions(kind models.DocumentKind) ([]string, error) {
-	spec, ok := models.GetDocumentKindSpec(kind)
-	if !ok {
-		return nil, nil
-	}
-
-	actions := make([]string, 0, len(spec.SupportedActions))
-	for _, action := range spec.SupportedActions {
-		allowed, err := s.hasPermission(kind, string(action))
-		if err != nil {
-			return nil, err
-		}
-		if allowed {
-			actions = append(actions, string(action))
-		}
-	}
-
-	return actions, nil
-}
-
-func (s *DocumentAccessService) HasDocumentAction(kind models.DocumentKind, action string) (bool, error) {
-	return s.hasPermission(kind, action)
-}
-
-func (s *DocumentAccessService) HasAnyDocumentAction(action string) (bool, error) {
-	for _, spec := range models.AllDocumentKindSpecs() {
-		allowed, err := s.hasPermission(spec.Code, action)
-		if err != nil {
-			return false, err
-		}
-		if allowed {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func (s *DocumentAccessService) GetDocumentKindsWithAction(action string) ([]models.DocumentKind, error) {
@@ -572,7 +535,7 @@ func (s *DocumentAccessService) RequireResolvedRead(documentKind string, documen
 		return err
 	}
 
-	kind := models.NormalizeDocumentKind(documentKind)
+	kind := models.DocumentKind(documentKind)
 
 	allowed, err := s.hasPermission(kind, "read")
 	if err != nil {

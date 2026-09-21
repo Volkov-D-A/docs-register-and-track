@@ -29,7 +29,3 @@ export function GetPendingForCurrentUser() {
 export function MarkConfirmed(arg1) {
   return window['go']['services']['AcknowledgmentService']['MarkConfirmed'](arg1);
 }
-
-export function MarkViewed(arg1) {
-  return window['go']['services']['AcknowledgmentService']['MarkViewed'](arg1);
-}

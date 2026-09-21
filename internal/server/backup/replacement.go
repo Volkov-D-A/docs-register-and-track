@@ -20,7 +20,7 @@ func (s *Service) replaceOperation(ctx context.Context, op *operation) error {
 	if s.Replace == nil || s.Reload == nil {
 		return fmt.Errorf("replacement coordinator unavailable")
 	}
-	if copyFormat(op.VerificationID) != 3 {
+	if !validCopyID(op.VerificationID) {
 		return fmt.Errorf("invalid verification identifier")
 	}
 	if err := s.checkStagingSpace(); err != nil {

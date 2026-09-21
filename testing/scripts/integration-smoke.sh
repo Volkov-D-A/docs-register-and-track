@@ -52,12 +52,10 @@ DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmen
 go test ./internal/server -run '^TestBuiltServerBackupIntegration$' -count=1 -v | tee "$evidence/server-backup.log"
 go test ./internal/server -run '^TestBuiltAdminRestoreIntegration$' -count=1 -v | tee "$evidence/admin-replacement.log"
 DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/admin-restored-api.log"
-for format in v3 v2; do
-  "${compose[@]}" down -v --remove-orphans
-  "${compose[@]}" up -d --no-build --wait
-  DOCFLOW_SMOKE_RESET="$format" go test ./internal/server -run '^TestBuiltAdminRestoreIntegration$' -count=1 -v | tee "$evidence/admin-reset-$format.log"
-  DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/admin-reset-$format-api.log"
-done
+"${compose[@]}" down -v --remove-orphans
+"${compose[@]}" up -d --no-build --wait
+DOCFLOW_SMOKE_RESET=1 go test ./internal/server -run '^TestBuiltAdminRestoreIntegration$' -count=1 -v | tee "$evidence/admin-reset-v3.log"
+DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/admin-reset-v3-api.log"
 for command in recovery restore; do
   if "${compose[@]}" exec -T docflow-server docflow-server "$command" > "$evidence/removed-$command.log" 2>&1; then
     echo "Removed command unexpectedly succeeded: $command" >&2; exit 1
@@ -66,4 +64,4 @@ for command in recovery restore; do
     cat "$evidence/removed-$command.log" >&2; exit 1
   fi
 done
-printf 'PASS: ordinary admin API, replacement, reset recovery v2/v3, restored attachments.\n' | tee "$evidence/result.txt"
+printf 'PASS: ordinary admin API, replacement, reset recovery v3, restored attachments.\n' | tee "$evidence/result.txt"

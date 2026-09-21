@@ -6,8 +6,7 @@
     "GetCurrentUserPendingByDocument",
     "GetList",
     "GetPendingForCurrentUser",
-    "MarkConfirmed",
-    "MarkViewed"
+    "MarkConfirmed"
   ],
   "AdminAuditLogService": [
     "GetAll"
@@ -46,7 +45,6 @@
     "GetCurrentUser",
     "GetSessionState",
     "InitialSetup",
-    "IsAuthenticated",
     "Login",
     "Logout",
     "NeedsInitialSetup",
@@ -102,8 +100,6 @@
     "DeleteOrganization",
     "DeleteResolutionExecutor",
     "FindOrCreateOrganization",
-    "FindOrCreateResolutionExecutor",
-    "GetDocumentTypes",
     "GetOrganizations",
     "GetResolutionExecutors",
     "MergeOrganizations",

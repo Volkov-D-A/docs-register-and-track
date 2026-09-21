@@ -15,5 +15,3 @@ export function GetList(arg1:string):Promise<Array<dto.Acknowledgment>>;
 export function GetPendingForCurrentUser():Promise<Array<dto.Acknowledgment>>;
 
 export function MarkConfirmed(arg1:string):Promise<void>;
-
-export function MarkViewed(arg1:string):Promise<void>;

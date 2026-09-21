@@ -8,7 +8,9 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-type AssignmentOutboxStore interface {
+// AssignmentStore requires atomic writes alongside assignment queries.
+type AssignmentStore interface {
+	AssignmentReader
 	CreateWithOutbox(id, documentID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error)
 	UpdateDetailsWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, expectedUpdatedAt time.Time, effects []models.OutboxEvent) (*models.Assignment, error)
 	UpdateWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, status, report string, completedAt *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error)

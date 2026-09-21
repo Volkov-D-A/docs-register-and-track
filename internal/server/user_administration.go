@@ -62,7 +62,7 @@ func (api *managementAPI) updateUserAccessProfile(w http.ResponseWriter, r *http
 	}
 	req.UserID = id.String()
 	for _, permission := range req.Permissions {
-		kind := models.NormalizeDocumentKind(permission.KindCode)
+		kind := models.DocumentKind(permission.KindCode)
 		if _, exists := models.GetDocumentKindSpec(kind); !exists {
 			writeUserError(w, models.NewBadRequest(fmt.Sprintf("неизвестный вид документа: %s", permission.KindCode)))
 			return

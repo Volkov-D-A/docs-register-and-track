@@ -73,7 +73,7 @@ type settingsTestPrincipal struct {
 func (p *settingsTestPrincipal) GetCurrentUser() (*dto.User, error) {
 	return &dto.User{Login: p.login}, nil
 }
-func (p *settingsTestPrincipal) RequireSystemPermissionWithoutSchemaCheck(string) error {
+func (p *settingsTestPrincipal) RequireSystemPermission(string) error {
 	if !p.admin {
 		return models.ErrForbidden
 	}
@@ -82,7 +82,7 @@ func (p *settingsTestPrincipal) RequireSystemPermissionWithoutSchemaCheck(string
 func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.SettingsStore) {
 	t.Helper()
 	store := mocks.NewSettingsStore(t)
-	return NewSettingsService(&settingsTestPrincipal{admin: role == "admin", login: role + "_set"}, &fakeServerSettingsClient{store: store}, &fakeServerMigrationClient{}, nil), store
+	return NewSettingsService(&settingsTestPrincipal{admin: role == "admin", login: role + "_set"}, &fakeServerSettingsClient{store: store}, &fakeServerMigrationClient{}), store
 }
 
 func TestSettingsService_GetAll(t *testing.T) {
@@ -247,32 +247,6 @@ func TestSettingsService_RunMigrations(t *testing.T) {
 	})
 }
 
-func TestSettingsService_RunMigrationsReconcilesSchemaLifecycle(t *testing.T) {
-	t.Run("successful migration", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "admin")
-		client := &fakeServerMigrationClient{}
-		lifecycle := &fakeSchemaLifecycle{}
-		svc.migrationClient = client
-		svc.schemaLifecycle = lifecycle
-
-		require.NoError(t, svc.RunMigrations("Passw0rd!"))
-		assert.Equal(t, 1, client.applyCalls)
-		assert.Equal(t, 1, lifecycle.reconcileCalls)
-	})
-
-	t.Run("failed migration", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "admin")
-		client := &fakeServerMigrationClient{applyErr: assert.AnError}
-		lifecycle := &fakeSchemaLifecycle{}
-		svc.migrationClient = client
-		svc.schemaLifecycle = lifecycle
-
-		require.Error(t, svc.RunMigrations("Passw0rd!"))
-		assert.Equal(t, 1, client.applyCalls)
-		assert.Zero(t, lifecycle.reconcileCalls)
-	})
-}
-
 func TestSettingsService_GetMigrationStatus(t *testing.T) {
 	t.Run("forbidden non-admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "clerk")
@@ -326,46 +300,8 @@ func TestSettingsService_RollbackMigration(t *testing.T) {
 	})
 }
 
-func TestSettingsService_RollbackCoordinatesSchemaLifecycle(t *testing.T) {
-	validReq := models.RollbackMigrationRequest{
-		BackupCompleted:      true,
-		BackupReference:      "smb://backup/docflow/2026-07-22_120000.tar",
-		AcknowledgedDataLoss: true,
-		Confirmation:         rollbackMigrationConfirmationPhrase,
-		Password:             "Passw0rd!",
-	}
-
-	t.Run("successful rollback", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "admin")
-		client := &fakeServerMigrationClient{}
-		lifecycle := &fakeSchemaLifecycle{}
-		svc.migrationClient = client
-		svc.schemaLifecycle = lifecycle
-
-		require.NoError(t, svc.RollbackMigration(validReq))
-		assert.Equal(t, 1, client.rollbackCalls)
-		assert.Equal(t, 1, lifecycle.reconcileCalls)
-	})
-
-	t.Run("failed rollback does not reconcile", func(t *testing.T) {
-		svc, _ := setupSettingsService(t, "admin")
-		client := &fakeServerMigrationClient{rollbackErr: assert.AnError}
-		lifecycle := &fakeSchemaLifecycle{}
-		svc.migrationClient = client
-		svc.schemaLifecycle = lifecycle
-
-		require.Error(t, svc.RollbackMigration(validReq))
-		assert.Equal(t, 1, client.rollbackCalls)
-		assert.Zero(t, lifecycle.reconcileCalls)
-	})
-}
-
-type fakeSchemaLifecycle struct{ reconcileCalls int }
-
-func (l *fakeSchemaLifecycle) ReconcileSchema() { l.reconcileCalls++ }
-
 func TestSettingsServiceMissingClients(t *testing.T) {
-	svc := NewSettingsService(&settingsTestPrincipal{admin: true}, nil, nil, nil)
+	svc := NewSettingsService(&settingsTestPrincipal{admin: true}, nil, nil)
 	_, err := svc.GetAll()
 	require.ErrorContains(t, err, "не настроен")
 	require.ErrorContains(t, svc.Update("key", "value"), "не настроен")

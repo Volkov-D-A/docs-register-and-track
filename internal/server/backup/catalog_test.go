@@ -49,14 +49,14 @@ func TestCatalogIndependentOfHistoryAndHonestAboutVerification(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, mismatch+".tar.gz"), []byte("truncated"), 0600))
 	legacy := "backup_20260910_090000"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, legacy+".tar.gz"), []byte("abc"), 0600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, markerName(legacy)), []byte("format_version=2\narchive="+legacy+".tar.gz\nsize_bytes=3\nsha256="+strings.Repeat("a", 64)+"\n"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, legacy+".tar.gz.manifest"), []byte("format_version=2\narchive="+legacy+".tar.gz\nsize_bytes=3\nsha256="+strings.Repeat("a", 64)+"\n"), 0600))
 	copies, err := Catalog(context.Background(), catalogFiles(dir))
 	require.NoError(t, err)
-	require.Len(t, copies, 5)
+	require.Len(t, copies, 4)
 	for _, copy := range copies {
-		if copy.ID == id || copy.ID == legacy {
+		if copy.ID == id {
 			require.Equal(t, "unverified", copy.Verification)
-			require.Equal(t, copy.ID == id, copy.CanDelete)
+			require.True(t, copy.CanDelete)
 		} else {
 			require.Equal(t, "incomplete", copy.Verification)
 			require.NotEmpty(t, copy.Issue)
@@ -65,17 +65,33 @@ func TestCatalogIndependentOfHistoryAndHonestAboutVerification(t *testing.T) {
 	}
 }
 
-func TestCopyIdentifiersAndLegacyManifest(t *testing.T) {
-	for _, id := range []string{"../archive", "/tmp/archive", "backup_20260910_090000/../a", "", strings.ToUpper(uuid.NewString())} {
-		require.Zero(t, copyFormat(id), id)
+func TestCopyIdentifiersAndManifest(t *testing.T) {
+	for _, id := range []string{"../archive", "/tmp/archive", "backup_20260910_090000/../a", "backup_20260910_090000", "backup_20260910_090000_123456789", "", strings.ToUpper(uuid.NewString())} {
+		require.False(t, validCopyID(id), id)
 	}
-	id := "backup_20260910_090000_123456789"
-	valid := "format_version=2\narchive=" + id + ".tar.gz\nsize_bytes=42\nsha256=" + strings.Repeat("a", 64)
-	m, err := parseCopyMarker(id, []byte(valid))
+	id := uuid.NewString()
+	marker := RemoteCopy{ID: id, Format: 3, Size: 42, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()}
+	raw, err := json.Marshal(marker)
 	require.NoError(t, err)
-	require.Equal(t, int64(42), m.Size)
-	require.Equal(t, 2, m.Format)
-	for _, raw := range []string{valid + "\nsize_bytes=42", strings.Replace(valid, "size_bytes=42", "size_bytes=-1", 1), strings.Replace(valid, id, "../escape", 1), strings.Replace(valid, strings.Repeat("a", 64), strings.Repeat("z", 64), 1), strings.Repeat("a", 8193)} {
+	parsed, err := parseCopyMarker(id, raw)
+	require.NoError(t, err)
+	require.Equal(t, marker, parsed)
+	for _, mutate := range []func(*RemoteCopy){
+		func(m *RemoteCopy) { m.Format = 2 },
+		func(m *RemoteCopy) { m.ID = "../escape" },
+		func(m *RemoteCopy) { m.Size = -1 },
+		func(m *RemoteCopy) { m.Size = 1 << 60 },
+		func(m *RemoteCopy) { m.SHA256 = strings.Repeat("z", 64) },
+		func(m *RemoteCopy) { m.CreatedAt = time.Time{} },
+	} {
+		invalid := marker
+		mutate(&invalid)
+		raw, err := json.Marshal(invalid)
+		require.NoError(t, err)
+		_, err = parseCopyMarker(id, raw)
+		require.Error(t, err)
+	}
+	for _, raw := range []string{"format_version=2\narchive=" + id + ".tar.gz", strings.Repeat("a", 4097)} {
 		_, err := parseCopyMarker(id, []byte(raw))
 		require.Error(t, err)
 	}

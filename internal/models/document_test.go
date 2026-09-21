@@ -15,17 +15,3 @@ func TestDocumentTypes(t *testing.T) {
 	assert.True(t, IsAllowedDocumentType(" Письмо "))
 	assert.False(t, IsAllowedDocumentType("Неизвестный тип"))
 }
-
-func TestDocumentKindPredicates(t *testing.T) {
-	assert.True(t, DocumentKindIncomingLetter.IsIncoming())
-	assert.False(t, DocumentKindIncomingLetter.IsOutgoing())
-
-	assert.True(t, DocumentKindOutgoingLetter.IsOutgoing())
-	assert.False(t, DocumentKindOutgoingLetter.IsCitizenAppeal())
-
-	assert.True(t, DocumentKindCitizenAppeal.IsCitizenAppeal())
-	assert.False(t, DocumentKindCitizenAppeal.IsAdministrativeOrder())
-
-	assert.True(t, DocumentKindAdministrativeOrder.IsAdministrativeOrder())
-	assert.False(t, DocumentKindAdministrativeOrder.IsIncoming())
-}

@@ -22,10 +22,6 @@ export function InitialSetup(arg1) {
   return window['go']['services']['AuthService']['InitialSetup'](arg1);
 }
 
-export function IsAuthenticated() {
-  return window['go']['services']['AuthService']['IsAuthenticated']();
-}
-
 export function Login(arg1, arg2) {
   return window['go']['services']['AuthService']['Login'](arg1, arg2);
 }

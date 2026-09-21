@@ -115,7 +115,7 @@ random temporary password, returns it once for copying, and marks it for a
 mandatory change at the user's next login.
 
 This development baseline expects a fresh database: the migration history was
-compacted and ends with migration 11 (`server_sessions`). No direct-login
+compacted and ends with migration 12 (`backups`). No direct-login
 fallback is enabled in the production composition root.
 
 Install frontend dependencies and build assets:

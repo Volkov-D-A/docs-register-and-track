@@ -3,7 +3,6 @@ package services
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -59,18 +58,6 @@ type documentAccessAssignmentStore struct {
 	err        error
 }
 
-func (s *documentAccessAssignmentStore) Create(documentID uuid.UUID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string) (*models.Assignment, error) {
-	return nil, nil
-}
-
-func (s *documentAccessAssignmentStore) Update(id uuid.UUID, executorID uuid.UUID, content string, deadline *time.Time, status, report string, completedAt *time.Time, coExecutorIDs []string) (*models.Assignment, error) {
-	return nil, nil
-}
-
-func (s *documentAccessAssignmentStore) Delete(id uuid.UUID) error {
-	return nil
-}
-
 func (s *documentAccessAssignmentStore) GetByID(id uuid.UUID) (*models.Assignment, error) {
 	return nil, nil
 }
@@ -105,19 +92,11 @@ type documentAccessAcknowledgmentStore struct {
 	err        error
 }
 
-func (s *documentAccessAcknowledgmentStore) Create(a *models.Acknowledgment) error {
-	return nil
-}
-
 func (s *documentAccessAcknowledgmentStore) GetByID(id uuid.UUID) (*models.Acknowledgment, error) {
 	return nil, nil
 }
 
 func (s *documentAccessAcknowledgmentStore) GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error) {
-	return nil, nil
-}
-
-func (s *documentAccessAcknowledgmentStore) GetPendingForUser(userID uuid.UUID) ([]models.Acknowledgment, error) {
 	return nil, nil
 }
 
@@ -148,18 +127,6 @@ func (s *documentAccessAcknowledgmentStore) GetAccessibleDocumentIDs(userID uuid
 		}
 	}
 	return result, nil
-}
-
-func (s *documentAccessAcknowledgmentStore) MarkViewed(ackID, userID uuid.UUID) error {
-	return nil
-}
-
-func (s *documentAccessAcknowledgmentStore) MarkConfirmed(ackID, userID uuid.UUID) error {
-	return nil
-}
-
-func (s *documentAccessAcknowledgmentStore) Delete(id uuid.UUID) error {
-	return nil
 }
 
 type documentAccessDocumentStore struct {
@@ -723,14 +690,6 @@ func TestDocumentAccessService_DocumentActionQueries(t *testing.T) {
 	allowed = addDocumentActions(allowed, models.DocumentKindOutgoingLetter, "read")
 	deps := setupDocumentAccessService(t, documentAccessUser(false, nil), allowed)
 
-	actions, err := deps.service.GetAvailableActions(models.DocumentKindIncomingLetter)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"read", "upload"}, actions)
-
-	hasUpload, err := deps.service.HasAnyDocumentAction("upload")
-	require.NoError(t, err)
-	assert.True(t, hasUpload)
-
 	kinds, err := deps.service.GetDocumentKindsWithAction("read")
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []models.DocumentKind{
@@ -738,9 +697,6 @@ func TestDocumentAccessService_DocumentActionQueries(t *testing.T) {
 		models.DocumentKindOutgoingLetter,
 	}, kinds)
 
-	hasAssign, err := deps.service.HasDocumentAction(models.DocumentKindIncomingLetter, "assign")
-	require.NoError(t, err)
-	assert.False(t, hasAssign)
 }
 
 func TestDocumentAccessService_HasAssignmentAccess(t *testing.T) {
@@ -899,7 +855,7 @@ type kindActionDocumentAccessStore struct {
 }
 
 func (s *kindActionDocumentAccessStore) HasPermission(kind, action, departmentID, userID string) (bool, error) {
-	return s.allowed[models.NormalizeDocumentKind(kind)][action], nil
+	return s.allowed[models.DocumentKind(kind)][action], nil
 }
 
 type userSubstitutionStoreStub struct {

@@ -14,8 +14,6 @@ export function GetSessionState():Promise<serverclient.SessionState>;
 
 export function InitialSetup(arg1:string):Promise<void>;
 
-export function IsAuthenticated():Promise<boolean>;
-
 export function Login(arg1:string,arg2:string):Promise<dto.User>;
 
 export function Logout():Promise<void>;

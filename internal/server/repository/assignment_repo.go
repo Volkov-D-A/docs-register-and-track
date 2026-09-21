@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // AssignmentRepository предоставляет методы для работы с поручениями в БД.
@@ -60,128 +60,6 @@ func (r *AssignmentRepository) CreateWithOutbox(id, documentID, executorID uuid.
 // NewAssignmentRepository создает новый экземпляр AssignmentRepository.
 func NewAssignmentRepository(db *database.DB) *AssignmentRepository {
 	return &AssignmentRepository{db: db}
-}
-
-// Create создает новое поручение в базе данных.
-func (r *AssignmentRepository) Create(
-	documentID uuid.UUID,
-	executorID uuid.UUID,
-	content string,
-	deadline *time.Time,
-	coExecutorIDs []string,
-) (*models.Assignment, error) {
-	var id uuid.UUID
-	var createdAt, updatedAt time.Time
-	var status = "new"
-
-	tx, err := r.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	query := `
-		INSERT INTO assignments (
-			document_id, executor_id,
-			content, deadline, status
-		)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at, updated_at
-	`
-
-	err = tx.QueryRow(
-		query,
-		documentID, executorID, content, deadline, status,
-	).Scan(&id, &createdAt, &updatedAt)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create assignment: %w", err)
-	}
-
-	// Вставка соисполнителей
-	if len(coExecutorIDs) > 0 {
-		stmt, err := tx.Prepare("INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)")
-		if err != nil {
-			return nil, fmt.Errorf("failed to prepare co-executors statement: %w", err)
-		}
-		defer stmt.Close()
-
-		for _, coExecID := range coExecutorIDs {
-			uid, err := uuid.Parse(coExecID)
-			if err != nil {
-				return nil, fmt.Errorf("invalid co-executor ID %s: %w", coExecID, err)
-			}
-			if _, err := stmt.Exec(id, uid); err != nil {
-				return nil, fmt.Errorf("failed to insert co-executor %s: %w", coExecID, err)
-			}
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return r.GetByID(id)
-}
-
-// Update обновляет данные существующего поручения в БД.
-func (r *AssignmentRepository) Update(
-	id uuid.UUID,
-	executorID uuid.UUID,
-	content string,
-	deadline *time.Time,
-	status, report string,
-	completedAt *time.Time,
-	coExecutorIDs []string,
-) (*models.Assignment, error) {
-	tx, err := r.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	query := `
-		UPDATE assignments
-		SET executor_id = $1, content = $2, deadline = $3,
-		    status = $4, report = $5, completed_at = $6, updated_at = NOW()
-		WHERE id = $7
-	`
-
-	_, err = tx.Exec(query, executorID, content, deadline, status, report, completedAt, id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update assignment: %w", err)
-	}
-
-	// Обновление соисполнителей
-	// 1. Удаление существующих
-	if _, err := tx.Exec("DELETE FROM assignment_co_executors WHERE assignment_id = $1", id); err != nil {
-		return nil, fmt.Errorf("failed to delete old co-executors: %w", err)
-	}
-
-	// 2. Вставка новых
-	if len(coExecutorIDs) > 0 {
-		stmt, err := tx.Prepare("INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)")
-		if err != nil {
-			return nil, fmt.Errorf("failed to prepare co-executors statement: %w", err)
-		}
-		defer stmt.Close()
-
-		for _, coExecID := range coExecutorIDs {
-			uid, err := uuid.Parse(coExecID)
-			if err != nil {
-				return nil, fmt.Errorf("invalid co-executor ID %s: %w", coExecID, err)
-			}
-			if _, err := stmt.Exec(id, uid); err != nil {
-				return nil, fmt.Errorf("failed to insert co-executor %s: %w", coExecID, err)
-			}
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return r.GetByID(id)
 }
 
 func (r *AssignmentRepository) UpdateWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, status, report string, completedAt *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
@@ -265,12 +143,6 @@ func (r *AssignmentRepository) UpdateDetailsWithOutbox(id, executorID uuid.UUID,
 		return nil, err
 	}
 	return r.GetByID(id)
-}
-
-// Delete удаляет поручение по его ID.
-func (r *AssignmentRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec("DELETE FROM assignments WHERE id = $1", id)
-	return err
 }
 
 func (r *AssignmentRepository) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {

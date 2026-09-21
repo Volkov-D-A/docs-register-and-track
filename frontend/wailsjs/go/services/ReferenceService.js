@@ -14,14 +14,6 @@ export function FindOrCreateOrganization(arg1) {
   return window['go']['services']['ReferenceService']['FindOrCreateOrganization'](arg1);
 }
 
-export function FindOrCreateResolutionExecutor(arg1) {
-  return window['go']['services']['ReferenceService']['FindOrCreateResolutionExecutor'](arg1);
-}
-
-export function GetDocumentTypes() {
-  return window['go']['services']['ReferenceService']['GetDocumentTypes']();
-}
-
 export function GetOrganizations() {
   return window['go']['services']['ReferenceService']['GetOrganizations']();
 }

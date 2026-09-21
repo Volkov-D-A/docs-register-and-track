@@ -1,6 +1,6 @@
 # Техническая документация проекта
 
-Дата обновления: 2026-09-14
+Дата обновления: 2026-09-21
 Статус: основной справочник для дальнейшей разработки
 
 ## Назначение
@@ -22,11 +22,14 @@
 
 ## Технологический Стек
 
+Актуальные версии зависимостей определяются `go.mod`, `frontend/package.json` и
+`frontend/package-lock.json`.
+
 Backend:
 
 - Go module `github.com/Volkov-D-A/docs-register-and-track`;
-- Go `1.27.1`;
-- Wails v2.13.0;
+- Go (версия в `go.mod`);
+- Wails v2;
 - PostgreSQL через `database/sql`, `lib/pq`;
 - миграции через `golang-migrate`;
 - SeaweedFS через AWS SDK for Go v2;
@@ -35,16 +38,16 @@ Backend:
 
 Frontend:
 
-- React 19.2.7;
-- TypeScript 6.0.3;
-- Vite 8.1.4;
+- React;
+- TypeScript;
+- Vite;
 - тесты: Node test runner для utilities, Vitest + jsdom + React Testing Library
   для component/integration-сценариев;
-- Ant Design 6.5.1;
-- Zustand 5.0.14;
-- dayjs 1.11.21;
-- `@xyflow/react` 12.11.2 для графа связей;
-- `@ant-design/plots` 2.6.8 для статистики.
+- Ant Design;
+- Zustand;
+- dayjs;
+- `@xyflow/react` для графа связей;
+- `@ant-design/plots` для статистики.
 
 Инфраструктура и сборка:
 
@@ -62,15 +65,17 @@ Production-зависимости проверяются транзитивно:
 server не импортирует desktop и Wails, общие пакеты не зависят от обеих сторон.
 Эти ограничения закреплены в `internal/architecture/imports_test.go`.
 
-Wails публикует 25 desktop-сервисов и 126 пользовательских методов без служебных
-setters, Startup и LogAction. Актуальный контракт хранится в
+Wails публикует 25 desktop-сервисов и 122 пользовательских методов без служебных
+setters, Startup и LogAction. Виды документов используют только системные коды `incoming_letter`,
+`outgoing_letter`, `citizen_appeal`, `administrative_order`; сокращённые коды
+`incoming`/`outgoing` остаются только ключами страниц интерфейса. Актуальный контракт хранится в
 `internal/desktop/app/testdata/wails-api.json`; тесты проверяют Go/JS/TS и
 совпадение регистраций runtime и генератора.
 
 Приёмка включает успешные Go-тесты, vet, race, PostgreSQL/SeaweedFS integration,
 frontend lint/test/build, генерацию bindings, сборки server без CGO и desktop
 Linux/Windows, а также storage smoke с SMB, restart/recreate SeaweedFS и
-backup/restore v2/v3. Пользователь подтвердил успешные ручные проверки
+backup/restore v3. Пользователь подтвердил успешные ручные проверки
 Linux/Windows: выбор, скачивание и открытие файлов, login/logout и maintenance.
 
 ```text
@@ -269,8 +274,8 @@ SeaweedFS хранит physical attachment objects. PostgreSQL хранит atta
 - app root context;
 - per-operation timeout;
 - shutdown cancel/wait coordination;
-- Wails `OnShutdown` сначала останавливает schema-dependent background services,
-  затем отменяет/ждет active operations и закрывает DB/logger.
+- Wails `OnShutdown` останавливает приём серверных событий, отменяет/ждёт
+  активные операции desktop и закрывает logger. Подключениями к БД управляет сервер.
 
 Отдельный schema lifecycle управляет outbox worker и другими фоновыми задачами,
 которым нужна полностью актуальная схема. Он обеспечивает единственный экземпляр
@@ -278,13 +283,13 @@ worker, останавливает его перед rollback и включае�
 защищённых операций. Повторная успешная миграция снимает gate и запускает worker
 без рестарта приложения.
 
-Lifecycle реализован в `internal/background` и используется Wails composition
-root как schema maintenance gate, а standalone `docflow-server` — как lifecycle
-реального worker. Desktop composition root не создаёт PostgreSQL repositories,
+Lifecycle реализован в `internal/background` и используется `docflow-server`
+для управления worker. Desktop проверяет готовность через `SystemService` и
+`SystemBootstrapGate`; доступ к операциям во время обслуживания контролирует сервер.
+Локальной копии schema maintenance gate в desktop нет.
+Desktop composition root не создаёт PostgreSQL repositories,
 SeaweedFS client или outbox consumer. Команды и transactional events фиксируются
 сервером, а единственный consumer читает `event_outbox` внутри server process.
-Переключение production выполняется централизованно только после закрытия уже
-запущенных процессов предыдущей desktop-версии.
 
 На время работы consumer удерживает отдельный PostgreSQL advisory lease на
 выделенном соединении. Management API сначала останавливает consumer и
@@ -756,11 +761,11 @@ make go-vet
 
 Настройки SMB и AES-GCM ciphertext пароля хранятся в `backup_settings`. Ключ
 передаётся через Compose secret и не включается в архив. Постоянный staging volume
-хранит задания и неотправленные архивы. Новые копии используют v3 с checksum dump
+хранит задания и неотправленные архивы. Копии используют только v3 с checksum dump
 и каждого объекта, внешним manifest-маркером публикации и проверкой чтением с NAS.
 
 Обычная админпанель читает каталог SMB независимо от истории заданий, проверяет,
-восстанавливает v3/v2 и удаляет v3-копии. Восстановление заменяет текущие данные
+восстанавливает и удаляет v3-копии. Восстановление заменяет текущие данные
 в выделенных БД и bucket при полном обслуживании, после проверки источника и
 локальной страховочной копии. Фазы и инициатор сохраняются вне БД; при ошибке
 сервер пытается выполнить откат. Маркер незавершённой замены блокирует бизнес-API
@@ -961,7 +966,7 @@ High-risk changes requiring extra care:
 - technical logging and audit trail.
 
 Актуальные параметры SeaweedFS 4.46, runtime secrets, сброс dev-стека и проверка
-backup/restore v2/v3 описаны в [инструкции хранилища](instructions.md#эксплуатация-seaweedfs).
+backup/restore v3 описаны в [инструкции хранилища](instructions.md#эксплуатация-seaweedfs).
 
 
 ## Уведомления сервера (SSE)

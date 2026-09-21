@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/google/uuid"
 )
 
@@ -123,10 +123,6 @@ func (s *AuthService) GetSessionState() serverclient.SessionState {
 		return serverclient.SessionState{}
 	}
 	return s.serverAuth.SessionState()
-}
-
-func (s *AuthService) IsAuthenticated() bool {
-	return s.GetSessionState().Authenticated
 }
 
 func (s *AuthService) NeedsInitialSetup() (bool, error) {

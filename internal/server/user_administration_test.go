@@ -108,18 +108,22 @@ func TestUserAccessAPIReplacesProfileWithAtomicAudit(t *testing.T) {
 	assert.Equal(t, models.OutboxEventAudit, access.effects[0].EventType)
 }
 
-func TestUserAccessAPIRejectsUnsupportedActionBeforePersistence(t *testing.T) {
-	api, users, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
-	access := &fakeUserAccessManagementStore{}
-	api.userAccess = access
-	request := httptest.NewRequest(http.MethodPut, "/api/v1/users/"+users.users[0].ID.String()+"/access-profile", strings.NewReader(`{"permissions":[{"kindCode":"incoming_letter","action":"delete","isAllowed":true}]}`))
-	request.Header.Set("Authorization", "Bearer "+token)
-	response := httptest.NewRecorder()
-
-	api.Handler().ServeHTTP(response, request)
-
-	assert.Equal(t, http.StatusBadRequest, response.Code)
-	assert.Empty(t, access.userID)
+func TestUserAccessAPIRejectsInvalidPermissionsBeforePersistence(t *testing.T) {
+	for _, tc := range []struct{ kind, action string }{
+		{"incoming_letter", "delete"}, {"incoming", "read"}, {"outgoing", "read"},
+	} {
+		t.Run(tc.kind+"/"+tc.action, func(t *testing.T) {
+			api, users, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
+			access := &fakeUserAccessManagementStore{}
+			api.userAccess = access
+			request := httptest.NewRequest(http.MethodPut, "/api/v1/users/"+users.users[0].ID.String()+"/access-profile", strings.NewReader(`{"permissions":[{"kindCode":"`+tc.kind+`","action":"`+tc.action+`","isAllowed":true}]}`))
+			request.Header.Set("Authorization", "Bearer "+token)
+			response := httptest.NewRecorder()
+			api.Handler().ServeHTTP(response, request)
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assert.Empty(t, access.userID)
+		})
+	}
 }
 
 func TestUserSubstitutionAPIValidatesAndPersistsSameDepartmentSubstitute(t *testing.T) {

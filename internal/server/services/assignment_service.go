@@ -189,10 +189,6 @@ func (s *AssignmentService) Create(
 		deadlineTime = &t
 	}
 
-	repo, ok := s.repo.(ports.AssignmentOutboxStore)
-	if !ok {
-		return nil, fmt.Errorf("assignment store must support atomic outbox operations")
-	}
 	var res *models.Assignment
 	{
 		assignmentID := uuid.New()
@@ -213,7 +209,7 @@ func (s *AssignmentService) Create(
 			}
 			effects = append(effects, event)
 		}
-		res, err = repo.CreateWithOutbox(assignmentID, docUUID, execUUID, content, deadlineTime, coExecutorIDs, effects)
+		res, err = s.repo.CreateWithOutbox(assignmentID, docUUID, execUUID, content, deadlineTime, coExecutorIDs, effects)
 	}
 	return dto.MapAssignment(res), err
 }
@@ -465,10 +461,6 @@ func (s *AssignmentService) Update(
 		deadlineTime = &t
 	}
 
-	repo, ok := s.repo.(ports.AssignmentOutboxStore)
-	if !ok {
-		return nil, fmt.Errorf("assignment store must support atomic outbox operations")
-	}
 	var res *models.Assignment
 	{
 		revision := time.Now().UTC().Format(time.RFC3339Nano)
@@ -487,7 +479,7 @@ func (s *AssignmentService) Update(
 			}
 			effects = append(effects, event)
 		}
-		res, err = repo.UpdateDetailsWithOutbox(uid, execUUID, content, deadlineTime, coExecutorIDs, existing.UpdatedAt, effects)
+		res, err = s.repo.UpdateDetailsWithOutbox(uid, execUUID, content, deadlineTime, coExecutorIDs, existing.UpdatedAt, effects)
 	}
 	return dto.MapAssignment(res), err
 }
@@ -524,10 +516,6 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 		return nil, err
 	}
 
-	repo, ok := s.repo.(ports.AssignmentOutboxStore)
-	if !ok {
-		return nil, fmt.Errorf("assignment store must support atomic outbox operations")
-	}
 	var res *models.Assignment
 	{
 		revision := time.Now().UTC().Format(time.RFC3339Nano)
@@ -606,7 +594,7 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 			}
 			res, err = seriesRepo.FinishSeriesIterationWithNext(uid, series.ID, nextID, series.UpdatedAt, statusUpdate.report, statusUpdate.completedAt, nextDeadline, nextIteration, series.ExecutorID, series.Content, series.CoExecutorIDs, effects, nextEffects)
 		} else {
-			res, err = repo.UpdateWithOutbox(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, statusUpdate.report, statusUpdate.completedAt, existing.CoExecutorIDs, effects)
+			res, err = s.repo.UpdateWithOutbox(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, statusUpdate.report, statusUpdate.completedAt, existing.CoExecutorIDs, effects)
 		}
 	}
 	mapped := dto.MapAssignment(res)
@@ -776,13 +764,6 @@ func assignmentOutboxKey(id uuid.UUID, transition, revision string, recipient *u
 	return strings.Join(parts, ":")
 }
 
-func assignmentRevision(assignment *models.Assignment) string {
-	if assignment == nil {
-		return ""
-	}
-	return assignment.UpdatedAt.UTC().Format(time.RFC3339Nano)
-}
-
 // Delete удаляет поручение по его ID (только для незавершенных, если не админ).
 func (s *AssignmentService) Delete(id string) error {
 	uid, err := uuid.Parse(id)
@@ -809,15 +790,11 @@ func (s *AssignmentService) Delete(id string) error {
 		return models.NewConflict("нельзя удалить завершённое поручение")
 	}
 
-	repo, ok := s.repo.(ports.AssignmentOutboxStore)
-	if !ok {
-		return fmt.Errorf("assignment store must support atomic outbox operations")
-	}
 	currentUserID, _ := s.auth.GetCurrentUserUUID()
 	event, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(uid, "deleted", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_DELETE", Details: "Поручение удалено"})
 	if buildErr != nil {
 		return buildErr
 	}
-	err = repo.DeleteWithOutbox(uid, []models.OutboxEvent{event})
+	err = s.repo.DeleteWithOutbox(uid, []models.OutboxEvent{event})
 	return err
 }

@@ -1,27 +1,16 @@
 package ports
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/google/uuid"
 )
 
-type AcknowledgmentConfirmationOutboxStore interface {
-	MarkConfirmedWithEffects(uuid.UUID, uuid.UUID, models.AcknowledgmentConfirmationEffects) error
-}
-
-type AcknowledgmentViewedOutboxStore interface {
-	MarkViewedWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) error
-}
-
-type AcknowledgmentDeleteOutboxStore interface {
-	DeleteWithOutbox(uuid.UUID, []models.OutboxEvent) error
-}
-
-type AcknowledgmentCreateOutboxStore interface {
+// AcknowledgmentStore requires atomic effects and bulk pending queries.
+type AcknowledgmentStore interface {
+	AcknowledgmentReader
 	CreateWithOutbox(*models.Acknowledgment, []models.OutboxEvent) error
-}
-
-type AcknowledgmentPendingBulkStore interface {
+	MarkViewedWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) error
+	MarkConfirmedWithEffects(uuid.UUID, uuid.UUID, models.AcknowledgmentConfirmationEffects) error
+	DeleteWithOutbox(uuid.UUID, []models.OutboxEvent) error
 	GetPendingForUsers([]uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error)
 }

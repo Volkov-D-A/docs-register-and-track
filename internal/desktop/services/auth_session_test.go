@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -70,7 +70,7 @@ func TestAuthAdapterSlowLogoutPreservesNewSession(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- service.Logout() }()
 	awaitRequest(t, entered)
-	require.False(t, service.IsAuthenticated())
+	require.False(t, service.GetSessionState().Authenticated)
 	_, err = service.Login(newID, "password")
 	require.NoError(t, err)
 	once.Do(func() { close(release) })
@@ -97,7 +97,7 @@ func TestAuthAdapterLogoutDiscardsPendingLogin(t *testing.T) {
 	revision := service.GetSessionState().Revision
 	once.Do(func() { close(release) })
 	require.ErrorIs(t, awaitAuthCall(t, done), models.ErrUnauthorized)
-	require.False(t, service.IsAuthenticated())
+	require.False(t, service.GetSessionState().Authenticated)
 	require.Equal(t, revision, service.GetSessionState().Revision)
 }
 
@@ -112,10 +112,10 @@ func TestAuthAdapterUnauthorizedInvalidatesPrincipal(t *testing.T) {
 	}, nil)
 	_, err := service.Login("user", "password")
 	require.NoError(t, err)
-	principal := NewPrincipal(service, nil)
+	principal := NewPrincipal(service)
 	require.NotEmpty(t, principal.GetCurrentUserID())
-	require.ErrorIs(t, principal.RequireAuthenticated(), models.ErrUnauthorized)
-	require.False(t, service.IsAuthenticated())
+	require.ErrorIs(t, principal.RequireSystemPermission(models.SystemPermissionAdmin), models.ErrUnauthorized)
+	require.False(t, service.GetSessionState().Authenticated)
 	require.Empty(t, principal.GetCurrentUserID())
 }
 

@@ -18,25 +18,9 @@ type AssignmentStore struct {
 	Effects []models.OutboxEvent
 }
 
-func (_m *AssignmentStore) CreateWithOutbox(id, documentID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
-	// The generated mock delegates persistence expectations to Create while
-	// retaining the outbox intent for assertions in service tests.
-	_m.Effects = append(_m.Effects, effects...)
-	assignment, err := _m.Create(documentID, executorID, content, deadline, coExecutorIDs)
-	if assignment != nil && assignment.ID == uuid.Nil {
-		assignment.ID = id
-	}
-	return assignment, err
-}
-
-func (_m *AssignmentStore) UpdateWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, status, report string, completedAt *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
-	_m.Effects = append(_m.Effects, effects...)
-	return _m.Update(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)
-}
-
 func (_m *AssignmentStore) UpdateDetailsWithOutbox(id, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, expectedUpdatedAt time.Time, effects []models.OutboxEvent) (*models.Assignment, error) {
-	_m.Effects = append(_m.Effects, effects...)
-	ret := _m.Called(id, executorID, content, deadline, coExecutorIDs, expectedUpdatedAt)
+	_m.Effects = append([]models.OutboxEvent(nil), effects...)
+	ret := _m.Called(id, executorID, content, deadline, coExecutorIDs, expectedUpdatedAt, effects)
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateDetailsWithOutbox")
 	}
@@ -47,34 +31,29 @@ func (_m *AssignmentStore) UpdateDetailsWithOutbox(id, executorID uuid.UUID, con
 	return assignment, ret.Error(1)
 }
 
-func (_m *AssignmentStore) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
-	_m.Effects = append(_m.Effects, effects...)
-	return _m.Delete(id)
-}
-
-// Create provides a mock function with given fields: documentID, executorID, content, deadline, coExecutorIDs
-func (_m *AssignmentStore) Create(documentID uuid.UUID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string) (*models.Assignment, error) {
-	ret := _m.Called(documentID, executorID, content, deadline, coExecutorIDs)
+func (_m *AssignmentStore) CreateWithOutbox(id uuid.UUID, documentID uuid.UUID, executorID uuid.UUID, content string, deadline *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
+	_m.Effects = append([]models.OutboxEvent(nil), effects...)
+	ret := _m.Called(id, documentID, executorID, content, deadline, coExecutorIDs, effects)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Create")
+		panic("no return value specified for CreateWithOutbox")
 	}
 
 	var r0 *models.Assignment
 	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string, *time.Time, []string) (*models.Assignment, error)); ok {
-		return rf(documentID, executorID, content, deadline, coExecutorIDs)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, uuid.UUID, string, *time.Time, []string, []models.OutboxEvent) (*models.Assignment, error)); ok {
+		return rf(id, documentID, executorID, content, deadline, coExecutorIDs, effects)
 	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string, *time.Time, []string) *models.Assignment); ok {
-		r0 = rf(documentID, executorID, content, deadline, coExecutorIDs)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, uuid.UUID, string, *time.Time, []string, []models.OutboxEvent) *models.Assignment); ok {
+		r0 = rf(id, documentID, executorID, content, deadline, coExecutorIDs, effects)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Assignment)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID, string, *time.Time, []string) error); ok {
-		r1 = rf(documentID, executorID, content, deadline, coExecutorIDs)
+	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID, uuid.UUID, string, *time.Time, []string, []models.OutboxEvent) error); ok {
+		r1 = rf(id, documentID, executorID, content, deadline, coExecutorIDs, effects)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -82,17 +61,17 @@ func (_m *AssignmentStore) Create(documentID uuid.UUID, executorID uuid.UUID, co
 	return r0, r1
 }
 
-// Delete provides a mock function with given fields: id
-func (_m *AssignmentStore) Delete(id uuid.UUID) error {
-	ret := _m.Called(id)
+func (_m *AssignmentStore) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
+	_m.Effects = append([]models.OutboxEvent(nil), effects...)
+	ret := _m.Called(id, effects)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Delete")
+		panic("no return value specified for DeleteWithOutbox")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID) error); ok {
-		r0 = rf(id)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, []models.OutboxEvent) error); ok {
+		r0 = rf(id, effects)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -204,29 +183,29 @@ func (_m *AssignmentStore) GetAccessibleDocumentIDs(userID uuid.UUID, documentID
 	return r0, ret.Error(1)
 }
 
-// Update provides a mock function with given fields: id, executorID, content, deadline, status, report, completedAt, coExecutorIDs
-func (_m *AssignmentStore) Update(id uuid.UUID, executorID uuid.UUID, content string, deadline *time.Time, status string, report string, completedAt *time.Time, coExecutorIDs []string) (*models.Assignment, error) {
-	ret := _m.Called(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)
+func (_m *AssignmentStore) UpdateWithOutbox(id uuid.UUID, executorID uuid.UUID, content string, deadline *time.Time, status string, report string, completedAt *time.Time, coExecutorIDs []string, effects []models.OutboxEvent) (*models.Assignment, error) {
+	_m.Effects = append([]models.OutboxEvent(nil), effects...)
+	ret := _m.Called(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs, effects)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Update")
+		panic("no return value specified for UpdateWithOutbox")
 	}
 
 	var r0 *models.Assignment
 	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string, *time.Time, string, string, *time.Time, []string) (*models.Assignment, error)); ok {
-		return rf(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string, *time.Time, string, string, *time.Time, []string, []models.OutboxEvent) (*models.Assignment, error)); ok {
+		return rf(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs, effects)
 	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string, *time.Time, string, string, *time.Time, []string) *models.Assignment); ok {
-		r0 = rf(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)
+	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, string, *time.Time, string, string, *time.Time, []string, []models.OutboxEvent) *models.Assignment); ok {
+		r0 = rf(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs, effects)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Assignment)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID, string, *time.Time, string, string, *time.Time, []string) error); ok {
-		r1 = rf(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs)
+	if rf, ok := ret.Get(1).(func(uuid.UUID, uuid.UUID, string, *time.Time, string, string, *time.Time, []string, []models.OutboxEvent) error); ok {
+		r1 = rf(id, executorID, content, deadline, status, report, completedAt, coExecutorIDs, effects)
 	} else {
 		r1 = ret.Error(1)
 	}

@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // PreparedRestore contains only validated members in a private staging directory.
@@ -17,13 +16,7 @@ type PreparedRestore struct {
 }
 
 func PrepareRestore(ctx context.Context, pg PostgreSQL, archive, directory string, maxBytes int64, schema int) (PreparedRestore, error) {
-	var m Manifest
-	var err error
-	if copyFormat(strings.TrimSuffix(filepath.Base(archive), ".tar.gz")) == 2 {
-		m, err = UnpackV2(ctx, archive, directory, maxBytes)
-	} else {
-		m, err = Unpack(ctx, archive, directory, maxBytes)
-	}
+	m, err := Unpack(ctx, archive, directory, maxBytes)
 	if err != nil {
 		return PreparedRestore{}, err
 	}
@@ -37,10 +30,9 @@ func PrepareRestore(ctx context.Context, pg PostgreSQL, archive, directory strin
 	if err != nil {
 		return PreparedRestore{}, err
 	}
-	if dumpSchema > schema || (m.Schema != 0 && m.Schema != dumpSchema) {
+	if dumpSchema > schema || m.Schema != dumpSchema {
 		return PreparedRestore{}, fmt.Errorf("dump schema is incompatible with manifest or application")
 	}
-	m.Schema = dumpSchema
 	return PreparedRestore{Manifest: m, Directory: directory}, nil
 }
 
@@ -81,24 +73,6 @@ func downloadSelected(ctx context.Context, remote remoteReader, expected RemoteC
 	}
 	if n != actual.Size || fmt.Sprintf("%x", hash.Sum(nil)) != actual.SHA256 {
 		return "", fmt.Errorf("remote archive checksum mismatch")
-	}
-	if actual.Format == 2 {
-		in, err := remote.Open(ctx, markerName(actual.ID))
-		if err != nil {
-			return "", err
-		}
-		defer in.Close()
-		raw, err := io.ReadAll(io.LimitReader(in, 8193))
-		if err != nil {
-			return "", err
-		}
-		marker, err := parseCopyMarker(actual.ID, raw)
-		if err != nil || !sameCopy(marker, actual) {
-			return "", fmt.Errorf("legacy manifest changed")
-		}
-		if err = durableMarker(archive+".manifest", raw); err != nil {
-			return "", err
-		}
 	}
 	return archive, syncDirectory(directory)
 }

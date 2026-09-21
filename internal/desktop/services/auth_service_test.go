@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 	"errors"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,6 +13,8 @@ import (
 )
 
 type fakeServerAuthClient struct {
+	meCalls                     int
+	meErr                       error
 	user                        *dto.User
 	loginCalls                  int
 	logoutCalls                 int
@@ -30,7 +32,10 @@ func (f *fakeServerAuthClient) Logout(context.Context) error {
 	f.logoutCalls++
 	return nil
 }
-func (f *fakeServerAuthClient) Me(context.Context) (*dto.User, error) { return f.user, nil }
+func (f *fakeServerAuthClient) Me(context.Context) (*dto.User, error) {
+	f.meCalls++
+	return f.user, f.meErr
+}
 func (f *fakeServerAuthClient) ChangePassword(context.Context, string, string) error {
 	f.changePasswordCalls++
 	return nil
@@ -54,7 +59,6 @@ func TestAuthServiceUsesRequiredServerSessionWhenConfigured(t *testing.T) {
 	user, err := service.Login("server-user", "Passw0rd!")
 	require.NoError(t, err)
 	assert.Equal(t, userID.String(), user.ID)
-	require.NoError(t, NewPrincipal(service, nil).RequireAuthenticated())
 	require.NoError(t, service.Logout())
 	assert.Equal(t, 1, client.loginCalls)
 	assert.Equal(t, 1, client.logoutCalls)
@@ -69,7 +73,7 @@ func TestAuthServiceUsesServerForPasswordChangesWhenConfigured(t *testing.T) {
 
 	require.NoError(t, service.ChangePassword("Passw0rd!", "NewPassw0rd!"))
 	assert.Equal(t, 1, client.changePasswordCalls)
-	assert.False(t, service.IsAuthenticated())
+	assert.False(t, service.GetSessionState().Authenticated)
 
 	require.NoError(t, service.ChangeRequiredPassword("server-user", "Passw0rd!", "NewPassw0rd!"))
 	assert.Equal(t, 1, client.changeRequiredPasswordCalls)
@@ -92,17 +96,13 @@ func TestAuthServiceRequiresServerClient(t *testing.T) {
 	require.ErrorIs(t, err, errServerAuthNotConfigured)
 	_, err = service.GetCurrentUser()
 	require.ErrorIs(t, err, errServerAuthNotConfigured)
-	require.ErrorIs(t, NewPrincipal(service, nil).RequireAuthenticated(), errServerAuthNotConfigured)
+	require.ErrorIs(t, NewPrincipal(service).RequireSystemPermission(models.SystemPermissionAdmin), errServerAuthNotConfigured)
 	require.ErrorIs(t, service.ChangePassword("old", "new"), errServerAuthNotConfigured)
 	require.ErrorIs(t, service.ChangeRequiredPassword("user", "old", "new"), errServerAuthNotConfigured)
 	require.ErrorIs(t, service.UpdateProfile(models.UpdateProfileRequest{}), errServerAuthNotConfigured)
 	_, err = service.NeedsInitialSetup()
 	require.ErrorIs(t, err, errServerAuthNotConfigured)
 	require.ErrorIs(t, service.InitialSetup("Passw0rd!"), errServerAuthNotConfigured)
-	require.False(t, NewPrincipal(service, nil).HasSystemPermission(models.SystemPermissionAdmin))
-	id, name := NewPrincipal(service, nil).GetCurrentAuditInfo()
-	require.Equal(t, uuid.Nil, id)
-	require.Equal(t, "system", name)
 }
 
 type setupAuthClient struct {
@@ -130,24 +130,6 @@ func TestAuthServiceForwardsBootstrapAndErrors(t *testing.T) {
 	require.ErrorIs(t, service.InitialSetup("another"), client.err)
 }
 
-func TestAuthServiceMaintenanceKeepsLoginAvailableAndBlocksProtectedOperations(t *testing.T) {
-	client := &fakeServerAuthClient{user: &dto.User{ID: uuid.NewString(), IsActive: true}}
-	service := NewAuthService(client, nil, nil, nil)
-	maintenance := errors.New("maintenance")
-	principal := NewPrincipal(service, fakeReadiness{err: maintenance})
-	_, err := service.Login("user", "Passw0rd!")
-	require.NoError(t, err)
-	require.ErrorIs(t, principal.RequireAuthenticated(), maintenance)
-	_, err = principal.GetCurrentUserUUID()
-	require.ErrorIs(t, err, maintenance)
-	require.ErrorIs(t, principal.RequireSystemPermission(models.SystemPermissionAdmin), maintenance)
-	require.NoError(t, service.Logout())
-}
-
 func (f *fakeServerAuthClient) SessionState() serverclient.SessionState {
 	return serverclient.SessionState{}
 }
-
-type fakeReadiness struct{ err error }
-
-func (f fakeReadiness) CheckReady() error { return f.err }

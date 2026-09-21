@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/background"
 	"io/fs"
 	"log/slog"
 	"time"
@@ -76,21 +75,16 @@ func newWailsOptionsWithDependencies(
 			}
 		}
 	}
-	backgroundServices := background.NewLifecycle(
-		newServerMigrationStatusReader(serverClient).GetMigrationStatus,
-		nil,
-		nil,
-	)
 	authService := desktopservices.NewAuthService(serverClient, serverClient, operationLifecycle, metrics)
-	principal := desktopservices.NewPrincipal(authService, backgroundServices)
+	principal := desktopservices.NewPrincipal(authService)
 	logger.SetUserIDProvider(principal.GetCurrentUserID)
-	settingsService := desktopservices.NewSettingsService(principal, serverClient, serverClient, backgroundServices)
+	settingsService := desktopservices.NewSettingsService(principal, serverClient, serverClient)
 	adminAuditLogService := desktopservices.NewAdminAuditLogService(serverClient)
 	outboxAdminService := desktopservices.NewOutboxAdminService(serverClient)
 	userService := desktopservices.NewUserService(serverClient)
 	userSubstitutionService := desktopservices.NewUserSubstitutionService(serverClient)
 	nomenclatureService := desktopservices.NewNomenclatureService(serverClient)
-	referenceService := desktopservices.NewReferenceService(principal, serverClient)
+	referenceService := desktopservices.NewReferenceService(serverClient)
 	documentAccessAdminService := desktopservices.NewDocumentAccessAdminService(serverClient)
 	documentKindService := desktopservices.NewDocumentKindService(serverClient)
 	journalService := desktopservices.NewJournalService(serverClient)
@@ -160,8 +154,6 @@ func newWailsOptionsWithDependencies(
 			})
 			startSystem(ctx)
 			startAttachments(ctx)
-			backgroundServices.SetApplicationContext(ctx)
-			backgroundServices.ReconcileSchema()
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {
@@ -169,9 +161,6 @@ func newWailsOptionsWithDependencies(
 			serverClient.SetSessionEndedHandler(nil)
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			if err := backgroundServices.Stop(shutdownCtx); err != nil {
-				slog.Warn("shutdown continued before background services stopped", "error", err)
-			}
 			if err := operationLifecycle.Shutdown(shutdownCtx); err != nil {
 				slog.Warn("shutdown continued before all backend operations finished", "error", err)
 			}
