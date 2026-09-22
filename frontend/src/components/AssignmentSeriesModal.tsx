@@ -128,7 +128,7 @@ const AssignmentSeriesModal: React.FC<Props> = ({ open, seriesId, documentId, on
 
     const parameters = (
         <Form form={form} layout="vertical">
-            {ready && !series.active && <Alert type="warning" showIcon message="Серия отменена. Новые итерации создаваться не будут." style={{ marginBottom: 16 }} />}
+            {ready && !series.active && <Alert type="warning" showIcon title="Серия отменена. Новые итерации создаваться не будут." style={{ marginBottom: 16 }} />}
             <Form.Item name="executorId" label="Ответственный исполнитель" rules={[{ required: true }]}>
                 <Select showSearch optionFilterProp="label" options={executors.map((user) => ({ value: user.id, label: user.fullName }))} disabled={!ready || !series.active} />
             </Form.Item>
@@ -148,7 +148,7 @@ const AssignmentSeriesModal: React.FC<Props> = ({ open, seriesId, documentId, on
                     </> : null}
                 </Form.Item>
             </Space>
-            <Alert type="info" showIcon message="Изменения применятся только к итерациям, которые ещё не созданы." />
+            <Alert type="info" showIcon title="Изменения применятся только к итерациям, которые ещё не созданы." />
         </Form>
     );
 

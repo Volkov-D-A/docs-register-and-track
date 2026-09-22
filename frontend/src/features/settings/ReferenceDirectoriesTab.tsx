@@ -143,7 +143,7 @@ const OrganizationsTab: React.FC = () => {
           <Alert
             type="warning"
             showIcon
-            message="Документы будут перенесены на выбранную организацию, исходная запись будет удалена."
+            title="Документы будут перенесены на выбранную организацию, исходная запись будет удалена."
           />
           <Typography.Text>
             Исходная организация: <Typography.Text strong>{mergeItem?.name}</Typography.Text>

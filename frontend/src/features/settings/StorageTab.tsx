@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, App, Button, DatePicker, Divider, Form, List, Typography } from 'antd';
+import { Alert, App, Button, DatePicker, Divider, Form, Typography } from 'antd';
 import { DeleteOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons';
 import { formatAppError } from '../../utils/appError';
 
@@ -102,19 +102,19 @@ const StorageTab: React.FC = () => {
         Сверить с объектным хранилищем
       </Button>
       {reconciliation && <div style={{ marginTop: 16 }}>
-        {!reconciliation.missingObjects.length && !reconciliation.orphanObjects.length && <Alert type="success" showIcon message="Расхождения не обнаружены" />}
+        {!reconciliation.missingObjects.length && !reconciliation.orphanObjects.length && <Alert type="success" showIcon title="Расхождения не обнаружены" />}
         {!!reconciliation.missingObjects.length && <Alert
           type="error"
           showIcon
-          message={`Ссылки без файлов: ${reconciliation.missingObjects.length}`}
-          description={<><Typography.Paragraph style={{ marginTop: 8 }}>Рекомендуется восстановить эти объекты из согласованной резервной копии. Если восстановление невозможно, удалите соответствующие вложения из документов штатными средствами.</Typography.Paragraph><List size="small" bordered dataSource={reconciliation.missingObjects} renderItem={(path) => <List.Item><Typography.Text code>{path}</Typography.Text></List.Item>} /></>}
+          title={`Ссылки без файлов: ${reconciliation.missingObjects.length}`}
+          description={<><Typography.Paragraph style={{ marginTop: 8 }}>Рекомендуется восстановить эти объекты из согласованной резервной копии. Если восстановление невозможно, удалите соответствующие вложения из документов штатными средствами.</Typography.Paragraph><ul>{reconciliation.missingObjects.map((path) => <li key={path}><Typography.Text code>{path}</Typography.Text></li>)}</ul></>}
           style={{ marginTop: 12 }}
         />}
         {!!reconciliation.orphanObjects.length && <Alert
           type="warning"
           showIcon
-          message={`Файлы без ссылок: ${reconciliation.orphanObjects.length}`}
-          description={<><Typography.Paragraph style={{ marginTop: 8 }}>Проверьте список и резервную копию; после подтверждения ненужные объекты можно удалить из объектного хранилища. Автоматическое удаление не выполняется.</Typography.Paragraph><List size="small" bordered dataSource={reconciliation.orphanObjects} renderItem={(path) => <List.Item><Typography.Text code>{path}</Typography.Text></List.Item>} /></>}
+          title={`Файлы без ссылок: ${reconciliation.orphanObjects.length}`}
+          description={<><Typography.Paragraph style={{ marginTop: 8 }}>Проверьте список и резервную копию; после подтверждения ненужные объекты можно удалить из объектного хранилища. Автоматическое удаление не выполняется.</Typography.Paragraph><ul>{reconciliation.orphanObjects.map((path) => <li key={path}><Typography.Text code>{path}</Typography.Text></li>)}</ul></>}
           style={{ marginTop: 12 }}
         />}
       </div>}

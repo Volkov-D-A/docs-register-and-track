@@ -195,7 +195,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                                                 )}
                                             </div>
                                         )}
-                                        <Alert type="info" showIcon message="После принятия текущей итерации следующая появится сразу с очередным календарным сроком." style={{ marginBottom: 16 }} />
+                                        <Alert type="info" showIcon title="После принятия текущей итерации следующая появится сразу с очередным календарным сроком." style={{ marginBottom: 16 }} />
                                     </>
                                 )}
                                 <Form.Item

@@ -46,7 +46,7 @@ export default function SystemBootstrapGate({ children }: SystemBootstrapGatePro
                     banner
                     showIcon
                     type="warning"
-                    message={status.message}
+                    title={status.message}
                 />
                 {children}
             </>
@@ -57,14 +57,14 @@ export default function SystemBootstrapGate({ children }: SystemBootstrapGatePro
     return (
         <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
             <Card style={{ width: 'min(100%, 520px)' }}>
-                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                <Space orientation="vertical" size="large" style={{ width: '100%' }}>
                     <Typography.Title level={3} style={{ margin: 0 }}>
                         Подключение к серверу
                     </Typography.Title>
                     <Alert
                         showIcon
                         type="error"
-                        message={status?.message ?? 'Не удалось проверить состояние сервера.'}
+                        title={status?.message ?? 'Не удалось проверить состояние сервера.'}
                     />
                     {serverVersion && (
                         <Typography.Text type="secondary">

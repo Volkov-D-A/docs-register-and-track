@@ -133,7 +133,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                                 <Tooltip title="Взять в работу">
                                     <Button
                                         size="small"
-                                        icon={<PlayCircleOutlined />}
+                                        icon={<PlayCircleOutlined aria-hidden="true" />}
                                         onClick={() => handleUpdateStatus(assignment.id, 'in_progress')}
                                     >
                                         Взять в работу
@@ -145,7 +145,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                                     <Button
                                         size="small"
                                         type="primary"
-                                        icon={<CheckCircleOutlined />}
+                                        icon={<CheckCircleOutlined aria-hidden="true" />}
                                         onClick={() => {
                                             setCurrentAssignment(assignment);
                                             setCompletionModalOpen(true);
@@ -161,7 +161,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                                         <Button
                                             size="small"
                                             type="primary"
-                                            icon={<FileDoneOutlined />}
+                                            icon={<FileDoneOutlined aria-hidden="true" />}
                                             onClick={() => handleUpdateStatus(assignment.id, 'finished')}
                                         >
                                             Завершить
@@ -170,7 +170,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                                     <Tooltip title="Вернуть на доработку">
                                         <Button
                                             size="small"
-                                            icon={<UndoOutlined />}
+                                            icon={<UndoOutlined aria-hidden="true" />}
                                             onClick={() => {
                                                 setCurrentAssignment(assignment);
                                                 setReturnReasonText('');

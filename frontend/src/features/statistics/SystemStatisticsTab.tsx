@@ -153,7 +153,7 @@ const SystemStatisticsTab: React.FC = () => {
   const attachmentProblems = (stats?.attachments?.missingObjects ?? 0) + (stats?.attachments?.orphanObjects ?? 0);
 
   return <Spin spinning={loading && !stats}>
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}><StatCard title="Пользователи" value={stats?.userCount ?? 0} icon={<UserOutlined />} color="#1677ff" /></Col>
         <Col xs={24} sm={12} lg={6}><StatCard title="Всего документов" value={stats?.totalDocuments ?? 0} icon={<DatabaseOutlined />} color="#52c41a" /></Col>
@@ -222,13 +222,13 @@ const SystemStatisticsTab: React.FC = () => {
       {attachmentProblems > 0 && <Alert
         type="warning"
         showIcon
-        message="Последняя сверка вложений обнаружила расхождения"
+        title="Последняя сверка вложений обнаружила расхождения"
         description={`Отсутствуют объектов: ${stats?.attachments?.missingObjects ?? 0}; лишних объектов: ${stats?.attachments?.orphanObjects ?? 0}.`}
       />}
 
       {refreshActive && !pollTimedOut && <Typography.Text type="secondary">Выполняется фоновая сверка объектного хранилища. Показаны данные последней завершённой сверки.</Typography.Text>}
-      {pollTimedOut && <Alert type="warning" showIcon message="Сверка ещё не завершена" description="Автоматическое ожидание остановлено. Проверьте состояние ещё раз вручную." />}
-      {storageStatus?.state === 'failed' && <Alert type="error" showIcon message="Сверка объектного хранилища завершилась с ошибкой" description={storageStatus.lastError || 'Повторите попытку.'} />}
+      {pollTimedOut && <Alert type="warning" showIcon title="Сверка ещё не завершена" description="Автоматическое ожидание остановлено. Проверьте состояние ещё раз вручную." />}
+      {storageStatus?.state === 'failed' && <Alert type="error" showIcon title="Сверка объектного хранилища завершилась с ошибкой" description={storageStatus.lastError || 'Повторите попытку.'} />}
 
       <Space>
         {refreshedAt && <Typography.Text type="secondary">Последняя полная сверка объектного хранилища: {new Date(refreshedAt).toLocaleString('ru-RU')}</Typography.Text>}
