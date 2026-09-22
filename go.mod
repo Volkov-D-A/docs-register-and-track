@@ -5,18 +5,18 @@ go 1.27.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/aws/aws-sdk-go-v2 v1.47.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.4
-	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.4.5
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.0
-	github.com/aws/smithy-go v1.28.1
-	github.com/cloudsoda/go-smb2 v0.0.0-20260803221621-0b399b9d036c
-	github.com/golang-migrate/migrate/v4 v4.19.1
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.5
+	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.4.8
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.2
+	github.com/aws/smithy-go v1.28.2
+	github.com/cloudsoda/go-smb2 v0.0.0-20260918041005-0c5d69b69701
+	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
 	github.com/stretchr/testify v1.12.1
-	github.com/wailsapp/wails/v2 v2.15.0
-	golang.org/x/crypto v0.56.0
-	golang.org/x/sys v0.47.0
+	github.com/wailsapp/wails/v2 v2.16.0
+	golang.org/x/crypto v0.57.0
+	golang.org/x/sys v0.48.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -32,11 +32,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/cloudsoda/sddl v0.0.0-20250224235906-926454e91efc // indirect
-	github.com/geoffgarside/ber v1.1.0 // indirect
+	github.com/geoffgarside/ber v1.2.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/hashicorp/go-uuid v1.0.4 // indirect
 	github.com/jchv/go-winloader v0.0.0-20250406163304-c1995be93bd1 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
@@ -65,7 +65,7 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
