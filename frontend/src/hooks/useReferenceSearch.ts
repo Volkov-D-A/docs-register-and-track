@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useLatestRequest } from './useLatestRequest';
 
 type SearchOption = {
     value: string;
@@ -17,27 +18,31 @@ export const useOrganizationSearch = ({
     includeQueryOption = true,
 }: UseOrganizationSearchOptions = {}) => {
     const [options, setOptions] = useState<SearchOption[]>([]);
+    const { run, invalidate } = useLatestRequest();
 
     const search = useCallback(async (query: string) => {
         if (query.length < minLength) {
+            invalidate();
             if (clearOnShortQuery) {
                 setOptions(query && includeQueryOption ? [{ value: query, label: query }] : []);
             }
             return;
         }
 
-        try {
+        await run(async () => {
             const { SearchOrganizations } = await import('../../wailsjs/go/services/ReferenceService');
-            const orgs = await SearchOrganizations(query);
-            const items = (orgs || []).map((org: any) => ({ value: org.name, label: org.name }));
-            if (includeQueryOption && query && !items.find((item: SearchOption) => item.value === query)) {
-                items.unshift({ value: query, label: query });
-            }
-            setOptions(items);
-        } catch {
-            setOptions(includeQueryOption && query ? [{ value: query, label: query }] : []);
-        }
-    }, [clearOnShortQuery, includeQueryOption, minLength]);
+            return SearchOrganizations(query);
+        }, {
+            onSuccess: (orgs) => {
+                const items = (orgs || []).map((org) => ({ value: org.name, label: org.name }));
+                if (includeQueryOption && query && !items.some((item) => item.value === query)) {
+                    items.unshift({ value: query, label: query });
+                }
+                setOptions(items);
+            },
+            onError: () => setOptions(includeQueryOption && query ? [{ value: query, label: query }] : []),
+        });
+    }, [clearOnShortQuery, includeQueryOption, invalidate, minLength, run]);
 
     return {
         options,
@@ -47,21 +52,23 @@ export const useOrganizationSearch = ({
 
 export const useResolutionExecutorSearch = () => {
     const [options, setOptions] = useState<SearchOption[]>([]);
+    const { run, invalidate } = useLatestRequest();
 
     const search = useCallback(async (query: string) => {
         if (query.length < 2) {
+            invalidate();
             setOptions([]);
             return;
         }
 
-        try {
+        await run(async () => {
             const { SearchResolutionExecutors } = await import('../../wailsjs/go/services/ReferenceService');
-            const execs = await SearchResolutionExecutors(query);
-            setOptions((execs || []).map((executor: any) => ({ value: executor.name, label: executor.name })));
-        } catch {
-            setOptions([]);
-        }
-    }, []);
+            return SearchResolutionExecutors(query);
+        }, {
+            onSuccess: (executors) => setOptions((executors || []).map((executor) => ({ value: executor.name, label: executor.name }))),
+            onError: () => setOptions([]),
+        });
+    }, [invalidate, run]);
 
     return {
         options,

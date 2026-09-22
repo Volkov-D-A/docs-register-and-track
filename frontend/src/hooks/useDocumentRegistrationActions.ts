@@ -3,14 +3,6 @@ import { App } from 'antd';
 import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
 import { formatAppError } from '../utils/appError';
 
-type LinkCreatedDocumentParams = {
-    newDocument: any;
-    sourceId: string;
-    sourceKind: string;
-    targetKind: string;
-    draftLinkType?: string;
-};
-
 type UseDocumentRegistrationActionsOptions = {
     kindCode: string;
     sourceId?: string;
@@ -18,7 +10,6 @@ type UseDocumentRegistrationActionsOptions = {
     targetKind?: string;
     draftLinkType?: string;
     clearDraftLink: () => void;
-    linkCreatedDocument?: (params: LinkCreatedDocumentParams) => Promise<void>;
 };
 
 type RegisterDocumentOptions = {
@@ -40,7 +31,6 @@ export const useDocumentRegistrationActions = ({
     targetKind,
     draftLinkType,
     clearDraftLink,
-    linkCreatedDocument,
 }: UseDocumentRegistrationActionsOptions) => {
     const { message } = App.useApp();
     const [registerIdempotencyKey, setRegisterIdempotencyKey] = useState(() => crypto.randomUUID());
@@ -48,29 +38,6 @@ export const useDocumentRegistrationActions = ({
     const [editSubmitting, setEditSubmitting] = useState(false);
     const registerSubmittingRef = useRef(false);
     const editSubmittingRef = useRef(false);
-
-    const linkDocument = useCallback(async (newDocument: any) => {
-        if (!sourceId || targetKind !== kindCode || !sourceKind) {
-            return;
-        }
-
-        if (linkCreatedDocument) {
-            await linkCreatedDocument({
-                newDocument,
-                sourceId,
-                sourceKind,
-                targetKind,
-                draftLinkType,
-            });
-            clearDraftLink();
-            return;
-        }
-
-        const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
-        const linkType = resolveLinkTypeForNewDocument(sourceKind, kindCode);
-        await LinkDocuments(sourceId, newDocument.id, linkType);
-        clearDraftLink();
-    }, [clearDraftLink, draftLinkType, kindCode, linkCreatedDocument, sourceId, sourceKind, targetKind]);
 
     const registerDocument = useCallback(async ({ payload, successMessage, onSuccess }: RegisterDocumentOptions) => {
         if (registerSubmittingRef.current) {
@@ -80,12 +47,17 @@ export const useDocumentRegistrationActions = ({
         setRegisterSubmitting(true);
         try {
             const { Register } = await import('../../wailsjs/go/services/DocumentRegistrationService');
-            const newDoc = await Register(kindCode, {
-                idempotencyKey: registerIdempotencyKey,
+            const link = sourceId && sourceKind && targetKind === kindCode ? {
+                documentId: sourceId,
+                linkType: draftLinkType || resolveLinkTypeForNewDocument(sourceKind, kindCode),
+            } : undefined;
+            await Register(kindCode, {
                 ...payload,
+                idempotencyKey: registerIdempotencyKey,
+                link,
             } as any);
 
-            await linkDocument(newDoc);
+            if (link) clearDraftLink();
 
             message.success(successMessage);
             setRegisterIdempotencyKey(crypto.randomUUID());
@@ -96,7 +68,7 @@ export const useDocumentRegistrationActions = ({
             registerSubmittingRef.current = false;
             setRegisterSubmitting(false);
         }
-    }, [kindCode, linkDocument, message, registerIdempotencyKey]);
+    }, [clearDraftLink, draftLinkType, kindCode, message, registerIdempotencyKey, sourceId, sourceKind, targetKind]);
 
     const updateDocument = useCallback(async ({ payload, successMessage, onSuccess }: UpdateDocumentOptions) => {
         if (editSubmittingRef.current) {

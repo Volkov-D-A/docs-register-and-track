@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { App, Button, Input, Modal, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { Alert, App, Button, Input, Modal, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { CheckCircleOutlined, FileDoneOutlined, PlayCircleOutlined, UndoOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import AssignmentCompletionModal from './AssignmentCompletionModal';
@@ -42,6 +42,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
     const { message } = App.useApp();
     const {
         data,
+        loadWarning,
         loading,
         accessReady,
         canManageAssignments,
@@ -70,7 +71,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
         }
     };
 
-    if (!loading && accessReady && actionableAssignments.length === 0) {
+    if (!loading && accessReady && !loadWarning && actionableAssignments.length === 0) {
         return null;
     }
 
@@ -95,6 +96,13 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                 <Text strong>Поручения к исполнению</Text>
                 {loading && <Spin size="small" />}
             </div>
+
+            {loadWarning && <Alert
+                type="warning"
+                showIcon
+                title={loadWarning}
+                action={<Button size="small" loading={loading} onClick={() => void load()}>Обновить</Button>}
+            />}
 
             {!loading && actionableAssignments.map((assignment) => {
                 const canActAsExecutor = assignment.canAct;

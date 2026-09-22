@@ -2,6 +2,7 @@ package dto
 
 // IncomingLetterRegisterRequest описывает команду регистрации входящего письма.
 type IncomingLetterRegisterRequest struct {
+	Link                 *DocumentRegistrationLinkRequest     `json:"link,omitempty"`
 	NomenclatureID       string                               `json:"nomenclatureId"`
 	IdempotencyKey       string                               `json:"idempotencyKey"`
 	DocumentTypeID       string                               `json:"documentTypeId"`
@@ -42,19 +43,20 @@ type IncomingLetterCorrespondentRequest struct {
 
 // OutgoingLetterRegisterRequest описывает команду регистрации исходящего письма.
 type OutgoingLetterRegisterRequest struct {
-	NomenclatureID       string                      `json:"nomenclatureId"`
-	IdempotencyKey       string                      `json:"idempotencyKey"`
-	DocumentTypeID       string                      `json:"documentTypeId"`
-	RecipientOrgName     string                      `json:"recipientOrgName"`
-	Addressee            string                      `json:"addressee"`
-	OutgoingDate         string                      `json:"outgoingDate"`
-	Content              string                      `json:"content"`
-	PagesCount           int                         `json:"pagesCount"`
-	AttachmentPagesCount int                         `json:"attachmentPagesCount"`
-	SenderSignatory      string                      `json:"senderSignatory"`
-	SenderExecutor       string                      `json:"senderExecutor"`
-	RegistrationNumber   string                      `json:"registrationNumber"`
-	AdminNumberOverride  *AdminNumberOverrideRequest `json:"adminNumberOverride"`
+	Link                 *DocumentRegistrationLinkRequest `json:"link,omitempty"`
+	NomenclatureID       string                           `json:"nomenclatureId"`
+	IdempotencyKey       string                           `json:"idempotencyKey"`
+	DocumentTypeID       string                           `json:"documentTypeId"`
+	RecipientOrgName     string                           `json:"recipientOrgName"`
+	Addressee            string                           `json:"addressee"`
+	OutgoingDate         string                           `json:"outgoingDate"`
+	Content              string                           `json:"content"`
+	PagesCount           int                              `json:"pagesCount"`
+	AttachmentPagesCount int                              `json:"attachmentPagesCount"`
+	SenderSignatory      string                           `json:"senderSignatory"`
+	SenderExecutor       string                           `json:"senderExecutor"`
+	RegistrationNumber   string                           `json:"registrationNumber"`
+	AdminNumberOverride  *AdminNumberOverrideRequest      `json:"adminNumberOverride"`
 }
 
 // OutgoingLetterUpdateRequest описывает команду обновления исходящего письма.
@@ -74,6 +76,7 @@ type OutgoingLetterUpdateRequest struct {
 
 // CitizenAppealRegisterRequest описывает команду регистрации обращения граждан.
 type CitizenAppealRegisterRequest struct {
+	Link                 *DocumentRegistrationLinkRequest    `json:"link,omitempty"`
 	NomenclatureID       string                              `json:"nomenclatureId"`
 	IdempotencyKey       string                              `json:"idempotencyKey"`
 	RegistrationDate     string                              `json:"registrationDate"`
@@ -129,18 +132,19 @@ type CitizenAppealResolutionRequest struct {
 
 // AdministrativeOrderRegisterRequest описывает команду регистрации приказа.
 type AdministrativeOrderRegisterRequest struct {
-	NomenclatureID          string                      `json:"nomenclatureId"`
-	IdempotencyKey          string                      `json:"idempotencyKey"`
-	OrderDate               string                      `json:"orderDate"`
-	Title                   string                      `json:"title"`
-	PagesCount              int                         `json:"pagesCount"`
-	ExecutionController     string                      `json:"executionController"`
-	ExecutionDeadline       string                      `json:"executionDeadline"`
-	IsActive                bool                        `json:"isActive"`
-	CancelledAt             string                      `json:"cancelledAt"`
-	AcknowledgmentFullNames []string                    `json:"acknowledgmentFullNames"`
-	RegistrationNumber      string                      `json:"registrationNumber"`
-	AdminNumberOverride     *AdminNumberOverrideRequest `json:"adminNumberOverride"`
+	Link                    *DocumentRegistrationLinkRequest `json:"link,omitempty"`
+	NomenclatureID          string                           `json:"nomenclatureId"`
+	IdempotencyKey          string                           `json:"idempotencyKey"`
+	OrderDate               string                           `json:"orderDate"`
+	Title                   string                           `json:"title"`
+	PagesCount              int                              `json:"pagesCount"`
+	ExecutionController     string                           `json:"executionController"`
+	ExecutionDeadline       string                           `json:"executionDeadline"`
+	IsActive                bool                             `json:"isActive"`
+	CancelledAt             string                           `json:"cancelledAt"`
+	AcknowledgmentFullNames []string                         `json:"acknowledgmentFullNames"`
+	RegistrationNumber      string                           `json:"registrationNumber"`
+	AdminNumberOverride     *AdminNumberOverrideRequest      `json:"adminNumberOverride"`
 }
 
 // AdministrativeOrderUpdateRequest описывает команду обновления приказа.
@@ -168,4 +172,11 @@ type AdminDraftCreateRequest struct {
 	RegistrationDate    string                      `json:"registrationDate"`
 	AdminNumberOverride *AdminNumberOverrideRequest `json:"adminNumberOverride"`
 	IdempotencyKey      string                      `json:"idempotencyKey,omitempty"`
+}
+
+// DocumentRegistrationLinkRequest links a new document to an existing one atomically.
+// For order_amends/order_cancels the new order is the source; otherwise it is the target.
+type DocumentRegistrationLinkRequest struct {
+	DocumentID string `json:"documentId"`
+	LinkType   string `json:"linkType"`
 }

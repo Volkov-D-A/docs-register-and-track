@@ -365,6 +365,7 @@ type GraphData struct {
 
 // CreateIncomingDocRequest — запрос на создание входящего документа (уровень репозитория).
 type CreateIncomingDocRequest struct {
+	Link                 *DocumentRegistrationLink
 	NomenclatureID       uuid.UUID
 	IdempotencyKey       uuid.UUID
 	AdminNumberOverride  *AdminNumberOverride
@@ -402,6 +403,7 @@ type UpdateIncomingDocRequest struct {
 
 // CreateOutgoingDocRequest — запрос на создание исходящего документа (уровень репозитория).
 type CreateOutgoingDocRequest struct {
+	Link                 *DocumentRegistrationLink
 	NomenclatureID       uuid.UUID
 	IdempotencyKey       uuid.UUID
 	AdminNumberOverride  *AdminNumberOverride
@@ -438,6 +440,7 @@ type UpdateOutgoingDocRequest struct {
 
 // CreateCitizenAppealDocRequest — запрос на создание обращения граждан.
 type CreateCitizenAppealDocRequest struct {
+	Link                 *DocumentRegistrationLink
 	NomenclatureID       uuid.UUID
 	IdempotencyKey       uuid.UUID
 	AdminNumberOverride  *AdminNumberOverride
@@ -483,6 +486,7 @@ type UpdateCitizenAppealDocRequest struct {
 
 // CreateAdministrativeOrderDocRequest — запрос на создание приказа.
 type CreateAdministrativeOrderDocRequest struct {
+	Link                    *DocumentRegistrationLink
 	NomenclatureID          uuid.UUID
 	IdempotencyKey          uuid.UUID
 	AdminNumberOverride     *AdminNumberOverride
@@ -524,4 +528,11 @@ type UpdateAdministrativeOrderDocRequest struct {
 	IsActive                bool
 	CancelledAt             *time.Time
 	AcknowledgmentFullNames []string
+}
+
+// DocumentRegistrationLink is authorized by the command handler and persisted
+// in the same transaction as the newly registered document.
+type DocumentRegistrationLink struct {
+	DocumentID uuid.UUID
+	LinkType   string
 }

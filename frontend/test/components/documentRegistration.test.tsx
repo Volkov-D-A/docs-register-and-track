@@ -31,7 +31,7 @@ describe('document registration frontend flow', () => {
       await result.current.registerDocument({ payload: { content: 'first' }, successMessage: 'saved', onSuccess });
     });
     await act(async () => {
-      await result.current.registerDocument({ payload: { content: 'second' }, successMessage: 'saved', onSuccess });
+      await result.current.registerDocument({ payload: { content: 'first' }, successMessage: 'saved', onSuccess });
     });
 
     expect(register).toHaveBeenNthCalledWith(1, 'outgoing_letter', expect.objectContaining({ idempotencyKey: '11111111-1111-4111-8111-111111111111' }));
@@ -42,6 +42,39 @@ describe('document registration frontend flow', () => {
       await result.current.registerDocument({ payload: { content: 'third' }, successMessage: 'saved', onSuccess });
     });
     expect(register).toHaveBeenNthCalledWith(3, 'outgoing_letter', expect.objectContaining({ idempotencyKey: '22222222-2222-4222-8222-222222222222' }));
+  });
+
+  test.each<[string, string, string | undefined, string]>([
+    ['outgoing_letter', 'incoming_letter', undefined, 'reply'],
+    ['administrative_order', 'administrative_order', 'order_cancels', 'order_cancels'],
+  ])('registers %s and its link as one retryable command', async (kindCode, sourceKind, draftLinkType, expectedType) => {
+    const register = vi.fn().mockRejectedValueOnce(new Error('response lost')).mockResolvedValue({ id: 'new-document' });
+    const linkDocuments = vi.fn();
+    installWailsMock({
+      DocumentRegistrationService: { Register: register, Update: vi.fn() },
+      LinkService: { LinkDocuments: linkDocuments },
+    });
+    const clearDraftLink = vi.fn();
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() => useDocumentRegistrationActions({
+      kindCode, sourceKind, sourceId: 'existing-document', targetKind: kindCode,
+      draftLinkType, clearDraftLink,
+    }), { wrapper: HookWrapper });
+    const options = { payload: { content: 'same' }, successMessage: 'saved', onSuccess };
+
+    await act(async () => { await result.current.registerDocument(options); });
+    expect(clearDraftLink).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+    await act(async () => { await result.current.registerDocument(options); });
+
+    expect(register).toHaveBeenCalledTimes(2);
+    expect(register.mock.calls[0]).toEqual(register.mock.calls[1]);
+    expect(register).toHaveBeenCalledWith(kindCode, expect.objectContaining({
+      link: { documentId: 'existing-document', linkType: expectedType },
+    }));
+    expect(linkDocuments).not.toHaveBeenCalled();
+    expect(clearDraftLink).toHaveBeenCalledTimes(1);
+    expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 
   test('suppresses a second registration while the first is pending', async () => {

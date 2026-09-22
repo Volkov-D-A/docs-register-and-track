@@ -19,11 +19,11 @@ import (
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/attachmentname"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 )
 
 // AttachmentService is the desktop HTTP adapter and the attachment Wails API.
@@ -90,52 +90,56 @@ func (s *AttachmentService) shortOperationContext() (context.Context, func()) {
 	return ctx, func() { cancel(); release() }
 }
 
-func (s *AttachmentService) Upload(documentIDStr string) ([]dto.Attachment, error) {
-	return operations.Measure(s.metrics, "attachments.upload", func() ([]dto.Attachment, error) {
-		uiContext := s.pickerContext()
-		if uiContext == nil {
-			return nil, fmt.Errorf("file picker is not initialized")
-		}
-		paths, err := s.openFilesDialog(uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для вложения"})
-		if err != nil {
-			return nil, fmt.Errorf("failed to choose files: %w", err)
-		}
-		attachments := make([]dto.Attachment, 0, len(paths))
-		for _, path := range paths {
-			attachment, err := s.uploadSelectedPath(documentIDStr, "", path)
-			if err != nil {
-				return nil, err
-			}
-			attachments = append(attachments, *attachment)
-		}
-		return attachments, nil
+func (s *AttachmentService) Upload(documentIDStr string) (*dto.AttachmentUploadResult, error) {
+	return operations.Measure(s.metrics, "attachments.upload", func() (*dto.AttachmentUploadResult, error) {
+		return s.uploadSelectedFiles(documentIDStr, "", "Выберите файлы для вложения")
 	})
 }
 
-func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) ([]dto.Attachment, error) {
-	return operations.Measure(s.metrics, "attachments.upload.assignment", func() ([]dto.Attachment, error) {
-		uiContext := s.pickerContext()
-		if uiContext == nil {
-			return nil, fmt.Errorf("file picker is not initialized")
-		}
+func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) (*dto.AttachmentUploadResult, error) {
+	return operations.Measure(s.metrics, "attachments.upload.assignment", func() (*dto.AttachmentUploadResult, error) {
 		assignmentID, err := uuid.Parse(assignmentIDStr)
 		if err != nil {
 			return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
 		}
-		paths, err := s.openFilesDialog(uiContext, wailsruntime.OpenDialogOptions{Title: "Выберите файлы для отчёта об исполнении"})
-		if err != nil {
-			return nil, fmt.Errorf("failed to choose files: %w", err)
-		}
-		items := make([]dto.Attachment, 0, len(paths))
-		for _, path := range paths {
-			item, uploadErr := s.uploadSelectedPath("", assignmentID.String(), path)
-			if uploadErr != nil {
-				return nil, uploadErr
-			}
-			items = append(items, *item)
-		}
-		return items, nil
+		return s.uploadSelectedFiles("", assignmentID.String(), "Выберите файлы для отчёта об исполнении")
 	})
+}
+
+func (s *AttachmentService) uploadSelectedFiles(documentID, assignmentID, title string) (*dto.AttachmentUploadResult, error) {
+	uiContext := s.pickerContext()
+	if uiContext == nil {
+		return nil, fmt.Errorf("file picker is not initialized")
+	}
+	paths, err := s.openFilesDialog(uiContext, wailsruntime.OpenDialogOptions{Title: title})
+	if err != nil {
+		return nil, fmt.Errorf("failed to choose files: %w", err)
+	}
+	result := &dto.AttachmentUploadResult{Items: make([]dto.AttachmentUploadItem, 0, len(paths))}
+	for _, path := range paths {
+		attachment, uploadErr := operations.Measure(s.metrics, "attachments.upload.file", func() (*dto.Attachment, error) {
+			return s.uploadSelectedPath(documentID, assignmentID, path)
+		})
+		item := dto.AttachmentUploadItem{Filename: filepath.Base(path), Attachment: attachment}
+		if uploadErr != nil {
+			item.Attachment = nil
+			item.Error = attachmentUploadError(uploadErr)
+		}
+		result.Items = append(result.Items, item)
+	}
+	// Returning a Wails error would discard the successful files in this result.
+	return result, nil
+}
+
+func attachmentUploadError(err error) *dto.AttachmentUploadError {
+	result := &dto.AttachmentUploadError{Code: "INTERNAL_ERROR", Message: "Не удалось загрузить файл.", Status: 500, RequestID: models.ErrorRequestID(err)}
+	if appErr, ok := models.AsAppError(err); ok {
+		result.Code, result.Status = appErr.SafeKind(), appErr.StatusCode()
+		if message, public := models.PublicErrorMessage(appErr); public {
+			result.Message = message
+		}
+	}
+	return result
 }
 
 func (s *AttachmentService) uploadSelectedPath(documentID, assignmentID, path string) (*dto.Attachment, error) {
@@ -249,43 +253,50 @@ func defaultDownloadDir() (string, error) {
 
 func (s *AttachmentService) getDownloadDir() (string, error) { return s.downloadDir() }
 
-func (s *AttachmentService) validatePathInDownloads(path string) error {
+// validatePathInDownloads returns the canonical path that may be passed to the OS.
+func (s *AttachmentService) validatePathInDownloads(path string) (string, error) {
 	downloadDir, err := s.getDownloadDir()
 	if err != nil {
-		return err
+		return "", err
 	}
-
-	// Разрешение символических ссылок и относительных путей
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный путь к файлу", err)
-	}
-	evalPath, err := filepath.EvalSymlinks(absPath)
-	if err != nil {
-		// Файл может ещё не существовать (для OpenFolder), пробуем относительный путь
-		evalPath = absPath
-	}
-
 	absDownloadDir, err := filepath.Abs(downloadDir)
 	if err != nil {
-		return fmt.Errorf("failed to resolve download directory: %v", err)
+		return "", fmt.Errorf("failed to resolve download directory: %w", err)
 	}
-
-	// Убеждаемся, что путь находится внутри папки «Загрузки»
-	rel, err := filepath.Rel(absDownloadDir, evalPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return models.NewForbidden("доступ разрешен только к файлам в папке загрузок")
+	root, err := filepath.EvalSymlinks(absDownloadDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve download directory: %w", err)
 	}
-
-	return nil
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", models.NewBadRequestWrapped("неверный путь к файлу", err)
+	}
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		// Allow a missing final filename so OpenFolder still works after deletion.
+		// Lstat distinguishes it from a dangling symlink. Never fall back to an
+		// unchecked path when a parent is missing, inaccessible or a symlink loop.
+		if _, statErr := os.Lstat(absPath); !errors.Is(statErr, os.ErrNotExist) {
+			return "", models.NewForbidden("доступ разрешен только к файлам в папке загрузок")
+		}
+		parent, parentErr := filepath.EvalSymlinks(filepath.Dir(absPath))
+		if parentErr != nil {
+			return "", models.NewForbidden("доступ разрешен только к файлам в папке загрузок")
+		}
+		resolved = filepath.Join(parent, filepath.Base(absPath))
+	}
+	rel, err := filepath.Rel(root, resolved)
+	if err != nil || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", models.NewForbidden("доступ разрешен только к файлам в папке загрузок")
+	}
+	return resolved, nil
 }
 
 func (s *AttachmentService) OpenFile(path string) error {
-	if err := s.validatePathInDownloads(path); err != nil {
+	cleanPath, err := s.validatePathInDownloads(path)
+	if err != nil {
 		return err
 	}
-
-	cleanPath := filepath.Clean(path)
 	var name string
 	var args []string
 
@@ -305,11 +316,15 @@ func (s *AttachmentService) OpenFile(path string) error {
 }
 
 func (s *AttachmentService) OpenFolder(path string) error {
-	if err := s.validatePathInDownloads(path); err != nil {
+	resolved, err := s.validatePathInDownloads(path)
+	if err != nil {
 		return err
 	}
-
-	dir := filepath.Clean(filepath.Dir(path))
+	// A path naming the download root must not open its parent outside the root.
+	dir, err := s.validatePathInDownloads(filepath.Dir(resolved))
+	if err != nil {
+		return err
+	}
 	var name string
 	var args []string
 

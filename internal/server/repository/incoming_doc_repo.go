@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // IncomingDocumentRepository предоставляет методы для работы с входящими документами в БД.
@@ -599,6 +599,9 @@ func (r *IncomingDocumentRepository) CreateWithJournal(req models.CreateIncoming
 	return r.create(req, nil, action, detailsFormat)
 }
 func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.IncomingDocument, error) {
+	if req.Link != nil && req.CommandHash == "" {
+		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
+	}
 	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
@@ -631,6 +634,9 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 		return nil, err
 	}
 	if registration.Existing != uuid.Nil {
+		if req.Link != nil {
+			return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
+		}
 		if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, registration.Existing); err != nil {
 			return nil, err
 		}
@@ -652,6 +658,9 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 	).Scan(&id)
 	if err != nil {
 		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
+			if req.Link != nil {
+				return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
+			}
 			_ = tx.Rollback()
 			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindIncomingLetter, req.IdempotencyKey)
 			if lookupErr != nil {
@@ -693,6 +702,9 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 		}
 	}
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
+	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
 		return nil, err
 	}
 	if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, id); err != nil {

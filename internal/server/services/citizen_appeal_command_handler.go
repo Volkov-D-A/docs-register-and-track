@@ -80,6 +80,10 @@ func (h *CitizenAppealCommandHandler) Register(req dto.CitizenAppealRegisterRequ
 	if err != nil || idempotencyKey == uuid.Nil {
 		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
+	link, err := buildRegistrationLink(h.access, h.Kind(), nomID, req.Link)
+	if err != nil {
+		return nil, err
+	}
 	commandHash, err := documentCommandHash(req)
 	if err != nil {
 		return nil, err
@@ -120,6 +124,7 @@ func (h *CitizenAppealCommandHandler) Register(req dto.CitizenAppealRegisterRequ
 	}
 
 	createReq := models.CreateCitizenAppealDocRequest{
+		Link:                 link,
 		NomenclatureID:       nomID,
 		IdempotencyKey:       idempotencyKey,
 		AdminNumberOverride:  adminOverride,

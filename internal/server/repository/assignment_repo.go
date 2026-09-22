@@ -386,7 +386,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	}
 
 	// Пагинация
-	query += fmt.Sprintf(" ORDER BY a.created_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	query += fmt.Sprintf(" ORDER BY a.created_at DESC, a.id DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
 	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
 
 	rows, err := r.db.Query(query, args...)

@@ -9,7 +9,6 @@ import { useDocumentKindModals } from '../hooks/useDocumentKindModals';
 import { useDocumentKindPageAccess } from '../hooks/useDocumentKindPageAccess';
 import { useNomenclaturesForKind } from '../hooks/useNomenclaturesForKind';
 import { useDocumentRegistrationActions } from '../hooks/useDocumentRegistrationActions';
-import { resolveLinkTypeForNewDocument } from '../config/documentLinkConfig';
 import { formatAppError } from '../utils/appError';
 import { confirmDiscardFormChanges } from '../utils/dirtyForm';
 import {
@@ -66,17 +65,6 @@ const OrdersPage: React.FC = () => {
         targetKind,
         draftLinkType,
         clearDraftLink,
-        linkCreatedDocument: async ({ newDocument, sourceId: linkedSourceId, sourceKind: linkedSourceKind, draftLinkType: linkedDraftLinkType }) => {
-            const { LinkDocuments } = await import('../../wailsjs/go/services/LinkService');
-            const linkType = linkedDraftLinkType || resolveLinkTypeForNewDocument(linkedSourceKind, DOCUMENT_KIND_ADMINISTRATIVE_ORDER);
-            const sourceDocumentId = linkType === 'order_amends' || linkType === 'order_cancels'
-                ? newDocument.id
-                : linkedSourceId;
-            const targetDocumentId = linkType === 'order_amends' || linkType === 'order_cancels'
-                ? linkedSourceId
-                : newDocument.id;
-            await LinkDocuments(sourceDocumentId, targetDocumentId, linkType);
-        },
     });
 
     const {

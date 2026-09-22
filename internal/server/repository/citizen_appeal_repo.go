@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // CitizenAppealRepository предоставляет методы для работы с обращениями граждан в БД.
@@ -368,6 +368,9 @@ func (r *CitizenAppealRepository) CreateWithJournal(req models.CreateCitizenAppe
 	return r.create(req, nil, action, detailsFormat)
 }
 func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.CitizenAppealDocument, error) {
+	if req.Link != nil && req.CommandHash == "" {
+		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
+	}
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -395,6 +398,9 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 		return nil, err
 	}
 	if registration.Existing != uuid.Nil {
+		if req.Link != nil {
+			return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
+		}
 		if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, registration.Existing); err != nil {
 			return nil, err
 		}
@@ -417,6 +423,9 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 	).Scan(&id)
 	if err != nil {
 		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
+			if req.Link != nil {
+				return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
+			}
 			_ = tx.Rollback()
 			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindCitizenAppeal, req.IdempotencyKey)
 			if lookupErr != nil {
@@ -460,6 +469,9 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 		}
 	}
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
+	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
 		return nil, err
 	}
 	if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, id); err != nil {

@@ -263,7 +263,7 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 	countQuery := `SELECT COUNT\(\*\) FROM assignments a JOIN documents d ON d.id = a.document_id(.*)`
 	mock.ExpectQuery(countQuery).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	query := `SELECT(.*)FROM assignments a(.*)JOIN documents d ON d.id = a.document_id(.*)`
+	query := `SELECT(.*)FROM assignments a(.*)JOIN documents d ON d.id = a.document_id(.*) ORDER BY a.created_at DESC, a.id DESC LIMIT(.*)`
 
 	mock.ExpectQuery(query).WillReturnRows(sqlmock.NewRows([]string{
 		"id", "document_id", "kind", "executor_id", "full_name",

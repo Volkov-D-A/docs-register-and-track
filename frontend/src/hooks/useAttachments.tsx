@@ -3,6 +3,7 @@ import { App, Button, notification } from 'antd';
 import { FileOutlined } from '@ant-design/icons';
 import { useDocumentKindAccess } from './useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
+import { AttachmentUploadSummary } from '../components/AttachmentUploadSummary';
 import { LatestRequest } from '../utils/latestRequest';
 
 type UseAttachmentsOptions = {
@@ -68,13 +69,21 @@ export const useAttachments = ({ documentId, documentKind, readOnly }: UseAttach
         try {
             const { Upload: uploadAttachment } = await import('../../wailsjs/go/services/AttachmentService');
             const uploaded = await uploadAttachment(documentId);
-            if (uploaded.length > 0) { message.success('Файлы загружены'); await loadFiles(); }
+            if (uploaded.items.length > 0) {
+                api.open({
+                    title: 'Результат загрузки файлов',
+                    description: <AttachmentUploadSummary result={uploaded} />,
+                    duration: uploaded.items.some((item) => item.error) ? 0 : 5,
+                });
+                await loadFiles();
+            }
         } catch (error: unknown) {
             message.error(formatAppError(error, 'Ошибка загрузки'));
+            await loadFiles();
         } finally {
             setUploading(false);
         }
-    }, [documentId, loadFiles, message, uploading]);
+    }, [api, documentId, loadFiles, message, uploading]);
 
     const downloadFile = useCallback(async (file: any) => {
         try {

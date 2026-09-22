@@ -19,11 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 )
 
 func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
@@ -32,14 +32,14 @@ func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
 		dir := t.TempDir()
 		svc := &AttachmentService{downloadDir: func() (string, error) { return dir, nil }}
 		downloadDir, _ := svc.getDownloadDir()
-		err := svc.validatePathInDownloads(downloadDir + "/test.pdf")
+		_, err := svc.validatePathInDownloads(downloadDir + "/test.pdf")
 		require.NoError(t, err)
 	})
 
 	t.Run("path traversal attack", func(t *testing.T) {
 		dir := t.TempDir()
 		svc := &AttachmentService{downloadDir: func() (string, error) { return dir, nil }}
-		err := svc.validatePathInDownloads("C:\\Windows\\System32\\..\\..\\test.pdf")
+		_, err := svc.validatePathInDownloads("C:\\Windows\\System32\\..\\..\\test.pdf")
 		require.Error(t, err)
 		requireAppError(t, err, "FORBIDDEN", 403, "папке загрузок")
 	})
@@ -47,7 +47,7 @@ func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
 	t.Run("outside downloads", func(t *testing.T) {
 		dir := t.TempDir()
 		svc := &AttachmentService{downloadDir: func() (string, error) { return dir, nil }}
-		err := svc.validatePathInDownloads("C:\\Windows\\System32\\cmd.exe")
+		_, err := svc.validatePathInDownloads("C:\\Windows\\System32\\cmd.exe")
 		require.Error(t, err)
 		requireAppError(t, err, "FORBIDDEN", 403, "папке загрузок")
 	})
@@ -134,14 +134,15 @@ func TestDesktopAttachmentUpload(t *testing.T) {
 			_, err = svc.Upload(id)
 			require.ErrorContains(t, err, "not initialized")
 			startup(context.Background())
-			var items []dto.Attachment
+			var items *dto.AttachmentUploadResult
 			if assignment {
 				items, err = svc.UploadForAssignment(id)
 			} else {
 				items, err = svc.Upload(id)
 			}
 			require.NoError(t, err)
-			require.Len(t, items, 1)
+			require.Len(t, items.Items, 1)
+			require.Equal(t, "report.txt", items.Items[0].Attachment.Filename)
 			_, err = uploaded.Read(make([]byte, 1))
 			require.ErrorIs(t, err, os.ErrClosed)
 		})
@@ -163,13 +164,18 @@ func TestDesktopAttachmentPickerFailures(t *testing.T) {
 			svc, start, err := NewDesktopAttachmentService(&desktopAttachmentClient{}, DesktopAttachmentOptions{OpenFilesDialog: func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error) { return tc.paths, tc.err }})
 			require.NoError(t, err)
 			start(context.Background())
-			for _, upload := range []func(string) ([]dto.Attachment, error){svc.Upload, svc.UploadForAssignment} {
+			for _, upload := range []func(string) (*dto.AttachmentUploadResult, error){svc.Upload, svc.UploadForAssignment} {
 				items, err := upload(uuid.NewString())
 				if tc.want == "" {
 					require.NoError(t, err)
-					require.Empty(t, items)
-				} else {
+					require.Empty(t, items.Items)
+				} else if tc.err != nil {
 					require.ErrorContains(t, err, tc.want)
+				} else {
+					require.NoError(t, err)
+					require.Len(t, items.Items, 1)
+					require.Nil(t, items.Items[0].Attachment)
+					require.Contains(t, items.Items[0].Error.Message, tc.want)
 				}
 			}
 		})
@@ -339,8 +345,10 @@ func TestDesktopAttachmentUploadClosesFileOnHTTPError(t *testing.T) {
 	svc, start, err := NewDesktopAttachmentService(client, DesktopAttachmentOptions{OpenFilesDialog: func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error) { return []string{path}, nil }})
 	require.NoError(t, err)
 	start(context.Background())
-	_, err = svc.Upload("doc")
-	require.ErrorIs(t, err, assert.AnError)
+	result, err := svc.Upload("doc")
+	require.NoError(t, err)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, "INTERNAL_ERROR", result.Items[0].Error.Code)
 	_, err = file.Stat()
 	require.ErrorIs(t, err, os.ErrClosed)
 }
@@ -369,4 +377,106 @@ func requireAppError(t *testing.T, err error, kind string, code int, message str
 		assert.Contains(t, appErr.Message, message)
 	}
 	return appErr
+}
+
+func TestDesktopAttachmentBatchPreservesOutcomes(t *testing.T) {
+	for _, assignment := range []bool{false, true} {
+		t.Run(fmt.Sprint(assignment), func(t *testing.T) {
+			dir := t.TempDir()
+			paths := []string{}
+			for _, name := range []string{"first.txt", "second.txt", "third.txt"} {
+				path := filepath.Join(dir, name)
+				require.NoError(t, os.WriteFile(path, []byte(name), 0600))
+				paths = append(paths, path)
+			}
+			requestID := uuid.NewString()
+			var names []string
+			client := &desktopAttachmentClient{upload: func(_ context.Context, _, _, name string, _ int64, body io.Reader) (*dto.Attachment, error) {
+				names = append(names, name)
+				if name == "second.txt" {
+					return nil, models.WithRequestID(models.NewBadRequest("файл слишком большой"), requestID)
+				}
+				return &dto.Attachment{ID: uuid.NewString(), Filename: name}, nil
+			}}
+			metrics := observability.NewRegistry(10)
+			svc, start, err := NewDesktopAttachmentService(client, DesktopAttachmentOptions{Metrics: metrics, OpenFilesDialog: func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error) { return paths, nil }})
+			require.NoError(t, err)
+			start(context.Background())
+			upload := svc.Upload
+			if assignment {
+				upload = svc.UploadForAssignment
+			}
+			result, err := upload(uuid.NewString())
+			require.NoError(t, err)
+			require.Equal(t, []string{"first.txt", "second.txt", "third.txt"}, names)
+			require.Len(t, result.Items, 3)
+			require.Equal(t, "first.txt", result.Items[0].Attachment.Filename)
+			require.Nil(t, result.Items[0].Error)
+			require.Nil(t, result.Items[1].Attachment)
+			require.Equal(t, "second.txt", result.Items[1].Filename)
+			require.Equal(t, "VALIDATION_ERROR", result.Items[1].Error.Code)
+			require.Equal(t, requestID, result.Items[1].Error.RequestID)
+			require.Equal(t, "third.txt", result.Items[2].Attachment.Filename)
+			for _, metric := range metrics.Snapshot() {
+				if metric.Name == "attachments.upload.file" {
+					require.Equal(t, int64(1), metric.Errors)
+				}
+			}
+		})
+	}
+}
+
+func TestAttachmentUploadErrorHidesPrivateDetails(t *testing.T) {
+	for _, err := range []error{fmt.Errorf("private local path /home/user/file"), models.NewInternal("private SQL", assert.AnError)} {
+		result := attachmentUploadError(err)
+		require.Equal(t, "INTERNAL_ERROR", result.Code)
+		require.NotContains(t, result.Message, "private")
+	}
+}
+
+func TestDesktopAttachmentRelocatedDownloads(t *testing.T) {
+	base := t.TempDir()
+	realDir := filepath.Join(base, "actual-downloads")
+	require.NoError(t, os.Mkdir(realDir, 0700))
+	root := filepath.Join(base, "Downloads")
+	if err := os.Symlink(realDir, root); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	canonicalDir, err := filepath.EvalSymlinks(realDir)
+	require.NoError(t, err)
+	file := filepath.Join(root, "report.txt")
+	require.NoError(t, os.WriteFile(file, []byte("data"), 0600))
+	var launched []string
+	svc := &AttachmentService{
+		downloadDir: func() (string, error) { return root, nil },
+		launch:      func(_ string, args ...string) error { launched = append(launched, args[len(args)-1]); return nil },
+	}
+	require.NoError(t, svc.OpenFile(file))
+	require.NoError(t, svc.OpenFolder(file))
+	require.NoError(t, svc.OpenFolder(filepath.Join(root, "deleted.txt")))
+	// A name starting with two dots is not a parent-directory traversal.
+	dotFile := filepath.Join(root, "..notes.txt")
+	require.NoError(t, os.WriteFile(dotFile, []byte("data"), 0600))
+	require.NoError(t, svc.OpenFile(dotFile))
+	require.Equal(t, []string{filepath.Join(canonicalDir, "report.txt"), canonicalDir, canonicalDir, filepath.Join(canonicalDir, "..notes.txt")}, launched)
+
+	outside := filepath.Join(base, "outside")
+	require.NoError(t, os.Mkdir(outside, 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("data"), 0600))
+	escape := filepath.Join(root, "escape")
+	require.NoError(t, os.Symlink(outside, escape))
+	broken := filepath.Join(root, "broken.txt")
+	require.NoError(t, os.Symlink(filepath.Join(outside, "missing.txt"), broken))
+	loop := filepath.Join(root, "loop")
+	require.NoError(t, os.Symlink(loop, loop))
+	for _, path := range []string{
+		filepath.Join(escape, "secret.txt"), filepath.Join(escape, "missing.txt"),
+		broken, loop, filepath.Join(root, "missing-parent", "file.txt"),
+		filepath.Join(root, "..", "outside", "secret.txt"),
+	} {
+		require.Error(t, svc.OpenFile(path), path)
+		require.Error(t, svc.OpenFolder(path), path)
+	}
+	require.Error(t, svc.OpenFolder(root))
+	require.Len(t, launched, 4, "rejected paths must never reach the OS launcher")
 }

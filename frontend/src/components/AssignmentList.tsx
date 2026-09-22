@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Table } from 'antd';
+import { Alert, Button, Table } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import AssignmentModal from './AssignmentModal';
 import { useAssignments } from '../hooks/useAssignments';
@@ -15,6 +15,7 @@ interface AssignmentListProps {
 const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKind, onAssignmentsChanged }) => {
     const {
         data,
+        loadWarning,
         loading,
         accessReady,
         canManageAssignments,
@@ -50,6 +51,12 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
                 )}
             </div>
 
+            {loadWarning && <Alert
+                type="warning"
+                showIcon
+                title={loadWarning}
+                action={<Button size="small" loading={loading} onClick={() => void load()}>Обновить</Button>}
+            />}
             <Table
                 columns={columns}
                 dataSource={data}

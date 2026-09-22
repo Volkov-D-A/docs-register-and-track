@@ -19,6 +19,6 @@ export function OpenFolder(arg1:string):Promise<void>;
 
 export function ReconcileStorage():Promise<models.AttachmentStorageReconciliation>;
 
-export function Upload(arg1:string):Promise<Array<dto.Attachment>>;
+export function Upload(arg1:string):Promise<dto.AttachmentUploadResult>;
 
-export function UploadForAssignment(arg1:string):Promise<Array<dto.Attachment>>;
+export function UploadForAssignment(arg1:string):Promise<dto.AttachmentUploadResult>;

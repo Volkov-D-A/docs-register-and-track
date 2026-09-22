@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Input, Button, Typography, App } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import { formatAppError } from '../utils/appError';
+import type { dto } from '../../wailsjs/go/models';
+import { AttachmentUploadSummary } from './AttachmentUploadSummary';
 import { emitAssignmentsChanged } from '../events/assignmentEvents';
 
 const { TextArea } = Input;
@@ -27,6 +29,8 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
     const { message } = App.useApp();
     const [reportText, setReportText] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [uploadResult, setUploadResult] = useState<dto.AttachmentUploadResult | null>(null);
     const [attachmentsEnabled, setAttachmentsEnabled] = useState(true);
 
     useEffect(() => {
@@ -36,6 +40,7 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
             return;
         }
 
+        setUploadResult(null);
         setReportText(initialReport);
 
         let isMounted = true;
@@ -57,7 +62,7 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
         return () => {
             isMounted = false;
         };
-    }, [open, initialReport]);
+    }, [open, initialReport, assignmentId]);
 
     const handleSubmit = async () => {
         if (submitting) {
@@ -84,11 +89,21 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
     };
 
     const addAttachments = async () => {
+        if (uploading) return;
+        setUploading(true);
         try {
             const { UploadForAssignment } = await import('../../wailsjs/go/services/AttachmentService');
             const uploaded = await UploadForAssignment(assignmentId);
-            if (uploaded.length > 0) message.success('Файлы прикреплены');
-        } catch (err: unknown) { message.error(formatAppError(err)); }
+            if (uploaded.items.length > 0) {
+                setUploadResult(uploaded);
+                emitAssignmentsChanged({ documentId });
+            }
+        } catch (err: unknown) {
+            message.error(formatAppError(err));
+            emitAssignmentsChanged({ documentId });
+        } finally {
+            setUploading(false);
+        }
     };
 
     return (
@@ -111,10 +126,11 @@ const AssignmentCompletionModal: React.FC<AssignmentCompletionModalProps> = ({
 
                 {attachmentsEnabled && (
                     <div>
-                        <Button icon={<UploadOutlined />} onClick={() => void addAttachments()}>Добавить файлы</Button>
+                        <Button icon={<UploadOutlined />} loading={uploading} onClick={() => void addAttachments()}>Добавить файлы</Button>
                         <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
                             Файлы прикрепляются сразу после выбора.
                         </Text>
+                        {uploadResult && <AttachmentUploadSummary result={uploadResult} />}
                     </div>
                 )}
             </div>

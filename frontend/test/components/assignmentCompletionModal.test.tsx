@@ -5,7 +5,7 @@ import AssignmentCompletionModal from '../../src/components/AssignmentCompletion
 import { installWailsMock, renderWithApp } from '../componentTestUtils';
 
 test('uploads evidence to the current assignment before completing its report', async () => {
-  const upload = vi.fn().mockResolvedValue([{ id: 'file-1', filename: 'report.txt' }]);
+  const upload = vi.fn().mockResolvedValue({ items: [{ filename: 'report.txt', attachment: { id: 'file-1', filename: 'report.txt' } }] });
   const update = vi.fn().mockResolvedValue(undefined);
   const success = vi.fn();
   installWailsMock({
@@ -25,4 +25,22 @@ test('uploads evidence to the current assignment before completing its report', 
   fireEvent.click(screen.getByRole('button', { name: 'Отметить исполненным' }));
   await waitFor(() => expect(update).toHaveBeenCalledWith('assignment-1', 'completed', 'Выполнено'));
   await waitFor(() => expect(success).toHaveBeenCalledOnce());
+});
+
+ test('shows successful files and failures without losing the completion report', async () => {
+  const upload = vi.fn().mockResolvedValue({ items: [
+    { filename: 'first.txt', attachment: { id: 'file-1', filename: 'first.txt' } },
+    { filename: 'second.txt', error: { code: 'VALIDATION_ERROR', message: 'Файл слишком большой', status: 400 } },
+  ] });
+  installWailsMock({
+    SettingsService: { IsAssignmentCompletionAttachmentsEnabled: vi.fn().mockResolvedValue(true) },
+    AttachmentService: { UploadForAssignment: upload },
+  });
+  renderWithApp(<AssignmentCompletionModal open assignmentId="assignment-1" documentId="doc-1"
+    initialReport="Мой отчёт" onCancel={vi.fn()} onSuccess={vi.fn()} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Добавить файлы/ }));
+  expect(await screen.findByText('Загружено: 1. Ошибок: 1.')).toBeInTheDocument();
+  expect(screen.getByText('first.txt: загружен')).toBeInTheDocument();
+  expect(screen.getByText(/second.txt: Файл слишком большой/)).toBeInTheDocument();
+  expect(screen.getByDisplayValue('Мой отчёт')).toBeInTheDocument();
 });

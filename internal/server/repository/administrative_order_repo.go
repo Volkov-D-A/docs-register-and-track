@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // AdministrativeOrderRepository предоставляет методы для работы с приказами в БД.
@@ -256,6 +256,9 @@ func (r *AdministrativeOrderRepository) CreateWithJournal(req models.CreateAdmin
 	return r.create(req, nil, action, detailsFormat)
 }
 func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOrderDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.AdministrativeOrderDocument, error) {
+	if req.Link != nil && req.CommandHash == "" {
+		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
+	}
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -283,6 +286,9 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 		return nil, err
 	}
 	if registration.Existing != uuid.Nil {
+		if req.Link != nil {
+			return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
+		}
 		if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, registration.Existing); err != nil {
 			return nil, err
 		}
@@ -312,6 +318,9 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 	).Scan(&id)
 	if err != nil {
 		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
+			if req.Link != nil {
+				return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
+			}
 			_ = tx.Rollback()
 			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindAdministrativeOrder, req.IdempotencyKey)
 			if lookupErr != nil {
@@ -350,6 +359,9 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 		}
 	}
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return nil, err
+	}
+	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
 		return nil, err
 	}
 	if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, id); err != nil {
