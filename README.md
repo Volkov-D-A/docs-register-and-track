@@ -298,8 +298,11 @@ Operator-facing startup behavior, logging and recovery constraints are described
 
 SeaweedFS configuration, runtime secrets, dev reset and S3 operations are
 covered in the [storage operations guide](docs/instructions.md#эксплуатация-seaweedfs).
-Run `make storage-smoke-test` to verify the current server build, restart
-persistence and PostgreSQL/S3 restore in disposable volumes.
+Run `make integration-test` to check backup, verify, restore, and delete against
+disposable PostgreSQL, S3, and Samba services. It saves integration-only Go
+coverage profiles in `build/release-evidence/`. Run `make storage-smoke-test`
+to verify the production Compose example and attachment persistence across
+container restarts.
 
 ## Internal build identity
 
@@ -360,9 +363,11 @@ supply these arguments when building; metadata must not be guessed.
 
 The individual gate steps remain available through `build/make/checks.mk`;
 `make help-checks` lists them and the additional diagnostic commands. They are
-useful for focused checks without rerunning the whole gate. `storage-smoke-test`
-checks the real storage/API/backup lifecycle, while `db-performance-check`
-measures database performance; neither is part of `release-gate`.
+useful for focused checks without rerunning the whole gate. `integration-test`
+checks the backup lifecycle with real PostgreSQL, S3, and Samba.
+`storage-smoke-test` checks the production Compose topology and persisted
+attachments; `db-performance-check` measures database performance. The last two
+are not part of `release-gate`.
 `integration-db-up` / `integration-db-down` support manual integration debugging.
 `release-assets` regenerates release metadata; `clean` removes local binaries only.
 

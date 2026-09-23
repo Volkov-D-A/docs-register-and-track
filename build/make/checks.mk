@@ -25,8 +25,8 @@ go-test:
 	$(MAKE) release-assets
 	GOCACHE=$(GOCACHE) go test $(GO_PACKAGES)
 
-# Запускает изолированные PostgreSQL и SeaweedFS, выполняет тесты Integration
-# и всегда удаляет контейнер вместе с тестовым volume.
+# Запускает изолированные PostgreSQL и SeaweedFS, затем отдельный стек
+# PostgreSQL/S3/Samba для резервирования. Оба стека удаляются после проверки.
 _check-integration-env:
 	@command -v docker >/dev/null 2>&1 || (echo "docker is required for PostgreSQL integration tests" >&2; exit 1)
 	@docker compose version >/dev/null 2>&1 || (echo "docker compose is required for PostgreSQL integration tests" >&2; exit 1)
@@ -38,7 +38,10 @@ integration-test: _check-integration-env
 		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \
 		$(INTEGRATION_COMPOSE) up -d --build --wait; \
-		DOCFLOW_INTEGRATION_S3_ENDPOINT=127.0.0.1:58333 DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1
+		mkdir -p build/release-evidence; \
+		DOCFLOW_INTEGRATION_S3_ENDPOINT=127.0.0.1:58333 DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1 -coverprofile=build/release-evidence/integration-go-coverage.out; \
+		GOCACHE=$(GOCACHE) bash testing/scripts/backup-integration.sh; \
+		python3 tools/merge-go-coverage.py build/release-evidence/integration-combined-coverage.out build/release-evidence/integration-go-coverage.out build/release-evidence/backup-integration/server-coverage.out
 
 # Generates a local baseline only. It intentionally has no pass/fail latency
 # threshold because Docker and developer hardware are not stable benchmark hosts.
@@ -81,4 +84,4 @@ npm-audit:
 	cd $(FRONTEND_DIR) && npm audit --audit-level=critical
 
 storage-smoke-test: _check-docker
-	bash testing/scripts/integration-smoke.sh
+	bash testing/scripts/prod-compose-smoke.sh

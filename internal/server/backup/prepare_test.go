@@ -2,6 +2,9 @@ package backup
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -46,6 +49,50 @@ func TestDumpSchemaInspectionRejectsDirtyMissingAndDuplicateRows(t *testing.T) {
 			} else {
 				require.Error(t, err)
 			}
+		})
+	}
+}
+
+func TestDownloadSelectedRejectsChangedOrCorruptRemoteCopy(t *testing.T) {
+	good := []byte("verified archive")
+	bad := []byte("modified archive")
+	expected := RemoteCopy{
+		ID: uuid.NewString(), Format: 3, Size: int64(len(good)),
+		SHA256: fmt.Sprintf("%x", sha256.Sum256(good)), CreatedAt: time.Now().UTC(),
+	}
+	for _, tc := range []struct {
+		name, issue  string
+		remoteData   []byte
+		changeMarker bool
+		maxBytes     int64
+	}{
+		{name: "valid copy", remoteData: good, maxBytes: 1024},
+		{name: "marker replaced", issue: "изменилась", remoteData: good, changeMarker: true, maxBytes: 1024},
+		{name: "archive too large", issue: "staging limit", remoteData: good, maxBytes: 1},
+		{name: "archive corrupted", issue: "checksum mismatch", remoteData: bad, maxBytes: 1024},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			remoteDir, stageDir := t.TempDir(), t.TempDir()
+			marker := expected
+			if tc.changeMarker {
+				marker.CreatedAt = marker.CreatedAt.Add(time.Second)
+			}
+			raw, err := json.Marshal(marker)
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(remoteDir, markerName(expected.ID)), raw, 0600))
+			require.NoError(t, os.WriteFile(filepath.Join(remoteDir, expected.ID+".tar.gz"), tc.remoteData, 0600))
+			archive, err := downloadSelected(context.Background(), catalogFiles(remoteDir), expected, stageDir, tc.maxBytes)
+			if tc.issue != "" {
+				require.ErrorContains(t, err, tc.issue)
+				if tc.changeMarker || tc.maxBytes < expected.Size {
+					require.NoFileExists(t, filepath.Join(stageDir, expected.ID+".tar.gz"))
+				}
+				return
+			}
+			require.NoError(t, err)
+			contents, err := os.ReadFile(archive)
+			require.NoError(t, err)
+			require.Equal(t, good, contents)
 		})
 	}
 }

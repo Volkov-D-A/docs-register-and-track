@@ -47,10 +47,13 @@ func TestServerCommandsRejectConfigFlag(t *testing.T) {
 }
 
 func TestUnknownCommand(t *testing.T) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-
-	err := run([]string{"unknown"}, &stdout, &stderr)
-	require.ErrorContains(t, err, "unknown command")
-	require.Contains(t, stderr.String(), "Usage:")
+	for _, command := range []string{"unknown", "recovery", "restore"} {
+		t.Run(command, func(t *testing.T) {
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			err := run([]string{command}, &stdout, &stderr)
+			require.ErrorContains(t, err, "unknown command")
+			require.Contains(t, stderr.String(), "Usage:")
+		})
+	}
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Invoked by integration-smoke.sh only after building and starting the real server.
+// Invoked by backup-integration.sh or prod-compose-smoke.sh after starting the built server.
 func TestBuiltServerAttachmentsIntegration(t *testing.T) {
 	base := os.Getenv("DOCFLOW_INTEGRATION_SERVER_URL")
 	if base == "" {

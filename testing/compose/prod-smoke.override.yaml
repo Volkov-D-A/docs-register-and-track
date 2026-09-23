@@ -1,0 +1,16 @@
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${DOCFLOW_SMOKE_POSTGRES_PORT:-55433}:5432"
+  docflow-server:
+    image: docflow-server:prod-smoke
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: build/server/Dockerfile
+      args:
+        VERSION: ${DOCFLOW_SMOKE_VERSION:?Set smoke version}
+        BUILD_IDENTITY: ${DOCFLOW_SMOKE_BUILD_IDENTITY:?Set smoke build identity}
+        LOCAL_BUILD: "1"
+    ports:
+      - "127.0.0.1:${DOCFLOW_SMOKE_SERVER_PORT:-58480}:8080"

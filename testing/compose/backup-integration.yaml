@@ -1,11 +1,16 @@
 services:
   docflow-server:
+    build:
+      args:
+        COVERAGE: "1"
     environment:
       DOCFLOW_BACKUP_DIRECTORY: /var/lib/docflow/backups
       DOCFLOW_SETTINGS_KEY_FILE: /run/secrets/settings_key
+      GOCOVERDIR: /var/lib/docflow/coverage
     secrets: [settings_key]
     volumes:
       - backup_staging:/var/lib/docflow/backups
+      - ${DOCFLOW_INTEGRATION_COVERAGE_DIR:?Set integration coverage directory}:/var/lib/docflow/coverage
     networks: [default, backup_transport]
 secrets:
   settings_key:

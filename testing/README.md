@@ -3,10 +3,10 @@
 Здесь находятся вспомогательные файлы запуска тестов. Сами Go-тесты остаются
 в соответствующих пакетах, frontend-тесты — в `frontend/test`.
 
-- `compose/integration.yaml` — изолированные PostgreSQL, SeaweedFS и сервер.
+- `compose/integration.yaml` — изолированные PostgreSQL, SeaweedFS и сервер для интеграционных проверок.
 - `compose/backup-test.yaml` — тестовый Samba-сервер.
-- `compose/backup-smoke.yaml` — secrets, staging и сеть SMB для smoke-теста.
-- `scripts/integration-smoke.sh` — сквозная проверка хранения и восстановления.
+- `compose/backup-integration.yaml` и `scripts/backup-integration.sh` — сквозная проверка резервирования и восстановления с покрытием серверного бинарника.
+- `compose/prod-smoke.override.yaml` и `scripts/prod-compose-smoke.sh` — тестовые образ, секреты и порты поверх production Compose.
 - `images/samba/` — Dockerfile и конфигурация тестового Samba.
 
 Запуск из корня репозитория:
@@ -16,16 +16,17 @@ make integration-test
 make storage-smoke-test
 ```
 
-Для ручной работы с интеграционным стеком доступны `make integration-db-up`
-и `make integration-db-down`. Эти цели и smoke-скрипт явно читают корневой `.env`,
-если он существует; без него используются значения по умолчанию. Имена Compose
-проектов и тестовые порты сохранены. Контексты сборки в Compose указывают на корень
-репозитория через `../..`. Smoke-отчёты сохраняются в `build/transition-evidence`.
+`make integration-test` сначала запускает пакетные Go-тесты с именем `Integration`
+на PostgreSQL и S3, затем проверяет backup/restore через инструментированный
+сервер и Samba. Профили этих интеграционных сценариев и их объединение сохраняются
+в `build/release-evidence/`; обычные unit-тесты в этот профиль не входят.
+Для ручной работы с первым
+стеком доступны `make integration-db-up` и `make integration-db-down`.
+
+`make storage-smoke-test` запускает `docs/examples/docker-compose.prod.example.yaml`
+с тестовым override. Он проверяет Caddy и сохранность вложений при пересоздании
+SeaweedFS и перезапуске сервера. Отчёты находятся в
+`build/transition-evidence/prod-compose-smoke/`.
 
 Тестовые команды удаляют собственные тестовые тома при завершении. Не используйте
-тестовые учётные данные и эти Compose-файлы для рабочего окружения.
-
-Известная зависимость старого smoke-сценария: он ещё вызывает удалённые ранее
-`backup_smb_tar.sh` и `restore_smb_tar.sh`. Перенос инфраструктуры не заменяет
-эту часть сценария; для полного прохождения её необходимо перевести на актуальный
-механизм резервирования.
+тестовые учётные данные и Compose override для рабочего окружения.

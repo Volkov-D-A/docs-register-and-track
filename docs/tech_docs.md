@@ -831,10 +831,14 @@ smoke или backup restore: это отдельные автоматическ�
 и `db-performance-check`, ручное управление интеграционной БД, `release-assets`
 и `clean`. Служебные prerequisite-цели имеют префикс `_`.
 
-`make integration-test` проверяет prerequisites, запускает изолированный
-PostgreSQL из `testing/compose/integration.yaml`, передаёт безопасный
-`DOCFLOW_INTEGRATION_DSN` для `docflow_test_outbox` и после тестов всегда
-удаляет контейнер и volume. Этот target входит в обязательный `release-gate`.
+`make integration-test` проверяет prerequisites, запускает изолированные
+PostgreSQL и SeaweedFS из `testing/compose/integration.yaml`, передаёт безопасный
+`DOCFLOW_INTEGRATION_DSN` для `docflow_test_outbox`, затем запускает отдельный
+стек с Samba и инструментированным сервером для backup/verify/restore/delete.
+Go-профили покрытия сохраняются в `build/release-evidence/`, а тестовые контейнеры
+и тома удаляются после завершения. Этот target входит в обязательный `release-gate`.
+`make storage-smoke-test` проверяет production Compose пример, доступ через Caddy
+и сохранность вложений после пересоздания SeaweedFS и перезапуска сервера.
 Для ручной отладки доступны `make integration-db-up` и
 `make integration-db-down`.
 

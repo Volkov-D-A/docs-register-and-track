@@ -4,6 +4,7 @@ ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ARG BUILD_IDENTITY
 ARG LOCAL_BUILD=0
+ARG COVERAGE=0
 ARG VERSION
 
 WORKDIR /src
@@ -12,8 +13,11 @@ RUN go mod download
 COPY . .
 RUN test "$(go run ./cmd/docflow-server version)" = "$VERSION" \
     && flags="$(DOCFLOW_LOCAL_BUILD=$LOCAL_BUILD go run ./tools/buildmeta from-identity "$BUILD_IDENTITY")" \
-    && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags "$flags" -o /out/docflow-server ./cmd/docflow-server
+    && if [ "$COVERAGE" = "1" ]; then \
+         CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -cover -trimpath -ldflags "$flags" -o /out/docflow-server ./cmd/docflow-server; \
+       else \
+         CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags "$flags" -o /out/docflow-server ./cmd/docflow-server; \
+       fi
 
 FROM postgres:18.3-alpine
 

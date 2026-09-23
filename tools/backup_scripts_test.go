@@ -9,10 +9,10 @@ import (
 	"testing"
 )
 
-// Exercise cleanup of the actual administrative API smoke script, preserving
+// Exercise cleanup of the administrative API integration script, preserving
 // failures and unrelated files. The retired CIFS scripts no longer exist.
-func TestBackupSmokeCleanupPreservesFailureAndOnlyRemovesTestState(t *testing.T) {
-	raw, err := os.ReadFile("../testing/scripts/integration-smoke.sh")
+func TestBackupIntegrationCleanupPreservesFailureAndOnlyRemovesTestState(t *testing.T) {
+	raw, err := os.ReadFile("../testing/scripts/backup-integration.sh")
 	require.NoError(t, err)
 	source := string(raw)
 	start := strings.Index(source, "cleanup() {")
@@ -23,6 +23,7 @@ func TestBackupSmokeCleanupPreservesFailureAndOnlyRemovesTestState(t *testing.T)
 	stage := filepath.Join(dir, "stage")
 	evidence := filepath.Join(dir, "evidence")
 	require.NoError(t, os.Mkdir(stage, 0700))
+	require.NoError(t, os.Mkdir(filepath.Join(stage, "coverage"), 0700))
 	require.NoError(t, os.Mkdir(evidence, 0700))
 	script := `set -eu
 docker() { printf '%s\n' "$*" >> "$CALL_LOG"; }

@@ -33,7 +33,7 @@ help-checks:
 	  '  release-assets-check docs-links-check go-test integration-test go-vet govulncheck' \
 	  '  frontend-ci frontend-lint frontend-test frontend-build npm-audit' \
 	  'Дополнительные проверки, не входящие в release-gate:' \
-	  '  storage-smoke-test       Проверка API, хранилищ и backup/restore в отдельном стеке' \
+	  '  storage-smoke-test       Проверка production Compose и сохранности вложений' \
 	  '  db-performance-check     Измерения производительности PostgreSQL' \
 	  '  integration-db-up/down   Ручной запуск/удаление интеграционной БД' \
 	  'Обслуживание:' \

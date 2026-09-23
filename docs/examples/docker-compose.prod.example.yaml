@@ -4,7 +4,7 @@
 services:
   postgres:
     image: postgres:${POSTGRES_VERSION}-alpine
-    container_name: docflow_db
+    container_name: ${DOCFLOW_POSTGRES_CONTAINER_NAME:-docflow_db}
     secrets: [postgres_password]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
   seq:
     image: datalust/seq:${SEQ_VERSION}
-    container_name: docflow_seq
+    container_name: ${DOCFLOW_SEQ_CONTAINER_NAME:-docflow_seq}
     environment:
       - ACCEPT_EULA=Y
       - SEQ_FIRSTRUN_ADMINUSERNAME=${SEQ_ADMIN_USERNAME:-admin}
@@ -54,7 +54,7 @@ services:
   docflow-server:
     image: hehelf/docflow-service:${DOCFLOW_SERVER_IMAGE_TAG:-latest}
     pull_policy: always
-    container_name: docflow_server
+    container_name: ${DOCFLOW_SERVER_CONTAINER_NAME:-docflow_server}
     secrets: [postgres_password, s3_secret_key, settings_key]
     volumes:
       - backup_staging:/var/lib/docflow/backups
@@ -96,14 +96,14 @@ services:
       - "8080"
   caddy:
     image: caddy:${CADDY_VERSION:?Set CADDY_VERSION in .env}
-    container_name: docflow_caddy
+    container_name: ${DOCFLOW_CADDY_CONTAINER_NAME:-docflow_caddy}
     depends_on:
       docflow-server:
         condition: service_healthy
     ports:
-      - "443:443"
+      - "${DOCFLOW_HTTPS_BIND:-443}:443"
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DOCFLOW_CADDYFILE_PATH:-./caddy/Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     restart: unless-stopped
@@ -115,7 +115,7 @@ volumes:
 
   caddy_data:
     external: true
-    name: docflow-caddy-data
+    name: ${DOCFLOW_CADDY_DATA_VOLUME:-docflow-caddy-data}
 
   caddy_config:
 
