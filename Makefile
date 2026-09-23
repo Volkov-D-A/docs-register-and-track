@@ -44,8 +44,7 @@ help-checks:
 # Сервер обновляется отдельно; dev-client не перезапускает контейнеры.
 dev-client: _build-compiler
 	$(MAKE) release-assets
-	@set -e; trap 'status=$$?; node $(FRONTEND_DIR)/scripts/normalize-wails-bindings.mjs || exit $$?; exit "$$status"' EXIT; \
-		DOCFLOW_LOCAL_BUILD=1 wails dev -tags $(TAGS) -compiler "$(CURDIR)/build/bin/docflow-go"
+	DOCFLOW_LOCAL_BUILD=1 wails dev -tags $(TAGS) -compiler "$(CURDIR)/build/bin/docflow-go"
 
 dev-server: release-assets _build-compiler _check-docker
 	GOCACHE=$(GOCACHE) DOCKER_PLATFORM=$(DOCKER_PLATFORM) bash tools/dev-server.sh
@@ -64,13 +63,11 @@ storage-reset:
 # Продакшен
 build-linux: _build-compiler
 	$(MAKE) release-assets
-	@set -e; trap 'status=$$?; node $(FRONTEND_DIR)/scripts/normalize-wails-bindings.mjs || exit $$?; exit "$$status"' EXIT; \
-		wails build -tags $(TAGS) -platform linux/amd64 -compiler "$(CURDIR)/build/bin/docflow-go"
+	wails build -tags $(TAGS) -platform linux/amd64 -compiler "$(CURDIR)/build/bin/docflow-go"
 
 build-windows: _build-compiler
 	$(MAKE) release-assets
-	@set -e; trap 'status=$$?; node $(FRONTEND_DIR)/scripts/normalize-wails-bindings.mjs || exit $$?; exit "$$status"' EXIT; \
-		wails build -platform windows/amd64 -compiler "$(CURDIR)/build/bin/docflow-go"
+	wails build -platform windows/amd64 -compiler "$(CURDIR)/build/bin/docflow-go"
 
 # Сборка и публикация используют один идентификатор. Перед запуском — docker login.
 docker-server-push: override export DOCFLOW_LOCAL_BUILD=0
