@@ -496,45 +496,6 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("ResetPassword invalid password", func(t *testing.T) {
-		err = repo.ResetPassword(uid, "weak")
-		require.Error(t, err)
-		appErr, ok := models.AsAppError(err)
-		require.True(t, ok)
-		assert.Equal(t, "VALIDATION_ERROR", appErr.Kind)
-		assert.Equal(t, 400, appErr.Code)
-		assert.Contains(t, appErr.Message, "минимум 8 символов")
-	})
-
-	t.Run("ResetPassword success", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectExec(`UPDATE users SET password_hash`).
-			WithArgs(sqlmock.AnyArg(), true, uid).
-			WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectExec(`UPDATE server_sessions SET revoked_at`).
-			WithArgs(uid).
-			WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectCommit()
-
-		err = repo.ResetPassword(uid, "NewPass123!")
-		require.NoError(t, err)
-	})
-
-	t.Run("ResetPassword missing user", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectExec(`UPDATE users SET password_hash`).
-			WithArgs(sqlmock.AnyArg(), true, uid).
-			WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectRollback()
-
-		err = repo.ResetPassword(uid, "NewPass123!")
-		appErr, ok := models.AsAppError(err)
-		require.True(t, ok)
-		assert.Equal(t, "NOT_FOUND", appErr.Kind)
-		assert.Equal(t, 404, appErr.Code)
-		assert.Contains(t, appErr.Message, "пользователь не найден")
-	})
-
 	t.Run("UpdateProfile", func(t *testing.T) {
 		// Редактирование собственного профиля пользователем
 		mock.ExpectBegin()

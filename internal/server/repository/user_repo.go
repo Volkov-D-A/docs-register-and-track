@@ -582,18 +582,6 @@ func (r *UserRepository) updatePassword(userID uuid.UUID, newPasswordHash string
 	return nil
 }
 
-// ResetPassword сбрасывает (изменяет) пароль пользователя.
-func (r *UserRepository) ResetPassword(userID uuid.UUID, newPassword string) error {
-	if err := security.ValidatePassword(newPassword); err != nil {
-		return models.NewBadRequestWrapped(err.Error(), err)
-	}
-	hash, err := security.HashPassword(newPassword)
-	if err != nil {
-		return err
-	}
-	return r.updatePassword(userID, hash, true)
-}
-
 func (r *UserRepository) ResetPasswordWithOutbox(userID uuid.UUID, newPassword string, effects []models.OutboxEvent) error {
 	if err := security.ValidatePassword(newPassword); err != nil {
 		return models.NewBadRequestWrapped(err.Error(), err)

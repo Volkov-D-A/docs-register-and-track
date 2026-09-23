@@ -26,7 +26,7 @@ func (_m *UserStore) UpdateWithOutbox(req models.UpdateUserRequest, _ []models.O
 }
 
 func (_m *UserStore) ResetPasswordWithOutbox(id uuid.UUID, password string, _ []models.OutboxEvent) error {
-	return _m.ResetPassword(id, password)
+	return _m.Called(id, password).Error(0)
 }
 
 func (_m *UserStore) IncrementFailedLoginAttemptsWithOutbox(id uuid.UUID, _ models.OutboxEvent) (int, bool, error) {
@@ -288,24 +288,6 @@ func (_m *UserStore) IncrementFailedLoginAttempts(userID uuid.UUID) (int, bool, 
 	}
 
 	return r0, r1, r2
-}
-
-// ResetPassword provides a mock function with given fields: userID, newPassword
-func (_m *UserStore) ResetPassword(userID uuid.UUID, newPassword string) error {
-	ret := _m.Called(userID, newPassword)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ResetPassword")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, string) error); ok {
-		r0 = rf(userID, newPassword)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
 }
 
 // ResetFailedLoginAttempts provides a mock function with given fields: userID

@@ -1,9 +1,11 @@
 import React from 'react';
 import { ConfigProvider } from 'antd';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { expect, test, vi } from 'vitest';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, expect, test, vi } from 'vitest';
 import BackupTab from '../../src/features/settings/BackupTab';
 import { installWailsMock, renderWithApp } from '../componentTestUtils';
+
+afterEach(() => vi.useRealTimers());
 
 test('backup settings preserve a stored password and retry a staged archive', async () => {
   const settings = {
@@ -85,7 +87,7 @@ test('an unconfigured SMB connection is not queried until settings are saved', a
   expect(screen.queryByText('Сначала заполните и сохраните настройки SMB-подключения и пароль.')).not.toBeInTheDocument();
 }, 15000);
 
-test('backup progress does not refresh an unchanged catalog and maintenance preserves copies', async () => {
+test('backup progress does not refresh an unchanged catalog', async () => {
   const settings = {
     smb: { host: 'nas', share: 'backups', directory: '', user: 'backup', domain: '' },
     enabled: false, time: '02:00', timezone: 'Asia/Yekaterinburg', weekdays: [1],
@@ -111,24 +113,42 @@ test('backup progress does not refresh an unchanged catalog and maintenance pres
   expect(await within(dialog).findByText('Создание снимка')).toBeInTheDocument();
   expect(within(dialog).getByRole('button', { name: 'Начать создание копии' })).toBeDisabled();
   fireEvent.click(within(dialog).getByRole('button', { name: /close/i }));
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 5000 });
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   expect(screen.queryByText('Создание снимка')).not.toBeInTheDocument();
   expect(screen.queryByText('Текущее задание')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Создать копию' }));
-  expect(await within(await screen.findByRole('dialog')).findByText('Создание снимка')).toBeInTheDocument();
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /close/i }));
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 5000 });
   expect(catalog).toHaveBeenCalledTimes(1);
+});
+
+test('maintenance keeps saved copies until catalog retry succeeds', async () => {
+  const settings = {
+    smb: { host: 'nas', share: 'backups', directory: '', user: 'backup', domain: '' },
+    enabled: false, time: '02:00', timezone: 'Asia/Yekaterinburg', weekdays: [1],
+    retentionDays: 15, keepCopies: 3, passwordSet: true,
+  };
+  const savedCopy = { id: 'saved-copy', format: 3, createdAt: '2026-09-14T00:00:00Z', size: 1024, verification: 'verified' };
+  const catalog = vi.fn().mockResolvedValue([savedCopy]);
+  installWailsMock({ SettingsService: {
+    GetBackupSettings: vi.fn().mockResolvedValue({ settings, issue: '', nextRun: '' }),
+    ListBackups: vi.fn().mockResolvedValue([]), ListBackupCopies: catalog,
+  } });
+  renderWithApp(<ConfigProvider theme={{ token: { motion: false } }}><BackupTab /></ConfigProvider>);
+  expect(await screen.findByText('saved-copy')).toBeInTheDocument();
+  vi.useFakeTimers();
   catalog.mockRejectedValueOnce(JSON.stringify({ code: 'MAINTENANCE', status: 503, message: 'Обслуживание' }));
-  fireEvent.click(await screen.findByRole('button', { name: /Обновить каталог/ }));
-  expect(await screen.findByText('Обновление каталога отложено до завершения обслуживания сервера.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Обновить каталог/ }));
+  await act(async () => { await Promise.resolve(); });
+  expect(screen.getByText('Обновление каталога отложено до завершения обслуживания сервера.')).toBeInTheDocument();
   expect(screen.getByText('saved-copy')).toBeInTheDocument();
   expect(screen.queryByText('Каталог SMB недоступен')).not.toBeInTheDocument();
-  await waitFor(() => expect(screen.queryByText('Обновление каталога отложено до завершения обслуживания сервера.')).not.toBeInTheDocument(), { timeout: 5000 });
+  await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+  expect(screen.queryByText('Обновление каталога отложено до завершения обслуживания сервера.')).not.toBeInTheDocument();
+  expect(catalog).toHaveBeenCalledTimes(3);
+  expect(screen.getByText('saved-copy')).toBeInTheDocument();
   catalog.mockRejectedValueOnce(JSON.stringify({ code: 'INTERNAL_ERROR', status: 503, message: 'SMB unavailable' }));
-  fireEvent.click(await screen.findByRole('button', { name: /Обновить каталог/ }));
-  expect(await screen.findByText('Каталог SMB недоступен')).toBeInTheDocument();
-}, 15000);
+  fireEvent.click(screen.getByRole('button', { name: /Обновить каталог/ }));
+  await act(async () => { await Promise.resolve(); });
+  expect(screen.getByText('Каталог SMB недоступен')).toBeInTheDocument();
+});
 
 test('a new creation dialog does not show the previous completed backup', async () => {
   const settings = {

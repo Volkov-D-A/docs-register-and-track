@@ -529,66 +529,6 @@ func (s *DocumentAccessService) RequireRead(documentKind string, documentID uuid
 	return s.RequireReadResolved(doc)
 }
 
-// RequireResolvedRead проверяет доступ к уже загруженному документу без повторного чтения из репозитория.
-func (s *DocumentAccessService) RequireResolvedRead(documentKind string, documentID, nomenclatureID uuid.UUID) error {
-	if err := s.RequireDomainRead(); err != nil {
-		return err
-	}
-
-	kind := models.DocumentKind(documentKind)
-
-	allowed, err := s.hasPermission(kind, "read")
-	if err != nil {
-		return err
-	}
-	if allowed {
-		return nil
-	}
-
-	isParticipant, err := s.isCurrentUserDocumentParticipant()
-	if err != nil {
-		return err
-	}
-
-	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
-	if err != nil {
-		return err
-	}
-
-	if isParticipant {
-		ok, err := s.hasDepartmentNomenclatureAccess(nomenclatureID)
-		if err == nil && ok {
-			return nil
-		}
-	} else if len(subjectIDs) <= 1 {
-		return models.ErrForbidden
-	}
-	if s.assignmentRepo != nil {
-		for _, subjectID := range subjectIDs {
-			ok, err := s.assignmentRepo.HasDocumentAccess(subjectID, documentID)
-			if err != nil {
-				return err
-			}
-			if ok {
-				return nil
-			}
-		}
-	}
-	if s.acknowledgmentRepo != nil {
-		for _, subjectID := range subjectIDs {
-			ok, err := s.acknowledgmentRepo.HasDocumentAccess(subjectID, documentID)
-			if err != nil {
-				return err
-			}
-			if ok {
-				return nil
-			}
-		}
-	}
-
-	return models.ErrForbidden
-}
-
 func (s *DocumentAccessService) RequireDocumentAction(documentID uuid.UUID, action string) error {
 	doc, err := s.RequireExists(documentID)
 	if err != nil {
