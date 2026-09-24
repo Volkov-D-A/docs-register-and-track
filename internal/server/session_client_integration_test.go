@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/background"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/background"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
@@ -47,7 +47,7 @@ func TestDesktopSessionInvalidationIntegration(t *testing.T) {
 			require.NoError(t, err)
 			_, err = adminClient.Login(context.Background(), "session-admin", "Passw0rd!")
 			require.NoError(t, err)
-			auth := services.NewAuthService(client, client, nil, nil)
+			auth := services.NewAuthService(client, client, nil)
 			_, err = auth.Login("session-client", "Passw0rd!")
 			require.NoError(t, err)
 			require.True(t, auth.GetSessionState().Authenticated)

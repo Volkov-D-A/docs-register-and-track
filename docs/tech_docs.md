@@ -61,9 +61,8 @@ Frontend:
 Разделение desktop и сервера завершено 14 сентября 2026 года. Desktop отвечает
 за Wails API, локальные пользовательские файлы, интерфейс ОС и HTTP-клиент;
 сервер — за аутентификацию, права, бизнес-операции, БД, object storage и outbox.
-Production-зависимости проверяются транзитивно: desktop не импортирует server,
-server не импортирует desktop и Wails, общие пакеты не зависят от обеих сторон.
-Эти ограничения закреплены в `internal/architecture/imports_test.go`.
+Desktop не импортирует server, server не импортирует desktop и Wails, общие
+пакеты не зависят от обеих сторон.
 
 Wails публикует 25 desktop-сервисов и 122 пользовательских методов без служебных
 setters, Startup и LogAction. Виды документов используют только системные коды `incoming_letter`,
@@ -95,11 +94,13 @@ Wails desktop app
 │   │   ├── serverclient/ HTTP, сессии, SSE и отмена запросов
 │   │   ├── config/    локальный адрес HTTP API
 │   │   ├── logging/   Wails adapter и HTTP-доставка логов
+│   │   ├── operations/ жизненный цикл клиентских операций
 │   │   └── services/  Wails API и HTTP-адаптеры
 │   ├── server/
 │   │   ├── background/ lifecycle фоновых задач и проверка схемы
 │   │   ├── config/    PostgreSQL, S3, backup, Seq и outbox из окружения
 │   │   ├── logging/   серверная настройка slog и доставка в Seq
+│   │   ├── observability/ метрики серверных операций
 │   │   ├── services/  права и бизнес-операции
 │   │   ├── database/  PostgreSQL connection и embedded migrations
 │   │   ├── repository/ SQL persistence и транзакции
@@ -113,9 +114,7 @@ Wails desktop app
 │   │   └── testutil/  PostgreSQL и S3 для интеграционных тестов
 │   ├── models/        domain entities, requests, app errors
 │   ├── dto/           frontend-facing mapping
-│   ├── logger/        независимые CLEF formatting и установка slog
-│   ├── startupdiag/   startup diagnostics
-│   └── releaseassets/ embedded release notes
+│   └── shared/        общие attachmentname, buildinfo, logger, releaseassets и startupdiag
 │
 ├── frontend/src/
 │   ├── pages/         screen-level pages
@@ -786,7 +785,7 @@ Production RPO/RTO подтверждаются пробным восстано�
 Version source:
 
 - `docs/releases.yaml`;
-- generated `internal/releaseassets/current_release.yaml`;
+- generated `internal/shared/releaseassets/current_release.yaml`;
 - Wails product metadata in `wails.json`.
 
 Release must be from a clean worktree. Before production approval:
@@ -1012,7 +1011,7 @@ UI загружает актуальное состояние. Шина собы
 
 ### Внутренняя идентификация сборок
 
-`internal/buildinfo` хранит встроенные номер коммита (`git rev-list --count HEAD`),
+`internal/shared/buildinfo` хранит встроенные номер коммита (`git rev-list --count HEAD`),
 полный SHA и опциональный отпечаток локальных исходников. Публичная версия релиза
 не меняет формат. `tools/buildmeta` служит Go compiler wrapper для Wails и пересчитывает
 метаданные перед каждым `go build`, объединяя свои `-ldflags` с флагами Wails.

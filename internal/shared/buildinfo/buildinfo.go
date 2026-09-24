@@ -48,6 +48,6 @@ func Parse(raw string) (Identity, error) {
 	return i, nil
 }
 func (i Identity) LDFlags() string {
-	const pkg = "github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo."
+	const pkg = "github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo."
 	return "-X " + pkg + "Number=" + i.Number + " -X " + pkg + "Revision=" + i.Revision + " -X " + pkg + "Fingerprint=" + i.Fingerprint
 }

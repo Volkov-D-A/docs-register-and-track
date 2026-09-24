@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
 	"io"
 	"log/slog"
 	"net"
@@ -19,11 +19,11 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
@@ -229,14 +229,14 @@ func newManagementAPI(app *App) *managementAPI {
 			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
-			return serverservices.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal, nil, app.metrics)
+			return serverservices.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal, app.metrics)
 		},
 		journal: func(user *models.User) journalAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(
 				principal, departments, assignments, acknowledgments, access, documents, substitutions,
 			)
-			return serverservices.NewJournalService(journal, documentAccess, nil)
+			return serverservices.NewJournalService(journal, documentAccess)
 		},
 		dashboard: func(user *models.User) dashboardAPI {
 			principal := requestDocumentPrincipal{user: user}

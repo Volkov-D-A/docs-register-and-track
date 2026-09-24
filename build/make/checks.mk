@@ -11,7 +11,7 @@ PERFORMANCE_DEEP_PAGE ?= 0
 GOVULNCHECK ?= $(shell command -v govulncheck 2>/dev/null || echo "go run golang.org/x/vuln/cmd/govulncheck@latest")
 
 release-assets-check:
-	GOCACHE=$(GOCACHE) go run ./tools/releasegen -source docs/releases.yaml -out internal/releaseassets/current_release.yaml -wails-config wails.json -check
+	GOCACHE=$(GOCACHE) go run ./tools/releasegen -source docs/releases.yaml -out internal/shared/releaseassets/current_release.yaml -wails-config wails.json -check
 
 docs-links-check:
 	node tools/check-markdown-links.mjs

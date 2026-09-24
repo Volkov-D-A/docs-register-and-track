@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
 	"io"
 	"log/slog"
 	"os"
@@ -14,11 +14,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	logger "github.com/Volkov-D-A/docs-register-and-track/internal/server/logging"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/startupdiag"
 )
 
 const usage = `Docflow server

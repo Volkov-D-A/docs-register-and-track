@@ -1,32 +1,30 @@
 package services
 
 import (
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	"context"
 
 	"github.com/google/uuid"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 type JournalService struct {
-	repo      ports.JournalStore
-	access    *DocumentAccessService
-	lifecycle *operations.Lifecycle
+	repo   ports.JournalStore
+	access *DocumentAccessService
 }
 
-func NewJournalService(repo ports.JournalStore, access *DocumentAccessService, lifecycle *operations.Lifecycle) *JournalService {
+func NewJournalService(repo ports.JournalStore, access *DocumentAccessService) *JournalService {
 	return &JournalService{
-		repo:      repo,
-		lifecycle: lifecycle,
-		access:    access,
+		repo:   repo,
+		access: access,
 	}
 }
 
 // GetByDocumentID возвращает список записей журнала для заданного документа.
 func (s *JournalService) GetByDocumentID(documentIDStr string) ([]dto.JournalEntry, error) {
-	ctx, release := s.lifecycle.OperationContext()
-	defer release()
+	ctx := context.Background()
 
 	docID, err := uuid.Parse(documentIDStr)
 	if err != nil {

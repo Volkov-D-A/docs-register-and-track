@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Lifecycle coordinates long-running backend work with app shutdown.
+// Lifecycle coordinates long-running desktop work with app shutdown.
 type Lifecycle struct {
 	rootCtx    context.Context
 	cancelRoot context.CancelFunc

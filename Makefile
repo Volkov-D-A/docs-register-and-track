@@ -86,7 +86,7 @@ release-gate:
 
 # Служебные зависимости; вручную запускать не требуется.
 release-assets:
-	GOCACHE=$(GOCACHE) go generate ./internal/releaseassets
+	GOCACHE=$(GOCACHE) go generate ./internal/shared/releaseassets
 
 _build-compiler:
 	GOCACHE=$(GOCACHE) go build -o build/bin/docflow-go ./tools/buildmeta

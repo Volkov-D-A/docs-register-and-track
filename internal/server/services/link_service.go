@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -9,9 +10,8 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
@@ -24,7 +24,6 @@ type LinkService struct {
 	administrativeOrderRepo ports.AdministrativeOrderDocStore
 	access                  *DocumentAccessService
 	authService             ports.DocumentAccessPrincipal
-	lifecycle               *operations.Lifecycle
 	metrics                 *observability.Registry
 }
 
@@ -37,7 +36,6 @@ func NewLinkService(
 	administrativeOrderRepo ports.AdministrativeOrderDocStore,
 	access *DocumentAccessService,
 	authService ports.DocumentAccessPrincipal,
-	lifecycle *operations.Lifecycle,
 	metrics *observability.Registry,
 ) *LinkService {
 	return &LinkService{
@@ -48,7 +46,6 @@ func NewLinkService(
 		administrativeOrderRepo: administrativeOrderRepo,
 		access:                  access,
 		authService:             authService,
-		lifecycle:               lifecycle,
 		metrics:                 metrics,
 	}
 }
@@ -67,9 +64,8 @@ func linkJournalEffects(link *models.DocumentLink, userID uuid.UUID, action, det
 
 // LinkDocuments создает связь указанного типа между двумя документами.
 func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (*dto.DocumentLink, error) {
-	return operations.Measure(s.metrics, "links.create", func() (*dto.DocumentLink, error) {
-		ctx, release := s.lifecycle.OperationContext()
-		defer release()
+	return observability.Measure(s.metrics, "links.create", func() (*dto.DocumentLink, error) {
+		ctx := context.Background()
 
 		userID, err := s.authService.GetCurrentUserUUID()
 		if err != nil {
@@ -126,9 +122,8 @@ func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (
 
 // UnlinkDocument удаляет связь между документами по её ID.
 func (s *LinkService) UnlinkDocument(idStr string) error {
-	return operations.MeasureError(s.metrics, "links.delete", func() error {
-		ctx, release := s.lifecycle.OperationContext()
-		defer release()
+	return observability.MeasureError(s.metrics, "links.delete", func() error {
+		ctx := context.Background()
 
 		id, err := uuid.Parse(idStr)
 		if err != nil {
@@ -157,9 +152,8 @@ func (s *LinkService) UnlinkDocument(idStr string) error {
 
 // GetDocumentLinks возвращает список всех прямых связей для указанного документа.
 func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, error) {
-	return operations.Measure(s.metrics, "links.get_list", func() ([]dto.DocumentLink, error) {
-		ctx, release := s.lifecycle.OperationContext()
-		defer release()
+	return observability.Measure(s.metrics, "links.get_list", func() ([]dto.DocumentLink, error) {
+		ctx := context.Background()
 
 		docID, err := uuid.Parse(docIDStr)
 		if err != nil {
@@ -199,9 +193,8 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 
 // GetDocumentFlow возвращает граф связей для документа, включая связанные узлы (документы) и ребра (связи) для визуализации.
 func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, error) {
-	return operations.Measure(s.metrics, "links.get_graph", func() (*models.GraphData, error) {
-		ctx, release := s.lifecycle.OperationContext()
-		defer release()
+	return observability.Measure(s.metrics, "links.get_graph", func() (*models.GraphData, error) {
+		ctx := context.Background()
 
 		rootID, err := uuid.Parse(rootIDStr)
 		if err != nil {

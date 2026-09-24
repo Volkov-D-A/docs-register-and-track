@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +46,7 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 	}, nil).Maybe()
 
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
-	svc := NewJournalService(journalRepo, accessSvc, nil)
+	svc := NewJournalService(journalRepo, accessSvc)
 	return svc, journalRepo, incomingRepo, outgoingRepo, auth
 }
 

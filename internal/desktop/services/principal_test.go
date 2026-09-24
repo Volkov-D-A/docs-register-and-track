@@ -26,7 +26,7 @@ func TestPrincipalPermissionUsesOneCurrentUserResponse(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client := &fakeServerAuthClient{user: tc.user, meErr: tc.serverErr}
-			principal := NewPrincipal(NewAuthService(client, nil, nil, nil))
+			principal := NewPrincipal(NewAuthService(client, nil, nil))
 			err := principal.RequireSystemPermission(models.SystemPermissionAdmin)
 			if tc.want == nil {
 				require.NoError(t, err)

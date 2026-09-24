@@ -5,11 +5,10 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/google/uuid"
 )
 
@@ -26,11 +25,10 @@ type AuthService struct {
 	serverAuth   AuthSessionClient
 	initialSetup serverclient.InitialSetupClient
 	lifecycle    *operations.Lifecycle
-	metrics      *observability.Registry
 }
 
-func NewAuthService(client AuthSessionClient, setup serverclient.InitialSetupClient, lifecycle *operations.Lifecycle, metrics *observability.Registry) *AuthService {
-	return &AuthService{serverAuth: client, initialSetup: setup, lifecycle: lifecycle, metrics: metrics}
+func NewAuthService(client AuthSessionClient, setup serverclient.InitialSetupClient, lifecycle *operations.Lifecycle) *AuthService {
+	return &AuthService{serverAuth: client, initialSetup: setup, lifecycle: lifecycle}
 }
 
 func (s *AuthService) operationContext(timeout time.Duration) (context.Context, func()) {
@@ -40,38 +38,34 @@ func (s *AuthService) operationContext(timeout time.Duration) (context.Context, 
 }
 
 func (s *AuthService) Login(login, password string) (*dto.User, error) {
-	return operations.Measure(s.metrics, "auth.login", func() (*dto.User, error) {
-		if s.serverAuth == nil {
-			return nil, errServerAuthNotConfigured
-		}
+	if s.serverAuth == nil {
+		return nil, errServerAuthNotConfigured
+	}
 
-		ctx, cancel := s.operationContext(15 * time.Second)
-		defer cancel()
-		user, err := s.serverAuth.Login(ctx, login, password)
-		if err != nil {
-			return nil, err
-		}
-		if user == nil {
-			return nil, models.NewInternal("Сервис не вернул пользователя", nil)
-		}
-		if _, err := uuid.Parse(user.ID); err != nil {
-			return nil, models.NewInternal("Сервис вернул некорректный идентификатор пользователя", err)
-		}
-		return user, nil
-	})
+	ctx, cancel := s.operationContext(15 * time.Second)
+	defer cancel()
+	user, err := s.serverAuth.Login(ctx, login, password)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, models.NewInternal("Сервис не вернул пользователя", nil)
+	}
+	if _, err := uuid.Parse(user.ID); err != nil {
+		return nil, models.NewInternal("Сервис вернул некорректный идентификатор пользователя", err)
+	}
+	return user, nil
 }
 
 func (s *AuthService) Logout() error {
-	return operations.MeasureError(s.metrics, "auth.logout", func() error {
-		if s.serverAuth != nil {
-			ctx, cancel := s.operationContext(15 * time.Second)
-			defer cancel()
-			if err := s.serverAuth.Logout(ctx); err != nil {
-				return err
-			}
+	if s.serverAuth != nil {
+		ctx, cancel := s.operationContext(15 * time.Second)
+		defer cancel()
+		if err := s.serverAuth.Logout(ctx); err != nil {
+			return err
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func (s *AuthService) GetCurrentUser() (*dto.User, error) {
@@ -85,27 +79,23 @@ func (s *AuthService) GetCurrentUser() (*dto.User, error) {
 }
 
 func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
-	return operations.MeasureError(s.metrics, "auth.change_password", func() error {
-		if s.serverAuth == nil {
-			return errServerAuthNotConfigured
-		}
+	if s.serverAuth == nil {
+		return errServerAuthNotConfigured
+	}
 
-		ctx, cancel := s.operationContext(15 * time.Second)
-		defer cancel()
-		return s.serverAuth.ChangePassword(ctx, oldPassword, newPassword)
-	})
+	ctx, cancel := s.operationContext(15 * time.Second)
+	defer cancel()
+	return s.serverAuth.ChangePassword(ctx, oldPassword, newPassword)
 }
 
 func (s *AuthService) ChangeRequiredPassword(login, oldPassword, newPassword string) error {
-	return operations.MeasureError(s.metrics, "auth.change_required_password", func() error {
-		if s.serverAuth == nil {
-			return errServerAuthNotConfigured
-		}
+	if s.serverAuth == nil {
+		return errServerAuthNotConfigured
+	}
 
-		ctx, cancel := s.operationContext(15 * time.Second)
-		defer cancel()
-		return s.serverAuth.ChangeRequiredPassword(ctx, login, oldPassword, newPassword)
-	})
+	ctx, cancel := s.operationContext(15 * time.Second)
+	defer cancel()
+	return s.serverAuth.ChangeRequiredPassword(ctx, login, oldPassword, newPassword)
 }
 
 func (s *AuthService) UpdateProfile(req models.UpdateProfileRequest) error {

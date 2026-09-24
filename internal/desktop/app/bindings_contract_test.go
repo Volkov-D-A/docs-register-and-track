@@ -23,7 +23,7 @@ func TestWailsAPIContract(t *testing.T) {
 	var expected map[string][]string
 	require.NoError(t, json.Unmarshal(data, &expected))
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	releaseNotes, err := os.ReadFile("../../releaseassets/current_release.yaml")
+	releaseNotes, err := os.ReadFile("../../shared/releaseassets/current_release.yaml")
 	require.NoError(t, err)
 	appOptions, failure := NewWailsOptions(&config.Config{}, WailsOptionsParams{ReleaseNotesSource: releaseNotes})
 	require.Nil(t, failure)

@@ -13,17 +13,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/background"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
 )

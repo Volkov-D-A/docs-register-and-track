@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func authHTTPService(t *testing.T, handler http.HandlerFunc, lifecycle *operatio
 	t.Cleanup(server.Close)
 	client, err := serverclient.New(server.URL)
 	require.NoError(t, err)
-	return NewAuthService(client, client, lifecycle, nil)
+	return NewAuthService(client, client, lifecycle)
 }
 func writeLogin(w http.ResponseWriter, id string) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"accessToken": id, "user": dto.User{ID: id, IsActive: true}})

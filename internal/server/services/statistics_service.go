@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -10,8 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
@@ -31,7 +31,6 @@ type StatisticsService struct {
 	repo          ports.StatisticsStore
 	auth          ports.StatisticsPrincipal
 	storage       ports.StorageInfoProvider
-	lifecycle     *operations.Lifecycle
 	metrics       *observability.Registry
 	diagnostics   ports.SystemDiagnosticsProvider
 }
@@ -39,7 +38,6 @@ type StatisticsService struct {
 // StatisticsOptions configures server diagnostics and refresh coordination.
 type StatisticsOptions struct {
 	Diagnostics ports.SystemDiagnosticsProvider
-	Lifecycle   *operations.Lifecycle
 	Metrics     *observability.Registry
 	// RefreshRunner registers detached work before starting it so backup can drain it.
 	RefreshRunner func(func())
@@ -47,13 +45,13 @@ type StatisticsOptions struct {
 
 func NewStatisticsService(repo ports.StatisticsStore, auth ports.StatisticsPrincipal, storage ports.StorageInfoProvider, options StatisticsOptions) *StatisticsService {
 	return &StatisticsService{repo: repo, auth: auth, storage: storage,
-		diagnostics: options.Diagnostics, lifecycle: options.Lifecycle, metrics: options.Metrics,
+		diagnostics: options.Diagnostics, metrics: options.Metrics,
 		refreshRunner: options.RefreshRunner}
 }
 
 // GetDocumentStatistics возвращает обзорную статистику по всем документам за текущий год.
 func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics, error) {
-	return operations.Measure(s.metrics, "statistics.get_documents", func() (*models.DocumentStatistics, error) {
+	return observability.Measure(s.metrics, "statistics.get_documents", func() (*models.DocumentStatistics, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
 			return nil, err
 		}
@@ -95,7 +93,7 @@ func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics,
 
 // GetDocumentReport возвращает документный отчет за период.
 func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy, kindCode, nomenclatureID, userID string) (*models.DocumentStatisticsReport, error) {
-	return operations.Measure(s.metrics, "statistics.get_document_report", func() (*models.DocumentStatisticsReport, error) {
+	return observability.Measure(s.metrics, "statistics.get_document_report", func() (*models.DocumentStatisticsReport, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
 			return nil, err
 		}
@@ -142,7 +140,7 @@ func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy,
 
 // GetDocumentFilterOptions возвращает значения фильтров для документной статистики.
 func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisticsFilters, error) {
-	return operations.Measure(s.metrics, "statistics.get_document_filters", func() (*models.DocumentStatisticsFilters, error) {
+	return observability.Measure(s.metrics, "statistics.get_document_filters", func() (*models.DocumentStatisticsFilters, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
 			return nil, err
 		}
@@ -166,7 +164,7 @@ func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisti
 
 // GetAssignmentStatistics возвращает обзорную статистику по всем поручениям.
 func (s *StatisticsService) GetAssignmentStatistics() (*models.AssignmentStatistics, error) {
-	return operations.Measure(s.metrics, "statistics.get_assignments", func() (*models.AssignmentStatistics, error) {
+	return observability.Measure(s.metrics, "statistics.get_assignments", func() (*models.AssignmentStatistics, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
 			return nil, err
 		}
@@ -257,7 +255,7 @@ func runStatisticsQueries(tasks ...func() error) error {
 
 // GetAssignmentReport возвращает отчет по поручениям за период.
 func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string, onlyOverdue bool, userID string) (*models.AssignmentStatisticsReport, error) {
-	return operations.Measure(s.metrics, "statistics.get_assignment_report", func() (*models.AssignmentStatisticsReport, error) {
+	return observability.Measure(s.metrics, "statistics.get_assignment_report", func() (*models.AssignmentStatisticsReport, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
 			return nil, err
 		}
@@ -288,7 +286,7 @@ func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string,
 
 // GetAssignmentFilterOptions возвращает значения фильтров для статистики поручений.
 func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStatisticsFilters, error) {
-	return operations.Measure(s.metrics, "statistics.get_assignment_filters", func() (*models.AssignmentStatisticsFilters, error) {
+	return observability.Measure(s.metrics, "statistics.get_assignment_filters", func() (*models.AssignmentStatisticsFilters, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
 			return nil, err
 		}
@@ -304,7 +302,7 @@ func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStat
 
 // GetSystemStatistics возвращает системную статистику.
 func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, error) {
-	return operations.Measure(s.metrics, "statistics.get_system", func() (*models.SystemStatistics, error) {
+	return observability.Measure(s.metrics, "statistics.get_system", func() (*models.SystemStatistics, error) {
 		if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
 			return nil, err
 		}
@@ -451,8 +449,7 @@ func (s *StatisticsService) ensureStorageStatisticsStatus(record models.StorageS
 }
 
 func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
-	ctx, release := s.lifecycle.OperationContext()
-	defer release()
+	ctx := context.Background()
 
 	objectCount, totalBytes, err := s.storage.RefreshStorageUsage(ctx)
 	if err != nil {

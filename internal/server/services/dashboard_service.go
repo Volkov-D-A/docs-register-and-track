@@ -3,8 +3,7 @@ package services
 import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
@@ -24,7 +23,7 @@ func NewDashboardService(repo ports.DashboardStore, auth ports.DocumentAccessPri
 // GetActivity возвращает оперативные данные для главного экрана.
 
 func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
-	return operations.Measure(s.metrics, "dashboard.get_activity", func() (*dto.DashboardActivity, error) {
+	return observability.Measure(s.metrics, "dashboard.get_activity", func() (*dto.DashboardActivity, error) {
 		if err := s.auth.RequireAuthenticated(); err != nil {
 			return nil, err
 		}

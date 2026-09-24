@@ -19,11 +19,10 @@ import (
 	"github.com/stretchr/testify/require"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 )
 
 func TestAttachmentService_ValidatePathInDownloads(t *testing.T) {
@@ -353,19 +352,6 @@ func TestDesktopAttachmentUploadClosesFileOnHTTPError(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrClosed)
 }
 
-func TestDesktopAttachmentMetricsFromConstructor(t *testing.T) {
-	metrics := observability.NewRegistry(10)
-	client := &desktopAttachmentClient{call: func(context.Context, string) error { return assert.AnError }}
-	svc, _, err := NewDesktopAttachmentService(client, DesktopAttachmentOptions{Metrics: metrics})
-	require.NoError(t, err)
-	_, err = svc.GetList("doc")
-	require.ErrorIs(t, err, assert.AnError)
-	snapshots := metrics.Snapshot()
-	require.Len(t, snapshots, 1)
-	require.Equal(t, "attachments.get_list", snapshots[0].Name)
-	require.Equal(t, int64(1), snapshots[0].Errors)
-}
-
 func requireAppError(t *testing.T, err error, kind string, code int, message string) *models.AppError {
 	t.Helper()
 
@@ -398,8 +384,7 @@ func TestDesktopAttachmentBatchPreservesOutcomes(t *testing.T) {
 				}
 				return &dto.Attachment{ID: uuid.NewString(), Filename: name}, nil
 			}}
-			metrics := observability.NewRegistry(10)
-			svc, start, err := NewDesktopAttachmentService(client, DesktopAttachmentOptions{Metrics: metrics, OpenFilesDialog: func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error) { return paths, nil }})
+			svc, start, err := NewDesktopAttachmentService(client, DesktopAttachmentOptions{OpenFilesDialog: func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error) { return paths, nil }})
 			require.NoError(t, err)
 			start(context.Background())
 			upload := svc.Upload
@@ -417,11 +402,6 @@ func TestDesktopAttachmentBatchPreservesOutcomes(t *testing.T) {
 			require.Equal(t, "VALIDATION_ERROR", result.Items[1].Error.Code)
 			require.Equal(t, requestID, result.Items[1].Error.RequestID)
 			require.Equal(t, "third.txt", result.Items[2].Attachment.Filename)
-			for _, metric := range metrics.Snapshot() {
-				if metric.Name == "attachments.upload.file" {
-					require.Equal(t, int64(1), metric.Errors)
-				}
-			}
 		})
 	}
 }

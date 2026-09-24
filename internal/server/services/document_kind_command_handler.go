@@ -7,8 +7,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 )
 
 func documentCommandHash(req any) (string, error) {
@@ -70,7 +69,7 @@ func NewDocumentCommandEngine(registry *DocumentKindCommandRegistry, metrics *ob
 
 // Register делегирует регистрацию документа обработчику по kindCode.
 func (s *DocumentCommandEngine) Register(kindCode string, req any) (any, error) {
-	return operations.Measure(s.metrics, "documents.register", func() (any, error) {
+	return observability.Measure(s.metrics, "documents.register", func() (any, error) {
 		kind := models.DocumentKind(kindCode)
 		handler, err := s.registry.Get(kind)
 		if err != nil {
@@ -92,7 +91,7 @@ func (s *DocumentCommandEngine) Register(kindCode string, req any) (any, error) 
 
 // Update делегирует обновление документа обработчику по kindCode.
 func (s *DocumentCommandEngine) Update(kindCode string, req any) (any, error) {
-	return operations.Measure(s.metrics, "documents.update", func() (any, error) {
+	return observability.Measure(s.metrics, "documents.update", func() (any, error) {
 		kind := models.DocumentKind(kindCode)
 		handler, err := s.registry.Get(kind)
 		if err != nil {
@@ -114,7 +113,7 @@ func (s *DocumentCommandEngine) Update(kindCode string, req any) (any, error) {
 
 // CreateAdminDraft создает административный черновик с зарезервированным номером.
 func (s *DocumentCommandEngine) CreateAdminDraft(kindCode string, req dto.AdminDraftCreateRequest) (any, error) {
-	return operations.Measure(s.metrics, "documents.create_admin_draft", func() (any, error) {
+	return observability.Measure(s.metrics, "documents.create_admin_draft", func() (any, error) {
 		kind := models.DocumentKind(kindCode)
 		handler, err := s.registry.Get(kind)
 		if err != nil {

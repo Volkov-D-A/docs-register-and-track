@@ -2,13 +2,13 @@ package server
 
 import (
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
 	"log/slog"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 )
 
 type diagnosticsOutbox interface {

@@ -21,7 +21,7 @@ func TestWailsProductVersionMatchesCurrentRelease(t *testing.T) {
 		t.Fatalf("failed to parse generated release asset: %v", err)
 	}
 
-	wailsConfigSource, err := os.ReadFile("../../wails.json")
+	wailsConfigSource, err := os.ReadFile("../../../wails.json")
 	if err != nil {
 		t.Fatalf("failed to read Wails config: %v", err)
 	}

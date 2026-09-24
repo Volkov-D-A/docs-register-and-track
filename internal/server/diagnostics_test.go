@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 )
 
 func TestServerDiagnosticsAggregatesRuntimeMetrics(t *testing.T) {

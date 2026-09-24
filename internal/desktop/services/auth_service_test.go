@@ -54,7 +54,7 @@ func (f *fakeServerAuthClient) UpdateProfile(_ context.Context, req models.Updat
 func TestAuthServiceUsesRequiredServerSessionWhenConfigured(t *testing.T) {
 	userID := uuid.New()
 	client := &fakeServerAuthClient{user: &dto.User{ID: userID.String(), Login: "server-user", IsActive: true}}
-	service := NewAuthService(client, nil, nil, nil)
+	service := NewAuthService(client, nil, nil)
 
 	user, err := service.Login("server-user", "Passw0rd!")
 	require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestAuthServiceUsesRequiredServerSessionWhenConfigured(t *testing.T) {
 func TestAuthServiceUsesServerForPasswordChangesWhenConfigured(t *testing.T) {
 	userID := uuid.New()
 	client := &fakeServerAuthClient{user: &dto.User{ID: userID.String(), Login: "server-user", IsActive: true}}
-	service := NewAuthService(client, nil, nil, nil)
+	service := NewAuthService(client, nil, nil)
 	_, err := service.Login("server-user", "Passw0rd!")
 	require.NoError(t, err)
 
@@ -81,7 +81,7 @@ func TestAuthServiceUsesServerForPasswordChangesWhenConfigured(t *testing.T) {
 
 func TestAuthServiceUsesServerForProfileUpdateWhenConfigured(t *testing.T) {
 	client := &fakeServerAuthClient{user: &dto.User{ID: uuid.NewString(), Login: "server-user", IsActive: true}}
-	service := NewAuthService(client, nil, nil, nil)
+	service := NewAuthService(client, nil, nil)
 	req := models.UpdateProfileRequest{Login: "renamed", FullName: "Renamed User"}
 
 	require.NoError(t, service.UpdateProfile(req))
@@ -91,7 +91,7 @@ func TestAuthServiceUsesServerForProfileUpdateWhenConfigured(t *testing.T) {
 }
 
 func TestAuthServiceRequiresServerClient(t *testing.T) {
-	service := NewAuthService(nil, nil, nil, nil)
+	service := NewAuthService(nil, nil, nil)
 	_, err := service.Login("user", "Passw0rd!")
 	require.ErrorIs(t, err, errServerAuthNotConfigured)
 	_, err = service.GetCurrentUser()
@@ -118,7 +118,7 @@ func (c *setupAuthClient) InitialSetup(_ context.Context, password string) error
 }
 func TestAuthServiceForwardsBootstrapAndErrors(t *testing.T) {
 	client := &setupAuthClient{}
-	service := NewAuthService(client, client, nil, nil)
+	service := NewAuthService(client, client, nil)
 	required, err := service.NeedsInitialSetup()
 	require.NoError(t, err)
 	require.True(t, required)

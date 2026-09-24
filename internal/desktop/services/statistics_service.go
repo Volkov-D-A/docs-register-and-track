@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"

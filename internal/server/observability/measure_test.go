@@ -1,19 +1,17 @@
-package operations
+package observability
 
 import (
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
 
 func TestMeasurePreservesResultsAndRecordsOutcomes(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
-		var metrics *observability.Registry
+		var metrics *Registry
 		if enabled {
-			metrics = observability.NewRegistry(8)
+			metrics = NewRegistry(8)
 		}
 		calls := 0
 		value, err := Measure(metrics, "documents.register", func() (int, error) { calls++; return 42, context.DeadlineExceeded })

@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
@@ -74,7 +74,7 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore port
 
 	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, &kindBackedDocumentStore{incoming: incRepo, outgoing: outRepo})
 
-	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, nil, accessSvc, auth, nil, nil)
+	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, nil, accessSvc, auth, nil)
 	return svc, linkRepo, incRepo, outRepo, auth
 }
 

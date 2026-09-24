@@ -14,14 +14,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/attachmentname"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/coordination"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/attachmentname"
 )
 
 // ServerAttachmentService owns protected attachment operations for one HTTP request.
@@ -31,7 +30,6 @@ type ServerAttachmentService struct {
 	authService      ports.AttachmentPrincipal
 	fileStorage      ports.FileStorage
 	access           *DocumentAccessService
-	lifecycle        *operations.Lifecycle
 	metrics          *observability.Registry
 	storageMutations coordination.StorageMutationCoordinator
 	assignments      ports.AssignmentReader
@@ -43,7 +41,6 @@ type ServerAttachmentOptions struct {
 	Assignments      ports.AssignmentReader
 	Substitutions    ports.UserSubstitutionStore
 	Metrics          *observability.Registry
-	Lifecycle        *operations.Lifecycle
 	StorageMutations coordination.StorageMutationCoordinator
 }
 
@@ -63,7 +60,6 @@ func NewServerAttachmentService(repo ports.AttachmentStore, settings ports.Attac
 		assignments:      options.Assignments,
 		substitutions:    options.Substitutions,
 		metrics:          options.Metrics,
-		lifecycle:        options.Lifecycle,
 		storageMutations: options.StorageMutations,
 	}
 	if s.storageMutations == nil {
@@ -84,8 +80,7 @@ func (s *ServerAttachmentService) ReconcileStorage() (*models.AttachmentStorageR
 	if !ok {
 		return nil, fmt.Errorf("object storage reconciliation is not supported")
 	}
-	ctx, release := s.lifecycle.OperationContext()
-	defer release()
+	ctx := context.Background()
 	databasePaths, err := repo.GetAllStoragePaths()
 	if err != nil {
 		return nil, err
@@ -181,8 +176,7 @@ func (s *ServerAttachmentService) MaxUploadSize() int64 {
 }
 
 func (s *ServerAttachmentService) UploadContent(documentIDStr string, assignmentID *uuid.UUID, filename string, size int64, content io.Reader) (*dto.Attachment, error) {
-	ctx, release := s.lifecycle.OperationContext()
-	defer release()
+	ctx := context.Background()
 
 	currentUser, err := s.authService.GetCurrentUser()
 	if err != nil {
@@ -338,7 +332,7 @@ func (s *ServerAttachmentService) GetAssignmentFiles(assignmentIDStr string) ([]
 }
 
 func (s *ServerAttachmentService) GetList(documentIDStr string) ([]dto.Attachment, error) {
-	return operations.Measure(s.metrics, "attachments.get_list", func() ([]dto.Attachment, error) {
+	return observability.Measure(s.metrics, "attachments.get_list", func() ([]dto.Attachment, error) {
 		documentID, err := uuid.Parse(documentIDStr)
 		if err != nil {
 			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
@@ -356,9 +350,6 @@ func (s *ServerAttachmentService) GetList(documentIDStr string) ([]dto.Attachmen
 }
 
 func (s *ServerAttachmentService) Delete(idStr string) error {
-	_, release := s.lifecycle.OperationContext()
-	defer release()
-
 	// Проверка прав доступа
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -449,9 +440,6 @@ func (w *attachmentDownloadWriter) Write(p []byte) (int, error) {
 }
 
 func (s *ServerAttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
-	_, release := s.lifecycle.OperationContext()
-	defer release()
-
 	// Проверка прав доступа
 	if err := s.authService.RequireSystemPermission(models.SystemPermissionAdmin); err != nil {
 		return 0, err

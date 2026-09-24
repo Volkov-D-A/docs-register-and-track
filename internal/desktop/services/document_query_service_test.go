@@ -10,7 +10,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 )
 
 type fakeServerDocumentQueryClient struct {
@@ -38,8 +37,7 @@ func TestDocumentQueryServiceUsesServerClient(t *testing.T) {
 		card: &dto.DocumentCard{ID: uuid.NewString()},
 		list: &dto.PagedResult[dto.DocumentListItem]{Items: []dto.DocumentListItem{{ID: uuid.NewString()}}, TotalCount: 1},
 	}
-	metrics := observability.NewRegistry(16)
-	service := NewDocumentQueryService(client, metrics)
+	service := NewDocumentQueryService(client)
 
 	card, err := service.GetByID(client.card.ID)
 	require.NoError(t, err)
@@ -52,12 +50,10 @@ func TestDocumentQueryServiceUsesServerClient(t *testing.T) {
 	assert.Same(t, client.list, result)
 	assert.Equal(t, string(models.DocumentKindIncomingLetter), client.lastKind)
 	assert.Equal(t, filter, client.lastFilter)
-	assert.Len(t, metrics.Snapshot(), 2)
-	assert.Equal(t, []observability.CounterSnapshot{{Name: "documents.list.items", Value: 1}}, metrics.Counters())
 }
 
 func TestDocumentQueryServiceRequiresServerClient(t *testing.T) {
-	service := NewDocumentQueryService(nil, nil)
+	service := NewDocumentQueryService(nil)
 	card, err := service.GetByID(uuid.NewString())
 	assert.Nil(t, card)
 	require.ErrorIs(t, err, errServerDocumentQueryClientNotConfigured)
@@ -67,7 +63,7 @@ func TestDocumentQueryServiceRequiresServerClient(t *testing.T) {
 }
 
 func TestDocumentQueryServicePropagatesServerErrors(t *testing.T) {
-	service := NewDocumentQueryService(&fakeServerDocumentQueryClient{cardErr: models.ErrForbidden, listErr: models.ErrUnauthorized}, nil)
+	service := NewDocumentQueryService(&fakeServerDocumentQueryClient{cardErr: models.ErrForbidden, listErr: models.ErrUnauthorized})
 	card, err := service.GetByID(uuid.NewString())
 	require.ErrorIs(t, err, models.ErrForbidden)
 	assert.Nil(t, card)

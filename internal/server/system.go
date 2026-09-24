@@ -2,7 +2,7 @@ package server
 
 import (
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
 	"net/http"
 	"strconv"
 	"strings"

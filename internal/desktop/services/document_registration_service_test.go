@@ -5,10 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +30,6 @@ func TestDocumentRegistrationServiceHTTPCommands(t *testing.T) {
 		t.Run(operation, func(t *testing.T) {
 			for _, serverErr := range []error{nil, models.ErrForbidden} {
 				lifecycle := operations.NewLifecycle(time.Second)
-				metrics := observability.NewRegistry(16)
 				calls := 0
 				client := documentCommandClientStub{call: func(ctx context.Context, kind string, req any) (any, error) {
 					calls++
@@ -52,7 +50,7 @@ func TestDocumentRegistrationServiceHTTPCommands(t *testing.T) {
 					}
 					return "result", nil
 				}}
-				service := NewDocumentRegistrationService(client, lifecycle, metrics)
+				service := NewDocumentRegistrationService(client, lifecycle)
 				invoke := func() (any, error) {
 					switch operation {
 					case "register":
@@ -69,7 +67,6 @@ func TestDocumentRegistrationServiceHTTPCommands(t *testing.T) {
 					require.Equal(t, "result", result)
 				}
 				require.Equal(t, 1, calls)
-				require.Len(t, metrics.Snapshot(), 1)
 				require.NoError(t, lifecycle.Shutdown(context.Background()))
 				_, err = invoke()
 				require.ErrorIs(t, err, context.Canceled)
@@ -83,7 +80,7 @@ func TestDocumentRegistrationServiceRejectsInvalidPayload(t *testing.T) {
 	service := NewDocumentRegistrationService(documentCommandClientStub{call: func(context.Context, string, any) (any, error) {
 		t.Fatal("invalid payload reached HTTP client")
 		return nil, nil
-	}}, nil, nil)
+	}}, nil)
 	_, err := service.Register("incoming_letter", map[string]any{"unknownField": true})
 	require.Error(t, err)
 	_, err = service.Update("incoming_letter", map[string]any{"unknownField": true})
@@ -91,7 +88,7 @@ func TestDocumentRegistrationServiceRejectsInvalidPayload(t *testing.T) {
 }
 
 func TestDocumentRegistrationServiceRequiresClient(t *testing.T) {
-	service := NewDocumentRegistrationService(nil, nil, nil)
+	service := NewDocumentRegistrationService(nil, nil)
 	_, err := service.Register("incoming_letter", nil)
 	require.Error(t, err)
 	_, err = service.Update("incoming_letter", nil)
@@ -109,7 +106,7 @@ func TestDocumentRegistrationServiceShutdownCancelsInFlightCommand(t *testing.T)
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}}
-	service := NewDocumentRegistrationService(client, lifecycle, nil)
+	service := NewDocumentRegistrationService(client, lifecycle)
 	go func() {
 		_, err := service.Register("incoming_letter", dto.IncomingLetterRegisterRequest{})
 		finished <- err

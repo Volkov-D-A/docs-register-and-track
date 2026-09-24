@@ -18,19 +18,17 @@ import (
 	"github.com/google/uuid"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/attachmentname"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/attachmentname"
 )
 
 // AttachmentService is the desktop HTTP adapter and the attachment Wails API.
 type AttachmentService struct {
 	server          serverclient.AttachmentClient
 	lifecycle       *operations.Lifecycle
-	metrics         *observability.Registry
 	uiMu            sync.RWMutex
 	uiContext       context.Context
 	openFilesDialog func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error)
@@ -39,10 +37,9 @@ type AttachmentService struct {
 }
 
 // DesktopAttachmentOptions supplies lifecycle and optional native OS adapters.
-// Nil adapters use the native implementation; metrics and lifecycle are optional.
+// Nil adapters use the native implementation; lifecycle is optional.
 type DesktopAttachmentOptions struct {
 	Lifecycle       *operations.Lifecycle
-	Metrics         *observability.Registry
 	OpenFilesDialog func(context.Context, wailsruntime.OpenDialogOptions) ([]string, error)
 	DownloadDir     func() (string, error)
 	Launch          func(string, ...string) error
@@ -56,7 +53,6 @@ func NewDesktopAttachmentService(client serverclient.AttachmentClient, options D
 	s := &AttachmentService{
 		server:          client,
 		lifecycle:       options.Lifecycle,
-		metrics:         options.Metrics,
 		openFilesDialog: options.OpenFilesDialog,
 		downloadDir:     options.DownloadDir,
 		launch:          options.Launch,
@@ -91,19 +87,15 @@ func (s *AttachmentService) shortOperationContext() (context.Context, func()) {
 }
 
 func (s *AttachmentService) Upload(documentIDStr string) (*dto.AttachmentUploadResult, error) {
-	return operations.Measure(s.metrics, "attachments.upload", func() (*dto.AttachmentUploadResult, error) {
-		return s.uploadSelectedFiles(documentIDStr, "", "Выберите файлы для вложения")
-	})
+	return s.uploadSelectedFiles(documentIDStr, "", "Выберите файлы для вложения")
 }
 
 func (s *AttachmentService) UploadForAssignment(assignmentIDStr string) (*dto.AttachmentUploadResult, error) {
-	return operations.Measure(s.metrics, "attachments.upload.assignment", func() (*dto.AttachmentUploadResult, error) {
-		assignmentID, err := uuid.Parse(assignmentIDStr)
-		if err != nil {
-			return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
-		}
-		return s.uploadSelectedFiles("", assignmentID.String(), "Выберите файлы для отчёта об исполнении")
-	})
+	assignmentID, err := uuid.Parse(assignmentIDStr)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID поручения", err)
+	}
+	return s.uploadSelectedFiles("", assignmentID.String(), "Выберите файлы для отчёта об исполнении")
 }
 
 func (s *AttachmentService) uploadSelectedFiles(documentID, assignmentID, title string) (*dto.AttachmentUploadResult, error) {
@@ -117,9 +109,7 @@ func (s *AttachmentService) uploadSelectedFiles(documentID, assignmentID, title 
 	}
 	result := &dto.AttachmentUploadResult{Items: make([]dto.AttachmentUploadItem, 0, len(paths))}
 	for _, path := range paths {
-		attachment, uploadErr := operations.Measure(s.metrics, "attachments.upload.file", func() (*dto.Attachment, error) {
-			return s.uploadSelectedPath(documentID, assignmentID, path)
-		})
+		attachment, uploadErr := s.uploadSelectedPath(documentID, assignmentID, path)
 		item := dto.AttachmentUploadItem{Filename: filepath.Base(path), Attachment: attachment}
 		if uploadErr != nil {
 			item.Attachment = nil
@@ -170,11 +160,9 @@ func (s *AttachmentService) GetAssignmentFiles(assignmentIDStr string) ([]dto.At
 }
 
 func (s *AttachmentService) GetList(documentIDStr string) ([]dto.Attachment, error) {
-	return operations.Measure(s.metrics, "attachments.get_list", func() ([]dto.Attachment, error) {
-		ctx, cancel := s.shortOperationContext()
-		defer cancel()
-		return s.server.ListDocumentAttachments(ctx, documentIDStr)
-	})
+	ctx, cancel := s.shortOperationContext()
+	defer cancel()
+	return s.server.ListDocumentAttachments(ctx, documentIDStr)
 }
 
 func (s *AttachmentService) Delete(idStr string) error {
@@ -190,25 +178,23 @@ func (s *AttachmentService) BulkDeleteOlderThan(dateStr string) (int, error) {
 }
 
 func (s *AttachmentService) DownloadToDisk(idStr string) (string, error) {
-	return operations.Measure(s.metrics, "attachments.download", func() (string, error) {
-		ctx, release := s.lifecycle.OperationContext()
-		defer release()
-		attachment, content, err := s.server.GetAttachmentContent(ctx, idStr)
-		if err != nil {
-			return "", err
-		}
-		defer content.Close()
-		downloadDir, err := s.getDownloadDir()
-		if err != nil {
-			return "", err
-		}
-		if err := os.MkdirAll(downloadDir, 0755); err != nil {
-			return "", err
-		}
-		return writeDownloadFileFromStorage(downloadDir, attachment.Filename, func(file *os.File) error {
-			_, copyErr := io.Copy(file, content)
-			return copyErr
-		})
+	ctx, release := s.lifecycle.OperationContext()
+	defer release()
+	attachment, content, err := s.server.GetAttachmentContent(ctx, idStr)
+	if err != nil {
+		return "", err
+	}
+	defer content.Close()
+	downloadDir, err := s.getDownloadDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(downloadDir, 0755); err != nil {
+		return "", err
+	}
+	return writeDownloadFileFromStorage(downloadDir, attachment.Filename, func(file *os.File) error {
+		_, copyErr := io.Copy(file, content)
+		return copyErr
 	})
 }
 

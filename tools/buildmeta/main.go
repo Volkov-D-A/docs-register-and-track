@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
 )
 
 func git(root string, args ...string) (string, error) {

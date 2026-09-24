@@ -15,13 +15,12 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/config"
 	logger "github.com/Volkov-D-A/docs-register-and-track/internal/desktop/logging"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/operations"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	desktopservices "github.com/Volkov-D-A/docs-register-and-track/internal/desktop/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/operations"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/releaseassets"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/startupdiag"
 )
 
 // WailsOptionsParams contains process-level dependencies that main owns.
@@ -57,8 +56,6 @@ func newWailsOptionsWithDependencies(
 	params WailsOptionsParams,
 	dependencies wailsOptionsDependencies,
 ) (*options.App, *startupdiag.Failure) {
-	metrics := observability.NewRegistry(256)
-
 	operationLifecycle := operations.NewLifecycle(5 * time.Minute)
 
 	serverClient := params.ServerClient
@@ -75,7 +72,7 @@ func newWailsOptionsWithDependencies(
 			}
 		}
 	}
-	authService := desktopservices.NewAuthService(serverClient, serverClient, operationLifecycle, metrics)
+	authService := desktopservices.NewAuthService(serverClient, serverClient, operationLifecycle)
 	principal := desktopservices.NewPrincipal(authService)
 	logger.SetUserIDProvider(principal.GetCurrentUserID)
 	settingsService := desktopservices.NewSettingsService(principal, serverClient, serverClient)
@@ -88,14 +85,14 @@ func newWailsOptionsWithDependencies(
 	documentAccessAdminService := desktopservices.NewDocumentAccessAdminService(serverClient)
 	documentKindService := desktopservices.NewDocumentKindService(serverClient)
 	journalService := desktopservices.NewJournalService(serverClient)
-	documentQueryService := desktopservices.NewDocumentQueryService(serverClient, metrics)
-	documentRegistrationService := desktopservices.NewDocumentRegistrationService(serverClient, operationLifecycle, metrics)
+	documentQueryService := desktopservices.NewDocumentQueryService(serverClient)
+	documentRegistrationService := desktopservices.NewDocumentRegistrationService(serverClient, operationLifecycle)
 	userEventService := desktopservices.NewUserEventService(serverClient)
 	administrativeOrderService := desktopservices.NewAdministrativeOrderService(serverClient)
 	assignmentService := desktopservices.NewAssignmentService(serverClient)
 	departmentService := desktopservices.NewDepartmentService(serverClient)
 
-	attachmentService, startAttachments, err := desktopservices.NewDesktopAttachmentService(serverClient, desktopservices.DesktopAttachmentOptions{Lifecycle: operationLifecycle, Metrics: metrics})
+	attachmentService, startAttachments, err := desktopservices.NewDesktopAttachmentService(serverClient, desktopservices.DesktopAttachmentOptions{Lifecycle: operationLifecycle})
 	if err != nil {
 		return nil, &startupdiag.Failure{Component: "attachments", ConfigPath: params.ConfigPath, Summary: "Не удалось настроить сервис вложений.", Err: err}
 	}

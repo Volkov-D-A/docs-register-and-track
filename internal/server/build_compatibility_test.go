@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/buildinfo"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
 	"github.com/stretchr/testify/assert"
 )
 

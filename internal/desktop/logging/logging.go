@@ -9,7 +9,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/logger"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/logger"
 )
 
 // userIDProvider supplies desktop session context to local log records.

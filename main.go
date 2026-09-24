@@ -11,13 +11,13 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/app"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/config"
 	logger "github.com/Volkov-D-A/docs-register-and-track/internal/desktop/logging"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/startupdiag"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/startupdiag"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
-//go:embed internal/releaseassets/current_release.yaml
+//go:embed internal/shared/releaseassets/current_release.yaml
 var releaseNotesSource []byte
 
 func main() {
