@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrations3"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrations3"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	transfertypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"

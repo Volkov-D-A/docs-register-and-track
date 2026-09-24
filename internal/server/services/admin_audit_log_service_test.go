@@ -3,7 +3,7 @@ package services
 import (
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 
 	"github.com/google/uuid"

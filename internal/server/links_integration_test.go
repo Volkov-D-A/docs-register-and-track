@@ -18,7 +18,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
 func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {

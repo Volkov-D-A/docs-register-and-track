@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
 func TestEmbeddedMigrationsLifecycleIntegration(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrations3"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrations3"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +27,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/testutil/integrationdb"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
 type attachmentIntegrationStorage struct {

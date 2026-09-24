@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/background"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/background"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"

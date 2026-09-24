@@ -16,14 +16,14 @@ func within(path, prefix string) bool { return path == prefix || strings.HasPref
 
 // Check transitive production dependencies, including both executable roots.
 func forbidden(owner, dependency string) bool {
-	for _, retired := range []string{"services", "app", "serverclient", "config", "database", "repository", "storage", "backup", "liveevents", "outbox", "coordination", "security"} {
+	for _, retired := range []string{"services", "app", "serverclient", "config", "database", "repository", "storage", "backup", "liveevents", "outbox", "coordination", "security", "background", "mocks", "testutil"} {
 		if within(dependency, module+"internal/"+retired) {
 			return true
 		}
 	}
 	desktop := owner == strings.TrimSuffix(module, "/") || within(owner, module+"internal/desktop")
 	server := within(owner, module+"internal/server") || within(owner, module+"cmd/docflow-server")
-	testSupport := within(owner, module+"internal/testutil") || within(owner, module+"internal/mocks") || within(owner, module+"internal/architecture")
+	testSupport := within(owner, module+"internal/architecture")
 	shared := within(owner, module+"internal") && !desktop && !server && !testSupport
 	if (server || shared) && (within(dependency, module+"internal/desktop") || within(dependency, "github.com/wailsapp/wails/v2")) {
 		return true
@@ -70,9 +70,13 @@ func TestBoundaryPolicy(t *testing.T) {
 		{"internal/server/logging", "internal/desktop/logging", true},
 		{"internal/desktop/config", "internal/server/config", true},
 		{"internal/server/logging", "internal/logger", false},
-		{"internal/desktop/app", "internal/background", false},
-		{"internal/background", "internal/server/config", true},
-		{"internal/background", "internal/desktop/serverclient", true},
+		{"internal/desktop/app", "internal/server/background", true},
+		{"internal/desktop/services", "internal/server/mocks", true},
+		{"internal/server/services", "internal/server/mocks", false},
+		{"internal/desktop/services", "internal/server/testutil/integrationdb", true},
+		{"internal/server/repository", "internal/server/testutil/integrationdb", false},
+		{"internal/server/background", "internal/server/config", false},
+		{"internal/server/background", "internal/desktop/serverclient", true},
 		{"internal/desktop/services", "internal/services", true},
 		{"internal/desktop/services", "internal/server/services", true},
 		{"internal/server/services", "internal/desktop/serverclient", true},
@@ -80,7 +84,7 @@ func TestBoundaryPolicy(t *testing.T) {
 		{"internal/operations", "internal/desktop/services", true},
 		{"internal/dto", "internal/server/database", true},
 		{"internal/desktop/serverclient", "internal/server/database", true},
-		{"internal/background", "internal/server/database", true},
+		{"internal/server/background", "internal/server/database", false},
 		{"internal/desktop/services", "internal/server/backup", true},
 		{"internal/desktop/services", "internal/server/backup/smb", true},
 		{"internal/models", "internal/server/liveevents", true},
@@ -114,7 +118,7 @@ func TestBoundaryPolicy(t *testing.T) {
 }
 
 func TestRetiredPackageDirectoriesStayRemoved(t *testing.T) {
-	for _, name := range []string{"services", "app", "serverclient", "config", "database", "repository", "storage", "backup", "liveevents", "outbox", "coordination", "security"} {
+	for _, name := range []string{"services", "app", "serverclient", "config", "database", "repository", "storage", "backup", "liveevents", "outbox", "coordination", "security", "background", "mocks", "testutil"} {
 		_, err := os.Stat(filepath.Join("..", name))
 		if !os.IsNotExist(err) {
 			t.Errorf("retired directory internal/%s must stay removed (stat: %v)", name, err)

@@ -8,9 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 type fakeServerMigrationClient struct {
@@ -25,19 +23,28 @@ type fakeServerMigrationClient struct {
 }
 
 type fakeServerSettingsClient struct {
-	store ports.SettingsStore
+	settings  []models.SystemSetting
+	setting   *models.SystemSetting
+	listErr   error
+	getErr    error
+	updateErr error
+	getKey    string
+	updateKey string
+	value     string
 }
 
 func (c *fakeServerSettingsClient) ListSettings(context.Context) ([]models.SystemSetting, error) {
-	return c.store.GetAll()
+	return c.settings, c.listErr
 }
 
 func (c *fakeServerSettingsClient) GetSystemSetting(_ context.Context, key string) (*models.SystemSetting, error) {
-	return c.store.Get(key)
+	c.getKey = key
+	return c.setting, c.getErr
 }
 
 func (c *fakeServerSettingsClient) UpdateSystemSetting(_ context.Context, key, value string) error {
-	return c.store.Update(key, value)
+	c.updateKey, c.value = key, value
+	return c.updateErr
 }
 
 func (c *fakeServerMigrationClient) Status(context.Context) (*dto.MigrationStatus, error) {
@@ -79,26 +86,26 @@ func (p *settingsTestPrincipal) RequireSystemPermission(string) error {
 	}
 	return nil
 }
-func setupSettingsService(t *testing.T, role string) (*SettingsService, *mocks.SettingsStore) {
+func setupSettingsService(t *testing.T, role string) (*SettingsService, *fakeServerSettingsClient) {
 	t.Helper()
-	store := mocks.NewSettingsStore(t)
-	return NewSettingsService(&settingsTestPrincipal{admin: role == "admin", login: role + "_set"}, &fakeServerSettingsClient{store: store}, &fakeServerMigrationClient{}), store
+	client := &fakeServerSettingsClient{}
+	return NewSettingsService(&settingsTestPrincipal{admin: role == "admin", login: role + "_set"}, client, &fakeServerMigrationClient{}), client
 }
 
 func TestSettingsService_GetAll(t *testing.T) {
-	// Получение полного списка системных настроек из базы
+	// Получение полного списка системных настроек от сервера
 	t.Run("success", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
+		svc, client := setupSettingsService(t, "admin")
 		settings := []models.SystemSetting{{Key: "k1", Value: "v1"}}
-		repo.On("GetAll").Return(settings, nil).Once()
+		client.settings = settings
 		result, err := svc.GetAll()
 		require.NoError(t, err)
-		assert.Len(t, result, 1)
+		assert.Equal(t, settings, result)
 	})
 
 	t.Run("propagates server error", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("GetAll").Return(nil, models.ErrForbidden).Once()
+		svc, client := setupSettingsService(t, "admin")
+		client.listErr = models.ErrForbidden
 
 		result, err := svc.GetAll()
 
@@ -109,15 +116,18 @@ func TestSettingsService_GetAll(t *testing.T) {
 
 func TestSettingsService_Update(t *testing.T) {
 	t.Run("forwards update to server", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Update", "key", "value").Return(nil).Once()
+		svc, client := setupSettingsService(t, "admin")
 		require.NoError(t, svc.Update("key", "value"))
+		assert.Equal(t, "key", client.updateKey)
+		assert.Equal(t, "value", client.value)
 	})
 
 	t.Run("propagates server authorization", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "executor")
-		repo.On("Update", "key", "value").Return(models.ErrForbidden).Once()
+		svc, client := setupSettingsService(t, "executor")
+		client.updateErr = models.ErrForbidden
 		require.ErrorIs(t, svc.Update("key", "value"), models.ErrForbidden)
+		assert.Equal(t, "key", client.updateKey)
+		assert.Equal(t, "value", client.value)
 	})
 }
 
@@ -181,15 +191,16 @@ func TestValidateRollbackMigrationRequest(t *testing.T) {
 
 func TestSettingsService_GetOrganizationShortName(t *testing.T) {
 	t.Run("from settings", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "organization_short_name").Return(&models.SystemSetting{Key: "organization_short_name", Value: "Custom Short"}, nil).Once()
+		svc, client := setupSettingsService(t, "admin")
+		client.setting = &models.SystemSetting{Key: "organization_short_name", Value: "Custom Short"}
 		name := svc.GetOrganizationShortName()
 		assert.Equal(t, "Custom Short", name)
+		assert.Equal(t, "organization_short_name", client.getKey)
 	})
 
 	t.Run("default on error", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "organization_short_name").Return((*models.SystemSetting)(nil), assert.AnError).Once()
+		svc, client := setupSettingsService(t, "admin")
+		client.getErr = assert.AnError
 		name := svc.GetOrganizationShortName()
 		assert.Equal(t, "", name)
 	})
@@ -197,26 +208,27 @@ func TestSettingsService_GetOrganizationShortName(t *testing.T) {
 
 func TestSettingsService_IsAssignmentCompletionAttachmentsEnabled(t *testing.T) {
 	t.Run("from settings enabled", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{
+		svc, client := setupSettingsService(t, "admin")
+		client.setting = &models.SystemSetting{
 			Key:   "assignment_completion_attachments_enabled",
 			Value: "true",
-		}, nil).Once()
+		}
 		assert.True(t, svc.IsAssignmentCompletionAttachmentsEnabled())
+		assert.Equal(t, "assignment_completion_attachments_enabled", client.getKey)
 	})
 
 	t.Run("from settings disabled", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "assignment_completion_attachments_enabled").Return(&models.SystemSetting{
+		svc, client := setupSettingsService(t, "admin")
+		client.setting = &models.SystemSetting{
 			Key:   "assignment_completion_attachments_enabled",
 			Value: "false",
-		}, nil).Once()
+		}
 		assert.False(t, svc.IsAssignmentCompletionAttachmentsEnabled())
 	})
 
 	t.Run("default on error", func(t *testing.T) {
-		svc, repo := setupSettingsService(t, "admin")
-		repo.On("Get", "assignment_completion_attachments_enabled").Return((*models.SystemSetting)(nil), assert.AnError).Once()
+		svc, client := setupSettingsService(t, "admin")
+		client.getErr = assert.AnError
 		assert.False(t, svc.IsAssignmentCompletionAttachmentsEnabled())
 	})
 }

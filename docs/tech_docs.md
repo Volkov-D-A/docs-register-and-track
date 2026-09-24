@@ -90,7 +90,6 @@ Wails desktop app
 │   └── HTTP API, migrations, storage access и outbox worker
 │
 ├── internal/
-│   ├── background/    независимый lifecycle с функцией чтения статуса
 │   ├── desktop/
 │   │   ├── app/       composition root, Wails bindings и shutdown
 │   │   ├── serverclient/ HTTP, сессии, SSE и отмена запросов
@@ -98,6 +97,7 @@ Wails desktop app
 │   │   ├── logging/   Wails adapter и HTTP-доставка логов
 │   │   └── services/  Wails API и HTTP-адаптеры
 │   ├── server/
+│   │   ├── background/ lifecycle фоновых задач и проверка схемы
 │   │   ├── config/    PostgreSQL, S3, backup, Seq и outbox из окружения
 │   │   ├── logging/   серверная настройка slog и доставка в Seq
 │   │   ├── services/  права и бизнес-операции
@@ -106,9 +106,11 @@ Wails desktop app
 │   │   ├── storage/   SeaweedFS object storage
 │   │   ├── backup/    архивы, восстановление и SMB
 │   │   ├── liveevents/ SSE-уведомления
+│   │   ├── mocks/     тестовые реализации серверных портов
 │   │   ├── outbox/    доставка событий и удаление файлов
 │   │   ├── coordination/ блокировки storage
-│   │   └── security/  пароли и токены
+│   │   ├── security/  пароли и токены
+│   │   └── testutil/  PostgreSQL и S3 для интеграционных тестов
 │   ├── models/        domain entities, requests, app errors
 │   ├── dto/           frontend-facing mapping
 │   ├── logger/        независимые CLEF formatting и установка slog
@@ -283,7 +285,7 @@ worker, останавливает его перед rollback и включае�
 защищённых операций. Повторная успешная миграция снимает gate и запускает worker
 без рестарта приложения.
 
-Lifecycle реализован в `internal/background` и используется `docflow-server`
+Lifecycle реализован в `internal/server/background` и используется `docflow-server`
 для управления worker. Desktop проверяет готовность через `SystemService` и
 `SystemBootstrapGate`; доступ к операциям во время обслуживания контролирует сервер.
 Локальной копии schema maintenance gate в desktop нет.
