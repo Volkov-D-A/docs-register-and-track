@@ -4,12 +4,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // AttachmentRepository предоставляет методы для работы с вложениями (файлами) в БД.
@@ -132,8 +133,7 @@ func (r *AttachmentRepository) CreateForAssignmentWithOutbox(a *models.Attachmen
 
 func (r *AttachmentRepository) GetByAssignmentID(assignmentID uuid.UUID) ([]models.Attachment, error) {
 	rows, err := r.db.Query(`
-		SELECT a.id,a.document_id,a.assignment_id,a.filename,a.file_size,a.content_type,
-		       a.storage_path,a.uploaded_by,a.uploaded_at,COALESCE(u.full_name,'')
+		SELECT a.id,a.filename,a.file_size,a.uploaded_at,COALESCE(u.full_name,'')
 		FROM attachments a LEFT JOIN users u ON u.id=a.uploaded_by
 		WHERE a.assignment_id=$1 AND a.deletion_requested_at IS NULL
 		ORDER BY a.uploaded_at DESC
@@ -145,14 +145,8 @@ func (r *AttachmentRepository) GetByAssignmentID(assignmentID uuid.UUID) ([]mode
 	items := make([]models.Attachment, 0)
 	for rows.Next() {
 		var item models.Attachment
-		var linked uuid.NullUUID
-		if err = rows.Scan(&item.ID, &item.DocumentID, &linked, &item.Filename, &item.FileSize,
-			&item.ContentType, &item.StoragePath, &item.UploadedBy, &item.UploadedAt,
-			&item.UploadedByName); err != nil {
+		if err = rows.Scan(&item.ID, &item.Filename, &item.FileSize, &item.UploadedAt, &item.UploadedByName); err != nil {
 			return nil, err
-		}
-		if linked.Valid {
-			item.AssignmentID = &linked.UUID
 		}
 		items = append(items, item)
 	}
@@ -246,7 +240,7 @@ func (r *AttachmentRepository) GetByID(id uuid.UUID) (*models.Attachment, error)
 // GetByDocumentID возвращает все вложения, прикрепленные к определенному документу.
 func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attachment, error) {
 	rows, err := r.db.Query(
-		`SELECT a.id, a.document_id, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name
+		`SELECT a.id, a.filename, a.file_size, a.uploaded_at, COALESCE(u.full_name,'')
 		FROM attachments a
 		LEFT JOIN users u ON a.uploaded_by = u.id
 		WHERE a.document_id = $1 AND a.deletion_requested_at IS NULL
@@ -261,13 +255,9 @@ func (r *AttachmentRepository) GetByDocumentID(docID uuid.UUID) ([]models.Attach
 	attachments := make([]models.Attachment, 0)
 	for rows.Next() {
 		var a models.Attachment
-		var uploadedByName sql.NullString
-		if err := rows.Scan(
-			&a.ID, &a.DocumentID, &a.Filename, &a.FileSize, &a.ContentType, &a.StoragePath, &a.UploadedBy, &a.UploadedAt, &uploadedByName,
-		); err != nil {
+		if err := rows.Scan(&a.ID, &a.Filename, &a.FileSize, &a.UploadedAt, &a.UploadedByName); err != nil {
 			return nil, err
 		}
-		a.UploadedByName = uploadedByName.String
 
 		attachments = append(attachments, a)
 	}

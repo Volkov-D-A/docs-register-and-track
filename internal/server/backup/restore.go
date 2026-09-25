@@ -111,7 +111,7 @@ func RestorePrepared(ctx context.Context, pg PostgreSQL, s3cfg config.S3Config, 
 	if err = db.QueryRowContext(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&restoredSchema, &dirty); err != nil {
 		return err
 	}
-	if dirty || restoredSchema < 1 || restoredSchema > schema || (m.Schema != 0 && m.Schema != restoredSchema) {
+	if dirty || restoredSchema != schema || m.Schema != restoredSchema {
 		return fmt.Errorf("restored schema is incompatible or dirty")
 	}
 	if err = ValidateReferences(ctx, db, m); err != nil {
@@ -150,10 +150,8 @@ func RestorePrepared(ctx context.Context, pg PostgreSQL, s3cfg config.S3Config, 
 	if _, err = db.ExecContext(ctx, "UPDATE server_sessions SET revoked_at=now() WHERE revoked_at IS NULL"); err != nil {
 		return err
 	}
-	if restoredSchema >= 12 {
-		if _, err = db.ExecContext(ctx, `UPDATE backup_settings SET settings=jsonb_set(jsonb_set(jsonb_set(settings,'{settings,enabled}','false'),'{settings,passwordSet}','false'),'{secret}','{}')`); err != nil {
-			return err
-		}
+	if _, err = db.ExecContext(ctx, `UPDATE backup_settings SET settings=jsonb_set(jsonb_set(jsonb_set(settings,'{settings,enabled}','false'),'{settings,passwordSet}','false'),'{secret}','{}')`); err != nil {
+		return err
 	}
 	if err = writeJSONFile(filepath.Join(staging, "restore-"+m.ID+"-"+fmt.Sprint(time.Now().UnixNano())+".json"), map[string]any{"id": m.ID, "completedAt": time.Now().UTC(), "objects": len(m.Objects)}); err != nil {
 		return err

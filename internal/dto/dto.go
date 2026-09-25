@@ -72,24 +72,11 @@ type DocumentType struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// DocumentKind описывает DTO системного вида документа.
-type DocumentKind struct {
-	Code                 string   `json:"code"`
-	Name                 string   `json:"name"`
-	RegistrationFormCode string   `json:"registrationFormCode"`
-	RegistryGroup        string   `json:"registryGroup"`
-	SupportedActions     []string `json:"supportedActions"`
-	AvailableActions     []string `json:"availableActions"`
-}
-
 // CurrentAccessSummary описывает текущие права пользователя для навигации и UI.
 type CurrentAccessSummary struct {
-	IsDocumentParticipant bool                        `json:"isDocumentParticipant"`
-	DocumentDomainAccess  bool                        `json:"documentDomainAccess"`
-	Sections              AccessSections              `json:"sections"`
-	DocumentKinds         []DocumentKindAccessSummary `json:"documentKinds"`
-	RegistrationKinds     []string                    `json:"registrationKinds"`
-	SystemPermissions     []string                    `json:"systemPermissions"`
+	Sections          AccessSections              `json:"sections"`
+	DocumentKinds     []DocumentKindAccessSummary `json:"documentKinds"`
+	SystemPermissions []string                    `json:"systemPermissions"`
 }
 
 // AccessSections описывает доступность основных разделов приложения.
@@ -107,15 +94,9 @@ type AccessSections struct {
 
 // DocumentKindAccessSummary описывает доступность действий для конкретного вида документа.
 type DocumentKindAccessSummary struct {
-	Code                 string   `json:"code"`
-	Name                 string   `json:"name"`
-	RegistrationFormCode string   `json:"registrationFormCode"`
-	RegistryGroup        string   `json:"registryGroup"`
-	SupportedActions     []string `json:"supportedActions"`
-	AvailableActions     []string `json:"availableActions"`
-	CanOpenPage          bool     `json:"canOpenPage"`
-	CanRegister          bool     `json:"canRegister"`
-	CanReadFull          bool     `json:"canReadFull"`
+	Code             string   `json:"code"`
+	Name             string   `json:"name"`
+	AvailableActions []string `json:"availableActions"`
 }
 
 // ResolutionExecutor описывает DTO исполнителя резолюции.
@@ -377,13 +358,8 @@ type DocumentLink struct {
 // Attachment описывает DTO прикрепленного файла.
 type Attachment struct {
 	ID             string    `json:"id"`
-	DocumentID     string    `json:"documentId"`
-	AssignmentID   string    `json:"assignmentId,omitempty"`
 	Filename       string    `json:"filename"`
-	Filepath       string    `json:"filepath"`
 	FileSize       int64     `json:"fileSize"`
-	ContentType    string    `json:"contentType"`
-	UploadedBy     string    `json:"uploadedBy"`
 	UploadedByName string    `json:"uploadedByName,omitempty"`
 	UploadedAt     time.Time `json:"uploadedAt"`
 }
@@ -442,7 +418,19 @@ type AssignmentSeries struct {
 
 // DashboardActivity описывает оперативные данные главного экрана.
 type DashboardActivity struct {
-	ExpiringAssignments []Assignment `json:"expiringAssignments,omitempty"`
+	ExpiringAssignments []DashboardAssignment `json:"expiringAssignments,omitempty"`
+}
+
+// DashboardAssignment contains only the fields rendered in the activity list.
+type DashboardAssignment struct {
+	ID             string     `json:"id"`
+	DocumentID     string     `json:"documentId"`
+	DocumentKind   string     `json:"documentKind"`
+	DocumentNumber string     `json:"documentNumber,omitempty"`
+	ExecutorName   string     `json:"executorName,omitempty"`
+	Content        string     `json:"content"`
+	Deadline       *time.Time `json:"deadline,omitempty"`
+	Status         string     `json:"status"`
 }
 
 // Acknowledgment описывает DTO задачи на ознакомление.
@@ -486,17 +474,13 @@ type PagedResult[T any] struct {
 // UserEvent описывает DTO персонального события пользователя.
 type UserEvent struct {
 	ID             string     `json:"id"`
-	ActorUserID    string     `json:"actorUserId,omitempty"`
-	ActorUserName  string     `json:"actorUserName,omitempty"`
 	DocumentID     string     `json:"documentId"`
 	DocumentKind   string     `json:"documentKind"`
 	DocumentNumber string     `json:"documentNumber,omitempty"`
 	EntityType     string     `json:"entityType"`
-	EntityID       string     `json:"entityId"`
 	EventType      string     `json:"eventType"`
 	Title          string     `json:"title"`
 	Message        string     `json:"message"`
-	Metadata       string     `json:"metadata,omitempty"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	ReadAt         *time.Time `json:"readAt,omitempty"`
 }

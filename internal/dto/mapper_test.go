@@ -207,24 +207,18 @@ func TestMapUserEvent(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := uuid.New()
-		actorID := uuid.New()
 		documentID := uuid.New()
-		entityID := uuid.New()
 		now := time.Now()
 		readAt := now.Add(time.Hour)
 		m := &models.UserEvent{
 			ID:             id,
-			ActorUserID:    &actorID,
-			ActorUserName:  "Автор",
 			DocumentID:     documentID,
 			DocumentKind:   "incoming_letter",
 			DocumentNumber: "ВХ-1",
 			EntityType:     models.UserEventEntityAssignment,
-			EntityID:       entityID,
 			EventType:      models.UserEventAssignmentCreated,
 			Title:          "Новое поручение",
 			Message:        "Текст",
-			Metadata:       `{"status":"new"}`,
 			CreatedAt:      now,
 			ReadAt:         &readAt,
 		}
@@ -232,10 +226,7 @@ func TestMapUserEvent(t *testing.T) {
 		d := MapUserEvent(m)
 		require.NotNil(t, d)
 		assert.Equal(t, id.String(), d.ID)
-		assert.Equal(t, actorID.String(), d.ActorUserID)
-		assert.Equal(t, "Автор", d.ActorUserName)
 		assert.Equal(t, documentID.String(), d.DocumentID)
-		assert.Equal(t, entityID.String(), d.EntityID)
 		assert.Equal(t, models.UserEventAssignmentCreated, d.EventType)
 		assert.Equal(t, &readAt, d.ReadAt)
 	})
@@ -345,20 +336,6 @@ func TestMapDocumentListItemsPagesCount(t *testing.T) {
 		assert.Equal(t, "Подписант", item.SenderSignatory)
 		assert.Equal(t, "Исполнитель", item.SenderExecutor)
 	})
-}
-
-func TestMapDocumentKindSpec(t *testing.T) {
-	spec, ok := models.GetDocumentKindSpec(models.DocumentKindIncomingLetter)
-	require.True(t, ok)
-
-	dto := MapDocumentKindSpec(spec)
-
-	require.NotNil(t, dto)
-	assert.Equal(t, string(models.DocumentKindIncomingLetter), dto.Code)
-	assert.Equal(t, spec.Name, dto.Name)
-	assert.Equal(t, spec.RegistrationFormCode, dto.RegistrationFormCode)
-	assert.Equal(t, spec.RegistryGroup, dto.RegistryGroup)
-	assert.Contains(t, dto.SupportedActions, string(models.DocumentActionRead))
 }
 
 func TestMapIncomingAndOutgoingDocumentCards(t *testing.T) {

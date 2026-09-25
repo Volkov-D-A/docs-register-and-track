@@ -270,7 +270,7 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 			}
 			writeJSON(w, http.StatusOK, &dto.CurrentAccessSummary{
 				Sections: dto.AccessSections{Settings: true}, DocumentKinds: []dto.DocumentKindAccessSummary{},
-				RegistrationKinds: []string{}, SystemPermissions: []string{models.SystemPermissionAdmin},
+				SystemPermissions: []string{models.SystemPermissionAdmin},
 			})
 			return
 		}
@@ -289,10 +289,9 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 	userID := user.ID.String()
 	specs := models.AllDocumentKindSpecs()
 	documentKinds := make([]dto.DocumentKindAccessSummary, 0, len(specs))
-	registrationKinds := make([]string, 0)
+	pageAccess := make(map[string]bool, len(specs))
 	hasAnyAction, hasAnyAssign := false, false
 	for _, spec := range specs {
-		base := dto.MapDocumentKindSpec(spec)
 		actions := make([]string, 0, len(spec.SupportedActions))
 		for _, action := range spec.SupportedActions {
 			allowed, permissionErr := api.userAccess.HasPermission(string(spec.Code), string(action), departmentID, userID)
@@ -308,19 +307,15 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 		canReadFull := contains(actions, string(models.DocumentActionRead))
 		canAssign := contains(actions, string(models.DocumentActionAssign))
 		canOpenPage := user.IsDocumentParticipant || hasActiveSubstitution || canReadFull || canRegister
+		pageAccess[string(spec.Code)] = canOpenPage
 		if len(actions) > 0 {
 			hasAnyAction = true
-		}
-		if canRegister {
-			registrationKinds = append(registrationKinds, string(spec.Code))
 		}
 		if canAssign {
 			hasAnyAssign = true
 		}
 		documentKinds = append(documentKinds, dto.DocumentKindAccessSummary{
-			Code: base.Code, Name: base.Name, RegistrationFormCode: base.RegistrationFormCode,
-			RegistryGroup: base.RegistryGroup, SupportedActions: base.SupportedActions, AvailableActions: actions,
-			CanOpenPage: canOpenPage, CanRegister: canRegister, CanReadFull: canReadFull,
+			Code: string(spec.Code), Name: spec.Name, AvailableActions: actions,
 		})
 	}
 
@@ -337,29 +332,19 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 	}
 	documentDomainAccess := user.IsDocumentParticipant || hasActiveSubstitution || hasAnyAction
 	writeJSON(w, http.StatusOK, &dto.CurrentAccessSummary{
-		IsDocumentParticipant: user.IsDocumentParticipant, DocumentDomainAccess: documentDomainAccess,
 		Sections: dto.AccessSections{
 			Dashboard:   documentDomainAccess,
-			Incoming:    canOpenDocumentKindPage(documentKinds, string(models.DocumentKindIncomingLetter)),
-			Outgoing:    canOpenDocumentKindPage(documentKinds, string(models.DocumentKindOutgoingLetter)),
-			Appeals:     canOpenDocumentKindPage(documentKinds, string(models.DocumentKindCitizenAppeal)),
-			Orders:      canOpenDocumentKindPage(documentKinds, string(models.DocumentKindAdministrativeOrder)),
+			Incoming:    pageAccess[string(models.DocumentKindIncomingLetter)],
+			Outgoing:    pageAccess[string(models.DocumentKindOutgoingLetter)],
+			Appeals:     pageAccess[string(models.DocumentKindCitizenAppeal)],
+			Orders:      pageAccess[string(models.DocumentKindAdministrativeOrder)],
 			Assignments: user.IsDocumentParticipant || hasActiveSubstitution || hasAnyAssign,
 			References:  contains(systemPermissions, models.SystemPermissionReferences),
 			Statistics:  containsAny(systemPermissions, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem),
 			Settings:    contains(systemPermissions, models.SystemPermissionAdmin),
 		},
-		DocumentKinds: documentKinds, RegistrationKinds: registrationKinds, SystemPermissions: systemPermissions,
+		DocumentKinds: documentKinds, SystemPermissions: systemPermissions,
 	})
-}
-
-func canOpenDocumentKindPage(items []dto.DocumentKindAccessSummary, kindCode string) bool {
-	for _, item := range items {
-		if item.Code == kindCode {
-			return item.CanOpenPage
-		}
-	}
-	return false
 }
 
 func containsAny(items []string, values ...string) bool {

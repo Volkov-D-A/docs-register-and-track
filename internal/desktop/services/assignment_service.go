@@ -107,15 +107,6 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	return s.server.UpdateAssignmentStatus(ctx, id, status, report)
 }
 
-func (s *AssignmentService) GetByID(id string) (*dto.Assignment, error) {
-	if s.server == nil {
-		return nil, errAssignmentClientNotConfigured
-	}
-	ctx, cancel := assignmentClientContext()
-	defer cancel()
-	return s.server.GetAssignment(ctx, id)
-}
-
 func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
 	if s.server == nil {
 		return nil, errAssignmentClientNotConfigured

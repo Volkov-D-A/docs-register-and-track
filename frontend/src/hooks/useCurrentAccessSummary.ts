@@ -29,9 +29,6 @@ const mapAccessKindToMeta = (kind: dto.DocumentKindAccessSummary): DocumentKindM
     toDocumentKindMeta({
         code: kind.code,
         name: kind.name,
-        registrationFormCode: kind.registrationFormCode,
-        registryGroup: kind.registryGroup,
-        supportedActions: kind.supportedActions || [],
         availableActions: kind.availableActions || [],
     })
 );
@@ -102,10 +99,9 @@ export const useCurrentAccessSummary = () => {
         new Map((currentSummary?.documentKinds || []).map((kind) => [kind.code, kind]))
     ), [currentSummary]);
 
-    const registrationKinds = useMemo(() => {
-        const allowed = new Set(currentSummary?.registrationKinds || []);
-        return kinds.filter((kind) => allowed.has(kind.code) || kind.availableActions?.includes('create'));
-    }, [kinds, currentSummary]);
+    const registrationKinds = useMemo(() => (
+        kinds.filter((kind) => kind.availableActions?.includes('create'))
+    ), [kinds]);
 
     const getKindAccess = useCallback((kindCode?: string) => (
         kindCode ? documentKindAccess.get(kindCode) : undefined

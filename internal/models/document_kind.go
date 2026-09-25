@@ -16,19 +16,15 @@ const (
 
 // DocumentKindSpec описывает системный вид документа и его метаданные.
 type DocumentKindSpec struct {
-	Code                 DocumentKind         `json:"code"`
-	Name                 string               `json:"name"`
-	RegistrationFormCode string               `json:"registrationFormCode"`
-	RegistryGroup        string               `json:"registryGroup"`
-	SupportedActions     []DocumentKindAction `json:"supportedActions"`
+	Code             DocumentKind         `json:"code"`
+	Name             string               `json:"name"`
+	SupportedActions []DocumentKindAction `json:"supportedActions"`
 }
 
 var documentKindSpecs = []DocumentKindSpec{
 	{
-		Code:                 DocumentKindIncomingLetter,
-		Name:                 "Входящее письмо",
-		RegistrationFormCode: "incoming_letter_form",
-		RegistryGroup:        "letters",
+		Code: DocumentKindIncomingLetter,
+		Name: "Входящее письмо",
 		SupportedActions: []DocumentKindAction{
 			DocumentActionCreate,
 			DocumentActionRead,
@@ -41,10 +37,8 @@ var documentKindSpecs = []DocumentKindSpec{
 		},
 	},
 	{
-		Code:                 DocumentKindOutgoingLetter,
-		Name:                 "Исходящее письмо",
-		RegistrationFormCode: "outgoing_letter_form",
-		RegistryGroup:        "letters",
+		Code: DocumentKindOutgoingLetter,
+		Name: "Исходящее письмо",
 		SupportedActions: []DocumentKindAction{
 			DocumentActionCreate,
 			DocumentActionRead,
@@ -57,10 +51,8 @@ var documentKindSpecs = []DocumentKindSpec{
 		},
 	},
 	{
-		Code:                 DocumentKindCitizenAppeal,
-		Name:                 "Обращения граждан",
-		RegistrationFormCode: "citizen_appeal_form",
-		RegistryGroup:        "appeals",
+		Code: DocumentKindCitizenAppeal,
+		Name: "Обращения граждан",
 		SupportedActions: []DocumentKindAction{
 			DocumentActionCreate,
 			DocumentActionRead,
@@ -73,10 +65,8 @@ var documentKindSpecs = []DocumentKindSpec{
 		},
 	},
 	{
-		Code:                 DocumentKindAdministrativeOrder,
-		Name:                 "Приказы",
-		RegistrationFormCode: "administrative_order_form",
-		RegistryGroup:        "orders",
+		Code: DocumentKindAdministrativeOrder,
+		Name: "Приказы",
 		SupportedActions: []DocumentKindAction{
 			DocumentActionCreate,
 			DocumentActionRead,

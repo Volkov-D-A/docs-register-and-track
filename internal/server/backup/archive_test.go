@@ -14,7 +14,7 @@ func TestArchiveRoundtripRejectsCorruptionAndLimits(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "database.dump"), []byte("dump bytes"), 0600))
 	digest, size, err := FileDigest(filepath.Join(dir, "database.dump"))
 	require.NoError(t, err)
-	m := Manifest{Format: 3, ID: "00000000-0000-4000-8000-000000000001", Schema: 11, CreatedAt: time.Now().UTC(), DatabaseSHA256: digest, DatabaseSize: size, Objects: []Object{}}
+	m := Manifest{Format: 3, ID: "00000000-0000-4000-8000-000000000001", Schema: 13, CreatedAt: time.Now().UTC(), DatabaseSHA256: digest, DatabaseSize: size, Objects: []Object{}}
 	require.NoError(t, writeJSONFile(filepath.Join(dir, "manifest.json"), m))
 	archive := filepath.Join(t.TempDir(), "backup.tar.gz")
 	require.NoError(t, Pack(context.Background(), dir, archive, m))

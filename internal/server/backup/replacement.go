@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -137,18 +136,12 @@ func (s *Service) installReplacement(ctx context.Context, op *operation, prepare
 	if err = RestorePrepared(ctx, s.PostgreSQL, s.S3, prepared, s.Directory, s.Schema, false); err != nil {
 		return err
 	}
-	if err = phase("migrating"); err != nil {
-		return err
-	}
-	db, err := database.Connect(s.PostgreSQL.Config)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	if err = db.RunMigrations(database.DefaultMigrationsPath); err != nil {
-		return err
-	}
 	if !rollback {
+		db, openErr := s.PostgreSQL.Open(ctx)
+		if openErr != nil {
+			return openErr
+		}
+		defer db.Close()
 		if _, err = db.ExecContext(ctx, `UPDATE server_sessions SET revoked_at=now() WHERE revoked_at IS NULL; UPDATE backup_settings SET settings=jsonb_set(jsonb_set(jsonb_set(settings,'{settings,enabled}','false'),'{settings,passwordSet}','false'),'{secret}','{}')`); err != nil {
 			return err
 		}

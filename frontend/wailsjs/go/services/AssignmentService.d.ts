@@ -11,8 +11,6 @@ export function CreateSeries(arg1:models.AssignmentSeriesRequest):Promise<dto.As
 
 export function Delete(arg1:string):Promise<void>;
 
-export function GetByID(arg1:string):Promise<dto.Assignment>;
-
 export function GetList(arg1:models.AssignmentFilter):Promise<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_Assignment_>;
 
 export function GetSeries(arg1:string):Promise<dto.AssignmentSeries>;

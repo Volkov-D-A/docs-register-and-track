@@ -8,51 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 type fakeUserEventStore struct {
-	created      []models.CreateUserEventRequest
 	items        []models.UserEvent
-	createErr    error
 	unreadCount  int
 	markedRead   []uuid.UUID
 	markedDocFor []uuid.UUID
 	markedAllFor []uuid.UUID
-}
-
-func (s *fakeUserEventStore) Create(req models.CreateUserEventRequest) (*models.UserEvent, error) {
-	s.created = append(s.created, req)
-	if s.createErr != nil {
-		return nil, s.createErr
-	}
-	event := &models.UserEvent{
-		ID:              uuid.New(),
-		RecipientUserID: req.RecipientUserID,
-		ActorUserID:     req.ActorUserID,
-		DocumentID:      req.DocumentID,
-		DocumentKind:    req.DocumentKind,
-		DocumentNumber:  req.DocumentNumber,
-		EntityType:      req.EntityType,
-		EntityID:        req.EntityID,
-		EventType:       req.EventType,
-		Title:           req.Title,
-		Message:         req.Message,
-		Metadata:        req.Metadata,
-		CreatedAt:       time.Now(),
-	}
-	s.items = append([]models.UserEvent{*event}, s.items...)
-	return event, nil
-}
-
-func (s *fakeUserEventStore) GetByID(id uuid.UUID) (*models.UserEvent, error) {
-	for i := range s.items {
-		if s.items[i].ID == id {
-			return &s.items[i], nil
-		}
-	}
-	return nil, nil
 }
 
 func (s *fakeUserEventStore) GetList(userID uuid.UUID, filter models.UserEventFilter) (*models.PagedResult[models.UserEvent], error) {
@@ -146,7 +111,6 @@ func TestUserEventService_GetCurrentUserEvents(t *testing.T) {
 			ID:              eventID,
 			RecipientUserID: user.ID,
 			DocumentID:      uuid.New(),
-			EntityID:        uuid.New(),
 			DocumentKind:    "incoming_letter",
 			EntityType:      models.UserEventEntityAssignment,
 			EventType:       models.UserEventAssignmentCreated,
@@ -158,7 +122,6 @@ func TestUserEventService_GetCurrentUserEvents(t *testing.T) {
 			ID:              uuid.New(),
 			RecipientUserID: otherUserID,
 			DocumentID:      uuid.New(),
-			EntityID:        uuid.New(),
 			DocumentKind:    "incoming_letter",
 			EntityType:      models.UserEventEntityAssignment,
 			EventType:       models.UserEventAssignmentCreated,
@@ -187,7 +150,6 @@ func TestUserEventService_ReadMarkers(t *testing.T) {
 			ID:              eventID,
 			RecipientUserID: user.ID,
 			DocumentID:      documentID,
-			EntityID:        uuid.New(),
 			DocumentKind:    "incoming_letter",
 			EntityType:      models.UserEventEntityAssignment,
 			EventType:       models.UserEventAssignmentCreated,

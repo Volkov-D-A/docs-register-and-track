@@ -29,7 +29,7 @@ func (f *fakeAttachmentAPI) MaxUploadSize() int64 { return f.maxSize }
 func (f *fakeAttachmentAPI) UploadContent(documentID string, _ *uuid.UUID, filename string, _ int64, body io.Reader) (*dto.Attachment, error) {
 	data, err := io.ReadAll(body)
 	f.uploadedDocument, f.uploadedFilename, f.uploadedContent = documentID, filename, string(data)
-	return &dto.Attachment{ID: uuid.NewString(), DocumentID: documentID, Filename: filename}, err
+	return &dto.Attachment{ID: uuid.NewString(), Filename: filename}, err
 }
 func (f *fakeAttachmentAPI) UploadAssignmentContent(string, string, int64, io.Reader) (*dto.Attachment, error) {
 	return &dto.Attachment{}, nil

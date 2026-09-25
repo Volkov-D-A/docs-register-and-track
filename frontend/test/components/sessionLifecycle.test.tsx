@@ -16,7 +16,7 @@ vi.mock('../../wailsjs/go/services/AuthService', () => api);
 vi.mock('../../wailsjs/go/services/DocumentKindService', () => api);
 vi.mock('../../wailsjs/runtime/runtime', () => ({ EventsOn: api.EventsOn }));
 
-const user = { id: 'user-1', login: 'user', fullName: 'User', isActive: true, isDocumentParticipant: false, failedLoginAttempts: 0, systemPermissions: ['admin'] };
+const user = { id: 'user-1', login: 'user', fullName: 'User', isDocumentParticipant: false, systemPermissions: ['admin'] };
 const state = (revision: number, authenticated = false, reason = 'session_invalid') => (
     serverclient.SessionState.createFrom({ revision, authenticated, userId: authenticated ? user.id : '', reason })
 );

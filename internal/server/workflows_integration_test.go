@@ -93,12 +93,17 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 	require.NoError(t, db.QueryRow(`SELECT confirmed_at IS NOT NULL FROM acknowledgment_users WHERE acknowledgment_id=$1 AND user_id=$2`, acknowledgment.ID, recipientID).Scan(&confirmed))
 	require.True(t, confirmed)
 
-	event, err := repository.NewUserEventRepository(db).Create(models.CreateUserEventRequest{
-		RecipientUserID: recipientID, ActorUserID: &managerID, DocumentID: document.ID,
+	eventRepo := repository.NewUserEventRepository(db)
+	err = eventRepo.CreateFromOutbox(models.CreateUserEventRequest{
+		RecipientUserID: recipientID, DocumentID: document.ID,
 		DocumentKind: string(models.DocumentKindOutgoingLetter), EntityType: models.UserEventEntityAcknowledgment,
-		EntityID: uuid.MustParse(acknowledgment.ID), EventType: models.UserEventAcknowledgmentCreated, Title: "Scoped event", Message: "Recipient only",
-	})
+		EventType: models.UserEventAcknowledgmentCreated, Title: "Scoped event", Message: "Recipient only",
+	}, "workflow:scoped-event")
 	require.NoError(t, err)
+	listed, err := eventRepo.GetList(recipientID, models.UserEventFilter{Page: 1, PageSize: 20})
+	require.NoError(t, err)
+	require.Len(t, listed.Items, 1)
+	eventID := listed.Items[0].ID.String()
 	queryEvents := func(token string) *httptest.ResponseRecorder {
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/user-events/query", strings.NewReader(`{"page":1,"pageSize":20}`))
 		request.Header.Set("Authorization", "Bearer "+token)
@@ -108,10 +113,10 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 	}
 	recipientEvents := queryEvents(recipientToken)
 	require.Equal(t, http.StatusOK, recipientEvents.Code, recipientEvents.Body.String())
-	require.Contains(t, recipientEvents.Body.String(), event.ID.String())
+	require.Contains(t, recipientEvents.Body.String(), eventID)
 	outsiderEvents := queryEvents(login("workflow-outsider"))
 	require.Equal(t, http.StatusOK, outsiderEvents.Code, outsiderEvents.Body.String())
-	require.NotContains(t, outsiderEvents.Body.String(), event.ID.String())
+	require.NotContains(t, outsiderEvents.Body.String(), eventID)
 }
 
 type dtoAcknowledgmentID struct {

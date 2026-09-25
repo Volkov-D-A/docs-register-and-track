@@ -12,7 +12,6 @@ type Attachment struct {
 	DocumentID     uuid.UUID  `json:"-"`
 	AssignmentID   *uuid.UUID `json:"-"`
 	Filename       string     `json:"filename"`
-	Filepath       string     `json:"filepath"` // внутренний путь
 	FileSize       int64      `json:"fileSize"`
 	ContentType    string     `json:"contentType"`
 	StoragePath    string     `json:"-"` // Путь к файлу в объектном хранилище

@@ -26,8 +26,6 @@ const setPermissions = (systemPermissions: string[]) => {
       login: 'tester',
       fullName: 'Tester',
       isDocumentParticipant: false,
-      isActive: true,
-      failedLoginAttempts: 0,
       systemPermissions,
     },
   });

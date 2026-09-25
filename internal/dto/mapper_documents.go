@@ -188,22 +188,6 @@ func MapAdministrativeOrderDocument(m *models.AdministrativeOrderDocument) *Admi
 	}
 }
 
-// MapDocumentKindSpec преобразует метаданные системного вида документа в DTO.
-func MapDocumentKindSpec(spec models.DocumentKindSpec) *DocumentKind {
-	actions := make([]string, len(spec.SupportedActions))
-	for i, action := range spec.SupportedActions {
-		actions[i] = string(action)
-	}
-
-	return &DocumentKind{
-		Code:                 string(spec.Code),
-		Name:                 spec.Name,
-		RegistrationFormCode: spec.RegistrationFormCode,
-		RegistryGroup:        spec.RegistryGroup,
-		SupportedActions:     actions,
-	}
-}
-
 // MapIncomingDocumentCard преобразует входящее письмо в общий DTO карточки документа.
 func MapIncomingDocumentCard(m *models.IncomingDocument) *DocumentCard {
 	if m == nil {

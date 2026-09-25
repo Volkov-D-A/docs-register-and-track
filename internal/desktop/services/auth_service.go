@@ -68,7 +68,7 @@ func (s *AuthService) Logout() error {
 	return nil
 }
 
-func (s *AuthService) GetCurrentUser() (*dto.User, error) {
+func (s *AuthService) currentUser() (*dto.User, error) {
 	if s.serverAuth == nil {
 		return nil, errServerAuthNotConfigured
 	}

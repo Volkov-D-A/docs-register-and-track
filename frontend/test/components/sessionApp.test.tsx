@@ -25,7 +25,7 @@ test('session event removes protected screens and shows the login explanation', 
     api.EventsOn.mockReturnValue(vi.fn());
     api.GetSessionState.mockResolvedValue({ revision: 1, authenticated: true, userId: 'user-1', reason: '' });
     api.NeedsInitialSetup.mockResolvedValue(false);
-    useAuthStore.setState({ user: { id: 'user-1', login: 'user', fullName: 'User', isActive: true, isDocumentParticipant: false, failedLoginAttempts: 0, systemPermissions: [] }, isAuthenticated: true, sessionRevision: 1 });
+    useAuthStore.setState({ user: { id: 'user-1', login: 'user', fullName: 'User', isDocumentParticipant: false, systemPermissions: [] }, isAuthenticated: true, sessionRevision: 1 });
     renderWithApp(<App />);
     expect(screen.getByText('Private document content')).toBeInTheDocument();
     act(() => api.EventsOn.mock.calls[0][1]({ revision: 2, authenticated: false, userId: '', reason: 'session_invalid' }));

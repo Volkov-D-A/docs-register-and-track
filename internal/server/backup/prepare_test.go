@@ -15,18 +15,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrepareRejectsFutureSchemaBeforeRunningPostgresTools(t *testing.T) {
-	stage := t.TempDir()
-	dump := filepath.Join(stage, "database.dump")
-	require.NoError(t, os.WriteFile(dump, []byte("dump"), 0600))
-	digest, size, err := FileDigest(dump)
-	require.NoError(t, err)
-	m := Manifest{ID: uuid.NewString(), Format: 3, Schema: 999, CreatedAt: time.Now().UTC(), DatabaseSHA256: digest, DatabaseSize: size, Objects: []Object{}}
-	require.NoError(t, writeJSONFile(filepath.Join(stage, "manifest.json"), m))
-	archive := filepath.Join(t.TempDir(), m.ID+".tar.gz")
-	require.NoError(t, Pack(context.Background(), stage, archive, m))
-	_, err = PrepareRestore(context.Background(), PostgreSQL{}, archive, filepath.Join(t.TempDir(), "contents"), 1024, 12)
-	require.ErrorContains(t, err, "newer application")
+func TestPrepareRejectsOtherSchemaBeforeRunningPostgresTools(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		schema int
+	}{
+		{"future", 999},
+		{"old", 11},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stage := t.TempDir()
+			dump := filepath.Join(stage, "database.dump")
+			require.NoError(t, os.WriteFile(dump, []byte("dump"), 0600))
+			digest, size, err := FileDigest(dump)
+			require.NoError(t, err)
+			m := Manifest{ID: uuid.NewString(), Format: 3, Schema: tc.schema, CreatedAt: time.Now().UTC(), DatabaseSHA256: digest, DatabaseSize: size, Objects: []Object{}}
+			require.NoError(t, writeJSONFile(filepath.Join(stage, "manifest.json"), m))
+			archive := filepath.Join(t.TempDir(), m.ID+".tar.gz")
+			require.NoError(t, Pack(context.Background(), stage, archive, m))
+			_, err = PrepareRestore(context.Background(), PostgreSQL{}, archive, filepath.Join(t.TempDir(), "contents"), 1024, 13)
+			require.ErrorContains(t, err, "does not match current application")
+		})
+	}
 }
 
 func TestDumpSchemaInspectionRejectsDirtyMissingAndDuplicateRows(t *testing.T) {
@@ -36,7 +46,7 @@ func TestDumpSchemaInspectionRejectsDirtyMissingAndDuplicateRows(t *testing.T) {
 	for _, tc := range []struct {
 		name, rows string
 		valid      bool
-	}{{"old", "11\tf", true}, {"dirty", "12\tt", false}, {"missing", "", false}, {"duplicate", "12\tf\n12\tf", false}} {
+	}{{"current", "13\tf", true}, {"dirty", "13\tt", false}, {"missing", "", false}, {"duplicate", "13\tf\n13\tf", false}} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			fixture := "#!/bin/sh\ncat <<'DUMP'\nCOPY public.schema_migrations (version, dirty) FROM stdin;\n" + tc.rows + "\n\\.\nDUMP\n"
@@ -45,7 +55,7 @@ func TestDumpSchemaInspectionRejectsDirtyMissingAndDuplicateRows(t *testing.T) {
 			version, err := (PostgreSQL{}).DumpSchema(context.Background(), "unused")
 			if tc.valid {
 				require.NoError(t, err)
-				require.Equal(t, 11, version)
+				require.Equal(t, 13, version)
 			} else {
 				require.Error(t, err)
 			}

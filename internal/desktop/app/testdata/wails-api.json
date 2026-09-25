@@ -19,7 +19,6 @@
     "Create",
     "CreateSeries",
     "Delete",
-    "GetByID",
     "GetList",
     "GetSeries",
     "GetSeriesHistory",
@@ -42,7 +41,6 @@
   "AuthService": [
     "ChangePassword",
     "ChangeRequiredPassword",
-    "GetCurrentUser",
     "GetSessionState",
     "InitialSetup",
     "Login",

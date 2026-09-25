@@ -47,9 +47,6 @@ func TestCatalogIndependentOfHistoryAndHonestAboutVerification(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, key+".tar.gz"), []byte("abc"), 0600))
 	}
 	require.NoError(t, os.WriteFile(filepath.Join(dir, mismatch+".tar.gz"), []byte("truncated"), 0600))
-	legacy := "backup_20260910_090000"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, legacy+".tar.gz"), []byte("abc"), 0600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, legacy+".tar.gz.manifest"), []byte("format_version=2\narchive="+legacy+".tar.gz\nsize_bytes=3\nsha256="+strings.Repeat("a", 64)+"\n"), 0600))
 	copies, err := Catalog(context.Background(), catalogFiles(dir))
 	require.NoError(t, err)
 	require.Len(t, copies, 4)
@@ -91,7 +88,7 @@ func TestCopyIdentifiersAndManifest(t *testing.T) {
 		_, err = parseCopyMarker(id, raw)
 		require.Error(t, err)
 	}
-	for _, raw := range []string{"format_version=2\narchive=" + id + ".tar.gz", strings.Repeat("a", 4097)} {
+	for _, raw := range []string{"not-json", strings.Repeat("a", 4097)} {
 		_, err := parseCopyMarker(id, []byte(raw))
 		require.Error(t, err)
 	}

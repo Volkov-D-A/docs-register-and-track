@@ -20,8 +20,8 @@ func PrepareRestore(ctx context.Context, pg PostgreSQL, archive, directory strin
 	if err != nil {
 		return PreparedRestore{}, err
 	}
-	if m.Schema > schema {
-		return PreparedRestore{}, fmt.Errorf("backup requires a newer application")
+	if m.Schema != schema {
+		return PreparedRestore{}, fmt.Errorf("backup schema does not match current application")
 	}
 	if err = pg.ValidateDump(ctx, filepath.Join(directory, "database.dump")); err != nil {
 		return PreparedRestore{}, err
@@ -30,7 +30,7 @@ func PrepareRestore(ctx context.Context, pg PostgreSQL, archive, directory strin
 	if err != nil {
 		return PreparedRestore{}, err
 	}
-	if dumpSchema > schema || m.Schema != dumpSchema {
+	if m.Schema != dumpSchema {
 		return PreparedRestore{}, fmt.Errorf("dump schema is incompatible with manifest or application")
 	}
 	return PreparedRestore{Manifest: m, Directory: directory}, nil

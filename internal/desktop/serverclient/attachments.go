@@ -98,7 +98,7 @@ func (c *Client) GetAttachmentContent(ctx context.Context, id string) (*dto.Atta
 		resp.Body.Close()
 		return nil, nil, fmt.Errorf("docflow-server returned attachment content without a safe filename")
 	}
-	return &dto.Attachment{ID: id, Filename: params["filename"], FileSize: resp.ContentLength, ContentType: resp.Header.Get("Content-Type")}, resp.Body, nil
+	return &dto.Attachment{ID: id, Filename: params["filename"], FileSize: resp.ContentLength}, resp.Body, nil
 }
 
 func (c *Client) DeleteAttachment(ctx context.Context, id string) error {

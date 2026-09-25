@@ -13,7 +13,6 @@ import { formatAppError, getAppErrorCode } from '../utils/appError';
 interface Department {
     id: string;
     name: string;
-    nomenclatureIds: string[];
 }
 
 /**
@@ -24,8 +23,6 @@ interface User {
     login: string;
     fullName: string;
     isDocumentParticipant: boolean;
-    isActive: boolean;
-    failedLoginAttempts: number;
     systemPermissions: string[];
     department?: Department;
 }
@@ -139,13 +136,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     login: user.login,
                     fullName: user.fullName,
                     isDocumentParticipant: user.isDocumentParticipant ?? false,
-                    isActive: user.isActive,
-                    failedLoginAttempts: user.failedLoginAttempts ?? 0,
                     systemPermissions,
                     department: user.department ? {
                         id: (user.department as any).id || '',
                         name: user.department.name,
-                        nomenclatureIds: user.department.nomenclatureIds || []
                     } : undefined,
                 },
                 isAuthenticated: true,

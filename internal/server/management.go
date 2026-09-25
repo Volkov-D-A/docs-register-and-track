@@ -342,7 +342,6 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/documents/{kind}/admin-drafts", api.requireSession(http.HandlerFunc(api.createAdminDocumentDraft)))
 	mux.Handle("POST /api/v1/assignments", api.requireSession(http.HandlerFunc(api.createAssignment)))
 	mux.Handle("POST /api/v1/assignments/query", api.requireSession(http.HandlerFunc(api.listAssignments)))
-	mux.Handle("GET /api/v1/assignments/{id}", api.requireSession(http.HandlerFunc(api.getAssignment)))
 	mux.Handle("PATCH /api/v1/assignments/{id}", api.requireSession(http.HandlerFunc(api.updateAssignment)))
 	mux.Handle("PATCH /api/v1/assignments/{id}/status", api.requireSession(http.HandlerFunc(api.updateAssignmentStatus)))
 	mux.Handle("DELETE /api/v1/assignments/{id}", api.requireSession(http.HandlerFunc(api.deleteAssignment)))

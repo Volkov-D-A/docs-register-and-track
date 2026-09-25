@@ -10,10 +10,6 @@ export function ChangeRequiredPassword(arg1, arg2, arg3) {
   return window['go']['services']['AuthService']['ChangeRequiredPassword'](arg1, arg2, arg3);
 }
 
-export function GetCurrentUser() {
-  return window['go']['services']['AuthService']['GetCurrentUser']();
-}
-
 export function GetSessionState() {
   return window['go']['services']['AuthService']['GetSessionState']();
 }

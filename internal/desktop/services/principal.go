@@ -15,7 +15,7 @@ type Principal struct {
 
 func NewPrincipal(auth *AuthService) *Principal { return &Principal{auth: auth} }
 
-func (s *Principal) GetCurrentUser() (*dto.User, error) { return s.auth.GetCurrentUser() }
+func (s *Principal) GetCurrentUser() (*dto.User, error) { return s.auth.currentUser() }
 
 func (s *Principal) GetCurrentUserID() string { return s.auth.GetSessionState().UserID }
 

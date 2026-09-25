@@ -17,7 +17,7 @@ import (
 type fakeDashboardAPI struct{}
 
 func (*fakeDashboardAPI) GetActivity() (*dto.DashboardActivity, error) {
-	return &dto.DashboardActivity{ExpiringAssignments: []dto.Assignment{}}, nil
+	return &dto.DashboardActivity{ExpiringAssignments: []dto.DashboardAssignment{}}, nil
 }
 
 type fakeStatisticsAPI struct {

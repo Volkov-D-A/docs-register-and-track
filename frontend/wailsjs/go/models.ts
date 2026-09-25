@@ -664,13 +664,8 @@ export namespace dto {
 	}
 	export class Attachment {
 	    id: string;
-	    documentId: string;
-	    assignmentId?: string;
 	    filename: string;
-	    filepath: string;
 	    fileSize: number;
-	    contentType: string;
-	    uploadedBy: string;
 	    uploadedByName?: string;
 	    // Go type: time
 	    uploadedAt: any;
@@ -682,13 +677,8 @@ export namespace dto {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.documentId = source["documentId"];
-	        this.assignmentId = source["assignmentId"];
 	        this.filename = source["filename"];
-	        this.filepath = source["filepath"];
 	        this.fileSize = source["fileSize"];
-	        this.contentType = source["contentType"];
-	        this.uploadedBy = source["uploadedBy"];
 	        this.uploadedByName = source["uploadedByName"];
 	        this.uploadedAt = this.convertValues(source["uploadedAt"], null);
 	    }
@@ -1097,13 +1087,7 @@ export namespace dto {
 	export class DocumentKindAccessSummary {
 	    code: string;
 	    name: string;
-	    registrationFormCode: string;
-	    registryGroup: string;
-	    supportedActions: string[];
 	    availableActions: string[];
-	    canOpenPage: boolean;
-	    canRegister: boolean;
-	    canReadFull: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new DocumentKindAccessSummary(source);
@@ -1113,21 +1097,12 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.code = source["code"];
 	        this.name = source["name"];
-	        this.registrationFormCode = source["registrationFormCode"];
-	        this.registryGroup = source["registryGroup"];
-	        this.supportedActions = source["supportedActions"];
 	        this.availableActions = source["availableActions"];
-	        this.canOpenPage = source["canOpenPage"];
-	        this.canRegister = source["canRegister"];
-	        this.canReadFull = source["canReadFull"];
 	    }
 	}
 	export class CurrentAccessSummary {
-	    isDocumentParticipant: boolean;
-	    documentDomainAccess: boolean;
 	    sections: AccessSections;
 	    documentKinds: DocumentKindAccessSummary[];
-	    registrationKinds: string[];
 	    systemPermissions: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -1136,11 +1111,8 @@ export namespace dto {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.isDocumentParticipant = source["isDocumentParticipant"];
-	        this.documentDomainAccess = source["documentDomainAccess"];
 	        this.sections = this.convertValues(source["sections"], AccessSections);
 	        this.documentKinds = this.convertValues(source["documentKinds"], DocumentKindAccessSummary);
-	        this.registrationKinds = source["registrationKinds"];
 	        this.systemPermissions = source["systemPermissions"];
 	    }
 	
@@ -1162,16 +1134,31 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class DashboardActivity {
-	    expiringAssignments?: Assignment[];
+	export class DashboardAssignment {
+	    id: string;
+	    documentId: string;
+	    documentKind: string;
+	    documentNumber?: string;
+	    executorName?: string;
+	    content: string;
+	    // Go type: time
+	    deadline?: any;
+	    status: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new DashboardActivity(source);
+	        return new DashboardAssignment(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.expiringAssignments = this.convertValues(source["expiringAssignments"], Assignment);
+	        this.id = source["id"];
+	        this.documentId = source["documentId"];
+	        this.documentKind = source["documentKind"];
+	        this.documentNumber = source["documentNumber"];
+	        this.executorName = source["executorName"];
+	        this.content = source["content"];
+	        this.deadline = this.convertValues(source["deadline"], null);
+	        this.status = source["status"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1192,6 +1179,37 @@ export namespace dto {
 		    return a;
 		}
 	}
+	export class DashboardActivity {
+	    expiringAssignments?: DashboardAssignment[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DashboardActivity(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.expiringAssignments = this.convertValues(source["expiringAssignments"], DashboardAssignment);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	export class OutgoingDocument {
 	    id: string;
@@ -1770,17 +1788,13 @@ export namespace dto {
 	}
 	export class UserEvent {
 	    id: string;
-	    actorUserId?: string;
-	    actorUserName?: string;
 	    documentId: string;
 	    documentKind: string;
 	    documentNumber?: string;
 	    entityType: string;
-	    entityId: string;
 	    eventType: string;
 	    title: string;
 	    message: string;
-	    metadata?: string;
 	    // Go type: time
 	    createdAt: any;
 	    // Go type: time
@@ -1793,17 +1807,13 @@ export namespace dto {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.actorUserId = source["actorUserId"];
-	        this.actorUserName = source["actorUserName"];
 	        this.documentId = source["documentId"];
 	        this.documentKind = source["documentKind"];
 	        this.documentNumber = source["documentNumber"];
 	        this.entityType = source["entityType"];
-	        this.entityId = source["entityId"];
 	        this.eventType = source["eventType"];
 	        this.title = source["title"];
 	        this.message = source["message"];
-	        this.metadata = source["metadata"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.readAt = this.convertValues(source["readAt"], null);
 	    }

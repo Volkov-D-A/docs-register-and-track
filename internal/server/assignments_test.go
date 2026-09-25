@@ -42,7 +42,6 @@ func (*fakeAssignmentAPI) Update(string, string, string, string, []string) (*dto
 func (*fakeAssignmentAPI) UpdateStatus(string, string, string) (*dto.Assignment, error) {
 	return &dto.Assignment{}, nil
 }
-func (*fakeAssignmentAPI) GetByID(string) (*dto.Assignment, error) { return &dto.Assignment{}, nil }
 func (f *fakeAssignmentAPI) GetList(filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
 	f.filter = filter
 	return &dto.PagedResult[dto.Assignment]{Items: []dto.Assignment{}}, nil

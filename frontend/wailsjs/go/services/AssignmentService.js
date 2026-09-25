@@ -18,10 +18,6 @@ export function Delete(arg1) {
   return window['go']['services']['AssignmentService']['Delete'](arg1);
 }
 
-export function GetByID(arg1) {
-  return window['go']['services']['AssignmentService']['GetByID'](arg1);
-}
-
 export function GetList(arg1) {
   return window['go']['services']['AssignmentService']['GetList'](arg1);
 }

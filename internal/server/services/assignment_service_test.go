@@ -1,8 +1,8 @@
 package services
 
 import (
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 
 	"testing"
@@ -984,68 +984,6 @@ func TestAssignmentService_UpdateStatusEmitsUserEvents(t *testing.T) {
 		require.NotNil(t, result)
 		require.Len(t, repo.Effects, 2)
 		assert.Equal(t, models.OutboxEventUserEvent, repo.Effects[1].EventType)
-	})
-}
-
-// ---------- TestAssignmentService_GetByID ----------
-
-func TestAssignmentService_GetByID(t *testing.T) {
-	// Получение полной информации о поручении по его ID
-	assignmentID := uuid.New()
-
-	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
-
-		expected := &models.Assignment{
-			ID:      assignmentID,
-			Content: "Контент",
-			Status:  "new",
-		}
-		repo.On("GetByID", assignmentID).Return(expected, nil).Once()
-
-		result, err := svc.GetByID(assignmentID.String())
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		assert.Equal(t, assignmentID.String(), result.ID)
-	})
-
-	t.Run("not authenticated", func(t *testing.T) {
-		svc, _ := setupAssignmentServiceNotAuth(t)
-
-		result, err := svc.GetByID(assignmentID.String())
-		require.Error(t, err)
-		assert.Equal(t, models.ErrUnauthorized, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("invalid ID", func(t *testing.T) {
-		svc, _, _, _, _ := setupAssignmentService(t, "executor")
-
-		result, err := svc.GetByID("not-a-uuid")
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID поручения")
-		assert.Nil(t, result)
-	})
-
-	t.Run("admin forbidden", func(t *testing.T) {
-		svc, _, _, _, _ := setupAssignmentService(t, "admin")
-		result, err := svc.GetByID(assignmentID.String())
-		require.Error(t, err)
-		assert.Equal(t, models.ErrForbidden, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("not found", func(t *testing.T) {
-		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
-		repo.On("GetByID", assignmentID).Return(nil, nil).Once()
-
-		result, err := svc.GetByID(assignmentID.String())
-		require.Error(t, err)
-		appErr, ok := models.AsAppError(err)
-		require.True(t, ok)
-		assert.Equal(t, "NOT_FOUND", appErr.Kind)
-		assert.Equal(t, 404, appErr.Code)
-		assert.Nil(t, result)
 	})
 }
 

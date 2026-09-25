@@ -49,7 +49,6 @@ func TestCurrentAccessSummaryProductionScenarios(t *testing.T) {
 			var summary dto.CurrentAccessSummary
 			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &summary))
 			documentAccess := tc.clerk || tc.participant
-			assert.Equal(t, documentAccess, summary.DocumentDomainAccess)
 			assert.Equal(t, documentAccess, summary.Sections.Dashboard)
 			assert.Equal(t, documentAccess, summary.Sections.Assignments)
 			assert.Equal(t, documentAccess, summary.Sections.Incoming)
@@ -59,13 +58,8 @@ func TestCurrentAccessSummaryProductionScenarios(t *testing.T) {
 			assert.Equal(t, tc.admin, summary.Sections.Settings)
 			require.Len(t, summary.DocumentKinds, 4)
 			for _, kind := range summary.DocumentKinds {
-				assert.Equal(t, tc.clerk, kind.CanRegister)
-				assert.Equal(t, tc.clerk, kind.CanReadFull)
-			}
-			if tc.clerk {
-				assert.ElementsMatch(t, []string{"incoming_letter", "outgoing_letter", "citizen_appeal", "administrative_order"}, summary.RegistrationKinds)
-			} else {
-				assert.Empty(t, summary.RegistrationKinds)
+				assert.Equal(t, tc.clerk, contains(kind.AvailableActions, string(models.DocumentActionRead)))
+				assert.Equal(t, tc.clerk, contains(kind.AvailableActions, string(models.DocumentActionCreate)))
 			}
 			assert.ElementsMatch(t, permissions, summary.SystemPermissions)
 		})

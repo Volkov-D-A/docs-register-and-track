@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/coordination"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 func setupAttachmentService(t *testing.T, role string) (
@@ -236,7 +236,7 @@ func TestAttachmentServiceGetAssignmentFilesRequiresManagerAndReturnsIterationFi
 	require.NoError(t, err)
 	require.Len(t, files, 1)
 	assert.Equal(t, "result.pdf", files[0].Filename)
-	assert.Equal(t, assignmentID.String(), files[0].AssignmentID)
+	assert.NotEmpty(t, files[0].ID)
 }
 
 func TestAttachmentService_GetList(t *testing.T) {

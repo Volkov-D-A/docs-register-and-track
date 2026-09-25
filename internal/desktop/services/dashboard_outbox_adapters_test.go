@@ -30,7 +30,7 @@ func (c outboxAdminClientStub) RequeueOutboxEvent(ctx context.Context, id string
 
 func TestDashboardAdapterReturnsServerScopeAndCancelsRequest(t *testing.T) {
 	var requestContext context.Context
-	want := &dto.DashboardActivity{ExpiringAssignments: []dto.Assignment{{ID: "substituted-assignment"}}}
+	want := &dto.DashboardActivity{ExpiringAssignments: []dto.DashboardAssignment{{ID: "substituted-assignment"}}}
 	service := NewDashboardService(dashboardClientStub{read: func(ctx context.Context) (*dto.DashboardActivity, error) {
 		requestContext = ctx
 		deadline, ok := ctx.Deadline()

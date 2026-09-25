@@ -1,15 +1,17 @@
 package services
 
 import (
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 func TestDashboardService_GetActivity(t *testing.T) {
@@ -39,7 +41,12 @@ func TestDashboardService_GetActivity(t *testing.T) {
 			IsActive:              true,
 		}
 		svc, repo, _ := makeService(t, user, "executor")
-		assignments := []models.Assignment{{ID: uuid.New(), Status: "new"}}
+		deadline := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+		assignment := models.Assignment{
+			ID: uuid.New(), DocumentID: uuid.New(), DocumentKind: string(models.DocumentKindIncomingLetter),
+			DocumentNumber: "12", ExecutorName: "Исполнитель", Content: "Срочное поручение", Deadline: &deadline, Status: "new",
+		}
+		assignments := []models.Assignment{assignment}
 
 		repo.On("GetExpiringAssignments", mock.MatchedBy(func(filter models.DashboardAssignmentFilter) bool {
 			return filter.Days == 3 && assert.ElementsMatch(t, []string{user.ID.String()}, filter.AccessibleByUserIDs)
@@ -48,6 +55,20 @@ func TestDashboardService_GetActivity(t *testing.T) {
 		activity, err := svc.GetActivity()
 		require.NoError(t, err)
 		require.Len(t, activity.ExpiringAssignments, 1)
+		item := activity.ExpiringAssignments[0]
+		assert.Equal(t, assignment.ID.String(), item.ID)
+		assert.Equal(t, assignment.DocumentID.String(), item.DocumentID)
+		assert.Equal(t, assignment.DocumentKind, item.DocumentKind)
+		assert.Equal(t, assignment.DocumentNumber, item.DocumentNumber)
+		assert.Equal(t, assignment.ExecutorName, item.ExecutorName)
+		assert.Equal(t, assignment.Content, item.Content)
+		assert.Equal(t, assignment.Deadline, item.Deadline)
+		assert.Equal(t, assignment.Status, item.Status)
+		payload, err := json.Marshal(item)
+		require.NoError(t, err)
+		assert.NotContains(t, string(payload), "executorId")
+		assert.NotContains(t, string(payload), "seriesId")
+		assert.NotContains(t, string(payload), "createdAt")
 	})
 
 	t.Run("full document access keeps unfiltered dashboard scope", func(t *testing.T) {

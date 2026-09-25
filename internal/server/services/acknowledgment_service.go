@@ -152,7 +152,7 @@ func (s *AcknowledgmentService) Create(
 	}
 	effects = append(effects, journal)
 	for _, user := range ack.Users {
-		request := models.CreateUserEventRequest{RecipientUserID: user.UserID, ActorUserID: &creatorUUID, DocumentID: docUUID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, EntityType: models.UserEventEntityAcknowledgment, EntityID: ack.ID, EventType: models.UserEventAcknowledgmentCreated, Title: "Новое ознакомление", Message: "Вам направлен документ на ознакомление", Metadata: servereffects.UserEventMetadata(map[string]string{"status": "pending"})}
+		request := models.CreateUserEventRequest{RecipientUserID: user.UserID, DocumentID: docUUID, DocumentKind: string(doc.Kind), DocumentNumber: doc.RegistrationNumber, EntityType: models.UserEventEntityAcknowledgment, EventType: models.UserEventAcknowledgmentCreated, Title: "Новое ознакомление", Message: "Вам направлен документ на ознакомление"}
 		event, buildErr := servereffects.NewUserEventOutboxEvent("ack:"+ack.ID.String()+":created:"+user.UserID.String(), request)
 		if buildErr != nil {
 			return nil, buildErr
@@ -337,14 +337,14 @@ func (s *AcknowledgmentService) MarkConfirmed(ackID string) error {
 	if doc != nil {
 		documentNumber = doc.RegistrationNumber
 	}
-	err = s.repo.MarkConfirmedWithEffects(ackUUID, userUUID, models.AcknowledgmentConfirmationEffects{UserEvents: s.acknowledgmentConfirmedEventRequests(ack, documentNumber, &userUUID)})
+	err = s.repo.MarkConfirmedWithEffects(ackUUID, userUUID, models.AcknowledgmentConfirmationEffects{UserEvents: s.acknowledgmentConfirmedEventRequests(ack, documentNumber)})
 	if errors.Is(err, models.ErrAlreadyConfirmed) {
 		return nil
 	}
 	return err
 }
 
-func (s *AcknowledgmentService) acknowledgmentConfirmedEventRequests(ack *models.Acknowledgment, documentNumber string, actorID *uuid.UUID) []models.CreateUserEventRequest {
+func (s *AcknowledgmentService) acknowledgmentConfirmedEventRequests(ack *models.Acknowledgment, documentNumber string) []models.CreateUserEventRequest {
 	if ack == nil {
 		return nil
 	}
@@ -365,18 +365,13 @@ func (s *AcknowledgmentService) acknowledgmentConfirmedEventRequests(ack *models
 		}
 		requests = append(requests, models.CreateUserEventRequest{
 			RecipientUserID: recipientID,
-			ActorUserID:     actorID,
 			DocumentID:      ack.DocumentID,
 			DocumentKind:    ack.DocumentKind,
 			DocumentNumber:  documentNumber,
 			EntityType:      models.UserEventEntityAcknowledgment,
-			EntityID:        ack.ID,
 			EventType:       models.UserEventAcknowledgmentConfirmed,
 			Title:           "Ознакомление подтверждено",
 			Message:         "Пользователь подтвердил ознакомление с документом",
-			Metadata: servereffects.UserEventMetadata(map[string]string{
-				"status": "completed",
-			}),
 		})
 	}
 	return requests

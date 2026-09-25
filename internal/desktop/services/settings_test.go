@@ -134,7 +134,7 @@ func TestSettingsService_Update(t *testing.T) {
 func TestValidateRollbackMigrationRequest(t *testing.T) {
 	valid := models.RollbackMigrationRequest{
 		BackupCompleted:      true,
-		BackupReference:      "smb://backup/docflow/2026-05-28_120000.tar",
+		BackupReference:      "00000000-0000-4000-8000-000000000001",
 		AcknowledgedDataLoss: true,
 		Confirmation:         rollbackMigrationConfirmationPhrase,
 	}
@@ -281,7 +281,7 @@ func TestSettingsService_RollbackMigration(t *testing.T) {
 	// Откат последней примененной миграции базы данных
 	validReq := models.RollbackMigrationRequest{
 		BackupCompleted:      true,
-		BackupReference:      "smb://backup/docflow/2026-05-28_120000.tar",
+		BackupReference:      "00000000-0000-4000-8000-000000000001",
 		AcknowledgedDataLoss: true,
 		Confirmation:         rollbackMigrationConfirmationPhrase,
 		Password:             "Passw0rd!",

@@ -70,7 +70,7 @@ func (c *desktopAttachmentClient) ListDocumentAttachments(ctx context.Context, i
 	return []dto.Attachment{{ID: id}}, c.call(ctx, "list:"+id)
 }
 func (c *desktopAttachmentClient) ListAssignmentAttachments(ctx context.Context, id string) ([]dto.Attachment, error) {
-	return []dto.Attachment{{AssignmentID: id}}, c.call(ctx, "assignment:"+id)
+	return []dto.Attachment{{ID: id}}, c.call(ctx, "assignment:"+id)
 }
 func (c *desktopAttachmentClient) DeleteAttachment(ctx context.Context, id string) error {
 	return c.call(ctx, "delete:"+id)
@@ -249,7 +249,7 @@ func TestDesktopAttachmentHTTPForwardingAndLifecycle(t *testing.T) {
 			require.Equal(t, "doc", items[0].ID)
 			items, err = svc.GetAssignmentFiles("assn")
 			require.ErrorIs(t, err, serverErr)
-			require.Equal(t, "assn", items[0].AssignmentID)
+			require.Equal(t, "assn", items[0].ID)
 			require.ErrorIs(t, svc.Delete("file"), serverErr)
 			count, err := svc.BulkDeleteOlderThan("date")
 			require.ErrorIs(t, err, serverErr)

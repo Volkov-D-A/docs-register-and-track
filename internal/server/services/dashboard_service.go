@@ -34,7 +34,7 @@ func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
 		}
 
 		activity := &dto.DashboardActivity{
-			ExpiringAssignments: []dto.Assignment{},
+			ExpiringAssignments: []dto.DashboardAssignment{},
 		}
 
 		if s.access == nil {
@@ -71,7 +71,19 @@ func (s *DashboardService) GetActivity() (*dto.DashboardActivity, error) {
 			return nil, err
 		}
 		if assignments != nil {
-			activity.ExpiringAssignments = dto.MapAssignments(assignments)
+			activity.ExpiringAssignments = make([]dto.DashboardAssignment, len(assignments))
+			for i, assignment := range assignments {
+				activity.ExpiringAssignments[i] = dto.DashboardAssignment{
+					ID:             assignment.ID.String(),
+					DocumentID:     assignment.DocumentID.String(),
+					DocumentKind:   assignment.DocumentKind,
+					DocumentNumber: assignment.DocumentNumber,
+					ExecutorName:   assignment.ExecutorName,
+					Content:        assignment.Content,
+					Deadline:       assignment.Deadline,
+					Status:         assignment.Status,
+				}
+			}
 		}
 
 		return activity, nil

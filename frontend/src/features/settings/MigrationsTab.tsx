@@ -233,7 +233,7 @@ const MigrationsTab: React.FC = () => {
               label="Идентификатор или путь к резервной копии"
               rules={[{ required: true, whitespace: true, message: 'Укажите резервную копию' }]}
             >
-              <Input placeholder="Например: smb://backup/docflow/2026-05-28_120000.tar" />
+              <Input placeholder="Например: 00000000-0000-4000-8000-000000000001" />
             </Form.Item>
             <Form.Item
               name="acknowledgedDataLoss"

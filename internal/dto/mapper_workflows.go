@@ -13,11 +13,7 @@ func MapAttachment(m *models.Attachment) *Attachment {
 	if m == nil {
 		return nil
 	}
-	assignmentID := ""
-	if m.AssignmentID != nil {
-		assignmentID = m.AssignmentID.String()
-	}
-	return &Attachment{ID: m.ID.String(), DocumentID: m.DocumentID.String(), AssignmentID: assignmentID, Filename: m.Filename, Filepath: m.Filepath, FileSize: m.FileSize, ContentType: m.ContentType, UploadedBy: m.UploadedBy.String(), UploadedByName: m.UploadedByName, UploadedAt: m.UploadedAt}
+	return &Attachment{ID: m.ID.String(), Filename: m.Filename, FileSize: m.FileSize, UploadedByName: m.UploadedByName, UploadedAt: m.UploadedAt}
 }
 
 func MapAssignment(m *models.Assignment) *Assignment {

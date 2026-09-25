@@ -937,7 +937,7 @@ Target OS smoke must include:
 
 ## Known Release State
 
-Текущая согласованная версия release metadata: `1.0.6` в `docs/releases.yaml`, generated release asset и `wails.json`.
+Текущая согласованная версия release metadata: `1.0.7` в `docs/releases.yaml`, generated release asset и `wails.json`.
 
 Этот справочник не утверждает отсутствие открытых проблем. Завершение архитектурного разделения не заменяет приёмку релиза: production approval требует clean-worktree release gate, target OS smoke и реального backup/restore test.
 

@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // UserEventRepository предоставляет методы для работы с персональными событиями.
@@ -21,73 +21,23 @@ func NewUserEventRepository(db *database.DB) *UserEventRepository {
 	return &UserEventRepository{db: db}
 }
 
-// Create создает событие пользователя.
-func (r *UserEventRepository) Create(req models.CreateUserEventRequest) (*models.UserEvent, error) {
-	return r.create(req, "")
-}
-
 // CreateFromOutbox is idempotent across worker crashes and retries.
 func (r *UserEventRepository) CreateFromOutbox(req models.CreateUserEventRequest, deduplicationKey string) error {
-	_, err := r.create(req, deduplicationKey)
-	return err
-}
-
-func (r *UserEventRepository) create(req models.CreateUserEventRequest, deduplicationKey string) (*models.UserEvent, error) {
-	metadata := req.Metadata
-	if metadata == "" {
-		metadata = "{}"
-	}
-
-	query := `
-		INSERT INTO user_events (
-			recipient_user_id, actor_user_id, document_id, document_kind,
-			document_number, entity_type, entity_id, event_type,
-			 title, message, metadata, outbox_deduplication_key
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, NULLIF($12, ''))
-		ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING
-		RETURNING id
-	`
-	var id uuid.UUID
-	err := r.db.QueryRow(
-		query,
-		req.RecipientUserID,
-		req.ActorUserID,
-		req.DocumentID,
-		req.DocumentKind,
-		req.DocumentNumber,
-		req.EntityType,
-		req.EntityID,
-		req.EventType,
-		req.Title,
-		req.Message,
-		metadata,
-		deduplicationKey,
-	).Scan(&id)
+	_, err := r.db.Exec(userEventInsertQuery, req.RecipientUserID, req.DocumentID, req.DocumentKind,
+		req.DocumentNumber, req.EntityType, req.EventType, req.Title, req.Message, deduplicationKey)
 	if err != nil {
-		if err == sql.ErrNoRows && deduplicationKey != "" {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to create user event: %w", err)
+		return fmt.Errorf("failed to create user event: %w", err)
 	}
-	return r.GetByID(id)
+	return nil
 }
 
-// GetByID возвращает событие по ID.
-func (r *UserEventRepository) GetByID(id uuid.UUID) (*models.UserEvent, error) {
-	query := `
-		SELECT
-			e.id, e.recipient_user_id, e.actor_user_id, actor.full_name,
-			e.document_id, e.document_kind, e.document_number,
-			e.entity_type, e.entity_id, e.event_type,
-			e.title, e.message, e.metadata::text,
-			e.created_at, e.read_at
-		FROM user_events e
-		LEFT JOIN users actor ON actor.id = e.actor_user_id
-		WHERE e.id = $1
-	`
-	return scanUserEvent(r.db.QueryRow(query, id))
-}
+const userEventInsertQuery = `
+		INSERT INTO user_events (
+			recipient_user_id, document_id, document_kind, document_number,
+			entity_type, event_type, title, message, outbox_deduplication_key
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''))
+		ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING`
 
 // GetList возвращает список событий пользователя.
 func (r *UserEventRepository) GetList(userID uuid.UUID, filter models.UserEventFilter) (*models.PagedResult[models.UserEvent], error) {
@@ -115,13 +65,12 @@ func (r *UserEventRepository) GetList(userID uuid.UUID, filter models.UserEventF
 	offset := (filter.Page - 1) * filter.PageSize
 	query := fmt.Sprintf(`
 		SELECT
-			e.id, e.recipient_user_id, e.actor_user_id, actor.full_name,
+			e.id, e.recipient_user_id,
 			e.document_id, e.document_kind, e.document_number,
-			e.entity_type, e.entity_id, e.event_type,
-			e.title, e.message, e.metadata::text,
+			e.entity_type, e.event_type,
+			e.title, e.message,
 			e.created_at, e.read_at
 		FROM user_events e
-		LEFT JOIN users actor ON actor.id = e.actor_user_id
 		%s
 		ORDER BY e.created_at DESC
 		LIMIT $2 OFFSET $3
@@ -135,7 +84,7 @@ func (r *UserEventRepository) GetList(userID uuid.UUID, filter models.UserEventF
 
 	items := make([]models.UserEvent, 0)
 	for rows.Next() {
-		event, err := scanUserEventRows(rows)
+		event, err := scanUserEvent(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -209,47 +158,21 @@ type userEventScanner interface {
 	Scan(dest ...interface{}) error
 }
 
-type userEventRows interface {
-	Scan(dest ...interface{}) error
-}
-
 func scanUserEvent(scanner userEventScanner) (*models.UserEvent, error) {
-	event, err := scanUserEventValue(scanner)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return event, nil
-}
-
-func scanUserEventRows(rows userEventRows) (*models.UserEvent, error) {
-	return scanUserEventValue(rows)
-}
-
-func scanUserEventValue(scanner userEventScanner) (*models.UserEvent, error) {
 	var event models.UserEvent
-	var actorUserID sql.NullString
-	var actorUserName sql.NullString
 	var documentNumber sql.NullString
-	var metadata sql.NullString
 	var readAt sql.NullTime
 
 	err := scanner.Scan(
 		&event.ID,
 		&event.RecipientUserID,
-		&actorUserID,
-		&actorUserName,
 		&event.DocumentID,
 		&event.DocumentKind,
 		&documentNumber,
 		&event.EntityType,
-		&event.EntityID,
 		&event.EventType,
 		&event.Title,
 		&event.Message,
-		&metadata,
 		&event.CreatedAt,
 		&readAt,
 	)
@@ -257,21 +180,8 @@ func scanUserEventValue(scanner userEventScanner) (*models.UserEvent, error) {
 		return nil, err
 	}
 
-	if actorUserID.Valid {
-		uid, err := uuid.Parse(actorUserID.String)
-		if err != nil {
-			return nil, err
-		}
-		event.ActorUserID = &uid
-	}
-	if actorUserName.Valid {
-		event.ActorUserName = actorUserName.String
-	}
 	if documentNumber.Valid {
 		event.DocumentNumber = documentNumber.String
-	}
-	if metadata.Valid {
-		event.Metadata = metadata.String
 	}
 	if readAt.Valid {
 		event.ReadAt = &readAt.Time

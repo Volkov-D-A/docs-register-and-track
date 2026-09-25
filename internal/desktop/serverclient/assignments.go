@@ -18,7 +18,6 @@ type AssignmentClient interface {
 	CancelAssignmentSeries(context.Context, string) error
 	UpdateAssignment(context.Context, string, string, string, string, []string) (*dto.Assignment, error)
 	UpdateAssignmentStatus(context.Context, string, string, string) (*dto.Assignment, error)
-	GetAssignment(context.Context, string) (*dto.Assignment, error)
 	ListAssignments(context.Context, models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error)
 	DeleteAssignment(context.Context, string) error
 }
@@ -40,14 +39,6 @@ func (c *Client) CreateAssignment(ctx context.Context, documentID, executorID, c
 	request := assignmentDetailsRequest{DocumentID: documentID, ExecutorID: executorID, Content: content, Deadline: deadline, CoExecutorIDs: coExecutorIDs}
 	var result dto.Assignment
 	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/assignments", request, http.StatusCreated, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (c *Client) GetAssignment(ctx context.Context, id string) (*dto.Assignment, error) {
-	var result dto.Assignment
-	if err := c.doUserRequest(ctx, http.MethodGet, "/api/v1/assignments/"+url.PathEscape(id), nil, http.StatusOK, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

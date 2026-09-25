@@ -94,7 +94,7 @@ func TestAuthServiceRequiresServerClient(t *testing.T) {
 	service := NewAuthService(nil, nil, nil)
 	_, err := service.Login("user", "Passw0rd!")
 	require.ErrorIs(t, err, errServerAuthNotConfigured)
-	_, err = service.GetCurrentUser()
+	_, err = service.currentUser()
 	require.ErrorIs(t, err, errServerAuthNotConfigured)
 	require.ErrorIs(t, NewPrincipal(service).RequireSystemPermission(models.SystemPermissionAdmin), errServerAuthNotConfigured)
 	require.ErrorIs(t, service.ChangePassword("old", "new"), errServerAuthNotConfigured)

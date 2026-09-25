@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +53,7 @@ func TestRestoreStatusRemainsScopedWhileBusinessAPIIsBlocked(t *testing.T) {
 	require.Nil(t, app.db)
 	check(app.http.Handler, "/api/v1/admin/backups/operations/"+id, token, 200)
 	check(app.http.Handler, "/api/v1/auth/me", token, 503)
-	for _, phase := range []string{"clearing_database", "clearing_objects", "restoring", "migrating", "rollback_restoring", "rollback_failed", "finalizing"} {
+	for _, phase := range []string{"clearing_database", "clearing_objects", "restoring", "rollback_restoring", "rollback_failed", "finalizing"} {
 		state, err := json.Marshal(map[string]any{"id": id, "copyId": uuid.NewString(), "kind": "restore", "state": phase, "tokenHash": hash[:], "expiresAt": time.Now().Add(time.Hour)})
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(dir, id+".operation.json"), state, 0600))

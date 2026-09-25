@@ -18,7 +18,6 @@ func TestDocumentKindSpecs(t *testing.T) {
 	spec, ok := GetDocumentKindSpec(DocumentKindIncomingLetter)
 	require.True(t, ok)
 	assert.Equal(t, "Входящее письмо", spec.Name)
-	assert.Equal(t, "incoming_letter_form", spec.RegistrationFormCode)
 
 	_, ok = GetDocumentKindSpec(DocumentKind("unknown"))
 	assert.False(t, ok)

@@ -78,8 +78,6 @@ func TestAssignmentAdapterMissingClient(t *testing.T) {
 	require.ErrorIs(t, err, errAssignmentClientNotConfigured)
 	_, err = s.UpdateStatus("", "", "")
 	require.ErrorIs(t, err, errAssignmentClientNotConfigured)
-	_, err = s.GetByID("")
-	require.ErrorIs(t, err, errAssignmentClientNotConfigured)
 	_, err = s.GetList(models.AssignmentFilter{})
 	require.ErrorIs(t, err, errAssignmentClientNotConfigured)
 	require.ErrorIs(t, s.Delete(""), errAssignmentClientNotConfigured)

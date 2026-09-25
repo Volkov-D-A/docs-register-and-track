@@ -8,7 +8,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/config"
 	desktopservices "github.com/Volkov-D-A/docs-register-and-track/internal/desktop/services"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 
 	"github.com/stretchr/testify/require"
 )
@@ -40,8 +39,6 @@ changes:
 
 	boundTypes := make([]string, 0, len(appOptions.Bind))
 	for _, binding := range appOptions.Bind {
-		_, isServer := binding.(*services.ServerAttachmentService)
-		require.False(t, isServer)
 		boundTypes = append(boundTypes, fmt.Sprintf("%T", binding))
 	}
 	require.ElementsMatch(t, []string{

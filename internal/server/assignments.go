@@ -16,7 +16,6 @@ type assignmentAPI interface {
 	CancelSeries(string) error
 	Update(string, string, string, string, []string) (*dto.Assignment, error)
 	UpdateStatus(string, string, string) (*dto.Assignment, error)
-	GetByID(string) (*dto.Assignment, error)
 	GetList(models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error)
 	Delete(string) error
 }
@@ -50,15 +49,6 @@ func (api *managementAPI) createAssignment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusCreated, result)
-}
-
-func (api *managementAPI) getAssignment(w http.ResponseWriter, r *http.Request) {
-	result, err := api.assignmentService(r).GetByID(r.PathValue("id"))
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
 }
 
 func (api *managementAPI) listAssignments(w http.ResponseWriter, r *http.Request) {

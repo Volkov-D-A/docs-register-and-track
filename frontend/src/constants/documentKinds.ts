@@ -10,9 +10,6 @@ export type DocumentKindMeta = {
     label: string;
     shortLabel: string;
     pageKey: DocumentPageKey;
-    registrationFormCode: string;
-    registryGroup?: string;
-    supportedActions?: string[];
     availableActions?: string[];
     color?: string;
 };
@@ -23,9 +20,6 @@ export const documentKindRegistry: Record<string, DocumentKindMeta> = {
         label: 'Входящее письмо',
         shortLabel: 'Входящий',
         pageKey: 'incoming',
-        registrationFormCode: 'incoming_letter_form',
-        registryGroup: 'letters',
-        supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
         color: 'blue',
     },
     [DOCUMENT_KIND_OUTGOING_LETTER]: {
@@ -33,9 +27,6 @@ export const documentKindRegistry: Record<string, DocumentKindMeta> = {
         label: 'Исходящее письмо',
         shortLabel: 'Исходящий',
         pageKey: 'outgoing',
-        registrationFormCode: 'outgoing_letter_form',
-        registryGroup: 'letters',
-        supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
         color: 'green',
     },
     [DOCUMENT_KIND_CITIZEN_APPEAL]: {
@@ -43,9 +34,6 @@ export const documentKindRegistry: Record<string, DocumentKindMeta> = {
         label: 'Обращения граждан',
         shortLabel: 'Обращение',
         pageKey: 'appeals',
-        registrationFormCode: 'citizen_appeal_form',
-        registryGroup: 'appeals',
-        supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
         color: 'orange',
     },
     [DOCUMENT_KIND_ADMINISTRATIVE_ORDER]: {
@@ -53,9 +41,6 @@ export const documentKindRegistry: Record<string, DocumentKindMeta> = {
         label: 'Приказы',
         shortLabel: 'Приказ',
         pageKey: 'orders',
-        registrationFormCode: 'administrative_order_form',
-        registryGroup: 'orders',
-        supportedActions: ['create', 'read', 'update', 'assign', 'acknowledge', 'upload', 'link', 'view_journal'],
         color: 'purple',
     },
 };
@@ -98,9 +83,6 @@ export const isAdministrativeOrderKind = (kind: string): boolean => (
 export const toDocumentKindMeta = (kind: {
     code: string;
     name: string;
-    registrationFormCode: string;
-    registryGroup?: string;
-    supportedActions?: string[];
     availableActions?: string[];
 }): DocumentKindMeta | null => {
     const localMeta = getDocumentKindMeta(kind.code);
@@ -111,11 +93,6 @@ export const toDocumentKindMeta = (kind: {
     return {
         ...localMeta,
         label: kind.name || localMeta.label,
-        shortLabel: localMeta.shortLabel,
-        pageKey: localMeta.pageKey,
-        registrationFormCode: kind.registrationFormCode || localMeta.registrationFormCode,
-        registryGroup: kind.registryGroup || localMeta.registryGroup,
-        supportedActions: kind.supportedActions || localMeta.supportedActions,
-        availableActions: kind.availableActions || localMeta.availableActions || [],
+        availableActions: kind.availableActions || [],
     };
 };

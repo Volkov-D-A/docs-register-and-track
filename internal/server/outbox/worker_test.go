@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 )
 
@@ -39,7 +39,7 @@ func TestWorkerProcessOnceMarksAlreadyDeliveredUserEvent(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
 			AddRow(id, models.OutboxEventUserEvent, "event-key", `{"request":{}}`, now, now, nil, nil, 1, nil, now))
 	mock.ExpectCommit()
-	mock.ExpectQuery(`INSERT INTO user_events`).WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec(`INSERT INTO user_events`).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(`UPDATE event_outbox SET processed_at = CURRENT_TIMESTAMP`).WithArgs(id).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	require.NoError(t, worker.ProcessOnce())

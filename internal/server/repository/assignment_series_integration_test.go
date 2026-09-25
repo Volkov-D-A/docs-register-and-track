@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 	"github.com/google/uuid"
 )
@@ -63,9 +63,14 @@ func TestAssignmentSeriesLifecycleIntegration(t *testing.T) {
 	if _, err = sqlDB.Exec(`INSERT INTO attachments(document_id,assignment_id,filename,storage_path,file_size,content_type,uploaded_by) VALUES($1,$2,'result.pdf','series/result.pdf',10,'application/pdf',$3)`, documentID, firstID, actorID); err != nil {
 		t.Fatalf("insert linked attachment: %v", err)
 	}
-	files, err := NewAttachmentRepository(db).GetByAssignmentID(firstID)
-	if err != nil || len(files) != 1 || files[0].AssignmentID == nil || *files[0].AssignmentID != firstID {
+	attachmentRepo := NewAttachmentRepository(db)
+	files, err := attachmentRepo.GetByAssignmentID(firstID)
+	if err != nil || len(files) != 1 || files[0].Filename != "result.pdf" || files[0].FileSize != 10 {
 		t.Fatalf("iteration files=%+v err=%v", files, err)
+	}
+	files, err = attachmentRepo.GetByDocumentID(documentID)
+	if err != nil || len(files) != 1 || files[0].Filename != "result.pdf" || files[0].FileSize != 10 {
+		t.Fatalf("document files=%+v err=%v", files, err)
 	}
 
 	advancedSeries, getErr := repo.GetAssignmentSeries(seriesID)
