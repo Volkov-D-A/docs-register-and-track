@@ -3,8 +3,8 @@ package repository
 import (
 	"fmt"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // DocumentAccessRepository читает матрицу доступа document-domain.
@@ -40,6 +40,37 @@ func (r *DocumentAccessRepository) HasPermission(kindCode, action string, depart
 		return false, fmt.Errorf("failed to check document permission: %w", err)
 	}
 
+	return allowed, nil
+}
+
+// GetAllowedActions returns direct user and department permissions in one query.
+func (r *DocumentAccessRepository) GetAllowedActions(departmentID, userID string) (map[string]map[string]bool, error) {
+	rows, err := r.db.Query(`
+		SELECT kind_code, action
+		FROM document_permissions
+		WHERE is_allowed = true
+		  AND (($1 <> '' AND subject_type = 'department' AND subject_key = $1)
+		    OR ($2 <> '' AND subject_type = 'user' AND subject_key = $2))
+	`, departmentID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get allowed document actions: %w", err)
+	}
+	defer rows.Close()
+
+	allowed := make(map[string]map[string]bool)
+	for rows.Next() {
+		var kind, action string
+		if err := rows.Scan(&kind, &action); err != nil {
+			return nil, fmt.Errorf("failed to scan allowed document actions: %w", err)
+		}
+		if allowed[kind] == nil {
+			allowed[kind] = make(map[string]bool)
+		}
+		allowed[kind][action] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate allowed document actions: %w", err)
+	}
 	return allowed, nil
 }
 
@@ -115,11 +146,6 @@ func (r *DocumentAccessRepository) GetUserAccessProfile(userID string) (*models.
 	return profile, nil
 }
 
-// ReplaceUserAccessProfile заменяет прямые document-domain права пользователя.
-func (r *DocumentAccessRepository) ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error {
-	return r.replaceUserAccessProfile(userID, systemPermissions, permissions, nil)
-}
-
 func (r *DocumentAccessRepository) ReplaceUserAccessProfileWithOutbox(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule, effects []models.OutboxEvent) error {
 	return r.replaceUserAccessProfile(userID, systemPermissions, permissions, effects)
 }
@@ -156,10 +182,8 @@ func (r *DocumentAccessRepository) replaceUserAccessProfile(userID string, syste
 			return fmt.Errorf("failed to insert user document permission: %w", err)
 		}
 	}
-	if effects != nil {
-		if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
-			return err
-		}
+	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {

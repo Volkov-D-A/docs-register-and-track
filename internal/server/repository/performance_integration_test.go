@@ -18,7 +18,7 @@ import (
 // comparison when a query or index changes.
 func BenchmarkIntegrationDocumentList(b *testing.B) {
 	sqlDB := integrationdb.Open(b)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	nomID, owner, orgID := seedPerformanceDocuments(b, sqlDB, 250)
 	repo := NewOutgoingDocumentRepository(db)
 	filter := models.OutgoingDocumentFilter{
@@ -40,7 +40,7 @@ func BenchmarkIntegrationDocumentList(b *testing.B) {
 
 func BenchmarkIntegrationStatistics(b *testing.B) {
 	sqlDB := integrationdb.Open(b)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	seedPerformanceDocuments(b, sqlDB, 500)
 	repo := NewStatisticsRepository(db)
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

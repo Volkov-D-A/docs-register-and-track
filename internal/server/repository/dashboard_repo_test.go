@@ -18,7 +18,7 @@ func TestDashboardRepository_GetExpiringAssignments(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewDashboardRepository(&database.DB{DB: db})
+	repo := NewDashboardRepository(database.Wrap(db))
 	userID := uuid.New()
 	now := time.Now()
 

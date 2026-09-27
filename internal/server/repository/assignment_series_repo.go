@@ -147,18 +147,6 @@ func (r *AssignmentRepository) GetAssignmentSeries(id uuid.UUID) (*models.Assign
 	return &value, rows.Err()
 }
 
-// GetAssignmentSeriesByAssignment resolves the optional series of an iteration.
-func (r *AssignmentRepository) GetAssignmentSeriesByAssignment(id uuid.UUID) (*models.AssignmentSeries, error) {
-	var seriesID uuid.NullUUID
-	if err := r.db.QueryRow(`SELECT series_id FROM assignments WHERE id=$1`, id).Scan(&seriesID); err != nil {
-		return nil, err
-	}
-	if !seriesID.Valid {
-		return nil, nil
-	}
-	return r.GetAssignmentSeries(seriesID.UUID)
-}
-
 // UpdateAssignmentSeries atomically changes an active template and its future
 // co-executors together with observable outbox effects.
 func (r *AssignmentRepository) UpdateAssignmentSeries(id, executorID uuid.UUID, content, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, coExecutorIDs []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error) {
@@ -228,9 +216,9 @@ func (r *AssignmentRepository) CancelAssignmentSeries(id, actorID uuid.UUID, eff
 // the series in one transaction. A concurrent retry cannot create a duplicate
 // because both the current pointer and the unique iteration key are checked.
 func (r *AssignmentRepository) FinishSeriesIterationWithNext(
-	currentID, seriesID, nextID uuid.UUID, expectedSeriesUpdatedAt time.Time,
+	currentID, seriesID, nextID, actorID uuid.UUID, expectedSeriesUpdatedAt time.Time,
 	report string, completedAt *time.Time, nextDeadline time.Time, nextIteration int, executorID uuid.UUID, content string,
-	coExecutorIDs []string, currentEffects, nextEffects []models.OutboxEvent,
+	coExecutorIDs []string, currentEffects, nextEffects []models.OutboxEvent, autoCancelEffect models.OutboxEvent,
 ) (*models.Assignment, error) {
 	if r.outbox == nil {
 		return nil, ErrOutboxNotConfigured
@@ -262,6 +250,51 @@ func (r *AssignmentRepository) FinishSeriesIterationWithNext(
 	for _, effect := range currentEffects {
 		if err = r.outbox.EnqueueTx(tx, effect); err != nil {
 			return nil, err
+		}
+	}
+	if active {
+		candidateIDs := make([]uuid.UUID, 0, 1+len(coExecutorIDs))
+		candidateIDs = append(candidateIDs, executorID)
+		for _, raw := range coExecutorIDs {
+			id, parseErr := uuid.Parse(raw)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			candidateIDs = append(candidateIDs, id)
+		}
+		rows, queryErr := tx.Query(`SELECT id FROM users WHERE id = ANY($1) AND is_active = TRUE AND is_document_participant = TRUE FOR SHARE`, pq.Array(candidateIDs))
+		if queryErr != nil {
+			return nil, queryErr
+		}
+		eligible := make(map[uuid.UUID]struct{}, len(candidateIDs))
+		for rows.Next() {
+			var id uuid.UUID
+			if err = rows.Scan(&id); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			eligible[id] = struct{}{}
+		}
+		if err = rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if err = rows.Close(); err != nil {
+			return nil, err
+		}
+		for _, id := range candidateIDs {
+			if _, ok := eligible[id]; !ok {
+				active = false
+				break
+			}
+		}
+		if !active {
+			if _, err = tx.Exec(`UPDATE assignment_series SET active=FALSE,cancelled_by=$1,cancelled_at=NOW(),updated_at=NOW() WHERE id=$2`, actorID, seriesID); err != nil {
+				return nil, err
+			}
+			if err = r.outbox.EnqueueTx(tx, autoCancelEffect); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if active {

@@ -17,7 +17,6 @@ import (
 type fakeAcknowledgmentAPI struct {
 	createdDocumentID string
 	createdUserIDs    []string
-	viewedID          string
 }
 
 func (f *fakeAcknowledgmentAPI) Create(documentID, _ string, userIDs []string) (*dto.Acknowledgment, error) {
@@ -36,9 +35,8 @@ func (*fakeAcknowledgmentAPI) GetCurrentUserPendingByDocument(string) ([]dto.Ack
 func (*fakeAcknowledgmentAPI) GetAllActive() ([]dto.Acknowledgment, error) {
 	return []dto.Acknowledgment{}, nil
 }
-func (f *fakeAcknowledgmentAPI) MarkViewed(id string) error { f.viewedID = id; return nil }
-func (*fakeAcknowledgmentAPI) MarkConfirmed(string) error   { return nil }
-func (*fakeAcknowledgmentAPI) Delete(string) error          { return nil }
+func (*fakeAcknowledgmentAPI) MarkConfirmed(string) error { return nil }
+func (*fakeAcknowledgmentAPI) Delete(string) error        { return nil }
 
 type fakeUserEventAPI struct {
 	filter       models.UserEventFilter
@@ -109,12 +107,11 @@ func TestWorkflowMutationRoutes(t *testing.T) {
 	api.userEvents = func(*models.User) userEventAPI { return events }
 	api.administrativeOrderAcknowledgments = func(*models.User) administrativeOrderAcknowledgmentAPI { return orderAcknowledgments }
 
-	ackID, eventID, orderPersonID := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	eventID, orderPersonID := uuid.NewString(), uuid.NewString()
 	for _, tc := range []struct {
 		method, path string
 		want         int
 	}{
-		{http.MethodPost, "/api/v1/acknowledgments/" + ackID + "/view", http.StatusNoContent},
 		{http.MethodPost, "/api/v1/user-events/" + eventID + "/read", http.StatusNoContent},
 		{http.MethodPost, "/api/v1/user-events/read-all", http.StatusNoContent},
 		{http.MethodPost, "/api/v1/administrative-order-acknowledgments/" + orderPersonID + "/confirm", http.StatusOK},
@@ -125,7 +122,6 @@ func TestWorkflowMutationRoutes(t *testing.T) {
 		api.Handler().ServeHTTP(response, req)
 		require.Equal(t, tc.want, response.Code, response.Body.String())
 	}
-	assert.Equal(t, ackID, acknowledgments.viewedID)
 	assert.Equal(t, eventID, events.markedReadID)
 	assert.Equal(t, orderPersonID, orderAcknowledgments.markedID)
 }

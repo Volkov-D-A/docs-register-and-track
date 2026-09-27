@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -63,13 +64,10 @@ func (s *AcknowledgmentService) currentUserAndSubstitutionSubjectIDs() ([]uuid.U
 	return ids, nil
 }
 
-func acknowledgmentListContainsUser(acknowledgments []models.Acknowledgment, ackID uuid.UUID) bool {
-	for _, ack := range acknowledgments {
-		if ack.ID == ackID {
-			return true
-		}
-	}
-	return false
+func sortPendingAcknowledgments(items []models.Acknowledgment) {
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].CreatedAt.After(items[j].CreatedAt)
+	})
 }
 
 func (s *AcknowledgmentService) resolveAcknowledgmentSubjectUserID(ackID uuid.UUID) (uuid.UUID, error) {
@@ -84,12 +82,12 @@ func (s *AcknowledgmentService) resolveAcknowledgmentSubjectUserID(ackID uuid.UU
 	if err != nil {
 		return uuid.Nil, err
 	}
-	pendingBySubject, err := s.repo.GetPendingForUsers(principalIDs)
+	pendingRecipients, err := s.repo.GetPendingRecipientIDs(ackID, principalIDs)
 	if err != nil {
 		return uuid.Nil, err
 	}
 	for _, subjectID := range principalIDs {
-		if acknowledgmentListContainsUser(pendingBySubject[subjectID], ackID) {
+		if _, ok := pendingRecipients[subjectID]; ok {
 			return subjectID, nil
 		}
 	}
@@ -128,11 +126,16 @@ func (s *AcknowledgmentService) Create(
 		CreatedAt:    time.Now(),
 	}
 
+	seenUsers := make(map[uuid.UUID]struct{}, len(userIds))
 	for _, uidStr := range userIds {
 		uUUID, err := uuid.Parse(uidStr)
-		if err != nil {
-			continue // пропускаем невалидные ID
+		if err != nil || uUUID == uuid.Nil {
+			return nil, models.NewBadRequest("неверный ID сотрудника для ознакомления")
 		}
+		if _, exists := seenUsers[uUUID]; exists {
+			continue
+		}
+		seenUsers[uUUID] = struct{}{}
 		ack.Users = append(ack.Users, models.AcknowledgmentUser{
 			ID:               uuid.New(),
 			AcknowledgmentID: ack.ID,
@@ -143,6 +146,19 @@ func (s *AcknowledgmentService) Create(
 
 	if len(ack.Users) == 0 {
 		return nil, models.NewBadRequest("не выбраны пользователи для ознакомления")
+	}
+	recipientIDs := make([]uuid.UUID, len(ack.Users))
+	for i, user := range ack.Users {
+		recipientIDs[i] = user.UserID
+	}
+	eligibleIDs, err := s.userRepo.GetEligibleRecipientIDs(recipientIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, recipientID := range recipientIDs {
+		if _, ok := eligibleIDs[recipientID]; !ok {
+			return nil, models.NewBadRequest("выбранный сотрудник недоступен для ознакомления")
+		}
 	}
 
 	effects := make([]models.OutboxEvent, 0, len(ack.Users)+1)
@@ -188,7 +204,7 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 	if err != nil {
 		return nil, err
 	}
-	pendingBySubject, err := s.repo.GetPendingForUsers(subjectIDs)
+	pendingBySubject, err := s.repo.GetPendingForUsers(subjectIDs, uuid.Nil)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +219,7 @@ func (s *AcknowledgmentService) GetPendingForCurrentUser() ([]dto.Acknowledgment
 			result = append(result, ack)
 		}
 	}
+	sortPendingAcknowledgments(result)
 	return dto.MapAcknowledgments(result), nil
 }
 
@@ -220,7 +237,7 @@ func (s *AcknowledgmentService) GetCurrentUserPendingByDocument(documentID strin
 		return nil, err
 	}
 
-	pendingBySubject, err := s.repo.GetPendingForUsers(subjectIDs)
+	pendingBySubject, err := s.repo.GetPendingForUsers(subjectIDs, docUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -238,6 +255,7 @@ func (s *AcknowledgmentService) GetCurrentUserPendingByDocument(documentID strin
 			filtered = append(filtered, ack)
 		}
 	}
+	sortPendingAcknowledgments(filtered)
 	return dto.MapAcknowledgments(filtered), nil
 }
 
@@ -268,47 +286,25 @@ func (s *AcknowledgmentService) GetAllActive() ([]dto.Acknowledgment, error) {
 	}
 
 	filtered := make([]models.Acknowledgment, 0, len(res))
+	ackIDs := make([]uuid.UUID, 0, len(res))
 	for _, ack := range res {
 		if _, ok := readableDocuments[ack.DocumentID]; !ok {
 			continue
 		}
-		users, err := s.repo.GetUsersByAcknowledgmentID(ack.ID)
+		filtered = append(filtered, ack)
+		ackIDs = append(ackIDs, ack.ID)
+	}
+	if len(ackIDs) > 0 {
+		usersByAckID, err := s.repo.GetUsersByAcknowledgmentIDs(ackIDs)
 		if err != nil {
 			return nil, err
 		}
-		ack.Users = users
-		filtered = append(filtered, ack)
+		for i := range filtered {
+			filtered[i].Users = usersByAckID[filtered[i].ID]
+		}
 	}
 
 	return dto.MapAcknowledgments(filtered), nil
-}
-
-// MarkViewed отмечает задачу на ознакомление как просмотренную текущим пользователем.
-func (s *AcknowledgmentService) MarkViewed(ackID string) error {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return err
-	}
-	ackUUID, err := uuid.Parse(ackID)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный ID строки ознакомления", err)
-	}
-	userUUID, err := s.resolveAcknowledgmentSubjectUserID(ackUUID)
-	if err != nil {
-		return err
-	}
-
-	ack, err := s.repo.GetByID(ackUUID)
-	if err != nil {
-		return err
-	}
-	if ack == nil {
-		return models.ErrForbidden
-	}
-	event, buildErr := servereffects.NewJournalOutboxEvent("ack:"+ackUUID.String()+":viewed:"+userUUID.String()+":journal", models.CreateJournalEntryRequest{DocumentID: ack.DocumentID, UserID: userUUID, Action: "ACK_VIEW", Details: "Документ просмотрен в рамках ознакомления"})
-	if buildErr != nil {
-		return buildErr
-	}
-	return s.repo.MarkViewedWithOutbox(ackUUID, userUUID, []models.OutboxEvent{event})
 }
 
 // MarkConfirmed отмечает задачу на ознакомление как выполненную (подтвержденную) текущим пользователем.
@@ -395,7 +391,13 @@ func (s *AcknowledgmentService) Delete(id string) error {
 		return err
 	}
 
-	currentUserID, _ := s.auth.GetCurrentUserUUID()
+	currentUserID, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return err
+	}
+	if ack.CreatorID != currentUserID {
+		return models.ErrForbidden
+	}
 	event, buildErr := servereffects.NewJournalOutboxEvent("ack:"+ackUUID.String()+":deleted:journal", models.CreateJournalEntryRequest{DocumentID: ack.DocumentID, UserID: currentUserID, Action: "ACK_DELETE", Details: "Ознакомление удалено"})
 	if buildErr != nil {
 		return buildErr

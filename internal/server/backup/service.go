@@ -37,7 +37,7 @@ type Job struct {
 type JobView = models.BackupJob
 
 func (j Job) View() JobView {
-	return JobView{Stages: j.Stages, ID: j.ID, State: j.State, CreatedAt: j.CreatedAt, UpdatedAt: j.UpdatedAt, Error: j.Error, Attempts: j.Attempts, ArchiveSize: j.ArchiveSize}
+	return JobView{Stages: j.Stages, ID: j.ID, State: j.State, CreatedAt: j.CreatedAt, UpdatedAt: j.UpdatedAt, Error: j.Error, ArchiveSize: j.ArchiveSize}
 }
 
 type Service struct {
@@ -388,11 +388,6 @@ func (s *Service) tick(ctx context.Context) {
 			}
 			s.persist(&job)
 		}
-		// History written after the snapshot barrier; it is not part of that snapshot.
-		raw, _ := json.Marshal(job.View())
-		bounded, stop := context.WithTimeout(context.Background(), 10*time.Second)
-		s.DB.ExecContext(bounded, `INSERT INTO backup_jobs(id,state) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET state=excluded.state,updated_at=now()`, job.ID, raw)
-		stop()
 		s.mu.Lock()
 		s.active = ""
 		s.cancel = nil

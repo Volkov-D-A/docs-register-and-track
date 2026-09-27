@@ -21,8 +21,7 @@ type Acknowledgment struct {
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 
 	// Пользователи ознакомления
-	Users   []AcknowledgmentUser `json:"users,omitempty"`
-	UserIDs []string             `json:"userIds,omitempty"` // Для создания
+	Users []AcknowledgmentUser `json:"users,omitempty"`
 }
 
 // AcknowledgmentUser описывает связь пользователя с задачей на ознакомление.
@@ -31,18 +30,12 @@ type AcknowledgmentUser struct {
 	AcknowledgmentID uuid.UUID  `json:"-"`
 	UserID           uuid.UUID  `json:"-"`
 	UserName         string     `json:"userName,omitempty"`
-	ViewedAt         *time.Time `json:"viewedAt,omitempty"`
 	ConfirmedAt      *time.Time `json:"confirmedAt,omitempty"`
 	CreatedAt        time.Time  `json:"createdAt"`
 }
 
 // AcknowledgmentFilter описывает параметры фильтрации задач на ознакомление.
 type AcknowledgmentFilter struct {
-	DocumentID   string `json:"documentId,omitempty"`
-	UserID       string `json:"userId,omitempty"`
-	Status       string `json:"status,omitempty"` // pending, completed
-	ShowFinished bool   `json:"showFinished"`
-
 	// AllowedDocumentKinds — серверный scope, не принимается с клиента.
 	AllowedDocumentKinds []string `json:"-"`
 }

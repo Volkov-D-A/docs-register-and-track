@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
@@ -31,7 +31,7 @@ func TestBuiltServerAttachmentsIntegration(t *testing.T) {
 	sqlDB, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
 	defer sqlDB.Close()
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	request := func(method, path string, body io.Reader, token string) *http.Response {
 		req, err := http.NewRequest(method, base+path, body)
 		require.NoError(t, err)
@@ -90,11 +90,13 @@ func TestBuiltServerAttachmentsIntegration(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO organizations (id, name) VALUES ($1, 'Attachment Organization')`, organizationID)
 	require.NoError(t, err)
-	document, err := repository.NewOutgoingDocumentRepository(db).Create(models.CreateOutgoingDocRequest{
+	documentRepo := repository.NewOutgoingDocumentRepository(db)
+	documentRepo.SetOutbox(repository.NewOutboxRepository(db))
+	document, err := documentRepo.CreateWithJournal(models.CreateOutgoingDocRequest{
 		NomenclatureID: nomenclatureID, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter,
 		RecipientOrgID: organizationID, CreatedBy: userID, OutgoingDate: time.Now().UTC(), Content: "attachment integration",
 		PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee",
-	})
+	}, "CREATE", "Created %s")
 	require.NoError(t, err)
 	allowed, err := repository.NewDocumentAccessRepository(db).HasPermission(string(models.DocumentKindOutgoingLetter), "upload", "", userID.String())
 	require.NoError(t, err)

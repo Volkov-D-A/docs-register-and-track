@@ -45,7 +45,6 @@ type BackupJob struct {
 	CreatedAt   time.Time     `json:"createdAt"`
 	UpdatedAt   time.Time     `json:"updatedAt"`
 	Error       string        `json:"error,omitempty"`
-	Attempts    int           `json:"attempts"`
 	ArchiveSize int64         `json:"archiveSize"`
 }
 

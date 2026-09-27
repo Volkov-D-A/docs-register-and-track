@@ -41,11 +41,8 @@ type DocumentStatisticsFilters struct {
 
 // DocumentStatisticsReport описывает отчет по документам за период.
 type DocumentStatisticsReport struct {
-	StartDate string                `json:"startDate"`
-	EndDate   string                `json:"endDate"`
-	GroupBy   string                `json:"groupBy"`
-	Total     int                   `json:"total"`
-	Rows      []StatisticsReportRow `json:"rows"`
+	Total int                   `json:"total"`
+	Rows  []StatisticsReportRow `json:"rows"`
 }
 
 // AssignmentMonthlyPoint описывает помесячную статистику поручений.
@@ -72,35 +69,28 @@ type AssignmentStatisticsFilters struct {
 
 // AssignmentStatisticsReport описывает отчет по поручениям за период.
 type AssignmentStatisticsReport struct {
-	StartDate   string                `json:"startDate"`
-	EndDate     string                `json:"endDate"`
-	OnlyOverdue bool                  `json:"onlyOverdue"`
-	UserID      string                `json:"userId,omitempty"`
-	Total       int                   `json:"total"`
-	Rows        []StatisticsReportRow `json:"rows"`
+	Total int                   `json:"total"`
+	Rows  []StatisticsReportRow `json:"rows"`
 }
 
 // SystemStatistics описывает системную статистику.
 type SystemStatistics struct {
-	ClientBuildVersion       string                     `json:"clientBuildVersion"`
-	ClientRevision           string                     `json:"clientRevision"`
-	ClientDirty              bool                       `json:"clientDirty"`
-	UserCount                int                        `json:"userCount"`
-	TotalDocuments           int                        `json:"totalDocuments"`
-	DBSize                   string                     `json:"dbSize"`
-	DBSizeBytes              int64                      `json:"dbSizeBytes"`
-	StorageObjects           int                        `json:"storageObjects"`
-	StorageSize              string                     `json:"storageSize"`
-	StorageBytes             int64                      `json:"storageBytes"`
-	StorageRefreshedAt       *time.Time                 `json:"storageRefreshedAt,omitempty"`
-	StorageRefreshInProgress bool                       `json:"storageRefreshInProgress"`
-	GeneratedAt              time.Time                  `json:"generatedAt"`
-	Service                  SystemServiceStatistics    `json:"service"`
-	Usage                    SystemUsageStatistics      `json:"usage"`
-	API                      SystemAPIStatistics        `json:"api"`
-	Database                 SystemDatabaseStatistics   `json:"database"`
-	Outbox                   SystemOutboxStatistics     `json:"outbox"`
-	Attachments              SystemAttachmentStatistics `json:"attachments"`
+	ClientBuildVersion string                     `json:"clientBuildVersion"`
+	ClientRevision     string                     `json:"clientRevision"`
+	ClientDirty        bool                       `json:"clientDirty"`
+	UserCount          int                        `json:"userCount"`
+	TotalDocuments     int                        `json:"totalDocuments"`
+	DBSize             string                     `json:"dbSize"`
+	StorageObjects     int                        `json:"storageObjects"`
+	StorageSize        string                     `json:"storageSize"`
+	StorageRefreshedAt *time.Time                 `json:"storageRefreshedAt,omitempty"`
+	GeneratedAt        time.Time                  `json:"generatedAt"`
+	Service            SystemServiceStatistics    `json:"service"`
+	Usage              SystemUsageStatistics      `json:"usage"`
+	API                SystemAPIStatistics        `json:"api"`
+	Database           SystemDatabaseStatistics   `json:"database"`
+	Outbox             SystemOutboxStatistics     `json:"outbox"`
+	Attachments        SystemAttachmentStatistics `json:"attachments"`
 }
 
 type SystemServiceStatistics struct {
@@ -108,14 +98,11 @@ type SystemServiceStatistics struct {
 	SourceRevision        string    `json:"sourceRevision"`
 	SourceDirty           bool      `json:"sourceDirty"`
 	Version               string    `json:"version"`
-	APIVersion            string    `json:"apiVersion"`
 	State                 string    `json:"state"`
 	StartedAt             time.Time `json:"startedAt"`
 	UptimeSeconds         int64     `json:"uptimeSeconds"`
 	SchemaCurrentVersion  uint      `json:"schemaCurrentVersion"`
 	SchemaRequiredVersion uint      `json:"schemaRequiredVersion"`
-	SchemaCompatible      bool      `json:"schemaCompatible"`
-	SchemaDirty           bool      `json:"schemaDirty"`
 }
 
 type SystemUsageStatistics struct {
@@ -134,7 +121,6 @@ type SystemAPIStatistics struct {
 }
 
 type SystemDatabaseStatistics struct {
-	SizeBytes                  int64 `json:"sizeBytes"`
 	PoolOpen                   int   `json:"poolOpen"`
 	PoolInUse                  int   `json:"poolInUse"`
 	PoolIdle                   int   `json:"poolIdle"`
@@ -194,7 +180,6 @@ type StorageStatisticsStatus struct {
 	RefreshedAt    *time.Time                    `json:"refreshedAt,omitempty"`
 	State          StorageStatisticsRefreshState `json:"state"`
 	LastError      string                        `json:"lastError,omitempty"`
-	FailedAt       *time.Time                    `json:"failedAt,omitempty"`
 }
 
 // StorageStatisticsRefreshRecord is the persisted snapshot plus coordination
@@ -204,5 +189,4 @@ type StorageStatisticsRefreshRecord struct {
 	RefreshActive  bool
 	MutationActive bool
 	LastError      string
-	FailedAt       time.Time
 }

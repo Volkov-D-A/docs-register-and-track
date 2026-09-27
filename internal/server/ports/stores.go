@@ -17,13 +17,10 @@ type UserStore interface {
 	GetByID(id uuid.UUID) (*models.User, error)
 	GetSessionPrincipal(id uuid.UUID) (*models.SessionPrincipal, error)
 	GetAll() ([]models.User, error)
-	Create(req models.CreateUserRequest) (*models.User, error)
-	Update(req models.UpdateUserRequest) (*models.User, error)
 	GetExecutors() ([]models.User, error)
+	GetEligibleRecipientIDs(candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
 	GetActiveUsers() ([]models.User, error)
 	UpdatePassword(userID uuid.UUID, newPasswordHash string) error
-	UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error
-	IncrementFailedLoginAttempts(userID uuid.UUID) (int, bool, error)
 	ResetFailedLoginAttempts(userID uuid.UUID) error
 	CountUsers() (int, error)
 }
@@ -33,14 +30,6 @@ type UserSubstitutionStore interface {
 	GetByPrincipalID(principalUserID uuid.UUID) (*models.UserSubstitution, error)
 	GetActivePrincipalIDs(substituteUserID uuid.UUID) ([]uuid.UUID, error)
 	IsActiveSubstitute(substituteUserID, principalUserID uuid.UUID) (bool, error)
-	ReplaceForPrincipal(
-		principalUserID uuid.UUID,
-		substituteUserID *uuid.UUID,
-		startsAt *time.Time,
-		endsAt *time.Time,
-		isActive bool,
-		createdBy *uuid.UUID,
-	) (*models.UserSubstitution, error)
 }
 
 // IncomingDocStore — интерфейс для работы с входящими документами в хранилище.
@@ -48,8 +37,6 @@ type IncomingDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error)
 	GetByID(id uuid.UUID) (*models.IncomingDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.IncomingDocument, error)
-	Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error)
-	Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error)
 	GetCount() (int, error)
 }
 
@@ -58,8 +45,6 @@ type CitizenAppealDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error)
 	GetByID(id uuid.UUID) (*models.CitizenAppealDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.CitizenAppealDocument, error)
-	Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error)
-	Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error)
 	GetCount() (int, error)
 }
 
@@ -68,12 +53,8 @@ type AdministrativeOrderDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error)
 	GetByID(id uuid.UUID) (*models.AdministrativeOrderDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error)
-	Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error)
-	Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error)
 	GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error)
 	GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error)
-	MarkAcknowledgmentPerson(id uuid.UUID, acknowledgedBy uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error)
-	CancelByLink(id uuid.UUID, cancelledAt time.Time) error
 	GetCount() (int, error)
 }
 
@@ -93,7 +74,6 @@ type DocumentAccessStore interface {
 	HasPermission(kindCode, action string, departmentID, userID string) (bool, error)
 	HasSystemPermission(permission, userID string) (bool, error)
 	GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error)
-	ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error
 }
 
 // OutgoingDocStore — интерфейс для работы с исходящими документами в хранилище.
@@ -101,8 +81,6 @@ type OutgoingDocStore interface {
 	GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error)
 	GetByID(id uuid.UUID) (*models.OutgoingDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocument, error)
-	Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error)
-	Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error)
 	GetCount() (int, error)
 }
 
@@ -110,30 +88,17 @@ type OutgoingDocStore interface {
 type NomenclatureStore interface {
 	GetAll(year int, kindCode string) ([]models.Nomenclature, error)
 	GetByID(id uuid.UUID) (*models.Nomenclature, error)
-	Create(name, index string, year int, kindCode, separator, numberingMode string, startNumber int) (*models.Nomenclature, error)
-	Update(id uuid.UUID, name, index string, year int, kindCode, separator, numberingMode string, isActive bool) (*models.Nomenclature, error)
-	Delete(id uuid.UUID) error
-	GetNextNumber(id uuid.UUID) (int, string, string, string, error)
 	GetActiveByKind(kindCode string, year int) ([]models.Nomenclature, error)
 }
 
-// ReferenceStore — интерфейс для работы со справочниками (типы документов, организации, исполнители резолюции) в хранилище.
+// ReferenceStore — интерфейс для работы со справочниками организаций и исполнителей резолюции в хранилище.
 type ReferenceStore interface {
-	GetAllDocumentTypes() ([]models.DocumentType, error)
-	CreateDocumentType(name string) (*models.DocumentType, error)
-	UpdateDocumentType(id uuid.UUID, name string) error
-	DeleteDocumentType(id uuid.UUID) error
 	GetAllOrganizations() ([]models.Organization, error)
 	FindOrCreateOrganization(name string) (*models.Organization, error)
 	SearchOrganizations(query string) ([]models.Organization, error)
-	UpdateOrganization(id uuid.UUID, name string) error
-	DeleteOrganization(id uuid.UUID) error
-	MergeOrganizations(sourceID uuid.UUID, targetID uuid.UUID) error
 	GetAllResolutionExecutors() ([]models.ResolutionExecutor, error)
 	FindOrCreateResolutionExecutor(name string) (*models.ResolutionExecutor, error)
 	SearchResolutionExecutors(query string) ([]models.ResolutionExecutor, error)
-	UpdateResolutionExecutor(id uuid.UUID, name string) error
-	DeleteResolutionExecutor(id uuid.UUID) error
 }
 
 // AssignmentReader provides assignment queries and access checks.
@@ -148,16 +113,12 @@ type AssignmentReader interface {
 type DepartmentStore interface {
 	GetAll() ([]models.Department, error)
 	GetNomenclatureIDs(departmentID uuid.UUID) ([]string, error)
-	Create(name string, nomenclatureIDs []string) (*models.Department, error)
-	Update(id uuid.UUID, name string, nomenclatureIDs []string) (*models.Department, error)
-	Delete(id uuid.UUID) error
 }
 
 // SettingsStore — интерфейс для работы с системными настройками в хранилище.
 type SettingsStore interface {
 	Get(key string) (*models.SystemSetting, error)
 	GetAll() ([]models.SystemSetting, error)
-	Update(key, value string) error
 }
 
 // AttachmentStore — интерфейс для работы с вложениями (файлами) в хранилище.
@@ -194,7 +155,8 @@ type AcknowledgmentReader interface {
 	GetByID(id uuid.UUID) (*models.Acknowledgment, error)
 	GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error)
 	GetAllActive(filter models.AcknowledgmentFilter) ([]models.Acknowledgment, error)
-	GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error)
+	GetUsersByAcknowledgmentIDs(ackIDs []uuid.UUID) (map[uuid.UUID][]models.AcknowledgmentUser, error)
+	GetPendingRecipientIDs(ackID uuid.UUID, candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
 	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
 	GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
 }
@@ -232,7 +194,7 @@ type StatisticsStore interface {
 	GetStorageStatisticsRefreshRecord() (models.StorageStatisticsRefreshRecord, error)
 	TryStartStorageStatisticsRefresh(token uuid.UUID, leaseUntil time.Time) (bool, error)
 	SaveStorageStatisticsSnapshot(token uuid.UUID, snapshot models.StorageStatisticsSnapshot) error
-	FailStorageStatisticsRefresh(token uuid.UUID, message string, failedAt time.Time) error
+	FailStorageStatisticsRefresh(token uuid.UUID, message string) error
 	ClearStorageStatisticsRefreshError() error
 }
 

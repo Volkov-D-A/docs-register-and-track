@@ -30,8 +30,7 @@ CREATE TABLE storage_statistics (
     refresh_lease_until TIMESTAMP WITH TIME ZONE,
     mutation_revision BIGINT NOT NULL DEFAULT 0 CHECK (mutation_revision >= 0),
     refresh_revision BIGINT,
-    refresh_last_error TEXT,
-    refresh_failed_at TIMESTAMP WITH TIME ZONE
+    refresh_last_error TEXT
 );
 
 INSERT INTO storage_statistics (id) VALUES (true);
@@ -48,8 +47,7 @@ CREATE INDEX idx_storage_statistics_mutations_lease
 CREATE TABLE IF NOT EXISTS system_settings (
     key VARCHAR(100) PRIMARY KEY,
     value TEXT NOT NULL,
-    description TEXT,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    description TEXT
 );
 
 -- Default settings
@@ -102,7 +100,6 @@ CREATE TABLE acknowledgment_users (
     id UUID PRIMARY KEY,
     acknowledgment_id UUID NOT NULL REFERENCES acknowledgments (id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    viewed_at TIMESTAMP WITH TIME ZONE,
     confirmed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (acknowledgment_id, user_id)

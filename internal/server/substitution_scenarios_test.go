@@ -86,8 +86,6 @@ func TestSubstitutionProductionScenarios(t *testing.T) {
 						return
 					}
 					assert.Equal(t, principal.ID, store.principalID)
-					require.NotNil(t, store.createdBy)
-					assert.Equal(t, actor.ID, *store.createdBy)
 					require.Len(t, store.effects, 1)
 					assert.Equal(t, models.OutboxEventAudit, store.effects[0].EventType)
 					var audit models.CreateAdminAuditLogRequest

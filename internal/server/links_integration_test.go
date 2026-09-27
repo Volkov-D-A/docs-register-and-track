@@ -23,7 +23,7 @@ import (
 
 func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	password := "LinksPassw0rd!"
 	hash, err := security.HashPassword(password)
 	require.NoError(t, err)
@@ -49,12 +49,13 @@ func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 	_, err = db.Exec(`INSERT INTO organizations (id, name) VALUES ($1, 'Link Organization')`, organizationID)
 	require.NoError(t, err)
 	documents := repository.NewOutgoingDocumentRepository(db)
+	documents.SetOutbox(repository.NewOutboxRepository(db))
 	createDocument := func(content string) *models.OutgoingDocument {
-		document, createErr := documents.Create(models.CreateOutgoingDocRequest{
+		document, createErr := documents.CreateWithJournal(models.CreateOutgoingDocRequest{
 			NomenclatureID: nomenclatureID, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter,
 			RecipientOrgID: organizationID, CreatedBy: managerID, OutgoingDate: time.Now().UTC(), Content: content,
 			PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee",
-		})
+		}, "CREATE", "Created %s")
 		require.NoError(t, createErr)
 		return document
 	}
@@ -95,6 +96,21 @@ func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 	linksResponse := requestWithToken(http.MethodGet, "/api/v1/documents/"+source.ID.String()+"/links", "", managerToken)
 	require.Equal(t, http.StatusOK, linksResponse.Code, linksResponse.Body.String())
 	require.Contains(t, linksResponse.Body.String(), created.ID)
+	var sourceLinks []struct {
+		ID            string `json:"id"`
+		SourceSubject string `json:"sourceSubject"`
+		TargetSubject string `json:"targetSubject"`
+	}
+	require.NoError(t, json.Unmarshal(linksResponse.Body.Bytes(), &sourceLinks))
+	require.Len(t, sourceLinks, 1)
+	require.Equal(t, "link source", sourceLinks[0].SourceSubject)
+	require.Equal(t, "link target", sourceLinks[0].TargetSubject)
+	reverseLinks := requestWithToken(http.MethodGet, "/api/v1/documents/"+target.ID.String()+"/links", "", managerToken)
+	require.Equal(t, http.StatusOK, reverseLinks.Code, reverseLinks.Body.String())
+	require.JSONEq(t, linksResponse.Body.String(), reverseLinks.Body.String())
+	require.NotContains(t, linksResponse.Body.String(), `"createdBy"`)
+	require.NotContains(t, linksResponse.Body.String(), `"createdAt"`)
+	require.NotContains(t, linksResponse.Body.String(), `"targetId"`)
 
 	journalID, err := repository.NewJournalRepository(db).Create(context.Background(), models.CreateJournalEntryRequest{
 		DocumentID: source.ID, UserID: managerID, Action: "LINK_INTEGRATION", Details: "server-owned journal",
@@ -103,6 +119,8 @@ func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 	journalResponse := requestWithToken(http.MethodGet, "/api/v1/documents/"+source.ID.String()+"/journal", "", managerToken)
 	require.Equal(t, http.StatusOK, journalResponse.Code, journalResponse.Body.String())
 	require.Contains(t, journalResponse.Body.String(), journalID.String())
+	require.NotContains(t, journalResponse.Body.String(), `"documentId"`)
+	require.Contains(t, journalResponse.Body.String(), `"userName"`)
 
 	outsiderResponse := requestWithToken(http.MethodGet, "/api/v1/documents/"+source.ID.String()+"/journal", "", login("links-outsider"))
 	require.Equal(t, http.StatusForbidden, outsiderResponse.Code, outsiderResponse.Body.String())

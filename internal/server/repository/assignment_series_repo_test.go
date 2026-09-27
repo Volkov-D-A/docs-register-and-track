@@ -10,15 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 func setupAssignmentSeriesRepo(t *testing.T) (*AssignmentRepository, sqlmock.Sqlmock, func()) {
 	t.Helper()
 	db, mockDB, err := sqlmock.New()
 	require.NoError(t, err)
-	wrapper := &database.DB{DB: db}
+	wrapper := database.Wrap(db)
 	repo := NewAssignmentRepository(wrapper)
 	repo.SetOutbox(NewOutboxRepository(wrapper))
 	return repo, mockDB, func() { _ = db.Close() }
@@ -59,18 +59,6 @@ func TestAssignmentSeriesRepositoryCreatesTemplateAndFirstIteration(t *testing.T
 	require.NotNil(t, series.CurrentAssignmentID)
 	assert.Equal(t, assignmentID, *series.CurrentAssignmentID)
 	assert.Equal(t, 1, series.CurrentIteration)
-	require.NoError(t, mockDB.ExpectationsWereMet())
-}
-
-func TestAssignmentSeriesRepositoryFindByNonSeriesAssignment(t *testing.T) {
-	repo, mockDB, closeDB := setupAssignmentSeriesRepo(t)
-	defer closeDB()
-	assignmentID := uuid.New()
-	mockDB.ExpectQuery(`SELECT series_id FROM assignments`).WithArgs(assignmentID).WillReturnRows(sqlmock.NewRows([]string{"series_id"}).AddRow(nil))
-
-	series, err := repo.GetAssignmentSeriesByAssignment(assignmentID)
-	require.NoError(t, err)
-	require.Nil(t, series)
 	require.NoError(t, mockDB.ExpectationsWereMet())
 }
 
@@ -137,7 +125,7 @@ func TestAssignmentSeriesRepositoryRejectsStaleAdvance(t *testing.T) {
 	)
 	mockDB.ExpectRollback()
 
-	assignment, err := repo.FinishSeriesIterationWithNext(currentID, seriesID, uuid.New(), expectedRevision, "готово", nil, time.Now(), 2, uuid.New(), "Отчёт", nil, nil, nil)
+	assignment, err := repo.FinishSeriesIterationWithNext(currentID, seriesID, uuid.New(), uuid.New(), expectedRevision, "готово", nil, time.Now(), 2, uuid.New(), "Отчёт", nil, nil, nil, models.OutboxEvent{})
 	require.Nil(t, assignment)
 	requireRepositoryConflict(t, err)
 	require.NoError(t, mockDB.ExpectationsWereMet())

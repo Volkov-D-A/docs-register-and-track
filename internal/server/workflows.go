@@ -13,7 +13,6 @@ type acknowledgmentAPI interface {
 	GetPendingForCurrentUser() ([]dto.Acknowledgment, error)
 	GetCurrentUserPendingByDocument(string) ([]dto.Acknowledgment, error)
 	GetAllActive() ([]dto.Acknowledgment, error)
-	MarkViewed(string) error
 	MarkConfirmed(string) error
 	Delete(string) error
 }
@@ -96,14 +95,6 @@ func (api *managementAPI) listActiveAcknowledgments(w http.ResponseWriter, r *ht
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
-}
-
-func (api *managementAPI) markAcknowledgmentViewed(w http.ResponseWriter, r *http.Request) {
-	if err := api.acknowledgmentService(r).MarkViewed(r.PathValue("id")); err != nil {
-		writeUserError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func (api *managementAPI) markAcknowledgmentConfirmed(w http.ResponseWriter, r *http.Request) {

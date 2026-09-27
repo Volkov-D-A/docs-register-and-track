@@ -21,7 +21,7 @@ func TestAcknowledgmentRepository_CreateWithOutbox(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 
 	now := time.Now()
@@ -58,7 +58,7 @@ func TestAcknowledgmentRepositoryCreateWithOutboxRollsBackOnEnqueueFailure(t *te
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	now := time.Now()
 	ack := &models.Acknowledgment{
@@ -88,17 +88,14 @@ func TestAcknowledgmentRepository_GetByID(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+		repo := NewAcknowledgmentRepository(database.Wrap(db))
 		ackID := uuid.New()
 		docID := uuid.New()
 		creatorID := uuid.New()
-		now := time.Now()
-		completedAt := now.Add(time.Hour)
-
-		query := `SELECT a\.id, a\.document_id, d\.kind, a\.creator_id, a\.content, a\.created_at, a\.completed_at FROM acknowledgments a JOIN documents d ON d\.id = a\.document_id WHERE a\.id = \$1`
+		query := `SELECT a\.document_id, d\.kind, a\.creator_id FROM acknowledgments a JOIN documents d ON d\.id = a\.document_id WHERE a\.id = \$1`
 		rows := sqlmock.NewRows([]string{
-			"id", "document_id", "kind", "creator_id", "content", "created_at", "completed_at",
-		}).AddRow(ackID, docID, string(models.DocumentKindIncomingLetter), creatorID, "Ознакомиться", now, completedAt)
+			"document_id", "kind", "creator_id",
+		}).AddRow(docID, string(models.DocumentKindIncomingLetter), creatorID)
 
 		mock.ExpectQuery(query).WithArgs(ackID).WillReturnRows(rows)
 
@@ -109,10 +106,20 @@ func TestAcknowledgmentRepository_GetByID(t *testing.T) {
 		assert.Equal(t, docID, ack.DocumentID)
 		assert.Equal(t, string(models.DocumentKindIncomingLetter), ack.DocumentKind)
 		assert.Equal(t, creatorID, ack.CreatorID)
-		assert.Equal(t, "Ознакомиться", ack.Content)
-		assert.Equal(t, now, ack.CreatedAt)
-		require.NotNil(t, ack.CompletedAt)
-		assert.Equal(t, completedAt, *ack.CompletedAt)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+		repo := NewAcknowledgmentRepository(database.Wrap(db))
+		ackID := uuid.New()
+		mock.ExpectQuery(`SELECT a\.document_id, d\.kind, a\.creator_id`).WithArgs(ackID).
+			WillReturnRows(sqlmock.NewRows([]string{"document_id", "kind", "creator_id"}))
+		ack, err := repo.GetByID(ackID)
+		require.NoError(t, err)
+		require.Nil(t, ack)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -121,10 +128,10 @@ func TestAcknowledgmentRepository_GetByID(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+		repo := NewAcknowledgmentRepository(database.Wrap(db))
 		ackID := uuid.New()
 
-		query := `SELECT a\.id, a\.document_id, d\.kind, a\.creator_id, a\.content, a\.created_at, a\.completed_at FROM acknowledgments a JOIN documents d ON d\.id = a\.document_id WHERE a\.id = \$1`
+		query := `SELECT a\.document_id, d\.kind, a\.creator_id FROM acknowledgments a JOIN documents d ON d\.id = a\.document_id WHERE a\.id = \$1`
 		mock.ExpectQuery(query).WithArgs(ackID).WillReturnError(sqlmock.ErrCancelled)
 
 		ack, err := repo.GetByID(ackID)
@@ -140,7 +147,7 @@ func TestAcknowledgmentRepository_GetByDocumentID(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
 	docID := uuid.New()
 	ackID := uuid.New()
 	now := time.Now()
@@ -156,7 +163,7 @@ func TestAcknowledgmentRepository_GetByDocumentID(t *testing.T) {
 	mock.ExpectQuery(expectedQuery).WithArgs(docID).WillReturnRows(rows)
 
 	usersQuery := `SELECT 
-			au.id, au.acknowledgment_id, au.user_id, au.viewed_at, au.confirmed_at, au.created_at,
+			au.acknowledgment_id, au.user_id, au.confirmed_at,
 			u.full_name as user_name
 		FROM acknowledgment_users au
 		JOIN users u ON au.user_id = u.id
@@ -164,8 +171,8 @@ func TestAcknowledgmentRepository_GetByDocumentID(t *testing.T) {
 		ORDER BY au.acknowledgment_id, au.created_at, au.id`
 
 	usersRows := sqlmock.NewRows([]string{
-		"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name",
-	}).AddRow(uuid.New(), ackID, uuid.New(), nil, nil, now, "Читатель")
+		"acknowledgment_id", "user_id", "confirmed_at", "user_name",
+	}).AddRow(ackID, uuid.New(), nil, "Читатель")
 
 	mock.ExpectQuery(regexp.QuoteMeta(usersQuery)).WithArgs(sqlmock.AnyArg()).WillReturnRows(usersRows)
 
@@ -177,77 +184,13 @@ func TestAcknowledgmentRepository_GetByDocumentID(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAcknowledgmentRepository_MarkViewedWithOutbox(t *testing.T) {
-	// Отметка о прочтении листа ознакомления конкретным пользователем
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
-	repo.SetOutbox(NewOutboxRepository(repo.db))
-	ackID := uuid.New()
-	userID := uuid.New()
-
-	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE acknowledgment_users SET viewed_at = \$1 WHERE acknowledgment_id = \$2 AND user_id = \$3 AND viewed_at IS NULL`).
-		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(1, 1))
-
-	mock.ExpectCommit()
-
-	err = repo.MarkViewedWithOutbox(ackID, userID, nil)
-	require.NoError(t, err)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestAcknowledgmentRepositoryMarkViewedWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
-	repo.SetOutbox(NewOutboxRepository(repo.db))
-	ackID, userID := uuid.New(), uuid.New()
-	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "ack:" + ackID.String() + ":viewed", Payload: `{"action":"ACK_VIEW"}`}
-
-	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE acknowledgment_users SET viewed_at = \$1 WHERE acknowledgment_id = \$2 AND user_id = \$3 AND viewed_at IS NULL`).
-		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnError(assert.AnError)
-	mock.ExpectRollback()
-
-	err = repo.MarkViewedWithOutbox(ackID, userID, []models.OutboxEvent{event})
-	require.ErrorIs(t, err, assert.AnError)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestAcknowledgmentRepository_MarkViewedWithOutboxReturnsForbiddenWhenUserRowMissing(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
-	repo.SetOutbox(NewOutboxRepository(repo.db))
-	ackID := uuid.New()
-	userID := uuid.New()
-
-	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE acknowledgment_users SET viewed_at = \$1 WHERE acknowledgment_id = \$2 AND user_id = \$3 AND viewed_at IS NULL`).
-		WithArgs(sqlmock.AnyArg(), ackID, userID).WillReturnResult(sqlmock.NewResult(0, 0))
-
-	mock.ExpectRollback()
-
-	err = repo.MarkViewedWithOutbox(ackID, userID, nil)
-	require.ErrorIs(t, err, models.ErrForbidden)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestAcknowledgmentRepository_DeleteWithOutbox(t *testing.T) {
 	// Удаление листа ознакомления по его ID
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	ackID := uuid.New()
 
@@ -266,7 +209,7 @@ func TestAcknowledgmentRepositoryDeleteWithOutboxRollsBackOnEnqueueFailure(t *te
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	ackID := uuid.New()
 	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "ack:" + ackID.String() + ":delete", Payload: `{"action":"ACK_DELETE"}`}
@@ -281,19 +224,19 @@ func TestAcknowledgmentRepositoryDeleteWithOutboxRollsBackOnEnqueueFailure(t *te
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAcknowledgmentRepository_GetUsersByAcknowledgmentID(t *testing.T) {
+func TestAcknowledgmentRepository_GetUsersByAcknowledgmentIDs(t *testing.T) {
 	// Получение списка пользователей, привязанных к листу ознакомления
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
 	ackID := uuid.New()
+	secondAckID := uuid.New()
 	userID := uuid.New()
-	now := time.Now()
 
 	query := `SELECT 
-			au.id, au.acknowledgment_id, au.user_id, au.viewed_at, au.confirmed_at, au.created_at,
+			au.acknowledgment_id, au.user_id, au.confirmed_at,
 			u.full_name as user_name
 		FROM acknowledgment_users au
 		JOIN users u ON au.user_id = u.id
@@ -301,16 +244,18 @@ func TestAcknowledgmentRepository_GetUsersByAcknowledgmentID(t *testing.T) {
 		ORDER BY au.acknowledgment_id, au.created_at, au.id`
 
 	rows := sqlmock.NewRows([]string{
-		"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name",
-	}).AddRow(uuid.New(), ackID, userID, now, nil, now, "Читатель")
+		"acknowledgment_id", "user_id", "confirmed_at", "user_name",
+	}).AddRow(ackID, userID, nil, "Читатель").AddRow(secondAckID, uuid.New(), nil, "Второй")
 
 	mock.ExpectQuery(query).WithArgs(sqlmock.AnyArg()).WillReturnRows(rows)
 
-	users, err := repo.GetUsersByAcknowledgmentID(ackID)
+	users, err := repo.GetUsersByAcknowledgmentIDs([]uuid.UUID{ackID, secondAckID})
 	require.NoError(t, err)
-	require.Len(t, users, 1)
-	assert.Equal(t, userID, users[0].UserID)
-	assert.Equal(t, "Читатель", users[0].UserName)
+	require.Len(t, users[ackID], 1)
+	assert.Equal(t, userID, users[ackID][0].UserID)
+	assert.Equal(t, "Читатель", users[ackID][0].UserName)
+	require.Len(t, users[secondAckID], 1)
+	assert.Equal(t, "Второй", users[secondAckID][0].UserName)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -319,26 +264,48 @@ func TestAcknowledgmentRepository_GetPendingForUsers(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
 	userID := uuid.New()
 	principalID := uuid.New()
 	ackID := uuid.New()
+	docID := uuid.New()
 	now := time.Now()
 
 	mock.ExpectQuery(`SELECT(.*)au.user_id(.*)WHERE au.user_id = ANY\(\$1\) AND au.confirmed_at IS NULL`).
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"user_id", "id", "document_id", "kind", "creator_id", "content", "created_at", "completed_at", "creator_name", "doc_number",
-		}).AddRow(principalID, ackID, uuid.New(), "incoming_letter", uuid.New(), "Ознакомиться", now, nil, "Создатель", "ВХ-1"))
-	mock.ExpectQuery(`SELECT(.*)FROM acknowledgment_users au(.*)WHERE au.acknowledgment_id = ANY\(\$1\)`).
-		WithArgs(sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "acknowledgment_id", "user_id", "viewed_at", "confirmed_at", "created_at", "user_name"}))
-
-	items, err := repo.GetPendingForUsers([]uuid.UUID{userID, principalID})
+		}).AddRow(principalID, ackID, docID, "incoming_letter", uuid.New(), "Ознакомиться", now, nil, "Создатель", "ВХ-1"))
+	items, err := repo.GetPendingForUsers([]uuid.UUID{userID, principalID}, uuid.Nil)
 	require.NoError(t, err)
 	require.Len(t, items[principalID], 1)
 	assert.Equal(t, ackID, items[principalID][0].ID)
+	assert.Nil(t, items[principalID][0].Users)
 	assert.Empty(t, items[userID])
+	mock.ExpectQuery(`SELECT(.*)au.user_id(.*)WHERE au.user_id = ANY\(\$1\) AND au.confirmed_at IS NULL(.*)AND a.document_id = \$2`).
+		WithArgs(sqlmock.AnyArg(), docID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"user_id", "id", "document_id", "kind", "creator_id", "content", "created_at", "completed_at", "creator_name", "doc_number",
+		}).AddRow(principalID, ackID, docID, "incoming_letter", uuid.New(), "Ознакомиться", now, nil, "Создатель", "ВХ-1"))
+	filtered, err := repo.GetPendingForUsers([]uuid.UUID{userID, principalID}, docID)
+	require.NoError(t, err)
+	require.Len(t, filtered[principalID], 1)
+	assert.Equal(t, docID, filtered[principalID][0].DocumentID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAcknowledgmentRepository_GetPendingRecipientIDs(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
+	ackID, userID, otherID := uuid.New(), uuid.New(), uuid.New()
+	mock.ExpectQuery(`SELECT user_id FROM acknowledgment_users WHERE acknowledgment_id = \$1 AND user_id = ANY\(\$2\) AND confirmed_at IS NULL`).
+		WithArgs(ackID, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(userID))
+	found, err := repo.GetPendingRecipientIDs(ackID, []uuid.UUID{userID, otherID})
+	require.NoError(t, err)
+	require.Equal(t, map[uuid.UUID]struct{}{userID: {}}, found)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -348,7 +315,7 @@ func TestAcknowledgmentRepository_GetAllActive(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
 	now := time.Now()
 
 	query := `SELECT(.*)FROM acknowledgments a(.*)JOIN documents d ON d.id = a.document_id(.*)WHERE a.completed_at IS NULL(.*)d.kind = ANY\(\$1\)(.*)`
@@ -371,7 +338,7 @@ func TestAcknowledgmentRepository_DocumentAccess(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAcknowledgmentRepository(&database.DB{DB: db})
+	repo := NewAcknowledgmentRepository(database.Wrap(db))
 	userID := uuid.New()
 	docID := uuid.New()
 

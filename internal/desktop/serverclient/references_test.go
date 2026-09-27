@@ -44,14 +44,10 @@ func TestReferenceClientUsesTypedEndpoints(t *testing.T) {
 			assert.Equal(t, "Exec", r.URL.Query().Get("query"))
 			return response(http.StatusOK, `[{"id":"`+executorID+`","name":"Executor"}]`), nil
 		case 7:
-			assert.Equal(t, http.MethodPost, r.Method)
-			assert.Equal(t, "/api/v1/references/resolution-executors/resolve", r.URL.Path)
-			return response(http.StatusOK, `{"id":"`+executorID+`","name":"Executor"}`), nil
-		case 8:
 			assert.Equal(t, http.MethodPatch, r.Method)
 			assert.Equal(t, "/api/v1/references/resolution-executors/"+executorID, r.URL.Path)
 			return response(http.StatusNoContent, ""), nil
-		case 9:
+		case 8:
 			assert.Equal(t, http.MethodDelete, r.Method)
 			assert.Equal(t, "/api/v1/references/resolution-executors/"+executorID, r.URL.Path)
 			return response(http.StatusNoContent, ""), nil
@@ -74,9 +70,6 @@ func TestReferenceClientUsesTypedEndpoints(t *testing.T) {
 	executors, err := client.ListResolutionExecutors(context.Background(), "Exec")
 	require.NoError(t, err)
 	require.Len(t, executors, 1)
-	executor, err := client.ResolveResolutionExecutor(context.Background(), "Executor")
-	require.NoError(t, err)
-	assert.Equal(t, executorID, executor.ID)
 	require.NoError(t, client.UpdateResolutionExecutor(context.Background(), executorID, "Chief"))
 	require.NoError(t, client.DeleteResolutionExecutor(context.Background(), executorID))
 }

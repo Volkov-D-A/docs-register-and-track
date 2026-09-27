@@ -1,9 +1,10 @@
 package services
 
 import (
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -68,8 +69,9 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 	user2 := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		svc, repo, _, _, incomingRepo := setupAckService(t, "clerk")
+		svc, repo, userRepo, _, incomingRepo := setupAckService(t, "clerk")
 		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+		userRepo.On("GetEligibleRecipientIDs", []uuid.UUID{user1, user2}).Return(map[uuid.UUID]struct{}{user1: {}, user2: {}}, nil).Once()
 		repo.On("CreateWithOutbox", mock.AnythingOfType("*models.Acknowledgment"), mock.Anything).Return(nil).Once()
 		result, err := svc.Create(docID.String(), "text", []string{user1.String(), user2.String()})
 		require.NoError(t, err)
@@ -96,10 +98,43 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 	t.Run("no users selected", func(t *testing.T) {
 		svc, _, _, _, incomingRepo := setupAckService(t, "clerk")
 		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
-		result, err := svc.Create(docID.String(), "text", []string{"not-a-uuid"})
+		result, err := svc.Create(docID.String(), "text", nil)
 		require.Error(t, err)
 		requireAppError(t, err, "VALIDATION_ERROR", 400, "не выбраны пользователи")
 		assert.Nil(t, result)
+	})
+
+	t.Run("invalid recipient rejects entire request", func(t *testing.T) {
+		svc, _, _, _, incomingRepo := setupAckService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+		result, err := svc.Create(docID.String(), "text", []string{user1.String(), "not-a-uuid"})
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID сотрудника")
+		require.Nil(t, result)
+		result, err = svc.Create(docID.String(), "text", []string{uuid.Nil.String()})
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID сотрудника")
+		require.Nil(t, result)
+	})
+
+	t.Run("duplicate recipient is created once", func(t *testing.T) {
+		svc, repo, userRepo, _, incomingRepo := setupAckService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+		userRepo.On("GetEligibleRecipientIDs", []uuid.UUID{user1}).Return(map[uuid.UUID]struct{}{user1: {}}, nil).Once()
+		repo.On("CreateWithOutbox", mock.MatchedBy(func(ack *models.Acknowledgment) bool {
+			return len(ack.Users) == 1 && ack.Users[0].UserID == user1
+		}), mock.Anything).Return(nil).Once()
+		result, err := svc.Create(docID.String(), "text", []string{user1.String(), user1.String()})
+		require.NoError(t, err)
+		require.Len(t, result.Users, 1)
+		require.Len(t, repo.Effects, 2)
+	})
+
+	t.Run("ineligible recipient rejects entire request", func(t *testing.T) {
+		svc, _, userRepo, _, incomingRepo := setupAckService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+		userRepo.On("GetEligibleRecipientIDs", []uuid.UUID{user1, user2}).Return(map[uuid.UUID]struct{}{user1: {}}, nil).Once()
+		result, err := svc.Create(docID.String(), "text", []string{user1.String(), user2.String()})
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "недоступен для ознакомления")
+		require.Nil(t, result)
 	})
 
 	t.Run("invalid document ID", func(t *testing.T) {
@@ -113,10 +148,11 @@ func TestAcknowledgmentService_Create(t *testing.T) {
 
 func TestAcknowledgmentServiceCreatePassesJournalAndUserEffectsToAtomicStore(t *testing.T) {
 	docID, recipientID := uuid.New(), uuid.New()
-	svc, repo, _, _, incomingRepo := setupAckService(t, "clerk")
+	svc, repo, userRepo, _, incomingRepo := setupAckService(t, "clerk")
 	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
 	atomicRepo := repo
 	svc.repo = atomicRepo
+	userRepo.On("GetEligibleRecipientIDs", []uuid.UUID{recipientID}).Return(map[uuid.UUID]struct{}{recipientID: {}}, nil).Once()
 	repo.On("CreateWithOutbox", mock.AnythingOfType("*models.Acknowledgment"), mock.Anything).Return(nil).Once()
 
 	_, err := svc.Create(docID.String(), "текст", []string{recipientID.String()})
@@ -130,12 +166,13 @@ func TestAcknowledgmentService_CreatePassesUserEventsToAtomicStore(t *testing.T)
 	docID := uuid.New()
 	user1 := uuid.New()
 	user2 := uuid.New()
-	svc, repo, _, _, incomingRepo := setupAckService(t, "clerk")
+	svc, repo, userRepo, _, incomingRepo := setupAckService(t, "clerk")
 	incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{
 		ID:             docID,
 		NomenclatureID: uuid.New(),
 		IncomingNumber: "ВХ-2",
 	}, nil).Maybe()
+	userRepo.On("GetEligibleRecipientIDs", []uuid.UUID{user1, user2}).Return(map[uuid.UUID]struct{}{user1: {}, user2: {}}, nil).Once()
 	repo.On("CreateWithOutbox", mock.AnythingOfType("*models.Acknowledgment"), mock.Anything).Return(nil).Once()
 
 	result, err := svc.Create(docID.String(), "text", []string{user1.String(), user2.String()})
@@ -184,7 +221,7 @@ func TestAcknowledgmentService_GetPendingForCurrentUser(t *testing.T) {
 		svc, repo, _, auth, _ := setupAckService(t, "executor")
 		userUUID, _ := uuid.Parse(auth.currentUserID.String())
 		acks := []models.Acknowledgment{{ID: uuid.New()}}
-		repo.On("GetPendingForUsers", []uuid.UUID{userUUID}).Return(map[uuid.UUID][]models.Acknowledgment{userUUID: acks}, nil).Once()
+		repo.On("GetPendingForUsers", []uuid.UUID{userUUID}, uuid.Nil).Return(map[uuid.UUID][]models.Acknowledgment{userUUID: acks}, nil).Once()
 		result, err := svc.GetPendingForCurrentUser()
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
@@ -209,7 +246,7 @@ func TestAcknowledgmentService_GetCurrentUserPendingByDocument(t *testing.T) {
 			{ID: uuid.New(), DocumentID: docID, Content: "Ознакомиться"},
 			{ID: uuid.New(), DocumentID: uuid.New(), Content: "Другой документ"},
 		}
-		repo.On("GetPendingForUsers", []uuid.UUID{userUUID}).Return(map[uuid.UUID][]models.Acknowledgment{userUUID: acks}, nil).Once()
+		repo.On("GetPendingForUsers", []uuid.UUID{userUUID}, docID).Return(map[uuid.UUID][]models.Acknowledgment{userUUID: acks}, nil).Once()
 
 		result, err := svc.GetCurrentUserPendingByDocument(docID.String())
 		require.NoError(t, err)
@@ -252,22 +289,25 @@ func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 	t.Run("loads recipients after document access check", func(t *testing.T) {
 		svc, repo, _, _, incomingRepo := setupAckService(t, "clerk")
 		ackID := uuid.New()
+		secondAckID := uuid.New()
 		documentID := uuid.New()
 		incomingRepo.On("GetByID", documentID).Return(&models.IncomingDocument{
 			ID: documentID, NomenclatureID: uuid.New(),
 		}, nil).Maybe()
 		repo.On("GetAllActive", mock.MatchedBy(func(filter models.AcknowledgmentFilter) bool {
 			return assert.Len(t, filter.AllowedDocumentKinds, len(models.AllDocumentKindSpecs()))
-		})).Return([]models.Acknowledgment{{ID: ackID, DocumentID: documentID}}, nil).Once()
-		repo.On("GetUsersByAcknowledgmentID", ackID).Return([]models.AcknowledgmentUser{{
-			ID: uuid.New(), AcknowledgmentID: ackID, UserID: uuid.New(),
-		}}, nil).Once()
+		})).Return([]models.Acknowledgment{{ID: ackID, DocumentID: documentID}, {ID: secondAckID, DocumentID: documentID}}, nil).Once()
+		repo.On("GetUsersByAcknowledgmentIDs", []uuid.UUID{ackID, secondAckID}).Return(map[uuid.UUID][]models.AcknowledgmentUser{
+			ackID:       {{ID: uuid.New(), AcknowledgmentID: ackID, UserID: uuid.New()}},
+			secondAckID: {{ID: uuid.New(), AcknowledgmentID: secondAckID, UserID: uuid.New()}},
+		}, nil).Once()
 
 		result, err := svc.GetAllActive()
 
 		require.NoError(t, err)
-		require.Len(t, result, 1)
+		require.Len(t, result, 2)
 		assert.Len(t, result[0].Users, 1)
+		assert.Len(t, result[1].Users, 1)
 	})
 
 	t.Run("loads recipients only for readable documents", func(t *testing.T) {
@@ -315,54 +355,6 @@ func TestAcknowledgmentService_GetAllActive(t *testing.T) {
 	})
 }
 
-func TestAcknowledgmentService_MarkViewed(t *testing.T) {
-	// Отметка об ознакомлении с документом пользователем
-	ackID := uuid.New()
-
-	t.Run("success", func(t *testing.T) {
-		svc, repo, _, auth, _ := setupAckService(t, "executor")
-		userUUID, _ := uuid.Parse(auth.currentUserID.String())
-		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
-			ID:           ackID,
-			DocumentID:   uuid.New(),
-			DocumentKind: "incoming_letter",
-		}, nil).Once()
-		repo.On("MarkViewedWithOutbox", ackID, userUUID, mock.Anything).Return(nil).Once()
-		err := svc.MarkViewed(ackID.String())
-		require.NoError(t, err)
-	})
-
-	t.Run("not authenticated", func(t *testing.T) {
-		svc := setupAckServiceNotAuth(t)
-		err := svc.MarkViewed(ackID.String())
-		require.Error(t, err)
-		assert.Equal(t, models.ErrUnauthorized, err)
-	})
-
-	t.Run("invalid ID", func(t *testing.T) {
-		svc, _, _, _, _ := setupAckService(t, "executor")
-		err := svc.MarkViewed("not-a-uuid")
-		require.Error(t, err)
-		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID строки ознакомления")
-	})
-}
-
-func TestAcknowledgmentServiceMarkViewedPassesJournalEffectToAtomicStore(t *testing.T) {
-	ackID := uuid.New()
-	svc, repo, _, auth, _ := setupAckService(t, "executor")
-	userID, err := uuid.Parse(auth.currentUserID.String())
-	require.NoError(t, err)
-	atomicRepo := repo
-	svc.repo = atomicRepo
-	repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: uuid.New()}, nil).Once()
-	repo.On("MarkViewedWithOutbox", ackID, userID, mock.Anything).Return(nil).Once()
-
-	err = svc.MarkViewed(ackID.String())
-	require.NoError(t, err)
-	require.Len(t, atomicRepo.Effects, 1)
-	assert.Equal(t, models.OutboxEventJournal, atomicRepo.Effects[0].EventType)
-}
-
 func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 	// Подтверждение прочтения / выполнения требуемых действий по ознакомлению
 	ackID := uuid.New()
@@ -382,14 +374,15 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 
 	t.Run("active substitute confirms principal row", func(t *testing.T) {
 		principalID := uuid.New()
+		secondPrincipalID := uuid.New()
 		svc, repo, _, auth, _ := setupAckService(t, "")
 		substituteID, _ := uuid.Parse(auth.currentUserID.String())
 		svc = NewAcknowledgmentService(svc.repo, svc.userRepo, svc.auth, svc.access, &userSubstitutionStoreStub{
-			activePrincipals: []uuid.UUID{principalID},
+			activePrincipals: []uuid.UUID{principalID, secondPrincipalID},
 		})
-		repo.On("GetPendingForUsers", []uuid.UUID{principalID}).Return(map[uuid.UUID][]models.Acknowledgment{principalID: {
-			{ID: ackID, DocumentID: uuid.New(), DocumentKind: "incoming_letter"},
-		}}, nil).Once()
+		repo.On("GetPendingRecipientIDs", ackID, []uuid.UUID{principalID, secondPrincipalID}).Return(map[uuid.UUID]struct{}{
+			principalID: {}, secondPrincipalID: {},
+		}, nil).Once()
 		repo.On("MarkConfirmedWithEffects", ackID, principalID, mock.Anything).Return(nil).Once()
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
@@ -401,6 +394,13 @@ func TestAcknowledgmentService_MarkConfirmed(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.NotEqual(t, substituteID, principalID)
+	})
+
+	t.Run("unknown acknowledgment is forbidden", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAckService(t, "executor")
+		repo.On("GetByID", ackID).Return(nil, nil).Once()
+		err := svc.MarkConfirmed(ackID.String())
+		require.ErrorIs(t, err, models.ErrForbidden)
 	})
 
 	t.Run("not authenticated", func(t *testing.T) {
@@ -498,15 +498,31 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 	ackID := uuid.New()
 
 	t.Run("success clerk", func(t *testing.T) {
-		svc, repo, _, _, _ := setupAckService(t, "clerk")
+		svc, repo, _, auth, _ := setupAckService(t, "clerk")
 		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
 			ID:           ackID,
 			DocumentID:   uuid.New(),
 			DocumentKind: "incoming_letter",
+			CreatorID:    auth.currentUserID,
 		}, nil).Once()
 		repo.On("DeleteWithOutbox", ackID, mock.Anything).Return(nil).Once()
 		err := svc.Delete(ackID.String())
 		require.NoError(t, err)
+	})
+
+	t.Run("missing acknowledgment is already deleted", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAckService(t, "clerk")
+		repo.On("GetByID", ackID).Return(nil, nil).Once()
+		require.NoError(t, svc.Delete(ackID.String()))
+	})
+
+	t.Run("forbidden for another clerk", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAckService(t, "clerk")
+		repo.On("GetByID", ackID).Return(&models.Acknowledgment{
+			ID: ackID, DocumentID: uuid.New(), DocumentKind: "incoming_letter", CreatorID: uuid.New(),
+		}, nil).Once()
+		err := svc.Delete(ackID.String())
+		require.ErrorIs(t, err, models.ErrForbidden)
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
@@ -536,10 +552,10 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 
 func TestAcknowledgmentServiceDeletePassesJournalEffectToAtomicStore(t *testing.T) {
 	ackID := uuid.New()
-	svc, repo, _, _, _ := setupAckService(t, "clerk")
+	svc, repo, _, auth, _ := setupAckService(t, "clerk")
 	atomicRepo := repo
 	svc.repo = atomicRepo
-	repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: uuid.New()}, nil).Once()
+	repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: uuid.New(), CreatorID: auth.currentUserID}, nil).Once()
 	repo.On("DeleteWithOutbox", ackID, mock.Anything).Return(nil).Once()
 
 	err := svc.Delete(ackID.String())
@@ -551,11 +567,11 @@ func TestAcknowledgmentServiceDeletePassesJournalEffectToAtomicStore(t *testing.
 // Exercise bulk pending queries across the current user and substitutes.
 type acknowledgmentPendingBulkStub struct {
 	*mocks.AcknowledgmentStore
-	load func([]uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error)
+	load func([]uuid.UUID, uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error)
 }
 
-func (s *acknowledgmentPendingBulkStub) GetPendingForUsers(ids []uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
-	return s.load(ids)
+func (s *acknowledgmentPendingBulkStub) GetPendingForUsers(ids []uuid.UUID, documentID uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
+	return s.load(ids, documentID)
 }
 
 func TestAcknowledgmentPendingIncludesSubstitutionsAndDeduplicatesRows(t *testing.T) {
@@ -567,13 +583,21 @@ func TestAcknowledgmentPendingIncludesSubstitutionsAndDeduplicatesRows(t *testin
 		t.Run(name, func(t *testing.T) {
 			service, _, _, auth, _ := setupAckService(t, "executor")
 			principal, document, otherDocument := uuid.New(), uuid.New(), uuid.New()
-			shared := models.Acknowledgment{ID: uuid.New(), DocumentID: document}
-			delegated := models.Acknowledgment{ID: uuid.New(), DocumentID: document}
-			other := models.Acknowledgment{ID: uuid.New(), DocumentID: otherDocument}
-			bulk := &acknowledgmentPendingBulkStub{AcknowledgmentStore: service.repo.(*mocks.AcknowledgmentStore), load: func(ids []uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
+			now := time.Now()
+			shared := models.Acknowledgment{ID: uuid.New(), DocumentID: document, CreatedAt: now.Add(-time.Hour)}
+			delegated := models.Acknowledgment{ID: uuid.New(), DocumentID: document, CreatedAt: now}
+			other := models.Acknowledgment{ID: uuid.New(), DocumentID: otherDocument, CreatedAt: now.Add(-2 * time.Hour)}
+			bulk := &acknowledgmentPendingBulkStub{AcknowledgmentStore: service.repo.(*mocks.AcknowledgmentStore), load: func(ids []uuid.UUID, documentID uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
 				require.Equal(t, []uuid.UUID{auth.currentUserID, principal}, ids)
+				principalTasks := []models.Acknowledgment{delegated, shared, other}
+				if byDocument {
+					require.Equal(t, document, documentID)
+					principalTasks = principalTasks[:2]
+				} else {
+					require.Equal(t, uuid.Nil, documentID)
+				}
 				return map[uuid.UUID][]models.Acknowledgment{
-					auth.currentUserID: {shared}, principal: {shared, delegated, other},
+					auth.currentUserID: {shared}, principal: principalTasks,
 				}, nil
 			}}
 			service = NewAcknowledgmentService(bulk, service.userRepo, service.auth, service.access, &userSubstitutionStoreStub{activePrincipals: []uuid.UUID{principal, uuid.Nil, principal, auth.currentUserID}})
@@ -581,14 +605,14 @@ func TestAcknowledgmentPendingIncludesSubstitutionsAndDeduplicatesRows(t *testin
 				got, err := service.GetCurrentUserPendingByDocument(document.String())
 				require.NoError(t, err)
 				require.Len(t, got, 2)
-				require.Equal(t, shared.ID.String(), got[0].ID)
-				require.Equal(t, delegated.ID.String(), got[1].ID)
+				require.Equal(t, delegated.ID.String(), got[0].ID)
+				require.Equal(t, shared.ID.String(), got[1].ID)
 			} else {
 				got, err := service.GetPendingForCurrentUser()
 				require.NoError(t, err)
 				require.Len(t, got, 3)
-				require.Equal(t, shared.ID.String(), got[0].ID)
-				require.Equal(t, delegated.ID.String(), got[1].ID)
+				require.Equal(t, delegated.ID.String(), got[0].ID)
+				require.Equal(t, shared.ID.String(), got[1].ID)
 				require.Equal(t, other.ID.String(), got[2].ID)
 			}
 		})

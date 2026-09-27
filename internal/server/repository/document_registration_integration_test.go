@@ -16,8 +16,8 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
@@ -25,8 +25,9 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	defer sqlDB.Close()
 
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	repo := NewOutgoingDocumentRepository(db)
+	repo.SetOutbox(NewOutboxRepository(db))
 
 	userID := uuid.New()
 	nomID := uuid.New()
@@ -61,7 +62,7 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 		CommandHash:     "first-command-hash",
 	}
 
-	first, err := repo.Create(firstReq)
+	first, err := repo.CreateWithJournal(firstReq, "CREATE", "Created %s")
 	if err != nil {
 		t.Fatalf("first create: %v", err)
 	}
@@ -69,7 +70,7 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 		t.Fatalf("first number = %q, want 01-01/1", first.OutgoingNumber)
 	}
 
-	repeated, err := repo.Create(firstReq)
+	repeated, err := repo.CreateWithJournal(firstReq, "CREATE", "Created %s")
 	if err != nil {
 		t.Fatalf("repeat create: %v", err)
 	}
@@ -82,7 +83,7 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 	conflictingReq := firstReq
 	conflictingReq.Content = "changed payload"
 	conflictingReq.CommandHash = "changed-command-hash"
-	if _, err := repo.Create(conflictingReq); err == nil {
+	if _, err := repo.CreateWithJournal(conflictingReq, "CREATE", "Created %s"); err == nil {
 		t.Fatal("expected conflict when an idempotency key is reused with another payload")
 	} else if appErr, ok := models.AsAppError(err); !ok || appErr.StatusCode() != 409 {
 		t.Fatalf("changed payload error = %v, want conflict", err)
@@ -91,7 +92,7 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 	failingReq := firstReq
 	failingReq.IdempotencyKey = uuid.New()
 	failingReq.RecipientOrgID = uuid.New()
-	_, err = repo.Create(failingReq)
+	_, err = repo.CreateWithJournal(failingReq, "CREATE", "Created %s")
 	if err == nil {
 		t.Fatalf("expected failing create with invalid recipient org")
 	}
@@ -101,7 +102,7 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 	secondReq := firstReq
 	secondReq.IdempotencyKey = uuid.New()
 	secondReq.Content = "second"
-	second, err := repo.Create(secondReq)
+	second, err := repo.CreateWithJournal(secondReq, "CREATE", "Created %s")
 	if err != nil {
 		t.Fatalf("second create: %v", err)
 	}
@@ -114,8 +115,9 @@ func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	defer sqlDB.Close()
 
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	repo := NewOutgoingDocumentRepository(db)
+	repo.SetOutbox(NewOutboxRepository(db))
 
 	userID := uuid.New()
 	nomID := uuid.New()
@@ -158,7 +160,7 @@ func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
 			req := baseReq
 			req.IdempotencyKey = uuid.New()
 			req.Content = fmt.Sprintf("different-key-%d", i)
-			doc, err := repo.Create(req)
+			doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 			if err != nil {
 				errs <- err
 				return
@@ -203,7 +205,7 @@ func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
 		repeatWG.Add(1)
 		go func() {
 			defer repeatWG.Done()
-			doc, err := repo.Create(sharedReq)
+			doc, err := repo.CreateWithJournal(sharedReq, "CREATE", "Created %s")
 			if err != nil {
 				repeatErrs <- err
 				return
@@ -242,7 +244,7 @@ func TestOutboxClaimConcurrencyIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	defer sqlDB.Close()
 
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	outbox := NewOutboxRepository(db)
 	event := models.OutboxEvent{
 		EventType:        models.OutboxEventJournal,
@@ -416,7 +418,7 @@ func TestDatabaseConstraintsIntegration(t *testing.T) {
 	`)
 	execSQL(t, sqlDB, `DELETE FROM schema_migrations`)
 	execSQL(t, sqlDB, `INSERT INTO schema_migrations (version, dirty) VALUES (10, true)`)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	if err := db.CheckMigrationCompatibility(database.DefaultMigrationsPath); err == nil {
 		t.Fatalf("expected dirty migration state to be rejected")
 	}

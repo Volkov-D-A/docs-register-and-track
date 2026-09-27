@@ -46,13 +46,11 @@ type RequiredAuditStats struct {
 }
 
 type FailedOutboxEvent struct {
-	ID               uuid.UUID `json:"id"`
-	EventType        string    `json:"eventType"`
-	DeduplicationKey string    `json:"deduplicationKey"`
-	Attempts         int       `json:"attempts"`
-	LastError        string    `json:"lastError"`
-	CreatedAt        time.Time `json:"createdAt"`
-	FailedAt         time.Time `json:"failedAt"`
+	ID        uuid.UUID `json:"id"`
+	EventType string    `json:"eventType"`
+	Attempts  int       `json:"attempts"`
+	LastError string    `json:"lastError"`
+	FailedAt  time.Time `json:"failedAt"`
 }
 
 type AcknowledgmentConfirmationEffects struct {

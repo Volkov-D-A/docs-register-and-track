@@ -1,6 +1,8 @@
 package dto
 
 import (
+	"encoding/json"
+
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"testing"
 	"time"
@@ -18,24 +20,40 @@ func TestMapUser(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := uuid.New()
-		passwordChangedAt := time.Now()
 		m := &models.User{
-			ID:                     id,
-			Login:                  "test",
-			FullName:               "Test User",
-			IsActive:               true,
-			PasswordChangedAt:      &passwordChangedAt,
-			PasswordChangeRequired: true,
-			SystemPermissions:      []string{"admin"},
+			ID:                id,
+			Login:             "test",
+			FullName:          "Test User",
+			IsActive:          true,
+			SystemPermissions: []string{"admin"},
 		}
 		d := MapUser(m)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Equal(t, "test", d.Login)
 		assert.Equal(t, "Test User", d.FullName)
 		assert.True(t, d.IsActive)
-		assert.Equal(t, &passwordChangedAt, d.PasswordChangedAt)
-		assert.True(t, d.PasswordChangeRequired)
+		payload, err := json.Marshal(d)
+		require.NoError(t, err)
+		for _, field := range []string{"passwordChangedAt", "passwordChangeRequired", "createdAt", "updatedAt"} {
+			assert.NotContains(t, string(payload), field)
+		}
 	})
+}
+
+func TestMapUserSubstitution(t *testing.T) {
+	assert.Nil(t, MapUserSubstitution(nil))
+	startsAt := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+	endsAt := time.Date(2026, time.June, 10, 0, 0, 0, 0, time.UTC)
+	substituteID := uuid.New()
+	item := MapUserSubstitution(&models.UserSubstitution{
+		SubstituteUserID: substituteID,
+		StartsAt:         &startsAt,
+		EndsAt:           &endsAt,
+		IsActive:         true,
+	})
+	payload, err := json.Marshal(item)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"substituteUserId":"`+substituteID.String()+`","startsAt":"2026-06-01T00:00:00Z","endsAt":"2026-06-10T00:00:00Z","isActive":true}`, string(payload))
 }
 
 func TestMapDepartment(t *testing.T) {
@@ -47,22 +65,18 @@ func TestMapDepartment(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		id := uuid.New()
 		nomID := uuid.New()
-		now := time.Now()
 		m := &models.Department{
 			ID:              id,
 			Name:            "IT",
 			NomenclatureIDs: []string{nomID.String()},
-			Nomenclature: []models.Nomenclature{
-				{ID: nomID, Name: "Cases", Index: "01-01"},
-			},
-			CreatedAt: now,
 		}
 		d := MapDepartment(m)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Equal(t, "IT", d.Name)
 		assert.Equal(t, []string{nomID.String()}, d.NomenclatureIDs)
-		assert.Len(t, d.Nomenclature, 1)
-		assert.Equal(t, "Cases", d.Nomenclature[0].Name)
+		payload, err := json.Marshal(d)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"id":"`+id.String()+`","name":"IT","nomenclatureIds":["`+nomID.String()+`"]}`, string(payload))
 	})
 }
 
@@ -80,6 +94,10 @@ func TestMapNomenclature(t *testing.T) {
 		assert.Equal(t, "N", d.Name)
 		assert.Equal(t, 2024, d.Year)
 		assert.Equal(t, 5, d.NextNumber)
+		payload, err := json.Marshal(d)
+		require.NoError(t, err)
+		assert.NotContains(t, string(payload), "createdAt")
+		assert.NotContains(t, string(payload), "updatedAt")
 	})
 }
 
@@ -95,21 +113,9 @@ func TestMapOrganization(t *testing.T) {
 		d := MapOrganization(m)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Equal(t, "Org", d.Name)
-	})
-}
-
-func TestMapDocumentType(t *testing.T) {
-	// Тестирование маппинга типа документа в DTO
-	t.Run("nil", func(t *testing.T) {
-		assert.Nil(t, MapDocumentType(nil))
-	})
-
-	t.Run("success", func(t *testing.T) {
-		id := uuid.New()
-		m := &models.DocumentType{ID: id, Name: "Type"}
-		d := MapDocumentType(m)
-		assert.Equal(t, id.String(), d.ID)
-		assert.Equal(t, "Type", d.Name)
+		payload, err := json.Marshal(d)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"id":"`+id.String()+`","name":"Org"}`, string(payload))
 	})
 }
 
@@ -150,11 +156,13 @@ func TestMapAcknowledgmentUser(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		id := uuid.New()
-		m := &models.AcknowledgmentUser{ID: id, UserName: "U"}
+		userID := uuid.New()
+		confirmedAt := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+		m := &models.AcknowledgmentUser{ID: uuid.New(), UserID: userID, UserName: "U", ConfirmedAt: &confirmedAt, CreatedAt: time.Now()}
 		d := MapAcknowledgmentUser(m)
-		assert.Equal(t, id.String(), d.ID)
-		assert.Equal(t, "U", d.UserName)
+		payload, err := json.Marshal(d)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"userId":"`+userID.String()+`","userName":"U","confirmedAt":"2026-09-25T12:00:00Z"}`, string(payload))
 	})
 }
 
@@ -435,19 +443,17 @@ func TestMapJournalAndAdminAuditLogs(t *testing.T) {
 
 	t.Run("journal", func(t *testing.T) {
 		entry := models.JournalEntry{
-			ID:         uuid.New(),
-			DocumentID: uuid.New(),
-			UserName:   "Регистратор",
-			Action:     "CREATE",
-			Details:    "Создан документ",
-			CreatedAt:  now,
+			ID:        uuid.New(),
+			UserName:  "Регистратор",
+			Action:    "CREATE",
+			Details:   "Создан документ",
+			CreatedAt: now,
 		}
 
 		mapped := MapJournalEntry(&entry)
 
 		require.NotNil(t, mapped)
 		assert.Equal(t, entry.ID.String(), mapped.ID)
-		assert.Equal(t, entry.DocumentID.String(), mapped.DocumentID)
 		assert.Equal(t, entry.UserName, mapped.UserName)
 		assert.Nil(t, MapJournalEntry(nil))
 		assert.Empty(t, MapJournalEntries(nil))
@@ -482,12 +488,10 @@ func TestMapJournalAndAdminAuditLogs(t *testing.T) {
 }
 
 func TestMapResolutionExecutor(t *testing.T) {
-	now := time.Now()
 	id := uuid.New()
 	model := &models.ResolutionExecutor{
-		ID:        id,
-		Name:      "Исполнитель резолюции",
-		CreatedAt: now,
+		ID:   id,
+		Name: "Исполнитель резолюции",
 	}
 
 	mapped := MapResolutionExecutor(model)
@@ -495,7 +499,9 @@ func TestMapResolutionExecutor(t *testing.T) {
 	require.NotNil(t, mapped)
 	assert.Equal(t, id.String(), mapped.ID)
 	assert.Equal(t, model.Name, mapped.Name)
-	assert.Equal(t, now, mapped.CreatedAt)
+	payload, err := json.Marshal(mapped)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"id":"`+id.String()+`","name":"Исполнитель резолюции"}`, string(payload))
 	assert.Nil(t, MapResolutionExecutor(nil))
 	assert.Nil(t, MapResolutionExecutors(nil))
 
@@ -540,15 +546,6 @@ func TestMapSlices(t *testing.T) {
 		res := MapOrganizations([]models.Organization{{ID: uuid.New(), Name: "O1"}})
 		require.Len(t, res, 1)
 		assert.Equal(t, "O1", res[0].Name)
-	})
-
-	t.Run("MapDocumentTypes nil", func(t *testing.T) {
-		assert.Nil(t, MapDocumentTypes(nil))
-	})
-	t.Run("MapDocumentTypes success", func(t *testing.T) {
-		res := MapDocumentTypes([]models.DocumentType{{ID: uuid.New(), Name: "T1"}})
-		require.Len(t, res, 1)
-		assert.Equal(t, "T1", res[0].Name)
 	})
 
 	t.Run("MapIncomingDocuments nil", func(t *testing.T) {

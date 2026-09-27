@@ -18,11 +18,18 @@ type summaryAccessStore struct {
 	clerk, admin bool
 }
 
-func (s *summaryAccessStore) HasPermission(_, action, _, _ string) (bool, error) {
-	return s.clerk && (action == string(models.DocumentActionRead) || action == string(models.DocumentActionCreate) || action == string(models.DocumentActionAssign)), nil
-}
-func (s *summaryAccessStore) HasSystemPermission(permission, _ string) (bool, error) {
-	return s.admin && permission == models.SystemPermissionAdmin, nil
+func (s *summaryAccessStore) GetAllowedActions(_, _ string) (map[string]map[string]bool, error) {
+	allowed := make(map[string]map[string]bool)
+	if s.clerk {
+		for _, spec := range models.AllDocumentKindSpecs() {
+			allowed[string(spec.Code)] = map[string]bool{
+				string(models.DocumentActionRead):   true,
+				string(models.DocumentActionCreate): true,
+				string(models.DocumentActionAssign): true,
+			}
+		}
+	}
+	return allowed, nil
 }
 
 func TestCurrentAccessSummaryProductionScenarios(t *testing.T) {

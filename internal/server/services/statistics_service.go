@@ -129,11 +129,8 @@ func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy,
 		}
 
 		return &models.DocumentStatisticsReport{
-			StartDate: startDate.Format("2006-01-02"),
-			EndDate:   endDate.Format("2006-01-02"),
-			GroupBy:   groupBy,
-			Rows:      rows,
-			Total:     sumReportRows(rows),
+			Rows:  rows,
+			Total: sumReportRows(rows),
 		}, nil
 	})
 }
@@ -274,12 +271,8 @@ func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string,
 		}
 
 		return &models.AssignmentStatisticsReport{
-			StartDate:   startDate.Format("2006-01-02"),
-			EndDate:     endDate.Format("2006-01-02"),
-			OnlyOverdue: onlyOverdue,
-			UserID:      userID,
-			Rows:        rows,
-			Total:       sumReportRows(rows),
+			Rows:  rows,
+			Total: sumReportRows(rows),
 		}, nil
 	})
 }
@@ -332,7 +325,6 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 			result.Usage = diagnostics.Usage
 			result.API = diagnostics.API
 			result.Database = diagnostics.Database
-			result.DBSizeBytes = diagnostics.Database.SizeBytes
 			result.Outbox = diagnostics.Outbox
 			result.Attachments = diagnostics.Attachments
 		}
@@ -345,16 +337,12 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 				snapshot := record.Snapshot
 				result.StorageObjects = snapshot.ObjectCount
 				result.StorageSize = formatStorageSize(snapshot.TotalBytes)
-				result.StorageBytes = snapshot.TotalBytes
 				if !snapshot.RefreshedAt.IsZero() {
 					refreshedAt := snapshot.RefreshedAt
 					result.StorageRefreshedAt = &refreshedAt
 				}
-				status, statusErr := s.ensureStorageStatisticsStatus(record)
-				if statusErr != nil {
+				if _, statusErr := s.ensureStorageStatisticsStatus(record); statusErr != nil {
 					slog.Warn("failed to get storage statistics refresh status", "error", statusErr)
-				} else {
-					result.StorageRefreshInProgress = status.State == models.StorageStatisticsRefreshPending || status.State == models.StorageStatisticsRefreshRunning
 				}
 			}
 		}
@@ -441,10 +429,6 @@ func (s *StatisticsService) ensureStorageStatisticsStatus(record models.StorageS
 		refreshedAt := record.Snapshot.RefreshedAt
 		status.RefreshedAt = &refreshedAt
 	}
-	if !record.FailedAt.IsZero() {
-		failedAt := record.FailedAt
-		status.FailedAt = &failedAt
-	}
 	return status, nil
 }
 
@@ -454,7 +438,7 @@ func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
 	objectCount, totalBytes, err := s.storage.RefreshStorageUsage(ctx)
 	if err != nil {
 		slog.Warn("failed to refresh storage statistics", "error", err)
-		if failureErr := s.repo.FailStorageStatisticsRefresh(token, storageStatisticsRefreshError, time.Now()); failureErr != nil {
+		if failureErr := s.repo.FailStorageStatisticsRefresh(token, storageStatisticsRefreshError); failureErr != nil {
 			slog.Warn("failed to record storage statistics refresh failure", "error", failureErr)
 		}
 		return
@@ -466,7 +450,7 @@ func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
 		RefreshedAt: time.Now(),
 	}); err != nil {
 		slog.Warn("failed to save refreshed storage statistics", "error", err)
-		if failureErr := s.repo.FailStorageStatisticsRefresh(token, storageStatisticsRefreshError, time.Now()); failureErr != nil {
+		if failureErr := s.repo.FailStorageStatisticsRefresh(token, storageStatisticsRefreshError); failureErr != nil {
 			slog.Warn("failed to record storage statistics snapshot failure", "error", failureErr)
 		}
 	}

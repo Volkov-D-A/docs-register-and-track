@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -63,13 +64,16 @@ func (r *AcknowledgmentRepository) CreateWithOutbox(a *models.Acknowledgment, ef
 // GetByID возвращает задачу по ID (базовая информация без внешних связей).
 func (r *AcknowledgmentRepository) GetByID(id uuid.UUID) (*models.Acknowledgment, error) {
 	query := `
-		SELECT a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at
+		SELECT a.document_id, d.kind, a.creator_id
 		FROM acknowledgments a
 		JOIN documents d ON d.id = a.document_id
 		WHERE a.id = $1
 	`
-	var a models.Acknowledgment
-	err := r.db.QueryRow(query, id).Scan(&a.ID, &a.DocumentID, &a.DocumentKind, &a.CreatorID, &a.Content, &a.CreatedAt, &a.CompletedAt)
+	a := models.Acknowledgment{ID: id}
+	err := r.db.QueryRow(query, id).Scan(&a.DocumentID, &a.DocumentKind, &a.CreatorID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -116,15 +120,6 @@ func (r *AcknowledgmentRepository) GetByDocumentID(documentID uuid.UUID) ([]mode
 	return r.attachAcknowledgmentUsers(result)
 }
 
-// GetUsersByAcknowledgmentID возвращает список пользователей, связанных с задачей на ознакомление.
-func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error) {
-	usersByAcknowledgmentID, err := r.GetUsersByAcknowledgmentIDs([]uuid.UUID{ackID})
-	if err != nil {
-		return nil, err
-	}
-	return usersByAcknowledgmentID[ackID], nil
-}
-
 // GetUsersByAcknowledgmentIDs returns recipients grouped by acknowledgement.
 // It keeps list queries at two SQL round trips regardless of list size.
 func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentIDs(ackIDs []uuid.UUID) (map[uuid.UUID][]models.AcknowledgmentUser, error) {
@@ -134,7 +129,7 @@ func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentIDs(ackIDs []uuid.UUI
 	}
 	query := `
 		SELECT 
-			au.id, au.acknowledgment_id, au.user_id, au.viewed_at, au.confirmed_at, au.created_at,
+			au.acknowledgment_id, au.user_id, au.confirmed_at,
 			u.full_name as user_name
 		FROM acknowledgment_users au
 		JOIN users u ON au.user_id = u.id
@@ -150,7 +145,7 @@ func (r *AcknowledgmentRepository) GetUsersByAcknowledgmentIDs(ackIDs []uuid.UUI
 	for rows.Next() {
 		var au models.AcknowledgmentUser
 		err := rows.Scan(
-			&au.ID, &au.AcknowledgmentID, &au.UserID, &au.ViewedAt, &au.ConfirmedAt, &au.CreatedAt,
+			&au.AcknowledgmentID, &au.UserID, &au.ConfirmedAt,
 			&au.UserName,
 		)
 		if err != nil {
@@ -181,13 +176,14 @@ func (r *AcknowledgmentRepository) attachAcknowledgmentUsers(items []models.Ackn
 }
 
 // GetPendingForUsers returns pending acknowledgements grouped by recipient
-// subject. This supports active substitutions without one query per subject.
-func (r *AcknowledgmentRepository) GetPendingForUsers(userIDs []uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
+// subject. A nil document ID loads every document; a specific ID limits the
+// card view without fetching unrelated tasks for active substitutions.
+func (r *AcknowledgmentRepository) GetPendingForUsers(userIDs []uuid.UUID, documentID uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
 	result := make(map[uuid.UUID][]models.Acknowledgment, len(userIDs))
 	if len(userIDs) == 0 {
 		return result, nil
 	}
-	rows, err := r.db.Query(`
+	query := `
 		SELECT
 			au.user_id,
 			a.id, a.document_id, d.kind, a.creator_id, a.content, a.created_at, a.completed_at,
@@ -198,15 +194,19 @@ func (r *AcknowledgmentRepository) GetPendingForUsers(userIDs []uuid.UUID) (map[
 		JOIN documents d ON d.id = a.document_id
 		JOIN users u ON a.creator_id = u.id
 		WHERE au.user_id = ANY($1) AND au.confirmed_at IS NULL
-		ORDER BY a.created_at DESC
-	`, pq.Array(userIDs))
+	`
+	args := []any{pq.Array(userIDs)}
+	if documentID != uuid.Nil {
+		query += ` AND a.document_id = $2`
+		args = append(args, documentID)
+	}
+	query += ` ORDER BY a.created_at DESC`
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	all := make([]models.Acknowledgment, 0)
-	subjects := make([]uuid.UUID, 0)
 	for rows.Next() {
 		var subjectID uuid.UUID
 		var item models.Acknowledgment
@@ -215,18 +215,38 @@ func (r *AcknowledgmentRepository) GetPendingForUsers(userIDs []uuid.UUID) (map[
 			return nil, err
 		}
 		item.DocumentNumber = docNumber
-		subjects = append(subjects, subjectID)
-		all = append(all, item)
+		result[subjectID] = append(result[subjectID], item)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	withUsers, err := r.attachAcknowledgmentUsers(all)
+	return result, nil
+}
+
+// GetPendingRecipientIDs checks only candidate recipients of one pending task.
+func (r *AcknowledgmentRepository) GetPendingRecipientIDs(ackID uuid.UUID, candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	result := make(map[uuid.UUID]struct{})
+	if len(candidateIDs) == 0 {
+		return result, nil
+	}
+	rows, err := r.db.Query(`
+		SELECT user_id
+		FROM acknowledgment_users
+		WHERE acknowledgment_id = $1 AND user_id = ANY($2) AND confirmed_at IS NULL
+	`, ackID, pq.Array(candidateIDs))
 	if err != nil {
 		return nil, err
 	}
-	for i, item := range withUsers {
-		result[subjects[i]] = append(result[subjects[i]], item)
+	defer rows.Close()
+	for rows.Next() {
+		var userID uuid.UUID
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		result[userID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return result, nil
 }
@@ -289,34 +309,6 @@ func (r *AcknowledgmentRepository) GetAccessibleDocumentIDs(userID uuid.UUID, do
 	return result, nil
 }
 
-func (r *AcknowledgmentRepository) MarkViewedWithOutbox(ackID, userID uuid.UUID, effects []models.OutboxEvent) error {
-	tx, err := r.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	query := `
-		UPDATE acknowledgment_users
-		SET viewed_at = $1
-		WHERE acknowledgment_id = $2 AND user_id = $3 AND viewed_at IS NULL
-	`
-	res, err := tx.Exec(query, time.Now(), ackID, userID)
-	if err != nil {
-		return err
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return models.ErrForbidden
-	}
-	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
 // MarkConfirmedWithEffects persists already calculated notifications in the
 // same transaction as the first confirmation.
 func (r *AcknowledgmentRepository) MarkConfirmedWithEffects(ackID, userID uuid.UUID, effects models.AcknowledgmentConfirmationEffects) error {
@@ -338,7 +330,7 @@ func (r *AcknowledgmentRepository) markConfirmed(ackID, userID uuid.UUID, userEv
 	// 1. Обновление статуса пользователя
 	query := `
 		UPDATE acknowledgment_users
-		SET confirmed_at = $1, viewed_at = COALESCE(viewed_at, $1)
+		SET confirmed_at = $1
 		WHERE acknowledgment_id = $2 AND user_id = $3 AND confirmed_at IS NULL
 	`
 	res, err := tx.Exec(query, now, ackID, userID)

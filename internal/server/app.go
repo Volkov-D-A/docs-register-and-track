@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/background"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
@@ -24,6 +23,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
 )
@@ -139,7 +139,7 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		),
 	}
 	api := newManagementAPI(app)
-	app.backups = &backup.Service{DB: db.DB, PostgreSQL: backup.PostgreSQL{Config: cfg.Database}, S3: cfg.S3, Directory: cfg.Backup.Directory, MaxBytes: cfg.Backup.MaxBytes, Version: version, Snapshot: func(ctx context.Context, fn func(context.Context) error) error {
+	app.backups = &backup.Service{DB: db.SQLDB(), PostgreSQL: backup.PostgreSQL{Config: cfg.Database}, S3: cfg.S3, Directory: cfg.Backup.Directory, MaxBytes: cfg.Backup.MaxBytes, Version: version, Snapshot: func(ctx context.Context, fn func(context.Context) error) error {
 		return api.backupSnapshot(ctx, func(ctx context.Context) error {
 			finished := make(chan struct{})
 			go func() { app.detached.Wait(); close(finished) }()
@@ -189,9 +189,8 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		if err != nil {
 			return err
 		}
-		old := app.db.DB
-		app.db.DB = fresh.DB
-		app.backups.DB = fresh.DB
+		old := app.db.ReplacePool(fresh)
+		app.backups.DB = app.db.SQLDB()
 		api.authMu.Lock()
 		api.authFailures = make(map[string]authFailure)
 		api.authMu.Unlock()
@@ -232,7 +231,7 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}
 	// The reserved sql.Conn keeps the lifetime lease when the ordinary pool is replaced.
-	instance, err := acquireInstance(ctx, a.db.DB)
+	instance, err := acquireInstance(ctx, a.db.SQLDB())
 	if err != nil {
 		return err
 	}

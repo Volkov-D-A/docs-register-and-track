@@ -125,10 +125,6 @@ func applyResolution(doc *models.IncomingDocument, resolution *models.DocumentRe
 	doc.ResolutionExecutors = resolution.ResolutionExecutors
 }
 
-func (r *IncomingDocumentRepository) loadResolutions(documentID uuid.UUID) ([]models.DocumentResolution, error) {
-	return loadDocumentResolutions(r.db, documentID)
-}
-
 func loadDocumentResolutions(db interface {
 	Query(query string, args ...interface{}) (*sql.Rows, error)
 }, documentID uuid.UUID) ([]models.DocumentResolution, error) {
@@ -553,7 +549,7 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 	return doc, nil
 }
 
-// GetByIDs loads graph card data in batches rather than one query per node.
+// GetByIDs loads graph card data and correspondents in batches.
 func (r *IncomingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.IncomingDocument, error) {
 	if len(ids) == 0 {
 		return []models.IncomingDocument{}, nil
@@ -580,25 +576,16 @@ func (r *IncomingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Incomin
 	if err != nil {
 		return nil, err
 	}
-	resolutions, err := loadFirstDocumentResolutionsByDocumentIDs(r.db, documentIDs)
-	if err != nil {
-		return nil, err
-	}
 	for i := range items {
 		items[i].Correspondents = correspondents[items[i].ID]
-		applyResolution(&items[i], resolutions[items[i].ID])
 	}
 	return items, nil
 }
 
-// Create создает новый входящий документ в базе данных.
-func (r *IncomingDocumentRepository) Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error) {
-	return r.create(req, nil, "", "")
-}
 func (r *IncomingDocumentRepository) CreateWithJournal(req models.CreateIncomingDocRequest, action, detailsFormat string) (*models.IncomingDocument, error) {
-	return r.create(req, nil, action, detailsFormat)
+	return r.create(req, action, detailsFormat)
 }
-func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.IncomingDocument, error) {
+func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest, journalAction, journalDetailsFormat string) (*models.IncomingDocument, error) {
 	if req.Link != nil && req.CommandHash == "" {
 		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
 	}
@@ -701,9 +688,6 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 			return nil, err
 		}
 	}
-	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
-		return nil, err
-	}
 	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
 		return nil, err
 	}
@@ -718,10 +702,6 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 	return r.GetByID(id)
 }
 
-// Update обновляет данные существующего входящего документа.
-func (r *IncomingDocumentRepository) Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error) {
-	return r.update(req, nil)
-}
 func (r *IncomingDocumentRepository) UpdateWithOutbox(req models.UpdateIncomingDocRequest, effects []models.OutboxEvent) (*models.IncomingDocument, error) {
 	return r.update(req, effects)
 }

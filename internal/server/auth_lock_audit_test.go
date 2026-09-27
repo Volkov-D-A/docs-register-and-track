@@ -42,7 +42,7 @@ func TestAuthLockAuditUsesOutboxTransaction(t *testing.T) {
 				sqlDB, sql, err := sqlmock.New()
 				require.NoError(t, err)
 				defer sqlDB.Close()
-				db := &database.DB{DB: sqlDB}
+				db := database.Wrap(sqlDB)
 				repo := repository.NewUserRepository(db)
 				if outcome != "missing outbox" {
 					repo.SetOutbox(repository.NewOutboxRepository(db))

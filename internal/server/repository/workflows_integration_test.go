@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
@@ -75,7 +75,7 @@ func TestActiveAdministratorInvariantIntegration(t *testing.T) {
 
 func TestAtomicOutboxWorkflowsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	userID, documentID := seedIntegrationDocument(t, sqlDB)
 	outbox := NewOutboxRepository(db)
 	assignments := NewAssignmentRepository(db)
@@ -109,7 +109,7 @@ func TestAtomicOutboxWorkflowsIntegration(t *testing.T) {
 
 func TestStorageStatisticsRejectsSnapshotsOverlappingMutationsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	statistics := NewStatisticsRepository(db)
 	attachments := NewAttachmentRepository(db)
 
@@ -155,36 +155,36 @@ func TestStorageStatisticsRejectsSnapshotsOverlappingMutationsIntegration(t *tes
 
 func TestStorageStatisticsRefreshFailureLifecycleIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	statistics := NewStatisticsRepository(&database.DB{DB: sqlDB})
+	statistics := NewStatisticsRepository(database.Wrap(sqlDB))
 	token := uuid.New()
 
 	started, err := statistics.TryStartStorageStatisticsRefresh(token, time.Now().Add(time.Minute))
 	if err != nil || !started {
 		t.Fatalf("start refresh: started=%v err=%v", started, err)
 	}
-	failedAt := time.Now().UTC().Truncate(time.Microsecond)
-	if err := statistics.FailStorageStatisticsRefresh(token, "storage unavailable", failedAt); err != nil {
+	if err := statistics.FailStorageStatisticsRefresh(token, "storage unavailable"); err != nil {
 		t.Fatalf("record refresh failure: %v", err)
 	}
 	record, err := statistics.GetStorageStatisticsRefreshRecord()
 	if err != nil {
 		t.Fatalf("get failed refresh state: %v", err)
 	}
-	if record.RefreshActive || record.LastError != "storage unavailable" || !record.FailedAt.Equal(failedAt) {
+	if record.RefreshActive || record.LastError != "storage unavailable" {
 		t.Fatalf("unexpected failed refresh state: %+v", record)
 	}
 	if err := statistics.ClearStorageStatisticsRefreshError(); err != nil {
 		t.Fatalf("clear refresh failure: %v", err)
 	}
 	record, err = statistics.GetStorageStatisticsRefreshRecord()
-	if err != nil || record.LastError != "" || !record.FailedAt.IsZero() {
+	if err != nil || record.LastError != "" {
 		t.Fatalf("unexpected cleared refresh state: record=%+v err=%v", record, err)
 	}
+
 }
 
 func TestAttachmentDeletionSagaIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	userID, documentID := seedIntegrationDocument(t, sqlDB)
 	outbox := NewOutboxRepository(db)
 	attachments := NewAttachmentRepository(db)
@@ -196,7 +196,7 @@ func TestAttachmentDeletionSagaIntegration(t *testing.T) {
 	if visible, err := attachments.GetByID(attachment.ID); err != nil || visible == nil {
 		t.Fatalf("created attachment is unavailable: attachment=%+v, err=%v", visible, err)
 	}
-	if err := attachments.MarkDeletingWithOutbox(*attachment); err != nil {
+	if err := attachments.MarkDeletingWithEffects(*attachment, nil); err != nil {
 		t.Fatalf("mark deleting: %v", err)
 	}
 	// GetByID represents an absent (including deleting) attachment as nil, nil.
@@ -207,7 +207,7 @@ func TestAttachmentDeletionSagaIntegration(t *testing.T) {
 		t.Fatalf("tombstone in document list: attachments=%+v, err=%v", visible, err)
 	}
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM attachments WHERE id = $1 AND deletion_requested_at IS NOT NULL`, []any{attachment.ID}, 1)
-	if err := attachments.MarkDeletingWithOutbox(*attachment); err != nil {
+	if err := attachments.MarkDeletingWithEffects(*attachment, nil); err != nil {
 		t.Fatalf("retry marking deletion: %v", err)
 	}
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE deduplication_key = $1`, []any{"attachment:" + attachment.ID.String() + ":delete"}, 1)

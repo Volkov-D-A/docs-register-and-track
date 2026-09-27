@@ -48,7 +48,7 @@ func (s *fakeSettingsManagementStore) UpdateWithOutbox(key, value string, effect
 func TestSettingsReadAPIUsesSessionAndAdminBoundaries(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, nil)
 	store := &fakeSettingsManagementStore{settings: map[string]models.SystemSetting{
-		"organization_name": {Key: "organization_name", Value: "Docflow"},
+		"organization_name": {Key: "organization_name", Value: "Docflow", Description: "Внутренняя подпись"},
 	}}
 	api.settings = store
 
@@ -57,7 +57,7 @@ func TestSettingsReadAPIUsesSessionAndAdminBoundaries(t *testing.T) {
 	itemResponse := httptest.NewRecorder()
 	api.Handler().ServeHTTP(itemResponse, item)
 	require.Equal(t, http.StatusOK, itemResponse.Code, itemResponse.Body.String())
-	assert.Contains(t, itemResponse.Body.String(), `"value":"Docflow"`)
+	assert.JSONEq(t, `{"key":"organization_name","value":"Docflow"}`, itemResponse.Body.String())
 
 	list := httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil)
 	list.Header.Set("Authorization", "Bearer "+token)
@@ -86,7 +86,7 @@ func TestSettingsAdminAPIRejectsUnsafeAttachmentLimit(t *testing.T) {
 func TestSettingsAdminAPIUpdatesWithAuditAndSkipsUnchangedValue(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
 	store := &fakeSettingsManagementStore{settings: map[string]models.SystemSetting{
-		"organization_name": {Key: "organization_name", Value: "Old"},
+		"organization_name": {Key: "organization_name", Value: "Old", Description: "Внутренняя подпись"},
 	}}
 	api.settings = store
 
@@ -96,6 +96,7 @@ func TestSettingsAdminAPIUpdatesWithAuditAndSkipsUnchangedValue(t *testing.T) {
 	api.Handler().ServeHTTP(listResponse, list)
 	require.Equal(t, http.StatusOK, listResponse.Code, listResponse.Body.String())
 	assert.Equal(t, 1, store.getAllCalls)
+	assert.JSONEq(t, `[{"key":"organization_name","value":"Old"}]`, listResponse.Body.String())
 
 	update := httptest.NewRequest(http.MethodPatch, "/api/v1/settings/organization_name", strings.NewReader(`{"value":"New"}`))
 	update.Header.Set("Authorization", "Bearer "+token)

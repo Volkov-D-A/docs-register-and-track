@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 func setupDocumentAccessRepository(t *testing.T) (*DocumentAccessRepository, sqlmock.Sqlmock, func()) {
@@ -18,7 +18,7 @@ func setupDocumentAccessRepository(t *testing.T) (*DocumentAccessRepository, sql
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	repo := NewDocumentAccessRepository(&database.DB{DB: db})
+	repo := NewDocumentAccessRepository(database.Wrap(db))
 	return repo, mock, func() { db.Close() }
 }
 
@@ -70,6 +70,25 @@ func TestDocumentAccessRepository_HasPermission(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to check document permission")
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+func TestDocumentAccessRepository_GetAllowedActions(t *testing.T) {
+	repo, mock, cleanup := setupDocumentAccessRepository(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT kind_code, action\s+FROM document_permissions\s+WHERE is_allowed = true`).
+		WithArgs("department-1", "user-1").
+		WillReturnRows(sqlmock.NewRows([]string{"kind_code", "action"}).
+			AddRow("incoming_letter", "read").
+			AddRow("incoming_letter", "read").
+			AddRow("outgoing_letter", "link"))
+	allowed, err := repo.GetAllowedActions("department-1", "user-1")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]map[string]bool{
+		"incoming_letter": {"read": true},
+		"outgoing_letter": {"link": true},
+	}, allowed)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDocumentAccessRepository_HasSystemPermission(t *testing.T) {
@@ -148,7 +167,7 @@ func TestDocumentAccessRepository_GetUserAccessProfile(t *testing.T) {
 	})
 }
 
-func TestDocumentAccessRepository_ReplaceUserAccessProfile(t *testing.T) {
+func TestDocumentAccessRepository_ReplaceUserAccessProfileSQL(t *testing.T) {
 	repo, mock, cleanup := setupDocumentAccessRepository(t)
 	defer cleanup()
 
@@ -183,7 +202,7 @@ func TestDocumentAccessRepository_ReplaceUserAccessProfile(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
-		err := repo.ReplaceUserAccessProfile("user-1", systemPermissions, permissions)
+		err := repo.ReplaceUserAccessProfileWithOutbox("user-1", systemPermissions, permissions, nil)
 
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -199,9 +218,9 @@ func TestDocumentAccessRepository_ReplaceUserAccessProfile(t *testing.T) {
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		err := repo.ReplaceUserAccessProfile("user-1", []models.UserSystemPermissionRule{
+		err := repo.ReplaceUserAccessProfileWithOutbox("user-1", []models.UserSystemPermissionRule{
 			{Permission: models.SystemPermissionAdmin, IsAllowed: true},
-		}, nil)
+		}, nil, nil)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to insert user system permission")

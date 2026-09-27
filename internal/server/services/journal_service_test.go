@@ -59,13 +59,11 @@ func TestJournalService_GetByDocumentID(t *testing.T) {
 		now := time.Now()
 		mockEntries := []models.JournalEntry{
 			{
-				ID:         uuid.New(),
-				DocumentID: docID,
-				UserID:     uuid.New(),
-				UserName:   "Иванов Иван Иванович",
-				Action:     "TEST_ACTION",
-				Details:    "Тестовое действие",
-				CreatedAt:  now,
+				ID:        uuid.New(),
+				UserName:  "Иванов Иван Иванович",
+				Action:    "TEST_ACTION",
+				Details:   "Тестовое действие",
+				CreatedAt: now,
 			},
 		}
 

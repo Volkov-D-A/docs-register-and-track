@@ -19,7 +19,7 @@ import (
 
 func TestLifecycleProcessesOutboxAfterMigrationIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	require.NoError(t, db.RollbackMigration(database.DefaultMigrationsPath))
 
 	outboxRepo := repository.NewOutboxRepository(db)

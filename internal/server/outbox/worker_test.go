@@ -31,7 +31,7 @@ func TestWorkerProcessOnceMarksAlreadyDeliveredUserEvent(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	wrapped := &database.DB{DB: db}
+	wrapped := database.Wrap(db)
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
 	id, now := uuid.New(), time.Now()
 	mock.ExpectBegin()
@@ -50,7 +50,7 @@ func TestWorkerProcessOnceSchedulesRetryForUnsupportedEvent(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	wrapped := &database.DB{DB: db}
+	wrapped := database.Wrap(db)
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
 	id, now := uuid.New(), time.Now()
 	mock.ExpectBegin()
@@ -68,7 +68,7 @@ func TestWorkerProcessOnceDeliversAdministrativeAudit(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	wrapped := &database.DB{DB: db}
+	wrapped := database.Wrap(db)
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
 	id, userID, now := uuid.New(), uuid.New(), time.Now()
 	mock.ExpectBegin()
@@ -76,7 +76,7 @@ func TestWorkerProcessOnceDeliversAdministrativeAudit(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
 			AddRow(id, models.OutboxEventAudit, "audit-key", `{"UserID":"`+userID.String()+`","UserName":"Admin","Action":"SETTINGS_UPDATE","Details":"changed"}`, now, now, nil, nil, 1, nil, now))
 	mock.ExpectCommit()
-	mock.ExpectQuery(`INSERT INTO admin_audit_log`).WithArgs(userID, "Admin", "SETTINGS_UPDATE", "changed", "audit-key").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+	mock.ExpectExec(`INSERT INTO admin_audit_log`).WithArgs(userID, "Admin", "SETTINGS_UPDATE", "changed", "audit-key").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE event_outbox SET processed_at = CURRENT_TIMESTAMP`).WithArgs(id).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	require.NoError(t, worker.ProcessOnce())
@@ -87,7 +87,7 @@ func TestWorkerProcessOnceDeletesAttachmentObjectAndMarkedRow(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	wrapped := &database.DB{DB: db}
+	wrapped := database.Wrap(db)
 	storage := &fileDeleterStub{}
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), repository.NewAttachmentRepository(wrapped), storage)
 	eventID, attachmentID, now := uuid.New(), uuid.New(), time.Now()
@@ -117,7 +117,7 @@ func TestWorkerProcessOnceRetriesAttachmentDeletionAfterStorageFailure(t *testin
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	wrapped := &database.DB{DB: db}
+	wrapped := database.Wrap(db)
 	storage := &fileDeleterStub{err: sql.ErrConnDone}
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), repository.NewAttachmentRepository(wrapped), storage)
 	eventID, attachmentID, now := uuid.New(), uuid.New(), time.Now()
@@ -154,7 +154,7 @@ func TestWorkerRunReleasesStaleClaimsAndStopsOnContextCancellation(t *testing.T)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	wrapped := &database.DB{DB: db}
+	wrapped := database.Wrap(db)
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
 	mock.ExpectExec(`UPDATE event_outbox SET processing_started_at = NULL`).WithArgs(sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
@@ -174,7 +174,7 @@ func TestWorkerCleanupProcessedUsesRetentionAndBoundedBatches(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	wrapped := &database.DB{DB: db}
+	wrapped := database.Wrap(db)
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), nil, nil, nil, nil, nil)
 	now := time.Date(2026, time.August, 5, 12, 0, 0, 0, time.UTC)
 	worker.now = func() time.Time { return now }
@@ -190,7 +190,7 @@ func TestTwoWorkersClaimIndependently(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	wrapped := &database.DB{DB: db}
+	wrapped := database.Wrap(db)
 	newWorker := func() *Worker {
 		return NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
 	}

@@ -73,7 +73,7 @@ func (s *attachmentIntegrationStorage) ListObjectNames(context.Context) ([]strin
 
 func TestAttachmentAPIStreamsAndPersistsLifecycleIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	password := "AttachmentPassw0rd!"
 	hash, err := security.HashPassword(password)
 	require.NoError(t, err)
@@ -90,11 +90,13 @@ func TestAttachmentAPIStreamsAndPersistsLifecycleIntegration(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO organizations (id, name) VALUES ($1, 'Attachment Organization')`, organizationID)
 	require.NoError(t, err)
-	document, err := repository.NewOutgoingDocumentRepository(db).Create(models.CreateOutgoingDocRequest{
+	documentRepo := repository.NewOutgoingDocumentRepository(db)
+	documentRepo.SetOutbox(repository.NewOutboxRepository(db))
+	document, err := documentRepo.CreateWithJournal(models.CreateOutgoingDocRequest{
 		NomenclatureID: nomenclatureID, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter,
 		RecipientOrgID: organizationID, CreatedBy: userID, OutgoingDate: time.Now().UTC(), Content: "attachment integration",
 		PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee",
-	})
+	}, "CREATE", "Created %s")
 	require.NoError(t, err)
 	allowed, err := repository.NewDocumentAccessRepository(db).HasPermission(string(models.DocumentKindOutgoingLetter), "upload", "", userID.String())
 	require.NoError(t, err)

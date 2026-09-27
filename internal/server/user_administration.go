@@ -12,8 +12,7 @@ import (
 )
 
 type userAccessManagementStore interface {
-	HasPermission(string, string, string, string) (bool, error)
-	HasSystemPermission(string, string) (bool, error)
+	GetAllowedActions(departmentID, userID string) (map[string]map[string]bool, error)
 	GetUserAccessProfile(string) (*models.UserDocumentAccessProfile, error)
 	ReplaceUserAccessProfileWithOutbox(string, []models.UserSystemPermissionRule, []models.UserDocumentPermissionRule, []models.OutboxEvent) error
 }
@@ -21,7 +20,7 @@ type userAccessManagementStore interface {
 type userSubstitutionManagementStore interface {
 	GetByPrincipalID(uuid.UUID) (*models.UserSubstitution, error)
 	GetActivePrincipalIDs(uuid.UUID) ([]uuid.UUID, error)
-	ReplaceForPrincipalWithOutbox(uuid.UUID, *uuid.UUID, *time.Time, *time.Time, bool, *uuid.UUID, []models.OutboxEvent) (*models.UserSubstitution, error)
+	ReplaceForPrincipalWithOutbox(uuid.UUID, *uuid.UUID, *time.Time, *time.Time, bool, []models.OutboxEvent) (*models.UserSubstitution, error)
 }
 
 type departmentManagementStore interface {
@@ -173,12 +172,11 @@ func (api *managementAPI) saveUserSubstitution(w http.ResponseWriter, r *http.Re
 		writeUserError(w, err)
 		return
 	}
-	createdBy := auth.User.ID
 	if substituteID == nil {
 		startsAt, endsAt = nil, nil
 		req.IsActive = false
 	}
-	result, err := api.substitutions.ReplaceForPrincipalWithOutbox(principalID, substituteID, startsAt, endsAt, req.IsActive, &createdBy, []models.OutboxEvent{effect})
+	result, err := api.substitutions.ReplaceForPrincipalWithOutbox(principalID, substituteID, startsAt, endsAt, req.IsActive, []models.OutboxEvent{effect})
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -287,6 +285,11 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 		departmentID = user.DepartmentID.String()
 	}
 	userID := user.ID.String()
+	allowedActions, err := api.userAccess.GetAllowedActions(departmentID, userID)
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
 	specs := models.AllDocumentKindSpecs()
 	documentKinds := make([]dto.DocumentKindAccessSummary, 0, len(specs))
 	pageAccess := make(map[string]bool, len(specs))
@@ -294,12 +297,7 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 	for _, spec := range specs {
 		actions := make([]string, 0, len(spec.SupportedActions))
 		for _, action := range spec.SupportedActions {
-			allowed, permissionErr := api.userAccess.HasPermission(string(spec.Code), string(action), departmentID, userID)
-			if permissionErr != nil {
-				writeUserError(w, permissionErr)
-				return
-			}
-			if allowed {
+			if allowedActions[string(spec.Code)][string(action)] {
 				actions = append(actions, string(action))
 			}
 		}
@@ -321,12 +319,7 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 
 	systemPermissions := make([]string, 0)
 	for _, permission := range []string{models.SystemPermissionAdmin, models.SystemPermissionReferences, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem} {
-		allowed, permissionErr := api.userAccess.HasSystemPermission(permission, userID)
-		if permissionErr != nil {
-			writeUserError(w, permissionErr)
-			return
-		}
-		if allowed {
+		if contains(user.SystemPermissions, permission) {
 			systemPermissions = append(systemPermissions, permission)
 		}
 	}

@@ -15,24 +15,6 @@ type UserStore struct {
 	mock.Mock
 }
 
-// Atomic outbox helpers delegate to the existing mock methods so service tests
-// exercise the production contract without duplicating expectations.
-func (_m *UserStore) CreateWithOutbox(req models.CreateUserRequest, _ []models.OutboxEvent) (*models.User, error) {
-	return _m.Create(req)
-}
-
-func (_m *UserStore) UpdateWithOutbox(req models.UpdateUserRequest, _ []models.OutboxEvent) (*models.User, error) {
-	return _m.Update(req)
-}
-
-func (_m *UserStore) ResetPasswordWithOutbox(id uuid.UUID, password string, _ []models.OutboxEvent) error {
-	return _m.Called(id, password).Error(0)
-}
-
-func (_m *UserStore) IncrementFailedLoginAttemptsWithOutbox(id uuid.UUID, _ models.OutboxEvent) (int, bool, error) {
-	return _m.IncrementFailedLoginAttempts(id)
-}
-
 // CountUsers provides a mock function with no fields
 func (_m *UserStore) CountUsers() (int, error) {
 	ret := _m.Called()
@@ -54,36 +36,6 @@ func (_m *UserStore) CountUsers() (int, error) {
 
 	if rf, ok := ret.Get(1).(func() error); ok {
 		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// Create provides a mock function with given fields: req
-func (_m *UserStore) Create(req models.CreateUserRequest) (*models.User, error) {
-	ret := _m.Called(req)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Create")
-	}
-
-	var r0 *models.User
-	var r1 error
-	if rf, ok := ret.Get(0).(func(models.CreateUserRequest) (*models.User, error)); ok {
-		return rf(req)
-	}
-	if rf, ok := ret.Get(0).(func(models.CreateUserRequest) *models.User); ok {
-		r0 = rf(req)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.User)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(models.CreateUserRequest) error); ok {
-		r1 = rf(req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -195,6 +147,21 @@ func (_m *UserStore) GetByLogin(login string) (*models.User, error) {
 	return r0, r1
 }
 
+// GetEligibleRecipientIDs provides a mock function with given fields: candidateIDs.
+func (_m *UserStore) GetEligibleRecipientIDs(candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	ret := _m.Called(candidateIDs)
+	if len(ret) == 0 {
+		panic("no return value specified for GetEligibleRecipientIDs")
+	}
+	var result map[uuid.UUID]struct{}
+	if rf, ok := ret.Get(0).(func([]uuid.UUID) map[uuid.UUID]struct{}); ok {
+		result = rf(candidateIDs)
+	} else if ret.Get(0) != nil {
+		result = ret.Get(0).(map[uuid.UUID]struct{})
+	}
+	return result, ret.Error(1)
+}
+
 // GetExecutors provides a mock function with no fields
 func (_m *UserStore) GetExecutors() ([]models.User, error) {
 	ret := _m.Called()
@@ -255,41 +222,6 @@ func (_m *UserStore) GetActiveUsers() ([]models.User, error) {
 	return r0, r1
 }
 
-// IncrementFailedLoginAttempts provides a mock function with given fields: userID
-func (_m *UserStore) IncrementFailedLoginAttempts(userID uuid.UUID) (int, bool, error) {
-	ret := _m.Called(userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for IncrementFailedLoginAttempts")
-	}
-
-	var r0 int
-	var r1 bool
-	var r2 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID) (int, bool, error)); ok {
-		return rf(userID)
-	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID) int); ok {
-		r0 = rf(userID)
-	} else {
-		r0 = ret.Get(0).(int)
-	}
-
-	if rf, ok := ret.Get(1).(func(uuid.UUID) bool); ok {
-		r1 = rf(userID)
-	} else {
-		r1 = ret.Get(1).(bool)
-	}
-
-	if rf, ok := ret.Get(2).(func(uuid.UUID) error); ok {
-		r2 = rf(userID)
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
-}
-
 // ResetFailedLoginAttempts provides a mock function with given fields: userID
 func (_m *UserStore) ResetFailedLoginAttempts(userID uuid.UUID) error {
 	ret := _m.Called(userID)
@@ -308,36 +240,6 @@ func (_m *UserStore) ResetFailedLoginAttempts(userID uuid.UUID) error {
 	return r0
 }
 
-// Update provides a mock function with given fields: req
-func (_m *UserStore) Update(req models.UpdateUserRequest) (*models.User, error) {
-	ret := _m.Called(req)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Update")
-	}
-
-	var r0 *models.User
-	var r1 error
-	if rf, ok := ret.Get(0).(func(models.UpdateUserRequest) (*models.User, error)); ok {
-		return rf(req)
-	}
-	if rf, ok := ret.Get(0).(func(models.UpdateUserRequest) *models.User); ok {
-		r0 = rf(req)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.User)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(models.UpdateUserRequest) error); ok {
-		r1 = rf(req)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // UpdatePassword provides a mock function with given fields: userID, newPasswordHash
 func (_m *UserStore) UpdatePassword(userID uuid.UUID, newPasswordHash string) error {
 	ret := _m.Called(userID, newPasswordHash)
@@ -349,24 +251,6 @@ func (_m *UserStore) UpdatePassword(userID uuid.UUID, newPasswordHash string) er
 	var r0 error
 	if rf, ok := ret.Get(0).(func(uuid.UUID, string) error); ok {
 		r0 = rf(userID, newPasswordHash)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// UpdateProfile provides a mock function with given fields: userID, req
-func (_m *UserStore) UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error {
-	ret := _m.Called(userID, req)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpdateProfile")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, models.UpdateProfileRequest) error); ok {
-		r0 = rf(userID, req)
 	} else {
 		r0 = ret.Error(0)
 	}

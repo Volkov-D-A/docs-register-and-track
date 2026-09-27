@@ -55,25 +55,25 @@ func createLinkedRegistration(t *testing.T, db *database.DB, kind models.Documen
 func TestLinkedRegistrationAtomicityAndReplayIntegration(t *testing.T) {
 	for _, kind := range []models.DocumentKind{models.DocumentKindIncomingLetter, models.DocumentKindOutgoingLetter, models.DocumentKindCitizenAppeal, models.DocumentKindAdministrativeOrder} {
 		t.Run(string(kind), func(t *testing.T) {
-			db := &database.DB{DB: integrationdb.Open(t)}
+			db := database.Wrap(integrationdb.Open(t))
 			userID, nomID, targetNomID, targetID, orgID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
-			execSQL(t, db.DB, `INSERT INTO users(id,login,password_hash,full_name) VALUES($1,'linked-user','hash','Linked User')`, userID)
-			execSQL(t, db.DB, `INSERT INTO organizations(id,name) VALUES($1,'Linked Org')`, orgID)
-			execSQL(t, db.DB, `INSERT INTO nomenclature(id,name,index,year,kind_code,numbering_mode,next_number) VALUES($1,'New','LINK',2026,$2,'index_and_number',1)`, nomID, kind)
-			execSQL(t, db.DB, `INSERT INTO nomenclature(id,name,index,year,kind_code) VALUES($1,'Existing','OLD',2026,'administrative_order')`, targetNomID)
-			execSQL(t, db.DB, `INSERT INTO documents(id,kind,nomenclature_id,registration_number,registration_date,document_type,content,created_by) VALUES($1,'administrative_order',$2,'OLD-1','2026-09-01','Приказ','Existing',$3)`, targetID, targetNomID, userID)
-			execSQL(t, db.DB, `INSERT INTO administrative_order_details(document_id,order_number,order_date,title) VALUES($1,'OLD-1','2026-09-01','Existing')`, targetID)
+			execSQL(t, db.SQLDB(), `INSERT INTO users(id,login,password_hash,full_name) VALUES($1,'linked-user','hash','Linked User')`, userID)
+			execSQL(t, db.SQLDB(), `INSERT INTO organizations(id,name) VALUES($1,'Linked Org')`, orgID)
+			execSQL(t, db.SQLDB(), `INSERT INTO nomenclature(id,name,index,year,kind_code,numbering_mode,next_number) VALUES($1,'New','LINK',2026,$2,'index_and_number',1)`, nomID, kind)
+			execSQL(t, db.SQLDB(), `INSERT INTO nomenclature(id,name,index,year,kind_code) VALUES($1,'Existing','OLD',2026,'administrative_order')`, targetNomID)
+			execSQL(t, db.SQLDB(), `INSERT INTO documents(id,kind,nomenclature_id,registration_number,registration_date,document_type,content,created_by) VALUES($1,'administrative_order',$2,'OLD-1','2026-09-01','Приказ','Existing',$3)`, targetID, targetNomID, userID)
+			execSQL(t, db.SQLDB(), `INSERT INTO administrative_order_details(document_id,order_number,order_date,title) VALUES($1,'OLD-1','2026-09-01','Existing')`, targetID)
 			key := uuid.New()
 			link := &models.DocumentRegistrationLink{DocumentID: uuid.New(), LinkType: "related"}
 			if kind == models.DocumentKindAdministrativeOrder {
 				link.LinkType = "order_cancels"
 			}
 			assertRolledBack := func() {
-				assertScalar(t, db.DB, `SELECT COUNT(*) FROM documents WHERE nomenclature_id=$1`, []any{nomID}, 0)
-				assertScalar(t, db.DB, `SELECT next_number FROM nomenclature WHERE id=$1`, []any{nomID}, 1)
-				assertScalar(t, db.DB, `SELECT COUNT(*) FROM document_command_idempotency WHERE idempotency_key=$1`, []any{key}, 0)
-				assertScalar(t, db.DB, `SELECT COUNT(*) FROM document_links`, nil, 0)
-				assertScalar(t, db.DB, `SELECT COUNT(*) FROM event_outbox`, nil, 0)
+				assertScalar(t, db.SQLDB(), `SELECT COUNT(*) FROM documents WHERE nomenclature_id=$1`, []any{nomID}, 0)
+				assertScalar(t, db.SQLDB(), `SELECT next_number FROM nomenclature WHERE id=$1`, []any{nomID}, 1)
+				assertScalar(t, db.SQLDB(), `SELECT COUNT(*) FROM document_command_idempotency WHERE idempotency_key=$1`, []any{key}, 0)
+				assertScalar(t, db.SQLDB(), `SELECT COUNT(*) FROM document_links`, nil, 0)
+				assertScalar(t, db.SQLDB(), `SELECT COUNT(*) FROM event_outbox`, nil, 0)
 				var active bool
 				require.NoError(t, db.QueryRow(`SELECT is_active FROM administrative_order_details WHERE document_id=$1`, targetID).Scan(&active))
 				require.True(t, active, "failed registration must not cancel the old order")
@@ -84,22 +84,22 @@ func TestLinkedRegistrationAtomicityAndReplayIntegration(t *testing.T) {
 			assertRolledBack()
 			link.DocumentID = targetID
 			// Fail after the link (and order cancellation) to check the full transaction.
-			execSQL(t, db.DB, `CREATE FUNCTION fail_link_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.payload->>'Action'='LINK_CREATE' THEN RAISE EXCEPTION 'test link audit failure'; END IF; RETURN NEW; END $$`)
-			execSQL(t, db.DB, `CREATE TRIGGER fail_link_audit BEFORE INSERT ON event_outbox FOR EACH ROW EXECUTE FUNCTION fail_link_audit()`)
+			execSQL(t, db.SQLDB(), `CREATE FUNCTION fail_link_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.payload->>'Action'='LINK_CREATE' THEN RAISE EXCEPTION 'test link audit failure'; END IF; RETURN NEW; END $$`)
+			execSQL(t, db.SQLDB(), `CREATE TRIGGER fail_link_audit BEFORE INSERT ON event_outbox FOR EACH ROW EXECUTE FUNCTION fail_link_audit()`)
 			_, err = createLinkedRegistration(t, db, kind, userID, nomID, orgID, key, "original", link)
 			require.ErrorContains(t, err, "test link audit failure")
 			assertRolledBack()
-			execSQL(t, db.DB, `DROP TRIGGER fail_link_audit ON event_outbox`)
+			execSQL(t, db.SQLDB(), `DROP TRIGGER fail_link_audit ON event_outbox`)
 			id, err := createLinkedRegistration(t, db, kind, userID, nomID, orgID, key, "original", link)
 			require.NoError(t, err)
 			// Simulate a lost response: the whole command is retried with the same key.
 			repeated, err := createLinkedRegistration(t, db, kind, userID, nomID, orgID, key, "original", link)
 			require.NoError(t, err)
 			require.Equal(t, id, repeated)
-			assertScalar(t, db.DB, `SELECT COUNT(*) FROM documents WHERE nomenclature_id=$1`, []any{nomID}, 1)
-			assertScalar(t, db.DB, `SELECT next_number FROM nomenclature WHERE id=$1`, []any{nomID}, 2)
-			assertScalar(t, db.DB, `SELECT COUNT(*) FROM document_links`, nil, 1)
-			assertScalar(t, db.DB, `SELECT COUNT(*) FROM event_outbox`, nil, 3)
+			assertScalar(t, db.SQLDB(), `SELECT COUNT(*) FROM documents WHERE nomenclature_id=$1`, []any{nomID}, 1)
+			assertScalar(t, db.SQLDB(), `SELECT next_number FROM nomenclature WHERE id=$1`, []any{nomID}, 2)
+			assertScalar(t, db.SQLDB(), `SELECT COUNT(*) FROM document_links`, nil, 1)
+			assertScalar(t, db.SQLDB(), `SELECT COUNT(*) FROM event_outbox`, nil, 3)
 			var source, target uuid.UUID
 			require.NoError(t, db.QueryRow(`SELECT source_document_id,target_document_id FROM document_links`).Scan(&source, &target))
 			if kind == models.DocumentKindAdministrativeOrder {

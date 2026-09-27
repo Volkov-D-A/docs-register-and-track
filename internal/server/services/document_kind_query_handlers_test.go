@@ -37,14 +37,6 @@ func (s *queryIncomingDocStore) GetByIDs(ids []uuid.UUID) ([]models.IncomingDocu
 	return []models.IncomingDocument{*s.doc}, nil
 }
 
-func (s *queryIncomingDocStore) Create(req models.CreateIncomingDocRequest) (*models.IncomingDocument, error) {
-	return nil, nil
-}
-
-func (s *queryIncomingDocStore) Update(req models.UpdateIncomingDocRequest) (*models.IncomingDocument, error) {
-	return nil, nil
-}
-
 func (s *queryIncomingDocStore) GetCount() (int, error) {
 	return 0, nil
 }
@@ -72,14 +64,6 @@ func (s *queryOutgoingDocStore) GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocu
 		return nil, s.err
 	}
 	return []models.OutgoingDocument{*s.doc}, nil
-}
-
-func (s *queryOutgoingDocStore) Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error) {
-	return nil, nil
-}
-
-func (s *queryOutgoingDocStore) Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error) {
-	return nil, nil
 }
 
 func (s *queryOutgoingDocStore) GetCount() (int, error) {
@@ -111,14 +95,6 @@ func (s *queryCitizenAppealDocStore) GetByIDs(ids []uuid.UUID) ([]models.Citizen
 	return []models.CitizenAppealDocument{*s.doc}, nil
 }
 
-func (s *queryCitizenAppealDocStore) Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
-	return nil, nil
-}
-
-func (s *queryCitizenAppealDocStore) Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
-	return nil, nil
-}
-
 func (s *queryCitizenAppealDocStore) GetCount() (int, error) {
 	return 0, nil
 }
@@ -148,28 +124,12 @@ func (s *queryAdministrativeOrderDocStore) GetByIDs(ids []uuid.UUID) ([]models.A
 	return []models.AdministrativeOrderDocument{*s.doc}, nil
 }
 
-func (s *queryAdministrativeOrderDocStore) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
-	return nil, nil
-}
-
-func (s *queryAdministrativeOrderDocStore) Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
-	return nil, nil
-}
-
 func (s *queryAdministrativeOrderDocStore) GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
 	return nil, nil
 }
 
 func (s *queryAdministrativeOrderDocStore) GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error) {
 	return nil, nil
-}
-
-func (s *queryAdministrativeOrderDocStore) MarkAcknowledgmentPerson(id uuid.UUID, acknowledgedBy uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
-	return nil, nil
-}
-
-func (s *queryAdministrativeOrderDocStore) CancelByLink(id uuid.UUID, cancelledAt time.Time) error {
-	return nil
 }
 
 func (s *queryAdministrativeOrderDocStore) GetCount() (int, error) {

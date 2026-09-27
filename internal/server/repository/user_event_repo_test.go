@@ -27,7 +27,7 @@ func TestUserEventRepository_CreateFromOutboxDoesNotReloadEvent(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO user_events`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	err = NewUserEventRepository(&database.DB{DB: db}).CreateFromOutbox(request, "assignment:created:user-event")
+	err = NewUserEventRepository(database.Wrap(db)).CreateFromOutbox(request, "assignment:created:user-event")
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -37,7 +37,7 @@ func TestUserEventRepository_GetList(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewUserEventRepository(&database.DB{DB: db})
+	repo := NewUserEventRepository(database.Wrap(db))
 	userID := uuid.New()
 	eventID := uuid.New()
 	documentID := uuid.New()
@@ -88,7 +88,7 @@ func TestUserEventRepository_MarkRead(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewUserEventRepository(&database.DB{DB: db})
+	repo := NewUserEventRepository(database.Wrap(db))
 	eventID := uuid.New()
 	userID := uuid.New()
 	readAt := time.Now()
@@ -107,7 +107,7 @@ func TestUserEventRepository_MarkDocumentRead(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewUserEventRepository(&database.DB{DB: db})
+	repo := NewUserEventRepository(database.Wrap(db))
 	documentID := uuid.New()
 	userID := uuid.New()
 	readAt := time.Now()

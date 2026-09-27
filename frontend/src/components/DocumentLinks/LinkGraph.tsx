@@ -28,6 +28,7 @@ import {
     isIncomingKind,
 } from '../../constants/documentKinds';
 import { getDocumentLinkTypeLabel, getLinkedDocumentColor, getLinkedDocumentCounterpartyLabel, getLinkedDocumentLabel } from '../../config/documentLinkConfig';
+import { graphDateSortKey } from './graphDate';
 
 /**
  * Свойства компонента графа связей.
@@ -116,7 +117,7 @@ const compareNodesForLayout = (a: Node, b: Node) => {
     const bKind = typeof b.data?.kindCode === 'string' ? b.data.kindCode : '';
 
     if (aDate !== bDate) {
-        return aDate.localeCompare(bDate);
+        return graphDateSortKey(aDate).localeCompare(graphDateSortKey(bDate));
     }
     if (aLabel !== bLabel) {
         return aLabel.localeCompare(bLabel);

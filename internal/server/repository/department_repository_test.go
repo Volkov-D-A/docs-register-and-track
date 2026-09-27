@@ -4,10 +4,9 @@ import (
 	"database/sql"
 	"regexp"
 	"testing"
-	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -16,34 +15,34 @@ import (
 )
 
 func TestDepartmentRepository_GetAll(t *testing.T) {
-	// Получение списка всех подразделений и связанных с ними номенклатур
+	// Связи для нескольких подразделений загружаются одним дополнительным запросом.
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewDepartmentRepository(&database.DB{DB: db})
-	now := time.Now()
-	depID := uuid.New()
+	repo := NewDepartmentRepository(database.Wrap(db))
+	firstID, secondID := uuid.New(), uuid.New()
+	firstNomID, secondNomID := uuid.New(), uuid.New()
 
-	mock.ExpectQuery(`SELECT id, name, created_at, updated_at FROM departments ORDER BY name ASC`).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at", "updated_at"}).AddRow(depID, "IT Отдел", now, now))
+	mock.ExpectQuery(`SELECT id, name FROM departments ORDER BY name ASC`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).
+			AddRow(firstID, "IT Отдел").AddRow(secondID, "Юридический отдел"))
 
-	nomQuery := `SELECT n.id, n.name, n.index, n.year, n.kind_code, n.separator, n.numbering_mode, n.next_number, n.is_active, n.created_at, n.updated_at
-		FROM nomenclature n
-		JOIN department_nomenclature dn ON n.id = dn.nomenclature_id
-		WHERE dn.department_id = $1
-		ORDER BY n.index`
+	linksQuery := `SELECT dn.department_id, dn.nomenclature_id
+		FROM department_nomenclature dn
+		JOIN nomenclature n ON n.id = dn.nomenclature_id
+		WHERE dn.department_id = ANY($1)
+		ORDER BY dn.department_id, n.index`
+	mock.ExpectQuery(regexp.QuoteMeta(linksQuery)).WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"department_id", "nomenclature_id"}).
+			AddRow(firstID, firstNomID).AddRow(firstID, secondNomID))
 
-	mock.ExpectQuery(regexp.QuoteMeta(nomQuery)).WithArgs(depID).WillReturnRows(sqlmock.NewRows([]string{
-		"id", "name", "index", "year", "kind_code", "separator", "numbering_mode", "next_number", "is_active", "created_at", "updated_at",
-	}).AddRow(uuid.New(), "Дело", "01-01", 2024, "incoming_letter", "/", "index_and_number", 1, true, now, now))
-
-	deps, err := repo.GetAll()
+	departments, err := repo.GetAll()
 	require.NoError(t, err)
-	require.Len(t, deps, 1)
-	assert.Equal(t, "IT Отдел", deps[0].Name)
-	assert.Len(t, deps[0].Nomenclature, 1)
-	assert.Len(t, deps[0].NomenclatureIDs, 1)
+	require.Len(t, departments, 2)
+	assert.Equal(t, "IT Отдел", departments[0].Name)
+	assert.Equal(t, []string{firstNomID.String(), secondNomID.String()}, departments[0].NomenclatureIDs)
+	assert.Empty(t, departments[1].NomenclatureIDs)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -53,7 +52,7 @@ func TestDepartmentRepository_GetNomenclatureIDs(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewDepartmentRepository(&database.DB{DB: db})
+	repo := NewDepartmentRepository(database.Wrap(db))
 	depID := uuid.New()
 	nomID := uuid.New()
 
@@ -73,22 +72,21 @@ func TestDepartmentRepository_Create(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewDepartmentRepository(&database.DB{DB: db})
-	now := time.Now()
+	repo := NewDepartmentRepository(database.Wrap(db))
 	nomID1 := uuid.New()
 
 	mock.ExpectBegin()
 
-	mock.ExpectQuery(`INSERT INTO departments \(id, name, created_at, updated_at\) VALUES \(\$1, \$2, NOW\(\), NOW\(\)\) RETURNING id, name, created_at, updated_at`).
+	mock.ExpectQuery(`INSERT INTO departments \(id, name\) VALUES \(\$1, \$2\) RETURNING id, name`).
 		WithArgs(sqlmock.AnyArg(), "Новый Отдел").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at", "updated_at"}).AddRow(uuid.New(), "Новый Отдел", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(uuid.New(), "Новый Отдел"))
 
 	mock.ExpectPrepare(`INSERT INTO department_nomenclature \(department_id, nomenclature_id\) VALUES \(\$1, \$2\)`).
 		ExpectExec().WithArgs(sqlmock.AnyArg(), nomID1).WillReturnResult(sqlmock.NewResult(1, 1))
 
 	mock.ExpectCommit()
 
-	dep, err := repo.Create("Новый Отдел", []string{nomID1.String()})
+	dep, err := repo.CreateWithOutbox("Новый Отдел", []string{nomID1.String()}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, dep)
 	assert.Equal(t, "Новый Отдел", dep.Name)
@@ -101,16 +99,15 @@ func TestDepartmentRepository_Update(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewDepartmentRepository(&database.DB{DB: db})
+	repo := NewDepartmentRepository(database.Wrap(db))
 	depID := uuid.New()
 	nomID1 := uuid.New()
-	now := time.Now()
 
 	mock.ExpectBegin()
 
-	mock.ExpectQuery(`UPDATE departments SET name = \$2, updated_at = NOW\(\) WHERE id = \$1 RETURNING id, name, created_at, updated_at`).
+	mock.ExpectQuery(`UPDATE departments SET name = \$2 WHERE id = \$1 RETURNING id, name`).
 		WithArgs(depID, "Обновленный Отдел").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at", "updated_at"}).AddRow(depID, "Обновленный Отдел", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(depID, "Обновленный Отдел"))
 
 	mock.ExpectExec(`DELETE FROM department_nomenclature WHERE department_id = \$1`).WithArgs(depID).WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -119,7 +116,7 @@ func TestDepartmentRepository_Update(t *testing.T) {
 
 	mock.ExpectCommit()
 
-	dep, err := repo.Update(depID, "Обновленный Отдел", []string{nomID1.String()})
+	dep, err := repo.UpdateWithOutbox(depID, "Обновленный Отдел", []string{nomID1.String()}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, dep)
 	assert.Equal(t, "Обновленный Отдел", dep.Name)
@@ -132,12 +129,15 @@ func TestDepartmentRepository_Delete(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewDepartmentRepository(&database.DB{DB: db})
+	repo := NewDepartmentRepository(database.Wrap(db))
 	depID := uuid.New()
 
+	mock.ExpectBegin()
 	mock.ExpectExec(`DELETE FROM departments WHERE id = \$1`).WithArgs(depID).WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = repo.Delete(depID)
+	mock.ExpectCommit()
+
+	err = repo.DeleteWithOutbox(depID, nil)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -148,7 +148,7 @@ func TestDepartmentRepository_Errors(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewDepartmentRepository(&database.DB{DB: db})
+	repo := NewDepartmentRepository(database.Wrap(db))
 	depID := uuid.New()
 
 	t.Run("GetAll error", func(t *testing.T) {
@@ -161,11 +161,11 @@ func TestDepartmentRepository_Errors(t *testing.T) {
 	t.Run("Create invalid nomenclature id", func(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectQuery(`INSERT INTO departments`).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "created_at", "updated_at"}).AddRow(uuid.New(), "IT", time.Now(), time.Now()))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(uuid.New(), "IT"))
 
 		mock.ExpectPrepare(`INSERT INTO department_nomenclature`)
 
-		res, err := repo.Create("IT", []string{"invalid-uuid"})
+		res, err := repo.CreateWithOutbox("IT", []string{"invalid-uuid"}, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid nomenclature id")
 		assert.Nil(t, res)
@@ -175,7 +175,7 @@ func TestDepartmentRepository_Errors(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectQuery(`UPDATE departments`).WillReturnError(sql.ErrNoRows)
 
-		res, err := repo.Update(depID, "IT", nil)
+		res, err := repo.UpdateWithOutbox(depID, "IT", nil, nil)
 		require.Error(t, err)
 		appErr, ok := models.AsAppError(err)
 		require.True(t, ok)
@@ -185,9 +185,12 @@ func TestDepartmentRepository_Errors(t *testing.T) {
 	})
 
 	t.Run("Delete not found", func(t *testing.T) {
+		mock.ExpectBegin()
 		mock.ExpectExec(`DELETE FROM departments`).WillReturnResult(sqlmock.NewResult(0, 0))
 
-		err = repo.Delete(depID)
+		mock.ExpectRollback()
+
+		err = repo.DeleteWithOutbox(depID, nil)
 		require.Error(t, err)
 		appErr, ok := models.AsAppError(err)
 		require.True(t, ok)

@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 type outgoingLetterHandlerDeps struct {
 	docRepo *documentAccessDocumentStore
 	handler *OutgoingLetterCommandHandler
-	repo    *mocks.OutgoingDocStore
+	repo    *outgoingAtomicStoreMock
 	refRepo *mocks.ReferenceStore
 	auth    *attachmentPrincipalStub
 	user    *models.User
@@ -33,7 +33,7 @@ func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	repo := mocks.NewOutgoingDocStore(t)
+	repo := newOutgoingAtomicStoreMock(t)
 	refRepo := mocks.NewReferenceStore(t)
 	nomRepo := mocks.NewNomenclatureStore(t)
 	docRepo := &documentAccessDocumentStore{}
@@ -75,7 +75,7 @@ func validOutgoingLetterRegisterRequest(nomenclatureID, idempotencyKey uuid.UUID
 }
 
 func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
-	t.Run("creates outgoing letter and writes journal entry", func(t *testing.T) {
+	t.Run("requests atomic outgoing registration with journal", func(t *testing.T) {
 		nomenclatureID := uuid.New()
 		idempotencyKey := uuid.New()
 		recipientOrgID := uuid.New()
@@ -87,7 +87,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		req := validOutgoingLetterRegisterRequest(nomenclatureID, idempotencyKey)
 
 		deps.refRepo.On("FindOrCreateOrganization", "ООО Получатель").Return(&models.Organization{ID: recipientOrgID, Name: "ООО Получатель"}, nil).Once()
-		deps.repo.On("Create", mock.MatchedBy(func(createReq models.CreateOutgoingDocRequest) bool {
+		deps.repo.On("CreateWithJournal", mock.MatchedBy(func(createReq models.CreateOutgoingDocRequest) bool {
 			require.Equal(t, nomenclatureID, createReq.NomenclatureID)
 			require.Equal(t, idempotencyKey, createReq.IdempotencyKey)
 			require.Equal(t, models.DocumentTypeLetter, createReq.DocumentTypeID)
@@ -101,7 +101,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 			require.Equal(t, "Исполнитель", createReq.SenderExecutor)
 			require.Equal(t, "Директору", createReq.Addressee)
 			return createReq.OutgoingDate.Equal(time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC))
-		})).Return(&models.OutgoingDocument{
+		}), "CREATE", "Документ зарегистрирован. Рег. номер: %s").Return(&models.OutgoingDocument{
 			ID:               documentID,
 			NomenclatureID:   nomenclatureID,
 			OutgoingNumber:   "OUT-13",
@@ -209,7 +209,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
-	t.Run("propagates repository error and skips journal", func(t *testing.T) {
+	t.Run("propagates atomic repository error", func(t *testing.T) {
 		expectedErr := errors.New("create failed")
 		recipientOrgID := uuid.New()
 		deps := setupOutgoingLetterCommandHandler(
@@ -218,7 +218,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		)
 		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
 		deps.refRepo.On("FindOrCreateOrganization", "ООО Получатель").Return(&models.Organization{ID: recipientOrgID, Name: "ООО Получатель"}, nil).Once()
-		deps.repo.On("Create", mock.Anything).Return(nil, expectedErr).Once()
+		deps.repo.On("CreateWithJournal", mock.Anything, "CREATE", "Документ зарегистрирован. Рег. номер: %s").Return(nil, expectedErr).Once()
 
 		result, err := deps.handler.Register(req)
 
@@ -228,7 +228,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 }
 
 func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
-	t.Run("updates outgoing letter and writes journal entry", func(t *testing.T) {
+	t.Run("requests atomic outgoing update with journal effect", func(t *testing.T) {
 		documentID := uuid.New()
 		recipientOrgID := uuid.New()
 		deps := setupOutgoingLetterCommandHandler(
@@ -254,7 +254,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		}
 
 		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return(&models.Organization{ID: recipientOrgID, Name: "АО Новый получатель"}, nil).Once()
-		deps.repo.On("Update", mock.MatchedBy(func(updateReq models.UpdateOutgoingDocRequest) bool {
+		deps.repo.On("UpdateWithOutbox", mock.MatchedBy(func(updateReq models.UpdateOutgoingDocRequest) bool {
 			require.Equal(t, documentID, updateReq.ID)
 			require.Equal(t, models.DocumentTypeLetter, updateReq.DocumentTypeID)
 			require.Equal(t, recipientOrgID, updateReq.RecipientOrgID)
@@ -265,7 +265,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			require.Equal(t, "Новый исполнитель", updateReq.SenderExecutor)
 			require.Equal(t, "Главному инженеру", updateReq.Addressee)
 			return updateReq.OutgoingDate.Equal(time.Date(2026, 6, 4, 0, 0, 0, 0, time.UTC))
-		})).Return(&models.OutgoingDocument{
+		}), journalUpdateEffects(documentID, deps.user.ID, "outgoing")).Return(&models.OutgoingDocument{
 			ID:               documentID,
 			OutgoingNumber:   "OUT-12",
 			OutgoingDate:     time.Date(2026, 6, 4, 0, 0, 0, 0, time.UTC),
@@ -395,7 +395,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		assert.Nil(t, result)
 	})
 
-	t.Run("propagates repository error and skips journal", func(t *testing.T) {
+	t.Run("propagates atomic repository error", func(t *testing.T) {
 		documentID := uuid.New()
 		expectedErr := errors.New("update failed")
 		deps := setupOutgoingLetterCommandHandler(
@@ -408,7 +408,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			},
 		}
 		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return(&models.Organization{ID: uuid.New(), Name: "АО Новый получатель"}, nil).Once()
-		deps.repo.On("Update", mock.Anything).Return(nil, expectedErr).Once()
+		deps.repo.On("UpdateWithOutbox", mock.Anything, journalUpdateEffects(documentID, deps.user.ID, "outgoing")).Return(nil, expectedErr).Once()
 
 		result, err := deps.handler.Update(dto.OutgoingLetterUpdateRequest{
 			ID:               documentID.String(),

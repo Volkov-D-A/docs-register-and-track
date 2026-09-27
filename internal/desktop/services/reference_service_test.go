@@ -16,7 +16,6 @@ type testReferenceClient struct {
 	organizations      []dto.Organization
 	organization       *dto.Organization
 	executors          []dto.ResolutionExecutor
-	executor           *dto.ResolutionExecutor
 	err                error
 	method             string
 	query              string
@@ -61,11 +60,6 @@ func (c *testReferenceClient) ListResolutionExecutors(ctx context.Context, query
 	c.query = query
 	return c.executors, c.err
 }
-func (c *testReferenceClient) ResolveResolutionExecutor(ctx context.Context, name string) (*dto.ResolutionExecutor, error) {
-	c.capture(ctx, "resolve-executor")
-	c.name = name
-	return c.executor, c.err
-}
 func (c *testReferenceClient) UpdateResolutionExecutor(ctx context.Context, id, name string) error {
 	c.capture(ctx, "update-executor")
 	c.id, c.name = id, name
@@ -83,7 +77,6 @@ func TestReferenceServiceDelegatesDirectoriesToServer(t *testing.T) {
 		organizations: []dto.Organization{{ID: id, Name: "Legal"}},
 		organization:  &dto.Organization{ID: id, Name: "Legal"},
 		executors:     []dto.ResolutionExecutor{{ID: id, Name: "Executor"}},
-		executor:      &dto.ResolutionExecutor{ID: id, Name: "Executor"},
 	}
 	service := NewReferenceService(client)
 

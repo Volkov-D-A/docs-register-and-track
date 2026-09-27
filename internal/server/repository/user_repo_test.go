@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -21,7 +21,7 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewUserRepository(&database.DB{DB: db})
+	repo := NewUserRepository(database.Wrap(db))
 
 	login := "testuser"
 	id := uuid.New()
@@ -81,7 +81,7 @@ func TestUserRepository_GetSessionPrincipal(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewUserRepository(&database.DB{DB: db})
+	repo := NewUserRepository(database.Wrap(db))
 	userID := uuid.New()
 
 	t.Run("returns only active session state", func(t *testing.T) {
@@ -108,8 +108,8 @@ func TestUserRepositoryIncrementFailedLoginAttemptsWithOutboxRollsBackOnEnqueueF
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewUserRepository(&database.DB{DB: db})
-	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	repo := NewUserRepository(database.Wrap(db))
+	repo.SetOutbox(NewOutboxRepository(database.Wrap(db)))
 	userID := uuid.New()
 	event := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "user:" + userID.String() + ":locked", Payload: `{}`}
 
@@ -128,8 +128,8 @@ func TestUserRepositoryResetPasswordWithOutboxRequiresChangeAndRevokesSessions(t
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewUserRepository(&database.DB{DB: db})
-	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	repo := NewUserRepository(database.Wrap(db))
+	repo.SetOutbox(NewOutboxRepository(database.Wrap(db)))
 	userID := uuid.New()
 	event := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "user:" + userID.String() + ":password-reset", Payload: `{}`}
 
@@ -153,8 +153,8 @@ func TestUserRepositoryUpdateProfileWithOutboxIsAtomic(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewUserRepository(&database.DB{DB: db})
-	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	repo := NewUserRepository(database.Wrap(db))
+	repo.SetOutbox(NewOutboxRepository(database.Wrap(db)))
 	userID := uuid.New()
 	effect := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "profile:update", Payload: `{}`}
 
@@ -174,7 +174,7 @@ func TestUserRepository_CreateInitialAdmin(t *testing.T) {
 		db, mock, err := sqlmock.New()
 		require.NoError(t, err)
 		defer db.Close()
-		repo := NewUserRepository(&database.DB{DB: db})
+		repo := NewUserRepository(database.Wrap(db))
 		userID := uuid.New()
 
 		mock.ExpectBegin()
@@ -198,7 +198,7 @@ func TestUserRepository_CreateInitialAdmin(t *testing.T) {
 		db, mock, err := sqlmock.New()
 		require.NoError(t, err)
 		defer db.Close()
-		repo := NewUserRepository(&database.DB{DB: db})
+		repo := NewUserRepository(database.Wrap(db))
 		userID := uuid.New()
 
 		mock.ExpectBegin()
@@ -225,17 +225,15 @@ func TestUserRepository_GetAll(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewUserRepository(&database.DB{DB: db})
-	now := time.Now()
+	repo := NewUserRepository(database.Wrap(db))
 	uid := uuid.New()
 	depID := uuid.New()
 
 	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "login", "full_name", "is_document_participant", "is_active", "failed_login_attempts",
-			"password_changed_at", "password_change_required", "created_at", "updated_at",
 			"d.id", "d.name",
-		}).AddRow(uid, "user1", "User One", true, false, 5, now, false, now, now, depID, "IT Dept"))
+		}).AddRow(uid, "user1", "User One", true, false, 5, depID, "IT Dept"))
 
 	// Expect system permissions
 	mock.ExpectQuery(`SELECT(.*)FROM user_system_permissions(.*)`).
@@ -266,17 +264,16 @@ func TestUserRepository_GetExecutors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewUserRepository(&database.DB{DB: db})
-		now := time.Now()
+		repo := NewUserRepository(database.Wrap(db))
 		userID := uuid.New()
 		departmentID := uuid.New()
 		nomenclatureID := uuid.New()
 
-		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active, u\.created_at, u\.updated_at,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
+		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
 			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "login", "full_name", "is_document_participant", "is_active", "created_at", "updated_at",
+				"id", "login", "full_name", "is_document_participant", "is_active",
 				"d.id", "d.name",
-			}).AddRow(userID, "executor", "Executor User", true, true, now, now, departmentID, "Office"))
+			}).AddRow(userID, "executor", "Executor User", true, true, departmentID, "Office"))
 
 		mock.ExpectQuery(`SELECT user_id, permission\s+FROM user_system_permissions\s+WHERE user_id = ANY\(\$1\) AND is_allowed = true`).
 			WithArgs(pq.Array([]uuid.UUID{userID})).
@@ -307,11 +304,11 @@ func TestUserRepository_GetExecutors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewUserRepository(&database.DB{DB: db})
+		repo := NewUserRepository(database.Wrap(db))
 
-		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active, u\.created_at, u\.updated_at,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
+		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
 			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "login", "full_name", "is_document_participant", "is_active", "created_at", "updated_at",
+				"id", "login", "full_name", "is_document_participant", "is_active",
 				"d.id", "d.name",
 			}))
 
@@ -327,16 +324,15 @@ func TestUserRepository_GetActiveUsers(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewUserRepository(&database.DB{DB: db})
-	now := time.Now()
+	repo := NewUserRepository(database.Wrap(db))
 	userID := uuid.New()
 	departmentID := uuid.New()
 
-	mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active, u\.created_at, u\.updated_at,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true\s+ORDER BY u\.full_name`).
+	mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true\s+ORDER BY u\.full_name`).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "full_name", "is_document_participant", "is_active", "created_at", "updated_at",
+			"id", "login", "full_name", "is_document_participant", "is_active",
 			"d.id", "d.name",
-		}).AddRow(userID, "candidate", "Candidate User", false, true, now, now, departmentID, "Office"))
+		}).AddRow(userID, "candidate", "Candidate User", false, true, departmentID, "Office"))
 
 	mock.ExpectQuery(`SELECT user_id, permission\s+FROM user_system_permissions\s+WHERE user_id = ANY\(\$1\) AND is_allowed = true`).
 		WithArgs(pq.Array([]uuid.UUID{userID})).
@@ -365,7 +361,7 @@ func TestUserRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewUserRepository(&database.DB{DB: db})
+		repo := NewUserRepository(database.Wrap(db))
 
 		req := models.CreateUserRequest{
 			Login:                 "newuser",
@@ -395,7 +391,7 @@ func TestUserRepository_Create(t *testing.T) {
 			WithArgs(uid).
 			WillReturnRows(sqlmock.NewRows([]string{"permission"}))
 
-		user, err := repo.Create(req)
+		user, err := repo.CreateWithOutbox(req, nil)
 		require.NoError(t, err)
 		require.NotNil(t, user)
 		assert.Equal(t, req.Login, user.Login)
@@ -407,13 +403,13 @@ func TestUserRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewUserRepository(&database.DB{DB: db})
+		repo := NewUserRepository(database.Wrap(db))
 
-		user, err := repo.Create(models.CreateUserRequest{
+		user, err := repo.CreateWithOutbox(models.CreateUserRequest{
 			Login:    "newuser",
 			Password: "weak",
 			FullName: "New User",
-		})
+		}, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, user)
@@ -432,7 +428,7 @@ func TestUserRepository_Update(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewUserRepository(&database.DB{DB: db})
+	repo := NewUserRepository(database.Wrap(db))
 	uid := uuid.New()
 	req := models.UpdateUserRequest{
 		ID:                    uid.String(),
@@ -464,7 +460,7 @@ func TestUserRepository_Update(t *testing.T) {
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{"permission"}))
 
-	user, err := repo.Update(req)
+	user, err := repo.UpdateWithOutbox(req, nil)
 	require.NoError(t, err)
 	require.NotNil(t, user)
 	assert.Equal(t, req.Login, user.Login)
@@ -478,7 +474,7 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewUserRepository(&database.DB{DB: db})
+	repo := NewUserRepository(database.Wrap(db))
 	uid := uuid.New()
 
 	t.Run("UpdatePassword", func(t *testing.T) {
@@ -504,11 +500,13 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
-		err = repo.UpdateProfile(uid, models.UpdateProfileRequest{Login: "newlog", FullName: "newname"})
+		err = repo.UpdateProfileWithOutbox(uid, models.UpdateProfileRequest{Login: "newlog", FullName: "newname"}, nil)
 		require.NoError(t, err)
 	})
 
 	t.Run("IncrementFailedLoginAttempts", func(t *testing.T) {
+		repo.SetOutbox(NewOutboxRepository(repo.db))
+		event := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "test-lock:" + uid.String(), Payload: `{}`}
 		mock.ExpectBegin()
 		mock.ExpectQuery(`UPDATE users`).
 			WithArgs(uid).
@@ -516,9 +514,10 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 		mock.ExpectExec(`UPDATE server_sessions SET revoked_at`).
 			WithArgs(uid).
 			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(event.EventType, event.DeduplicationKey, event.Payload).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
-		attempts, isActive, err := repo.IncrementFailedLoginAttempts(uid)
+		attempts, isActive, err := repo.IncrementFailedLoginAttemptsWithOutbox(uid, event)
 		require.NoError(t, err)
 		assert.Equal(t, 5, attempts)
 		assert.False(t, isActive)
@@ -552,7 +551,7 @@ func TestUserRepository_GetDepartmentNomenclatureIDs(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewUserRepository(&database.DB{DB: db})
+		repo := NewUserRepository(database.Wrap(db))
 		departmentID := uuid.New()
 		firstID := uuid.New()
 		secondID := uuid.New()
@@ -572,7 +571,7 @@ func TestUserRepository_GetDepartmentNomenclatureIDs(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewUserRepository(&database.DB{DB: db})
+		repo := NewUserRepository(database.Wrap(db))
 		departmentID := uuid.New()
 
 		mock.ExpectQuery(`SELECT nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = \$1`).
@@ -590,7 +589,7 @@ func TestUserRepository_GetDepartmentNomenclatureIDs(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewUserRepository(&database.DB{DB: db})
+		repo := NewUserRepository(database.Wrap(db))
 		departmentID := uuid.New()
 
 		mock.ExpectQuery(`SELECT nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = \$1`).
@@ -602,4 +601,19 @@ func TestUserRepository_GetDepartmentNomenclatureIDs(t *testing.T) {
 		assert.Nil(t, ids)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+func TestUserRepository_GetEligibleRecipientIDs(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewUserRepository(database.Wrap(db))
+	activeID, inactiveID := uuid.New(), uuid.New()
+	mock.ExpectQuery(`SELECT id FROM users WHERE id = ANY\(\$1\) AND is_active = true AND is_document_participant = true`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(activeID))
+	found, err := repo.GetEligibleRecipientIDs([]uuid.UUID{activeID, inactiveID})
+	require.NoError(t, err)
+	require.Equal(t, map[uuid.UUID]struct{}{activeID: {}}, found)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

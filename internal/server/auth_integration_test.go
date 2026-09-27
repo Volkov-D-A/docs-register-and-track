@@ -22,7 +22,7 @@ import (
 
 func TestServerAuthSessionLifecycleIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	passwordHash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
 	userID := uuid.New()
@@ -59,7 +59,7 @@ func TestServerAuthSessionLifecycleIntegration(t *testing.T) {
 
 func TestServerPasswordChangeRevokesAllSessionsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	passwordHash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
 	userID := uuid.New()
@@ -97,7 +97,7 @@ func TestServerPasswordChangeRevokesAllSessionsIntegration(t *testing.T) {
 
 // Repeated locks must each produce an audit entry through the production HTTP path.
 func TestServerRepeatedLockoutsAuditIntegration(t *testing.T) {
-	db := &database.DB{DB: integrationdb.Open(t)}
+	db := database.Wrap(integrationdb.Open(t))
 	hash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
 	id := uuid.New()

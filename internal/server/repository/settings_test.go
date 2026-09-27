@@ -3,10 +3,9 @@ package repository
 import (
 	"database/sql"
 	"testing"
-	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -19,14 +18,13 @@ func TestSettingsRepository_Get(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewSettingsRepository(&database.DB{DB: db})
-	now := time.Now()
+	repo := NewSettingsRepository(database.Wrap(db))
 
-	query := `SELECT key, value, description, updated_at FROM system_settings WHERE key = \$1`
+	query := `SELECT key, value, description FROM system_settings WHERE key = \$1`
 
 	t.Run("found", func(t *testing.T) {
-		rows := sqlmock.NewRows([]string{"key", "value", "description", "updated_at"}).
-			AddRow("test_key", "test_val", "desc", now)
+		rows := sqlmock.NewRows([]string{"key", "value", "description"}).
+			AddRow("test_key", "test_val", "desc")
 
 		mock.ExpectQuery(query).WithArgs("test_key").WillReturnRows(rows)
 
@@ -35,6 +33,7 @@ func TestSettingsRepository_Get(t *testing.T) {
 		require.NotNil(t, s)
 		assert.Equal(t, "test_key", s.Key)
 		assert.Equal(t, "test_val", s.Value)
+		assert.Equal(t, "desc", s.Description)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -54,14 +53,13 @@ func TestSettingsRepository_GetAll(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewSettingsRepository(&database.DB{DB: db})
-	now := time.Now()
+	repo := NewSettingsRepository(database.Wrap(db))
 
-	query := `SELECT key, value, description, updated_at FROM system_settings ORDER BY key`
+	query := `SELECT key, value FROM system_settings ORDER BY key`
 
-	rows := sqlmock.NewRows([]string{"key", "value", "description", "updated_at"}).
-		AddRow("key1", "val1", "desc1", now).
-		AddRow("key2", "val2", "desc2", now)
+	rows := sqlmock.NewRows([]string{"key", "value"}).
+		AddRow("key1", "val1").
+		AddRow("key2", "val2")
 
 	mock.ExpectQuery(query).WillReturnRows(rows)
 
@@ -79,12 +77,14 @@ func TestSettingsRepository_Update(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewSettingsRepository(&database.DB{DB: db})
+	repo := NewSettingsRepository(database.Wrap(db))
 
-	query := `INSERT INTO system_settings \(key, value, updated_at\)\s+VALUES \(\$1, \$2, NOW\(\)\)\s+ON CONFLICT \(key\) DO UPDATE\s+SET value = EXCLUDED.value, updated_at = NOW\(\)`
+	query := `INSERT INTO system_settings \(key, value\)\s+VALUES \(\$1, \$2\)\s+ON CONFLICT \(key\) DO UPDATE\s+SET value = EXCLUDED.value`
+	mock.ExpectBegin()
 	mock.ExpectExec(query).WithArgs("test_key", "new_val").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
-	err = repo.Update("test_key", "new_val")
+	err = repo.UpdateWithOutbox("test_key", "new_val", nil)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -93,8 +93,8 @@ func TestSettingsRepositoryUpdateWithOutboxRollsBackOnEnqueueFailure(t *testing.
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewSettingsRepository(&database.DB{DB: db})
-	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	repo := NewSettingsRepository(database.Wrap(db))
+	repo.SetOutbox(NewOutboxRepository(database.Wrap(db)))
 	event := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "setting:test:update", Payload: `{}`}
 
 	mock.ExpectBegin()

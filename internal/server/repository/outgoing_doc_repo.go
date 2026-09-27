@@ -252,23 +252,14 @@ func (r *OutgoingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Outgoin
 	return items, rows.Err()
 }
 
-// Create создает новый исходящий документ в базе данных.
-func (r *OutgoingDocumentRepository) Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error) {
-	return r.create(req, nil, "", "")
-}
-
-func (r *OutgoingDocumentRepository) CreateWithOutbox(req models.CreateOutgoingDocRequest, effects []models.OutboxEvent) (*models.OutgoingDocument, error) {
-	return r.create(req, effects, "", "")
-}
-
 // CreateWithJournal records document registration and its journal entry in one
 // transaction. The repository creates the document ID and registration number,
 // so it is the only layer that can build this event before commit.
 func (r *OutgoingDocumentRepository) CreateWithJournal(req models.CreateOutgoingDocRequest, action, detailsFormat string) (*models.OutgoingDocument, error) {
-	return r.create(req, nil, action, detailsFormat)
+	return r.create(req, action, detailsFormat)
 }
 
-func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.OutgoingDocument, error) {
+func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest, journalAction, journalDetailsFormat string) (*models.OutgoingDocument, error) {
 	if req.Link != nil && req.CommandHash == "" {
 		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
 	}
@@ -366,9 +357,6 @@ func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest,
 			return nil, err
 		}
 	}
-	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
-		return nil, err
-	}
 	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
 		return nil, err
 	}
@@ -381,11 +369,6 @@ func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest,
 	}
 
 	return r.GetByID(id)
-}
-
-// Update обновляет данные существующего исходящего документа.
-func (r *OutgoingDocumentRepository) Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error) {
-	return r.update(req, nil)
 }
 
 func (r *OutgoingDocumentRepository) UpdateWithOutbox(req models.UpdateOutgoingDocRequest, effects []models.OutboxEvent) (*models.OutgoingDocument, error) {

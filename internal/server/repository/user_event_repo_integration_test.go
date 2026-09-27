@@ -11,7 +11,7 @@ import (
 func TestUserEventOutboxInsertIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	userID, documentID := seedIntegrationDocument(t, sqlDB)
-	repo := NewUserEventRepository(&database.DB{DB: sqlDB})
+	repo := NewUserEventRepository(database.Wrap(sqlDB))
 	request := models.CreateUserEventRequest{
 		RecipientUserID: userID,
 		DocumentID:      documentID,
@@ -39,27 +39,12 @@ func TestUserEventOutboxInsertIntegration(t *testing.T) {
 		t.Fatalf("visible events=%+v err=%v", listed, err)
 	}
 
-	// Rollback must restore the old shape for existing rows; reapplying the
-	// migration must preserve the event while removing the unused columns.
-	if err := (&database.DB{DB: sqlDB}).RollbackMigration(database.DefaultMigrationsPath); err != nil {
-		t.Fatal(err)
-	}
-	var entityID string
-	if err := sqlDB.QueryRow(`SELECT entity_id FROM user_events WHERE outbox_deduplication_key = $1`, key).Scan(&entityID); err != nil {
-		t.Fatal(err)
-	}
-	if entityID != "00000000-0000-0000-0000-000000000000" {
-		t.Fatalf("rollback placeholder entity_id = %s", entityID)
-	}
-	if err := (&database.DB{DB: sqlDB}).RunMigrations(database.DefaultMigrationsPath); err != nil {
-		t.Fatal(err)
-	}
 	var unusedColumns int
 	if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM information_schema.columns
 		WHERE table_name = 'user_events' AND column_name IN ('actor_user_id', 'entity_id', 'metadata')`).Scan(&unusedColumns); err != nil {
 		t.Fatal(err)
 	}
 	if unusedColumns != 0 {
-		t.Fatalf("migration left %d unused user_events columns", unusedColumns)
+		t.Fatalf("fresh schema contains %d unused user_events columns", unusedColumns)
 	}
 }

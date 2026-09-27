@@ -3,10 +3,11 @@ package repository
 import (
 	"database/sql"
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // DepartmentRepository предоставляет методы для работы со справочником подразделений (отделов) в БД.
@@ -22,67 +23,64 @@ func NewDepartmentRepository(db *database.DB) *DepartmentRepository {
 	return &DepartmentRepository{db: db}
 }
 
-// GetAll возвращает список всех подразделений.
+// GetAll возвращает список подразделений и ID связанных с ними дел двумя запросами.
 func (r *DepartmentRepository) GetAll() ([]models.Department, error) {
-	query := `
-		SELECT id, name, created_at, updated_at
+	rows, err := r.db.Query(`
+		SELECT id, name
 		FROM departments
 		ORDER BY name ASC
-	`
-	rows, err := r.db.Query(query)
+	`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	departments := make([]models.Department, 0)
+	departmentIDs := make([]uuid.UUID, 0)
+	indexes := make(map[uuid.UUID]int)
 	for rows.Next() {
 		var d models.Department
-		if err := rows.Scan(&d.ID, &d.Name, &d.CreatedAt, &d.UpdatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name); err != nil {
 			return nil, err
 		}
-
-		// Загружаем номенклатуру
-		if err := r.loadNomenclature(&d); err != nil {
-			return nil, err
-		}
-
+		indexes[d.ID] = len(departments)
+		departmentIDs = append(departmentIDs, d.ID)
 		departments = append(departments, d)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return departments, nil
-}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if len(departmentIDs) == 0 {
+		return departments, nil
+	}
 
-func (r *DepartmentRepository) loadNomenclature(d *models.Department) error {
-	query := `
-		SELECT n.id, n.name, n.index, n.year, n.kind_code, n.separator, n.numbering_mode, n.next_number, n.is_active, n.created_at, n.updated_at
-		FROM nomenclature n
-		JOIN department_nomenclature dn ON n.id = dn.nomenclature_id
-		WHERE dn.department_id = $1
-		ORDER BY n.index
-	`
-	rows, err := r.db.Query(query, d.ID)
+	links, err := r.db.Query(`
+		SELECT dn.department_id, dn.nomenclature_id
+		FROM department_nomenclature dn
+		JOIN nomenclature n ON n.id = dn.nomenclature_id
+		WHERE dn.department_id = ANY($1)
+		ORDER BY dn.department_id, n.index
+	`, pq.Array(departmentIDs))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var n models.Nomenclature
-		if err := rows.Scan(
-			&n.ID, &n.Name, &n.Index, &n.Year,
-			&n.KindCode, &n.Separator, &n.NumberingMode, &n.NextNumber, &n.IsActive,
-			&n.CreatedAt, &n.UpdatedAt,
-		); err != nil {
-			return err
+	defer links.Close()
+	for links.Next() {
+		var departmentID, nomenclatureID uuid.UUID
+		if err := links.Scan(&departmentID, &nomenclatureID); err != nil {
+			return nil, err
 		}
-
-		d.Nomenclature = append(d.Nomenclature, n)
-		d.NomenclatureIDs = append(d.NomenclatureIDs, n.ID.String())
+		if index, ok := indexes[departmentID]; ok {
+			departments[index].NomenclatureIDs = append(departments[index].NomenclatureIDs, nomenclatureID.String())
+		}
 	}
-	return rows.Err()
+	if err := links.Err(); err != nil {
+		return nil, err
+	}
+	return departments, nil
 }
 
 // GetNomenclatureIDs возвращает список ID номенклатур, привязанных к подразделению.
@@ -112,11 +110,6 @@ func (r *DepartmentRepository) GetNomenclatureIDs(departmentID uuid.UUID) ([]str
 	return ids, nil
 }
 
-// Create создает новое подразделение и связывает его с указанными номенклатурами.
-func (r *DepartmentRepository) Create(name string, nomenclatureIDs []string) (*models.Department, error) {
-	return r.create(name, nomenclatureIDs, nil)
-}
-
 func (r *DepartmentRepository) CreateWithOutbox(name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
 	return r.create(name, nomenclatureIDs, effects)
 }
@@ -131,12 +124,12 @@ func (r *DepartmentRepository) create(name string, nomenclatureIDs []string, eff
 	defer tx.Rollback()
 
 	query := `
-		INSERT INTO departments (id, name, created_at, updated_at)
-		VALUES ($1, $2, NOW(), NOW())
-		RETURNING id, name, created_at, updated_at
+		INSERT INTO departments (id, name)
+		VALUES ($1, $2)
+		RETURNING id, name
 	`
 	var d models.Department
-	err = tx.QueryRow(query, id, name).Scan(&d.ID, &d.Name, &d.CreatedAt, &d.UpdatedAt)
+	err = tx.QueryRow(query, id, name).Scan(&d.ID, &d.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -166,16 +159,8 @@ func (r *DepartmentRepository) create(name string, nomenclatureIDs []string, eff
 		return nil, err
 	}
 
-	// Перечитываем чтобы вернуть полное состояние (хотя можно и так собрать)
-	// Для простоты вернем то что есть, но с IDs
 	d.NomenclatureIDs = nomenclatureIDs
-	// models.Nomenclature не заполняем для оптимизации, если нужно - можно сделать Select
 	return &d, nil
-}
-
-// Update обновляет данные существующего подразделения.
-func (r *DepartmentRepository) Update(id uuid.UUID, name string, nomenclatureIDs []string) (*models.Department, error) {
-	return r.update(id, name, nomenclatureIDs, nil)
 }
 
 func (r *DepartmentRepository) UpdateWithOutbox(id uuid.UUID, name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
@@ -191,12 +176,12 @@ func (r *DepartmentRepository) update(id uuid.UUID, name string, nomenclatureIDs
 
 	query := `
 		UPDATE departments
-		SET name = $2, updated_at = NOW()
+		SET name = $2
 		WHERE id = $1
-		RETURNING id, name, created_at, updated_at
+		RETURNING id, name
 	`
 	var d models.Department
-	err = tx.QueryRow(query, id, name).Scan(&d.ID, &d.Name, &d.CreatedAt, &d.UpdatedAt)
+	err = tx.QueryRow(query, id, name).Scan(&d.ID, &d.Name)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, models.NewNotFound("подразделение не найдено")
@@ -237,23 +222,6 @@ func (r *DepartmentRepository) update(id uuid.UUID, name string, nomenclatureIDs
 
 	d.NomenclatureIDs = nomenclatureIDs
 	return &d, nil
-}
-
-// Delete удаляет подразделение по его ID.
-func (r *DepartmentRepository) Delete(id uuid.UUID) error {
-	query := `DELETE FROM departments WHERE id = $1`
-	result, err := r.db.Exec(query, id)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return models.NewNotFound("подразделение не найдено")
-	}
-	return nil
 }
 
 func (r *DepartmentRepository) DeleteWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {

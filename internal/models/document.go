@@ -40,20 +40,6 @@ var documentTypeSet = map[string]struct{}{
 	DocumentTypeAdministrativeOrder: {},
 }
 
-func AllowedDocumentTypes() []string {
-	return []string{
-		DocumentTypeLetter,
-		DocumentTypeContract,
-		DocumentTypeAct,
-		DocumentTypeInvoice,
-		DocumentTypeRequest,
-		DocumentTypeReply,
-		DocumentTypeNotification,
-		DocumentTypeCitizenAppeal,
-		DocumentTypeAdministrativeOrder,
-	}
-}
-
 func NormalizeDocumentType(value string) string {
 	return strings.TrimSpace(value)
 }
@@ -262,6 +248,7 @@ type DocumentLink struct {
 
 	SourceNumber  string `json:"sourceNumber,omitempty"`
 	TargetNumber  string `json:"targetNumber,omitempty"`
+	SourceSubject string `json:"sourceSubject,omitempty"`
 	TargetSubject string `json:"targetSubject,omitempty"`
 }
 

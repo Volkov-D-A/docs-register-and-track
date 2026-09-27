@@ -23,7 +23,7 @@ import (
 func TestDesktopSessionInvalidationIntegration(t *testing.T) {
 	for _, scenario := range []string{"expiry", "revoke", "deactivate", "password-reset"} {
 		t.Run(scenario, func(t *testing.T) {
-			db := &database.DB{DB: integrationdb.Open(t)}
+			db := database.Wrap(integrationdb.Open(t))
 			hash, err := security.HashPassword("Passw0rd!")
 			require.NoError(t, err)
 			adminID := uuid.New()

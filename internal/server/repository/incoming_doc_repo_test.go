@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -22,7 +22,7 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+	repo := NewIncomingDocumentRepository(database.Wrap(db))
 	docID := uuid.New()
 	now := time.Now()
 
@@ -80,43 +80,13 @@ func TestIncomingDocumentRepository_GetCount(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+	repo := NewIncomingDocumentRepository(database.Wrap(db))
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).WithArgs(models.DocumentKindIncomingLetter).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(42))
 
 	count, err := repo.GetCount()
 	require.NoError(t, err)
 	assert.Equal(t, 42, count)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestIncomingDocumentRepository_LoadResolutions(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
-	docID := uuid.New()
-	firstID := uuid.New()
-	secondID := uuid.New()
-
-	mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors, position\s+FROM document_resolutions\s+WHERE document_id = \$1\s+ORDER BY position, created_at, id`).
-		WithArgs(docID).
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "document_id", "resolution", "resolution_author", "resolution_executors", "position",
-		}).
-			AddRow(firstID, docID, "Первая", "Автор 1", "Исполнитель 1", 1).
-			AddRow(secondID, docID, "Вторая", "Автор 2", "Исполнитель 2", 2))
-
-	resolutions, err := repo.loadResolutions(docID)
-	require.NoError(t, err)
-	require.Len(t, resolutions, 2)
-	assert.Equal(t, firstID, resolutions[0].ID)
-	require.NotNil(t, resolutions[0].Resolution)
-	assert.Equal(t, "Первая", *resolutions[0].Resolution)
-	assert.Equal(t, secondID, resolutions[1].ID)
-	require.NotNil(t, resolutions[1].ResolutionExecutors)
-	assert.Equal(t, "Исполнитель 2", *resolutions[1].ResolutionExecutors)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -174,7 +144,8 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+	repo := NewIncomingDocumentRepository(database.Wrap(db))
+	repo.SetOutbox(NewOutboxRepository(repo.db))
 	docID := uuid.New()
 	now := time.Now()
 
@@ -214,6 +185,7 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 		docID, req.Correspondents[0].RegistrationNumber, req.Correspondents[0].RegistrationDate, req.Correspondents[0].CorrespondentOrgID, req.Correspondents[0].Position,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`DELETE FROM document_resolutions`).WithArgs(docID).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventJournal, "incoming:"+docID.String()+":create:journal", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	// После Create идет вызов GetByID
@@ -238,7 +210,7 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	}).AddRow(uuid.New(), docID, "ИСХ-001", now, req.Correspondents[0].CorrespondentOrgID, "Орг 1", 1))
 	mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnError(sql.ErrNoRows)
 
-	doc, err := repo.Create(req)
+	doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Equal(t, docID, doc.ID)
@@ -252,9 +224,9 @@ func TestIncomingDocumentRepository_CreateValidationErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+		repo := NewIncomingDocumentRepository(database.Wrap(db))
 
-		doc, err := repo.Create(models.CreateIncomingDocRequest{DocumentTypeID: "unknown"})
+		doc, err := repo.CreateWithJournal(models.CreateIncomingDocRequest{DocumentTypeID: "unknown"}, "CREATE", "Created %s")
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "неверный тип документа")
@@ -265,15 +237,15 @@ func TestIncomingDocumentRepository_CreateValidationErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+		repo := NewIncomingDocumentRepository(database.Wrap(db))
 		mock.ExpectBegin()
 		mock.ExpectRollback()
 
-		doc, err := repo.Create(models.CreateIncomingDocRequest{
+		doc, err := repo.CreateWithJournal(models.CreateIncomingDocRequest{
 			NomenclatureID: uuid.New(),
 			CreatedBy:      uuid.New(),
 			DocumentTypeID: models.DocumentTypeLetter,
-		})
+		}, "CREATE", "Created %s")
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -308,7 +280,7 @@ func TestIncomingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
 			require.NoError(t, err)
 			defer db.Close()
 
-			repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+			repo := NewIncomingDocumentRepository(database.Wrap(db))
 			req := models.CreateIncomingDocRequest{
 				NomenclatureID: uuid.New(),
 				IdempotencyKey: uuid.New(),
@@ -341,7 +313,7 @@ func TestIncomingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
 			).WillReturnError(tt.insertErr)
 			mock.ExpectRollback()
 
-			doc, err := repo.Create(req)
+			doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 			require.Error(t, err)
 			assert.Nil(t, doc)
@@ -361,7 +333,7 @@ func TestIncomingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+	repo := NewIncomingDocumentRepository(database.Wrap(db))
 	docID := uuid.New()
 	req := models.CreateIncomingDocRequest{
 		NomenclatureID: uuid.New(),
@@ -401,7 +373,7 @@ func TestIncomingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 	).WillReturnError(sql.ErrConnDone)
 	mock.ExpectRollback()
 
-	doc, err := repo.Create(req)
+	doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 	require.Error(t, err)
 	assert.Nil(t, doc)
@@ -415,7 +387,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+	repo := NewIncomingDocumentRepository(database.Wrap(db))
 	now := time.Now()
 
 	t.Run("success with filters", func(t *testing.T) {
@@ -567,7 +539,7 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+	repo := NewIncomingDocumentRepository(database.Wrap(db))
 	docID := uuid.New()
 	now := time.Now()
 
@@ -620,7 +592,7 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 	}).AddRow(uuid.New(), docID, "ИСХ-001", now, req.Correspondents[0].CorrespondentOrgID, "Орг 1", 1))
 	mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnError(sql.ErrNoRows)
 
-	doc, err := repo.Update(req)
+	doc, err := repo.UpdateWithOutbox(req, nil)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Equal(t, docID, doc.ID)
@@ -634,9 +606,9 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+		repo := NewIncomingDocumentRepository(database.Wrap(db))
 
-		doc, err := repo.Update(models.UpdateIncomingDocRequest{DocumentTypeID: "unknown"})
+		doc, err := repo.UpdateWithOutbox(models.UpdateIncomingDocRequest{DocumentTypeID: "unknown"}, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "неверный тип документа")
@@ -647,10 +619,10 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+		repo := NewIncomingDocumentRepository(database.Wrap(db))
 		mock.ExpectBegin().WillReturnError(sql.ErrConnDone)
 
-		doc, err := repo.Update(models.UpdateIncomingDocRequest{DocumentTypeID: models.DocumentTypeLetter})
+		doc, err := repo.UpdateWithOutbox(models.UpdateIncomingDocRequest{DocumentTypeID: models.DocumentTypeLetter}, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "failed to begin transaction")
@@ -662,7 +634,7 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+		repo := NewIncomingDocumentRepository(database.Wrap(db))
 		req := models.UpdateIncomingDocRequest{
 			ID:             uuid.New(),
 			DocumentTypeID: models.DocumentTypeLetter,
@@ -675,7 +647,7 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "failed to update document root")
@@ -687,7 +659,7 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewIncomingDocumentRepository(&database.DB{DB: db})
+		repo := NewIncomingDocumentRepository(database.Wrap(db))
 		req := models.UpdateIncomingDocRequest{
 			ID:             uuid.New(),
 			DocumentTypeID: models.DocumentTypeLetter,
@@ -703,7 +675,7 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "failed to update incoming document details")

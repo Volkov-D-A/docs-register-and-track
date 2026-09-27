@@ -9,8 +9,7 @@ import (
 type AcknowledgmentStore interface {
 	AcknowledgmentReader
 	CreateWithOutbox(*models.Acknowledgment, []models.OutboxEvent) error
-	MarkViewedWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) error
 	MarkConfirmedWithEffects(uuid.UUID, uuid.UUID, models.AcknowledgmentConfirmationEffects) error
 	DeleteWithOutbox(uuid.UUID, []models.OutboxEvent) error
-	GetPendingForUsers([]uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error)
+	GetPendingForUsers([]uuid.UUID, uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error)
 }

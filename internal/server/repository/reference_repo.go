@@ -6,11 +6,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
-// ReferenceRepository предоставляет методы для работы со справочниками (типы документов, организации) в БД.
+// ReferenceRepository предоставляет методы для работы со справочниками организаций и исполнителей резолюции в БД.
 type ReferenceRepository struct {
 	db     *database.DB
 	outbox *OutboxRepository
@@ -38,38 +38,12 @@ func NewReferenceRepository(db *database.DB) *ReferenceRepository {
 	return &ReferenceRepository{db: db}
 }
 
-// === Типы документов ===
-
-// GetAllDocumentTypes возвращает все типы документов.
-func (r *ReferenceRepository) GetAllDocumentTypes() ([]models.DocumentType, error) {
-	items := make([]models.DocumentType, 0, len(models.AllowedDocumentTypes()))
-	for _, name := range models.AllowedDocumentTypes() {
-		items = append(items, models.DocumentType{Name: name})
-	}
-	return items, nil
-}
-
-// CreateDocumentType создает новый тип документа.
-func (r *ReferenceRepository) CreateDocumentType(name string) (*models.DocumentType, error) {
-	return nil, models.NewBadRequest("типы документов заданы в коде и не редактируются")
-}
-
-// UpdateDocumentType обновляет тип документа.
-func (r *ReferenceRepository) UpdateDocumentType(id uuid.UUID, name string) error {
-	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
-}
-
-// DeleteDocumentType удаляет тип документа.
-func (r *ReferenceRepository) DeleteDocumentType(id uuid.UUID) error {
-	return models.NewBadRequest("типы документов заданы в коде и не редактируются")
-}
-
 // === Организации ===
 
 // GetAllOrganizations возвращает все организации-корреспонденты.
 func (r *ReferenceRepository) GetAllOrganizations() ([]models.Organization, error) {
 	rows, err := r.db.Query(`
-		SELECT id, name, created_at FROM organizations ORDER BY name
+		SELECT id, name FROM organizations ORDER BY name
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get organizations: %w", err)
@@ -79,7 +53,7 @@ func (r *ReferenceRepository) GetAllOrganizations() ([]models.Organization, erro
 	items := make([]models.Organization, 0)
 	for rows.Next() {
 		var item models.Organization
-		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name); err != nil {
 			return nil, err
 		}
 
@@ -96,8 +70,8 @@ func (r *ReferenceRepository) FindOrCreateOrganization(name string) (*models.Org
 	// Сначала ищем существующую
 	var item models.Organization
 	err := r.db.QueryRow(`
-		SELECT id, name, created_at FROM organizations WHERE name = $1
-	`, name).Scan(&item.ID, &item.Name, &item.CreatedAt)
+		SELECT id, name FROM organizations WHERE name = $1
+	`, name).Scan(&item.ID, &item.Name)
 
 	if err == nil {
 
@@ -117,20 +91,13 @@ func (r *ReferenceRepository) FindOrCreateOrganization(name string) (*models.Org
 		return nil, fmt.Errorf("failed to create organization: %w", err)
 	}
 
-	err = r.db.QueryRow(`
-		SELECT id, name, created_at FROM organizations WHERE id = $1
-	`, id).Scan(&item.ID, &item.Name, &item.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-
-	return &item, nil
+	return &models.Organization{ID: id, Name: name}, nil
 }
 
 // SearchOrganizations выполняет поиск организаций по названию.
 func (r *ReferenceRepository) SearchOrganizations(query string) ([]models.Organization, error) {
 	rows, err := r.db.Query(`
-		SELECT id, name, created_at FROM organizations
+		SELECT id, name FROM organizations
 		WHERE name ILIKE $1
 		ORDER BY name LIMIT 20
 	`, "%"+query+"%")
@@ -142,7 +109,7 @@ func (r *ReferenceRepository) SearchOrganizations(query string) ([]models.Organi
 	items := make([]models.Organization, 0)
 	for rows.Next() {
 		var item models.Organization
-		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name); err != nil {
 			return nil, err
 		}
 
@@ -154,82 +121,12 @@ func (r *ReferenceRepository) SearchOrganizations(query string) ([]models.Organi
 	return items, nil
 }
 
-// UpdateOrganization обновляет название организации.
-func (r *ReferenceRepository) UpdateOrganization(id uuid.UUID, name string) error {
-	_, err := r.db.Exec(`UPDATE organizations SET name = $1 WHERE id = $2`, name, id)
-	if err != nil {
-		return fmt.Errorf("failed to update organization: %w", err)
-	}
-	return nil
-}
 func (r *ReferenceRepository) UpdateOrganizationWithOutbox(id uuid.UUID, name string, effects []models.OutboxEvent) error {
 	return r.execWithOutbox(`UPDATE organizations SET name = $1 WHERE id = $2`, []interface{}{name, id}, effects)
 }
 
-// DeleteOrganization удаляет организацию.
-func (r *ReferenceRepository) DeleteOrganization(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM organizations WHERE id = $1`, id)
-	if err != nil {
-		return fmt.Errorf("failed to delete organization: %w", err)
-	}
-	return nil
-}
 func (r *ReferenceRepository) DeleteOrganizationWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
 	return r.execWithOutbox(`DELETE FROM organizations WHERE id = $1`, []interface{}{id}, effects)
-}
-
-// MergeOrganizations переносит ссылки с одной организации на другую и удаляет исходную запись.
-func (r *ReferenceRepository) MergeOrganizations(sourceID uuid.UUID, targetID uuid.UUID) error {
-	if sourceID == targetID {
-		return models.NewBadRequest("нельзя объединить организацию саму с собой")
-	}
-
-	tx, err := r.db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin organization merge transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	var sourceName string
-	if err := tx.QueryRow(`SELECT name FROM organizations WHERE id = $1 FOR UPDATE`, sourceID).Scan(&sourceName); err != nil {
-		if err == sql.ErrNoRows {
-			return models.NewBadRequest("исходная организация не найдена")
-		}
-		return fmt.Errorf("failed to lock source organization: %w", err)
-	}
-
-	var targetName string
-	if err := tx.QueryRow(`SELECT name FROM organizations WHERE id = $1 FOR UPDATE`, targetID).Scan(&targetName); err != nil {
-		if err == sql.ErrNoRows {
-			return models.NewBadRequest("целевая организация не найдена")
-		}
-		return fmt.Errorf("failed to lock target organization: %w", err)
-	}
-
-	if _, err := tx.Exec(`
-		UPDATE document_correspondent_registrations
-		SET correspondent_org_id = $1
-		WHERE correspondent_org_id = $2
-	`, targetID, sourceID); err != nil {
-		return fmt.Errorf("failed to update correspondent registrations organization: %w", err)
-	}
-
-	if _, err := tx.Exec(`
-		UPDATE outgoing_document_details
-		SET recipient_org_id = $1
-		WHERE recipient_org_id = $2
-	`, targetID, sourceID); err != nil {
-		return fmt.Errorf("failed to update outgoing documents organization: %w", err)
-	}
-
-	if _, err := tx.Exec(`DELETE FROM organizations WHERE id = $1`, sourceID); err != nil {
-		return fmt.Errorf("failed to delete merged organization: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit organization merge transaction: %w", err)
-	}
-	return nil
 }
 
 func (r *ReferenceRepository) MergeOrganizationsWithOutbox(sourceID, targetID uuid.UUID, effects []models.OutboxEvent) error {
@@ -274,7 +171,7 @@ func (r *ReferenceRepository) MergeOrganizationsWithOutbox(sourceID, targetID uu
 // GetAllResolutionExecutors возвращает всех исполнителей резолюции.
 func (r *ReferenceRepository) GetAllResolutionExecutors() ([]models.ResolutionExecutor, error) {
 	rows, err := r.db.Query(`
-		SELECT id, name, created_at FROM resolution_executors ORDER BY name
+		SELECT id, name FROM resolution_executors ORDER BY name
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resolution executors: %w", err)
@@ -284,7 +181,7 @@ func (r *ReferenceRepository) GetAllResolutionExecutors() ([]models.ResolutionEx
 	items := make([]models.ResolutionExecutor, 0)
 	for rows.Next() {
 		var item models.ResolutionExecutor
-		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -299,8 +196,8 @@ func (r *ReferenceRepository) GetAllResolutionExecutors() ([]models.ResolutionEx
 func (r *ReferenceRepository) FindOrCreateResolutionExecutor(name string) (*models.ResolutionExecutor, error) {
 	var item models.ResolutionExecutor
 	err := r.db.QueryRow(`
-		SELECT id, name, created_at FROM resolution_executors WHERE name = $1
-	`, name).Scan(&item.ID, &item.Name, &item.CreatedAt)
+		SELECT id, name FROM resolution_executors WHERE name = $1
+	`, name).Scan(&item.ID, &item.Name)
 
 	if err == nil {
 		return &item, nil
@@ -319,20 +216,13 @@ func (r *ReferenceRepository) FindOrCreateResolutionExecutor(name string) (*mode
 		return nil, fmt.Errorf("failed to create resolution executor: %w", err)
 	}
 
-	err = r.db.QueryRow(`
-		SELECT id, name, created_at FROM resolution_executors WHERE id = $1
-	`, id).Scan(&item.ID, &item.Name, &item.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-
-	return &item, nil
+	return &models.ResolutionExecutor{ID: id, Name: name}, nil
 }
 
 // SearchResolutionExecutors выполняет поиск исполнителей резолюции по имени.
 func (r *ReferenceRepository) SearchResolutionExecutors(query string) ([]models.ResolutionExecutor, error) {
 	rows, err := r.db.Query(`
-		SELECT id, name, created_at FROM resolution_executors
+		SELECT id, name FROM resolution_executors
 		WHERE name ILIKE $1
 		ORDER BY name LIMIT 20
 	`, "%"+query+"%")
@@ -344,7 +234,7 @@ func (r *ReferenceRepository) SearchResolutionExecutors(query string) ([]models.
 	items := make([]models.ResolutionExecutor, 0)
 	for rows.Next() {
 		var item models.ResolutionExecutor
-		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -355,26 +245,10 @@ func (r *ReferenceRepository) SearchResolutionExecutors(query string) ([]models.
 	return items, nil
 }
 
-// UpdateResolutionExecutor обновляет имя исполнителя резолюции.
-func (r *ReferenceRepository) UpdateResolutionExecutor(id uuid.UUID, name string) error {
-	_, err := r.db.Exec(`UPDATE resolution_executors SET name = $1 WHERE id = $2`, name, id)
-	if err != nil {
-		return fmt.Errorf("failed to update resolution executor: %w", err)
-	}
-	return nil
-}
 func (r *ReferenceRepository) UpdateResolutionExecutorWithOutbox(id uuid.UUID, name string, effects []models.OutboxEvent) error {
 	return r.execWithOutbox(`UPDATE resolution_executors SET name = $1 WHERE id = $2`, []interface{}{name, id}, effects)
 }
 
-// DeleteResolutionExecutor удаляет исполнителя резолюции.
-func (r *ReferenceRepository) DeleteResolutionExecutor(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM resolution_executors WHERE id = $1`, id)
-	if err != nil {
-		return fmt.Errorf("failed to delete resolution executor: %w", err)
-	}
-	return nil
-}
 func (r *ReferenceRepository) DeleteResolutionExecutorWithOutbox(id uuid.UUID, effects []models.OutboxEvent) error {
 	return r.execWithOutbox(`DELETE FROM resolution_executors WHERE id = $1`, []interface{}{id}, effects)
 }

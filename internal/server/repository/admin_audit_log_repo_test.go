@@ -20,7 +20,7 @@ func setupAdminAuditLogRepository(t *testing.T) (*AdminAuditLogRepository, sqlmo
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	return NewAdminAuditLogRepository(&database.DB{DB: db}), mock, func() { db.Close() }
+	return NewAdminAuditLogRepository(database.Wrap(db)), mock, func() { db.Close() }
 }
 
 func TestAdminAuditLogRepository_Create(t *testing.T) {
@@ -51,13 +51,11 @@ func TestAdminAuditLogRepository_CreateFromOutboxTreatsDuplicateAsDelivered(t *t
 	defer cleanup()
 
 	req := models.CreateAdminAuditLogRequest{UserID: uuid.New(), UserName: "Администратор", Action: "TEST", Details: "retry"}
-	mock.ExpectQuery(`INSERT INTO admin_audit_log`).
+	mock.ExpectExec(`INSERT INTO admin_audit_log`).
 		WithArgs(req.UserID, req.UserName, req.Action, req.Details, "audit:retry:1").
-		WillReturnError(sql.ErrNoRows)
+		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	id, err := repo.CreateFromOutbox(req, "audit:retry:1")
-	require.NoError(t, err)
-	assert.Equal(t, uuid.Nil, id)
+	require.NoError(t, repo.CreateFromOutbox(req, "audit:retry:1"))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -66,16 +64,15 @@ func TestAdminAuditLogRepository_GetAll(t *testing.T) {
 		repo, mock, cleanup := setupAdminAuditLogRepository(t)
 		defer cleanup()
 		entryID := uuid.New()
-		userID := uuid.New()
 		now := time.Now()
 
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM admin_audit_log`).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(11))
-		mock.ExpectQuery(`SELECT id, COALESCE\(user_id, '00000000-0000-0000-0000-000000000000'::uuid\), user_name, action, COALESCE\(details, ''\), created_at\s+FROM admin_audit_log`).
+		mock.ExpectQuery(`SELECT id, user_name, action, COALESCE\(details, ''\), created_at\s+FROM admin_audit_log`).
 			WithArgs(10, 20).
 			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "user_id", "user_name", "action", "details", "created_at",
-			}).AddRow(entryID, userID, "Администратор", "UPDATE_USER", "details", now))
+				"id", "user_name", "action", "details", "created_at",
+			}).AddRow(entryID, "Администратор", "UPDATE_USER", "details", now))
 
 		entries, total, err := repo.GetAll(10, 20)
 
@@ -83,7 +80,6 @@ func TestAdminAuditLogRepository_GetAll(t *testing.T) {
 		assert.Equal(t, 11, total)
 		require.Len(t, entries, 1)
 		assert.Equal(t, entryID, entries[0].ID)
-		assert.Equal(t, userID, entries[0].UserID)
 		assert.Equal(t, "UPDATE_USER", entries[0].Action)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})

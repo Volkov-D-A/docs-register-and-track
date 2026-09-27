@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 type administrativeOrderServiceStore struct {
@@ -34,14 +34,6 @@ func (s *administrativeOrderServiceStore) GetByIDs(ids []uuid.UUID) ([]models.Ad
 	return nil, nil
 }
 
-func (s *administrativeOrderServiceStore) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
-	return nil, nil
-}
-
-func (s *administrativeOrderServiceStore) Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
-	return nil, nil
-}
-
 func (s *administrativeOrderServiceStore) GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
 	s.lastPersonID = id
 	if s.personErr != nil {
@@ -54,21 +46,13 @@ func (s *administrativeOrderServiceStore) GetAcknowledgmentPeople(documentID uui
 	return nil, nil
 }
 
-func (s *administrativeOrderServiceStore) MarkAcknowledgmentPerson(id uuid.UUID, acknowledgedBy uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
+func (s *administrativeOrderServiceStore) MarkAcknowledgmentPersonWithOutbox(id uuid.UUID, acknowledgedBy uuid.UUID, _ []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
 	s.lastPersonID = id
 	s.lastMarkerID = acknowledgedBy
 	if s.markErr != nil {
 		return nil, s.markErr
 	}
 	return s.marked, nil
-}
-
-func (s *administrativeOrderServiceStore) MarkAcknowledgmentPersonWithOutbox(id uuid.UUID, acknowledgedBy uuid.UUID, _ []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
-	return s.MarkAcknowledgmentPerson(id, acknowledgedBy)
-}
-
-func (s *administrativeOrderServiceStore) CancelByLink(id uuid.UUID, cancelledAt time.Time) error {
-	return nil
 }
 
 func (s *administrativeOrderServiceStore) GetCount() (int, error) {

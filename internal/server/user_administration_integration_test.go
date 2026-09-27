@@ -20,7 +20,7 @@ import (
 
 func TestUserAdministrationAPIPersistsAccessAndSubstitutionWithAuditIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	outbox := repository.NewOutboxRepository(db)
 	users := repository.NewUserRepository(db)
 	users.SetOutbox(outbox)
@@ -90,7 +90,7 @@ func TestUserAdministrationAPIPersistsAccessAndSubstitutionWithAuditIntegration(
 
 func TestDepartmentAPIPersistsCRUDWithAuditOutboxIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	outbox := repository.NewOutboxRepository(db)
 	users := repository.NewUserRepository(db)
 	users.SetOutbox(outbox)

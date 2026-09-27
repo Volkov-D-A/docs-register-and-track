@@ -17,7 +17,7 @@ func TestServerSessionRepositoryLifecycle(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer sqlDB.Close()
-	repo := NewServerSessionRepository(&database.DB{DB: sqlDB})
+	repo := NewServerSessionRepository(database.Wrap(sqlDB))
 	userID, sessionID := uuid.New(), uuid.New()
 	now := time.Now().UTC()
 	expiresAt := now.Add(12 * time.Hour)
@@ -47,7 +47,7 @@ func TestServerSessionRepositoryActivity(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer sqlDB.Close()
-	repo := NewServerSessionRepository(&database.DB{DB: sqlDB})
+	repo := NewServerSessionRepository(database.Wrap(sqlDB))
 	now := time.Now().UTC()
 	activeSince := now.Add(-15 * time.Minute)
 

@@ -22,11 +22,10 @@ type fakeUserAccessManagementStore struct {
 	effects     []models.OutboxEvent
 }
 
-func (s *fakeUserAccessManagementStore) HasPermission(kind, action, departmentID, userID string) (bool, error) {
-	return kind == string(models.DocumentKindIncomingLetter) && action == string(models.DocumentActionRead), nil
-}
-func (s *fakeUserAccessManagementStore) HasSystemPermission(permission, userID string) (bool, error) {
-	return permission == models.SystemPermissionAdmin, nil
+func (s *fakeUserAccessManagementStore) GetAllowedActions(_, _ string) (map[string]map[string]bool, error) {
+	return map[string]map[string]bool{
+		string(models.DocumentKindIncomingLetter): {string(models.DocumentActionRead): true},
+	}, nil
 }
 
 func (s *fakeUserAccessManagementStore) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
@@ -45,7 +44,6 @@ type fakeUserSubstitutionManagementStore struct {
 	startsAt     *time.Time
 	endsAt       *time.Time
 	isActive     bool
-	createdBy    *uuid.UUID
 	effects      []models.OutboxEvent
 }
 
@@ -56,13 +54,13 @@ func (s *fakeUserSubstitutionManagementStore) GetByPrincipalID(id uuid.UUID) (*m
 func (s *fakeUserSubstitutionManagementStore) GetActivePrincipalIDs(uuid.UUID) ([]uuid.UUID, error) {
 	return nil, nil
 }
-func (s *fakeUserSubstitutionManagementStore) ReplaceForPrincipalWithOutbox(principalID uuid.UUID, substituteID *uuid.UUID, startsAt, endsAt *time.Time, isActive bool, createdBy *uuid.UUID, effects []models.OutboxEvent) (*models.UserSubstitution, error) {
+func (s *fakeUserSubstitutionManagementStore) ReplaceForPrincipalWithOutbox(principalID uuid.UUID, substituteID *uuid.UUID, startsAt, endsAt *time.Time, isActive bool, effects []models.OutboxEvent) (*models.UserSubstitution, error) {
 	s.principalID, s.substituteID, s.startsAt, s.endsAt = principalID, substituteID, startsAt, endsAt
-	s.isActive, s.createdBy, s.effects = isActive, createdBy, effects
+	s.isActive, s.effects = isActive, effects
 	if substituteID == nil {
 		return nil, nil
 	}
-	return &models.UserSubstitution{ID: uuid.New(), PrincipalUserID: principalID, SubstituteUserID: *substituteID, StartsAt: startsAt, EndsAt: endsAt, IsActive: isActive}, nil
+	return &models.UserSubstitution{SubstituteUserID: *substituteID, StartsAt: startsAt, EndsAt: endsAt, IsActive: isActive}, nil
 }
 
 type fakeDepartmentManagementStore struct {
@@ -145,7 +143,6 @@ func TestUserSubstitutionAPIValidatesAndPersistsSameDepartmentSubstitute(t *test
 	require.NotNil(t, substitutions.substituteID)
 	assert.Equal(t, substitute.ID, *substitutions.substituteID)
 	assert.True(t, substitutions.isActive)
-	require.NotNil(t, substitutions.createdBy)
 	require.Len(t, substitutions.effects, 1)
 }
 

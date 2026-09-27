@@ -225,7 +225,7 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 			WithArgs(nomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
 				AddRow("01-01", "/", numberingModeIndexAndNumber, 7, string(models.DocumentKindIncomingLetter)))
-		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = next_number \+ 1, updated_at = CURRENT_TIMESTAMP\s+WHERE id = \$1`).
+		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = next_number \+ 1\s+WHERE id = \$1`).
 			WithArgs(nomenclatureID).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -257,7 +257,7 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 			WithArgs(nomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
 				AddRow("01-01", "/", numberingModeNumberOnly, 7, string(models.DocumentKindIncomingLetter)))
-		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = next_number \+ 1, updated_at = CURRENT_TIMESTAMP\s+WHERE id = \$1`).
+		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = next_number \+ 1\s+WHERE id = \$1`).
 			WithArgs(nomenclatureID).
 			WillReturnError(sql.ErrConnDone)
 
@@ -312,7 +312,7 @@ func TestResolveAdminRegistrationNumberTx(t *testing.T) {
 		mock.ExpectExec(`UPDATE incoming_document_details SET incoming_number = \$1 WHERE document_id = \$2`).
 			WithArgs("26-01-27/16", doc15).
 			WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = \$2, updated_at = CURRENT_TIMESTAMP\s+WHERE id = \$1`).
+		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = \$2\s+WHERE id = \$1`).
 			WithArgs(nomenclatureID, 32).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 

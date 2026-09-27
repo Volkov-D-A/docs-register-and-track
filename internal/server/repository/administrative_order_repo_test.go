@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *testing.T) {
@@ -22,7 +22,7 @@ func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *te
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+	repo := NewAdministrativeOrderRepository(database.Wrap(db))
 	docID := uuid.New()
 	docID2 := uuid.New()
 	userID := uuid.New().String()
@@ -85,7 +85,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		filter := models.DocumentFilter{
 			AccessScope: &models.DocumentAccessScope{
 				Restricted:             true,
@@ -131,7 +131,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 
 		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
@@ -159,7 +159,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
 			WillReturnError(sql.ErrConnDone)
 
@@ -176,7 +176,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
@@ -211,7 +211,7 @@ func TestAdministrativeOrderRepository_GetAcknowledgmentPeople(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+	repo := NewAdministrativeOrderRepository(database.Wrap(db))
 	documentID := uuid.New()
 	now := time.Now()
 
@@ -238,7 +238,7 @@ func TestAdministrativeOrderRepository_GetAcknowledgmentPersonByID(t *testing.T)
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		personID := uuid.New()
 		documentID := uuid.New()
 		now := time.Now()
@@ -268,7 +268,7 @@ func TestAdministrativeOrderRepository_GetAcknowledgmentPersonByID(t *testing.T)
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		personID := uuid.New()
 
 		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.id = \$1`).
@@ -282,118 +282,6 @@ func TestAdministrativeOrderRepository_GetAcknowledgmentPersonByID(t *testing.T)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("fills missing acknowledgment fields from update result", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
-		personID := uuid.New()
-		documentID := uuid.New()
-		acknowledgedBy := uuid.New()
-		now := time.Now()
-		acknowledgedAt := now.Add(time.Hour)
-
-		mock.ExpectQuery(`UPDATE administrative_order_acknowledgment_people`).
-			WithArgs(personID, acknowledgedBy).
-			WillReturnRows(sqlmock.NewRows([]string{"document_id", "acknowledged_at"}).AddRow(documentID, acknowledgedAt))
-		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.id = \$1`).
-			WithArgs(personID).
-			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
-				"acknowledged_by_name", "position", "created_at",
-			}).AddRow(personID, uuid.Nil, "Иванов И.И.", nil, nil, "", 1, now))
-
-		person, err := repo.MarkAcknowledgmentPerson(personID, acknowledgedBy)
-
-		require.NoError(t, err)
-		require.NotNil(t, person)
-		assert.Equal(t, documentID, person.DocumentID)
-		require.NotNil(t, person.AcknowledgedAt)
-		assert.Equal(t, acknowledgedAt, *person.AcknowledgedAt)
-		require.NotNil(t, person.AcknowledgedBy)
-		assert.Equal(t, acknowledgedBy, *person.AcknowledgedBy)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("person reload error", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
-		personID := uuid.New()
-		documentID := uuid.New()
-		acknowledgedBy := uuid.New()
-		acknowledgedAt := time.Now()
-
-		mock.ExpectQuery(`UPDATE administrative_order_acknowledgment_people`).
-			WithArgs(personID, acknowledgedBy).
-			WillReturnRows(sqlmock.NewRows([]string{"document_id", "acknowledged_at"}).AddRow(documentID, acknowledgedAt))
-		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.id = \$1`).
-			WithArgs(personID).
-			WillReturnError(sql.ErrConnDone)
-
-		person, err := repo.MarkAcknowledgmentPerson(personID, acknowledgedBy)
-
-		require.Error(t, err)
-		assert.Nil(t, person)
-		assert.Contains(t, err.Error(), "failed to get administrative order acknowledgment person")
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-}
-
-func TestAdministrativeOrderRepository_MarkAcknowledgmentPerson(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
-		personID := uuid.New()
-		documentID := uuid.New()
-		acknowledgedBy := uuid.New()
-		now := time.Now()
-		acknowledgedAt := now.Add(time.Hour)
-
-		mock.ExpectQuery(`UPDATE administrative_order_acknowledgment_people`).
-			WithArgs(personID, acknowledgedBy).
-			WillReturnRows(sqlmock.NewRows([]string{"document_id", "acknowledged_at"}).AddRow(documentID, acknowledgedAt))
-		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.id = \$1`).
-			WithArgs(personID).
-			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
-				"acknowledged_by_name", "position", "created_at",
-			}).AddRow(personID, documentID, "Иванов И.И.", acknowledgedAt, acknowledgedBy, "Секретарь", 1, now))
-
-		person, err := repo.MarkAcknowledgmentPerson(personID, acknowledgedBy)
-
-		require.NoError(t, err)
-		require.NotNil(t, person)
-		assert.Equal(t, personID, person.ID)
-		assert.NotNil(t, person.AcknowledgedAt)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("not found", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
-		personID := uuid.New()
-		acknowledgedBy := uuid.New()
-
-		mock.ExpectQuery(`UPDATE administrative_order_acknowledgment_people`).
-			WithArgs(personID, acknowledgedBy).
-			WillReturnError(sql.ErrNoRows)
-
-		person, err := repo.MarkAcknowledgmentPerson(personID, acknowledgedBy)
-
-		require.NoError(t, err)
-		assert.Nil(t, person)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
 }
 
 func TestAdministrativeOrderRepositoryMarkAcknowledgmentPersonWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
@@ -401,7 +289,7 @@ func TestAdministrativeOrderRepositoryMarkAcknowledgmentPersonWithOutboxRollsBac
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+	repo := NewAdministrativeOrderRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	personID, documentID, acknowledgedBy := uuid.New(), uuid.New(), uuid.New()
 	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "order-ack:" + personID.String(), Payload: `{"action":"ACK_CONFIRM"}`}
@@ -418,59 +306,12 @@ func TestAdministrativeOrderRepositoryMarkAcknowledgmentPersonWithOutboxRollsBac
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAdministrativeOrderRepository_CancelByLink(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
-		docID := uuid.New()
-		cancelledAt := time.Now()
-
-		mock.ExpectExec(`UPDATE documents d`).
-			WithArgs(docID, models.DocumentKindAdministrativeOrder, cancelledAt).
-			WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectExec(`UPDATE administrative_order_details`).
-			WithArgs(docID, cancelledAt).
-			WillReturnResult(sqlmock.NewResult(0, 1))
-
-		err = repo.CancelByLink(docID, cancelledAt)
-
-		require.NoError(t, err)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("details update error", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
-		docID := uuid.New()
-		cancelledAt := time.Now()
-
-		mock.ExpectExec(`UPDATE documents d`).
-			WithArgs(docID, models.DocumentKindAdministrativeOrder, cancelledAt).
-			WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectExec(`UPDATE administrative_order_details`).
-			WithArgs(docID, cancelledAt).
-			WillReturnError(sql.ErrConnDone)
-
-		err = repo.CancelByLink(docID, cancelledAt)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to cancel administrative order by link")
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-}
-
 func TestAdministrativeOrderRepository_GetCount(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+	repo := NewAdministrativeOrderRepository(database.Wrap(db))
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).
 		WithArgs(models.DocumentKindAdministrativeOrder).
@@ -507,7 +348,7 @@ func TestAdministrativeOrderRepository_GetByID(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 		now := time.Now()
 
@@ -536,7 +377,7 @@ func TestAdministrativeOrderRepository_GetByID(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 
 		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
@@ -555,7 +396,7 @@ func TestAdministrativeOrderRepository_GetByID(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 		now := time.Now()
 
@@ -581,7 +422,7 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 		now := time.Now()
 		deadline := now.AddDate(0, 0, 10)
@@ -636,7 +477,7 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 			WithArgs(docID).
 			WillReturnRows(administrativeOrderAcknowledgmentPeopleRows(docID, now))
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 
 		require.NoError(t, err)
 		require.NotNil(t, doc)
@@ -649,7 +490,7 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 		now := time.Now()
 		req := models.UpdateAdministrativeOrderDocRequest{
@@ -681,7 +522,7 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectRollback()
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -699,13 +540,13 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
 			WithArgs(docID).
 			WillReturnError(sql.ErrConnDone)
 
-		doc, err := repo.Update(models.UpdateAdministrativeOrderDocRequest{ID: docID})
+		doc, err := repo.UpdateWithOutbox(models.UpdateAdministrativeOrderDocRequest{ID: docID}, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -718,7 +559,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
 			WithArgs(docID).
@@ -728,7 +569,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			}))
 		mock.ExpectBegin().WillReturnError(sql.ErrConnDone)
 
-		doc, err := repo.Update(models.UpdateAdministrativeOrderDocRequest{ID: docID})
+		doc, err := repo.UpdateWithOutbox(models.UpdateAdministrativeOrderDocRequest{ID: docID}, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -741,7 +582,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		req := models.UpdateAdministrativeOrderDocRequest{
 			ID:        uuid.New(),
 			OrderDate: time.Now(),
@@ -761,7 +602,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -774,7 +615,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		req := models.UpdateAdministrativeOrderDocRequest{
 			ID:                  uuid.New(),
 			OrderDate:           time.Now(),
@@ -806,7 +647,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -821,7 +662,8 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
+		repo.SetOutbox(NewOutboxRepository(repo.db))
 		docID := uuid.New()
 		now := time.Now()
 		deadline := now.AddDate(0, 0, 14)
@@ -876,6 +718,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		mock.ExpectExec(`INSERT INTO administrative_order_acknowledgment_people`).
 			WithArgs(docID, "Петров П.П.", nil, nil, 2).
 			WillReturnResult(sqlmock.NewResult(2, 1))
+		mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventJournal, "administrative-order:"+docID.String()+":create:journal", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
 			WithArgs(docID, models.DocumentKindAdministrativeOrder).
@@ -884,7 +727,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 			WithArgs(docID).
 			WillReturnRows(administrativeOrderAcknowledgmentPeopleRows(docID, now))
 
-		doc, err := repo.Create(req)
+		doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 		require.NoError(t, err)
 		require.NotNil(t, doc)
@@ -897,7 +740,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 		now := time.Now()
 		req := models.CreateAdministrativeOrderDocRequest{
@@ -941,7 +784,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		).WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		doc, err := repo.Create(req)
+		doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -954,14 +797,14 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		mock.ExpectBegin()
 		mock.ExpectRollback()
 
-		doc, err := repo.Create(models.CreateAdministrativeOrderDocRequest{
+		doc, err := repo.CreateWithJournal(models.CreateAdministrativeOrderDocRequest{
 			NomenclatureID: uuid.New(),
 			CreatedBy:      uuid.New(),
-		})
+		}, "CREATE", "Created %s")
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -995,7 +838,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 				require.NoError(t, err)
 				defer db.Close()
 
-				repo := NewAdministrativeOrderRepository(&database.DB{DB: db})
+				repo := NewAdministrativeOrderRepository(database.Wrap(db))
 				req := models.CreateAdministrativeOrderDocRequest{
 					NomenclatureID: uuid.New(),
 					IdempotencyKey: uuid.New(),
@@ -1026,7 +869,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 				).WillReturnError(tt.insertErr)
 				mock.ExpectRollback()
 
-				doc, err := repo.Create(req)
+				doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 				require.Error(t, err)
 				assert.Nil(t, doc)

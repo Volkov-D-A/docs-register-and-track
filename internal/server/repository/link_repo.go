@@ -112,14 +112,14 @@ func (r *LinkRepository) DeleteWithOutbox(ctx context.Context, id uuid.UUID, eff
 // GetByID — получить связь по ID
 func (r *LinkRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.DocumentLink, error) {
 	query := `
-		SELECT l.id, ds.kind, l.source_document_id, dt.kind, l.target_document_id, l.link_type, l.created_by, l.created_at
+		SELECT l.id, ds.kind, l.source_document_id, dt.kind, l.target_document_id, l.link_type
 		FROM document_links l
 		JOIN documents ds ON ds.id = l.source_document_id
 		JOIN documents dt ON dt.id = l.target_document_id
 		WHERE l.id = $1
 	`
 	var l models.DocumentLink
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&l.ID, &l.SourceKind, &l.SourceID, &l.TargetKind, &l.TargetID, &l.LinkType, &l.CreatedBy, &l.CreatedAt)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&l.ID, &l.SourceKind, &l.SourceID, &l.TargetKind, &l.TargetID, &l.LinkType)
 	if err != nil {
 		return nil, err
 	}
@@ -132,15 +132,14 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 		SELECT 
 			l.id, ds.kind, l.source_document_id,
 			dt.kind, l.target_document_id,
-			l.link_type, l.created_by, l.created_at,
-			dsource.registration_number as source_number,
-			dtarget.registration_number as target_number,
-			dtarget.content as target_subject
+			l.link_type,
+			ds.registration_number as source_number,
+			dt.registration_number as target_number,
+			ds.content as source_subject,
+			dt.content as target_subject
 		FROM document_links l
 		JOIN documents ds ON ds.id = l.source_document_id
 		JOIN documents dt ON dt.id = l.target_document_id
-		JOIN documents dsource ON dsource.id = l.source_document_id
-		JOIN documents dtarget ON dtarget.id = l.target_document_id
 		WHERE l.source_document_id = $1 OR l.target_document_id = $1
 		ORDER BY l.created_at DESC
 	`
@@ -154,12 +153,12 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 	links := make([]models.DocumentLink, 0)
 	for rows.Next() {
 		var l models.DocumentLink
-		var sourceNum, targetNum, targetSubj sql.NullString
+		var sourceNum, targetNum, sourceSubj, targetSubj sql.NullString
 		if err := rows.Scan(
 			&l.ID, &l.SourceKind, &l.SourceID,
 			&l.TargetKind, &l.TargetID,
-			&l.LinkType, &l.CreatedBy, &l.CreatedAt,
-			&sourceNum, &targetNum, &targetSubj,
+			&l.LinkType,
+			&sourceNum, &targetNum, &sourceSubj, &targetSubj,
 		); err != nil {
 			return nil, err
 		}
@@ -169,6 +168,9 @@ func (r *LinkRepository) GetByDocumentID(ctx context.Context, docID uuid.UUID) (
 		}
 		if targetNum.Valid {
 			l.TargetNumber = targetNum.String
+		}
+		if sourceSubj.Valid {
+			l.SourceSubject = sourceSubj.String
 		}
 		if targetSubj.Valid {
 			l.TargetSubject = targetSubj.String
@@ -196,8 +198,6 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 				dt.kind AS target_type,
 				l.target_document_id AS target_id,
 				l.link_type,
-				l.created_by,
-				l.created_at,
 				1 as depth
 			FROM document_links l
 			JOIN documents ds ON ds.id = l.source_document_id
@@ -214,8 +214,6 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 				dt.kind AS target_type,
 				l.target_document_id AS target_id,
 				l.link_type,
-				l.created_by,
-				l.created_at,
 				g.depth + 1
 			FROM document_links l
 			JOIN documents ds ON ds.id = l.source_document_id
@@ -229,7 +227,7 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 			WHERE g.depth < 5 AND l.id != g.id -- Limit depth to prevent infinite loops (though usually DAG)
 		)
 		SELECT DISTINCT 
-			id, source_type, source_id, target_type, target_id, link_type, created_by, created_at
+			id, source_type, source_id, target_type, target_id, link_type
 		FROM doc_graph
 	`
 
@@ -245,7 +243,7 @@ func (r *LinkRepository) GetGraph(ctx context.Context, rootID uuid.UUID) ([]mode
 		if err := rows.Scan(
 			&l.ID, &l.SourceKind, &l.SourceID,
 			&l.TargetKind, &l.TargetID,
-			&l.LinkType, &l.CreatedBy, &l.CreatedAt,
+			&l.LinkType,
 		); err != nil {
 			return nil, err
 		}

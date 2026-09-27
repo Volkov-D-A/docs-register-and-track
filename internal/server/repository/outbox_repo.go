@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // ErrOutboxNotConfigured prevents an atomic business operation from silently
@@ -224,7 +224,7 @@ func (r *OutboxRepository) GetFailed(limit int) ([]models.FailedOutboxEvent, err
 	if limit < 1 || limit > 100 {
 		limit = 50
 	}
-	rows, err := r.db.Query(`SELECT id, event_type, deduplication_key, attempts, COALESCE(last_error, ''), created_at, failed_at
+	rows, err := r.db.Query(`SELECT id, event_type, attempts, COALESCE(last_error, ''), failed_at
 		FROM event_outbox WHERE failed_at IS NOT NULL ORDER BY failed_at DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
@@ -233,7 +233,7 @@ func (r *OutboxRepository) GetFailed(limit int) ([]models.FailedOutboxEvent, err
 	events := make([]models.FailedOutboxEvent, 0)
 	for rows.Next() {
 		var event models.FailedOutboxEvent
-		if err := rows.Scan(&event.ID, &event.EventType, &event.DeduplicationKey, &event.Attempts, &event.LastError, &event.CreatedAt, &event.FailedAt); err != nil {
+		if err := rows.Scan(&event.ID, &event.EventType, &event.Attempts, &event.LastError, &event.FailedAt); err != nil {
 			return nil, err
 		}
 		events = append(events, event)

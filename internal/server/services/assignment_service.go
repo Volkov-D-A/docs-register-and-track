@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -74,8 +75,11 @@ func (s *AssignmentService) assignmentActorAccess(existing *models.Assignment, c
 		}
 		isSubstituteExecutor = ok
 	}
-	canManageAssignment := s.access.RequireDocumentAction(existing.DocumentID, "assign") == nil
-	return isExecutor, isSubstituteExecutor, canManageAssignment, nil
+	accessErr := s.access.RequireDocumentAction(existing.DocumentID, "assign")
+	if accessErr != nil && !errors.Is(accessErr, models.ErrForbidden) {
+		return false, false, false, accessErr
+	}
+	return isExecutor, isSubstituteExecutor, accessErr == nil, nil
 }
 
 type assignmentStatusUpdate struct {
@@ -155,6 +159,52 @@ func resolveAssignmentStatusUpdate(existing *models.Assignment, status, report s
 	return &assignmentStatusUpdate{report: report, completedAt: completedAt}, nil
 }
 
+func normalizeAssignmentCoExecutorIDs(executorID uuid.UUID, values []string) ([]string, error) {
+	if len(values) == 0 {
+		return values, nil
+	}
+	result := make([]string, 0, len(values))
+	seen := map[uuid.UUID]struct{}{executorID: {}}
+	for _, value := range values {
+		id, err := uuid.Parse(value)
+		if err != nil || id == uuid.Nil {
+			return nil, models.NewBadRequest("неверный ID соисполнителя")
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id.String())
+	}
+	return result, nil
+}
+
+// requireEligibleExecutors applies the same conditions as the assignment user picker.
+func (s *AssignmentService) requireEligibleExecutors(executorID uuid.UUID, coExecutorIDs []string) error {
+	ids := make([]uuid.UUID, 0, 1+len(coExecutorIDs))
+	ids = append(ids, executorID)
+	for _, raw := range coExecutorIDs {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return models.NewBadRequest("неверный ID соисполнителя")
+		}
+		ids = append(ids, id)
+	}
+	eligible, err := s.userRepo.GetEligibleRecipientIDs(ids)
+	if err != nil {
+		return err
+	}
+	if _, ok := eligible[executorID]; !ok {
+		return models.NewBadRequest("выбранный исполнитель недоступен для назначения")
+	}
+	for _, id := range ids[1:] {
+		if _, ok := eligible[id]; !ok {
+			return models.NewBadRequest("выбранный соисполнитель недоступен для назначения")
+		}
+	}
+	return nil
+}
+
 // Create — создание поручения
 func (s *AssignmentService) Create(
 	documentID string,
@@ -176,8 +226,15 @@ func (s *AssignmentService) Create(
 	}
 
 	execUUID, err := uuid.Parse(executorID)
+	if err != nil || execUUID == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ID исполнителя")
+	}
+	coExecutorIDs, err = normalizeAssignmentCoExecutorIDs(execUUID, coExecutorIDs)
 	if err != nil {
-		return nil, models.NewBadRequestWrapped("неверный ID исполнителя", err)
+		return nil, err
+	}
+	if err := s.requireEligibleExecutors(execUUID, coExecutorIDs); err != nil {
+		return nil, err
 	}
 
 	var deadlineTime *time.Time
@@ -216,8 +273,8 @@ func (s *AssignmentService) Create(
 
 func validateAssignmentSeriesRequest(request models.AssignmentSeriesRequest, requireFirstDeadline bool) (uuid.UUID, string, string, int, int, error) {
 	executorID, err := uuid.Parse(request.ExecutorID)
-	if err != nil {
-		return uuid.Nil, "", "", 0, 0, models.NewBadRequestWrapped("неверный ID исполнителя", err)
+	if err != nil || executorID == uuid.Nil {
+		return uuid.Nil, "", "", 0, 0, models.NewBadRequest("неверный ID исполнителя")
 	}
 	content := strings.TrimSpace(request.Content)
 	if content == "" {
@@ -295,6 +352,13 @@ func (s *AssignmentService) CreateSeries(request models.AssignmentSeriesRequest)
 	}
 	executorID, content, dayRule, intervalValue, dayOfMonth, err := validateAssignmentSeriesRequest(request, true)
 	if err != nil {
+		return nil, err
+	}
+	request.CoExecutorIDs, err = normalizeAssignmentCoExecutorIDs(executorID, request.CoExecutorIDs)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireEligibleExecutors(executorID, request.CoExecutorIDs); err != nil {
 		return nil, err
 	}
 	firstDeadline, err := time.Parse("2006-01-02", request.FirstDeadline)
@@ -385,6 +449,13 @@ func (s *AssignmentService) UpdateSeries(id string, request models.AssignmentSer
 	if err != nil {
 		return nil, err
 	}
+	request.CoExecutorIDs, err = normalizeAssignmentCoExecutorIDs(executorID, request.CoExecutorIDs)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireEligibleExecutors(executorID, request.CoExecutorIDs); err != nil {
+		return nil, err
+	}
 	actorID, err := s.auth.GetCurrentUserUUID()
 	if err != nil {
 		return nil, err
@@ -448,8 +519,15 @@ func (s *AssignmentService) Update(
 	}
 
 	execUUID, err := uuid.Parse(executorID)
+	if err != nil || execUUID == uuid.Nil {
+		return nil, models.NewBadRequest("неверный ID исполнителя")
+	}
+	coExecutorIDs, err = normalizeAssignmentCoExecutorIDs(execUUID, coExecutorIDs)
 	if err != nil {
-		return nil, models.NewBadRequestWrapped("неверный ID исполнителя", err)
+		return nil, err
+	}
+	if err := s.requireEligibleExecutors(execUUID, coExecutorIDs); err != nil {
+		return nil, err
 	}
 
 	var deadlineTime *time.Time
@@ -592,7 +670,11 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 				}
 				nextEffects = append(nextEffects, event)
 			}
-			res, err = seriesRepo.FinishSeriesIterationWithNext(uid, series.ID, nextID, series.UpdatedAt, statusUpdate.report, statusUpdate.completedAt, nextDeadline, nextIteration, series.ExecutorID, series.Content, series.CoExecutorIDs, effects, nextEffects)
+			autoCancelEffect, buildErr := servereffects.NewJournalOutboxEvent("assignment-series:"+series.ID.String()+":auto-cancel-ineligible:journal", models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_SERIES_CANCEL", Details: "Серия поручений завершена: исполнитель будущей итерации недоступен для назначения"})
+			if buildErr != nil {
+				return nil, buildErr
+			}
+			res, err = seriesRepo.FinishSeriesIterationWithNext(uid, series.ID, nextID, currentUserID, series.UpdatedAt, statusUpdate.report, statusUpdate.completedAt, nextDeadline, nextIteration, series.ExecutorID, series.Content, series.CoExecutorIDs, effects, nextEffects, autoCancelEffect)
 		} else {
 			res, err = s.repo.UpdateWithOutbox(uid, existing.ExecutorID, existing.Content, existing.Deadline, status, statusUpdate.report, statusUpdate.completedAt, existing.CoExecutorIDs, effects)
 		}
@@ -622,6 +704,9 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 		}
 		if err := s.access.RequireDocumentAction(docUUID, "assign"); err != nil {
+			if !errors.Is(err, models.ErrForbidden) {
+				return nil, err
+			}
 			_, subjectIDs, subjectsErr := s.currentUserAndSubstitutionSubjectIDs()
 			if subjectsErr != nil {
 				return nil, subjectsErr

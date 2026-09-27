@@ -2,13 +2,12 @@ package server
 
 import (
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
-	"log/slog"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
 )
 
 type diagnosticsOutbox interface {
@@ -34,10 +33,6 @@ func (d *serverDiagnostics) GetSystemDiagnostics() (*models.SystemDiagnostics, e
 	now := d.now().UTC()
 	result := &models.SystemDiagnostics{}
 	result.Service = d.serviceStatistics(now)
-	if err := d.app.db.QueryRow("SELECT pg_database_size(current_database())").Scan(&result.Database.SizeBytes); err != nil {
-		slog.Warn("failed to get database size in bytes", "error", err)
-	}
-
 	if d.sessions != nil {
 		sessions, users, err := d.sessions.Activity(now, now.Add(-15*time.Minute))
 		if err != nil {
@@ -61,7 +56,7 @@ func (d *serverDiagnostics) GetSystemDiagnostics() (*models.SystemDiagnostics, e
 
 func (d *serverDiagnostics) serviceStatistics(now time.Time) models.SystemServiceStatistics {
 	identity := buildinfo.Current()
-	result := models.SystemServiceStatistics{BuildVersion: identity.Version(d.app.version), SourceRevision: identity.Revision, SourceDirty: identity.Fingerprint != "", Version: d.app.version, APIVersion: systemAPIVersion, State: "not_ready", StartedAt: d.app.startedAt}
+	result := models.SystemServiceStatistics{BuildVersion: identity.Version(d.app.version), SourceRevision: identity.Revision, SourceDirty: identity.Fingerprint != "", Version: d.app.version, State: "not_ready", StartedAt: d.app.startedAt}
 	if !d.app.startedAt.IsZero() {
 		result.UptimeSeconds = max(0, int64(now.Sub(d.app.startedAt).Seconds()))
 	}
@@ -71,8 +66,6 @@ func (d *serverDiagnostics) serviceStatistics(now time.Time) models.SystemServic
 	}
 	result.SchemaCurrentVersion = status.CurrentVersion
 	result.SchemaRequiredVersion = status.LatestAvailableVersion
-	result.SchemaCompatible = status.Compatible
-	result.SchemaDirty = status.Dirty
 	if d.app.lifecycle != nil {
 		if err := d.app.lifecycle.CheckReady(); err != nil {
 			result.State = "maintenance"

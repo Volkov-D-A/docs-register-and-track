@@ -22,23 +22,25 @@ import (
 
 func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	password := "WorkflowPassw0rd!"
 	hash, err := security.HashPassword(password)
 	require.NoError(t, err)
-	managerID, recipientID, outsiderID := uuid.New(), uuid.New(), uuid.New()
+	managerID, otherManagerID, recipientID, outsiderID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	for _, user := range []struct {
 		id    uuid.UUID
 		login string
 		name  string
-	}{{managerID, "workflow-manager", "Workflow Manager"}, {recipientID, "workflow-recipient", "Workflow Recipient"}, {outsiderID, "workflow-outsider", "Workflow Outsider"}} {
+	}{{managerID, "workflow-manager", "Workflow Manager"}, {otherManagerID, "workflow-other-manager", "Other Manager"}, {recipientID, "workflow-recipient", "Workflow Recipient"}, {outsiderID, "workflow-outsider", "Workflow Outsider"}} {
 		_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, is_document_participant, password_change_required)
 			VALUES ($1, $2, $3, $4, TRUE, TRUE, FALSE)`, user.id, user.login, hash, user.name)
 		require.NoError(t, err)
 	}
 	_, err = db.Exec(`INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed)
 		VALUES ('outgoing_letter', 'user', $1, 'read', TRUE),
-		       ('outgoing_letter', 'user', $1, 'acknowledge', TRUE)`, managerID.String())
+		       ('outgoing_letter', 'user', $1, 'acknowledge', TRUE),
+		       ('outgoing_letter', 'user', $2, 'read', TRUE),
+		       ('outgoing_letter', 'user', $2, 'acknowledge', TRUE)`, managerID.String(), otherManagerID.String())
 	require.NoError(t, err)
 	nomenclatureID, organizationID := uuid.New(), uuid.New()
 	_, err = db.Exec(`INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode)
@@ -46,11 +48,13 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO organizations (id, name) VALUES ($1, 'Workflow Organization')`, organizationID)
 	require.NoError(t, err)
-	document, err := repository.NewOutgoingDocumentRepository(db).Create(models.CreateOutgoingDocRequest{
+	documentRepo := repository.NewOutgoingDocumentRepository(db)
+	documentRepo.SetOutbox(repository.NewOutboxRepository(db))
+	document, err := documentRepo.CreateWithJournal(models.CreateOutgoingDocRequest{
 		NomenclatureID: nomenclatureID, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter,
 		RecipientOrgID: organizationID, CreatedBy: managerID, OutgoingDate: time.Now().UTC(), Content: "workflow api integration",
 		PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee",
-	})
+	}, "CREATE", "Created %s")
 	require.NoError(t, err)
 
 	api := newIntegrationManagementAPI(t, &App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32)})
@@ -67,6 +71,41 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 	}
 
 	managerToken := login("workflow-manager")
+	inactiveID, nonParticipantID := uuid.New(), uuid.New()
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, is_document_participant)
+		VALUES ($1, 'workflow-inactive', $3, 'Inactive Recipient', FALSE, TRUE),
+		       ($2, 'workflow-non-participant', $3, 'Nonparticipant Recipient', TRUE, FALSE)`, inactiveID, nonParticipantID, hash)
+	require.NoError(t, err)
+	for _, recipientID := range []uuid.UUID{inactiveID, nonParticipantID, uuid.New()} {
+		body := `{"documentId":"` + document.ID.String() + `","content":"ineligible recipient","userIds":["` + recipientID.String() + `"]}`
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/acknowledgments", strings.NewReader(body))
+		request.Header.Set("Authorization", "Bearer "+managerToken)
+		response := httptest.NewRecorder()
+		api.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+	}
+	invalidBody := `{"documentId":"` + document.ID.String() + `","content":"invalid recipients","userIds":["` + recipientID.String() + `","not-a-uuid"]}`
+	invalidCreate := httptest.NewRequest(http.MethodPost, "/api/v1/acknowledgments", strings.NewReader(invalidBody))
+	invalidCreate.Header.Set("Authorization", "Bearer "+managerToken)
+	invalidResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(invalidResponse, invalidCreate)
+	require.Equal(t, http.StatusBadRequest, invalidResponse.Code, invalidResponse.Body.String())
+	var acknowledgmentCount int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM acknowledgments WHERE document_id = $1`, document.ID).Scan(&acknowledgmentCount))
+	require.Zero(t, acknowledgmentCount)
+
+	duplicateBody := `{"documentId":"` + document.ID.String() + `","content":"duplicate recipients","userIds":["` + recipientID.String() + `","` + recipientID.String() + `"]}`
+	duplicateCreate := httptest.NewRequest(http.MethodPost, "/api/v1/acknowledgments", strings.NewReader(duplicateBody))
+	duplicateCreate.Header.Set("Authorization", "Bearer "+managerToken)
+	duplicateResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(duplicateResponse, duplicateCreate)
+	require.Equal(t, http.StatusCreated, duplicateResponse.Code, duplicateResponse.Body.String())
+	var duplicateAcknowledgment dtoAcknowledgmentID
+	require.NoError(t, json.NewDecoder(duplicateResponse.Body).Decode(&duplicateAcknowledgment))
+	var recipientCount int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM acknowledgment_users WHERE acknowledgment_id = $1`, duplicateAcknowledgment.ID).Scan(&recipientCount))
+	require.Equal(t, 1, recipientCount)
+
 	createBody := `{"documentId":"` + document.ID.String() + `","content":"Read the document","userIds":["` + recipientID.String() + `"]}`
 	create := httptest.NewRequest(http.MethodPost, "/api/v1/acknowledgments", strings.NewReader(createBody))
 	create.Header.Set("Authorization", "Bearer "+managerToken)
@@ -117,6 +156,30 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 	outsiderEvents := queryEvents(login("workflow-outsider"))
 	require.Equal(t, http.StatusOK, outsiderEvents.Code, outsiderEvents.Body.String())
 	require.NotContains(t, outsiderEvents.Body.String(), eventID)
+
+	deleteAs := func(token string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodDelete, "/api/v1/acknowledgments/"+acknowledgment.ID, nil)
+		request.Header.Set("Authorization", "Bearer "+token)
+		response := httptest.NewRecorder()
+		api.Handler().ServeHTTP(response, request)
+		return response
+	}
+	otherManagerToken := login("workflow-other-manager")
+	foreignDelete := deleteAs(otherManagerToken)
+	require.Equal(t, http.StatusForbidden, foreignDelete.Code, foreignDelete.Body.String())
+	var remaining int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM acknowledgments WHERE id = $1`, acknowledgment.ID).Scan(&remaining))
+	require.Equal(t, 1, remaining)
+	ownerDelete := deleteAs(managerToken)
+	require.Equal(t, http.StatusNoContent, ownerDelete.Code, ownerDelete.Body.String())
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM acknowledgments WHERE id = $1`, acknowledgment.ID).Scan(&remaining))
+	require.Zero(t, remaining)
+	require.Equal(t, http.StatusNoContent, deleteAs(managerToken).Code)
+	missingConfirm := httptest.NewRequest(http.MethodPost, "/api/v1/acknowledgments/"+acknowledgment.ID+"/confirm", nil)
+	missingConfirm.Header.Set("Authorization", "Bearer "+recipientToken)
+	missingConfirmResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(missingConfirmResponse, missingConfirm)
+	require.Equal(t, http.StatusForbidden, missingConfirmResponse.Code, missingConfirmResponse.Body.String())
 }
 
 type dtoAcknowledgmentID struct {

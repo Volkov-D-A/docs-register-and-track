@@ -20,7 +20,7 @@ func TestLinkRepository_CreateWithOutbox(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewLinkRepository(&database.DB{DB: db})
+	repo := NewLinkRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	ctx := context.Background()
 
@@ -51,7 +51,7 @@ func TestLinkRepositoryCreateWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewLinkRepository(&database.DB{DB: db})
+	repo := NewLinkRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	link := &models.DocumentLink{ID: uuid.New(), SourceID: uuid.New(), TargetID: uuid.New(), LinkType: "reply", CreatedBy: uuid.New()}
 	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "link:" + link.ID.String(), Payload: `{"action":"LINK_CREATE"}`}
@@ -80,7 +80,7 @@ func TestLinkRepository_CreateAndCancelOrderWithOutbox(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewLinkRepository(&database.DB{DB: db})
+	repo := NewLinkRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	link := &models.DocumentLink{ID: uuid.New(), SourceID: uuid.New(), TargetID: uuid.New(), LinkType: "order_cancels", CreatedBy: uuid.New()}
 	createdAt := time.Now()
@@ -107,7 +107,7 @@ func TestLinkRepositoryCreateAndCancelOrderWithOutboxRollsBackOnEnqueueFailure(t
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewLinkRepository(&database.DB{DB: db})
+	repo := NewLinkRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	link := &models.DocumentLink{ID: uuid.New(), SourceID: uuid.New(), TargetID: uuid.New(), LinkType: "order_cancels", CreatedBy: uuid.New()}
 	createdAt := time.Now()
@@ -137,7 +137,7 @@ func TestLinkRepository_DeleteWithOutbox(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewLinkRepository(&database.DB{DB: db})
+	repo := NewLinkRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	ctx := context.Background()
 	id := uuid.New()
@@ -159,19 +159,16 @@ func TestLinkRepository_GetByID(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewLinkRepository(&database.DB{DB: db})
+		repo := NewLinkRepository(database.Wrap(db))
 		ctx := context.Background()
 		id := uuid.New()
 		sourceID := uuid.New()
 		targetID := uuid.New()
-		createdBy := uuid.New()
-		now := time.Now()
-
-		query := `SELECT l\.id, ds\.kind, l\.source_document_id, dt\.kind, l\.target_document_id, l\.link_type, l\.created_by, l\.created_at FROM document_links l JOIN documents ds ON ds\.id = l\.source_document_id JOIN documents dt ON dt\.id = l\.target_document_id WHERE l\.id = \$1`
+		query := `SELECT l\.id, ds\.kind, l\.source_document_id, dt\.kind, l\.target_document_id, l\.link_type FROM document_links l JOIN documents ds ON ds\.id = l\.source_document_id JOIN documents dt ON dt\.id = l\.target_document_id WHERE l\.id = \$1`
 		rows := sqlmock.NewRows([]string{
 			"id", "source_kind", "source_document_id", "target_kind", "target_document_id",
-			"link_type", "created_by", "created_at",
-		}).AddRow(id, models.DocumentKindIncomingLetter, sourceID, models.DocumentKindOutgoingLetter, targetID, "reply", createdBy, now)
+			"link_type",
+		}).AddRow(id, models.DocumentKindIncomingLetter, sourceID, models.DocumentKindOutgoingLetter, targetID, "reply")
 
 		mock.ExpectQuery(query).WithArgs(id).WillReturnRows(rows)
 
@@ -184,8 +181,6 @@ func TestLinkRepository_GetByID(t *testing.T) {
 		assert.Equal(t, models.DocumentKindOutgoingLetter, link.TargetKind)
 		assert.Equal(t, targetID, link.TargetID)
 		assert.Equal(t, "reply", link.LinkType)
-		assert.Equal(t, createdBy, link.CreatedBy)
-		assert.Equal(t, now, link.CreatedAt)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -194,11 +189,11 @@ func TestLinkRepository_GetByID(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewLinkRepository(&database.DB{DB: db})
+		repo := NewLinkRepository(database.Wrap(db))
 		ctx := context.Background()
 		id := uuid.New()
 
-		query := `SELECT l\.id, ds\.kind, l\.source_document_id, dt\.kind, l\.target_document_id, l\.link_type, l\.created_by, l\.created_at FROM document_links l JOIN documents ds ON ds\.id = l\.source_document_id JOIN documents dt ON dt\.id = l\.target_document_id WHERE l\.id = \$1`
+		query := `SELECT l\.id, ds\.kind, l\.source_document_id, dt\.kind, l\.target_document_id, l\.link_type FROM document_links l JOIN documents ds ON ds\.id = l\.source_document_id JOIN documents dt ON dt\.id = l\.target_document_id WHERE l\.id = \$1`
 		mock.ExpectQuery(query).WithArgs(id).WillReturnError(sqlmock.ErrCancelled)
 
 		link, err := repo.GetByID(ctx, id)
@@ -214,21 +209,20 @@ func TestLinkRepository_GetByDocumentID(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewLinkRepository(&database.DB{DB: db})
+	repo := NewLinkRepository(database.Wrap(db))
 	ctx := context.Background()
 	docID := uuid.New()
-	now := time.Now()
 
 	query := `SELECT(.*)FROM document_links l(.*)JOIN documents ds ON ds.id = l.source_document_id(.*)WHERE l.source_document_id = \$1 OR l.target_document_id = \$1(.*)`
 
 	rows := sqlmock.NewRows([]string{
 		"id", "kind", "source_document_id", "kind", "target_document_id",
-		"link_type", "created_by", "created_at",
-		"source_number", "target_number", "target_subject",
+		"link_type",
+		"source_number", "target_number", "source_subject", "target_subject",
 	}).AddRow(
 		uuid.New(), "incoming_letter", docID, "outgoing_letter", uuid.New(),
-		"reply", uuid.New(), now,
-		"INC-001", "OUT-002", "Subject Test",
+		"reply",
+		"INC-001", "OUT-002", "Source subject", "Target subject",
 	)
 
 	mock.ExpectQuery(query).WithArgs(docID).WillReturnRows(rows)
@@ -238,7 +232,8 @@ func TestLinkRepository_GetByDocumentID(t *testing.T) {
 	require.Len(t, links, 1)
 	assert.Equal(t, "INC-001", links[0].SourceNumber)
 	assert.Equal(t, "OUT-002", links[0].TargetNumber)
-	assert.Equal(t, "Subject Test", links[0].TargetSubject)
+	assert.Equal(t, "Source subject", links[0].SourceSubject)
+	assert.Equal(t, "Target subject", links[0].TargetSubject)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -248,17 +243,16 @@ func TestLinkRepository_GetGraph(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewLinkRepository(&database.DB{DB: db})
+	repo := NewLinkRepository(database.Wrap(db))
 	ctx := context.Background()
 	rootID := uuid.New()
-	now := time.Now()
 
-	query := `WITH RECURSIVE doc_graph AS \(.*ds\.kind AS source_type.*l\.source_document_id AS source_id.*dt\.kind AS target_type.*l\.target_document_id AS target_id.*source_document_id = \$1 OR target_document_id = \$1.*SELECT DISTINCT.*source_type, source_id, target_type, target_id, link_type, created_by, created_at.*FROM doc_graph`
+	query := `WITH RECURSIVE doc_graph AS \(.*ds\.kind AS source_type.*l\.source_document_id AS source_id.*dt\.kind AS target_type.*l\.target_document_id AS target_id.*source_document_id = \$1 OR target_document_id = \$1.*SELECT DISTINCT.*source_type, source_id, target_type, target_id, link_type.*FROM doc_graph`
 
 	rows := sqlmock.NewRows([]string{
 		"id", "source_type", "source_id", "target_type", "target_id",
-		"link_type", "created_by", "created_at",
-	}).AddRow(uuid.New(), "incoming_letter", rootID, "outgoing_letter", uuid.New(), "reply", uuid.New(), now)
+		"link_type",
+	}).AddRow(uuid.New(), "incoming_letter", rootID, "outgoing_letter", uuid.New(), "reply")
 
 	mock.ExpectQuery(query).WithArgs(rootID).WillReturnRows(rows)
 

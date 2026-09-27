@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // SettingsRepository предоставляет методы для работы с системными настройками в БД.
@@ -21,8 +21,8 @@ func NewSettingsRepository(db *database.DB) *SettingsRepository {
 // Get возвращает значение системной настройки по её ключу.
 func (r *SettingsRepository) Get(key string) (*models.SystemSetting, error) {
 	var s models.SystemSetting
-	err := r.db.QueryRow("SELECT key, value, description, updated_at FROM system_settings WHERE key = $1", key).
-		Scan(&s.Key, &s.Value, &s.Description, &s.UpdatedAt)
+	err := r.db.QueryRow("SELECT key, value, description FROM system_settings WHERE key = $1", key).
+		Scan(&s.Key, &s.Value, &s.Description)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (r *SettingsRepository) Get(key string) (*models.SystemSetting, error) {
 
 // GetAll возвращает список всех системных настроек.
 func (r *SettingsRepository) GetAll() ([]models.SystemSetting, error) {
-	rows, err := r.db.Query("SELECT key, value, description, updated_at FROM system_settings ORDER BY key")
+	rows, err := r.db.Query("SELECT key, value FROM system_settings ORDER BY key")
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (r *SettingsRepository) GetAll() ([]models.SystemSetting, error) {
 	settings := make([]models.SystemSetting, 0)
 	for rows.Next() {
 		var s models.SystemSetting
-		if err := rows.Scan(&s.Key, &s.Value, &s.Description, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.Key, &s.Value); err != nil {
 			return nil, err
 		}
 		settings = append(settings, s)
@@ -51,17 +51,6 @@ func (r *SettingsRepository) GetAll() ([]models.SystemSetting, error) {
 	return settings, nil
 }
 
-// Update обновляет значение системной настройки, создавая её при отсутствии.
-func (r *SettingsRepository) Update(key, value string) error {
-	_, err := r.db.Exec(`
-		INSERT INTO system_settings (key, value, updated_at)
-		VALUES ($1, $2, NOW())
-		ON CONFLICT (key) DO UPDATE
-		SET value = EXCLUDED.value, updated_at = NOW()
-	`, key, value)
-	return err
-}
-
 // UpdateWithOutbox records a setting change and its audit event atomically.
 func (r *SettingsRepository) UpdateWithOutbox(key, value string, effects []models.OutboxEvent) error {
 	tx, err := r.db.Begin()
@@ -69,7 +58,7 @@ func (r *SettingsRepository) UpdateWithOutbox(key, value string, effects []model
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(`INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, key, value); err != nil {
+	if _, err := tx.Exec(`INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, key, value); err != nil {
 		return err
 	}
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {

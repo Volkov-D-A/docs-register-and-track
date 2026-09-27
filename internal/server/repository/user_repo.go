@@ -106,7 +106,6 @@ func (r *UserRepository) GetSessionPrincipal(id uuid.UUID) (*models.SessionPrinc
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`
 		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts,
-		       u.password_changed_at, u.password_change_required, u.created_at, u.updated_at,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -130,7 +129,6 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 		if err := rows.Scan(
 			&user.ID, &user.Login, &user.FullName,
 			&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts,
-			&user.PasswordChangedAt, &user.PasswordChangeRequired, &user.CreatedAt, &user.UpdatedAt,
 			&departmentID, &departmentName,
 		); err != nil {
 			return nil, err
@@ -170,48 +168,6 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 	}
 
 	return users, nil
-}
-
-// Create создает нового пользователя в БД.
-func (r *UserRepository) Create(req models.CreateUserRequest) (*models.User, error) {
-	if err := security.ValidatePassword(req.Password); err != nil {
-		return nil, models.NewBadRequestWrapped(err.Error(), err)
-	}
-
-	passwordHash, err := security.HashPassword(req.Password)
-	if err != nil {
-		return nil, err
-	}
-
-	var depID *uuid.UUID
-	if req.DepartmentID != "" {
-		if uid, err := uuid.Parse(req.DepartmentID); err == nil {
-			depID = &uid
-		}
-	}
-
-	tx, err := r.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	var userID uuid.UUID
-	err = tx.QueryRow(`
-		INSERT INTO users (login, password_hash, full_name, department_id, is_document_participant, password_changed_at, password_change_required)
-		VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)
-		RETURNING id
-	`, req.Login, passwordHash, req.FullName, depID, req.IsDocumentParticipant, req.PasswordChangeRequired).Scan(&userID)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return r.GetByID(userID)
 }
 
 func (r *UserRepository) CreateWithOutbox(req models.CreateUserRequest, effects []models.OutboxEvent) (*models.User, error) {
@@ -289,57 +245,6 @@ func (r *UserRepository) CreateInitialAdmin(passwordHash string) error {
 	return nil
 }
 
-// Update обновляет данные существующего пользователя.
-func (r *UserRepository) Update(req models.UpdateUserRequest) (*models.User, error) {
-	uid, err := uuid.Parse(req.ID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid user ID: %w", err)
-	}
-
-	var depID *uuid.UUID
-	if req.DepartmentID != "" {
-		if uid, err := uuid.Parse(req.DepartmentID); err == nil {
-			depID = &uid
-		}
-	}
-
-	tx, err := r.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec(`
-		UPDATE users
-		SET login = $1,
-		    full_name = $2,
-		    is_active = $3,
-		    department_id = $4,
-		    is_document_participant = $5,
-		    failed_login_attempts = CASE
-		        WHEN is_active = false AND $3 = true THEN 0
-		        ELSE failed_login_attempts
-		    END,
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $6
-	`, req.Login, req.FullName, req.IsActive, depID, req.IsDocumentParticipant, uid)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to update user: %w", err)
-	}
-	if !req.IsActive {
-		if _, err := tx.Exec(`UPDATE server_sessions SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE user_id = $1 AND revoked_at IS NULL`, uid); err != nil {
-			return nil, fmt.Errorf("failed to revoke deactivated user sessions: %w", err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return r.GetByID(uid)
-}
-
 func (r *UserRepository) UpdateWithOutbox(req models.UpdateUserRequest, effects []models.OutboxEvent) (*models.User, error) {
 	uid, err := uuid.Parse(req.ID)
 	if err != nil {
@@ -406,10 +311,37 @@ func (r *UserRepository) GetUserSystemPermissions(userID uuid.UUID) ([]string, e
 	return permissions, nil
 }
 
+// GetEligibleRecipientIDs applies the same recipient conditions as the user picker.
+func (r *UserRepository) GetEligibleRecipientIDs(candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	result := make(map[uuid.UUID]struct{})
+	if len(candidateIDs) == 0 {
+		return result, nil
+	}
+	rows, err := r.db.Query(`
+		SELECT id FROM users
+		WHERE id = ANY($1) AND is_active = true AND is_document_participant = true
+	`, pq.Array(candidateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var userID uuid.UUID
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		result[userID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // GetExecutors возвращает список активных пользователей, доступных для назначения и ознакомления.
 func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active, u.created_at, u.updated_at,
+		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -433,7 +365,7 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 
 		if err := rows.Scan(
 			&user.ID, &user.Login, &user.FullName,
-			&user.IsDocumentParticipant, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+			&user.IsDocumentParticipant, &user.IsActive,
 			&departmentID, &departmentName,
 		); err != nil {
 			return nil, err
@@ -478,7 +410,7 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 // GetActiveUsers возвращает всех активных пользователей.
 func (r *UserRepository) GetActiveUsers() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active, u.created_at, u.updated_at,
+		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -502,7 +434,7 @@ func (r *UserRepository) GetActiveUsers() ([]models.User, error) {
 
 		if err := rows.Scan(
 			&user.ID, &user.Login, &user.FullName,
-			&user.IsDocumentParticipant, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
+			&user.IsDocumentParticipant, &user.IsActive,
 			&departmentID, &departmentName,
 		); err != nil {
 			return nil, err
@@ -615,11 +547,6 @@ func (r *UserRepository) ResetPasswordWithOutbox(userID uuid.UUID, newPassword s
 	return tx.Commit()
 }
 
-// UpdateProfile обновляет данные профиля пользователя (логин, ФИО).
-func (r *UserRepository) UpdateProfile(userID uuid.UUID, req models.UpdateProfileRequest) error {
-	return r.updateProfile(userID, req, nil)
-}
-
 func (r *UserRepository) UpdateProfileWithOutbox(userID uuid.UUID, req models.UpdateProfileRequest, effects []models.OutboxEvent) error {
 	return r.updateProfile(userID, req, effects)
 }
@@ -650,41 +577,6 @@ func (r *UserRepository) updateProfile(userID uuid.UUID, req models.UpdateProfil
 		}
 	}
 	return tx.Commit()
-}
-
-// IncrementFailedLoginAttempts увеличивает счетчик неудачных входов и деактивирует пользователя после 5-й ошибки.
-func (r *UserRepository) IncrementFailedLoginAttempts(userID uuid.UUID) (int, bool, error) {
-	tx, err := r.db.Begin()
-	if err != nil {
-		return 0, false, fmt.Errorf("failed to begin failed login update: %w", err)
-	}
-	defer tx.Rollback()
-	var attempts int
-	var isActive bool
-
-	err = tx.QueryRow(`
-		UPDATE users
-		SET failed_login_attempts = failed_login_attempts + 1,
-		    is_active = CASE
-		        WHEN failed_login_attempts + 1 >= 5 THEN false
-		        ELSE is_active
-		    END,
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1
-		RETURNING failed_login_attempts, is_active
-	`, userID).Scan(&attempts, &isActive)
-	if err != nil {
-		return 0, false, fmt.Errorf("failed to increment failed login attempts: %w", err)
-	}
-	if !isActive {
-		if _, err := tx.Exec(`UPDATE server_sessions SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP) WHERE user_id = $1 AND revoked_at IS NULL`, userID); err != nil {
-			return 0, false, fmt.Errorf("failed to revoke locked user sessions: %w", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, false, fmt.Errorf("failed to commit failed login update: %w", err)
-	}
-	return attempts, isActive, nil
 }
 
 // IncrementFailedLoginAttemptsWithOutbox writes the lock audit only for the

@@ -2,12 +2,11 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -21,7 +20,7 @@ func TestJournalRepository_Create(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewJournalRepository(&database.DB{DB: db})
+	repo := NewJournalRepository(database.Wrap(db))
 	ctx := context.Background()
 
 	req := models.CreateJournalEntryRequest{
@@ -49,15 +48,13 @@ func TestJournalRepository_CreateFromOutboxTreatsDuplicateAsDelivered(t *testing
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewJournalRepository(&database.DB{DB: db})
+	repo := NewJournalRepository(database.Wrap(db))
 	req := models.CreateJournalEntryRequest{DocumentID: uuid.New(), UserID: uuid.New(), Action: "TEST", Details: "retry"}
-	mock.ExpectQuery(`INSERT INTO document_journal`).
+	mock.ExpectExec(`INSERT INTO document_journal`).
 		WithArgs(req.DocumentID, req.UserID, req.Action, req.Details, "journal:retry:1").
-		WillReturnError(sql.ErrNoRows)
+		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	id, err := repo.CreateFromOutbox(context.Background(), req, "journal:retry:1")
-	require.NoError(t, err)
-	assert.Equal(t, uuid.Nil, id)
+	require.NoError(t, repo.CreateFromOutbox(context.Background(), req, "journal:retry:1"))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -67,24 +64,22 @@ func TestJournalRepository_GetByDocumentID(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewJournalRepository(&database.DB{DB: db})
+	repo := NewJournalRepository(database.Wrap(db))
 	ctx := context.Background()
 	docID := uuid.New()
 	now := time.Now()
 
-	query := `SELECT j.id, j.document_id, j.user_id, 
-		       u.full_name, 
-		       j.action, j.details, j.created_at
+	query := `SELECT j.id, u.full_name, j.action, j.details, j.created_at
 		FROM document_journal j
 		JOIN users u ON j.user_id = u.id
 		WHERE j.document_id = \$1
 		ORDER BY j.created_at DESC`
 
 	rows := sqlmock.NewRows([]string{
-		"id", "document_id", "user_id", "user_name",
+		"id", "user_name",
 		"action", "details", "created_at",
 	}).AddRow(
-		uuid.New(), docID, uuid.New(), "Иванов Иван Иванович",
+		uuid.New(), "Иванов Иван Иванович",
 		"TEST_ACTION", "Тестовое действие", now,
 	)
 
@@ -105,12 +100,10 @@ func TestJournalRepository_GetByDocumentID_Empty(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewJournalRepository(&database.DB{DB: db})
+	repo := NewJournalRepository(database.Wrap(db))
 	ctx := context.Background()
 	docID := uuid.New()
-	query := `SELECT j.id, j.document_id, j.user_id, 
-		       u.full_name, 
-		       j.action, j.details, j.created_at
+	query := `SELECT j.id, u.full_name, j.action, j.details, j.created_at
 		FROM document_journal j
 		JOIN users u ON j.user_id = u.id
 		WHERE j.document_id = \$1
@@ -118,7 +111,7 @@ func TestJournalRepository_GetByDocumentID_Empty(t *testing.T) {
 
 	// Возвращаем пустой результат
 	rows := sqlmock.NewRows([]string{
-		"id", "document_id", "user_id", "user_name",
+		"id", "user_name",
 		"action", "details", "created_at",
 	})
 

@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
@@ -18,7 +18,7 @@ import (
 )
 
 func TestRepeatedSubstitutionTransitionsAuditIntegration(t *testing.T) {
-	db := &database.DB{DB: integrationdb.Open(t)}
+	db := database.Wrap(integrationdb.Open(t))
 	department, adminID, principalID, substituteID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	hash, err := security.HashPassword("AuditPassw0rd!")
 	require.NoError(t, err)
@@ -54,6 +54,19 @@ func TestRepeatedSubstitutionTransitionsAuditIntegration(t *testing.T) {
 				response := httptest.NewRecorder()
 				handler.ServeHTTP(response, request)
 				require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+				getRequest := httptest.NewRequest(http.MethodGet, tc.path, nil)
+				getRequest.Header.Set("Authorization", "Bearer "+session.AccessToken)
+				getResponse := httptest.NewRecorder()
+				handler.ServeHTTP(getResponse, getRequest)
+				require.Equal(t, http.StatusOK, getResponse.Code, getResponse.Body.String())
+				if substitute == "" {
+					require.JSONEq(t, `null`, response.Body.String())
+					require.JSONEq(t, `null`, getResponse.Body.String())
+				} else {
+					want := `{"substituteUserId":"` + substitute + `","isActive":true}`
+					require.JSONEq(t, want, response.Body.String())
+					require.JSONEq(t, want, getResponse.Body.String())
+				}
 				item, err := repository.NewUserSubstitutionRepository(db).GetByPrincipalID(principalID)
 				require.NoError(t, err)
 				if substitute == "" {

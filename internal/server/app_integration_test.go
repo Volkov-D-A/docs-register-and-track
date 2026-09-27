@@ -30,7 +30,7 @@ func (testStorage) DownloadFileToWriter(context.Context, string, io.Writer, int6
 
 func TestServerProcessesOutboxWithoutWailsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	cfg := validConfig()
 	cfg.Server.ListenAddress = "127.0.0.1:0"
 	application, err := newWithDependencies(cfg, dependencies{

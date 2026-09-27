@@ -1,10 +1,6 @@
 package models
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
+import "github.com/google/uuid"
 
 // Nomenclature — дело номенклатуры
 type Nomenclature struct {
@@ -17,27 +13,16 @@ type Nomenclature struct {
 	NumberingMode string    `json:"numberingMode"`
 	NextNumber    int       `json:"nextNumber"`
 	IsActive      bool      `json:"isActive"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // Organization — организация (автозаполняемый справочник)
 type Organization struct {
-	ID        uuid.UUID `json:"-"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
-}
-
-// DocumentType — тип документа
-type DocumentType struct {
-	ID        uuid.UUID `json:"-"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID   uuid.UUID `json:"-"`
+	Name string    `json:"name"`
 }
 
 // ResolutionExecutor — исполнитель резолюции (автозаполняемый справочник)
 type ResolutionExecutor struct {
-	ID        uuid.UUID `json:"-"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID   uuid.UUID `json:"-"`
+	Name string    `json:"name"`
 }

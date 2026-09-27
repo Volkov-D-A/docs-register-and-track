@@ -16,14 +16,14 @@ import (
 
 func TestOutboxRetentionIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	repo := NewOutboxRepository(db)
 	now := time.Date(2026, time.August, 5, 12, 0, 0, 0, time.UTC)
 	cutoff := now.Add(-90 * 24 * time.Hour)
 	userID := insertIntegrationUser(t, sqlDB, "outbox_retention_admin")
 	deliveredKey := "retention:delivered:audit"
 	auditRequest := models.CreateAdminAuditLogRequest{UserID: userID, UserName: "Retention Admin", Action: "RETENTION_TEST", Details: "delivered once"}
-	if _, err := NewAdminAuditLogRepository(db).CreateFromOutbox(auditRequest, deliveredKey); err != nil {
+	if err := NewAdminAuditLogRepository(db).CreateFromOutbox(auditRequest, deliveredKey); err != nil {
 		t.Fatalf("seed delivered audit: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func TestOutboxRetentionIntegration(t *testing.T) {
 	if err := repo.Enqueue(models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: deliveredKey, Payload: `{"version":1}`}); err != nil {
 		t.Fatalf("enqueue after retention: %v", err)
 	}
-	if _, err := NewAdminAuditLogRepository(db).CreateFromOutbox(auditRequest, deliveredKey); err != nil {
+	if err := NewAdminAuditLogRepository(db).CreateFromOutbox(auditRequest, deliveredKey); err != nil {
 		t.Fatalf("redeliver after retention: %v", err)
 	}
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM admin_audit_log WHERE outbox_deduplication_key = $1`, []any{deliveredKey}, 1)
@@ -99,7 +99,7 @@ func timePtr(value time.Time) *time.Time { return &value }
 
 func TestDocumentListAccessScopeIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	owner := insertIntegrationUser(t, sqlDB, "scope_owner")
 	other := insertIntegrationUser(t, sqlDB, "scope_other")
 	allowedNom, deniedNom := uuid.New(), uuid.New()
@@ -145,7 +145,7 @@ func TestDocumentListAccessScopeIntegration(t *testing.T) {
 
 func TestLinkGraphAndOutboxLifecycleIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	user, root := seedIntegrationDocument(t, sqlDB)
 	nom := uuid.New()
 	execSQL(t, sqlDB, `INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode) VALUES ($1, 'Graph', 'GR', 2026, 'outgoing_letter', '/', 'index_and_number')`, nom)
@@ -212,18 +212,18 @@ func TestLinkGraphAndOutboxLifecycleIntegration(t *testing.T) {
 
 func TestUserSubstitutionAndReferenceMergeIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	principal := insertIntegrationUser(t, sqlDB, "principal")
 	substitute := insertIntegrationUser(t, sqlDB, "substitute")
 	repo := NewUserSubstitutionRepository(db)
-	if _, err := repo.ReplaceForPrincipal(principal, &substitute, nil, nil, true, nil); err != nil {
+	if _, err := repo.ReplaceForPrincipalWithOutbox(principal, &substitute, nil, nil, true, nil); err != nil {
 		t.Fatalf("set substitution: %v", err)
 	}
 	active, err := repo.IsActiveSubstitute(substitute, principal)
 	if err != nil || !active {
 		t.Fatalf("active substitution=%v err=%v", active, err)
 	}
-	if _, err := repo.ReplaceForPrincipal(principal, &principal, nil, nil, true, nil); err == nil {
+	if _, err := repo.ReplaceForPrincipalWithOutbox(principal, &principal, nil, nil, true, nil); err == nil {
 		t.Fatal("self substitution accepted")
 	}
 
@@ -232,7 +232,7 @@ func TestUserSubstitutionAndReferenceMergeIntegration(t *testing.T) {
 	execSQL(t, sqlDB, `INSERT INTO organizations (id, name) VALUES ($1, 'Source'), ($2, 'Target')`, source, target)
 	execSQL(t, sqlDB, `UPDATE outgoing_document_details SET recipient_org_id = $1 WHERE document_id = $2`, source, documentID)
 	refs := NewReferenceRepository(db)
-	if err := refs.MergeOrganizations(source, target); err != nil {
+	if err := refs.MergeOrganizationsWithOutbox(source, target, nil); err != nil {
 		t.Fatalf("merge organizations: %v", err)
 	}
 	var recipient uuid.UUID

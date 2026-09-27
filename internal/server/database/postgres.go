@@ -35,7 +35,7 @@ const (
 
 // DB представляет собой обертку над подключением к базе данных SQL.
 type DB struct {
-	*sql.DB
+	pool             *sql.DB
 	operationTimeout time.Duration
 	metrics          *observability.Registry
 	poolMu           sync.Mutex
@@ -57,12 +57,34 @@ func Connect(cfg config.DatabaseConfig) (*DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &DB{DB: db, operationTimeout: defaultOperationTimeout}, nil
+	return Wrap(db), nil
 }
 
-// Query, QueryRow, Exec, Begin and Prepare keep the legacy repository API while
-// ensuring that pool waits and SQL operations cannot block indefinitely. New
-// code can pass a narrower deadline through the corresponding Context method.
+// Wrap gives an existing SQL pool the same bounded operations as Connect.
+// Closing the wrapper closes the supplied pool.
+func Wrap(pool *sql.DB) *DB {
+	return &DB{pool: pool, operationTimeout: defaultOperationTimeout}
+}
+
+// SQLDB exposes the pool only to infrastructure that requires database/sql APIs
+// such as backup and the server instance lock. Repository queries use DB methods.
+func (db *DB) SQLDB() *sql.DB { return db.pool }
+
+// ReplacePool keeps this wrapper, including its metrics, after a restored DB
+// is reopened. The caller owns and closes the returned old pool.
+func (db *DB) ReplacePool(fresh *DB) *sql.DB {
+	old := db.pool
+	db.pool = fresh.pool
+	return old
+}
+
+func (db *DB) Close() error { return db.pool.Close() }
+
+func (db *DB) Stats() sql.DBStats { return db.pool.Stats() }
+
+// Query, QueryRow, Exec and Begin keep the repository API while ensuring that
+// pool waits and SQL operations cannot block indefinitely. Context variants
+// also honor a caller's shorter deadline.
 func (db *DB) Query(query string, args ...any) (*sql.Rows, error) {
 	return db.QueryContext(context.Background(), query, args...)
 }
@@ -71,7 +93,7 @@ func (db *DB) QueryContext(ctx context.Context, query string, args ...any) (*sql
 	started := time.Now()
 	ctx, cancel := db.withOperationTimeout(ctx)
 	stopCancel := context.AfterFunc(ctx, cancel)
-	rows, err := db.DB.QueryContext(ctx, query, args...)
+	rows, err := db.pool.QueryContext(ctx, query, args...)
 	db.observe("database.query", started, err)
 	if err != nil {
 		stopCancel()
@@ -90,7 +112,7 @@ func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) *s
 	started := time.Now()
 	ctx, cancel := db.withOperationTimeout(ctx)
 	context.AfterFunc(ctx, cancel)
-	row := db.DB.QueryRowContext(ctx, query, args...)
+	row := db.pool.QueryRowContext(ctx, query, args...)
 	// database/sql defers the actual row error until Scan. This duration still
 	// captures dispatch and connection-pool wait; Scan failures are observed by
 	// repository-level operation metrics.
@@ -106,7 +128,7 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.R
 	started := time.Now()
 	ctx, cancel := db.withOperationTimeout(ctx)
 	defer cancel()
-	result, err := db.DB.ExecContext(ctx, query, args...)
+	result, err := db.pool.ExecContext(ctx, query, args...)
 	db.observe("database.exec", started, err)
 	return result, err
 }
@@ -119,7 +141,7 @@ func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	started := time.Now()
 	ctx, cancel := db.withOperationTimeout(ctx)
 	stopCancel := context.AfterFunc(ctx, cancel)
-	tx, err := db.DB.BeginTx(ctx, opts)
+	tx, err := db.pool.BeginTx(ctx, opts)
 	db.observe("database.begin", started, err)
 	if err != nil {
 		stopCancel()
@@ -128,19 +150,6 @@ func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	// The context must remain valid for the transaction lifetime. database/sql
 	// rolls the transaction back automatically when the deadline is reached.
 	return tx, err
-}
-
-func (db *DB) Prepare(query string) (*sql.Stmt, error) {
-	return db.PrepareContext(context.Background(), query)
-}
-
-func (db *DB) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
-	started := time.Now()
-	ctx, cancel := db.withOperationTimeout(ctx)
-	defer cancel()
-	stmt, err := db.DB.PrepareContext(ctx, query)
-	db.observe("database.prepare", started, err)
-	return stmt, err
 }
 
 // SetMetrics attaches the application's optional in-process metrics registry.
@@ -163,7 +172,7 @@ func (db *DB) observe(name string, started time.Time, err error) {
 }
 
 func (db *DB) observePoolStats() {
-	stats := db.DB.Stats()
+	stats := db.pool.Stats()
 	db.poolMu.Lock()
 	previous := db.lastPoolStats
 	db.lastPoolStats = stats
@@ -272,13 +281,13 @@ func (db *DB) CheckMigrationCompatibility(migrationsPath string) error {
 // server may bootstrap an empty database automatically, but must never apply an
 // upgrade to existing data without approval.
 func (db *DB) IsApplicationSchemaInitialized(ctx context.Context) (bool, error) {
-	if db == nil || db.DB == nil {
+	if db == nil || db.pool == nil {
 		return false, fmt.Errorf("database is not initialized")
 	}
 	ctx, cancel := db.withOperationTimeout(ctx)
 	defer cancel()
 	var initialized bool
-	if err := db.DB.QueryRowContext(ctx, `SELECT to_regclass('public.users') IS NOT NULL`).Scan(&initialized); err != nil {
+	if err := db.pool.QueryRowContext(ctx, `SELECT to_regclass('public.users') IS NOT NULL`).Scan(&initialized); err != nil {
 		return false, fmt.Errorf("check application schema initialization: %w", err)
 	}
 	return initialized, nil
@@ -336,7 +345,7 @@ func (db *DB) newMigrator(migrationsPath string) (*migrate.Migrate, error) {
 
 func (db *DB) newMigrationDatabaseDriver() (*postgres.Postgres, error) {
 	ctx := context.Background()
-	conn, err := db.DB.Conn(ctx)
+	conn, err := db.pool.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}

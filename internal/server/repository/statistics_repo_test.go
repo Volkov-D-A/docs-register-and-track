@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/google/uuid"
 )
 
@@ -20,7 +20,7 @@ func setupStatisticsRepository(t *testing.T) (*StatisticsRepository, sqlmock.Sql
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	return NewStatisticsRepository(&database.DB{DB: db}), mock, func() { db.Close() }
+	return NewStatisticsRepository(database.Wrap(db)), mock, func() { db.Close() }
 }
 
 func TestStatisticsRepository_GetDocumentTotalByYear(t *testing.T) {
@@ -389,11 +389,10 @@ func TestStatisticsRepositoryStorageRefreshRecord(t *testing.T) {
 	defer cleanup()
 
 	refreshedAt := time.Now().Add(-time.Hour)
-	failedAt := time.Now()
 	mock.ExpectQuery(`SELECT s.object_count, s.total_bytes, s.refreshed_at`).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"object_count", "total_bytes", "refreshed_at", "refresh_active", "mutation_active", "last_error", "failed_at",
-		}).AddRow(4, int64(4096), refreshedAt, false, true, "refresh failed", failedAt))
+			"object_count", "total_bytes", "refreshed_at", "refresh_active", "mutation_active", "last_error",
+		}).AddRow(4, int64(4096), refreshedAt, false, true, "refresh failed"))
 
 	record, err := repo.GetStorageStatisticsRefreshRecord()
 	require.NoError(t, err)
@@ -403,7 +402,6 @@ func TestStatisticsRepositoryStorageRefreshRecord(t *testing.T) {
 	assert.False(t, record.RefreshActive)
 	assert.True(t, record.MutationActive)
 	assert.Equal(t, "refresh failed", record.LastError)
-	assert.Equal(t, failedAt, record.FailedAt)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -412,13 +410,12 @@ func TestStatisticsRepositoryRecordsAndClearsRefreshFailure(t *testing.T) {
 	defer cleanup()
 
 	token := uuid.New()
-	failedAt := time.Now()
-	mock.ExpectExec(`refresh_last_error = \$2, refresh_failed_at = \$3`).
-		WithArgs(token, "failed", failedAt).
+	mock.ExpectExec(`refresh_last_error = \$2`).
+		WithArgs(token, "failed").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	require.NoError(t, repo.FailStorageStatisticsRefresh(token, "failed", failedAt))
+	require.NoError(t, repo.FailStorageStatisticsRefresh(token, "failed"))
 
-	mock.ExpectExec(`SET refresh_last_error = NULL, refresh_failed_at = NULL`).
+	mock.ExpectExec(`SET refresh_last_error = NULL`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	require.NoError(t, repo.ClearStorageStatisticsRefreshError())
 	require.NoError(t, mock.ExpectationsWereMet())

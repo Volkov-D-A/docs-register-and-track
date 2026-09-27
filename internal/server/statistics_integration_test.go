@@ -20,7 +20,7 @@ import (
 
 func TestDashboardAndStatisticsAPIEnforceServerPermissionsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	password := "StatisticsPassw0rd!"
 	hash, err := security.HashPassword(password)
 	require.NoError(t, err)

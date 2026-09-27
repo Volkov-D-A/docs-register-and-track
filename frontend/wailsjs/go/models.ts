@@ -29,15 +29,10 @@ export namespace dto {
 	    }
 	}
 	export class AcknowledgmentUser {
-	    id: string;
 	    userId: string;
 	    userName?: string;
 	    // Go type: time
-	    viewedAt?: any;
-	    // Go type: time
 	    confirmedAt?: any;
-	    // Go type: time
-	    createdAt: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new AcknowledgmentUser(source);
@@ -45,12 +40,9 @@ export namespace dto {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
 	        this.userId = source["userId"];
 	        this.userName = source["userName"];
-	        this.viewedAt = this.convertValues(source["viewedAt"], null);
 	        this.confirmedAt = this.convertValues(source["confirmedAt"], null);
-	        this.createdAt = this.convertValues(source["createdAt"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -84,7 +76,6 @@ export namespace dto {
 	    // Go type: time
 	    completedAt?: any;
 	    users?: AcknowledgmentUser[];
-	    userIds?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Acknowledgment(source);
@@ -102,7 +93,6 @@ export namespace dto {
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.completedAt = this.convertValues(source["completedAt"], null);
 	        this.users = this.convertValues(source["users"], AcknowledgmentUser);
-	        this.userIds = source["userIds"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -369,67 +359,10 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class Nomenclature {
-	    id: string;
-	    name: string;
-	    index: string;
-	    year: number;
-	    kindCode: string;
-	    separator: string;
-	    numberingMode: string;
-	    nextNumber: number;
-	    isActive: boolean;
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
-	
-	    static createFrom(source: any = {}) {
-	        return new Nomenclature(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.index = source["index"];
-	        this.year = source["year"];
-	        this.kindCode = source["kindCode"];
-	        this.separator = source["separator"];
-	        this.numberingMode = source["numberingMode"];
-	        this.nextNumber = source["nextNumber"];
-	        this.isActive = source["isActive"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class Department {
 	    id: string;
 	    name: string;
 	    nomenclatureIds: string[];
-	    nomenclature: Nomenclature[];
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new Department(source);
@@ -440,28 +373,7 @@ export namespace dto {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.nomenclatureIds = source["nomenclatureIds"];
-	        this.nomenclature = this.convertValues(source["nomenclature"], Nomenclature);
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class User {
 	    id: string;
@@ -470,15 +382,8 @@ export namespace dto {
 	    isDocumentParticipant: boolean;
 	    isActive: boolean;
 	    failedLoginAttempts: number;
-	    // Go type: time
-	    passwordChangedAt?: any;
-	    passwordChangeRequired: boolean;
 	    temporaryPassword?: string;
 	    systemPermissions: string[];
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
 	    department?: Department;
 	
 	    static createFrom(source: any = {}) {
@@ -493,12 +398,8 @@ export namespace dto {
 	        this.isDocumentParticipant = source["isDocumentParticipant"];
 	        this.isActive = source["isActive"];
 	        this.failedLoginAttempts = source["failedLoginAttempts"];
-	        this.passwordChangedAt = this.convertValues(source["passwordChangedAt"], null);
-	        this.passwordChangeRequired = source["passwordChangeRequired"];
 	        this.temporaryPassword = source["temporaryPassword"];
 	        this.systemPermissions = source["systemPermissions"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	        this.department = this.convertValues(source["department"], Department);
 	    }
 	
@@ -1429,13 +1330,10 @@ export namespace dto {
 	    sourceKind: string;
 	    sourceId: string;
 	    targetKind: string;
-	    targetId: string;
 	    linkType: string;
-	    createdBy: string;
-	    // Go type: time
-	    createdAt: any;
 	    sourceNumber?: string;
 	    targetNumber?: string;
+	    sourceSubject?: string;
 	    targetSubject?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1448,32 +1346,12 @@ export namespace dto {
 	        this.sourceKind = source["sourceKind"];
 	        this.sourceId = source["sourceId"];
 	        this.targetKind = source["targetKind"];
-	        this.targetId = source["targetId"];
 	        this.linkType = source["linkType"];
-	        this.createdBy = source["createdBy"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.sourceNumber = source["sourceNumber"];
 	        this.targetNumber = source["targetNumber"];
+	        this.sourceSubject = source["sourceSubject"];
 	        this.targetSubject = source["targetSubject"];
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class DocumentListItem {
 	    id: string;
@@ -1606,7 +1484,6 @@ export namespace dto {
 	
 	export class JournalEntry {
 	    id: string;
-	    documentId: string;
 	    userName?: string;
 	    action: string;
 	    details: string;
@@ -1620,7 +1497,6 @@ export namespace dto {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.documentId = source["documentId"];
 	        this.userName = source["userName"];
 	        this.action = source["action"];
 	        this.details = source["details"];
@@ -1669,12 +1545,37 @@ export namespace dto {
 	        this.compatible = source["compatible"];
 	    }
 	}
+	export class Nomenclature {
+	    id: string;
+	    name: string;
+	    index: string;
+	    year: number;
+	    kindCode: string;
+	    separator: string;
+	    numberingMode: string;
+	    nextNumber: number;
+	    isActive: boolean;
 	
+	    static createFrom(source: any = {}) {
+	        return new Nomenclature(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.index = source["index"];
+	        this.year = source["year"];
+	        this.kindCode = source["kindCode"];
+	        this.separator = source["separator"];
+	        this.numberingMode = source["numberingMode"];
+	        this.nextNumber = source["nextNumber"];
+	        this.isActive = source["isActive"];
+	    }
+	}
 	export class Organization {
 	    id: string;
 	    name: string;
-	    // Go type: time
-	    createdAt: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new Organization(source);
@@ -1684,26 +1585,7 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	
 	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_Assignment_ {
@@ -1879,8 +1761,6 @@ export namespace dto {
 	export class ResolutionExecutor {
 	    id: string;
 	    name: string;
-	    // Go type: time
-	    createdAt: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new ResolutionExecutor(source);
@@ -1890,46 +1770,19 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	
 	
 	
 	
 	export class UserSubstitution {
-	    id: string;
-	    principalUserId: string;
 	    substituteUserId: string;
-	    principalName?: string;
-	    substituteName?: string;
 	    // Go type: time
 	    startsAt?: any;
 	    // Go type: time
 	    endsAt?: any;
 	    isActive: boolean;
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new UserSubstitution(source);
@@ -1937,16 +1790,10 @@ export namespace dto {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.principalUserId = source["principalUserId"];
 	        this.substituteUserId = source["substituteUserId"];
-	        this.principalName = source["principalName"];
-	        this.substituteName = source["substituteName"];
 	        this.startsAt = this.convertValues(source["startsAt"], null);
 	        this.endsAt = this.convertValues(source["endsAt"], null);
 	        this.isActive = source["isActive"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2167,10 +2014,6 @@ export namespace models {
 		}
 	}
 	export class AssignmentStatisticsReport {
-	    startDate: string;
-	    endDate: string;
-	    onlyOverdue: boolean;
-	    userId?: string;
 	    total: number;
 	    rows: StatisticsReportRow[];
 	
@@ -2180,10 +2023,6 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.startDate = source["startDate"];
-	        this.endDate = source["endDate"];
-	        this.onlyOverdue = source["onlyOverdue"];
-	        this.userId = source["userId"];
 	        this.total = source["total"];
 	        this.rows = this.convertValues(source["rows"], StatisticsReportRow);
 	    }
@@ -2315,7 +2154,6 @@ export namespace models {
 	    // Go type: time
 	    updatedAt: any;
 	    error?: string;
-	    attempts: number;
 	    archiveSize: number;
 	
 	    static createFrom(source: any = {}) {
@@ -2332,7 +2170,6 @@ export namespace models {
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	        this.error = source["error"];
-	        this.attempts = source["attempts"];
 	        this.archiveSize = source["archiveSize"];
 	    }
 	
@@ -2765,9 +2602,6 @@ export namespace models {
 		}
 	}
 	export class DocumentStatisticsReport {
-	    startDate: string;
-	    endDate: string;
-	    groupBy: string;
 	    total: number;
 	    rows: StatisticsReportRow[];
 	
@@ -2777,9 +2611,6 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.startDate = source["startDate"];
-	        this.endDate = source["endDate"];
-	        this.groupBy = source["groupBy"];
 	        this.total = source["total"];
 	        this.rows = this.convertValues(source["rows"], StatisticsReportRow);
 	    }
@@ -2805,11 +2636,8 @@ export namespace models {
 	export class FailedOutboxEvent {
 	    id: number[];
 	    eventType: string;
-	    deduplicationKey: string;
 	    attempts: number;
 	    lastError: string;
-	    // Go type: time
-	    createdAt: any;
 	    // Go type: time
 	    failedAt: any;
 	
@@ -2821,10 +2649,8 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.eventType = source["eventType"];
-	        this.deduplicationKey = source["deduplicationKey"];
 	        this.attempts = source["attempts"];
 	        this.lastError = source["lastError"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.failedAt = this.convertValues(source["failedAt"], null);
 	    }
 	
@@ -3038,8 +2864,6 @@ export namespace models {
 	    refreshedAt?: any;
 	    state: string;
 	    lastError?: string;
-	    // Go type: time
-	    failedAt?: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new StorageStatisticsStatus(source);
@@ -3052,7 +2876,6 @@ export namespace models {
 	        this.refreshedAt = this.convertValues(source["refreshedAt"], null);
 	        this.state = source["state"];
 	        this.lastError = source["lastError"];
-	        this.failedAt = this.convertValues(source["failedAt"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3112,7 +2935,6 @@ export namespace models {
 	    }
 	}
 	export class SystemDatabaseStatistics {
-	    sizeBytes: number;
 	    poolOpen: number;
 	    poolInUse: number;
 	    poolIdle: number;
@@ -3129,7 +2951,6 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.sizeBytes = source["sizeBytes"];
 	        this.poolOpen = source["poolOpen"];
 	        this.poolInUse = source["poolInUse"];
 	        this.poolIdle = source["poolIdle"];
@@ -3166,15 +2987,12 @@ export namespace models {
 	    sourceRevision: string;
 	    sourceDirty: boolean;
 	    version: string;
-	    apiVersion: string;
 	    state: string;
 	    // Go type: time
 	    startedAt: any;
 	    uptimeSeconds: number;
 	    schemaCurrentVersion: number;
 	    schemaRequiredVersion: number;
-	    schemaCompatible: boolean;
-	    schemaDirty: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SystemServiceStatistics(source);
@@ -3186,14 +3004,11 @@ export namespace models {
 	        this.sourceRevision = source["sourceRevision"];
 	        this.sourceDirty = source["sourceDirty"];
 	        this.version = source["version"];
-	        this.apiVersion = source["apiVersion"];
 	        this.state = source["state"];
 	        this.startedAt = this.convertValues(source["startedAt"], null);
 	        this.uptimeSeconds = source["uptimeSeconds"];
 	        this.schemaCurrentVersion = source["schemaCurrentVersion"];
 	        this.schemaRequiredVersion = source["schemaRequiredVersion"];
-	        this.schemaCompatible = source["schemaCompatible"];
-	        this.schemaDirty = source["schemaDirty"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3217,9 +3032,6 @@ export namespace models {
 	export class SystemSetting {
 	    key: string;
 	    value: string;
-	    description: string;
-	    // Go type: time
-	    updatedAt: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new SystemSetting(source);
@@ -3229,27 +3041,7 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.key = source["key"];
 	        this.value = source["value"];
-	        this.description = source["description"];
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class SystemUsageStatistics {
 	    activeUsers15m: number;
@@ -3272,13 +3064,10 @@ export namespace models {
 	    userCount: number;
 	    totalDocuments: number;
 	    dbSize: string;
-	    dbSizeBytes: number;
 	    storageObjects: number;
 	    storageSize: string;
-	    storageBytes: number;
 	    // Go type: time
 	    storageRefreshedAt?: any;
-	    storageRefreshInProgress: boolean;
 	    // Go type: time
 	    generatedAt: any;
 	    service: SystemServiceStatistics;
@@ -3300,12 +3089,9 @@ export namespace models {
 	        this.userCount = source["userCount"];
 	        this.totalDocuments = source["totalDocuments"];
 	        this.dbSize = source["dbSize"];
-	        this.dbSizeBytes = source["dbSizeBytes"];
 	        this.storageObjects = source["storageObjects"];
 	        this.storageSize = source["storageSize"];
-	        this.storageBytes = source["storageBytes"];
 	        this.storageRefreshedAt = this.convertValues(source["storageRefreshedAt"], null);
-	        this.storageRefreshInProgress = source["storageRefreshInProgress"];
 	        this.generatedAt = this.convertValues(source["generatedAt"], null);
 	        this.service = this.convertValues(source["service"], SystemServiceStatistics);
 	        this.usage = this.convertValues(source["usage"], SystemUsageStatistics);

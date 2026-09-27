@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 type citizenAppealHandlerDeps struct {
@@ -44,7 +44,7 @@ func (s *citizenAppealCommandStore) GetByIDs(ids []uuid.UUID) ([]models.CitizenA
 	return nil, nil
 }
 
-func (s *citizenAppealCommandStore) Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
+func (s *citizenAppealCommandStore) CreateWithJournal(req models.CreateCitizenAppealDocRequest, _ string, _ string) (*models.CitizenAppealDocument, error) {
 	s.createReq = &req
 	if s.createErr != nil {
 		return nil, s.createErr
@@ -55,11 +55,7 @@ func (s *citizenAppealCommandStore) Create(req models.CreateCitizenAppealDocRequ
 	return &models.CitizenAppealDocument{ID: uuid.New()}, nil
 }
 
-func (s *citizenAppealCommandStore) CreateWithJournal(req models.CreateCitizenAppealDocRequest, _ string, _ string) (*models.CitizenAppealDocument, error) {
-	return s.Create(req)
-}
-
-func (s *citizenAppealCommandStore) Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
+func (s *citizenAppealCommandStore) UpdateWithOutbox(req models.UpdateCitizenAppealDocRequest, _ []models.OutboxEvent) (*models.CitizenAppealDocument, error) {
 	s.updateReq = &req
 	if s.updateErr != nil {
 		return nil, s.updateErr
@@ -68,10 +64,6 @@ func (s *citizenAppealCommandStore) Update(req models.UpdateCitizenAppealDocRequ
 		return s.updateResult, nil
 	}
 	return &models.CitizenAppealDocument{ID: req.ID}, nil
-}
-
-func (s *citizenAppealCommandStore) UpdateWithOutbox(req models.UpdateCitizenAppealDocRequest, _ []models.OutboxEvent) (*models.CitizenAppealDocument, error) {
-	return s.Update(req)
 }
 
 func (s *citizenAppealCommandStore) GetCount() (int, error) {

@@ -104,7 +104,11 @@ func (s *documentAccessAcknowledgmentStore) GetAllActive(filter models.Acknowled
 	return nil, nil
 }
 
-func (s *documentAccessAcknowledgmentStore) GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error) {
+func (s *documentAccessAcknowledgmentStore) GetUsersByAcknowledgmentIDs(ackIDs []uuid.UUID) (map[uuid.UUID][]models.AcknowledgmentUser, error) {
+	return nil, nil
+}
+
+func (s *documentAccessAcknowledgmentStore) GetPendingRecipientIDs(ackID uuid.UUID, candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
 	return nil, nil
 }
 

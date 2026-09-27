@@ -322,7 +322,7 @@ func (r *CitizenAppealRepository) GetByID(id uuid.UUID) (*models.CitizenAppealDo
 	return doc, nil
 }
 
-// GetByIDs loads graph card data in batches rather than one query per node.
+// GetByIDs loads appeal fields needed by graph nodes without related records.
 func (r *CitizenAppealRepository) GetByIDs(ids []uuid.UUID) ([]models.CitizenAppealDocument, error) {
 	if len(ids) == 0 {
 		return []models.CitizenAppealDocument{}, nil
@@ -333,41 +333,23 @@ func (r *CitizenAppealRepository) GetByIDs(ids []uuid.UUID) ([]models.CitizenApp
 	}
 	defer rows.Close()
 	items := make([]models.CitizenAppealDocument, 0, len(ids))
-	documentIDs := make([]uuid.UUID, 0, len(ids))
 	for rows.Next() {
 		doc, err := scanCitizenAppealDoc(rows)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, *doc)
-		documentIDs = append(documentIDs, doc.ID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	correspondents, err := loadDocumentCorrespondentsByDocumentIDs(r.db, documentIDs)
-	if err != nil {
-		return nil, err
-	}
-	resolutions, err := loadDocumentResolutionsByDocumentIDs(r.db, documentIDs)
-	if err != nil {
-		return nil, err
-	}
-	for i := range items {
-		items[i].Correspondents = correspondents[items[i].ID]
-		items[i].Resolutions = resolutions[items[i].ID]
-	}
 	return items, nil
 }
 
-// Create создает новое обращения граждан в базе данных.
-func (r *CitizenAppealRepository) Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
-	return r.create(req, nil, "", "")
-}
 func (r *CitizenAppealRepository) CreateWithJournal(req models.CreateCitizenAppealDocRequest, action, detailsFormat string) (*models.CitizenAppealDocument, error) {
-	return r.create(req, nil, action, detailsFormat)
+	return r.create(req, action, detailsFormat)
 }
-func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.CitizenAppealDocument, error) {
+func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocRequest, journalAction, journalDetailsFormat string) (*models.CitizenAppealDocument, error) {
 	if req.Link != nil && req.CommandHash == "" {
 		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
 	}
@@ -468,9 +450,6 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 			return nil, err
 		}
 	}
-	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
-		return nil, err
-	}
 	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
 		return nil, err
 	}
@@ -485,10 +464,6 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 	return r.GetByID(id)
 }
 
-// Update обновляет данные существующего обращения граждан.
-func (r *CitizenAppealRepository) Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
-	return r.update(req, nil)
-}
 func (r *CitizenAppealRepository) UpdateWithOutbox(req models.UpdateCitizenAppealDocRequest, effects []models.OutboxEvent) (*models.CitizenAppealDocument, error) {
 	return r.update(req, effects)
 }

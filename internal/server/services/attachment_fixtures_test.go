@@ -88,7 +88,3 @@ func (s *roleMappedDocumentAccessStore) HasSystemPermission(permission, userID s
 func (s *roleMappedDocumentAccessStore) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
 	return &models.UserDocumentAccessProfile{}, nil
 }
-
-func (s *roleMappedDocumentAccessStore) ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error {
-	return nil
-}

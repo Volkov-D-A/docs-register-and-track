@@ -39,6 +39,13 @@ func setupAssignmentServiceWithAccess(t *testing.T, role string, accessStore por
 	}
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
+	userRepo.On("GetEligibleRecipientIDs", mock.Anything).Return(func(ids []uuid.UUID) map[uuid.UUID]struct{} {
+		result := make(map[uuid.UUID]struct{}, len(ids))
+		for _, id := range ids {
+			result[id] = struct{}{}
+		}
+		return result
+	}, nil).Maybe()
 
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
@@ -122,10 +129,6 @@ func (s *kindActionAccessStore) GetUserAccessProfile(userID string) (*models.Use
 	return &models.UserDocumentAccessProfile{}, nil
 }
 
-func (s *kindActionAccessStore) ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error {
-	return nil
-}
-
 // ---------- TestAssignmentService_Create ----------
 
 func TestAssignmentService_Create(t *testing.T) {
@@ -190,6 +193,34 @@ func TestAssignmentService_Create(t *testing.T) {
 		require.Error(t, err)
 		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID документа")
 		assert.Nil(t, result)
+	})
+
+	t.Run("invalid co-executor rejects request", func(t *testing.T) {
+		svc, _, _, _, incomingRepo := setupAssignmentService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+		result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "", []string{uuid.NewString(), "not-a-uuid"})
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID соисполнителя")
+		require.Nil(t, result)
+	})
+
+	t.Run("duplicate and main executor are removed", func(t *testing.T) {
+		coExecID := uuid.New()
+		svc, repo, _, _, incomingRepo := setupAssignmentService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+		repo.On("CreateWithOutbox", mock.Anything, docID, execID, "Выполнить", (*time.Time)(nil), []string{coExecID.String()}, mock.Anything).
+			Return(&models.Assignment{ID: uuid.New(), DocumentID: docID, ExecutorID: execID, Status: "new"}, nil).Once()
+		result, err := svc.Create(docID.String(), execID.String(), "Выполнить", "", []string{execID.String(), coExecID.String(), coExecID.String()})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, repo.Effects, 3)
+	})
+
+	t.Run("zero executor ID", func(t *testing.T) {
+		svc, _, _, _, incomingRepo := setupAssignmentService(t, "clerk")
+		incomingRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID, NomenclatureID: uuid.New()}, nil).Maybe()
+		result, err := svc.Create(docID.String(), uuid.Nil.String(), "Выполнить", "", nil)
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID исполнителя")
+		require.Nil(t, result)
 	})
 
 	t.Run("invalid executor ID", func(t *testing.T) {
@@ -351,6 +382,14 @@ func TestAssignmentService_Update(t *testing.T) {
 		result, err := svc.Update(assignmentID.String(), execID.String(), "Обновлено", "", nil)
 		require.NoError(t, err)
 		require.NotNil(t, result)
+	})
+
+	t.Run("invalid co-executor rejects update", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		repo.On("GetByID", assignmentID).Return(existing, nil).Once()
+		result, err := svc.Update(assignmentID.String(), execID.String(), "Новое", "", []string{"not-a-uuid"})
+		requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID соисполнителя")
+		require.Nil(t, result)
 	})
 
 	t.Run("forbidden executor", func(t *testing.T) {
@@ -1227,4 +1266,71 @@ func TestAssignmentService_Delete(t *testing.T) {
 		assert.Equal(t, "NOT_FOUND", appErr.Kind)
 		assert.Equal(t, 404, appErr.Code)
 	})
+}
+
+func TestAssignmentServiceRejectsIneligibleExecutorsBeforeWrite(t *testing.T) {
+	documentID, assignmentID, executorID, coExecutorID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	cases := []struct {
+		name      string
+		operation string
+		eligible  map[uuid.UUID]struct{}
+		want      string
+	}{
+		{"create main", "create", map[uuid.UUID]struct{}{}, "исполнитель недоступен"},
+		{"create coexecutor", "create", map[uuid.UUID]struct{}{executorID: {}}, "соисполнитель недоступен"},
+		{"update main", "update", map[uuid.UUID]struct{}{coExecutorID: {}}, "исполнитель недоступен"},
+		{"update coexecutor", "update", map[uuid.UUID]struct{}{executorID: {}}, "соисполнитель недоступен"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+			users := mocks.NewUserStore(t)
+			users.On("GetEligibleRecipientIDs", []uuid.UUID{executorID, coExecutorID}).Return(tc.eligible, nil).Once()
+			svc.userRepo = users
+			if tc.operation == "update" {
+				repo.On("GetByID", assignmentID).Return(&models.Assignment{ID: assignmentID, DocumentID: documentID, ExecutorID: executorID, Status: "new"}, nil).Once()
+			}
+			var err error
+			if tc.operation == "create" {
+				_, err = svc.Create(documentID.String(), executorID.String(), "Поручение", "", []string{coExecutorID.String()})
+			} else {
+				_, err = svc.Update(assignmentID.String(), executorID.String(), "Поручение", "", []string{coExecutorID.String()})
+			}
+			requireAppError(t, err, "VALIDATION_ERROR", 400, tc.want)
+		})
+	}
+}
+
+type failingAssignmentAccessStore struct {
+	ports.DocumentAccessStore
+	err error
+}
+
+func (s failingAssignmentAccessStore) HasPermission(kindCode, action, departmentID, userID string) (bool, error) {
+	return false, s.err
+}
+
+func TestAssignmentStatusPropagatesAccessStoreError(t *testing.T) {
+	failure := assert.AnError
+	for _, assignedToActor := range []bool{false, true} {
+		t.Run(map[bool]string{false: "manager", true: "executor"}[assignedToActor], func(t *testing.T) {
+			svc, repo, _, auth, _ := setupAssignmentServiceWithAccess(t, "clerk", failingAssignmentAccessStore{err: failure}, nil)
+			assignmentID, documentID := uuid.New(), uuid.New()
+			executorID := uuid.New()
+			if assignedToActor {
+				executorID = auth.currentUserID
+			}
+			repo.On("GetByID", assignmentID).Return(&models.Assignment{ID: assignmentID, DocumentID: documentID, ExecutorID: executorID, Status: "completed"}, nil).Once()
+			result, err := svc.UpdateStatus(assignmentID.String(), "finished", "")
+			require.Nil(t, result)
+			require.ErrorIs(t, err, failure)
+		})
+	}
+}
+
+func TestAssignmentListPropagatesDocumentAccessError(t *testing.T) {
+	svc, _, _, _, _ := setupAssignmentServiceWithAccess(t, "clerk", failingAssignmentAccessStore{err: assert.AnError}, nil)
+	result, err := svc.GetList(models.AssignmentFilter{DocumentID: uuid.New().String()})
+	require.Nil(t, result)
+	require.ErrorIs(t, err, assert.AnError)
 }

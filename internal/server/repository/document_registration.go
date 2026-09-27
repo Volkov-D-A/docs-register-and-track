@@ -76,7 +76,7 @@ func resolveRegistrationNumberTx(tx *sql.Tx, createdBy uuid.UUID, kind models.Do
 	number = formatDocumentNumber(index, separator, numberingMode, nextNumber)
 	if _, err := tx.Exec(`
 		UPDATE nomenclature
-		SET next_number = next_number + 1, updated_at = CURRENT_TIMESTAMP
+		SET next_number = next_number + 1
 		WHERE id = $1
 	`, nomenclatureID); err != nil {
 		return nil, fmt.Errorf("failed to increment nomenclature number: %w", err)
@@ -145,7 +145,7 @@ func resolveAdminRegistrationNumberTx(tx *sql.Tx, createdBy uuid.UUID, kind mode
 		}
 		if _, err := tx.Exec(`
 			UPDATE nomenclature
-			SET next_number = $2, updated_at = CURRENT_TIMESTAMP
+			SET next_number = $2
 			WHERE id = $1
 		`, nomenclatureID, nextNumber); err != nil {
 			return nil, fmt.Errorf("failed to update nomenclature number after admin insert: %w", err)

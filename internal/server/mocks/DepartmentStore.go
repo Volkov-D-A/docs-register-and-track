@@ -15,54 +15,6 @@ type DepartmentStore struct {
 	mock.Mock
 }
 
-// Create provides a mock function with given fields: name, nomenclatureIDs
-func (_m *DepartmentStore) Create(name string, nomenclatureIDs []string) (*models.Department, error) {
-	ret := _m.Called(name, nomenclatureIDs)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Create")
-	}
-
-	var r0 *models.Department
-	var r1 error
-	if rf, ok := ret.Get(0).(func(string, []string) (*models.Department, error)); ok {
-		return rf(name, nomenclatureIDs)
-	}
-	if rf, ok := ret.Get(0).(func(string, []string) *models.Department); ok {
-		r0 = rf(name, nomenclatureIDs)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Department)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(string, []string) error); ok {
-		r1 = rf(name, nomenclatureIDs)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// Delete provides a mock function with given fields: id
-func (_m *DepartmentStore) Delete(id uuid.UUID) error {
-	ret := _m.Called(id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Delete")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID) error); ok {
-		r0 = rf(id)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // GetAll provides a mock function with no fields
 func (_m *DepartmentStore) GetAll() ([]models.Department, error) {
 	ret := _m.Called()
@@ -116,36 +68,6 @@ func (_m *DepartmentStore) GetNomenclatureIDs(departmentID uuid.UUID) ([]string,
 
 	if rf, ok := ret.Get(1).(func(uuid.UUID) error); ok {
 		r1 = rf(departmentID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// Update provides a mock function with given fields: id, name, nomenclatureIDs
-func (_m *DepartmentStore) Update(id uuid.UUID, name string, nomenclatureIDs []string) (*models.Department, error) {
-	ret := _m.Called(id, name, nomenclatureIDs)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Update")
-	}
-
-	var r0 *models.Department
-	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, string, []string) (*models.Department, error)); ok {
-		return rf(id, name, nomenclatureIDs)
-	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID, string, []string) *models.Department); ok {
-		r0 = rf(id, name, nomenclatureIDs)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Department)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(uuid.UUID, string, []string) error); ok {
-		r1 = rf(id, name, nomenclatureIDs)
 	} else {
 		r1 = ret.Error(1)
 	}

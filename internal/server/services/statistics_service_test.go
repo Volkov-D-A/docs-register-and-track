@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -12,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 type fakeStatisticsStore struct {
@@ -37,7 +38,6 @@ type fakeStatisticsStore struct {
 	refreshLeaseActive  bool
 	mutationActive      bool
 	refreshLastError    string
-	refreshFailedAt     time.Time
 	storageSnapshotErr  error
 	err                 error
 
@@ -122,7 +122,6 @@ func (s *fakeStatisticsStore) GetStorageStatisticsRefreshRecord() (models.Storag
 		RefreshActive:  s.refreshLeaseActive,
 		MutationActive: s.mutationActive,
 		LastError:      s.refreshLastError,
-		FailedAt:       s.refreshFailedAt,
 	}, s.storageSnapshotErr
 }
 
@@ -142,16 +141,14 @@ func (s *fakeStatisticsStore) SaveStorageStatisticsSnapshot(_ uuid.UUID, snapsho
 	s.storageSnapshot = snapshot
 	s.refreshLeaseActive = false
 	s.refreshLastError = ""
-	s.refreshFailedAt = time.Time{}
 	return s.err
 }
 
-func (s *fakeStatisticsStore) FailStorageStatisticsRefresh(_ uuid.UUID, message string, failedAt time.Time) error {
+func (s *fakeStatisticsStore) FailStorageStatisticsRefresh(_ uuid.UUID, message string) error {
 	s.storageMu.Lock()
 	defer s.storageMu.Unlock()
 	s.refreshLeaseActive = false
 	s.refreshLastError = message
-	s.refreshFailedAt = failedAt
 	return s.err
 }
 
@@ -159,7 +156,6 @@ func (s *fakeStatisticsStore) ClearStorageStatisticsRefreshError() error {
 	s.storageMu.Lock()
 	defer s.storageMu.Unlock()
 	s.refreshLastError = ""
-	s.refreshFailedAt = time.Time{}
 	return s.err
 }
 
@@ -265,10 +261,16 @@ func TestStatisticsService_GetDocumentReport(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, report)
-	assert.Equal(t, "kind", report.GroupBy)
 	assert.Equal(t, "kind", store.lastDocumentReportGroupBy)
 	assert.Equal(t, 5, report.Total)
 	assert.Equal(t, models.DocumentKindIncomingLetter.Label(), report.Rows[0].Name)
+	body, err := json.Marshal(report)
+	require.NoError(t, err)
+	var payload map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &payload))
+	assert.Len(t, payload, 2)
+	assert.Contains(t, payload, "total")
+	assert.Contains(t, payload, "rows")
 
 	report, err = svc.GetDocumentReport("2026-02-01", "2026-01-31", "kind", "", "", "")
 	require.Error(t, err)
@@ -329,11 +331,16 @@ func TestStatisticsService_GetAssignmentReportAndFilters(t *testing.T) {
 	report, err := svc.GetAssignmentReport("2026-01-01", "2026-01-31", true, userID)
 	require.NoError(t, err)
 	require.NotNil(t, report)
-	assert.True(t, report.OnlyOverdue)
-	assert.Equal(t, userID, report.UserID)
 	assert.Equal(t, 6, report.Total)
 	assert.True(t, store.lastAssignmentOnlyOverdue)
 	assert.Equal(t, userID, store.lastAssignmentUserID)
+	body, err := json.Marshal(report)
+	require.NoError(t, err)
+	var payload map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &payload))
+	assert.Len(t, payload, 2)
+	assert.Contains(t, payload, "total")
+	assert.Contains(t, payload, "rows")
 
 	filters, err := svc.GetAssignmentFilterOptions()
 	require.NoError(t, err)
@@ -361,7 +368,13 @@ func TestStatisticsService_GetSystemStatistics(t *testing.T) {
 	assert.Equal(t, "128 MB", stats.DBSize)
 	assert.Equal(t, 9, stats.StorageObjects)
 	assert.Equal(t, "256.0 MB", stats.StorageSize)
-	assert.EqualValues(t, 256*1024*1024, stats.StorageBytes)
+	body, err := json.Marshal(stats)
+	require.NoError(t, err)
+	var payload map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &payload))
+	assert.NotContains(t, payload, "dbSizeBytes")
+	assert.NotContains(t, payload, "storageBytes")
+	assert.NotContains(t, payload, "storageRefreshInProgress")
 
 	store.storageSnapshotErr = errors.New("storage failed")
 	stats, err = svc.GetSystemStatistics()
@@ -376,7 +389,7 @@ func TestStatisticsServiceIncludesServerDiagnostics(t *testing.T) {
 		Service:  models.SystemServiceStatistics{Version: "1.0.6", State: "ready"},
 		Usage:    models.SystemUsageStatistics{ActiveUsers15m: 3, ActiveSessions: 4},
 		API:      models.SystemAPIStatistics{RequestsSinceStart: 100, P95Milliseconds: 12},
-		Database: models.SystemDatabaseStatistics{SizeBytes: 1024, PoolInUse: 2},
+		Database: models.SystemDatabaseStatistics{PoolInUse: 2},
 		Outbox:   models.SystemOutboxStatistics{Pending: 1},
 	}}
 
@@ -387,8 +400,18 @@ func TestStatisticsServiceIncludesServerDiagnostics(t *testing.T) {
 	assert.Equal(t, 3, stats.Usage.ActiveUsers15m)
 	assert.EqualValues(t, 100, stats.API.RequestsSinceStart)
 	assert.Equal(t, 2, stats.Database.PoolInUse)
-	assert.EqualValues(t, 1024, stats.Database.SizeBytes)
 	assert.Equal(t, 1, stats.Outbox.Pending)
+	body, err := json.Marshal(stats)
+	require.NoError(t, err)
+	var payload struct {
+		Service  map[string]json.RawMessage `json:"service"`
+		Database map[string]json.RawMessage `json:"database"`
+	}
+	require.NoError(t, json.Unmarshal(body, &payload))
+	assert.NotContains(t, payload.Service, "apiVersion")
+	assert.NotContains(t, payload.Service, "schemaCompatible")
+	assert.NotContains(t, payload.Service, "schemaDirty")
+	assert.NotContains(t, payload.Database, "sizeBytes")
 }
 
 func TestStatisticsServiceUsesLocalizedFallbackWithoutStorage(t *testing.T) {
@@ -426,7 +449,6 @@ func TestStatisticsService_GetSystemStatisticsStartsStaleStorageRefreshInBackgro
 	require.NoError(t, err)
 	assert.Equal(t, 3, stats.StorageObjects)
 	assert.Equal(t, "3.0 MB", stats.StorageSize)
-	assert.True(t, stats.StorageRefreshInProgress)
 	require.Eventually(t, func() bool {
 		record, _ := store.GetStorageStatisticsRefreshRecord()
 		return record.Snapshot.ObjectCount == 8 && record.Snapshot.TotalBytes == 8*1024*1024 && !record.RefreshActive
@@ -491,7 +513,9 @@ func TestStatisticsServiceStorageStatusExposesFailureAndRetriesExplicitly(t *tes
 	require.NoError(t, err)
 	assert.Equal(t, models.StorageStatisticsRefreshFailed, status.State)
 	assert.Equal(t, storageStatisticsRefreshError, status.LastError)
-	require.NotNil(t, status.FailedAt)
+	payload, err := json.Marshal(status)
+	require.NoError(t, err)
+	assert.NotContains(t, string(payload), "failedAt")
 
 	storage.err = nil
 	status, err = svc.RetryStorageStatisticsRefresh()

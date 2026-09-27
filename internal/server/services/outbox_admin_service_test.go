@@ -23,7 +23,7 @@ func newOutboxAdminServiceForTest(t *testing.T, roles ...string) (*OutboxAdminSe
 	auth := newAttachmentPrincipalStub(userStore)
 	auth.currentUserID = userID
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
-	service := NewOutboxAdminService(repository.NewOutboxRepository(&database.DB{DB: db}), auth)
+	service := NewOutboxAdminService(repository.NewOutboxRepository(database.Wrap(db)), auth)
 	return service, mock, func() {
 		mock.ExpectClose()
 		require.NoError(t, db.Close())

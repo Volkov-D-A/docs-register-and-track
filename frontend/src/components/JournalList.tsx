@@ -13,7 +13,6 @@ const { Text } = Typography;
 
 interface JournalEntry {
     id: string;
-    documentId: string;
     userName?: string;
     action: string;
     details: string;

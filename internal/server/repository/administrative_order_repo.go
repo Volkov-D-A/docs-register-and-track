@@ -202,7 +202,7 @@ func (r *AdministrativeOrderRepository) GetByID(id uuid.UUID) (*models.Administr
 	return doc, nil
 }
 
-// GetByIDs loads graph card data and acknowledgement people in batches.
+// GetByIDs loads the order fields needed by graph nodes without acknowledgment people.
 func (r *AdministrativeOrderRepository) GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error) {
 	if len(ids) == 0 {
 		return []models.AdministrativeOrderDocument{}, nil
@@ -226,32 +226,19 @@ func (r *AdministrativeOrderRepository) GetByIDs(ids []uuid.UUID) ([]models.Admi
 	}
 	defer rows.Close()
 	items := make([]models.AdministrativeOrderDocument, 0, len(ids))
-	documentIDs := make([]uuid.UUID, 0, len(ids))
 	for rows.Next() {
 		doc, err := scanAdministrativeOrder(rows)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, *doc)
-		documentIDs = append(documentIDs, doc.ID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	people, err := r.getAcknowledgmentPeopleByDocumentIDs(documentIDs)
-	if err != nil {
-		return nil, err
-	}
-	for i := range items {
-		items[i].AcknowledgmentPeople = people[items[i].ID]
-	}
 	return items, nil
 }
 
-// Create создает приказ.
-func (r *AdministrativeOrderRepository) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
-	return r.create(req, nil, "", "")
-}
 func (r *AdministrativeOrderRepository) CreateWithJournal(req models.CreateAdministrativeOrderDocRequest, action, detailsFormat string) (*models.AdministrativeOrderDocument, error) {
 	return r.create(req, nil, action, detailsFormat)
 }
@@ -375,10 +362,6 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 	return r.GetByID(id)
 }
 
-// Update обновляет приказ.
-func (r *AdministrativeOrderRepository) Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
-	return r.update(req, nil)
-}
 func (r *AdministrativeOrderRepository) UpdateWithOutbox(req models.UpdateAdministrativeOrderDocRequest, effects []models.OutboxEvent) (*models.AdministrativeOrderDocument, error) {
 	return r.update(req, effects)
 }
@@ -446,36 +429,6 @@ func (r *AdministrativeOrderRepository) update(req models.UpdateAdministrativeOr
 	return r.GetByID(req.ID)
 }
 
-// MarkAcknowledgmentPerson подтверждает ознакомление строки приказа.
-func (r *AdministrativeOrderRepository) MarkAcknowledgmentPerson(id uuid.UUID, acknowledgedBy uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
-	var documentID uuid.UUID
-	var acknowledgedAt time.Time
-	err := r.db.QueryRow(`
-		UPDATE administrative_order_acknowledgment_people
-		SET acknowledged_at = COALESCE(acknowledged_at, CURRENT_TIMESTAMP),
-			acknowledged_by = COALESCE(acknowledged_by, $2)
-		WHERE id = $1
-		RETURNING document_id, acknowledged_at
-	`, id, acknowledgedBy).Scan(&documentID, &acknowledgedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to mark administrative order acknowledgment: %w", err)
-	}
-
-	person, err := r.GetAcknowledgmentPersonByID(id)
-	if err != nil {
-		return nil, err
-	}
-	if person != nil && person.AcknowledgedAt == nil {
-		person.AcknowledgedAt = &acknowledgedAt
-		person.AcknowledgedBy = &acknowledgedBy
-		person.DocumentID = documentID
-	}
-	return person, nil
-}
-
 // MarkAcknowledgmentPersonWithOutbox stores the acknowledgement and its
 // document-journal event in the same transaction.
 func (r *AdministrativeOrderRepository) MarkAcknowledgmentPersonWithOutbox(id, acknowledgedBy uuid.UUID, effects []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
@@ -485,8 +438,14 @@ func (r *AdministrativeOrderRepository) MarkAcknowledgmentPersonWithOutbox(id, a
 	}
 	defer tx.Rollback()
 	var documentID uuid.UUID
-	if err := tx.QueryRow(`UPDATE administrative_order_acknowledgment_people SET acknowledged_at = COALESCE(acknowledged_at, CURRENT_TIMESTAMP), acknowledged_by = COALESCE(acknowledged_by, $2) WHERE id = $1 RETURNING document_id`, id, acknowledgedBy).Scan(&documentID); err == sql.ErrNoRows {
-		return nil, nil
+	if err := tx.QueryRow(`UPDATE administrative_order_acknowledgment_people SET acknowledged_at = CURRENT_TIMESTAMP, acknowledged_by = $2 WHERE id = $1 AND acknowledged_at IS NULL RETURNING document_id`, id, acknowledgedBy).Scan(&documentID); err == sql.ErrNoRows {
+		// A second marker may have finished while this UPDATE waited for the row.
+		// Release the transaction before reading the existing mark, also when the
+		// connection pool has only one connection.
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return nil, rollbackErr
+		}
+		return r.GetAcknowledgmentPersonByID(id)
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to mark administrative order acknowledgment: %w", err)
 	}
@@ -584,36 +543,6 @@ func (r *AdministrativeOrderRepository) getAcknowledgmentPeopleByDocumentIDs(doc
 		return nil, err
 	}
 	return result, nil
-}
-
-// CancelByLink помечает приказ недействующим при создании отменяющей связи.
-func (r *AdministrativeOrderRepository) CancelByLink(id uuid.UUID, cancelledAt time.Time) error {
-	_, err := r.db.Exec(`
-		UPDATE documents d
-		SET updated_at = CURRENT_TIMESTAMP
-		FROM administrative_order_details ord
-		WHERE ord.document_id = d.id
-		  AND d.id = $1
-		  AND d.kind = $2
-		  AND (
-			ord.is_active = true
-			OR ord.cancelled_at IS DISTINCT FROM $3
-		  )
-	`, id, models.DocumentKindAdministrativeOrder, cancelledAt)
-	if err != nil {
-		return fmt.Errorf("failed to update administrative order root cancellation timestamp: %w", err)
-	}
-
-	_, err = r.db.Exec(`
-		UPDATE administrative_order_details
-		SET is_active = false,
-			cancelled_at = $2
-		WHERE document_id = $1
-	`, id, cancelledAt)
-	if err != nil {
-		return fmt.Errorf("failed to cancel administrative order by link: %w", err)
-	}
-	return nil
 }
 
 // GetCount возвращает количество приказов.

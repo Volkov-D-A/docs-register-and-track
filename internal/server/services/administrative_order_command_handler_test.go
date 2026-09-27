@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 type administrativeOrderHandlerDeps struct {
@@ -43,7 +43,7 @@ func (s *administrativeOrderCommandStore) GetByIDs(ids []uuid.UUID) ([]models.Ad
 	return nil, nil
 }
 
-func (s *administrativeOrderCommandStore) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
+func (s *administrativeOrderCommandStore) CreateWithJournal(req models.CreateAdministrativeOrderDocRequest, _ string, _ string) (*models.AdministrativeOrderDocument, error) {
 	s.createReq = &req
 	if s.createErr != nil {
 		return nil, s.createErr
@@ -54,11 +54,7 @@ func (s *administrativeOrderCommandStore) Create(req models.CreateAdministrative
 	return &models.AdministrativeOrderDocument{ID: uuid.New()}, nil
 }
 
-func (s *administrativeOrderCommandStore) CreateWithJournal(req models.CreateAdministrativeOrderDocRequest, _ string, _ string) (*models.AdministrativeOrderDocument, error) {
-	return s.Create(req)
-}
-
-func (s *administrativeOrderCommandStore) Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
+func (s *administrativeOrderCommandStore) UpdateWithOutbox(req models.UpdateAdministrativeOrderDocRequest, _ []models.OutboxEvent) (*models.AdministrativeOrderDocument, error) {
 	s.updateReq = &req
 	if s.updateErr != nil {
 		return nil, s.updateErr
@@ -69,24 +65,12 @@ func (s *administrativeOrderCommandStore) Update(req models.UpdateAdministrative
 	return &models.AdministrativeOrderDocument{ID: req.ID}, nil
 }
 
-func (s *administrativeOrderCommandStore) UpdateWithOutbox(req models.UpdateAdministrativeOrderDocRequest, _ []models.OutboxEvent) (*models.AdministrativeOrderDocument, error) {
-	return s.Update(req)
-}
-
 func (s *administrativeOrderCommandStore) GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
 	return nil, nil
 }
 
 func (s *administrativeOrderCommandStore) GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error) {
 	return nil, nil
-}
-
-func (s *administrativeOrderCommandStore) MarkAcknowledgmentPerson(id uuid.UUID, acknowledgedBy uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
-	return nil, nil
-}
-
-func (s *administrativeOrderCommandStore) CancelByLink(id uuid.UUID, cancelledAt time.Time) error {
-	return nil
 }
 
 func (s *administrativeOrderCommandStore) GetCount() (int, error) {

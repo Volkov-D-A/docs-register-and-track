@@ -18,7 +18,7 @@ import (
 )
 
 func TestDocumentCommandAPIAllKindsIntegration(t *testing.T) {
-	db := &database.DB{DB: integrationdb.Open(t)}
+	db := database.Wrap(integrationdb.Open(t))
 	hash, err := security.HashPassword("DocumentCommandPassw0rd!")
 	require.NoError(t, err)
 	userID := uuid.New()

@@ -52,10 +52,6 @@ func (s *fakeReferenceManagementStore) GetAllResolutionExecutors() ([]models.Res
 	s.method = "list-executors"
 	return s.executors, nil
 }
-func (s *fakeReferenceManagementStore) FindOrCreateResolutionExecutor(name string) (*models.ResolutionExecutor, error) {
-	s.method, s.name = "resolve-executor", name
-	return &models.ResolutionExecutor{ID: uuid.New(), Name: name}, nil
-}
 func (s *fakeReferenceManagementStore) SearchResolutionExecutors(query string) ([]models.ResolutionExecutor, error) {
 	s.method, s.query = "search-executors", query
 	return s.executors, nil
@@ -69,7 +65,7 @@ func (s *fakeReferenceManagementStore) DeleteResolutionExecutorWithOutbox(id uui
 	return nil
 }
 
-func TestReferenceReadAndResolveAPIRequiresSession(t *testing.T) {
+func TestReferenceReadAndOrganizationResolveAPIRequiresSession(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, nil)
 	store := &fakeReferenceManagementStore{
 		organizations: []models.Organization{{ID: uuid.New(), Name: "Legal"}},
@@ -89,12 +85,20 @@ func TestReferenceReadAndResolveAPIRequiresSession(t *testing.T) {
 	assert.Equal(t, "search-organizations", store.method)
 	assert.Equal(t, "Leg", store.query)
 
-	resolve := httptest.NewRequest(http.MethodPost, "/api/v1/references/resolution-executors/resolve", strings.NewReader(`{"name":"Executor"}`))
+	resolve := httptest.NewRequest(http.MethodPost, "/api/v1/references/organizations/resolve", strings.NewReader(`{"name":"Legal"}`))
 	resolve.Header.Set("Authorization", "Bearer "+token)
 	resolveResponse := httptest.NewRecorder()
 	api.Handler().ServeHTTP(resolveResponse, resolve)
 	require.Equal(t, http.StatusOK, resolveResponse.Code, resolveResponse.Body.String())
-	assert.Equal(t, "resolve-executor", store.method)
+	assert.Equal(t, "resolve-organization", store.method)
+
+	executors := httptest.NewRequest(http.MethodGet, "/api/v1/references/resolution-executors?query=Exec", nil)
+	executors.Header.Set("Authorization", "Bearer "+token)
+	executorsResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(executorsResponse, executors)
+	require.Equal(t, http.StatusOK, executorsResponse.Code, executorsResponse.Body.String())
+	assert.Equal(t, "search-executors", store.method)
+	assert.Equal(t, "Exec", store.query)
 }
 
 func TestReferenceMutationAPIRequiresPermissionAndPersistsAuditEffects(t *testing.T) {

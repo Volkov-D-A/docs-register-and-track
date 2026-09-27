@@ -317,7 +317,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 
 		sort.Slice(nodes, func(i, j int) bool {
 			if nodes[i].Date != nodes[j].Date {
-				return nodes[i].Date < nodes[j].Date
+				return graphDateSortKey(nodes[i].Date) < graphDateSortKey(nodes[j].Date)
 			}
 			if nodes[i].Label != nodes[j].Label {
 				return nodes[i].Label < nodes[j].Label
@@ -357,6 +357,14 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 
 		return &models.GraphData{Nodes: nodes, Edges: edges}, nil
 	})
+}
+
+// Dates are displayed as DD.MM.YYYY; compare year, month, and day instead.
+func graphDateSortKey(date string) string {
+	if len(date) != len("02.01.2006") || date[2] != '.' || date[5] != '.' {
+		return date
+	}
+	return date[6:10] + date[3:5] + date[0:2]
 }
 
 type graphCards struct {

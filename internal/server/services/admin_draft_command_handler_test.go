@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 func validAdminDraftCreateRequest(nomenclatureID uuid.UUID) dto.AdminDraftCreateRequest {
@@ -57,7 +57,7 @@ func TestIncomingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 		deps.auth.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionAdmin))
 
 		deps.refRepo.On("FindOrCreateOrganization", adminDraftPlaceholder).Return(&models.Organization{ID: orgID, Name: adminDraftPlaceholder}, nil).Once()
-		deps.repo.On("Create", mock.MatchedBy(func(req models.CreateIncomingDocRequest) bool {
+		deps.repo.On("CreateWithJournal", mock.MatchedBy(func(req models.CreateIncomingDocRequest) bool {
 			assert.Equal(t, nomenclatureID, req.NomenclatureID)
 			assert.NotEqual(t, uuid.Nil, req.IdempotencyKey)
 			assert.Equal(t, models.DocumentTypeLetter, req.DocumentTypeID)
@@ -72,7 +72,7 @@ func TestIncomingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 			assert.Equal(t, orgID, req.Correspondents[0].CorrespondentOrgID)
 			assertAdminDraftOverride(t, req.AdminNumberOverride)
 			return true
-		})).Return(&models.IncomingDocument{
+		}), "ADMIN_DRAFT_CREATE", "Создан административный черновик. Рег. номер: %s").Return(&models.IncomingDocument{
 			ID:             documentID,
 			NomenclatureID: nomenclatureID,
 			IncomingNumber: "26-01-27/15А",
@@ -107,7 +107,7 @@ func TestOutgoingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 	deps.auth.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionAdmin))
 
 	deps.refRepo.On("FindOrCreateOrganization", adminDraftPlaceholder).Return(&models.Organization{ID: orgID, Name: adminDraftPlaceholder}, nil).Once()
-	deps.repo.On("Create", mock.MatchedBy(func(req models.CreateOutgoingDocRequest) bool {
+	deps.repo.On("CreateWithJournal", mock.MatchedBy(func(req models.CreateOutgoingDocRequest) bool {
 		assert.Equal(t, nomenclatureID, req.NomenclatureID)
 		assert.NotEqual(t, uuid.Nil, req.IdempotencyKey)
 		assert.Equal(t, models.DocumentTypeLetter, req.DocumentTypeID)
@@ -121,7 +121,7 @@ func TestOutgoingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 		assert.Equal(t, adminDraftPlaceholder, req.Addressee)
 		assertAdminDraftOverride(t, req.AdminNumberOverride)
 		return true
-	})).Return(&models.OutgoingDocument{
+	}), "ADMIN_DRAFT_CREATE", "Создан административный черновик. Рег. номер: %s").Return(&models.OutgoingDocument{
 		ID:             documentID,
 		NomenclatureID: nomenclatureID,
 		OutgoingNumber: "26-01-27/15А",

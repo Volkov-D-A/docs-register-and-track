@@ -560,13 +560,3 @@ func (r *AssignmentRepository) GetAccessibleDocumentIDs(userID uuid.UUID, docume
 
 	return result, nil
 }
-
-// GetCountByStatus — вспомогательный метод для дашборда
-func (r *AssignmentRepository) GetCountByStatus(status string, executorID uuid.UUID) (int, error) {
-	var count int
-	err := r.db.QueryRow(
-		"SELECT COUNT(*) FROM assignments WHERE status = $1 AND executor_id = $2",
-		status, executorID,
-	).Scan(&count)
-	return count, err
-}

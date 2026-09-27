@@ -20,7 +20,7 @@ func setupDocumentRepository(t *testing.T) (*DocumentRepository, sqlmock.Sqlmock
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	return NewDocumentRepository(&database.DB{DB: db}), mock, func() { db.Close() }
+	return NewDocumentRepository(database.Wrap(db)), mock, func() { db.Close() }
 }
 
 func documentRepositoryRows(now time.Time, rows ...models.Document) *sqlmock.Rows {

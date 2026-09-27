@@ -13,7 +13,6 @@ const systemStats = {
   dbSize: '10 MB',
   storageObjects: 0,
   storageSize: '0 B',
-  storageRefreshInProgress: false,
   generatedAt: '2026-09-01T12:00:00Z',
   service: { buildVersion: '1.0.6.214', sourceRevision: 'server-commit', version: '1.0.6', state: 'ready', uptimeSeconds: 3660, schemaCurrentVersion: 13, schemaRequiredVersion: 13 },
   usage: { activeUsers15m: 3, activeSessions: 4 },

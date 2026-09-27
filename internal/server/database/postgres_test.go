@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -40,7 +41,7 @@ func setupMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock, *DB) {
 	dbMock, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	mock.MatchExpectationsInOrder(false) // Handle unstructured queries from golang-migrate
-	return dbMock, mock, &DB{DB: dbMock}
+	return dbMock, mock, Wrap(dbMock)
 }
 
 func TestConfigureConnectionPool(t *testing.T) {
@@ -50,6 +51,31 @@ func TestConfigureConnectionPool(t *testing.T) {
 	configureConnectionPool(dbMock)
 
 	assert.Equal(t, defaultMaxOpenConns, dbMock.Stats().MaxOpenConnections)
+}
+
+func TestDBExposesOnlyExplicitSQLMethods(t *testing.T) {
+	typeOfDB := reflect.TypeOf((*DB)(nil))
+	for _, name := range []string{"Prepare", "PrepareContext", "Ping", "PingContext"} {
+		_, exposed := typeOfDB.MethodByName(name)
+		require.False(t, exposed, "%s must not be promoted from sql.DB", name)
+	}
+}
+
+func TestDBReplacePoolKeepsWrapperAndMetrics(t *testing.T) {
+	first, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer first.Close()
+	second, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer second.Close()
+
+	wrapped := Wrap(first)
+	metrics := observability.NewRegistry(10)
+	wrapped.SetMetrics(metrics)
+	old := wrapped.ReplacePool(Wrap(second))
+	require.Same(t, first, old)
+	require.Same(t, second, wrapped.SQLDB())
+	require.Same(t, metrics, wrapped.metrics)
 }
 
 func TestDB_DefaultOperationsHaveDeadline(t *testing.T) {
@@ -213,8 +239,8 @@ func TestDB_MigratorCloseKeepsSharedDatabaseOpen(t *testing.T) {
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	catalog, err := inspectMigrationCatalog(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 13, catalog.AvailableCount)
-	assert.Equal(t, uint(13), catalog.LatestAvailableVersion)
+	assert.Equal(t, 12, catalog.AvailableCount)
+	assert.Equal(t, uint(12), catalog.LatestAvailableVersion)
 }
 
 func TestInspectMigrationCatalog(t *testing.T) {

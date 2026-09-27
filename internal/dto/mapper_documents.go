@@ -497,11 +497,7 @@ func MapResolutionExecutor(m *models.ResolutionExecutor) *ResolutionExecutor {
 	if m == nil {
 		return nil
 	}
-	return &ResolutionExecutor{
-		ID:        m.ID.String(),
-		Name:      m.Name,
-		CreatedAt: m.CreatedAt,
-	}
+	return &ResolutionExecutor{ID: m.ID.String(), Name: m.Name}
 }
 
 // MapResolutionExecutors преобразует список исполнителей резолюции в DTO.
@@ -512,21 +508,6 @@ func MapResolutionExecutors(m []models.ResolutionExecutor) []ResolutionExecutor 
 	res := make([]ResolutionExecutor, len(m))
 	for i, v := range m {
 		mapped := MapResolutionExecutor(&v)
-		if mapped != nil {
-			res[i] = *mapped
-		}
-	}
-	return res
-}
-
-// MapDocumentTypes преобразует список типов документов в DTO.
-func MapDocumentTypes(m []models.DocumentType) []DocumentType {
-	if m == nil {
-		return nil
-	}
-	res := make([]DocumentType, len(m))
-	for i, v := range m {
-		mapped := MapDocumentType(&v)
 		if mapped != nil {
 			res[i] = *mapped
 		}

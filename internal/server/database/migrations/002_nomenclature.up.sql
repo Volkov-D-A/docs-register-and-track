@@ -13,8 +13,6 @@ CREATE TABLE nomenclature (
     ),
     next_number INT NOT NULL DEFAULT 1,
     is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (index, year, kind_code)
 );
 
@@ -61,13 +59,11 @@ CREATE TABLE IF NOT EXISTS department_nomenclature (
 -- 6. Organizations
 CREATE TABLE organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
-    name VARCHAR(500) NOT NULL UNIQUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    name VARCHAR(500) NOT NULL UNIQUE
 );
 
 -- 8. Resolution Executors (справочник исполнителей резолюции)
 CREATE TABLE resolution_executors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(500) NOT NULL UNIQUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    name VARCHAR(500) NOT NULL UNIQUE
 );

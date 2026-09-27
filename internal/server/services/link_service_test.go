@@ -126,14 +126,6 @@ func (s *mapCitizenAppealDocStore) GetByIDs(ids []uuid.UUID) ([]models.CitizenAp
 	return result, nil
 }
 
-func (s *mapCitizenAppealDocStore) Create(req models.CreateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
-	return nil, nil
-}
-
-func (s *mapCitizenAppealDocStore) Update(req models.UpdateCitizenAppealDocRequest) (*models.CitizenAppealDocument, error) {
-	return nil, nil
-}
-
 func (s *mapCitizenAppealDocStore) GetCount() (int, error) {
 	return 0, nil
 }
@@ -156,28 +148,12 @@ func (s *mapAdministrativeOrderDocStore) GetByIDs(ids []uuid.UUID) ([]models.Adm
 	return result, nil
 }
 
-func (s *mapAdministrativeOrderDocStore) Create(req models.CreateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
-	return nil, nil
-}
-
-func (s *mapAdministrativeOrderDocStore) Update(req models.UpdateAdministrativeOrderDocRequest) (*models.AdministrativeOrderDocument, error) {
-	return nil, nil
-}
-
 func (s *mapAdministrativeOrderDocStore) GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
 	return nil, nil
 }
 
 func (s *mapAdministrativeOrderDocStore) GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error) {
 	return nil, nil
-}
-
-func (s *mapAdministrativeOrderDocStore) MarkAcknowledgmentPerson(id uuid.UUID, acknowledgedBy uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
-	return nil, nil
-}
-
-func (s *mapAdministrativeOrderDocStore) CancelByLink(id uuid.UUID, cancelledAt time.Time) error {
-	return nil
 }
 
 func (s *mapAdministrativeOrderDocStore) GetCount() (int, error) {
@@ -209,10 +185,6 @@ func (s *linkActionDocumentAccessStore) HasSystemPermission(permission, userID s
 
 func (s *linkActionDocumentAccessStore) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
 	return &models.UserDocumentAccessProfile{}, nil
-}
-
-func (s *linkActionDocumentAccessStore) ReplaceUserAccessProfile(userID string, systemPermissions []models.UserSystemPermissionRule, permissions []models.UserDocumentPermissionRule) error {
-	return nil
 }
 
 func TestLinkService_LinkDocuments(t *testing.T) {
@@ -488,6 +460,30 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
+}
+
+func TestLinkServiceGraphNodesSortChronologically(t *testing.T) {
+	svc, links, incoming, _, _ := setupLinkService(t, "clerk")
+	rootID, olderID, newerID := uuid.New(), uuid.New(), uuid.New()
+	links.On("GetGraph", context.Background(), rootID).Return([]models.DocumentLink{
+		{ID: uuid.New(), SourceID: rootID, SourceKind: models.DocumentKindIncomingLetter, TargetID: olderID, TargetKind: models.DocumentKindIncomingLetter, LinkType: "related"},
+		{ID: uuid.New(), SourceID: rootID, SourceKind: models.DocumentKindIncomingLetter, TargetID: newerID, TargetKind: models.DocumentKindIncomingLetter, LinkType: "related"},
+	}, nil).Once()
+	for _, item := range []struct {
+		id   uuid.UUID
+		date time.Time
+	}{
+		{rootID, time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC)},
+		{olderID, time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)},
+		{newerID, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)},
+	} {
+		incoming.On("GetByID", item.id).Return(&models.IncomingDocument{ID: item.id, IncomingNumber: item.date.Format("02.01.2006"), IncomingDate: item.date}, nil).Maybe()
+	}
+	result, err := svc.GetDocumentFlow(rootID.String())
+	require.NoError(t, err)
+	require.Len(t, result.Nodes, 3)
+	require.Equal(t, []string{olderID.String(), rootID.String(), newerID.String()}, []string{result.Nodes[0].ID, result.Nodes[1].ID, result.Nodes[2].ID})
+	require.Equal(t, "31.12.2025", result.Nodes[0].Date)
 }
 
 func TestLinkService_GetDocumentFlow(t *testing.T) {

@@ -18,7 +18,6 @@ type ReferenceClient interface {
 	DeleteOrganization(context.Context, string) error
 	MergeOrganizations(context.Context, string, string) error
 	ListResolutionExecutors(context.Context, string) ([]dto.ResolutionExecutor, error)
-	ResolveResolutionExecutor(context.Context, string) (*dto.ResolutionExecutor, error)
 	UpdateResolutionExecutor(context.Context, string, string) error
 	DeleteResolutionExecutor(context.Context, string) error
 }
@@ -86,14 +85,6 @@ func (c *Client) ListResolutionExecutors(ctx context.Context, query string) ([]d
 		return nil, err
 	}
 	return result, nil
-}
-
-func (c *Client) ResolveResolutionExecutor(ctx context.Context, name string) (*dto.ResolutionExecutor, error) {
-	var result dto.ResolutionExecutor
-	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/references/resolution-executors/resolve", referenceNameRequest{Name: name}, http.StatusOK, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
 }
 
 func (c *Client) UpdateResolutionExecutor(ctx context.Context, id, name string) error {

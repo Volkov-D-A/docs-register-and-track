@@ -22,8 +22,13 @@ func NewAdminAuditLogRepository(db *database.DB) *AdminAuditLogRepository {
 func (r *AdminAuditLogRepository) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
 	return r.create(req, "")
 }
-func (r *AdminAuditLogRepository) CreateFromOutbox(req models.CreateAdminAuditLogRequest, key string) (uuid.UUID, error) {
-	return r.create(req, key)
+func (r *AdminAuditLogRepository) CreateFromOutbox(req models.CreateAdminAuditLogRequest, key string) error {
+	_, err := r.db.Exec(`
+		INSERT INTO admin_audit_log (user_id, user_name, action, details, outbox_deduplication_key)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''))
+		ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING
+	`, req.UserID, req.UserName, req.Action, req.Details, key)
+	return err
 }
 func (r *AdminAuditLogRepository) create(req models.CreateAdminAuditLogRequest, key string) (uuid.UUID, error) {
 	query := `
@@ -49,7 +54,7 @@ func (r *AdminAuditLogRepository) GetAll(limit, offset int) ([]models.AdminAudit
 	}
 
 	query := `
-		SELECT id, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'::uuid), user_name, action, COALESCE(details, ''), created_at
+		SELECT id, user_name, action, COALESCE(details, ''), created_at
 		FROM admin_audit_log
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -63,7 +68,7 @@ func (r *AdminAuditLogRepository) GetAll(limit, offset int) ([]models.AdminAudit
 	entries := make([]models.AdminAuditLog, 0)
 	for rows.Next() {
 		var entry models.AdminAuditLog
-		if err := rows.Scan(&entry.ID, &entry.UserID, &entry.UserName, &entry.Action, &entry.Details, &entry.CreatedAt); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.UserName, &entry.Action, &entry.Details, &entry.CreatedAt); err != nil {
 			return nil, 0, err
 		}
 		entries = append(entries, entry)

@@ -15,44 +15,6 @@ type OutgoingDocStore struct {
 	mock.Mock
 }
 
-func (_m *OutgoingDocStore) CreateWithJournal(req models.CreateOutgoingDocRequest, _ string, _ string) (*models.OutgoingDocument, error) {
-	return _m.Create(req)
-}
-
-func (_m *OutgoingDocStore) UpdateWithOutbox(req models.UpdateOutgoingDocRequest, _ []models.OutboxEvent) (*models.OutgoingDocument, error) {
-	return _m.Update(req)
-}
-
-// Create provides a mock function with given fields: req
-func (_m *OutgoingDocStore) Create(req models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error) {
-	ret := _m.Called(req)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Create")
-	}
-
-	var r0 *models.OutgoingDocument
-	var r1 error
-	if rf, ok := ret.Get(0).(func(models.CreateOutgoingDocRequest) (*models.OutgoingDocument, error)); ok {
-		return rf(req)
-	}
-	if rf, ok := ret.Get(0).(func(models.CreateOutgoingDocRequest) *models.OutgoingDocument); ok {
-		r0 = rf(req)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.OutgoingDocument)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(models.CreateOutgoingDocRequest) error); ok {
-		r1 = rf(req)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetByID provides a mock function with given fields: id
 func (_m *OutgoingDocStore) GetByID(id uuid.UUID) (*models.OutgoingDocument, error) {
 	ret := _m.Called(id)
@@ -150,36 +112,6 @@ func (_m *OutgoingDocStore) GetList(filter models.OutgoingDocumentFilter) (*mode
 
 	if rf, ok := ret.Get(1).(func(models.OutgoingDocumentFilter) error); ok {
 		r1 = rf(filter)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// Update provides a mock function with given fields: req
-func (_m *OutgoingDocStore) Update(req models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error) {
-	ret := _m.Called(req)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Update")
-	}
-
-	var r0 *models.OutgoingDocument
-	var r1 error
-	if rf, ok := ret.Get(0).(func(models.UpdateOutgoingDocRequest) (*models.OutgoingDocument, error)); ok {
-		return rf(req)
-	}
-	if rf, ok := ret.Get(0).(func(models.UpdateOutgoingDocRequest) *models.OutgoingDocument); ok {
-		r0 = rf(req)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.OutgoingDocument)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(models.UpdateOutgoingDocRequest) error); ok {
-		r1 = rf(req)
 	} else {
 		r1 = ret.Error(1)
 	}

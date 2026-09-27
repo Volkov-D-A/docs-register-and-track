@@ -9,7 +9,6 @@ import (
 // AdminAuditLog представляет собой запись в журнале действий администраторов.
 type AdminAuditLog struct {
 	ID        uuid.UUID `json:"id"`
-	UserID    uuid.UUID `json:"userId"`
 	UserName  string    `json:"userName"`
 	Action    string    `json:"action"`
 	Details   string    `json:"details"`

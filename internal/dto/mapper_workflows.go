@@ -6,7 +6,7 @@ func MapDocumentLink(m *models.DocumentLink) *DocumentLink {
 	if m == nil {
 		return nil
 	}
-	return &DocumentLink{ID: m.ID.String(), SourceKind: string(m.SourceKind), SourceID: m.SourceID.String(), TargetKind: string(m.TargetKind), TargetID: m.TargetID.String(), LinkType: m.LinkType, CreatedBy: m.CreatedBy.String(), CreatedAt: m.CreatedAt, SourceNumber: m.SourceNumber, TargetNumber: m.TargetNumber, TargetSubject: m.TargetSubject}
+	return &DocumentLink{ID: m.ID.String(), SourceKind: string(m.SourceKind), SourceID: m.SourceID.String(), TargetKind: string(m.TargetKind), LinkType: m.LinkType, SourceNumber: m.SourceNumber, TargetNumber: m.TargetNumber, SourceSubject: m.SourceSubject, TargetSubject: m.TargetSubject}
 }
 
 func MapAttachment(m *models.Attachment) *Attachment {
@@ -66,14 +66,14 @@ func MapAcknowledgment(m *models.Acknowledgment) *Acknowledgment {
 			}
 		}
 	}
-	return &Acknowledgment{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, DocumentNumber: m.DocumentNumber, CreatorID: m.CreatorID.String(), CreatorName: m.CreatorName, Content: m.Content, CreatedAt: m.CreatedAt, CompletedAt: m.CompletedAt, Users: users, UserIDs: m.UserIDs}
+	return &Acknowledgment{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, DocumentNumber: m.DocumentNumber, CreatorID: m.CreatorID.String(), CreatorName: m.CreatorName, Content: m.Content, CreatedAt: m.CreatedAt, CompletedAt: m.CompletedAt, Users: users}
 }
 
 func MapAcknowledgmentUser(m *models.AcknowledgmentUser) *AcknowledgmentUser {
 	if m == nil {
 		return nil
 	}
-	return &AcknowledgmentUser{ID: m.ID.String(), UserID: m.UserID.String(), UserName: m.UserName, ViewedAt: m.ViewedAt, ConfirmedAt: m.ConfirmedAt, CreatedAt: m.CreatedAt}
+	return &AcknowledgmentUser{UserID: m.UserID.String(), UserName: m.UserName, ConfirmedAt: m.ConfirmedAt}
 }
 
 func MapDocumentLinks(m []models.DocumentLink) []DocumentLink {

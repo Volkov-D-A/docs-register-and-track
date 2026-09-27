@@ -20,9 +20,8 @@ type AssignmentStore interface {
 type AssignmentSeriesStore interface {
 	CreateSeriesWithFirstAssignment(seriesID, assignmentID, documentID, executorID, createdBy uuid.UUID, content string, firstDeadline time.Time, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, coExecutorIDs []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error)
 	GetAssignmentSeries(id uuid.UUID) (*models.AssignmentSeries, error)
-	GetAssignmentSeriesByAssignment(id uuid.UUID) (*models.AssignmentSeries, error)
 	UpdateAssignmentSeries(id, executorID uuid.UUID, content, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, coExecutorIDs []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error)
 	CancelAssignmentSeries(id, actorID uuid.UUID, effects []models.OutboxEvent) error
-	FinishSeriesIterationWithNext(currentID, seriesID, nextID uuid.UUID, expectedSeriesUpdatedAt time.Time, report string, completedAt *time.Time, nextDeadline time.Time, nextIteration int, executorID uuid.UUID, content string, coExecutorIDs []string, currentEffects, nextEffects []models.OutboxEvent) (*models.Assignment, error)
+	FinishSeriesIterationWithNext(currentID, seriesID, nextID, actorID uuid.UUID, expectedSeriesUpdatedAt time.Time, report string, completedAt *time.Time, nextDeadline time.Time, nextIteration int, executorID uuid.UUID, content string, coExecutorIDs []string, currentEffects, nextEffects []models.OutboxEvent, autoCancelEffect models.OutboxEvent) (*models.Assignment, error)
 	GetAssignmentSeriesHistory(seriesID uuid.UUID) ([]models.Assignment, error)
 }

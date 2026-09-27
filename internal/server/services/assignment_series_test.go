@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +30,7 @@ type testAssignmentSeriesStore struct {
 	updatedInterval      int
 	updatedDayRule       string
 	updatedDayOfMonth    int
+	updatedCoExecutors   []string
 	updateEffects        []models.OutboxEvent
 	cancelCalls          int
 	cancelEffects        []models.OutboxEvent
@@ -38,6 +39,7 @@ type testAssignmentSeriesStore struct {
 	nextIteration        int
 	finishEffects        []models.OutboxEvent
 	nextEffects          []models.OutboxEvent
+	autoCancelEffect     models.OutboxEvent
 	finishResult         *models.Assignment
 }
 
@@ -56,16 +58,14 @@ func (s *testAssignmentSeriesStore) CreateSeriesWithFirstAssignment(_, _, _, _, 
 func (s *testAssignmentSeriesStore) GetAssignmentSeries(uuid.UUID) (*models.AssignmentSeries, error) {
 	return s.series, nil
 }
-func (s *testAssignmentSeriesStore) GetAssignmentSeriesByAssignment(uuid.UUID) (*models.AssignmentSeries, error) {
-	return s.series, nil
-}
-func (s *testAssignmentSeriesStore) UpdateAssignmentSeries(_, _ uuid.UUID, content, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, _ []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error) {
+func (s *testAssignmentSeriesStore) UpdateAssignmentSeries(_, _ uuid.UUID, content, intervalUnit string, intervalValue int, dayRule string, dayOfMonth int, coExecutorIDs []string, effects []models.OutboxEvent) (*models.AssignmentSeries, error) {
 	s.updateCalls++
 	s.updatedContent = content
 	s.updatedIntervalUnit = intervalUnit
 	s.updatedInterval = intervalValue
 	s.updatedDayRule = dayRule
 	s.updatedDayOfMonth = dayOfMonth
+	s.updatedCoExecutors = append([]string(nil), coExecutorIDs...)
 	s.updateEffects = append([]models.OutboxEvent(nil), effects...)
 	return s.series, nil
 }
@@ -74,8 +74,9 @@ func (s *testAssignmentSeriesStore) CancelAssignmentSeries(_, _ uuid.UUID, effec
 	s.cancelEffects = append([]models.OutboxEvent(nil), effects...)
 	return nil
 }
-func (s *testAssignmentSeriesStore) FinishSeriesIterationWithNext(_, _, _ uuid.UUID, _ time.Time, _ string, _ *time.Time, nextDeadline time.Time, nextIteration int, _ uuid.UUID, _ string, _ []string, currentEffects, nextEffects []models.OutboxEvent) (*models.Assignment, error) {
+func (s *testAssignmentSeriesStore) FinishSeriesIterationWithNext(_, _, _, _ uuid.UUID, _ time.Time, _ string, _ *time.Time, nextDeadline time.Time, nextIteration int, _ uuid.UUID, _ string, _ []string, currentEffects, nextEffects []models.OutboxEvent, autoCancelEffect models.OutboxEvent) (*models.Assignment, error) {
 	s.finishCalls++
+	s.autoCancelEffect = autoCancelEffect
 	s.nextDeadline = nextDeadline
 	s.nextIteration = nextIteration
 	s.finishEffects = append([]models.OutboxEvent(nil), currentEffects...)
@@ -138,6 +139,7 @@ func TestValidateAssignmentSeriesRequest(t *testing.T) {
 		mutate func(*models.AssignmentSeriesRequest)
 	}{
 		{name: "invalid executor", mutate: func(r *models.AssignmentSeriesRequest) { r.ExecutorID = "invalid" }},
+		{name: "zero executor", mutate: func(r *models.AssignmentSeriesRequest) { r.ExecutorID = uuid.Nil.String() }},
 		{name: "empty content", mutate: func(r *models.AssignmentSeriesRequest) { r.Content = "   " }},
 		{name: "invalid unit", mutate: func(r *models.AssignmentSeriesRequest) { r.IntervalUnit = "hour" }},
 		{name: "zero interval", mutate: func(r *models.AssignmentSeriesRequest) { r.IntervalValue = 0 }},
@@ -193,7 +195,7 @@ func TestAssignmentSeriesServiceLifecycle(t *testing.T) {
 		IntervalUnit:  "month",
 		IntervalValue: 3,
 		DayRule:       "last_day",
-		CoExecutorIDs: []string{coExecutorID.String()},
+		CoExecutorIDs: []string{executorID.String(), coExecutorID.String(), coExecutorID.String()},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, created)
@@ -201,8 +203,16 @@ func TestAssignmentSeriesServiceLifecycle(t *testing.T) {
 	assert.Equal(t, "Квартальный отчёт", store.createdContent)
 	assert.Equal(t, "2026-03-31", store.createdFirstDeadline.Format("2006-01-02"))
 	assert.Equal(t, "last_day", store.createdDayRule)
+	assert.Equal(t, []string{coExecutorID.String()}, store.createdCoExecutors)
 	assert.Len(t, store.createEffects, 3)
 	assert.Equal(t, models.OutboxEventJournal, store.createEffects[0].EventType)
+
+	_, err = svc.UpdateSeries(series.ID.String(), models.AssignmentSeriesRequest{
+		ExecutorID: executorID.String(), Content: "Ошибка", IntervalUnit: "year", IntervalValue: 1,
+		DayRule: "fixed", DayOfMonth: 15, CoExecutorIDs: []string{"not-a-uuid"},
+	})
+	requireAppError(t, err, "VALIDATION_ERROR", 400, "неверный ID соисполнителя")
+	assert.Zero(t, store.updateCalls)
 
 	updated, err := svc.UpdateSeries(series.ID.String(), models.AssignmentSeriesRequest{
 		ExecutorID:    executorID.String(),
@@ -211,9 +221,11 @@ func TestAssignmentSeriesServiceLifecycle(t *testing.T) {
 		IntervalValue: 1,
 		DayRule:       "fixed",
 		DayOfMonth:    15,
+		CoExecutorIDs: []string{executorID.String(), coExecutorID.String(), coExecutorID.String()},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, updated)
+	assert.Equal(t, []string{coExecutorID.String()}, store.updatedCoExecutors)
 	assert.Equal(t, 1, store.updateCalls)
 	assert.Equal(t, "Годовой отчёт", store.updatedContent)
 	assert.Equal(t, "year", store.updatedIntervalUnit)
@@ -273,6 +285,7 @@ func TestAssignmentSeriesFinishCreatesNextIteration(t *testing.T) {
 	assert.Equal(t, "2026-06-30", store.nextDeadline.Format("2006-01-02"))
 	assert.Len(t, store.finishEffects, 1)
 	assert.Len(t, store.nextEffects, 2)
+	assert.Contains(t, store.autoCancelEffect.Payload, "ASSIGNMENT_SERIES_CANCEL")
 }
 
 func TestAssignmentSeriesManagementRequiresAssignPermission(t *testing.T) {
@@ -294,4 +307,37 @@ func TestAssignmentSeriesManagementRequiresAssignPermission(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, series.ID.String(), result.ID)
 	})
+}
+
+func TestAssignmentSeriesRejectsIneligibleExecutorsBeforeWrite(t *testing.T) {
+	documentID, executorID, coExecutorID := uuid.New(), uuid.New(), uuid.New()
+	for _, operation := range []string{"create", "update"} {
+		for _, kind := range []string{"main", "coexecutor"} {
+			t.Run(operation+" "+kind, func(t *testing.T) {
+				svc, assignmentRepo, _, _, _ := setupAssignmentService(t, "clerk")
+				series := &models.AssignmentSeries{ID: uuid.New(), DocumentID: documentID, ExecutorID: executorID, Active: true}
+				store := &testAssignmentSeriesStore{AssignmentStore: assignmentRepo, series: series}
+				svc.repo = store
+				users := mocks.NewUserStore(t)
+				eligible := map[uuid.UUID]struct{}{executorID: {}}
+				want := "соисполнитель недоступен"
+				if kind == "main" {
+					eligible = map[uuid.UUID]struct{}{coExecutorID: {}}
+					want = "исполнитель недоступен"
+				}
+				users.On("GetEligibleRecipientIDs", []uuid.UUID{executorID, coExecutorID}).Return(eligible, nil).Once()
+				svc.userRepo = users
+				request := models.AssignmentSeriesRequest{DocumentID: documentID.String(), ExecutorID: executorID.String(), Content: "Поручение", FirstDeadline: "2026-03-31", IntervalUnit: "month", IntervalValue: 1, DayRule: "last_day", CoExecutorIDs: []string{coExecutorID.String()}}
+				var err error
+				if operation == "create" {
+					_, err = svc.CreateSeries(request)
+				} else {
+					_, err = svc.UpdateSeries(series.ID.String(), request)
+				}
+				requireAppError(t, err, "VALIDATION_ERROR", 400, want)
+				require.Zero(t, store.createCalls)
+				require.Zero(t, store.updateCalls)
+			})
+		}
+	}
 }

@@ -19,7 +19,7 @@ test('backup settings preserve a stored password and retry a staged archive', as
   installWailsMock({ SettingsService: {
     GetBackupSettings: vi.fn().mockResolvedValue({ settings, issue: '', nextRun: '' }),
     SaveBackupSettings: save,
-    ListBackups: vi.fn().mockResolvedValue([{ id: 'backup-id', state: 'staged', createdAt: '2026-09-10T00:00:00Z', updatedAt: '2026-09-10T00:00:00Z', attempts: 5, archiveSize: 1024 }]),
+    ListBackups: vi.fn().mockResolvedValue([{ id: 'backup-id', state: 'staged', createdAt: '2026-09-10T00:00:00Z', updatedAt: '2026-09-10T00:00:00Z', archiveSize: 1024 }]),
     RetryBackup: retry, CheckBackupConnection: check,
     ListBackupCopies: vi.fn().mockResolvedValue([]),
   } });

@@ -21,13 +21,7 @@ type AttachmentRepository struct {
 
 func (r *AttachmentRepository) SetOutbox(outbox *OutboxRepository) { r.outbox = outbox }
 
-// MarkDeletingWithOutbox atomically hides the attachment and schedules object
-// cleanup. The consumer may safely retry because DeleteFile and DeleteMarked
-// are both idempotent for an already marked row.
-func (r *AttachmentRepository) MarkDeletingWithOutbox(attachment models.Attachment) error {
-	return r.markDeletingWithOutbox(attachment, nil)
-}
-
+// MarkDeletingWithEffects atomically hides the attachment and schedules object cleanup.
 func (r *AttachmentRepository) MarkDeletingWithEffects(attachment models.Attachment, effects []models.OutboxEvent) error {
 	return r.markDeletingWithOutbox(attachment, effects)
 }

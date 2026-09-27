@@ -143,31 +143,30 @@ func (_m *AcknowledgmentStore) GetByID(id uuid.UUID) (*models.Acknowledgment, er
 	return r0, r1
 }
 
-// GetUsersByAcknowledgmentID provides a mock function with given fields: ackID
-func (_m *AcknowledgmentStore) GetUsersByAcknowledgmentID(ackID uuid.UUID) ([]models.AcknowledgmentUser, error) {
-	ret := _m.Called(ackID)
-
+// GetUsersByAcknowledgmentIDs provides a mock function with given fields: ackIDs
+func (_m *AcknowledgmentStore) GetUsersByAcknowledgmentIDs(ackIDs []uuid.UUID) (map[uuid.UUID][]models.AcknowledgmentUser, error) {
+	ret := _m.Called(ackIDs)
 	if len(ret) == 0 {
-		panic("no return value specified for GetUsersByAcknowledgmentID")
+		panic("no return value specified for GetUsersByAcknowledgmentIDs")
 	}
+	var result map[uuid.UUID][]models.AcknowledgmentUser
+	if ret.Get(0) != nil {
+		result = ret.Get(0).(map[uuid.UUID][]models.AcknowledgmentUser)
+	}
+	return result, ret.Error(1)
+}
 
-	var r0 []models.AcknowledgmentUser
-	var r1 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID) ([]models.AcknowledgmentUser, error)); ok {
-		return rf(ackID)
+// GetPendingRecipientIDs provides a mock function with given fields: ackID, candidateIDs.
+func (_m *AcknowledgmentStore) GetPendingRecipientIDs(ackID uuid.UUID, candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	ret := _m.Called(ackID, candidateIDs)
+	if len(ret) == 0 {
+		panic("no return value specified for GetPendingRecipientIDs")
 	}
-	if rf, ok := ret.Get(0).(func(uuid.UUID) []models.AcknowledgmentUser); ok {
-		r0 = rf(ackID)
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]models.AcknowledgmentUser)
+	var result map[uuid.UUID]struct{}
+	if ret.Get(0) != nil {
+		result = ret.Get(0).(map[uuid.UUID]struct{})
 	}
-	if rf, ok := ret.Get(1).(func(uuid.UUID) error); ok {
-		r1 = rf(ackID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return result, ret.Error(1)
 }
 
 // HasDocumentAccess provides a mock function with given fields: userID, documentID
@@ -232,24 +231,6 @@ func (_m *AcknowledgmentStore) MarkConfirmedWithEffects(ackID uuid.UUID, userID 
 	return r0
 }
 
-func (_m *AcknowledgmentStore) MarkViewedWithOutbox(ackID uuid.UUID, userID uuid.UUID, effects []models.OutboxEvent) error {
-	_m.Effects = append([]models.OutboxEvent(nil), effects...)
-	ret := _m.Called(ackID, userID, effects)
-
-	if len(ret) == 0 {
-		panic("no return value specified for MarkViewedWithOutbox")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(uuid.UUID, uuid.UUID, []models.OutboxEvent) error); ok {
-		r0 = rf(ackID, userID, effects)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // NewAcknowledgmentStore creates a new instance of AcknowledgmentStore. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewAcknowledgmentStore(t interface {
@@ -264,10 +245,10 @@ func NewAcknowledgmentStore(t interface {
 	return mock
 }
 
-func (_m *AcknowledgmentStore) GetPendingForUsers(ids []uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
-	ret := _m.Called(ids)
-	if rf, ok := ret.Get(0).(func([]uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error)); ok {
-		return rf(ids)
+func (_m *AcknowledgmentStore) GetPendingForUsers(ids []uuid.UUID, documentID uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error) {
+	ret := _m.Called(ids, documentID)
+	if rf, ok := ret.Get(0).(func([]uuid.UUID, uuid.UUID) (map[uuid.UUID][]models.Acknowledgment, error)); ok {
+		return rf(ids, documentID)
 	}
 	var result map[uuid.UUID][]models.Acknowledgment
 	if ret.Get(0) != nil {

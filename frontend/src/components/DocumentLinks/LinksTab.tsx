@@ -267,7 +267,7 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
         const isSource = item.sourceId === documentId;
         const otherType = isSource ? item.targetKind : item.sourceKind;
         const otherNumber = isSource ? item.targetNumber : item.sourceNumber;
-        const otherSubject = item.targetSubject || ""; // We might only have target subject in my repo query
+        const otherSubject = (isSource ? item.targetSubject : item.sourceSubject) || "";
 
         const typeLabel = getDocumentLinkTypeLabel(item.linkType);
 

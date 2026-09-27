@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 func citizenAppealRows(docID uuid.UUID, now time.Time) *sqlmock.Rows {
@@ -77,7 +77,7 @@ func TestCitizenAppealRepository_GetByID(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewCitizenAppealRepository(&database.DB{DB: db})
+	repo := NewCitizenAppealRepository(database.Wrap(db))
 	docID := uuid.New()
 	now := time.Now()
 	expectedQuery := citizenAppealSelectBase + " WHERE d.id = $1 AND d.kind = $2"
@@ -130,7 +130,7 @@ func TestCitizenAppealRepository_GetCount(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewCitizenAppealRepository(&database.DB{DB: db})
+	repo := NewCitizenAppealRepository(database.Wrap(db))
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).
 		WithArgs(models.DocumentKindCitizenAppeal).
@@ -148,7 +148,7 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewCitizenAppealRepository(&database.DB{DB: db})
+	repo := NewCitizenAppealRepository(database.Wrap(db))
 	now := time.Now()
 	docID := uuid.New()
 
@@ -300,7 +300,8 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewCitizenAppealRepository(&database.DB{DB: db})
+	repo := NewCitizenAppealRepository(database.Wrap(db))
+	repo.SetOutbox(NewOutboxRepository(repo.db))
 	docID := uuid.New()
 	now := time.Now()
 	resolution := "Подготовить ответ"
@@ -382,6 +383,7 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 		req.Resolutions[0].ResolutionExecutors,
 		req.Resolutions[0].Position,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventJournal, "citizen-appeal:"+docID.String()+":create:journal", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	expectedQuery := citizenAppealSelectBase + " WHERE d.id = $1 AND d.kind = $2"
@@ -390,7 +392,7 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 		WillReturnRows(citizenAppealRows(docID, now))
 	expectCitizenAppealHydrateEmpty(mock, docID)
 
-	doc, err := repo.Create(req)
+	doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 	require.NoError(t, err)
 	require.NotNil(t, doc)
@@ -404,14 +406,14 @@ func TestCitizenAppealRepository_CreateMissingIdempotencyKey(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewCitizenAppealRepository(&database.DB{DB: db})
+	repo := NewCitizenAppealRepository(database.Wrap(db))
 	mock.ExpectBegin()
 	mock.ExpectRollback()
 
-	doc, err := repo.Create(models.CreateCitizenAppealDocRequest{
+	doc, err := repo.CreateWithJournal(models.CreateCitizenAppealDocRequest{
 		NomenclatureID: uuid.New(),
 		CreatedBy:      uuid.New(),
-	})
+	}, "CREATE", "Created %s")
 
 	require.Error(t, err)
 	assert.Nil(t, doc)
@@ -445,7 +447,7 @@ func TestCitizenAppealRepository_CreateRootInsertErrors(t *testing.T) {
 			require.NoError(t, err)
 			defer db.Close()
 
-			repo := NewCitizenAppealRepository(&database.DB{DB: db})
+			repo := NewCitizenAppealRepository(database.Wrap(db))
 			req := models.CreateCitizenAppealDocRequest{
 				NomenclatureID:     uuid.New(),
 				IdempotencyKey:     uuid.New(),
@@ -478,7 +480,7 @@ func TestCitizenAppealRepository_CreateRootInsertErrors(t *testing.T) {
 			).WillReturnError(tt.insertErr)
 			mock.ExpectRollback()
 
-			doc, err := repo.Create(req)
+			doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 			require.Error(t, err)
 			assert.Nil(t, doc)
@@ -498,7 +500,7 @@ func TestCitizenAppealRepository_CreateDetailsInsertError(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewCitizenAppealRepository(&database.DB{DB: db})
+	repo := NewCitizenAppealRepository(database.Wrap(db))
 	docID := uuid.New()
 	req := models.CreateCitizenAppealDocRequest{
 		NomenclatureID:     uuid.New(),
@@ -544,7 +546,7 @@ func TestCitizenAppealRepository_CreateDetailsInsertError(t *testing.T) {
 	).WillReturnError(sql.ErrConnDone)
 	mock.ExpectRollback()
 
-	doc, err := repo.Create(req)
+	doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 	require.Error(t, err)
 	assert.Nil(t, doc)
@@ -558,7 +560,7 @@ func TestCitizenAppealRepository_Update(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewCitizenAppealRepository(&database.DB{DB: db})
+		repo := NewCitizenAppealRepository(database.Wrap(db))
 		docID := uuid.New()
 		now := time.Now()
 		resolution := "Повторно рассмотреть"
@@ -634,7 +636,7 @@ func TestCitizenAppealRepository_Update(t *testing.T) {
 			WillReturnRows(citizenAppealRows(docID, now))
 		expectCitizenAppealHydrateEmpty(mock, docID)
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 
 		require.NoError(t, err)
 		require.NotNil(t, doc)
@@ -647,7 +649,7 @@ func TestCitizenAppealRepository_Update(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewCitizenAppealRepository(&database.DB{DB: db})
+		repo := NewCitizenAppealRepository(database.Wrap(db))
 		req := models.UpdateCitizenAppealDocRequest{
 			ID:                 uuid.New(),
 			RegistrationNumber: "ОГ-003",
@@ -667,7 +669,7 @@ func TestCitizenAppealRepository_Update(t *testing.T) {
 		).WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to update citizen appeal root")

@@ -21,7 +21,7 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo := NewAssignmentRepository(database.Wrap(db))
 	assignID := uuid.New()
 	now := time.Now()
 
@@ -79,7 +79,7 @@ func TestAssignmentRepository_DeleteWithOutbox(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo := NewAssignmentRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	assignID := uuid.New()
 
@@ -97,8 +97,8 @@ func TestAssignmentRepositoryDeleteWithOutboxRollsBackOnEnqueueFailure(t *testin
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewAssignmentRepository(&database.DB{DB: db})
-	outbox := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewAssignmentRepository(database.Wrap(db))
+	outbox := NewOutboxRepository(database.Wrap(db))
 	repo.SetOutbox(outbox)
 	assignmentID := uuid.New()
 	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "assignment:test:deleted:journal", Payload: `{}`}
@@ -127,8 +127,8 @@ func TestAssignmentRepositoryUpdateDetailsRejectsStaleSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAssignmentRepository(&database.DB{DB: db})
-	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	repo := NewAssignmentRepository(database.Wrap(db))
+	repo.SetOutbox(NewOutboxRepository(database.Wrap(db)))
 	assignmentID, executorID := uuid.New(), uuid.New()
 	expectedUpdatedAt := time.Now().UTC()
 	updateQuery := `UPDATE assignments
@@ -156,7 +156,7 @@ func TestAssignmentRepository_CreateWithOutbox(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo := NewAssignmentRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	assignID := uuid.New()
 	now := time.Now()
@@ -205,7 +205,7 @@ func TestAssignmentRepository_UpdateWithOutbox(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo := NewAssignmentRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	assignID := uuid.New()
 	execID := uuid.New()
@@ -252,7 +252,7 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo := NewAssignmentRepository(database.Wrap(db))
 	now := time.Now()
 
 	filter := models.AssignmentFilter{
@@ -290,7 +290,7 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		res, err := NewAssignmentRepository(&database.DB{DB: db}).GetList(models.AssignmentFilter{
+		res, err := NewAssignmentRepository(database.Wrap(db)).GetList(models.AssignmentFilter{
 			Status:       "finished",
 			ShowFinished: false,
 			Page:         3,
@@ -310,7 +310,7 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAssignmentRepository(&database.DB{DB: db})
+		repo := NewAssignmentRepository(database.Wrap(db))
 		filter := models.AssignmentFilter{
 			DocumentID:           uuid.New().String(),
 			AllowedDocumentKinds: []string{string(models.DocumentKindIncomingLetter), string(models.DocumentKindOutgoingLetter)},
@@ -351,7 +351,7 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAssignmentRepository(&database.DB{DB: db})
+		repo := NewAssignmentRepository(database.Wrap(db))
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM assignments a JOIN documents d ON d.id = a.document_id(.*)`).
 			WillReturnError(sql.ErrConnDone)
 
@@ -368,7 +368,7 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewAssignmentRepository(&database.DB{DB: db})
+		repo := NewAssignmentRepository(database.Wrap(db))
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM assignments a JOIN documents d ON d.id = a.document_id(.*)`).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 		mock.ExpectQuery(`SELECT(.*)FROM assignments a(.*)JOIN documents d ON d.id = a.document_id(.*)`).
@@ -388,7 +388,7 @@ func TestAssignmentRepository_DocumentAccess(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewAssignmentRepository(&database.DB{DB: db})
+	repo := NewAssignmentRepository(database.Wrap(db))
 	userID := uuid.New()
 	docID := uuid.New()
 
@@ -427,23 +427,4 @@ func TestAssignmentRepository_DocumentAccess(t *testing.T) {
 		assert.NotContains(t, result, deniedID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
-}
-
-func TestAssignmentRepository_GetCountByStatus(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewAssignmentRepository(&database.DB{DB: db})
-	executorID := uuid.New()
-
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM assignments WHERE status = \$1 AND executor_id = \$2`).
-		WithArgs("new", executorID).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(12))
-
-	count, err := repo.GetCountByStatus("new", executorID)
-
-	require.NoError(t, err)
-	assert.Equal(t, 12, count)
-	require.NoError(t, mock.ExpectationsWereMet())
 }

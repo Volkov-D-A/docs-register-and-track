@@ -5,9 +5,6 @@ CREATE TABLE user_substitutions (
     starts_at DATE,
     ends_at DATE,
     is_active BOOLEAN NOT NULL DEFAULT true,
-    created_by UUID REFERENCES users (id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CHECK (principal_user_id <> substitute_user_id),
     CHECK (starts_at IS NULL OR ends_at IS NULL OR starts_at <= ends_at),
     UNIQUE (principal_user_id)

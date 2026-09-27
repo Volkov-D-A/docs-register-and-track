@@ -18,13 +18,13 @@ type BackgroundWorkerLease struct {
 }
 
 func (db *DB) TryAcquireBackgroundWorkerLease(ctx context.Context) (*BackgroundWorkerLease, bool, error) {
-	if db == nil || db.DB == nil {
+	if db == nil || db.pool == nil {
 		return nil, false, fmt.Errorf("database is not initialized")
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	conn, err := db.DB.Conn(ctx)
+	conn, err := db.pool.Conn(ctx)
 	if err != nil {
 		return nil, false, fmt.Errorf("reserve connection for background worker lease: %w", err)
 	}

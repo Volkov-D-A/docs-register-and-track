@@ -19,7 +19,6 @@ type referenceManagementStore interface {
 	DeleteOrganizationWithOutbox(uuid.UUID, []models.OutboxEvent) error
 	MergeOrganizationsWithOutbox(uuid.UUID, uuid.UUID, []models.OutboxEvent) error
 	GetAllResolutionExecutors() ([]models.ResolutionExecutor, error)
-	FindOrCreateResolutionExecutor(string) (*models.ResolutionExecutor, error)
 	SearchResolutionExecutors(string) ([]models.ResolutionExecutor, error)
 	UpdateResolutionExecutorWithOutbox(uuid.UUID, string, []models.OutboxEvent) error
 	DeleteResolutionExecutorWithOutbox(uuid.UUID, []models.OutboxEvent) error
@@ -146,20 +145,6 @@ func (api *managementAPI) listResolutionExecutors(w http.ResponseWriter, r *http
 		return
 	}
 	writeJSON(w, http.StatusOK, dto.MapResolutionExecutors(items))
-}
-
-func (api *managementAPI) resolveResolutionExecutor(w http.ResponseWriter, r *http.Request) {
-	var req referenceNameRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
-		return
-	}
-	item, err := api.references.FindOrCreateResolutionExecutor(req.Name)
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, dto.MapResolutionExecutor(item))
 }
 
 func (api *managementAPI) updateResolutionExecutor(w http.ResponseWriter, r *http.Request) {

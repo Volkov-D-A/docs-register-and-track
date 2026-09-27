@@ -22,7 +22,7 @@ import (
 
 func TestAdminOperationsAPIPersistsRequeueIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	password := "AdminOperationsPassw0rd!"
 	hash, err := security.HashPassword(password)
 	require.NoError(t, err)
@@ -64,6 +64,14 @@ func TestAdminOperationsAPIPersistsRequeueIntegration(t *testing.T) {
 	failed := request(http.MethodGet, "/api/v1/admin/outbox/failed?limit=100")
 	require.Equal(t, http.StatusOK, failed.Code, failed.Body.String())
 	require.Contains(t, failed.Body.String(), eventID.String())
+	var failedEvents []map[string]any
+	require.NoError(t, json.Unmarshal(failed.Body.Bytes(), &failedEvents))
+	require.Len(t, failedEvents, 1)
+	require.Len(t, failedEvents[0], 5)
+	for _, key := range []string{"attempts", "eventType", "failedAt", "id", "lastError"} {
+		require.Contains(t, failedEvents[0], key)
+	}
+	require.Equal(t, "terminal integration failure", failedEvents[0]["lastError"])
 	requeue := request(http.MethodPost, "/api/v1/admin/outbox/"+eventID.String()+"/requeue")
 	require.Equal(t, http.StatusNoContent, requeue.Code, requeue.Body.String())
 	var failedAt *time.Time

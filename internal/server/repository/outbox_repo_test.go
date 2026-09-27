@@ -10,15 +10,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 func TestOutboxRepositoryEnqueueTx(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	mock.ExpectBegin()
 	tx, err := db.Begin()
 	require.NoError(t, err)
@@ -33,7 +33,7 @@ func TestOutboxRepositoryEnqueueTxRejectsMismatchedDuplicate(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	mock.ExpectBegin()
 	tx, err := db.Begin()
 	require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestOutboxRepositoryClaimPending(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	id := uuid.New()
 	now := time.Now()
 	mock.ExpectBegin()
@@ -89,7 +89,7 @@ func TestOutboxRepositoryMarkFailedAndRequeue(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	id := uuid.New()
 	mock.ExpectExec(`UPDATE event_outbox.*failed_at = CASE`).
 		WithArgs(id, 10, 10, 3600.0, "unavailable").
@@ -104,7 +104,7 @@ func TestOutboxRepositoryStats(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	mock.ExpectQuery(`SELECT\s+COUNT\(\*\) FILTER`).
 		WillReturnRows(sqlmock.NewRows([]string{"pending", "processing", "failed", "processed"}).AddRow(2, 1, 3, 4))
 	stats, err := repo.Stats()
@@ -117,7 +117,7 @@ func TestOutboxRepositoryQueueStatsExcludesProcessedCount(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	mock.ExpectQuery(`FROM event_outbox\s+WHERE processed_at IS NULL`).
 		WillReturnRows(sqlmock.NewRows([]string{"pending", "processing", "failed"}).AddRow(2, 1, 3))
 	stats, err := repo.QueueStats()
@@ -130,7 +130,7 @@ func TestOutboxRepositoryDeleteProcessedBeforeUsesBoundaryAndBatchLimit(t *testi
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	cutoff := time.Date(2026, time.August, 5, 12, 0, 0, 0, time.UTC)
 	mock.ExpectExec(`WITH expired AS \(.*processed_at < \$1.*FOR UPDATE SKIP LOCKED.*LIMIT \$2.*DELETE FROM event_outbox`).
 		WithArgs(cutoff, 1000).
@@ -146,7 +146,7 @@ func TestOutboxRepositoryDeleteProcessedBeforeRejectsEmptyBatch(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	deleted, err := repo.DeleteProcessedBefore(context.Background(), time.Now(), 0)
 	require.NoError(t, err)
 	require.Zero(t, deleted)
@@ -157,7 +157,7 @@ func TestOutboxRepositoryRequiredAuditStats(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	mock.ExpectQuery(`FROM event_outbox\s+WHERE event_type IN`).
 		WithArgs(models.OutboxEventJournal, models.OutboxEventAudit).
 		WillReturnRows(sqlmock.NewRows([]string{"pending", "processing", "failed"}).AddRow(2, 1, 3))
@@ -171,13 +171,13 @@ func TestOutboxRepositoryGetFailed(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutboxRepository(&database.DB{DB: db})
+	repo := NewOutboxRepository(database.Wrap(db))
 	id, now := uuid.New(), time.Now()
 	mock.ExpectQuery(`FROM event_outbox WHERE failed_at IS NOT NULL`).WithArgs(50).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "attempts", "last_error", "created_at", "failed_at"}).
-			AddRow(id, models.OutboxEventAudit, "audit:1", 10, "storage unavailable", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "attempts", "last_error", "failed_at"}).
+			AddRow(id, models.OutboxEventAudit, 10, "storage unavailable", now))
 	events, err := repo.GetFailed(0)
 	require.NoError(t, err)
-	require.Equal(t, []models.FailedOutboxEvent{{ID: id, EventType: models.OutboxEventAudit, DeduplicationKey: "audit:1", Attempts: 10, LastError: "storage unavailable", CreatedAt: now, FailedAt: now}}, events)
+	require.Equal(t, []models.FailedOutboxEvent{{ID: id, EventType: models.OutboxEventAudit, Attempts: 10, LastError: "storage unavailable", FailedAt: now}}, events)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
@@ -20,7 +20,7 @@ import (
 
 func TestReferenceAPIPersistsMutationsWithAuditOutboxIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	outbox := repository.NewOutboxRepository(db)
 	users := repository.NewUserRepository(db)
 	users.SetOutbox(outbox)
@@ -64,6 +64,15 @@ func TestReferenceAPIPersistsMutationsWithAuditOutboxIntegration(t *testing.T) {
 		require.NoError(t, json.NewDecoder(response.Body).Decode(&item))
 		return item.ID
 	}
+	assertReferenceList := func(path, id string) {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		request.Header.Set("Authorization", "Bearer "+token)
+		response := httptest.NewRecorder()
+		api.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		require.Contains(t, response.Body.String(), id)
+		require.NotContains(t, response.Body.String(), "createdAt")
+	}
 	requestNoContent := func(method, path, body string) {
 		request := httptest.NewRequest(method, path, strings.NewReader(body))
 		request.Header.Set("Authorization", "Bearer "+token)
@@ -73,12 +82,22 @@ func TestReferenceAPIPersistsMutationsWithAuditOutboxIntegration(t *testing.T) {
 	}
 
 	organizationID := resolve("/api/v1/references/organizations/resolve", "Source Organization")
+	require.Equal(t, organizationID, resolve("/api/v1/references/organizations/resolve", "Source Organization"))
 	targetID := resolve("/api/v1/references/organizations/resolve", "Target Organization")
+	assertReferenceList("/api/v1/references/organizations", organizationID)
+	assertReferenceList("/api/v1/references/organizations?query=Source", organizationID)
 	requestNoContent(http.MethodPatch, "/api/v1/references/organizations/"+organizationID, `{"name":"Updated Organization"}`)
 	requestNoContent(http.MethodPost, "/api/v1/references/organizations/"+organizationID+"/merge", `{"targetId":"`+targetID+`"}`)
 	requestNoContent(http.MethodDelete, "/api/v1/references/organizations/"+targetID, "")
 
-	executorID := resolve("/api/v1/references/resolution-executors/resolve", "Executor")
+	executor, err := references.FindOrCreateResolutionExecutor("Executor")
+	require.NoError(t, err)
+	existingExecutor, err := references.FindOrCreateResolutionExecutor("Executor")
+	require.NoError(t, err)
+	require.Equal(t, executor.ID, existingExecutor.ID)
+	executorID := executor.ID.String()
+	assertReferenceList("/api/v1/references/resolution-executors", executorID)
+	assertReferenceList("/api/v1/references/resolution-executors?query=Exec", executorID)
 	requestNoContent(http.MethodPatch, "/api/v1/references/resolution-executors/"+executorID, `{"name":"Chief Executor"}`)
 	requestNoContent(http.MethodDelete, "/api/v1/references/resolution-executors/"+executorID, "")
 

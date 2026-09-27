@@ -41,7 +41,7 @@ func Open(t testing.TB) *sql.DB {
 		_ = db.Close()
 		t.Fatalf("reset integration schema: %v", err)
 	}
-	if err := (&database.DB{DB: db}).RunMigrations(database.DefaultMigrationsPath); err != nil {
+	if err := (database.Wrap(db)).RunMigrations(database.DefaultMigrationsPath); err != nil {
 		_ = db.Close()
 		t.Fatalf("apply embedded migrations: %v", err)
 	}

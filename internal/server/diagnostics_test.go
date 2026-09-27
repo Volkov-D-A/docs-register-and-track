@@ -32,7 +32,7 @@ func TestServerDiagnosticsAggregatesRuntimeMetrics(t *testing.T) {
 	metrics.SetGauge("http.in_flight", 3)
 	metrics.SetGauge("attachments.reconciliation.missing", 2)
 
-	diagnostics := &serverDiagnostics{app: &App{db: &database.DB{DB: sqlDB}, metrics: metrics}}
+	diagnostics := &serverDiagnostics{app: &App{db: database.Wrap(sqlDB), metrics: metrics}}
 	result := &models.SystemDiagnostics{}
 	diagnostics.addRuntimeMetrics(result)
 

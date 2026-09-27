@@ -4,72 +4,49 @@ import "time"
 
 // User описывает DTO пользователя.
 type User struct {
-	ID                     string      `json:"id"`
-	Login                  string      `json:"login"`
-	FullName               string      `json:"fullName"`
-	IsDocumentParticipant  bool        `json:"isDocumentParticipant"`
-	IsActive               bool        `json:"isActive"`
-	FailedLoginAttempts    int         `json:"failedLoginAttempts"`
-	PasswordChangedAt      *time.Time  `json:"passwordChangedAt,omitempty"`
-	PasswordChangeRequired bool        `json:"passwordChangeRequired"`
-	TemporaryPassword      string      `json:"temporaryPassword,omitempty"`
-	SystemPermissions      []string    `json:"systemPermissions"`
-	CreatedAt              time.Time   `json:"createdAt"`
-	UpdatedAt              time.Time   `json:"updatedAt"`
-	Department             *Department `json:"department,omitempty"`
+	ID                    string      `json:"id"`
+	Login                 string      `json:"login"`
+	FullName              string      `json:"fullName"`
+	IsDocumentParticipant bool        `json:"isDocumentParticipant"`
+	IsActive              bool        `json:"isActive"`
+	FailedLoginAttempts   int         `json:"failedLoginAttempts"`
+	TemporaryPassword     string      `json:"temporaryPassword,omitempty"`
+	SystemPermissions     []string    `json:"systemPermissions"`
+	Department            *Department `json:"department,omitempty"`
 }
 
 // UserSubstitution описывает DTO замещения пользователя.
 type UserSubstitution struct {
-	ID               string     `json:"id"`
-	PrincipalUserID  string     `json:"principalUserId"`
 	SubstituteUserID string     `json:"substituteUserId"`
-	PrincipalName    string     `json:"principalName,omitempty"`
-	SubstituteName   string     `json:"substituteName,omitempty"`
 	StartsAt         *time.Time `json:"startsAt,omitempty"`
 	EndsAt           *time.Time `json:"endsAt,omitempty"`
 	IsActive         bool       `json:"isActive"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	UpdatedAt        time.Time  `json:"updatedAt"`
 }
 
 // Department описывает DTO подразделения.
 type Department struct {
-	ID              string         `json:"id"`
-	Name            string         `json:"name"`
-	NomenclatureIDs []string       `json:"nomenclatureIds"`
-	Nomenclature    []Nomenclature `json:"nomenclature"`
-	CreatedAt       time.Time      `json:"createdAt"`
-	UpdatedAt       time.Time      `json:"updatedAt"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	NomenclatureIDs []string `json:"nomenclatureIds"`
 }
 
 // Nomenclature описывает DTO номенклатуры дел.
 type Nomenclature struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	Index         string    `json:"index"`
-	Year          int       `json:"year"`
-	KindCode      string    `json:"kindCode"`
-	Separator     string    `json:"separator"`
-	NumberingMode string    `json:"numberingMode"`
-	NextNumber    int       `json:"nextNumber"`
-	IsActive      bool      `json:"isActive"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Index         string `json:"index"`
+	Year          int    `json:"year"`
+	KindCode      string `json:"kindCode"`
+	Separator     string `json:"separator"`
+	NumberingMode string `json:"numberingMode"`
+	NextNumber    int    `json:"nextNumber"`
+	IsActive      bool   `json:"isActive"`
 }
 
 // Organization описывает DTO организации.
 type Organization struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
-}
-
-// DocumentType описывает DTO типа документа.
-type DocumentType struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // CurrentAccessSummary описывает текущие права пользователя для навигации и UI.
@@ -101,9 +78,8 @@ type DocumentKindAccessSummary struct {
 
 // ResolutionExecutor описывает DTO исполнителя резолюции.
 type ResolutionExecutor struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // Новые структуры для ответов (DTO)
@@ -341,17 +317,15 @@ type DocumentListItem struct {
 
 // DocumentLink описывает DTO связи между документами.
 type DocumentLink struct {
-	ID         string    `json:"id"`
-	SourceKind string    `json:"sourceKind"`
-	SourceID   string    `json:"sourceId"`
-	TargetKind string    `json:"targetKind"`
-	TargetID   string    `json:"targetId"`
-	LinkType   string    `json:"linkType"`
-	CreatedBy  string    `json:"createdBy"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID         string `json:"id"`
+	SourceKind string `json:"sourceKind"`
+	SourceID   string `json:"sourceId"`
+	TargetKind string `json:"targetKind"`
+	LinkType   string `json:"linkType"`
 
 	SourceNumber  string `json:"sourceNumber,omitempty"`
 	TargetNumber  string `json:"targetNumber,omitempty"`
+	SourceSubject string `json:"sourceSubject,omitempty"`
 	TargetSubject string `json:"targetSubject,omitempty"`
 }
 
@@ -447,18 +421,14 @@ type Acknowledgment struct {
 	CreatedAt   time.Time  `json:"createdAt"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 
-	Users   []AcknowledgmentUser `json:"users,omitempty"`
-	UserIDs []string             `json:"userIds,omitempty"`
+	Users []AcknowledgmentUser `json:"users,omitempty"`
 }
 
 // AcknowledgmentUser описывает DTO связи пользователя с задачей на ознакомление.
 type AcknowledgmentUser struct {
-	ID          string     `json:"id"`
 	UserID      string     `json:"userId"`
 	UserName    string     `json:"userName,omitempty"`
-	ViewedAt    *time.Time `json:"viewedAt,omitempty"`
 	ConfirmedAt *time.Time `json:"confirmedAt,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
 }
 
 // PagedResult описывает DTO постраничного результата.
@@ -487,12 +457,11 @@ type UserEvent struct {
 
 // JournalEntry описывает DTO записи в журнале (истории) документа.
 type JournalEntry struct {
-	ID         string    `json:"id"`
-	DocumentID string    `json:"documentId"`
-	UserName   string    `json:"userName,omitempty"`
-	Action     string    `json:"action"`
-	Details    string    `json:"details"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID        string    `json:"id"`
+	UserName  string    `json:"userName,omitempty"`
+	Action    string    `json:"action"`
+	Details   string    `json:"details"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // AdminAuditLog описывает DTO записи журнала действий администраторов.

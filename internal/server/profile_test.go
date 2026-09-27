@@ -73,8 +73,6 @@ func TestProfileAPISelfSubstitutionUsesSessionUserAndAudit(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	assert.Equal(t, actor.ID, store.principalID)
-	require.NotNil(t, store.createdBy)
-	assert.Equal(t, actor.ID, *store.createdBy)
 	require.Len(t, store.effects, 1)
 	assert.Contains(t, store.effects[0].Payload, "USER_SUBSTITUTION_SELF_UPDATE")
 }

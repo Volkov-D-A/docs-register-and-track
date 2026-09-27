@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"regexp"
 	"testing"
 	"time"
@@ -19,7 +19,7 @@ func setupAttachmentRepo(t *testing.T) (*AttachmentRepository, sqlmock.Sqlmock) 
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	wrappedDB := &database.DB{DB: db}
+	wrappedDB := database.Wrap(db)
 	repo := NewAttachmentRepository(wrappedDB)
 	return repo, mock
 }
@@ -158,9 +158,9 @@ func TestAttachmentRepositoryCreateWithOutboxRollsBackOnEnqueueFailure(t *testin
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAttachmentRepositoryMarkDeletingWithOutboxRequiresOutbox(t *testing.T) {
+func TestAttachmentRepositoryMarkDeletingWithEffectsRequiresOutbox(t *testing.T) {
 	repo, _ := setupAttachmentRepo(t)
-	err := repo.MarkDeletingWithOutbox(models.Attachment{ID: uuid.New(), StoragePath: "objects/test.txt"})
+	err := repo.MarkDeletingWithEffects(models.Attachment{ID: uuid.New(), StoragePath: "objects/test.txt"}, nil)
 	require.ErrorIs(t, err, ErrOutboxNotConfigured)
 }
 
@@ -177,7 +177,7 @@ func TestAttachmentRepository_DeletionSaga(t *testing.T) {
 		mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventFileDelete, "attachment:"+attachmentID.String()+":delete", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
-		require.NoError(t, repo.MarkDeletingWithOutbox(attachment))
+		require.NoError(t, repo.MarkDeletingWithEffects(attachment, nil))
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
@@ -220,11 +220,11 @@ func TestAttachmentRepository_GetByDocumentID(t *testing.T) {
 	docID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT a.id, a.document_id, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 AND a.deletion_requested_at IS NULL ORDER BY a.uploaded_at DESC`).
+		mock.ExpectQuery(`SELECT a.id, a.filename, a.file_size, a.uploaded_at, COALESCE\(u.full_name,''\) FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 AND a.deletion_requested_at IS NULL ORDER BY a.uploaded_at DESC`).
 			WithArgs(docID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "filename", "file_size", "content_type", "storage_path", "uploaded_by", "uploaded_at", "full_name"}).
-				AddRow(uuid.New(), docID, "test1.txt", 11, "text/plain", "path1", uuid.New(), time.Now(), "User One").
-				AddRow(uuid.New(), docID, "test2.pdf", 42, "application/pdf", "path2", uuid.New(), time.Now(), "User Two"))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "filename", "file_size", "uploaded_at", "uploaded_by_name"}).
+				AddRow(uuid.New(), "test1.txt", 11, time.Now(), "User One").
+				AddRow(uuid.New(), "test2.pdf", 42, time.Now(), "User Two"))
 
 		attachments, err := repo.GetByDocumentID(docID)
 
@@ -236,9 +236,9 @@ func TestAttachmentRepository_GetByDocumentID(t *testing.T) {
 	})
 
 	t.Run("no attachments", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT a.id, a.document_id, a.filename, a.file_size, a.content_type, a.storage_path, a.uploaded_by, a.uploaded_at, u.full_name FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 AND a.deletion_requested_at IS NULL ORDER BY a.uploaded_at DESC`).
+		mock.ExpectQuery(`SELECT a.id, a.filename, a.file_size, a.uploaded_at, COALESCE\(u.full_name,''\) FROM attachments a LEFT JOIN users u ON a.uploaded_by = u.id WHERE a.document_id = \$1 AND a.deletion_requested_at IS NULL ORDER BY a.uploaded_at DESC`).
 			WithArgs(docID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "document_id", "filename", "file_size", "content_type", "storage_path", "uploaded_by", "uploaded_at", "full_name"}))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "filename", "file_size", "uploaded_at", "uploaded_by_name"}))
 
 		attachments, err := repo.GetByDocumentID(docID)
 

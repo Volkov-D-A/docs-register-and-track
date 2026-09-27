@@ -284,15 +284,13 @@ func (w *Worker) process(parent context.Context, event models.OutboxEvent) error
 		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
 			return fmt.Errorf("invalid journal payload: %w", err)
 		}
-		_, err := w.journal.CreateFromOutbox(ctx, payload, event.DeduplicationKey)
-		return err
+		return w.journal.CreateFromOutbox(ctx, payload, event.DeduplicationKey)
 	case models.OutboxEventAudit:
 		var payload models.CreateAdminAuditLogRequest
 		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
 			return fmt.Errorf("invalid admin_audit payload: %w", err)
 		}
-		_, err := w.audit.CreateFromOutbox(payload, event.DeduplicationKey)
-		return err
+		return w.audit.CreateFromOutbox(payload, event.DeduplicationKey)
 	case models.OutboxEventFileDelete:
 		if w.storage == nil || w.attachments == nil {
 			return fmt.Errorf("attachment deletion consumer is not configured")

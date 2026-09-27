@@ -27,7 +27,7 @@ func MapJournalEntry(m *models.JournalEntry) *JournalEntry {
 	if m == nil {
 		return nil
 	}
-	return &JournalEntry{ID: m.ID.String(), DocumentID: m.DocumentID.String(), UserName: m.UserName, Action: m.Action, Details: m.Details, CreatedAt: m.CreatedAt}
+	return &JournalEntry{ID: m.ID.String(), UserName: m.UserName, Action: m.Action, Details: m.Details, CreatedAt: m.CreatedAt}
 }
 
 func MapJournalEntries(m []models.JournalEntry) []JournalEntry {

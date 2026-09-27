@@ -10,46 +10,32 @@ func MapUser(m *models.User) *User {
 	if m.Department != nil {
 		department = MapDepartment(m.Department)
 	}
-	return &User{ID: m.ID.String(), Login: m.Login, FullName: m.FullName, IsDocumentParticipant: m.IsDocumentParticipant, IsActive: m.IsActive, FailedLoginAttempts: m.FailedLoginAttempts, PasswordChangedAt: m.PasswordChangedAt, PasswordChangeRequired: m.PasswordChangeRequired, SystemPermissions: m.SystemPermissions, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt, Department: department}
+	return &User{ID: m.ID.String(), Login: m.Login, FullName: m.FullName, IsDocumentParticipant: m.IsDocumentParticipant, IsActive: m.IsActive, FailedLoginAttempts: m.FailedLoginAttempts, SystemPermissions: m.SystemPermissions, Department: department}
 }
 func MapUserSubstitution(m *models.UserSubstitution) *UserSubstitution {
 	if m == nil {
 		return nil
 	}
-	return &UserSubstitution{ID: m.ID.String(), PrincipalUserID: m.PrincipalUserID.String(), SubstituteUserID: m.SubstituteUserID.String(), PrincipalName: m.PrincipalName, SubstituteName: m.SubstituteName, StartsAt: m.StartsAt, EndsAt: m.EndsAt, IsActive: m.IsActive, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+	return &UserSubstitution{SubstituteUserID: m.SubstituteUserID.String(), StartsAt: m.StartsAt, EndsAt: m.EndsAt, IsActive: m.IsActive}
 }
 func MapDepartment(m *models.Department) *Department {
 	if m == nil {
 		return nil
 	}
-	var nomenclature []Nomenclature
-	if m.Nomenclature != nil {
-		nomenclature = make([]Nomenclature, len(m.Nomenclature))
-		for i, item := range m.Nomenclature {
-			nomenclature[i] = *MapNomenclature(&item)
-		}
-	}
-	return &Department{ID: m.ID.String(), Name: m.Name, NomenclatureIDs: m.NomenclatureIDs, Nomenclature: nomenclature, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+	return &Department{ID: m.ID.String(), Name: m.Name, NomenclatureIDs: m.NomenclatureIDs}
 }
 func MapNomenclature(m *models.Nomenclature) *Nomenclature {
 	if m == nil {
 		return nil
 	}
-	return &Nomenclature{ID: m.ID.String(), Name: m.Name, Index: m.Index, Year: m.Year, KindCode: m.KindCode, Separator: m.Separator, NumberingMode: m.NumberingMode, NextNumber: m.NextNumber, IsActive: m.IsActive, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+	return &Nomenclature{ID: m.ID.String(), Name: m.Name, Index: m.Index, Year: m.Year, KindCode: m.KindCode, Separator: m.Separator, NumberingMode: m.NumberingMode, NextNumber: m.NextNumber, IsActive: m.IsActive}
 }
 func MapOrganization(m *models.Organization) *Organization {
 	if m == nil {
 		return nil
 	}
-	return &Organization{ID: m.ID.String(), Name: m.Name, CreatedAt: m.CreatedAt}
+	return &Organization{ID: m.ID.String(), Name: m.Name}
 }
-func MapDocumentType(m *models.DocumentType) *DocumentType {
-	if m == nil {
-		return nil
-	}
-	return &DocumentType{ID: m.ID.String(), Name: m.Name, CreatedAt: m.CreatedAt}
-}
-
 func MapUsers(m []models.User) []User {
 	if m == nil {
 		return nil

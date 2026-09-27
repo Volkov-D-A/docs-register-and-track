@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
@@ -21,7 +21,7 @@ import (
 
 func TestUserAPIPersistsChangeOutboxAndSessionRevocationIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	users := repository.NewUserRepository(db)
 	users.SetOutbox(repository.NewOutboxRepository(db))
 	sessions := repository.NewServerSessionRepository(db)
@@ -55,6 +55,19 @@ func TestUserAPIPersistsChangeOutboxAndSessionRevocationIntegration(t *testing.T
 	var created struct{ ID, TemporaryPassword string }
 	require.NoError(t, json.NewDecoder(createResult.Body).Decode(&created))
 	require.NotEmpty(t, created.TemporaryPassword)
+	for _, field := range []string{"passwordChangedAt", "passwordChangeRequired", "createdAt", "updatedAt"} {
+		require.NotContains(t, loginResult.Body.String(), field)
+		require.NotContains(t, createResult.Body.String(), field)
+	}
+	list := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
+	list.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	listResult := httptest.NewRecorder()
+	api.Handler().ServeHTTP(listResult, list)
+	require.Equal(t, http.StatusOK, listResult.Code, listResult.Body.String())
+	require.Contains(t, listResult.Body.String(), created.ID)
+	for _, field := range []string{"passwordChangedAt", "passwordChangeRequired", "createdAt", "updatedAt"} {
+		require.NotContains(t, listResult.Body.String(), field)
+	}
 	targetID := uuid.MustParse(created.ID)
 	_, err = sessions.Create(targetID, []byte("target-session-hash-32-bytes-long!"), time.Now().Add(time.Hour))
 	require.NoError(t, err)

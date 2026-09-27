@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -21,7 +21,7 @@ func TestOutgoingDocumentRepository_GetByID(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	repo := NewOutgoingDocumentRepository(database.Wrap(db))
 	docID := uuid.New()
 	now := time.Now()
 
@@ -75,7 +75,7 @@ func TestOutgoingDocumentRepository_GetCount(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	repo := NewOutgoingDocumentRepository(database.Wrap(db))
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).WithArgs(models.DocumentKindOutgoingLetter).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(15))
 
@@ -91,7 +91,8 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	repo := NewOutgoingDocumentRepository(database.Wrap(db))
+	repo.SetOutbox(NewOutboxRepository(repo.db))
 	docID := uuid.New()
 	now := time.Now()
 
@@ -121,6 +122,7 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 		req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventJournal, "outgoing:"+docID.String()+":create:journal", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	// После Create идет вызов GetByID
@@ -143,7 +145,7 @@ func TestOutgoingDocumentRepository_Create(t *testing.T) {
 
 	mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoingLetter).WillReturnRows(rows)
 
-	doc, err := repo.Create(req)
+	doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Equal(t, docID, doc.ID)
@@ -157,9 +159,9 @@ func TestOutgoingDocumentRepository_CreateValidationErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		repo := NewOutgoingDocumentRepository(database.Wrap(db))
 
-		doc, err := repo.Create(models.CreateOutgoingDocRequest{DocumentTypeID: "unknown"})
+		doc, err := repo.CreateWithJournal(models.CreateOutgoingDocRequest{DocumentTypeID: "unknown"}, "CREATE", "Created %s")
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "неверный тип документа")
@@ -170,15 +172,15 @@ func TestOutgoingDocumentRepository_CreateValidationErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		repo := NewOutgoingDocumentRepository(database.Wrap(db))
 		mock.ExpectBegin()
 		mock.ExpectRollback()
 
-		doc, err := repo.Create(models.CreateOutgoingDocRequest{
+		doc, err := repo.CreateWithJournal(models.CreateOutgoingDocRequest{
 			NomenclatureID: uuid.New(),
 			CreatedBy:      uuid.New(),
 			DocumentTypeID: models.DocumentTypeLetter,
-		})
+		}, "CREATE", "Created %s")
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -213,7 +215,7 @@ func TestOutgoingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
 			require.NoError(t, err)
 			defer db.Close()
 
-			repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+			repo := NewOutgoingDocumentRepository(database.Wrap(db))
 			req := models.CreateOutgoingDocRequest{
 				NomenclatureID: uuid.New(),
 				IdempotencyKey: uuid.New(),
@@ -247,7 +249,7 @@ func TestOutgoingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
 			).WillReturnError(tt.insertErr)
 			mock.ExpectRollback()
 
-			doc, err := repo.Create(req)
+			doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 			require.Error(t, err)
 			assert.Nil(t, doc)
@@ -267,7 +269,7 @@ func TestOutgoingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	repo := NewOutgoingDocumentRepository(database.Wrap(db))
 	docID := uuid.New()
 	req := models.CreateOutgoingDocRequest{
 		NomenclatureID: uuid.New(),
@@ -311,7 +313,7 @@ func TestOutgoingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 	).WillReturnError(sql.ErrConnDone)
 	mock.ExpectRollback()
 
-	doc, err := repo.Create(req)
+	doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 
 	require.Error(t, err)
 	assert.Nil(t, doc)
@@ -325,7 +327,7 @@ func TestOutgoingDocumentRepository_GetList(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	repo := NewOutgoingDocumentRepository(database.Wrap(db))
 	now := time.Now()
 
 	t.Run("success with filters", func(t *testing.T) {
@@ -484,7 +486,7 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+	repo := NewOutgoingDocumentRepository(database.Wrap(db))
 	docID := uuid.New()
 	now := time.Now()
 
@@ -523,7 +525,7 @@ func TestOutgoingDocumentRepository_Update(t *testing.T) {
 
 	mock.ExpectQuery(expectedQuery).WithArgs(docID, models.DocumentKindOutgoingLetter).WillReturnRows(rows)
 
-	doc, err := repo.Update(req)
+	doc, err := repo.UpdateWithOutbox(req, nil)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Equal(t, docID, doc.ID)
@@ -535,8 +537,8 @@ func TestOutgoingDocumentRepositoryUpdateWithOutboxRollsBackOnEnqueueFailure(t *
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
-	repo.SetOutbox(NewOutboxRepository(&database.DB{DB: db}))
+	repo := NewOutgoingDocumentRepository(database.Wrap(db))
+	repo.SetOutbox(NewOutboxRepository(database.Wrap(db)))
 	req := models.UpdateOutgoingDocRequest{ID: uuid.New(), DocumentTypeID: models.DocumentTypeLetter, Content: "новый текст"}
 	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "outgoing:" + req.ID.String() + ":update", Payload: `{}`}
 
@@ -557,9 +559,9 @@ func TestOutgoingDocumentRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		repo := NewOutgoingDocumentRepository(database.Wrap(db))
 
-		doc, err := repo.Update(models.UpdateOutgoingDocRequest{DocumentTypeID: "unknown"})
+		doc, err := repo.UpdateWithOutbox(models.UpdateOutgoingDocRequest{DocumentTypeID: "unknown"}, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "неверный тип документа")
@@ -570,10 +572,10 @@ func TestOutgoingDocumentRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		repo := NewOutgoingDocumentRepository(database.Wrap(db))
 		mock.ExpectBegin().WillReturnError(sql.ErrConnDone)
 
-		doc, err := repo.Update(models.UpdateOutgoingDocRequest{DocumentTypeID: models.DocumentTypeLetter})
+		doc, err := repo.UpdateWithOutbox(models.UpdateOutgoingDocRequest{DocumentTypeID: models.DocumentTypeLetter}, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "failed to begin transaction")
@@ -585,7 +587,7 @@ func TestOutgoingDocumentRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		repo := NewOutgoingDocumentRepository(database.Wrap(db))
 		req := models.UpdateOutgoingDocRequest{
 			ID:             uuid.New(),
 			DocumentTypeID: models.DocumentTypeLetter,
@@ -598,7 +600,7 @@ func TestOutgoingDocumentRepository_UpdateErrors(t *testing.T) {
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "failed to update document root")
@@ -610,7 +612,7 @@ func TestOutgoingDocumentRepository_UpdateErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		repo := NewOutgoingDocumentRepository(&database.DB{DB: db})
+		repo := NewOutgoingDocumentRepository(database.Wrap(db))
 		req := models.UpdateOutgoingDocRequest{
 			ID:             uuid.New(),
 			DocumentTypeID: models.DocumentTypeLetter,
@@ -633,7 +635,7 @@ func TestOutgoingDocumentRepository_UpdateErrors(t *testing.T) {
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		doc, err := repo.Update(req)
+		doc, err := repo.UpdateWithOutbox(req, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "failed to update outgoing document details")

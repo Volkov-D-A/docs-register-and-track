@@ -15,7 +15,6 @@ type AcknowledgmentClient interface {
 	ListPendingAcknowledgments(context.Context) ([]dto.Acknowledgment, error)
 	ListPendingAcknowledgmentsByDocument(context.Context, string) ([]dto.Acknowledgment, error)
 	ListActiveAcknowledgments(context.Context) ([]dto.Acknowledgment, error)
-	MarkAcknowledgmentViewed(context.Context, string) error
 	MarkAcknowledgmentConfirmed(context.Context, string) error
 	DeleteAcknowledgment(context.Context, string) error
 }
@@ -66,10 +65,6 @@ func (c *Client) ListActiveAcknowledgments(ctx context.Context) ([]dto.Acknowled
 	var result []dto.Acknowledgment
 	err := c.doUserRequest(ctx, http.MethodGet, "/api/v1/acknowledgments/active", nil, http.StatusOK, &result)
 	return result, err
-}
-
-func (c *Client) MarkAcknowledgmentViewed(ctx context.Context, id string) error {
-	return c.doUserRequest(ctx, http.MethodPost, "/api/v1/acknowledgments/"+url.PathEscape(id)+"/view", nil, http.StatusNoContent, nil)
 }
 
 func (c *Client) MarkAcknowledgmentConfirmed(ctx context.Context, id string) error {

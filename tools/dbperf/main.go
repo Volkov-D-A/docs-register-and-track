@@ -92,7 +92,7 @@ func main() {
 	if _, err := db.Exec(`DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;`); err != nil {
 		fail("reset schema: %v", err)
 	}
-	if err := (&database.DB{DB: db}).RunMigrations(database.DefaultMigrationsPath); err != nil {
+	if err := (database.Wrap(db)).RunMigrations(database.DefaultMigrationsPath); err != nil {
 		fail("apply migrations: %v", err)
 	}
 
@@ -101,7 +101,7 @@ func main() {
 		fail("read PostgreSQL version: %v", err)
 	}
 	nomenclatureID := seed(db, *documentCount)
-	repoDB := &database.DB{DB: db}
+	repoDB := database.Wrap(db)
 	documentRepo := repository.NewOutgoingDocumentRepository(repoDB)
 	statisticsRepo := repository.NewStatisticsRepository(repoDB)
 

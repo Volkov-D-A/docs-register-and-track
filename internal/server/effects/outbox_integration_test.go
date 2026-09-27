@@ -16,7 +16,7 @@ import (
 
 func TestOutboxRejectsMismatchedDeduplicationCollisionIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
-	db := &database.DB{DB: sqlDB}
+	db := database.Wrap(sqlDB)
 	outboxRepo := repository.NewOutboxRepository(db)
 
 	userID := uuid.New()

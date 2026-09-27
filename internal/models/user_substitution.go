@@ -8,17 +8,10 @@ import (
 
 // UserSubstitution описывает активное или запланированное замещение пользователя.
 type UserSubstitution struct {
-	ID               uuid.UUID  `json:"-"`
-	PrincipalUserID  uuid.UUID  `json:"-"`
 	SubstituteUserID uuid.UUID  `json:"-"`
-	PrincipalName    string     `json:"principalName,omitempty"`
-	SubstituteName   string     `json:"substituteName,omitempty"`
 	StartsAt         *time.Time `json:"startsAt,omitempty"`
 	EndsAt           *time.Time `json:"endsAt,omitempty"`
 	IsActive         bool       `json:"isActive"`
-	CreatedBy        *uuid.UUID `json:"-"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	UpdatedAt        time.Time  `json:"updatedAt"`
 }
 
 // UpdateUserSubstitutionRequest описывает запрос на назначение замещающего.
