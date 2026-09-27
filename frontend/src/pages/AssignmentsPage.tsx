@@ -322,7 +322,7 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
                         { label: 'Контроль', value: 'control' },
                     ]} onChange={(event) => { setMode(event.target.value as AssignmentMode); setMetric(''); setPage(1); }} />}
                     {metric && <Tag closable onClose={() => setMetric('')}>{({
-                        new: 'Новые', overdue: 'Просрочены', due_soon: 'Срок в ближайшие 3 дня', acceptance: 'Ожидают приёмки',
+                        new: 'Новые', in_progress: 'В работе', overdue: 'Просрочены', due_soon: 'Срок в ближайшие 3 дня', acceptance: 'Ожидают приёмки',
                     } as Record<AssignmentMetric, string>)[metric]}</Tag>}
                 </Space>
                 <Input.Search placeholder="Поиск по тексту поручения или документу" allowClear onSearch={setSearch} style={{ width: 320 }} prefix={<SearchOutlined />} />

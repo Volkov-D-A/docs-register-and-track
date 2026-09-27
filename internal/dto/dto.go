@@ -404,6 +404,7 @@ type WorkspaceOverview struct {
 
 type WorkspaceAssignmentCounts struct {
 	New                int `json:"new"`
+	InProgress         int `json:"inProgress"`
 	Overdue            int `json:"overdue"`
 	DueSoon            int `json:"dueSoon"`
 	AwaitingAcceptance int `json:"awaitingAcceptance"`
@@ -413,8 +414,8 @@ type WorkspaceAssignment struct {
 	ID             string     `json:"id"`
 	DocumentID     string     `json:"documentId"`
 	DocumentKind   string     `json:"documentKind"`
-	DocumentNumber string     `json:"documentNumber,omitempty"`
-	ExecutorName   string     `json:"executorName,omitempty"`
+	DocumentNumber string     `json:"documentNumber"`
+	DocumentDate   time.Time  `json:"documentDate"`
 	Content        string     `json:"content"`
 	Deadline       *time.Time `json:"deadline,omitempty"`
 	Status         string     `json:"status"`

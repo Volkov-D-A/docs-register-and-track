@@ -43,9 +43,11 @@ func TestWorkspaceCountsAndPreviewsRespectModesAndDocumentScope(t *testing.T) {
 	personal := models.WorkspaceQuery{Mode: models.WorkspaceModeExecution, SubjectIDs: []string{owner.String()}, Limit: 5}
 	counts, items, err := repo.AssignmentSummary(personal)
 	require.NoError(t, err)
-	require.Equal(t, models.WorkspaceAssignmentCounts{New: 1, Overdue: 1, DueSoon: 1}, counts)
+	require.Equal(t, models.WorkspaceAssignmentCounts{New: 1, InProgress: 1, Overdue: 1, DueSoon: 1}, counts)
 	require.Len(t, items, 2)
 	require.Equal(t, "late", items[0].Content)
+	require.Equal(t, "IT/1", items[0].DocumentNumber)
+	require.False(t, items[0].DocumentDate.IsZero())
 	ackCount, ackItems, err := repo.AcknowledgmentSummary(personal)
 	require.NoError(t, err)
 	require.Equal(t, 2, ackCount)
@@ -57,7 +59,7 @@ func TestWorkspaceCountsAndPreviewsRespectModesAndDocumentScope(t *testing.T) {
 		ReadScope: models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{firstNom.String()}}, Limit: 5}
 	counts, items, err = repo.AssignmentSummary(controlled)
 	require.NoError(t, err)
-	require.Equal(t, models.WorkspaceAssignmentCounts{New: 1, Overdue: 1, DueSoon: 1}, counts)
+	require.Equal(t, models.WorkspaceAssignmentCounts{New: 1, InProgress: 1, Overdue: 1, DueSoon: 1}, counts)
 	require.Len(t, items, 2)
 	ackCount, _, err = repo.AcknowledgmentSummary(controlled)
 	require.NoError(t, err)
@@ -74,12 +76,29 @@ func TestWorkspaceCountsAndPreviewsRespectModesAndDocumentScope(t *testing.T) {
 	require.Equal(t, counts.Overdue, list.TotalCount)
 	require.Equal(t, "late", list.Items[0].Content)
 	list, err = assignments.GetList(models.AssignmentFilter{
+		Mode: models.WorkspaceModeControl, Metric: "in_progress", Page: 1, PageSize: 10,
+		ControlScopes: map[models.DocumentKind]models.DocumentAccessScope{
+			models.DocumentKindOutgoingLetter: controlled.ReadScope,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, counts.InProgress, list.TotalCount)
+	require.Equal(t, "soon", list.Items[0].Content)
+	list, err = assignments.GetList(models.AssignmentFilter{
 		Mode: models.WorkspaceModeExecution, Metric: "new", Page: 1, PageSize: 10,
 		AccessibleByUserIDs: []string{owner.String()},
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, list.TotalCount)
 	require.Equal(t, "late", list.Items[0].Content)
+
+	list, err = assignments.GetList(models.AssignmentFilter{
+		Mode: models.WorkspaceModeExecution, Metric: "in_progress", Page: 1, PageSize: 10,
+		AccessibleByUserIDs: []string{owner.String()},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, list.TotalCount)
+	require.Equal(t, "soon", list.Items[0].Content)
 
 	page, err := repo.ListAcknowledgments([]models.WorkspaceQuery{personal}, 1, 1)
 	require.NoError(t, err)

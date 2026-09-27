@@ -25,7 +25,7 @@ type WorkspaceAssignment struct {
 	DocumentID     uuid.UUID
 	DocumentKind   string
 	DocumentNumber string
-	ExecutorName   string
+	DocumentDate   time.Time
 	Content        string
 	Deadline       *time.Time
 	Status         string
@@ -33,6 +33,7 @@ type WorkspaceAssignment struct {
 
 type WorkspaceAssignmentCounts struct {
 	New                int
+	InProgress         int
 	Overdue            int
 	DueSoon            int
 	AwaitingAcceptance int

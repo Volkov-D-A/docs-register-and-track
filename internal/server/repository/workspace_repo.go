@@ -65,21 +65,22 @@ func (r *WorkspaceRepository) AssignmentSummary(query models.WorkspaceQuery) (mo
 	}
 	from := ` FROM assignments a JOIN documents d ON d.id = a.document_id
 		LEFT JOIN assignment_series s ON s.id = a.series_id
-		LEFT JOIN users u ON u.id = a.executor_id WHERE ` + strings.Join(where, " AND ")
+		WHERE ` + strings.Join(where, " AND ")
 	countSQL := `SELECT
 		COUNT(*) FILTER (WHERE a.status = 'new'),
+		COUNT(*) FILTER (WHERE a.status = 'in_progress'),
 		COUNT(*) FILTER (WHERE a.status != 'completed' AND a.deadline::date < CURRENT_DATE),
 		COUNT(*) FILTER (WHERE a.status != 'completed' AND a.deadline::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 3),
 		COUNT(*) FILTER (WHERE a.status = 'completed')` + from
-	if err := r.db.QueryRow(countSQL, args...).Scan(&counts.New, &counts.Overdue, &counts.DueSoon, &counts.AwaitingAcceptance); err != nil {
+	if err := r.db.QueryRow(countSQL, args...).Scan(&counts.New, &counts.InProgress, &counts.Overdue, &counts.DueSoon, &counts.AwaitingAcceptance); err != nil {
 		return counts, nil, err
 	}
 	limit := query.Limit
 	if limit < 1 || limit > 20 {
 		limit = 5
 	}
-	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number,
-		COALESCE(u.full_name, ''), a.content, a.deadline, a.status`+from+`
+	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number, d.registration_date,
+		a.content, a.deadline, a.status`+from+`
 		ORDER BY CASE WHEN a.status = 'completed' THEN 0 WHEN a.deadline::date < CURRENT_DATE THEN 1 ELSE 2 END,
 		a.deadline ASC NULLS LAST, a.created_at DESC, a.id LIMIT `+fmt.Sprint(limit), args...)
 	if err != nil {
@@ -90,12 +91,10 @@ func (r *WorkspaceRepository) AssignmentSummary(query models.WorkspaceQuery) (mo
 	for rows.Next() {
 		var item models.WorkspaceAssignment
 		var deadline sql.NullTime
-		var number sql.NullString
-		if err := rows.Scan(&item.ID, &item.DocumentID, &item.DocumentKind, &number,
-			&item.ExecutorName, &item.Content, &deadline, &item.Status); err != nil {
+		if err := rows.Scan(&item.ID, &item.DocumentID, &item.DocumentKind, &item.DocumentNumber,
+			&item.DocumentDate, &item.Content, &deadline, &item.Status); err != nil {
 			return counts, nil, err
 		}
-		item.DocumentNumber = number.String
 		if deadline.Valid {
 			item.Deadline = &deadline.Time
 		}

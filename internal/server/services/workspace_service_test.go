@@ -17,7 +17,7 @@ type workspaceStoreStub struct {
 
 func (s *workspaceStoreStub) AssignmentSummary(query models.WorkspaceQuery) (models.WorkspaceAssignmentCounts, []models.WorkspaceAssignment, error) {
 	s.assignmentQueries = append(s.assignmentQueries, query)
-	return models.WorkspaceAssignmentCounts{New: 2, Overdue: 1}, []models.WorkspaceAssignment{}, nil
+	return models.WorkspaceAssignmentCounts{New: 2, InProgress: 4, Overdue: 1}, []models.WorkspaceAssignment{}, nil
 }
 
 func (s *workspaceStoreStub) AcknowledgmentSummary(query models.WorkspaceQuery) (int, []models.WorkspaceAcknowledgment, error) {
@@ -58,6 +58,7 @@ func TestWorkspaceModesUsePermissionsAndSubstitution(t *testing.T) {
 	require.Equal(t, "execution", personal.AssignmentMode)
 	require.Equal(t, "execution", personal.AcknowledgmentMode)
 	require.Equal(t, 2, personal.AssignmentCounts.New)
+	require.Equal(t, 4, personal.AssignmentCounts.InProgress)
 	require.Equal(t, 3, personal.AcknowledgmentCount)
 	require.Equal(t, []string{userID.String(), subject.String()}, store.assignmentQueries[0].SubjectIDs)
 	require.Equal(t, []string{userID.String(), subject.String()}, store.ackQueries[0].SubjectIDs)

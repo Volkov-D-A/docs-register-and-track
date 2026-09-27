@@ -732,7 +732,7 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 	if filter.Mode != "" && filter.Mode != models.WorkspaceModeExecution && filter.Mode != models.WorkspaceModeControl {
 		return nil, models.NewBadRequest("неизвестный режим списка поручений")
 	}
-	if filter.Metric != "" && filter.Metric != "new" && filter.Metric != "overdue" && filter.Metric != "due_soon" && filter.Metric != "acceptance" {
+	if filter.Metric != "" && filter.Metric != "new" && filter.Metric != "in_progress" && filter.Metric != "overdue" && filter.Metric != "due_soon" && filter.Metric != "acceptance" {
 		return nil, models.NewBadRequest("неизвестный показатель поручений")
 	}
 	if filter.Mode == models.WorkspaceModeExecution {

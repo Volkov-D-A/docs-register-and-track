@@ -18,6 +18,8 @@
   --app-warning-bg: #fffbe6;
   --app-warning-border: #ffe58f;
   --app-panel-shadow: rgba(0, 0, 0, 0.06);
+  --workspace-mode-inactive: #1677ff;
+  --workspace-mode-active: #000000;
 }
 
 :root[data-app-theme='dark'] {
@@ -34,6 +36,8 @@
   --app-warning-bg: #463b25;
   --app-warning-border: #74613c;
   --app-panel-shadow: rgba(0, 0, 0, 0.18);
+  --workspace-mode-inactive: #5b91c8;
+  --workspace-mode-active: #d8d2c7;
 }
 
 html, body, #root {
@@ -65,6 +69,220 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--app-text-muted) 58%, transparent);
+}
+
+.workspace-assignment-mode-link.ant-btn {
+  height: auto;
+  padding: 0;
+  line-height: inherit;
+  vertical-align: baseline;
+  color: var(--workspace-mode-inactive);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.workspace-assignment-mode-link.ant-btn:is(:hover, :focus-visible) {
+  color: var(--workspace-mode-inactive);
+  text-decoration: none;
+}
+
+.workspace-assignment-mode-link--active.ant-btn,
+.workspace-assignment-mode-link--active.ant-btn:is(:hover, :focus-visible) {
+  color: var(--workspace-mode-active);
+  text-decoration: none;
+}
+
+/* Показатели рабочего стола сохраняют читаемый контраст в обеих темах. */
+.workspace-metric-card--new {
+  --metric-bg: #eaf4ff;
+  --metric-border: #b9dcff;
+  --metric-accent: #0958d9;
+}
+
+.workspace-metric-card--in_progress {
+  --metric-bg: #e8f8f2;
+  --metric-border: #b4e4d0;
+  --metric-accent: #137a55;
+}
+
+.workspace-metric-card--overdue {
+  --metric-bg: #fff0ee;
+  --metric-border: #ffccc7;
+  --metric-accent: #cf1322;
+}
+
+.workspace-metric-card--due_soon {
+  --metric-bg: #fff7e8;
+  --metric-border: #ffe0a3;
+  --metric-accent: #ad6800;
+}
+
+.workspace-metric-card--acceptance {
+  --metric-bg: #f7f0ff;
+  --metric-border: #dec8ff;
+  --metric-accent: #722ed1;
+}
+
+:root[data-app-theme='dark'] .workspace-metric-card--new {
+  --metric-bg: #19354f;
+  --metric-border: #30618a;
+  --metric-accent: #91caff;
+}
+
+:root[data-app-theme='dark'] .workspace-metric-card--in_progress {
+  --metric-bg: #1c4038;
+  --metric-border: #367962;
+  --metric-accent: #7de2bd;
+}
+
+:root[data-app-theme='dark'] .workspace-metric-card--overdue {
+  --metric-bg: #4b282b;
+  --metric-border: #875057;
+  --metric-accent: #ff9c9c;
+}
+
+:root[data-app-theme='dark'] .workspace-metric-card--due_soon {
+  --metric-bg: #493819;
+  --metric-border: #8c6926;
+  --metric-accent: #ffd666;
+}
+
+:root[data-app-theme='dark'] .workspace-metric-card--acceptance {
+  --metric-bg: #37244b;
+  --metric-border: #664789;
+  --metric-accent: #d3adf7;
+}
+
+.workspace-overview-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.workspace-overview-row--right-only {
+  grid-template-columns: minmax(260px, 300px);
+}
+
+.workspace-work-column,
+.workspace-side-column {
+  min-width: 0;
+}
+
+.workspace-work-column > .ant-card:not(:last-child),
+.workspace-side-column > .ant-card:not(:last-child) {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .workspace-overview-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.workspace-registration-panel.ant-card .ant-card-head {
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.workspace-registration-panel .ant-card-head-title {
+  font-size: 14px;
+}
+
+.workspace-registration-panel.ant-card .ant-card-body {
+  padding: 8px 16px 12px;
+}
+
+.workspace-registration-table .ant-table-cell {
+  padding: 2px 0;
+}
+
+.workspace-registration-action.ant-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  height: auto;
+  min-height: 30px;
+  padding: 3px 4px;
+  white-space: normal;
+  text-align: left;
+}
+
+.workspace-registration-chevron {
+  margin-left: auto;
+  color: var(--app-text-muted);
+  font-size: 14px;
+}
+
+.workspace-registration-icon {
+  display: inline-flex;
+  flex: none;
+  font-size: 18px;
+  color: #1677ff;
+}
+
+.workspace-registration-icon--outgoing {
+  color: #389e0d;
+}
+
+.workspace-registration-icon--appeals {
+  color: #d46b08;
+}
+
+.workspace-registration-icon--orders {
+  color: #722ed1;
+}
+
+:root[data-app-theme='dark'] .workspace-registration-icon {
+  color: #5b91c8;
+}
+
+:root[data-app-theme='dark'] .workspace-registration-icon--outgoing {
+  color: #95de64;
+}
+
+:root[data-app-theme='dark'] .workspace-registration-icon--appeals {
+  color: #ffc069;
+}
+
+:root[data-app-theme='dark'] .workspace-registration-icon--orders {
+  color: #d3adf7;
+}
+
+.workspace-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.workspace-metric-card.ant-card {
+  height: 100%;
+  background: var(--metric-bg);
+  border-color: var(--metric-border);
+}
+
+.workspace-metric-content {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workspace-metric-card .ant-statistic-title,
+.workspace-metric-card .ant-statistic-content {
+  color: var(--app-text-muted);
+}
+
+.workspace-metric-card .ant-statistic-content {
+  color: var(--metric-accent);
+}
+
+.workspace-metric-icon {
+  color: var(--metric-accent);
+  font-size: 24px;
+  line-height: 1;
 }
 
 .assignment-overdue .ant-table-cell {

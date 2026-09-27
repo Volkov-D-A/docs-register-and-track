@@ -95,6 +95,7 @@ func (s *WorkspaceService) GetOverview(assignmentMode, acknowledgmentMode string
 					return nil, err
 				}
 				result.AssignmentCounts.New += counts.New
+				result.AssignmentCounts.InProgress += counts.InProgress
 				result.AssignmentCounts.Overdue += counts.Overdue
 				result.AssignmentCounts.DueSoon += counts.DueSoon
 				result.AssignmentCounts.AwaitingAcceptance += counts.AwaitingAcceptance
@@ -104,7 +105,7 @@ func (s *WorkspaceService) GetOverview(assignmentMode, acknowledgmentMode string
 			for _, item := range all[:min(len(all), 5)] {
 				result.Assignments = append(result.Assignments, dto.WorkspaceAssignment{
 					ID: item.ID.String(), DocumentID: item.DocumentID.String(), DocumentKind: item.DocumentKind,
-					DocumentNumber: item.DocumentNumber, ExecutorName: item.ExecutorName, Content: item.Content,
+					DocumentNumber: item.DocumentNumber, DocumentDate: item.DocumentDate, Content: item.Content,
 					Deadline: item.Deadline, Status: item.Status,
 				})
 			}

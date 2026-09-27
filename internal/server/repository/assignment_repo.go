@@ -357,6 +357,8 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	switch filter.Metric {
 	case "new":
 		where = append(where, "a.status = 'new'")
+	case "in_progress":
+		where = append(where, "a.status = 'in_progress'")
 	case "overdue":
 		where = append(where, "a.status IN ('new', 'in_progress', 'returned') AND a.deadline::date < CURRENT_DATE")
 	case "due_soon":

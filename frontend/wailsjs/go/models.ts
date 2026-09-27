@@ -1824,8 +1824,9 @@ export namespace dto {
 	    id: string;
 	    documentId: string;
 	    documentKind: string;
-	    documentNumber?: string;
-	    executorName?: string;
+	    documentNumber: string;
+	    // Go type: time
+	    documentDate: any;
 	    content: string;
 	    // Go type: time
 	    deadline?: any;
@@ -1841,7 +1842,7 @@ export namespace dto {
 	        this.documentId = source["documentId"];
 	        this.documentKind = source["documentKind"];
 	        this.documentNumber = source["documentNumber"];
-	        this.executorName = source["executorName"];
+	        this.documentDate = this.convertValues(source["documentDate"], null);
 	        this.content = source["content"];
 	        this.deadline = this.convertValues(source["deadline"], null);
 	        this.status = source["status"];
@@ -1867,6 +1868,7 @@ export namespace dto {
 	}
 	export class WorkspaceAssignmentCounts {
 	    new: number;
+	    inProgress: number;
 	    overdue: number;
 	    dueSoon: number;
 	    awaitingAcceptance: number;
@@ -1878,6 +1880,7 @@ export namespace dto {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.new = source["new"];
+	        this.inProgress = source["inProgress"];
 	        this.overdue = source["overdue"];
 	        this.dueSoon = source["dueSoon"];
 	        this.awaitingAcceptance = source["awaitingAcceptance"];
