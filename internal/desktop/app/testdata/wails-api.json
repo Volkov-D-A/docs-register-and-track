@@ -48,8 +48,9 @@
     "NeedsInitialSetup",
     "UpdateProfile"
   ],
-  "DashboardService": [
-    "GetActivity"
+  "WorkspaceService": [
+    "GetOverview",
+    "ListAcknowledgments"
   ],
   "DepartmentService": [
     "CreateDepartment",

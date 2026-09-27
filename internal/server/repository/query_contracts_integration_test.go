@@ -125,22 +125,22 @@ func TestDocumentListAccessScopeIntegration(t *testing.T) {
 		t.Fatalf("scope leaked or hid data: %+v", items)
 	}
 
-	// The same document is visible via a real assignment access edge, but not
-	// to an unrelated user. This protects the helper queries used by dashboard.
+	// The same assignment is visible only to its executor in the workspace.
 	var documentID uuid.UUID
 	if err := sqlDB.QueryRow(`SELECT id FROM documents WHERE registration_number = 'AL/1'`).Scan(&documentID); err != nil {
 		t.Fatal(err)
 	}
 	execSQL(t, sqlDB, `INSERT INTO assignments (document_id, executor_id, content, deadline, status) VALUES ($1, $2, 'scope', CURRENT_DATE + 1, 'new')`, documentID, owner)
-	dashboard := NewDashboardRepository(db)
-	visible, err := dashboard.GetExpiringAssignments(models.DashboardAssignmentFilter{Days: 2, AccessibleByUserIDs: []string{owner.String()}})
-	if err != nil || len(visible) != 1 {
-		t.Fatalf("owner dashboard visibility=%d err=%v", len(visible), err)
+	workspace := NewWorkspaceRepository(db)
+	visible, _, err := workspace.AssignmentSummary(models.WorkspaceQuery{Mode: models.WorkspaceModeExecution, SubjectIDs: []string{owner.String()}})
+	if err != nil || visible.New != 1 {
+		t.Fatalf("owner workspace visibility=%d err=%v", visible.New, err)
 	}
-	hidden, err := dashboard.GetExpiringAssignments(models.DashboardAssignmentFilter{Days: 2, AccessibleByUserIDs: []string{other.String()}})
-	if err != nil || len(hidden) != 0 {
-		t.Fatalf("unrelated dashboard visibility=%d err=%v", len(hidden), err)
+	hidden, _, err := workspace.AssignmentSummary(models.WorkspaceQuery{Mode: models.WorkspaceModeExecution, SubjectIDs: []string{other.String()}})
+	if err != nil || hidden.New != 0 {
+		t.Fatalf("unrelated workspace visibility=%d err=%v", hidden.New, err)
 	}
+
 }
 
 func TestLinkGraphAndOutboxLifecycleIntegration(t *testing.T) {

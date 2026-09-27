@@ -170,9 +170,11 @@ type UserEventStore interface {
 	MarkAllRead(userID uuid.UUID, readAt time.Time) error
 }
 
-// DashboardStore — интерфейс для получения аналитических данных дашборда из хранилища.
-type DashboardStore interface {
-	GetExpiringAssignments(filter models.DashboardAssignmentFilter) ([]models.Assignment, error)
+// WorkspaceStore reads counts and bounded previews under server-resolved scopes.
+type WorkspaceStore interface {
+	AssignmentSummary(models.WorkspaceQuery) (models.WorkspaceAssignmentCounts, []models.WorkspaceAssignment, error)
+	AcknowledgmentSummary(models.WorkspaceQuery) (int, []models.WorkspaceAcknowledgment, error)
+	ListAcknowledgments([]models.WorkspaceQuery, int, int) (*models.PagedResult[models.WorkspaceAcknowledgment], error)
 }
 
 // StatisticsStore — интерфейс для получения аналитических данных раздела статистики.

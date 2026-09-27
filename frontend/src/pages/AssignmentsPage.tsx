@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Typography, Table, Button, Input, Select, DatePicker,
-    Space, Row, Col, Tag, Popconfirm, Tooltip, Switch, App
+    Space, Row, Col, Tag, Popconfirm, Tooltip, Switch, Radio, App
 } from 'antd';
 import {
     SearchOutlined, EditOutlined, DeleteOutlined,
@@ -20,6 +20,8 @@ import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvent
 import { dto, models } from '../../wailsjs/go/models';
 import { CoalescedRequest } from '../utils/coalescedRequest';
 import AssignmentSeriesModal from '../components/AssignmentSeriesModal';
+import type { AssignmentNavigation, AssignmentMode, AssignmentMetric } from '../components/assignmentNavigation';
+import { GetOverview } from '../../wailsjs/go/services/WorkspaceService';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -28,7 +30,7 @@ const { RangePicker } = DatePicker;
  * Страница управления поручениями.
  * Позволяет просматривать, фильтровать и администрировать поручения в зависимости от роли.
  */
-const AssignmentsPage: React.FC = () => {
+const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = ({ initialView }) => {
     const { message } = App.useApp();
     const { user } = useAuthStore();
     const { hasAction, hasAnyAction, ready: accessReady } = useDocumentKindAccess();
@@ -37,6 +39,9 @@ const AssignmentsPage: React.FC = () => {
     const [totalCount, setTotalCount] = useState(0);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+    const [mode, setMode] = useState<AssignmentMode>(initialView?.mode || 'execution');
+    const [availableModes, setAvailableModes] = useState<AssignmentMode[]>([]);
+    const [metric, setMetric] = useState<AssignmentMetric | ''>(initialView?.metric || '');
 
     // Фильтры
     const [search, setSearch] = useState('');
@@ -70,15 +75,14 @@ const AssignmentsPage: React.FC = () => {
     };
 
     const load = useCallback(async () => {
-        if (!accessReady) {
+        if (!accessReady || (!initialView && availableModes.length === 0)) {
             return;
         }
         setLoading(true);
         return assignmentListRequestRef.current.refresh(async () => {
             const { GetList } = await import('../../wailsjs/go/services/AssignmentService');
 
-            const canViewAll = hasAnyAction('assign');
-            const executorId = canViewAll ? filterExecutorId : user?.id || '';
+            const executorId = mode === 'control' ? filterExecutorId : '';
 
             const result = await GetList(models.AssignmentFilter.createFrom({
                 page,
@@ -90,6 +94,8 @@ const AssignmentsPage: React.FC = () => {
                 executorId: executorId,
                 showFinished: showFinished,
                 overdueOnly: filterOverdue,
+                mode,
+                metric,
             }));
             return { items: result?.items || [], totalCount: result?.totalCount || 0 };
         }, {
@@ -99,18 +105,20 @@ const AssignmentsPage: React.FC = () => {
         });
     }, [
         accessReady,
+        availableModes,
+        initialView,
         filterDateFrom,
         filterDateTo,
         filterExecutorId,
         filterOverdue,
         filterStatus,
-        hasAnyAction,
+        mode,
+        metric,
         message,
         page,
         pageSize,
         search,
         showFinished,
-        user?.id,
     ]);
 
     useEffect(() => () => assignmentListRequestRef.current.invalidate(), []);
@@ -135,6 +143,19 @@ const AssignmentsPage: React.FC = () => {
         loadUsers();
     }, []);
 
+    useEffect(() => {
+        if (!accessReady || !user?.id) return;
+        let active = true;
+        void GetOverview('', '').then((result) => {
+            if (!active) return;
+            setAvailableModes((result.assignmentModes || []) as AssignmentMode[]);
+            if (!initialView && result.assignmentMode) setMode(result.assignmentMode as AssignmentMode);
+        }).catch((error) => {
+            if (active) message.error(formatAppError(error, 'Не удалось определить режимы поручений'));
+        });
+        return () => { active = false; };
+    }, [accessReady, user?.id, initialView, message]);
+
     const onDelete = async (id: string) => {
         try {
             const { Delete } = await import('../../wailsjs/go/services/AssignmentService');
@@ -151,6 +172,7 @@ const AssignmentsPage: React.FC = () => {
         setFilterDateFrom(''); setFilterDateTo('');
         setFilterExecutorId('');
         setFilterOverdue(false);
+        setMetric('');
         setPage(1);
     };
 
@@ -256,7 +278,7 @@ const AssignmentsPage: React.FC = () => {
         {
             title: 'Действия', key: 'actions', width: 140,
             render: (_: unknown, r: dto.Assignment) => {
-                const canManageAssignment = hasAction(r.documentKind, 'assign');
+                const canManageAssignment = mode === 'control' && hasAction(r.documentKind, 'assign');
                 const canEdit = canManageAssignment && r.status !== 'finished';
 
                 return (
@@ -288,12 +310,21 @@ const AssignmentsPage: React.FC = () => {
 
 
 
-    const hasFilters = !!search || !!filterStatus || !!filterDateFrom || !!filterDateTo || !!filterExecutorId || filterOverdue;
+    const hasFilters = !!search || !!filterStatus || !!filterDateFrom || !!filterDateTo || !!filterExecutorId || filterOverdue || !!metric;
 
     return (
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Title level={4} style={{ margin: 0 }}>Поручения</Title>
+                <Space>
+                    <Title level={4} style={{ margin: 0 }}>{mode === 'control' ? 'Поручения под контролем' : 'Мои поручения'}</Title>
+                    {availableModes.length > 1 && <Radio.Group size="small" value={mode} options={[
+                        { label: 'Исполнение', value: 'execution' },
+                        { label: 'Контроль', value: 'control' },
+                    ]} onChange={(event) => { setMode(event.target.value as AssignmentMode); setMetric(''); setPage(1); }} />}
+                    {metric && <Tag closable onClose={() => setMetric('')}>{({
+                        new: 'Новые', overdue: 'Просрочены', due_soon: 'Срок в ближайшие 3 дня', acceptance: 'Ожидают приёмки',
+                    } as Record<AssignmentMetric, string>)[metric]}</Tag>}
+                </Space>
                 <Input.Search placeholder="Поиск по тексту поручения или документу" allowClear onSearch={setSearch} style={{ width: 320 }} prefix={<SearchOutlined />} />
             </div>
 
@@ -328,7 +359,7 @@ const AssignmentsPage: React.FC = () => {
                             />
                         </div>
                     </Col>
-                    {hasAnyAction('assign') && (
+                    {mode === 'control' && hasAnyAction('assign') && (
                         <>
                             <Col span={4}>
                     <Select style={{ width: '100%' }} placeholder="Ответственный исполнитель" allowClear showSearch
@@ -362,7 +393,7 @@ const AssignmentsPage: React.FC = () => {
             <Table
                 className="assignments-table"
                 columns={columns} dataSource={data} rowKey="id"
-                loading={loading || !accessReady} size="small" tableLayout="fixed"
+                loading={loading || !accessReady || (!initialView && availableModes.length === 0)} size="small" tableLayout="fixed"
                 rowClassName={(record: dto.Assignment) => {
                     const isOverdue = record.deadline && dayjs(record.deadline).isBefore(dayjs(), 'day') && !['completed', 'finished', 'cancelled'].includes(record.status);
                     return isOverdue ? 'assignment-overdue' : '';

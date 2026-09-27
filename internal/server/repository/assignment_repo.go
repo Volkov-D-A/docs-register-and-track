@@ -297,7 +297,25 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		argIdx++
 	}
 	accessibleIDs := accessibleUserIDs(filter.AccessibleByUserID, filter.AccessibleByUserIDs)
-	if len(filter.AllowedDocumentKinds) > 0 || len(accessibleIDs) > 0 {
+	if filter.Mode == models.WorkspaceModeControl {
+		controlClauses := make([]string, 0, len(filter.ControlScopes))
+		for _, spec := range models.AllDocumentKindSpecs() {
+			scope, ok := filter.ControlScopes[spec.Code]
+			if !ok {
+				continue
+			}
+			kindWhere := []string{fmt.Sprintf("d.kind = $%d", argIdx)}
+			args = append(args, string(spec.Code))
+			argIdx++
+			applyDocumentListAccess(&kindWhere, &args, &argIdx, scope)
+			controlClauses = append(controlClauses, "("+strings.Join(kindWhere, " AND ")+")")
+		}
+		if len(controlClauses) == 0 {
+			where = append(where, "1=0")
+		} else {
+			where = append(where, "("+strings.Join(controlClauses, " OR ")+")")
+		}
+	} else if len(filter.AllowedDocumentKinds) > 0 || len(accessibleIDs) > 0 {
 		accessClauses := make([]string, 0, 2)
 		if len(filter.AllowedDocumentKinds) > 0 {
 			accessClauses = append(accessClauses, fmt.Sprintf("d.kind = ANY($%d)", argIdx))
@@ -323,6 +341,29 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		argIdx++
 	}
 
+	if filter.Mode == models.WorkspaceModeExecution {
+		if filter.ShowFinished {
+			where = append(where, "a.status IN ('new', 'in_progress', 'returned', 'completed', 'finished')")
+		} else {
+			where = append(where, "a.status IN ('new', 'in_progress', 'returned')")
+		}
+	} else if filter.Mode == models.WorkspaceModeControl {
+		if filter.ShowFinished {
+			where = append(where, "a.status IN ('new', 'in_progress', 'returned', 'completed', 'finished')")
+		} else {
+			where = append(where, "a.status IN ('new', 'in_progress', 'returned', 'completed')")
+		}
+	}
+	switch filter.Metric {
+	case "new":
+		where = append(where, "a.status = 'new'")
+	case "overdue":
+		where = append(where, "a.status IN ('new', 'in_progress', 'returned') AND a.deadline::date < CURRENT_DATE")
+	case "due_soon":
+		where = append(where, "a.status IN ('new', 'in_progress', 'returned') AND a.deadline::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 3")
+	case "acceptance":
+		where = append(where, "a.status = 'completed'")
+	}
 	if filter.OverdueOnly {
 		// Просроченные: deadline < CURRENT_DATE и статус не в (завершенных),
 		// или статус completed, но completed_at > deadline

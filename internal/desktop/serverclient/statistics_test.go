@@ -17,8 +17,8 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 		assert.Equal(t, "Bearer session-token", r.Header.Get("Authorization"))
 		switch requestNumber {
 		case 1:
-			assert.Equal(t, "/api/v1/dashboard/activity", r.URL.Path)
-			return response(http.StatusOK, `{"expiringAssignments":[]}`), nil
+			assert.Equal(t, "/api/v1/workspace/overview", r.URL.Path)
+			return response(http.StatusOK, `{"assignments":[],"acknowledgments":[]}`), nil
 		case 2:
 			assert.Equal(t, "/api/v1/statistics/documents", r.URL.Path)
 			return response(http.StatusOK, `{"year":2026,"totalYear":0,"documentsByKindMonthly":[],"documentsByRegistrarMonthly":[]}`), nil
@@ -43,7 +43,7 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 		}
 	})
 
-	_, err := client.GetDashboardActivity(context.Background())
+	_, err := client.GetWorkspaceOverview(context.Background(), "execution", "control")
 	require.NoError(t, err)
 	_, err = client.GetDocumentStatistics(context.Background())
 	require.NoError(t, err)
@@ -55,4 +55,28 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "pending", string(status.State))
 	assert.Equal(t, 5, requestNumber)
+}
+
+func TestWorkspaceClientPassesModesAndPagination(t *testing.T) {
+	client := userClientWithToken(t, func(r *http.Request) (*http.Response, error) {
+		assert.Equal(t, "Bearer session-token", r.Header.Get("Authorization"))
+		switch r.URL.Path {
+		case "/api/v1/workspace/overview":
+			assert.Equal(t, "execution", r.URL.Query().Get("assignmentMode"))
+			assert.Equal(t, "control", r.URL.Query().Get("acknowledgmentMode"))
+			return response(http.StatusOK, `{"assignmentModes":[],"assignments":[],"acknowledgmentModes":[],"acknowledgments":[]}`), nil
+		case "/api/v1/workspace/acknowledgments":
+			assert.Equal(t, "control", r.URL.Query().Get("mode"))
+			assert.Equal(t, "2", r.URL.Query().Get("page"))
+			assert.Equal(t, "7", r.URL.Query().Get("pageSize"))
+			return response(http.StatusOK, `{"items":[],"page":2,"pageSize":7}`), nil
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+			return nil, nil
+		}
+	})
+	_, err := client.GetWorkspaceOverview(context.Background(), "execution", "control")
+	require.NoError(t, err)
+	_, err = client.ListWorkspaceAcknowledgments(context.Background(), "control", 2, 7)
+	require.NoError(t, err)
 }

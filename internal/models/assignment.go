@@ -88,19 +88,14 @@ type AssignmentFilter struct {
 	DateTo       string `json:"dateTo,omitempty"`
 	OverdueOnly  bool   `json:"overdueOnly"` // Фильтр просроченных
 	ShowFinished bool   `json:"showFinished"`
+	Mode         string `json:"mode,omitempty"`
+	Metric       string `json:"metric,omitempty"`
 	Page         int    `json:"page"`
 	PageSize     int    `json:"pageSize"`
 
 	// Внутренний скоуп доступа: не принимается с клиента.
-	AllowedDocumentKinds []string `json:"-"`
-	AccessibleByUserID   string   `json:"-"`
-	AccessibleByUserIDs  []string `json:"-"`
-}
-
-// DashboardAssignmentFilter — серверный scope для поручений с истекающим сроком.
-// Поля доступа не принимаются с клиента.
-type DashboardAssignmentFilter struct {
-	Days                 int      `json:"-"`
-	AllowedDocumentKinds []string `json:"-"`
-	AccessibleByUserIDs  []string `json:"-"`
+	AllowedDocumentKinds []string                             `json:"-"`
+	AccessibleByUserID   string                               `json:"-"`
+	AccessibleByUserIDs  []string                             `json:"-"`
+	ControlScopes        map[DocumentKind]DocumentAccessScope `json:"-"`
 }

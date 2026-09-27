@@ -1035,82 +1035,6 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class DashboardAssignment {
-	    id: string;
-	    documentId: string;
-	    documentKind: string;
-	    documentNumber?: string;
-	    executorName?: string;
-	    content: string;
-	    // Go type: time
-	    deadline?: any;
-	    status: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new DashboardAssignment(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.documentId = source["documentId"];
-	        this.documentKind = source["documentKind"];
-	        this.documentNumber = source["documentNumber"];
-	        this.executorName = source["executorName"];
-	        this.content = source["content"];
-	        this.deadline = this.convertValues(source["deadline"], null);
-	        this.status = source["status"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class DashboardActivity {
-	    expiringAssignments?: DashboardAssignment[];
-	
-	    static createFrom(source: any = {}) {
-	        return new DashboardActivity(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.expiringAssignments = this.convertValues(source["expiringAssignments"], DashboardAssignment);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
 	
 	export class OutgoingDocument {
 	    id: string;
@@ -1758,6 +1682,87 @@ export namespace dto {
 		    return a;
 		}
 	}
+	export class WorkspaceAcknowledgment {
+	    id: string;
+	    documentId: string;
+	    documentKind: string;
+	    documentNumber?: string;
+	    content: string;
+	    // Go type: time
+	    createdAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkspaceAcknowledgment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.documentId = source["documentId"];
+	        this.documentKind = source["documentKind"];
+	        this.documentNumber = source["documentNumber"];
+	        this.content = source["content"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_WorkspaceAcknowledgment_ {
+	    items: WorkspaceAcknowledgment[];
+	    totalCount: number;
+	    page: number;
+	    pageSize: number;
+	    nextCursor?: string;
+	    hasMore: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_WorkspaceAcknowledgment_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], WorkspaceAcknowledgment);
+	        this.totalCount = source["totalCount"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.nextCursor = source["nextCursor"];
+	        this.hasMore = source["hasMore"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ResolutionExecutor {
 	    id: string;
 	    name: string;
@@ -1814,6 +1819,114 @@ export namespace dto {
 		    return a;
 		}
 	}
+	
+	export class WorkspaceAssignment {
+	    id: string;
+	    documentId: string;
+	    documentKind: string;
+	    documentNumber?: string;
+	    executorName?: string;
+	    content: string;
+	    // Go type: time
+	    deadline?: any;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkspaceAssignment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.documentId = source["documentId"];
+	        this.documentKind = source["documentKind"];
+	        this.documentNumber = source["documentNumber"];
+	        this.executorName = source["executorName"];
+	        this.content = source["content"];
+	        this.deadline = this.convertValues(source["deadline"], null);
+	        this.status = source["status"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class WorkspaceAssignmentCounts {
+	    new: number;
+	    overdue: number;
+	    dueSoon: number;
+	    awaitingAcceptance: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkspaceAssignmentCounts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.new = source["new"];
+	        this.overdue = source["overdue"];
+	        this.dueSoon = source["dueSoon"];
+	        this.awaitingAcceptance = source["awaitingAcceptance"];
+	    }
+	}
+	export class WorkspaceOverview {
+	    assignmentModes: string[];
+	    assignmentMode: string;
+	    assignmentCounts: WorkspaceAssignmentCounts;
+	    assignments: WorkspaceAssignment[];
+	    acknowledgmentModes: string[];
+	    acknowledgmentMode: string;
+	    acknowledgmentCount: number;
+	    acknowledgments: WorkspaceAcknowledgment[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkspaceOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.assignmentModes = source["assignmentModes"];
+	        this.assignmentMode = source["assignmentMode"];
+	        this.assignmentCounts = this.convertValues(source["assignmentCounts"], WorkspaceAssignmentCounts);
+	        this.assignments = this.convertValues(source["assignments"], WorkspaceAssignment);
+	        this.acknowledgmentModes = source["acknowledgmentModes"];
+	        this.acknowledgmentMode = source["acknowledgmentMode"];
+	        this.acknowledgmentCount = source["acknowledgmentCount"];
+	        this.acknowledgments = this.convertValues(source["acknowledgments"], WorkspaceAcknowledgment);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 
@@ -1828,6 +1941,8 @@ export namespace models {
 	    dateTo?: string;
 	    overdueOnly: boolean;
 	    showFinished: boolean;
+	    mode?: string;
+	    metric?: string;
 	    page: number;
 	    pageSize: number;
 	
@@ -1845,6 +1960,8 @@ export namespace models {
 	        this.dateTo = source["dateTo"];
 	        this.overdueOnly = source["overdueOnly"];
 	        this.showFinished = source["showFinished"];
+	        this.mode = source["mode"];
+	        this.metric = source["metric"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	    }

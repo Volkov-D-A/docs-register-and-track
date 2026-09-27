@@ -2,13 +2,15 @@ package server
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-type dashboardAPI interface {
-	GetActivity() (*dto.DashboardActivity, error)
+type workspaceAPI interface {
+	GetOverview(string, string) (*dto.WorkspaceOverview, error)
+	ListAcknowledgments(string, int, int) (*dto.PagedResult[dto.WorkspaceAcknowledgment], error)
 }
 
 type statisticsAPI interface {
@@ -38,8 +40,8 @@ type assignmentStatisticsReportRequest struct {
 	UserID      string `json:"userId"`
 }
 
-func (api *managementAPI) dashboardService(r *http.Request) dashboardAPI {
-	return api.dashboard(authenticatedFromContext(r.Context()).User)
+func (api *managementAPI) workspaceService(r *http.Request) workspaceAPI {
+	return api.workspace(authenticatedFromContext(r.Context()).User)
 }
 func (api *managementAPI) statisticsService(r *http.Request) statisticsAPI {
 	return api.statistics(authenticatedFromContext(r.Context()).User)
@@ -53,8 +55,17 @@ func writeStatisticsResult(w http.ResponseWriter, result any, err error) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (api *managementAPI) getDashboardActivity(w http.ResponseWriter, r *http.Request) {
-	result, err := api.dashboardService(r).GetActivity()
+func (api *managementAPI) getWorkspaceOverview(w http.ResponseWriter, r *http.Request) {
+	result, err := api.workspaceService(r).GetOverview(r.URL.Query().Get("assignmentMode"), r.URL.Query().Get("acknowledgmentMode"))
+	writeStatisticsResult(w, result, err)
+}
+func (api *managementAPI) listWorkspaceAcknowledgments(w http.ResponseWriter, r *http.Request) {
+	page, pageSize, err := workspacePagination(r)
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+	result, err := api.workspaceService(r).ListAcknowledgments(r.URL.Query().Get("mode"), page, pageSize)
 	writeStatisticsResult(w, result, err)
 }
 func (api *managementAPI) getDocumentStatistics(w http.ResponseWriter, r *http.Request) {
@@ -104,4 +115,23 @@ func (api *managementAPI) getAssignmentStatisticsReport(w http.ResponseWriter, r
 	}
 	result, err := api.statisticsService(r).GetAssignmentReport(req.StartDate, req.EndDate, req.OnlyOverdue, req.UserID)
 	writeStatisticsResult(w, result, err)
+}
+
+func workspacePagination(r *http.Request) (int, int, error) {
+	page, pageSize := 1, 20
+	if raw := r.URL.Query().Get("page"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 {
+			return 0, 0, models.NewBadRequest("неверная страница")
+		}
+		page = parsed
+	}
+	if raw := r.URL.Query().Get("pageSize"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 100 {
+			return 0, 0, models.NewBadRequest("неверный размер страницы")
+		}
+		pageSize = parsed
+	}
+	return page, pageSize, nil
 }

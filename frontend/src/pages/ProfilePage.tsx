@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, Button, Typography, Space, Descriptions, Tag, Row, Col, App, Segmented, Select, DatePicker, Switch } from 'antd';
 import { UserOutlined, LockOutlined, BgColorsOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
-import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
+import { useAuthStore } from '../store/useAuthStore';
 import type { AppTheme } from '../theme/AppThemeContext';
 import { useAppTheme } from '../theme/useAppTheme';
 import { formatAppError } from '../utils/appError';
@@ -18,7 +17,6 @@ const ProfilePage: React.FC = () => {
     const { user, changePassword, updateProfile, isLoading, error, clearError } = useAuthStore();
     const { message } = App.useApp();
     const { theme, setTheme, isThemeLoading } = useAppTheme();
-    const { summary: accessSummary, kinds: readableKinds, ready: accessReady } = useCurrentAccessSummary();
     const [profileForm] = Form.useForm();
     const [passwordForm] = Form.useForm();
     const [substitutionForm] = Form.useForm();
@@ -135,14 +133,7 @@ const ProfilePage: React.FC = () => {
         'stats_documents': 'Статистика: документы',
         'stats_assignments': 'Статистика: поручения',
         'stats_system': 'Статистика: системная',
-        'clerk': 'Делопроизводитель',
-        'executor': 'Исполнитель',
-        'mixed': 'Смешанный профиль',
     };
-    const currentProfile = accessReady
-        ? resolveUserProfile(accessSummary?.systemPermissions || user.systemPermissions, readableKinds, user.isDocumentParticipant)
-        : '';
-
     return (
         <div style={{ padding: '0 24px 24px' }}>
             <Title level={3}>Профиль пользователя</Title>
@@ -160,9 +151,6 @@ const ProfilePage: React.FC = () => {
                                     </Descriptions.Item>
                                     <Descriptions.Item label="Участие в документообороте">
                                         {user.isDocumentParticipant ? <Tag color="green">Да</Tag> : <Tag>Нет</Tag>}
-                                    </Descriptions.Item>
-                                    <Descriptions.Item label="Рабочий профиль">
-                                        <Tag color="blue">{currentProfile ? (roleNameMap[currentProfile] || currentProfile) : 'Загрузка...'}</Tag>
                                     </Descriptions.Item>
                                     <Descriptions.Item label="Системные права">
                                         <Space size={[0, 4]} wrap>

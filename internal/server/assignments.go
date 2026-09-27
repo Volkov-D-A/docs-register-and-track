@@ -60,6 +60,7 @@ func (api *managementAPI) listAssignments(w http.ResponseWriter, r *http.Request
 	filter.AllowedDocumentKinds = nil
 	filter.AccessibleByUserID = ""
 	filter.AccessibleByUserIDs = nil
+	filter.ControlScopes = nil
 	result, err := api.assignmentService(r).GetList(filter)
 	if err != nil {
 		writeUserError(w, err)

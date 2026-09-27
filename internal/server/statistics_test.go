@@ -14,10 +14,19 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-type fakeDashboardAPI struct{}
+type fakeWorkspaceAPI struct {
+	assignmentMode, acknowledgmentMode string
+	listMode                           string
+	page, pageSize                     int
+}
 
-func (*fakeDashboardAPI) GetActivity() (*dto.DashboardActivity, error) {
-	return &dto.DashboardActivity{ExpiringAssignments: []dto.DashboardAssignment{}}, nil
+func (f *fakeWorkspaceAPI) GetOverview(assignmentMode, acknowledgmentMode string) (*dto.WorkspaceOverview, error) {
+	f.assignmentMode, f.acknowledgmentMode = assignmentMode, acknowledgmentMode
+	return &dto.WorkspaceOverview{}, nil
+}
+func (f *fakeWorkspaceAPI) ListAcknowledgments(mode string, page, pageSize int) (*dto.PagedResult[dto.WorkspaceAcknowledgment], error) {
+	f.listMode, f.page, f.pageSize = mode, page, pageSize
+	return &dto.PagedResult[dto.WorkspaceAcknowledgment]{}, nil
 }
 
 type fakeStatisticsAPI struct {
@@ -53,23 +62,41 @@ func (*fakeStatisticsAPI) RetryStorageStatisticsRefresh() (*models.StorageStatis
 	return &models.StorageStatisticsStatus{}, nil
 }
 
-func TestDashboardAndStatisticsAPIsRequireSessionAndUsePrincipal(t *testing.T) {
+func TestWorkspaceAndStatisticsAPIsRequireSessionAndUsePrincipal(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, nil)
 	statistics := &fakeStatisticsAPI{}
-	var dashboardPrincipal, statisticsPrincipal uuid.UUID
-	api.dashboard = func(user *models.User) dashboardAPI { dashboardPrincipal = user.ID; return &fakeDashboardAPI{} }
+	workspace := &fakeWorkspaceAPI{}
+	var workspacePrincipal, statisticsPrincipal uuid.UUID
+	api.workspace = func(user *models.User) workspaceAPI { workspacePrincipal = user.ID; return workspace }
 	api.statistics = func(user *models.User) statisticsAPI { statisticsPrincipal = user.ID; return statistics }
 
 	unauthorized := httptest.NewRecorder()
-	api.Handler().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/dashboard/activity", nil))
+	api.Handler().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/workspace/overview", nil))
 	assert.Equal(t, http.StatusUnauthorized, unauthorized.Code)
 
-	dashboardRequest := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard/activity", nil)
-	dashboardRequest.Header.Set("Authorization", "Bearer "+token)
-	dashboardResponse := httptest.NewRecorder()
-	api.Handler().ServeHTTP(dashboardResponse, dashboardRequest)
-	require.Equal(t, http.StatusOK, dashboardResponse.Code, dashboardResponse.Body.String())
-	assert.NotEqual(t, uuid.Nil, dashboardPrincipal)
+	workspaceRequest := httptest.NewRequest(http.MethodGet, "/api/v1/workspace/overview?assignmentMode=control&acknowledgmentMode=execution", nil)
+	workspaceRequest.Header.Set("Authorization", "Bearer "+token)
+	workspaceResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(workspaceResponse, workspaceRequest)
+	require.Equal(t, http.StatusOK, workspaceResponse.Code, workspaceResponse.Body.String())
+	assert.NotEqual(t, uuid.Nil, workspacePrincipal)
+	assert.Equal(t, "control", workspace.assignmentMode)
+	assert.Equal(t, "execution", workspace.acknowledgmentMode)
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/api/v1/workspace/acknowledgments?mode=control&page=2&pageSize=7", nil)
+	listRequest.Header.Set("Authorization", "Bearer "+token)
+	listResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(listResponse, listRequest)
+	require.Equal(t, http.StatusOK, listResponse.Code, listResponse.Body.String())
+	assert.Equal(t, "control", workspace.listMode)
+	assert.Equal(t, 2, workspace.page)
+	assert.Equal(t, 7, workspace.pageSize)
+
+	invalidList := httptest.NewRequest(http.MethodGet, "/api/v1/workspace/acknowledgments?pageSize=1000", nil)
+	invalidList.Header.Set("Authorization", "Bearer "+token)
+	invalidResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(invalidResponse, invalidList)
+	require.Equal(t, http.StatusBadRequest, invalidResponse.Code)
 
 	reportRequest := httptest.NewRequest(http.MethodPost, "/api/v1/statistics/documents/report", strings.NewReader(`{"startDate":"2026-01-01","endDate":"2026-09-01","groupBy":"kind","accessScope":{"restricted":false}}`))
 	reportRequest.Header.Set("Authorization", "Bearer "+token)

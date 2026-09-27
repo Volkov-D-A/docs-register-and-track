@@ -5,18 +5,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/stretchr/testify/require"
 )
 
-type dashboardClientStub struct {
-	read func(context.Context) (*dto.DashboardActivity, error)
+type workspaceClientStub struct {
+	read func(context.Context, string, string) (*dto.WorkspaceOverview, error)
 }
 
-func (c dashboardClientStub) GetDashboardActivity(ctx context.Context) (*dto.DashboardActivity, error) {
-	return c.read(ctx)
+func (c workspaceClientStub) GetWorkspaceOverview(ctx context.Context, assignmentMode, acknowledgmentMode string) (*dto.WorkspaceOverview, error) {
+	return c.read(ctx, assignmentMode, acknowledgmentMode)
+}
+
+func (c workspaceClientStub) ListWorkspaceAcknowledgments(context.Context, string, int, int) (*dto.PagedResult[dto.WorkspaceAcknowledgment], error) {
+	return &dto.PagedResult[dto.WorkspaceAcknowledgment]{}, nil
 }
 
 type outboxAdminClientStub struct {
@@ -28,18 +32,20 @@ func (c outboxAdminClientStub) RequeueOutboxEvent(ctx context.Context, id string
 	return c.requeue(ctx, id)
 }
 
-func TestDashboardAdapterReturnsServerScopeAndCancelsRequest(t *testing.T) {
+func TestWorkspaceAdapterReturnsServerScopeAndCancelsRequest(t *testing.T) {
 	var requestContext context.Context
-	want := &dto.DashboardActivity{ExpiringAssignments: []dto.DashboardAssignment{{ID: "substituted-assignment"}}}
-	service := NewDashboardService(dashboardClientStub{read: func(ctx context.Context) (*dto.DashboardActivity, error) {
+	want := &dto.WorkspaceOverview{Assignments: []dto.WorkspaceAssignment{{ID: "substituted-assignment"}}}
+	service := NewWorkspaceService(workspaceClientStub{read: func(ctx context.Context, assignmentMode, acknowledgmentMode string) (*dto.WorkspaceOverview, error) {
 		requestContext = ctx
+		require.Equal(t, "execution", assignmentMode)
+		require.Equal(t, "control", acknowledgmentMode)
 		deadline, ok := ctx.Deadline()
 		require.True(t, ok)
 		require.WithinDuration(t, time.Now().Add(30*time.Second), deadline, time.Second)
 		require.NoError(t, ctx.Err())
 		return want, nil
 	}})
-	result, err := service.GetActivity()
+	result, err := service.GetOverview("execution", "control")
 	require.NoError(t, err)
 	require.Same(t, want, result)
 	require.ErrorIs(t, requestContext.Err(), context.Canceled)
@@ -60,9 +66,9 @@ func TestOutboxAdapterLeavesValidationAndPermissionsToServer(t *testing.T) {
 	require.ErrorIs(t, requestContext.Err(), context.Canceled)
 }
 
-func TestDashboardOutboxAdaptersRejectMissingClients(t *testing.T) {
-	_, err := NewDashboardService(nil).GetActivity()
-	require.ErrorIs(t, err, errDashboardServiceClientNotConfigured)
+func TestWorkspaceOutboxAdaptersRejectMissingClients(t *testing.T) {
+	_, err := NewWorkspaceService(nil).GetOverview("", "")
+	require.ErrorIs(t, err, errWorkspaceServiceClientNotConfigured)
 	service := NewOutboxAdminService(nil)
 	stats, err := service.GetStats()
 	require.Equal(t, models.OutboxStats{}, stats)

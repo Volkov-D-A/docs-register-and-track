@@ -368,6 +368,10 @@ func (s *DocumentAccessService) ResolveReadScope(kind models.DocumentKind) (*mod
 		return nil, err
 	}
 	if !isParticipant {
+		if len(subjectIDs) <= 1 {
+			// Participant edges do not grant document read to a non-participant.
+			return &models.DocumentAccessScope{Restricted: true}, nil
+		}
 		return &models.DocumentAccessScope{Restricted: true, AccessibleByUserID: accessibleByUserID, AccessibleByUserIDs: subjectIDStrings}, nil
 	}
 

@@ -390,13 +390,26 @@ type AssignmentSeries struct {
 	UpdatedAt           time.Time  `json:"updatedAt"`
 }
 
-// DashboardActivity описывает оперативные данные главного экрана.
-type DashboardActivity struct {
-	ExpiringAssignments []DashboardAssignment `json:"expiringAssignments,omitempty"`
+// WorkspaceOverview contains server-scoped work for the selected modes.
+type WorkspaceOverview struct {
+	AssignmentModes     []string                  `json:"assignmentModes"`
+	AssignmentMode      string                    `json:"assignmentMode"`
+	AssignmentCounts    WorkspaceAssignmentCounts `json:"assignmentCounts"`
+	Assignments         []WorkspaceAssignment     `json:"assignments"`
+	AcknowledgmentModes []string                  `json:"acknowledgmentModes"`
+	AcknowledgmentMode  string                    `json:"acknowledgmentMode"`
+	AcknowledgmentCount int                       `json:"acknowledgmentCount"`
+	Acknowledgments     []WorkspaceAcknowledgment `json:"acknowledgments"`
 }
 
-// DashboardAssignment contains only the fields rendered in the activity list.
-type DashboardAssignment struct {
+type WorkspaceAssignmentCounts struct {
+	New                int `json:"new"`
+	Overdue            int `json:"overdue"`
+	DueSoon            int `json:"dueSoon"`
+	AwaitingAcceptance int `json:"awaitingAcceptance"`
+}
+
+type WorkspaceAssignment struct {
 	ID             string     `json:"id"`
 	DocumentID     string     `json:"documentId"`
 	DocumentKind   string     `json:"documentKind"`
@@ -405,6 +418,15 @@ type DashboardAssignment struct {
 	Content        string     `json:"content"`
 	Deadline       *time.Time `json:"deadline,omitempty"`
 	Status         string     `json:"status"`
+}
+
+type WorkspaceAcknowledgment struct {
+	ID             string    `json:"id"`
+	DocumentID     string    `json:"documentId"`
+	DocumentKind   string    `json:"documentKind"`
+	DocumentNumber string    `json:"documentNumber,omitempty"`
+	Content        string    `json:"content"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 // Acknowledgment описывает DTO задачи на ознакомление.

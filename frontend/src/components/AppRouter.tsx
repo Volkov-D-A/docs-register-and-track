@@ -1,5 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import { Spin } from 'antd';
+import type { AssignmentNavigation, AssignmentMode, AssignmentMetric } from './assignmentNavigation';
 
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
@@ -24,14 +25,17 @@ type AppRouterProps = {
     accessReady: boolean;
     accessLoading: boolean;
     canAccessPage: (page: string) => boolean;
+    assignmentNavigation: AssignmentNavigation | null;
+    onOpenAssignments: (mode: AssignmentMode, metric?: AssignmentMetric) => void;
+    onOpenRegister: (kindCode: string, page: string) => void;
 };
 
 const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'appeals', 'orders', 'assignments']);
 
-const resolvePage = (pageKey: string) => {
+const resolvePage = (pageKey: string, props: Pick<AppRouterProps, 'assignmentNavigation' | 'onOpenAssignments' | 'onOpenRegister'>) => {
     switch (pageKey) {
         case 'dashboard':
-            return <DashboardPage />;
+            return <DashboardPage onOpenAssignments={props.onOpenAssignments} onOpenRegister={props.onOpenRegister} />;
         case 'incoming':
             return <IncomingPage />;
         case 'outgoing':
@@ -41,7 +45,7 @@ const resolvePage = (pageKey: string) => {
         case 'orders':
             return <OrdersPage />;
         case 'assignments':
-            return <AssignmentsPage />;
+            return <AssignmentsPage key={props.assignmentNavigation?.requestId || 0} initialView={props.assignmentNavigation} />;
         case 'settings':
             return <SettingsPage />;
         case 'references':
@@ -51,7 +55,7 @@ const resolvePage = (pageKey: string) => {
         case 'profile':
             return <ProfilePage />;
         default:
-            return <DashboardPage />;
+            return <DashboardPage onOpenAssignments={props.onOpenAssignments} onOpenRegister={props.onOpenRegister} />;
     }
 };
 
@@ -61,6 +65,9 @@ const AppRouter: React.FC<AppRouterProps> = ({
     accessReady,
     accessLoading,
     canAccessPage,
+    assignmentNavigation,
+    onOpenAssignments,
+    onOpenRegister,
 }) => {
     const isDocumentPage = documentSectionPages.has(currentPage);
 
@@ -72,7 +79,7 @@ const AppRouter: React.FC<AppRouterProps> = ({
 
     return (
         <Suspense fallback={documentPageFallback}>
-            {resolvePage(pageToRender)}
+            {resolvePage(pageToRender, { assignmentNavigation, onOpenAssignments, onOpenRegister })}
         </Suspense>
     );
 };

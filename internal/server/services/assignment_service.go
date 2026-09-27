@@ -729,7 +729,33 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 	if err != nil {
 		return nil, err
 	}
-	if len(assignableKinds) == 0 {
+	if filter.Mode != "" && filter.Mode != models.WorkspaceModeExecution && filter.Mode != models.WorkspaceModeControl {
+		return nil, models.NewBadRequest("неизвестный режим списка поручений")
+	}
+	if filter.Metric != "" && filter.Metric != "new" && filter.Metric != "overdue" && filter.Metric != "due_soon" && filter.Metric != "acceptance" {
+		return nil, models.NewBadRequest("неизвестный показатель поручений")
+	}
+	if filter.Mode == models.WorkspaceModeExecution {
+		filter.AllowedDocumentKinds = nil
+		filter.AccessibleByUserID = subjectIDs[0]
+		filter.AccessibleByUserIDs = subjectIDs
+		filter.ExecutorID = ""
+	} else if filter.Mode == models.WorkspaceModeControl {
+		if len(assignableKinds) == 0 {
+			return nil, models.ErrForbidden
+		}
+		filter.ControlScopes = make(map[models.DocumentKind]models.DocumentAccessScope, len(assignableKinds))
+		for _, kind := range assignableKinds {
+			scope, err := s.access.ResolveReadScope(kind)
+			if err != nil {
+				return nil, err
+			}
+			filter.ControlScopes[kind] = *scope
+		}
+		filter.AllowedDocumentKinds = nil
+		filter.AccessibleByUserID = ""
+		filter.AccessibleByUserIDs = nil
+	} else if len(assignableKinds) == 0 {
 		if len(subjectIDs) == 1 {
 			filter.ExecutorID = subjectIDs[0]
 		} else {
@@ -737,7 +763,7 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 			filter.AccessibleByUserID = subjectIDs[0]
 			filter.AccessibleByUserIDs = subjectIDs
 		}
-	} else if len(assignableKinds) < len(models.AllDocumentKindSpecs()) {
+	} else if filter.Mode == "" && len(assignableKinds) < len(models.AllDocumentKindSpecs()) {
 		filter.AllowedDocumentKinds = DocumentKindCodes(assignableKinds)
 		filter.AccessibleByUserID = subjectIDs[0]
 		if len(subjectIDs) > 1 {

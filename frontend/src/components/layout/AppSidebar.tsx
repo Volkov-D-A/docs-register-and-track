@@ -41,7 +41,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
         ...(sections.dashboard ? [{
             key: 'dashboard',
             icon: <DashboardOutlined />,
-            label: 'Дашборд',
+            label: 'Рабочий стол',
         }] : []),
         ...(sections.incoming ? [{
             key: 'incoming',

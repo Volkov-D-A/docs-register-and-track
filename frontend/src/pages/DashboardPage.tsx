@@ -1,302 +1,216 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-    Typography, Card, Row, Col, Tag, Spin, App,
-    Button, Empty
-} from 'antd';
-import {
-    UserOutlined, ReloadOutlined
-} from '@ant-design/icons';
+import { App, Button, Card, Col, Drawer, List, Pagination, Radio, Row, Space, Spin, Statistic, Tag, Typography } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { DOCUMENT_KIND_INCOMING_LETTER, getDocumentKindShortLabel } from '../constants/documentKinds';
-import { resolveUserProfile, useAuthStore } from '../store/useAuthStore';
-import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
-
+import { dto } from '../../wailsjs/go/models';
+import { GetOverview, ListAcknowledgments } from '../../wailsjs/go/services/WorkspaceService';
+import { GetCurrentUserEvents } from '../../wailsjs/go/services/UserEventService';
+import { models } from '../../wailsjs/go/models';
 import DocumentViewModal from '../components/DocumentViewModal';
-import { formatAppError } from '../utils/appError';
-import { CoalescedRequest } from '../utils/coalescedRequest';
+import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
+import { useAuthStore } from '../store/useAuthStore';
+import { useRegisterDocumentStore } from '../store/useRegisterDocumentStore';
 import { onAssignmentsChanged } from '../events/assignmentEvents';
-import {
-    isAcknowledgmentUserEvent,
-    isAssignmentUserEvent,
-    onUserEventsReceived,
-} from '../events/userEvents';
+import { onServerEvent } from '../events/serverEvents';
+import { formatAppError, normalizeAppError } from '../utils/appError';
+import { CoalescedRequest } from '../utils/coalescedRequest';
 
 const { Title, Text } = Typography;
+type WorkMode = 'execution' | 'control';
+type AssignmentMetric = 'new' | 'overdue' | 'due_soon' | 'acceptance';
 
-/**
- * Главная страница дашборда (панель управления).
- * Отображает статистику системы в зависимости от роли текущего пользователя.
- */
-const DashboardPage: React.FC = () => {
+type DashboardPageProps = {
+    onOpenAssignments: (mode: WorkMode, metric?: AssignmentMetric) => void;
+    onOpenRegister: (kindCode: string, page: string) => void;
+};
+
+const modeOptions = [
+    { label: 'Исполнение', value: 'execution' },
+    { label: 'Контроль', value: 'control' },
+];
+
+const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpenRegister }) => {
     const { message } = App.useApp();
-    const { user } = useAuthStore();
-    const { summary: accessSummary, kinds: readableKinds, ready: accessReady } = useCurrentAccessSummary();
-    const [stats, setStats] = useState<any>(null);
+    const userId = useAuthStore((state) => state.user?.id);
+    const { ready, registrationKinds } = useCurrentAccessSummary();
+    const [assignmentMode, setAssignmentMode] = useState<WorkMode | ''>('');
+    const [acknowledgmentMode, setAcknowledgmentMode] = useState<WorkMode | ''>('');
+    const [overview, setOverview] = useState<dto.WorkspaceOverview | null>(null);
     const [loading, setLoading] = useState(false);
-    const [pendingAcks, setPendingAcks] = useState<any[]>([]);
-    const dashboardRequestRef = useRef(new CoalescedRequest<{ activity: any; acknowledgments: any[]; acknowledgmentsError?: unknown }>());
-
-    // Состояние модального окна просмотра
-    const [viewDocId, setViewDocId] = useState('');
-    const [viewDocKind, setViewDocKind] = useState(DOCUMENT_KIND_INCOMING_LETTER);
-    const [viewModalOpen, setViewModalOpen] = useState(false);
-
-    const profile = resolveUserProfile(accessSummary?.systemPermissions || user?.systemPermissions, readableKinds, user?.isDocumentParticipant);
-
-    const loadStats = useCallback(() => {
-        if (!accessReady) {
-            return Promise.resolve();
-        }
-        setLoading(true);
-        return dashboardRequestRef.current.refresh(async () => {
-            const activityPromise = import('../../wailsjs/go/services/DashboardService')
-                .then(({ GetActivity }) => GetActivity());
-            const acknowledgmentsPromise = (async (): Promise<any[]> => {
-                if (profile !== 'clerk' && profile !== 'mixed' && profile !== 'executor') {
-                    return [];
-                }
-                const { GetPendingForCurrentUser, GetAllActive } = await import('../../wailsjs/go/services/AcknowledgmentService');
-                return profile === 'clerk' || profile === 'mixed'
-                    ? GetAllActive()
-                    : GetPendingForCurrentUser();
-            })();
-            const activity = await activityPromise;
-            try {
-                return { activity, acknowledgments: (await acknowledgmentsPromise) || [] };
-            } catch (acknowledgmentsError: unknown) {
-                return { activity, acknowledgments: [], acknowledgmentsError };
-            }
-        }, {
-            onSuccess: ({ activity, acknowledgments, acknowledgmentsError }) => {
-                setStats(activity); setPendingAcks(acknowledgments);
-                if (acknowledgmentsError) {
-                    console.error(acknowledgmentsError);
-                    message.warning(formatAppError(acknowledgmentsError, 'Не удалось загрузить ознакомления'));
-                }
-            },
-            onError: (err) => { console.error(err); message.error(formatAppError(err, 'Ошибка загрузки дашборда')); },
-            onSettled: () => setLoading(false),
-        });
-    }, [accessReady, message, profile]);
-
-    useEffect(() => () => dashboardRequestRef.current.invalidate(), []);
+    const [overviewError, setOverviewError] = useState('');
+    const [document, setDocument] = useState<{ id: string; kind: string } | null>(null);
+    const [ackListOpen, setAckListOpen] = useState(false);
+    const [ackPage, setAckPage] = useState(1);
+    const [ackItems, setAckItems] = useState<dto.WorkspaceAcknowledgment[]>([]);
+    const [ackTotal, setAckTotal] = useState(0);
+    const [ackLoading, setAckLoading] = useState(false);
+    const [events, setEvents] = useState<dto.UserEvent[]>([]);
+    const overviewRequest = useRef(new CoalescedRequest<dto.WorkspaceOverview>());
+    const acknowledgmentsRequest = useRef(new CoalescedRequest<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_WorkspaceAcknowledgment_>());
+    const eventsRequest = useRef(new CoalescedRequest<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_UserEvent_>());
 
     useEffect(() => {
-        if (accessReady) {
-            loadStats();
+        setAssignmentMode('');
+        setAcknowledgmentMode('');
+        setOverview(null);
+        setOverviewError('');
+        setAckListOpen(false);
+        setEvents([]);
+        overviewRequest.current.invalidate();
+        acknowledgmentsRequest.current.invalidate();
+        eventsRequest.current.invalidate();
+    }, [userId]);
+
+    const loadOverview = useCallback(() => {
+        if (!ready || !userId) return Promise.resolve();
+        setLoading(true);
+        return overviewRequest.current.refresh(() => GetOverview(assignmentMode, acknowledgmentMode), {
+            onSuccess: (result) => { setOverview(result); setOverviewError(''); },
+            onError: (error) => {
+                const text = formatAppError(error, 'Не удалось загрузить рабочий стол');
+                setOverview(null);
+                setOverviewError(text);
+                if (normalizeAppError(error).code === 'FORBIDDEN') {
+                    setAssignmentMode('');
+                    setAcknowledgmentMode('');
+                }
+                message.error(text);
+            },
+            onSettled: () => setLoading(false),
+        });
+    }, [ready, userId, assignmentMode, acknowledgmentMode, message]);
+
+    const loadEvents = useCallback(() => {
+        if (!ready || !userId) return Promise.resolve();
+        return eventsRequest.current.refresh(() => GetCurrentUserEvents(models.UserEventFilter.createFrom({ page: 1, pageSize: 5 })), {
+            onSuccess: (result) => setEvents(result?.items || []),
+            onError: (error) => console.error('Workspace events:', error),
+        });
+    }, [ready, userId]);
+
+    useEffect(() => {
+        void loadOverview();
+        void loadEvents();
+    }, [loadOverview, loadEvents]);
+
+    useEffect(() => onAssignmentsChanged(() => { void loadOverview(); }), [loadOverview]);
+    useEffect(() => onServerEvent((event) => {
+        if (event.topic === 'user-events' || event.topic === 'resync') {
+            void loadOverview();
+            void loadEvents();
         }
-    }, [accessReady, loadStats]);
+    }), [loadOverview, loadEvents]);
 
-    useEffect(() => onUserEventsReceived((events) => {
-        if (events.some((event) => isAssignmentUserEvent(event) || isAcknowledgmentUserEvent(event))) {
-            void loadStats();
-        }
-    }), [loadStats]);
+    useEffect(() => {
+        if (!ackListOpen || !overview?.acknowledgmentMode) return;
+        setAckLoading(true);
+        void acknowledgmentsRequest.current.refresh(
+            () => ListAcknowledgments(overview.acknowledgmentMode, ackPage, 10), {
+                onSuccess: (result) => {
+                    setAckItems(result?.items || []);
+                    setAckTotal(result?.totalCount || 0);
+                },
+                onError: (error) => message.error(formatAppError(error, 'Не удалось загрузить ознакомления')),
+                onSettled: () => setAckLoading(false),
+            },
+        );
+    }, [ackListOpen, ackPage, overview?.acknowledgmentMode, overview?.acknowledgmentCount, message]);
 
-    useEffect(() => onAssignmentsChanged(() => {
-        void loadStats();
-    }), [loadStats]);
+    useEffect(() => () => {
+        overviewRequest.current.invalidate();
+        acknowledgmentsRequest.current.invalidate();
+        eventsRequest.current.invalidate();
+    }, []);
 
-    // Определение отображения по текущей роли
-    if (!accessReady || (loading && !stats)) {
-        return <div style={{ textAlign: 'center', marginTop: 50 }}><Spin size="large" /></div>;
+    const activeAssignmentMode = overview?.assignmentMode as WorkMode | undefined;
+    const activeAcknowledgmentMode = overview?.acknowledgmentMode as WorkMode | undefined;
+    const openAcknowledgments = () => {
+        setAckPage(1);
+        setAckListOpen(true);
+    };
+    const openDocument = (id: string, kind: string) => setDocument({ id, kind });
+    const assignmentTitle = activeAssignmentMode === 'control' ? 'Поручения под контролем' : 'Мои поручения';
+    const acknowledgmentTitle = activeAcknowledgmentMode === 'control' ? 'Контроль ознакомлений' : 'Мои ознакомления';
+    const counts = overview?.assignmentCounts;
+
+    if (!ready || (loading && !overview)) {
+        return <div style={{ textAlign: 'center', padding: 48 }}><Spin size="large" /></div>;
     }
 
-    // --- Подкомпоненты ---
-
-    const ExpiringList = ({ list, title = 'Истекающий срок исполнения' }: any) => (
-        <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
-            {(!list || list.length === 0) ? (
-                <Empty
-                    description={
-                        <span>
-                            Срочных поручений нет. Проверьте этот блок позже или обновите дашборд.
-                        </span>
-                    }
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                />
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {list.map((item: any) => {
-                        const diff = dayjs(item.deadline).diff(dayjs(), 'day');
-                        let color = 'green';
-                        if (diff < 0) color = 'red';
-                        else if (diff <= 3) color = 'orange';
-
-                        return (
-                            <div key={item.id || Math.random()} style={{ display: 'flex', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--app-border)' }}>
-                                <div style={{ flexShrink: 0, marginTop: 2 }}>
-                                    <Tag color={color} style={{ margin: 0 }}>
-                                        {dayjs(item.deadline).format('DD.MM')}
-                                    </Tag>
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                                        <Text style={{ whiteSpace: 'pre-wrap', marginRight: 8, wordBreak: 'break-word' }}>{item.content}</Text>
-                                        {item.documentNumber && profile !== 'admin' && (
-                                            <Tag
-                                                style={{ cursor: 'pointer', margin: 0, flexShrink: 0 }}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setViewDocId(item.documentId);
-                                                    setViewDocKind(item.documentKind);
-                                                    setViewModalOpen(true);
-                                                }}
-                                            >
-                                                {item.documentNumber}
-                                            </Tag>
-                                        )}
-                                    </div>
-                                    <div style={{ color: 'var(--app-text-secondary)' }}>
-                                        {item.executorName && <span style={{ marginRight: 10 }}><UserOutlined /> {item.executorName}</span>}
-                                        <span style={{ fontSize: 12 }}>{
-                                            item.status === 'new' ? 'Новое' :
-                                                item.status === 'in_progress' ? 'В работе' : item.status
-                                        }</span>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-        </Card>
-    );
-
-    const PendingAcksList = () => {
-        const hasItems = pendingAcks && pendingAcks.length > 0;
-        const title = profile === 'clerk' || profile === 'mixed' ? "Все текущие ознакомления" : "Мои ознакомления";
-        return (
-            <Card title={title} variant="borderless" size="small" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
-                {!hasItems ? (
-                    <Empty
-                        description={
-                            <span>
-                                Документов для ознакомления нет. Новые задачи появятся здесь после назначения.
-                            </span>
-                        }
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    />
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {pendingAcks.map((item: any) => (
-                            (() => {
-                                return (
-                                    <div key={item.id} style={{ paddingBottom: 12, borderBottom: '1px solid var(--app-border)' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                                            <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginRight: 8 }}>{item.content || 'Без описания'}</Text>
-                                            <Tag
-                                                style={{ cursor: profile === 'admin' ? 'default' : 'pointer', margin: 0, flexShrink: 0 }}
-                                                onClick={(e) => {
-                                                    if (profile === 'admin') {
-                                                        return;
-                                                    }
-                                                    e.stopPropagation();
-                                                    setViewDocId(item.documentId);
-                                                    setViewDocKind(item.documentKind);
-                                                    setViewModalOpen(true);
-                                                }}
-                                            >
-                                                {item.documentNumber || getDocumentKindShortLabel(item.documentKind)}
-                                            </Tag>
-                                        </div>
-
-                                        {profile === 'clerk' || profile === 'mixed' ? (
-                                            <div style={{ marginTop: 8 }}>
-                                                {item.users && item.users.length > 0 ? (
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                                        {item.users.map((u: any) => (
-                                                            <Tag key={u.userId} color={u.confirmedAt ? 'green' : 'default'} style={{ margin: 0 }}>
-                                                                {u.userName}
-                                                            </Tag>
-                                                        ))}
-                                                    </div>
-                                                ) : <Text type="secondary" style={{ fontSize: 12 }}>Нет участников</Text>}
-                                            </div>
-                                        ) : (
-                                            <Text type="secondary" style={{ fontSize: 12 }}>
-                                                Откройте карточку документа для подтверждения ознакомления.
-                                            </Text>
-                                        )}
-                                    </div>
-                                );
-                            })()
-                        ))}
-                    </div>
-                )}
-            </Card>
-        );
-    };
-
-    // --- Представления ---
-
-    const renderExecutorView = () => (
-        <>
-            <Row gutter={[16, 16]}>
-                <Col xs={24} md={12}>
-                    <PendingAcksList />
-                </Col>
-                <Col xs={24} md={12}>
-                    <ExpiringList list={stats?.expiringAssignments} title="Срочные поручения" />
-                </Col>
-            </Row>
-        </>
-    );
-
-    const renderClerkView = () => (
-        <>
-            <Row gutter={[16, 16]}>
-                <Col xs={24} md={12}>
-                    <PendingAcksList />
-                </Col>
-                <Col xs={24} md={12}>
-                    <ExpiringList list={stats?.expiringAssignments} title="Все срочные" />
-                </Col>
-            </Row>
-        </>
-    );
-
-    const renderMixedView = () => (
-        <>
-            <Row gutter={[16, 16]}>
-                <Col xs={24} md={12}>
-                    <PendingAcksList />
-                </Col>
-                <Col xs={24} md={12}>
-                    <ExpiringList list={stats?.expiringAssignments} title="Срочные поручения" />
-                </Col>
-            </Row>
-        </>
-    );
-
-    const renderAdminView = () => (
-        <Card variant="borderless" style={{ borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
-            <Empty description="Оперативная активность администратора не отображается. Используйте раздел статистики или журнал администрирования для контроля системы." />
-        </Card>
-    );
-
     return (
-        <div style={{ padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <Title level={4} style={{ margin: 0 }}>Текущая активность</Title>
-                <Button icon={<ReloadOutlined />} onClick={loadStats} disabled={loading || !accessReady}>Обновить</Button>
-            </div>
-
-            {profile === 'admin' && renderAdminView()}
-            {profile === 'clerk' && renderClerkView()}
-            {profile === 'mixed' && renderMixedView()}
-            {profile !== 'admin' && profile !== 'clerk' && profile !== 'mixed' && renderExecutorView()}
-
-            {profile !== 'admin' && (
-                <DocumentViewModal
-                    open={viewModalOpen}
-                    onCancel={() => setViewModalOpen(false)}
-                    documentId={viewDocId}
-                    documentKind={viewDocKind}
-                    onAssignmentsChanged={loadStats}
-                    onAcknowledgmentsChanged={loadStats}
-                />
+        <div style={{ padding: 8 }}>
+            <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 20 }}>
+                <Title level={4} style={{ margin: 0 }}>Рабочий стол</Title>
+                <Button icon={<ReloadOutlined />} loading={loading} onClick={() => { void loadOverview(); void loadEvents(); }}>Обновить</Button>
+            </Space>
+            {overviewError && <Card style={{ marginBottom: 16 }}><Text type="danger">{overviewError}</Text></Card>}
+            {activeAssignmentMode && (
+                <Card title={assignmentTitle} extra={overview && overview.assignmentModes.length > 1 && (
+                    <Radio.Group size="small" options={modeOptions} value={activeAssignmentMode}
+                        onChange={(event) => setAssignmentMode(event.target.value as WorkMode)} />
+                )} style={{ marginBottom: 16 }}>
+                    <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
+                        {([
+                            ['Новые', counts?.new || 0, 'new'],
+                            ['Просрочены', counts?.overdue || 0, 'overdue'],
+                            ['Срок в ближайшие 3 дня', counts?.dueSoon || 0, 'due_soon'],
+                            ...(activeAssignmentMode === 'control' ? [['Ожидают приёмки', counts?.awaitingAcceptance || 0, 'acceptance']] : []),
+                        ] as [string, number, AssignmentMetric][]).map(([title, value, metric]) => (
+                            <Col key={metric} xs={12} md={6}>
+                                <Card size="small" hoverable role="button" tabIndex={0}
+                                    onClick={() => onOpenAssignments(activeAssignmentMode, metric)}
+                                    onKeyDown={(event) => { if (event.key === 'Enter') onOpenAssignments(activeAssignmentMode, metric); }}>
+                                    <Statistic title={title} value={value} />
+                                </Card>
+                            </Col>
+                        ))}
+                    </Row>
+                    <List dataSource={overview?.assignments || []} locale={{ emptyText: 'Актуальных поручений нет' }}
+                        renderItem={(item) => <List.Item actions={[<Button key="open" type="link" onClick={() => openDocument(item.documentId, item.documentKind)}>Открыть</Button>]}>
+                            <List.Item.Meta title={<Space><Text>{item.content}</Text>{item.deadline && <Tag>{dayjs(item.deadline).format('DD.MM.YYYY')}</Tag>}</Space>}
+                                description={`${item.documentNumber || 'Документ без номера'} · ${item.executorName || 'Исполнитель не указан'}`} />
+                        </List.Item>} />
+                    <Button type="link" onClick={() => onOpenAssignments(activeAssignmentMode)}>Все поручения</Button>
+                </Card>
             )}
+            {activeAcknowledgmentMode && (
+                <Card title={acknowledgmentTitle} extra={overview && overview.acknowledgmentModes.length > 1 && (
+                    <Radio.Group size="small" options={modeOptions} value={activeAcknowledgmentMode}
+                        onChange={(event) => { setAcknowledgmentMode(event.target.value as WorkMode); setAckPage(1); }} />
+                )} style={{ marginBottom: 16 }}>
+                    <Button type="link" onClick={openAcknowledgments}>Ожидают внимания: {overview?.acknowledgmentCount || 0}</Button>
+                    <List dataSource={overview?.acknowledgments || []} locale={{ emptyText: 'Актуальных ознакомлений нет' }}
+                        renderItem={(item) => <List.Item actions={[<Button key="open" type="link" onClick={() => openDocument(item.documentId, item.documentKind)}>Открыть</Button>]}>
+                            <List.Item.Meta title={item.content || 'Ознакомление'} description={item.documentNumber || 'Документ без номера'} />
+                        </List.Item>} />
+                    <Button type="link" onClick={openAcknowledgments}>Все ознакомления</Button>
+                </Card>
+            )}
+            {registrationKinds.length > 0 && (
+                <Card title="Быстрая регистрация" style={{ marginBottom: 16 }}>
+                    <Space wrap>{registrationKinds.map((kind) => (
+                        <Button key={kind.code} onClick={() => {
+                            useRegisterDocumentStore.getState().requestOpen(kind.code);
+                            onOpenRegister(kind.code, kind.pageKey);
+                        }}>{kind.label}</Button>
+                    ))}</Space>
+                </Card>
+            )}
+            <Card title="Новое для меня">
+                <List dataSource={events} locale={{ emptyText: 'Новых событий нет' }}
+                    renderItem={(item) => <List.Item actions={[<Button key="open" type="link" onClick={() => openDocument(item.documentId, item.documentKind)}>Открыть</Button>]}>
+                        <List.Item.Meta title={item.title} description={item.message} />
+                    </List.Item>} />
+            </Card>
+            <Drawer title={acknowledgmentTitle} open={ackListOpen} width={640} onClose={() => setAckListOpen(false)}>
+                <List loading={ackLoading} dataSource={ackItems} locale={{ emptyText: 'Ознакомлений нет' }}
+                    renderItem={(item) => <List.Item actions={[<Button key="open" type="link" onClick={() => openDocument(item.documentId, item.documentKind)}>Открыть</Button>]}>
+                        <List.Item.Meta title={item.content || 'Ознакомление'} description={item.documentNumber || 'Документ без номера'} />
+                    </List.Item>} />
+                <Pagination current={ackPage} pageSize={10} total={ackTotal} onChange={setAckPage} style={{ marginTop: 16 }} />
+            </Drawer>
+            <DocumentViewModal open={!!document} onCancel={() => setDocument(null)} documentId={document?.id || ''}
+                documentKind={document?.kind || ''} onAssignmentsChanged={loadOverview} onAcknowledgmentsChanged={loadOverview} />
         </div>
     );
 };

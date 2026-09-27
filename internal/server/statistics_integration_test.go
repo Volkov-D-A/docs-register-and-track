@@ -18,7 +18,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
-func TestDashboardAndStatisticsAPIEnforceServerPermissionsIntegration(t *testing.T) {
+func TestWorkspaceAndStatisticsAPIEnforceServerPermissionsIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	db := database.Wrap(sqlDB)
 	password := "StatisticsPassw0rd!"
@@ -50,8 +50,8 @@ func TestDashboardAndStatisticsAPIEnforceServerPermissionsIntegration(t *testing
 		return response
 	}
 
-	dashboard := request("/api/v1/dashboard/activity")
-	require.Equal(t, http.StatusOK, dashboard.Code, dashboard.Body.String())
+	workspace := request("/api/v1/workspace/overview")
+	require.Equal(t, http.StatusOK, workspace.Code, workspace.Body.String())
 	documents := request("/api/v1/statistics/documents")
 	require.Equal(t, http.StatusOK, documents.Code, documents.Body.String())
 	require.Contains(t, documents.Body.String(), `"totalYear":0`)

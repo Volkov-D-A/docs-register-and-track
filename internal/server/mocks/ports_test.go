@@ -5,7 +5,6 @@ import "github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 var (
 	_ ports.AttachmentStore     = (*AttachmentStore)(nil)
 	_ ports.JournalStore        = (*JournalStore)(nil)
-	_ ports.DashboardStore      = (*DashboardStore)(nil)
 	_ ports.OutgoingDocStore    = (*OutgoingDocStore)(nil)
 	_ ports.LinkStore           = (*LinkStore)(nil)
 	_ ports.UserStore           = (*UserStore)(nil)

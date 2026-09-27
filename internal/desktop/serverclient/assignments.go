@@ -48,6 +48,7 @@ func (c *Client) ListAssignments(ctx context.Context, filter models.AssignmentFi
 	filter.AllowedDocumentKinds = nil
 	filter.AccessibleByUserID = ""
 	filter.AccessibleByUserIDs = nil
+	filter.ControlScopes = nil
 	var result dto.PagedResult[dto.Assignment]
 	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/assignments/query", filter, http.StatusOK, &result); err != nil {
 		return nil, err

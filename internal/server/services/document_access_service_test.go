@@ -352,7 +352,7 @@ func TestDocumentAccessService_ResolveReadScope(t *testing.T) {
 		assert.Equal(t, []string{nomenclatureID.String()}, scope.AllowedNomenclatureIDs)
 	})
 
-	t.Run("non participant with domain access receives personal restricted scope only", func(t *testing.T) {
+	t.Run("non participant without read or substitution has empty restricted scope", func(t *testing.T) {
 		user := documentAccessUser(false, nil)
 		deps := setupDocumentAccessService(
 			t,
@@ -365,7 +365,8 @@ func TestDocumentAccessService_ResolveReadScope(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, scope)
 		assert.True(t, scope.Restricted)
-		assert.Equal(t, user.ID.String(), scope.AccessibleByUserID)
+		assert.Empty(t, scope.AccessibleByUserID)
+		assert.Empty(t, scope.AccessibleByUserIDs)
 		assert.Empty(t, scope.AllowedNomenclatureIDs)
 	})
 }

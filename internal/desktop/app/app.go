@@ -97,7 +97,7 @@ func newWailsOptionsWithDependencies(
 		return nil, &startupdiag.Failure{Component: "attachments", ConfigPath: params.ConfigPath, Summary: "Не удалось настроить сервис вложений.", Err: err}
 	}
 
-	dashboardService := desktopservices.NewDashboardService(serverClient)
+	workspaceService := desktopservices.NewWorkspaceService(serverClient)
 	statisticsService := desktopservices.NewStatisticsService(serverClient)
 	linkService := desktopservices.NewLinkService(serverClient)
 	acknowledgmentService := desktopservices.NewAcknowledgmentService(serverClient)
@@ -177,7 +177,7 @@ func newWailsOptionsWithDependencies(
 			documentRegistrationService,
 			administrativeOrderService,
 			assignmentService,
-			dashboardService,
+			workspaceService,
 			statisticsService,
 			departmentService,
 			settingsService,

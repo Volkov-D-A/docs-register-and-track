@@ -1,0 +1,185 @@
+package repository
+
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+
+	"github.com/lib/pq"
+
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
+)
+
+// WorkspaceRepository computes counts and bounded previews under server-resolved scopes.
+type WorkspaceRepository struct{ db *database.DB }
+
+func NewWorkspaceRepository(db *database.DB) *WorkspaceRepository {
+	return &WorkspaceRepository{db: db}
+}
+
+func workspaceWhere(query models.WorkspaceQuery, assignment bool, offset int) (string, []interface{}, error) {
+	if query.Mode != models.WorkspaceModeExecution && query.Mode != models.WorkspaceModeControl {
+		return "", nil, fmt.Errorf("invalid workspace mode %q", query.Mode)
+	}
+	where := []string{}
+	args := []interface{}{}
+	argIdx := offset + 1
+	if query.Mode == models.WorkspaceModeExecution {
+		if len(query.SubjectIDs) == 0 {
+			return "1=0", args, nil
+		}
+		if assignment {
+			where = append(where, fmt.Sprintf(`(a.executor_id = ANY($%d::uuid[]) OR EXISTS (
+				SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = ANY($%d::uuid[])))`, argIdx, argIdx))
+		} else {
+			where = append(where, fmt.Sprintf(`EXISTS (SELECT 1 FROM acknowledgment_users au
+				WHERE au.acknowledgment_id = a.id AND au.user_id = ANY($%d::uuid[]) AND au.confirmed_at IS NULL)`, argIdx))
+		}
+		args = append(args, pq.Array(query.SubjectIDs))
+	} else {
+		if query.Kind == "" {
+			return "", nil, fmt.Errorf("workspace control query requires document kind")
+		}
+		where = append(where, fmt.Sprintf("d.kind = $%d", argIdx))
+		args = append(args, string(query.Kind))
+		argIdx++
+		applyDocumentListAccess(&where, &args, &argIdx, query.ReadScope)
+	}
+	return strings.Join(where, " AND "), args, nil
+}
+
+func (r *WorkspaceRepository) AssignmentSummary(query models.WorkspaceQuery) (models.WorkspaceAssignmentCounts, []models.WorkspaceAssignment, error) {
+	var counts models.WorkspaceAssignmentCounts
+	accessWhere, args, err := workspaceWhere(query, true, 0)
+	if err != nil {
+		return counts, nil, err
+	}
+	where := []string{
+		"(a.series_id IS NULL OR s.current_assignment_id = a.id)",
+		"a.status IN ('new', 'in_progress', 'returned', 'completed')",
+		accessWhere,
+	}
+	if query.Mode == models.WorkspaceModeExecution {
+		where = append(where, "a.status != 'completed'")
+	}
+	from := ` FROM assignments a JOIN documents d ON d.id = a.document_id
+		LEFT JOIN assignment_series s ON s.id = a.series_id
+		LEFT JOIN users u ON u.id = a.executor_id WHERE ` + strings.Join(where, " AND ")
+	countSQL := `SELECT
+		COUNT(*) FILTER (WHERE a.status = 'new'),
+		COUNT(*) FILTER (WHERE a.status != 'completed' AND a.deadline::date < CURRENT_DATE),
+		COUNT(*) FILTER (WHERE a.status != 'completed' AND a.deadline::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 3),
+		COUNT(*) FILTER (WHERE a.status = 'completed')` + from
+	if err := r.db.QueryRow(countSQL, args...).Scan(&counts.New, &counts.Overdue, &counts.DueSoon, &counts.AwaitingAcceptance); err != nil {
+		return counts, nil, err
+	}
+	limit := query.Limit
+	if limit < 1 || limit > 20 {
+		limit = 5
+	}
+	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number,
+		COALESCE(u.full_name, ''), a.content, a.deadline, a.status`+from+`
+		ORDER BY CASE WHEN a.status = 'completed' THEN 0 WHEN a.deadline::date < CURRENT_DATE THEN 1 ELSE 2 END,
+		a.deadline ASC NULLS LAST, a.created_at DESC, a.id LIMIT `+fmt.Sprint(limit), args...)
+	if err != nil {
+		return counts, nil, err
+	}
+	defer rows.Close()
+	items := []models.WorkspaceAssignment{}
+	for rows.Next() {
+		var item models.WorkspaceAssignment
+		var deadline sql.NullTime
+		var number sql.NullString
+		if err := rows.Scan(&item.ID, &item.DocumentID, &item.DocumentKind, &number,
+			&item.ExecutorName, &item.Content, &deadline, &item.Status); err != nil {
+			return counts, nil, err
+		}
+		item.DocumentNumber = number.String
+		if deadline.Valid {
+			item.Deadline = &deadline.Time
+		}
+		items = append(items, item)
+	}
+	return counts, items, rows.Err()
+}
+
+func (r *WorkspaceRepository) AcknowledgmentSummary(query models.WorkspaceQuery) (int, []models.WorkspaceAcknowledgment, error) {
+	accessWhere, args, err := workspaceWhere(query, false, 0)
+	if err != nil {
+		return 0, nil, err
+	}
+	from := ` FROM acknowledgments a JOIN documents d ON d.id = a.document_id
+		WHERE a.completed_at IS NULL AND ` + accessWhere
+	var count int
+	if err := r.db.QueryRow(`SELECT COUNT(*)`+from, args...).Scan(&count); err != nil {
+		return 0, nil, err
+	}
+	limit := query.Limit
+	if limit < 1 || limit > 20 {
+		limit = 5
+	}
+	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number,
+		a.content, a.created_at`+from+` ORDER BY a.created_at DESC, a.id LIMIT `+fmt.Sprint(limit), args...)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer rows.Close()
+	items := []models.WorkspaceAcknowledgment{}
+	for rows.Next() {
+		var item models.WorkspaceAcknowledgment
+		var number sql.NullString
+		if err := rows.Scan(&item.ID, &item.DocumentID, &item.DocumentKind, &number,
+			&item.Content, &item.CreatedAt); err != nil {
+			return 0, nil, err
+		}
+		item.DocumentNumber = number.String
+		items = append(items, item)
+	}
+	return count, items, rows.Err()
+}
+
+func (r *WorkspaceRepository) ListAcknowledgments(queries []models.WorkspaceQuery, page, pageSize int) (*models.PagedResult[models.WorkspaceAcknowledgment], error) {
+	page, pageSize = normalizePagination(page, pageSize)
+	whereParts := []string{}
+	args := []interface{}{}
+	for _, query := range queries {
+		part, partArgs, err := workspaceWhere(query, false, len(args))
+		if err != nil {
+			return nil, err
+		}
+		whereParts = append(whereParts, "("+part+")")
+		args = append(args, partArgs...)
+	}
+	if len(whereParts) == 0 {
+		return &models.PagedResult[models.WorkspaceAcknowledgment]{Items: []models.WorkspaceAcknowledgment{}, Page: page, PageSize: pageSize}, nil
+	}
+	from := ` FROM acknowledgments a JOIN documents d ON d.id = a.document_id
+		WHERE a.completed_at IS NULL AND (` + strings.Join(whereParts, " OR ") + `)`
+	var count int
+	if err := r.db.QueryRow(`SELECT COUNT(*)`+from, args...).Scan(&count); err != nil {
+		return nil, err
+	}
+	limitIdx := len(args) + 1
+	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number,
+		a.content, a.created_at`+from+fmt.Sprintf(` ORDER BY a.created_at DESC, a.id LIMIT $%d OFFSET $%d`, limitIdx, limitIdx+1), append(args, pageSize, (page-1)*pageSize)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []models.WorkspaceAcknowledgment{}
+	for rows.Next() {
+		var item models.WorkspaceAcknowledgment
+		var number sql.NullString
+		if err := rows.Scan(&item.ID, &item.DocumentID, &item.DocumentKind, &number,
+			&item.Content, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		item.DocumentNumber = number.String
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return &models.PagedResult[models.WorkspaceAcknowledgment]{Items: items, TotalCount: count, Page: page, PageSize: pageSize}, nil
+}

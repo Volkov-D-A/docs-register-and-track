@@ -68,7 +68,7 @@ type managementAPI struct {
 	administrativeOrderAcknowledgments func(*models.User) administrativeOrderAcknowledgmentAPI
 	links                              func(*models.User) linkAPI
 	journal                            func(*models.User) journalAPI
-	dashboard                          func(*models.User) dashboardAPI
+	workspace                          func(*models.User) workspaceAPI
 	statistics                         func(*models.User) statisticsAPI
 	attachments                        func(*models.User) attachmentAPI
 	adminAudit                         func(*models.User) adminAuditAPI
@@ -140,7 +140,7 @@ func newManagementAPI(app *App) *managementAPI {
 	links := repository.NewLinkRepository(app.db)
 	links.SetOutbox(outboxRepo)
 	journal := repository.NewJournalRepository(app.db)
-	dashboard := repository.NewDashboardRepository(app.db)
+	workspace := repository.NewWorkspaceRepository(app.db)
 	statistics := repository.NewStatisticsRepository(app.db)
 	adminAudit := repository.NewAdminAuditLogRepository(app.db)
 	attachmentRepo := repository.NewAttachmentRepository(app.db)
@@ -238,10 +238,10 @@ func newManagementAPI(app *App) *managementAPI {
 			)
 			return serverservices.NewJournalService(journal, documentAccess)
 		},
-		dashboard: func(user *models.User) dashboardAPI {
+		workspace: func(user *models.User) workspaceAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
-			return serverservices.NewDashboardService(dashboard, principal, documentAccess, app.metrics)
+			return serverservices.NewWorkspaceService(workspace, principal, documentAccess, app.metrics)
 		},
 		statistics: func(user *models.User) statisticsAPI {
 			return serverservices.NewStatisticsService(
@@ -367,7 +367,8 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/documents/{id}/links", api.requireSession(http.HandlerFunc(api.listDocumentLinks)))
 	mux.Handle("GET /api/v1/documents/{id}/link-graph", api.requireSession(http.HandlerFunc(api.getDocumentLinkGraph)))
 	mux.Handle("GET /api/v1/documents/{id}/journal", api.requireSession(http.HandlerFunc(api.getDocumentJournal)))
-	mux.Handle("GET /api/v1/dashboard/activity", api.requireSession(http.HandlerFunc(api.getDashboardActivity)))
+	mux.Handle("GET /api/v1/workspace/overview", api.requireSession(http.HandlerFunc(api.getWorkspaceOverview)))
+	mux.Handle("GET /api/v1/workspace/acknowledgments", api.requireSession(http.HandlerFunc(api.listWorkspaceAcknowledgments)))
 	mux.Handle("GET /api/v1/statistics/documents", api.requireSession(http.HandlerFunc(api.getDocumentStatistics)))
 	mux.Handle("POST /api/v1/statistics/documents/report", api.requireSession(http.HandlerFunc(api.getDocumentStatisticsReport)))
 	mux.Handle("GET /api/v1/statistics/documents/filters", api.requireSession(http.HandlerFunc(api.getDocumentStatisticsFilters)))

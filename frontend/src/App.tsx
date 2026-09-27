@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { App as AntdApp } from 'antd';
-import { resolveUserProfile, useAuthStore } from './store/useAuthStore';
+import { useAuthStore } from './store/useAuthStore';
 import { useDraftLinkStore } from './store/useDraftLinkStore';
 import { useRegisterDocumentStore } from './store/useRegisterDocumentStore';
 import LoginPage from './pages/LoginPage';
@@ -14,17 +14,18 @@ import { useCurrentAccessSummary } from './hooks/useCurrentAccessSummary';
 import { useOrganizationSetup } from './hooks/useOrganizationSetup';
 import { useSessionEvents } from './hooks/useSessionEvents';
 import SystemBootstrapGate from './components/SystemBootstrapGate';
+import type { AssignmentNavigation, AssignmentMode, AssignmentMetric } from './components/assignmentNavigation';
 
 function AppContent() {
     const { message } = AntdApp.useApp();
     const { isAuthenticated, user } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
+    const [assignmentNavigation, setAssignmentNavigation] = useState<AssignmentNavigation | null>(null);
+    const nextAssignmentRequest = useRef(0);
     const initializedForUserRef = useRef<string | null>(null);
     const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
     const [release, setRelease] = useState<models.ReleaseNote | null>(null);
     const {
-        summary: accessSummary,
-        kinds: readableKinds,
         loading: accessLoading,
         ready: accessReady,
         sections,
@@ -108,8 +109,6 @@ function AppContent() {
             return;
         }
 
-        const profile = resolveUserProfile(accessSummary?.systemPermissions || user.systemPermissions, readableKinds, user.isDocumentParticipant);
-
         let isMounted = true;
 
         void GetCurrent()
@@ -123,7 +122,7 @@ function AppContent() {
                 if (
                     currentRelease &&
                     !currentRelease.isViewed &&
-                    ['clerk', 'executor', 'mixed'].includes(profile)
+                    sections.dashboard
                 ) {
                     setIsAboutModalOpen(true);
                 }
@@ -138,7 +137,7 @@ function AppContent() {
         return () => {
             isMounted = false;
         };
-    }, [isAuthenticated, accessSummary, readableKinds, accessReady, user]);
+    }, [isAuthenticated, accessReady, sections.dashboard, user]);
 
     const handleAboutModalClose = () => {
         setIsAboutModalOpen(false);
@@ -160,6 +159,16 @@ function AppContent() {
             });
     };
 
+    const openAssignments = (mode: AssignmentMode, metric?: AssignmentMetric) => {
+        nextAssignmentRequest.current += 1;
+        setAssignmentNavigation({ requestId: nextAssignmentRequest.current, mode, metric });
+        setCurrentPage('assignments');
+    };
+
+    const openRegister = (_kindCode: string, page: string) => {
+        setCurrentPage(page);
+    };
+
     if (!isAuthenticated) {
         return <LoginPage />;
     }
@@ -168,7 +177,10 @@ function AppContent() {
         <>
             <MainLayout
                 currentPage={currentPage}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => {
+                    if (page === 'assignments') setAssignmentNavigation(null);
+                    setCurrentPage(page);
+                }}
                 isAboutModalOpen={isAboutModalOpen}
                 onAboutModalOpen={() => setIsAboutModalOpen(true)}
                 onAboutModalClose={handleAboutModalClose}
@@ -180,6 +192,9 @@ function AppContent() {
                     accessReady={accessReady}
                     accessLoading={accessLoading}
                     canAccessPage={canAccessPage}
+                    assignmentNavigation={assignmentNavigation}
+                    onOpenAssignments={openAssignments}
+                    onOpenRegister={openRegister}
                 />
             </MainLayout>
             <OrganizationSetupModal

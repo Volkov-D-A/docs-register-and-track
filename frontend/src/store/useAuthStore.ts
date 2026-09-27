@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { Login, Logout, ChangePassword, ChangeRequiredPassword, UpdateProfile, GetSessionState } from '../../wailsjs/go/services/AuthService';
 import { models, serverclient } from '../../wailsjs/go/models';
-import { DocumentKindMeta } from '../constants/documentKinds';
 import { useDraftLinkStore } from './useDraftLinkStore';
 import { useRegisterDocumentStore } from './useRegisterDocumentStore';
 import { resetCurrentAccessSummaryCache } from './accessSummaryCache';
@@ -26,42 +25,6 @@ interface User {
     systemPermissions: string[];
     department?: Department;
 }
-
-export const resolveUserProfile = (systemPermissions?: string[], kinds?: DocumentKindMeta[], isDocumentParticipant?: boolean): string => {
-    if (kinds && kinds.length > 0) {
-        const canCreate = kinds.some((kind) => kind.availableActions?.includes('create'));
-        const canRead = kinds.some((kind) => kind.availableActions?.includes('read'));
-        const hasClerkFlow = canCreate || canRead;
-        const hasExecutorFlow = !!isDocumentParticipant;
-
-        if (systemPermissions?.includes('admin') && !hasClerkFlow && !hasExecutorFlow) {
-            return 'admin';
-        }
-        if (hasClerkFlow && hasExecutorFlow) {
-            return 'mixed';
-        }
-        if (hasClerkFlow) {
-            return 'clerk';
-        }
-        if (hasExecutorFlow) {
-            return 'executor';
-        }
-        if (systemPermissions?.includes('admin')) {
-            return 'admin';
-        }
-    }
-
-    if (isDocumentParticipant) {
-        return 'executor';
-    }
-    if (!systemPermissions || systemPermissions.length === 0) {
-        return 'executor';
-    }
-    if (systemPermissions.includes('admin')) {
-        return 'admin';
-    }
-    return 'executor';
-};
 
 const formatAuthError = (err: unknown): string => {
     if (getAppErrorCode(err) === 'USER_LOCKED') {

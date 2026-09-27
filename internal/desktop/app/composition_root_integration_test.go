@@ -53,7 +53,7 @@ changes:
 		"*services.DocumentRegistrationService",
 		"*services.AdministrativeOrderService",
 		"*services.AssignmentService",
-		"*services.DashboardService",
+		"*services.WorkspaceService",
 		"*services.StatisticsService",
 		"*services.DepartmentService",
 		"*services.SettingsService",
