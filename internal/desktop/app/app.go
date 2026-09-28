@@ -136,7 +136,7 @@ func newWailsOptionsWithDependencies(
 	eventsCtx, stopEvents := context.WithCancel(context.Background())
 	wailsOptions := &options.App{
 		Title:  "Система регистрации документов",
-		Width:  1280,
+		Width:  1600,
 		Height: 1000,
 		AssetServer: &assetserver.Options{
 			Assets: params.Assets,
