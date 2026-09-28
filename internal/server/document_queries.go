@@ -10,6 +10,7 @@ import (
 )
 
 type documentQueryAPI interface {
+	Search(dto.DocumentSearchRequest) (*dto.DocumentSearchResult, error)
 	GetByID(string) (*dto.DocumentCard, error)
 	GetList(string, models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error)
 }
@@ -81,6 +82,20 @@ func (api *managementAPI) listDocuments(w http.ResponseWriter, r *http.Request) 
 	req.Filter.AccessScope = nil
 	query := api.documentQueries(authenticatedFromContext(r.Context()).User)
 	result, err := query.GetList(req.KindCode, req.Filter)
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (api *managementAPI) searchDocuments(w http.ResponseWriter, r *http.Request) {
+	var request dto.DocumentSearchRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
+		return
+	}
+	result, err := api.documentQueries(authenticatedFromContext(r.Context()).User).Search(request)
 	if err != nil {
 		writeUserError(w, err)
 		return

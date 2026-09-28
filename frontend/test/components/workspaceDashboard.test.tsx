@@ -110,6 +110,7 @@ test('quick registration appears to the right of metrics and opens the selected 
     const onOpenRegister = vi.fn();
     renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={onOpenRegister} />);
     expect(await screen.findByText('Поручения')).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Поиск по документам' })).toBeInTheDocument();
     const row = screen.getByText('Новые').closest('.workspace-overview-row');
     expect(row).toBeInTheDocument();
     expect(row?.querySelector('.workspace-metrics-panel')).toBeInTheDocument();

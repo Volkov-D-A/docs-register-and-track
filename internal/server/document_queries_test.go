@@ -20,6 +20,7 @@ type fakeDocumentQueryAPI struct {
 	lastID     string
 	lastKind   string
 	lastFilter models.DocumentFilter
+	lastSearch dto.DocumentSearchRequest
 }
 
 func (q *fakeDocumentQueryAPI) GetByID(id string) (*dto.DocumentCard, error) {
@@ -83,4 +84,35 @@ func TestRequestDocumentPrincipalIsImmutablePerRequest(t *testing.T) {
 	dtoUser, err := principal.GetCurrentUser()
 	require.NoError(t, err)
 	assert.Equal(t, user.ID.String(), dtoUser.ID)
+}
+
+func (q *fakeDocumentQueryAPI) Search(request dto.DocumentSearchRequest) (*dto.DocumentSearchResult, error) {
+	q.lastSearch = request
+	return &dto.DocumentSearchResult{Items: []dto.DocumentSearchItem{{ID: q.card.ID}}}, nil
+}
+
+func TestDocumentSearchAPIRequiresSessionAndRejectsClientScopes(t *testing.T) {
+	api, _, token := authenticatedUserAPI(t, nil)
+	query := &fakeDocumentQueryAPI{card: &dto.DocumentCard{ID: uuid.NewString()}}
+	var principalID uuid.UUID
+	api.documentQueries = func(user *models.User) documentQueryAPI { principalID = user.ID; return query }
+	for _, test := range []struct {
+		body       string
+		authorized bool
+		status     int
+	}{
+		{`{"query":"ремонт Иванов"}`, false, http.StatusUnauthorized},
+		{`{"query":"ремонт Иванов","accessScope":{"restricted":false}}`, true, http.StatusBadRequest},
+		{`{"query":"ремонт Иванов","page":2,"pageSize":20}`, true, http.StatusOK},
+	} {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/documents/search", strings.NewReader(test.body))
+		if test.authorized {
+			request.Header.Set("Authorization", "Bearer "+token)
+		}
+		recorder := httptest.NewRecorder()
+		api.Handler().ServeHTTP(recorder, request)
+		require.Equal(t, test.status, recorder.Code, recorder.Body.String())
+	}
+	require.NotEqual(t, uuid.Nil, principalID)
+	require.Equal(t, dto.DocumentSearchRequest{Query: "ремонт Иванов", Page: 2, PageSize: 20}, query.lastSearch)
 }

@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -62,7 +63,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 			kind: models.DocumentKindIncomingLetter,
 			card: expected,
 		}
-		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil)
+		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil, nil)
 
 		card, err := svc.GetByID(documentID.String())
 
@@ -74,7 +75,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 	t.Run("rejects invalid id before document lookup", func(t *testing.T) {
 		deps := setupDocumentAccessService(t, documentAccessUser(true, nil), allowDocumentActions(models.DocumentKindIncomingLetter, "read"))
 		handler := &stubDocumentKindQueryHandler{kind: models.DocumentKindIncomingLetter}
-		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil)
+		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil, nil)
 
 		card, err := svc.GetByID("not-a-uuid")
 
@@ -88,7 +89,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 		deps := setupDocumentAccessService(t, user, allowDocumentActions(models.DocumentKindIncomingLetter, "read"))
 		documentID := uuid.New()
 		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter)
-		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(), deps.service, nil)
+		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(), deps.service, nil, nil)
 
 		card, err := svc.GetByID(documentID.String())
 
@@ -106,7 +107,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 			kind:    models.DocumentKindIncomingLetter,
 			cardErr: handlerErr,
 		}
-		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil)
+		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil, nil)
 
 		card, err := svc.GetByID(documentID.String())
 
@@ -120,7 +121,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 		documentID := uuid.New()
 		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter)
 		handler := &stubDocumentKindQueryHandler{kind: models.DocumentKindIncomingLetter}
-		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil)
+		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil, nil)
 
 		card, err := svc.GetByID(documentID.String())
 
@@ -143,7 +144,7 @@ func TestDocumentQueryEngine_GetList(t *testing.T) {
 			kind: models.DocumentKindIncomingLetter,
 			list: expected,
 		}
-		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil)
+		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil, nil)
 
 		res, err := svc.GetList(string(models.DocumentKindIncomingLetter), models.DocumentFilter{Search: "abc", Page: 2, PageSize: 25})
 
@@ -163,7 +164,7 @@ func TestDocumentQueryEngine_GetList(t *testing.T) {
 			kind: models.DocumentKindIncomingLetter,
 			list: &dto.PagedResult[dto.DocumentListItem]{},
 		}
-		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil)
+		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil, nil)
 
 		res, err := svc.GetList(string(models.DocumentKindIncomingLetter), models.DocumentFilter{Page: 1, PageSize: 10, AccessScope: &models.DocumentAccessScope{Restricted: false}})
 
@@ -177,7 +178,7 @@ func TestDocumentQueryEngine_GetList(t *testing.T) {
 
 	t.Run("returns forbidden for unsupported kind", func(t *testing.T) {
 		deps := setupDocumentAccessService(t, documentAccessUser(true, nil), allowDocumentActions(models.DocumentKindIncomingLetter, "read"))
-		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(), deps.service, nil)
+		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(), deps.service, nil, nil)
 
 		res, err := svc.GetList(string(models.DocumentKindIncomingLetter), models.DocumentFilter{})
 
@@ -192,7 +193,7 @@ func TestDocumentQueryEngine_GetList(t *testing.T) {
 			kind:    models.DocumentKindIncomingLetter,
 			listErr: handlerErr,
 		}
-		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil)
+		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil, nil)
 
 		res, err := svc.GetList(string(models.DocumentKindIncomingLetter), models.DocumentFilter{Search: "abc"})
 
@@ -200,4 +201,46 @@ func TestDocumentQueryEngine_GetList(t *testing.T) {
 		assert.Nil(t, res)
 		assert.Equal(t, "abc", handler.lastFilter.Search)
 	})
+}
+
+type stubDocumentSearchStore struct {
+	request dto.DocumentSearchRequest
+	scopes  map[models.DocumentKind]models.DocumentAccessScope
+	calls   int
+}
+
+func (s *stubDocumentSearchStore) SearchDocuments(request dto.DocumentSearchRequest, scopes map[models.DocumentKind]models.DocumentAccessScope) (*dto.DocumentSearchResult, error) {
+	s.request, s.scopes = request, scopes
+	s.calls++
+	return &dto.DocumentSearchResult{Items: []dto.DocumentSearchItem{}, Page: request.Page, PageSize: request.PageSize}, nil
+}
+
+func TestDocumentQueryEngine_Search(t *testing.T) {
+	deps := setupDocumentAccessService(t, documentAccessUser(true, nil), allowDocumentActions(models.DocumentKindIncomingLetter, "read"))
+	store := &stubDocumentSearchStore{}
+	svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(
+		&stubDocumentKindQueryHandler{kind: models.DocumentKindIncomingLetter},
+		&stubDocumentKindQueryHandler{kind: models.DocumentKindOutgoingLetter},
+	), deps.service, nil, store)
+	result, err := svc.Search(dto.DocumentSearchRequest{Query: "  ремонт\n Иванов  ", PageSize: 1000})
+	require.NoError(t, err)
+	require.Equal(t, "ремонт Иванов", store.request.Query)
+	require.Equal(t, 1, result.Page)
+	require.Equal(t, 100, result.PageSize)
+	require.False(t, store.scopes[models.DocumentKindIncomingLetter].Restricted)
+	require.True(t, store.scopes[models.DocumentKindOutgoingLetter].Restricted)
+	require.NotContains(t, store.scopes, models.DocumentKindAdministrativeOrder)
+	for _, request := range []dto.DocumentSearchRequest{
+		{Query: "  "}, {Query: strings.Repeat("я", 501)},
+		{Query: strings.Repeat("слово ", 33)}, {Query: "ремонт", Page: 10001},
+	} {
+		_, err := svc.Search(request)
+		require.Error(t, err)
+	}
+	require.Equal(t, 1, store.calls)
+	forbidden := setupDocumentAccessService(t, documentAccessUser(false, nil), allowDocumentActions(models.DocumentKindIncomingLetter))
+	svc = NewDocumentQueryEngine(NewDocumentKindQueryRegistry(), forbidden.service, nil, store)
+	_, err = svc.Search(dto.DocumentSearchRequest{Query: "ремонт"})
+	require.ErrorIs(t, err, models.ErrForbidden)
+	require.Equal(t, 1, store.calls)
 }

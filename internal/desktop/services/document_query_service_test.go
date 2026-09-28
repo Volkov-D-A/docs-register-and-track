@@ -20,6 +20,9 @@ type fakeServerDocumentQueryClient struct {
 	lastID     string
 	lastKind   string
 	lastFilter models.DocumentFilter
+	lastSearch dto.DocumentSearchRequest
+	search     *dto.DocumentSearchResult
+	searchErr  error
 }
 
 func (c *fakeServerDocumentQueryClient) GetDocumentCard(_ context.Context, id string) (*dto.DocumentCard, error) {
@@ -70,4 +73,27 @@ func TestDocumentQueryServicePropagatesServerErrors(t *testing.T) {
 	list, err := service.GetList(string(models.DocumentKindIncomingLetter), models.DocumentFilter{})
 	require.ErrorIs(t, err, models.ErrUnauthorized)
 	assert.Nil(t, list)
+}
+
+func (c *fakeServerDocumentQueryClient) SearchDocuments(_ context.Context, request dto.DocumentSearchRequest) (*dto.DocumentSearchResult, error) {
+	c.lastSearch = request
+	return c.search, c.searchErr
+}
+
+func TestDocumentQueryServiceSearch(t *testing.T) {
+	request := dto.DocumentSearchRequest{Query: "ремонт Иванов", Page: 2, PageSize: 20}
+	expected := &dto.DocumentSearchResult{TotalCount: 1}
+	client := &fakeServerDocumentQueryClient{search: expected}
+	service := NewDocumentQueryService(client)
+	result, err := service.Search(request)
+	require.NoError(t, err)
+	require.Same(t, expected, result)
+	require.Equal(t, request, client.lastSearch)
+	client.search, client.searchErr = nil, models.ErrForbidden
+	result, err = service.Search(request)
+	require.ErrorIs(t, err, models.ErrForbidden)
+	require.Nil(t, result)
+	result, err = NewDocumentQueryService(nil).Search(request)
+	require.ErrorIs(t, err, errServerDocumentQueryClientNotConfigured)
+	require.Nil(t, result)
 }

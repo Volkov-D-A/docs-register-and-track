@@ -187,7 +187,7 @@ func newManagementAPI(app *App) *managementAPI {
 				requestDocumentPrincipal{user: user}, departments, assignments,
 				acknowledgments, access, documents, substitutions,
 			)
-			query := serverservices.NewDocumentQueryEngine(queryRegistry, documentAccess, app.metrics)
+			query := serverservices.NewDocumentQueryEngine(queryRegistry, documentAccess, app.metrics, documents)
 			return query
 		},
 		documentCommands: func(user *models.User) documentCommandAPI {
@@ -339,6 +339,7 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/settings/{key}", api.requireSession(http.HandlerFunc(api.getSetting)))
 	mux.Handle("PATCH /api/v1/settings/{key}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateSetting)))
 	mux.Handle("GET /api/v1/documents/{id}", api.requireSession(http.HandlerFunc(api.getDocumentCard)))
+	mux.Handle("POST /api/v1/documents/search", api.requireSession(http.HandlerFunc(api.searchDocuments)))
 	mux.Handle("POST /api/v1/documents/query", api.requireSession(http.HandlerFunc(api.listDocuments)))
 	mux.Handle("POST /api/v1/documents/{kind}", api.requireSession(http.HandlerFunc(api.registerDocument)))
 	mux.Handle("PATCH /api/v1/documents/{kind}/{id}", api.requireSession(http.HandlerFunc(api.updateDocument)))

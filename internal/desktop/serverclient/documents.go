@@ -15,6 +15,7 @@ import (
 )
 
 type DocumentQueryClient interface {
+	SearchDocuments(context.Context, dto.DocumentSearchRequest) (*dto.DocumentSearchResult, error)
 	GetDocumentCard(context.Context, string) (*dto.DocumentCard, error)
 	ListDocuments(context.Context, string, models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error)
 }
@@ -125,4 +126,12 @@ func (c *Client) doDocumentCommand(ctx context.Context, method, path string, req
 		return nil, err
 	}
 	return result, nil
+}
+
+func (c *Client) SearchDocuments(ctx context.Context, request dto.DocumentSearchRequest) (*dto.DocumentSearchResult, error) {
+	var result dto.DocumentSearchResult
+	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/documents/search", request, http.StatusOK, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }

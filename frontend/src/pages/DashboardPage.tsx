@@ -8,6 +8,7 @@ import { GetOverview, ListAcknowledgments } from '../../wailsjs/go/services/Work
 import DocumentViewModal from '../components/DocumentViewModal';
 import WorkspaceUserEventsPanel from '../components/WorkspaceUserEventsPanel';
 import RecentDocumentsPanel from '../components/RecentDocumentsPanel';
+import DocumentSearchPanel from '../components/DocumentSearchPanel';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import type { DocumentKindMeta } from '../constants/documentKinds';
 import { useAuthStore } from '../store/useAuthStore';
@@ -268,6 +269,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
                     <Text type="secondary">{workspaceDate(currentTime)}</Text>
                 </div>
             </Space>
+            {userId && <DocumentSearchPanel key={`search:${userId}`} onOpenDocument={openDocument} />}
             {overviewError && <Card style={{ marginBottom: 12 }} extra={<Button onClick={() => { void loadOverview(); }}>Повторить</Button>}><Text type="danger">{overviewError}</Text></Card>}
             <div className={`workspace-overview-row${!(activeAssignmentMode || activeAcknowledgmentMode) ? ' workspace-overview-row--right-only' : ''}`}>
                 {(activeAssignmentMode || activeAcknowledgmentMode) && (

@@ -42,3 +42,12 @@ func (s *DocumentQueryService) GetList(kindCode string, filter models.DocumentFi
 func documentQueryContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 30*time.Second)
 }
+
+func (s *DocumentQueryService) Search(request dto.DocumentSearchRequest) (*dto.DocumentSearchResult, error) {
+	if s.server == nil {
+		return nil, errServerDocumentQueryClientNotConfigured
+	}
+	ctx, cancel := documentQueryContext()
+	defer cancel()
+	return s.server.SearchDocuments(ctx, request)
+}

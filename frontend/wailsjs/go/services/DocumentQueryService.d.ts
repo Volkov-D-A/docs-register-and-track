@@ -6,3 +6,5 @@ import {models} from '../models';
 export function GetByID(arg1:string):Promise<dto.DocumentCard>;
 
 export function GetList(arg1:string,arg2:models.DocumentFilter):Promise<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_DocumentListItem_>;
+
+export function Search(arg1:dto.DocumentSearchRequest):Promise<dto.DocumentSearchResult>;

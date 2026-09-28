@@ -100,3 +100,21 @@ func TestDocumentCommandClientUsesIdempotencyHeaders(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, requestNumber)
 }
+
+func TestDocumentSearchClientUsesAuthenticatedTypedEndpoint(t *testing.T) {
+	expected := dto.DocumentSearchRequest{Query: "ремонт Иванов", Page: 2, PageSize: 20}
+	client := userClientWithToken(t, func(r *http.Request) (*http.Response, error) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/api/v1/documents/search", r.URL.Path)
+		require.Equal(t, "Bearer session-token", r.Header.Get("Authorization"))
+		var request dto.DocumentSearchRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		require.Equal(t, expected, request)
+		return response(http.StatusOK, `{"items":[{"id":"found","kindCode":"incoming_letter","relevance":0.5}],"totalCount":21,"page":2,"pageSize":20}`), nil
+	})
+	result, err := client.SearchDocuments(context.Background(), expected)
+	require.NoError(t, err)
+	require.Equal(t, "found", result.Items[0].ID)
+	require.Equal(t, 0.5, result.Items[0].Relevance)
+	require.Equal(t, 21, result.TotalCount)
+}
