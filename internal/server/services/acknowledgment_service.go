@@ -398,7 +398,20 @@ func (s *AcknowledgmentService) Delete(id string) error {
 	if ack.CreatorID != currentUserID {
 		return models.ErrForbidden
 	}
-	event, buildErr := servereffects.NewJournalOutboxEvent("ack:"+ackUUID.String()+":deleted:journal", models.CreateJournalEntryRequest{DocumentID: ack.DocumentID, UserID: currentUserID, Action: "ACK_DELETE", Details: "Ознакомление удалено"})
+	// Preserve recipients before deletion, so their workspaces lose the revoked task too.
+	previous, err := s.repo.GetByDocumentID(ack.DocumentID)
+	if err != nil {
+		return err
+	}
+	var previousReaders []uuid.UUID
+	for _, item := range previous {
+		if item.ID == ackUUID {
+			for _, recipient := range item.Users {
+				previousReaders = append(previousReaders, recipient.UserID)
+			}
+		}
+	}
+	event, buildErr := servereffects.NewJournalOutboxEvent("ack:"+ackUUID.String()+":deleted:journal", models.CreateJournalEntryRequest{DocumentID: ack.DocumentID, UserID: currentUserID, PreviousReaderIDs: previousReaders, Action: "ACK_DELETE", Details: "Ознакомление удалено"})
 	if buildErr != nil {
 		return buildErr
 	}

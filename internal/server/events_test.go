@@ -134,7 +134,8 @@ func TestSessionEventsRevalidateSessionBeforeDelivery(t *testing.T) {
 	require.NotContains(t, recorder.Body.String(), "event: user-events")
 }
 
-func TestSessionEventsDeliverDocumentInvalidationWithoutDocumentData(t *testing.T) {
+func TestSessionEventsDeliverOnlyReadableDocumentChanges(t *testing.T) {
+	documentID := uuid.New()
 	user := &models.User{ID: uuid.New(), IsActive: true}
 	hash := sha256.Sum256([]byte("secret"))
 	sessions := &fakeAuthSessions{hash: hash[:], session: &models.ServerSession{UserID: user.ID}}
@@ -144,12 +145,15 @@ func TestSessionEventsDeliverDocumentInvalidationWithoutDocumentData(t *testing.
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/events", nil).WithContext(ctx)
 	req.Header.Set("Authorization", "Bearer secret")
 	recorder := httptest.NewRecorder()
+	api.eventAccess = func(*models.User) eventDocumentAccess {
+		return eventAccessStub{readable: map[uuid.UUID]*models.Document{documentID: {ID: documentID}}}
+	}
 	writer := &eventTestWriter{ResponseRecorder: recorder}
 	flushes := 0
 	writer.onFlush = func() {
 		flushes++
 		if flushes == 1 {
-			api.events.Publish("documents")
+			api.events.PublishChange(liveevents.Change{DocumentID: documentID.String(), Resource: "assignments"})
 		} else {
 			cancel()
 		}
@@ -157,6 +161,54 @@ func TestSessionEventsDeliverDocumentInvalidationWithoutDocumentData(t *testing.
 	timer := time.AfterFunc(time.Second, cancel)
 	defer timer.Stop()
 	api.Handler().ServeHTTP(writer, req)
-	require.Contains(t, recorder.Body.String(), "event: documents\ndata: null")
+	require.Contains(t, recorder.Body.String(), `event: document-changed`)
+	require.Contains(t, recorder.Body.String(), `"documentId":"`+documentID.String()+`"`)
+	require.Contains(t, recorder.Body.String(), `"resource":"assignments"`)
 	require.NotContains(t, recorder.Body.String(), user.ID.String())
+}
+
+type eventAccessStub struct {
+	readable map[uuid.UUID]*models.Document
+	subjects []uuid.UUID
+	err      error
+}
+
+func (s eventAccessStub) ResolveReadableDocuments([]uuid.UUID) (map[uuid.UUID]*models.Document, error) {
+	return s.readable, s.err
+}
+func (s eventAccessStub) GetCurrentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error) {
+	return s.subjects, nil
+}
+
+func TestDocumentChangesFilterAccessAndIncludeRevokedRecipients(t *testing.T) {
+	allowed, denied, revoked, principal := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	api := &managementAPI{eventAccess: func(*models.User) eventDocumentAccess {
+		return eventAccessStub{readable: map[uuid.UUID]*models.Document{allowed: {ID: allowed}}, subjects: []uuid.UUID{principal}}
+	}}
+	changes := []liveevents.Change{
+		{DocumentID: allowed.String(), Resource: "files"},
+		{DocumentID: denied.String(), Resource: "assignments"},
+		{DocumentID: revoked.String(), Resource: "assignments", PreviousReaders: []uuid.UUID{principal}},
+	}
+	visible, err := api.readableChanges(&models.User{}, changes)
+	require.NoError(t, err)
+	require.Equal(t, []liveevents.Change{changes[0], changes[2]}, visible)
+	payload, err := json.Marshal(visible)
+	require.NoError(t, err)
+	require.NotContains(t, string(payload), principal.String())
+}
+
+func TestDocumentChangesCloseStreamOnReadPolicyFailure(t *testing.T) {
+	api := &managementAPI{eventAccess: func(*models.User) eventDocumentAccess { return eventAccessStub{err: context.DeadlineExceeded} }}
+	_, err := api.readableChanges(&models.User{}, []liveevents.Change{{DocumentID: uuid.NewString(), Resource: "files"}})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestCapabilityChangesAreScopedToAffectedUsersAndTheirSubstitutes(t *testing.T) {
+	principal, unrelated := uuid.New(), uuid.New()
+	api := &managementAPI{eventAccess: func(*models.User) eventDocumentAccess { return eventAccessStub{subjects: []uuid.UUID{principal}} }}
+	changes := []liveevents.Change{{Resource: "access", Audience: []uuid.UUID{unrelated}}, {Resource: "access", Audience: []uuid.UUID{principal}}}
+	result, err := api.readableChanges(&models.User{}, changes)
+	require.NoError(t, err)
+	require.Equal(t, changes[1:], result)
 }

@@ -1,9 +1,10 @@
-import { cachedUserId, cachedSummary, loadAccessSummary, resetCurrentAccessSummaryCache } from '../store/accessSummaryCache';
+import { cachedUserId, cachedSummary, loadAccessSummary, resetCurrentAccessSummaryCache, onAccessSummaryInvalidated } from '../store/accessSummaryCache';
 export { resetCurrentAccessSummaryCache } from '../store/accessSummaryCache';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { dto } from '../../wailsjs/go/models';
 import { documentKinds, DocumentKindMeta, toDocumentKindMeta } from '../constants/documentKinds';
 import { useAuthStore } from '../store/useAuthStore';
+import { normalizeAppError } from '../utils/appError';
 
 type AccessSummaryState = {
     userId: string | null;
@@ -36,6 +37,8 @@ const mapAccessKindToMeta = (kind: dto.DocumentKindAccessSummary): DocumentKindM
 export const useCurrentAccessSummary = () => {
     const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
     const userId = useAuthStore((state) => state.user?.id ?? null);
+    const [accessVersion, setAccessVersion] = useState(0);
+    useEffect(() => onAccessSummaryInvalidated(() => setAccessVersion((version) => version + 1)), []);
     const cachedSummaryForUser = cachedUserId === userId ? cachedSummary : null;
     const [state, setState] = useState<AccessSummaryState>({
         userId: cachedSummaryForUser ? userId : null,
@@ -64,7 +67,7 @@ export const useCurrentAccessSummary = () => {
             userId,
             summary: prev.userId === userId ? prev.summary : null,
             loading: true,
-            ready: false,
+            ready: prev.userId === userId && !!prev.summary,
             error: null,
         }));
         void loadAccessSummary(userId)
@@ -76,14 +79,18 @@ export const useCurrentAccessSummary = () => {
             .catch((error) => {
                 console.error('Failed to load current access summary:', error);
                 if (isActive) {
-                    setState({ userId, summary: null, loading: false, ready: true, error });
+                    const code = normalizeAppError(error).code;
+                    setState((prev) => ({ userId,
+                        summary: code === 'FORBIDDEN' || code === 'UNAUTHORIZED' || prev.userId !== userId ? null : prev.summary,
+                        loading: false, ready: true, error,
+                    }));
                 }
             });
 
         return () => {
             isActive = false;
         };
-    }, [isAuthenticated, userId]);
+    }, [isAuthenticated, userId, accessVersion]);
 
     const ready = !isAuthenticated || (!!userId && state.ready && state.userId === userId);
     const currentSummary = ready ? state.summary : null;

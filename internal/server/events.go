@@ -2,7 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
+	"github.com/google/uuid"
 	"net/http"
 	"time"
 
@@ -56,8 +59,8 @@ func (api *managementAPI) sessionEvents(w http.ResponseWriter, r *http.Request) 
 	userID := auth.User.ID
 	users, stopUsers := api.events.Subscribe("user:" + userID.String())
 	defer stopUsers()
-	documents, stopDocuments := api.events.Subscribe("documents")
-	defer stopDocuments()
+	changes, drainChanges, stopChanges := api.events.SubscribeChanges()
+	defer stopChanges()
 	backups, stopBackups := api.events.Subscribe("backups")
 	defer stopBackups()
 	beginEvents(w)
@@ -73,8 +76,29 @@ func (api *managementAPI) sessionEvents(w http.ResponseWriter, r *http.Request) 
 			return
 		case <-users:
 			topic = "user-events"
-		case <-documents:
-			topic = "documents"
+		case <-changes:
+			current := api.eventPrincipal(&eventValidationWriter{header: make(http.Header)}, r)
+			if current == nil || current.User.ID != userID {
+				return
+			}
+			visible, err := api.eventChanges(current.User, drainChanges())
+			if err != nil {
+				return
+			}
+			for _, change := range visible {
+				if change.Resource == "resync" {
+					if writeEvent(w, "resync", nil) != nil {
+						return
+					}
+				} else if change.Resource == "access" {
+					if writeEvent(w, "access-changed", nil) != nil {
+						return
+					}
+				} else if writeEvent(w, "document-changed", change) != nil {
+					return
+				}
+			}
+			continue
 		case <-backups:
 			topic = "backups"
 		case <-ticker.C:
@@ -135,4 +159,91 @@ func operationTerminal(state string) bool {
 		return true
 	}
 	return false
+}
+
+// Use the same read policy as HTTP queries, including active substitutions.
+type eventDocumentAccess interface {
+	ResolveReadableDocuments([]uuid.UUID) (map[uuid.UUID]*models.Document, error)
+	GetCurrentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error)
+}
+
+func (api *managementAPI) eventChanges(user *models.User, changes []liveevents.Change) ([]liveevents.Change, error) {
+	if api.replacementPending.Load() || !api.replacementRequests.TryRLock() {
+		return nil, models.ErrForbidden
+	}
+	defer api.replacementRequests.RUnlock()
+	if api.backupPending.Load() || !api.schemaRequests.TryRLock() {
+		return nil, models.ErrForbidden
+	}
+	defer api.schemaRequests.RUnlock()
+	return api.readableChanges(user, changes)
+}
+
+func (api *managementAPI) readableChanges(user *models.User, changes []liveevents.Change) ([]liveevents.Change, error) {
+	result := make([]liveevents.Change, 0, len(changes))
+	ids := make([]uuid.UUID, 0, len(changes))
+	for _, change := range changes {
+		if change.Resource == "resync" {
+			return []liveevents.Change{change}, nil
+		}
+		if id, err := uuid.Parse(change.DocumentID); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	if api.eventAccess == nil {
+		for _, change := range changes {
+			if change.Resource == "access" && len(change.Audience) == 0 {
+				result = append(result, change)
+			}
+		}
+		return result, nil
+	}
+	access := api.eventAccess(user)
+	readable := make(map[uuid.UUID]*models.Document)
+	var err error
+	if len(ids) > 0 {
+		readable, err = access.ResolveReadableDocuments(ids)
+	}
+	if err != nil && !errors.Is(err, models.ErrForbidden) {
+		return nil, err
+	}
+	subjects, err := access.GetCurrentUserAndSubstitutionSubjectIDs()
+	if err != nil {
+		return nil, err
+	}
+	for _, change := range changes {
+		if change.Resource == "access" {
+			allowed := len(change.Audience) == 0
+			for _, recipient := range change.Audience {
+				for _, subject := range subjects {
+					if recipient == subject {
+						allowed = true
+					}
+				}
+			}
+			if allowed {
+				result = append(result, change)
+			}
+			continue
+		}
+		id, err := uuid.Parse(change.DocumentID)
+		if err != nil {
+			continue
+		}
+		_, allowed := readable[id]
+		for _, previous := range change.PreviousReaders {
+			for _, subject := range subjects {
+				if previous == subject {
+					allowed = true
+				}
+			}
+		}
+		if allowed {
+			if document := readable[id]; document != nil {
+				change.DocumentKind = string(document.Kind)
+			}
+			result = append(result, change)
+		}
+	}
+	return result, nil
 }

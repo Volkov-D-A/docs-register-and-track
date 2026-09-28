@@ -1,3 +1,4 @@
+import { useDocumentRefresh } from '../hooks/useDocumentRefresh';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Table, Button, Tag, Space, Popconfirm, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EyeOutlined, CheckCircleOutlined } from '@ant-design/icons';
@@ -6,7 +7,6 @@ import { useAuthStore } from '../store/useAuthStore';
 import AcknowledgmentModal from './AcknowledgmentModal';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
-import { isAcknowledgmentUserEvent, onUserEventsReceived } from '../events/userEvents';
 import { CoalescedRequest } from '../utils/coalescedRequest';
 
 /**
@@ -48,11 +48,7 @@ const AcknowledgmentList: React.FC<AcknowledgmentListProps> = ({ documentId, doc
 
     useEffect(() => { load(); }, [load]);
 
-    useEffect(() => onUserEventsReceived((events) => {
-        if (events.some((event) => isAcknowledgmentUserEvent(event) && event.documentId === documentId)) {
-            void load();
-        }
-    }), [documentId, load]);
+    useDocumentRefresh(documentId, 'acknowledgments', load);
 
     const onDelete = async (id: string) => {
         try {

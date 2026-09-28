@@ -543,7 +543,7 @@ func (s *AssignmentService) Update(
 	{
 		revision := time.Now().UTC().Format(time.RFC3339Nano)
 		currentUserID, _ := s.auth.GetCurrentUserUUID()
-		journal, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(uid, "updated", revision, nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_UPDATE", Details: "Поручение отредактировано"})
+		journal, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(uid, "updated", revision, nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, PreviousReaderIDs: assignmentExecutorRecipientIDs(existing), Action: "ASSIGNMENT_UPDATE", Details: "Поручение отредактировано"})
 		if buildErr != nil {
 			return nil, buildErr
 		}
@@ -862,7 +862,7 @@ func (s *AssignmentService) Delete(id string) error {
 	}
 
 	currentUserID, _ := s.auth.GetCurrentUserUUID()
-	event, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(uid, "deleted", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, Action: "ASSIGNMENT_DELETE", Details: "Поручение удалено"})
+	event, buildErr := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(uid, "deleted", "", nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: currentUserID, PreviousReaderIDs: assignmentExecutorRecipientIDs(existing), Action: "ASSIGNMENT_DELETE", Details: "Поручение удалено"})
 	if buildErr != nil {
 		return buildErr
 	}

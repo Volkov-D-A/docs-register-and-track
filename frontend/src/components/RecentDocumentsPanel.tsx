@@ -44,7 +44,8 @@ const RecentDocumentsPanel: React.FC<RecentDocumentsPanelProps> = ({ refreshVers
 
     useEffect(() => { void load(); }, [load, refreshVersion]);
     useEffect(() => onServerEvent((event) => {
-        if (event.topic === 'documents' || event.topic === 'resync' || event.topic === 'user-events') void load();
+        if (event.topic === 'documents' || event.topic === 'resync' || event.topic === 'access-changed'
+            || (event.topic === 'document-changed' && (event.resource === 'document' || event.visibilityChanged))) void load();
     }), [load]);
     useEffect(() => () => request.current.invalidate(), []);
 
@@ -89,4 +90,4 @@ const RecentDocumentsPanel: React.FC<RecentDocumentsPanelProps> = ({ refreshVers
     );
 };
 
-export default RecentDocumentsPanel;
+export default React.memo(RecentDocumentsPanel);

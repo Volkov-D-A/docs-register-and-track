@@ -1,7 +1,8 @@
 import React from 'react';
 import { App } from 'antd';
-import { act, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen, waitFor } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
+import { useAuthStore } from '../../src/store/useAuthStore';
 import { useAssignments } from '../../src/hooks/useAssignments';
 import DocumentAssignmentWorkflowPanel from '../../src/components/DocumentAssignmentWorkflowPanel';
 import { deferred, installWailsMock, renderWithApp } from '../componentTestUtils';
@@ -105,4 +106,30 @@ test('marks results incomplete if the total changes between pages', async () => 
   await waitFor(() => expect(result.current.loadWarning).toContain('Список изменился'));
   expect(result.current.data).toHaveLength(101);
   expect(getList).toHaveBeenCalledTimes(2);
+});
+
+test.each([false, true])('SSE refresh keeps the workflow layout stable (actionable: %s)', async (actionable) => {
+  const previous = useAuthStore.getState();
+  useAuthStore.setState({ isAuthenticated: true, sessionRevision: 7 });
+  const item = { ...assignments(1, 1)[0], status: actionable ? 'in_progress' : 'finished', canAct: actionable };
+  const pending = deferred<ReturnType<typeof page>>();
+  const getList = vi.fn().mockResolvedValueOnce(page([item], 1)).mockReturnValueOnce(pending.promise);
+  setup(getList);
+  const view = renderWithApp(<DocumentAssignmentWorkflowPanel documentId="doc-1" documentKind="incoming_letter" />);
+  try {
+    await waitFor(() => expect(getList).toHaveBeenCalledTimes(1));
+    if (actionable) await screen.findByRole('button', { name: 'Исполнить' });
+    else await waitFor(() => expect(view.container.querySelector('.document-assignment-workflow')).toBeNull());
+    const original = view.container.querySelector('.document-assignment-workflow');
+    const row = view.container.querySelector('.document-assignment-workflow__item');
+    act(() => fireEvent(window, new CustomEvent('server:event', { detail: {
+      topic: 'document-changed', documentId: 'doc-1', resource: 'assignments', revision: 7,
+    } })));
+    await waitFor(() => expect(getList).toHaveBeenCalledTimes(2));
+    expect(view.container.querySelector('.document-assignment-workflow')).toBe(original);
+    expect(view.container.querySelector('.document-assignment-workflow__item')).toBe(row);
+    expect(view.container.querySelector('.ant-spin')).toBeNull();
+    if (actionable) expect(screen.getByRole('button', { name: 'Исполнить' })).toBeInTheDocument();
+    await act(async () => { pending.resolve(page([item], 1)); });
+  } finally { view.unmount(); useAuthStore.setState(previous); }
 });

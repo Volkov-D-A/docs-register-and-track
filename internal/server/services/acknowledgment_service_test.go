@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"testing"
@@ -505,6 +506,7 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 			DocumentKind: "incoming_letter",
 			CreatorID:    auth.currentUserID,
 		}, nil).Once()
+		repo.On("GetByDocumentID", mock.Anything).Return([]models.Acknowledgment{}, nil).Once()
 		repo.On("DeleteWithOutbox", ackID, mock.Anything).Return(nil).Once()
 		err := svc.Delete(ackID.String())
 		require.NoError(t, err)
@@ -551,17 +553,26 @@ func TestAcknowledgmentService_Delete(t *testing.T) {
 }
 
 func TestAcknowledgmentServiceDeletePassesJournalEffectToAtomicStore(t *testing.T) {
-	ackID := uuid.New()
+	ackID, docID, recipientID := uuid.New(), uuid.New(), uuid.New()
 	svc, repo, _, auth, _ := setupAckService(t, "clerk")
-	atomicRepo := repo
-	svc.repo = atomicRepo
-	repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: uuid.New(), CreatorID: auth.currentUserID}, nil).Once()
+	repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: docID, CreatorID: auth.currentUserID}, nil).Once()
+	repo.On("GetByDocumentID", docID).Return([]models.Acknowledgment{{ID: ackID, Users: []models.AcknowledgmentUser{{UserID: recipientID}}}}, nil).Once()
 	repo.On("DeleteWithOutbox", ackID, mock.Anything).Return(nil).Once()
+	require.NoError(t, svc.Delete(ackID.String()))
+	require.Len(t, repo.Effects, 1)
+	assert.Equal(t, models.OutboxEventJournal, repo.Effects[0].EventType)
+	var journal models.CreateJournalEntryRequest
+	require.NoError(t, json.Unmarshal([]byte(repo.Effects[0].Payload), &journal))
+	require.Equal(t, []uuid.UUID{recipientID}, journal.PreviousReaderIDs)
+}
 
-	err := svc.Delete(ackID.String())
-	require.NoError(t, err)
-	require.Len(t, atomicRepo.Effects, 1)
-	assert.Equal(t, models.OutboxEventJournal, atomicRepo.Effects[0].EventType)
+func TestAcknowledgmentDeleteDoesNotLoseRecipientsOnLookupFailure(t *testing.T) {
+	ackID, docID := uuid.New(), uuid.New()
+	svc, repo, _, auth, _ := setupAckService(t, "clerk")
+	repo.On("GetByID", ackID).Return(&models.Acknowledgment{ID: ackID, DocumentID: docID, CreatorID: auth.currentUserID}, nil).Once()
+	repo.On("GetByDocumentID", docID).Return(nil, models.ErrForbidden).Once()
+	require.ErrorIs(t, svc.Delete(ackID.String()), models.ErrForbidden)
+	repo.AssertNotCalled(t, "DeleteWithOutbox", mock.Anything, mock.Anything)
 }
 
 // Exercise bulk pending queries across the current user and substitutes.

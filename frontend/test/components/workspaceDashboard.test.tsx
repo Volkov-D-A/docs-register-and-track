@@ -5,10 +5,10 @@ import DashboardPage from '../../src/pages/DashboardPage';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { deferred, renderWithApp } from '../componentTestUtils';
 
-const api = vi.hoisted(() => ({ GetRecentDocuments: vi.fn(), GetOverview: vi.fn(), ListAcknowledgments: vi.fn(), GetCurrentUserEvents: vi.fn(), serverListeners: [] as Array<(event: { topic: string }) => void>, registrationKinds: [] as Array<{ code: string; label: string; pageKey: string }> }));
+const api = vi.hoisted(() => ({ GetRecentDocuments: vi.fn(), GetOverview: vi.fn(), ListAcknowledgments: vi.fn(), GetCurrentUserEvents: vi.fn(), serverListeners: [] as Array<(event: { topic: string; resource?: string; documentId?: string; visibilityChanged?: boolean }) => void>, registrationKinds: [] as Array<{ code: string; label: string; pageKey: string }> }));
 vi.mock('../../wailsjs/go/services/WorkspaceService', () => ({ GetRecentDocuments: api.GetRecentDocuments, GetOverview: api.GetOverview, ListAcknowledgments: api.ListAcknowledgments }));
 vi.mock('../../wailsjs/go/services/UserEventService', () => ({ GetCurrentUserEvents: api.GetCurrentUserEvents }));
-vi.mock('../../src/events/serverEvents', () => ({ onServerEvent: (listener: (event: { topic: string }) => void) => {
+vi.mock('../../src/events/serverEvents', () => ({ onServerEvent: (listener: (event: { topic: string; resource?: string; documentId?: string; visibilityChanged?: boolean }) => void) => {
     api.serverListeners.push(listener);
     return () => { api.serverListeners = api.serverListeners.filter((item) => item !== listener); };
 } }));
@@ -201,7 +201,7 @@ test('failed refresh hides stale task counts and shows the access error', async 
     expect(await screen.findByText('Поручения')).toBeInTheDocument();
 });
 
-test.each(['resync', 'documents', 'user-events'])('%s rereads every workspace block from the server', async (topic) => {
+test.each(['resync', 'access-changed'])('%s rereads every workspace block from the server', async (topic) => {
     setUser();
     api.GetOverview.mockResolvedValue(overview('', ''));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
@@ -410,4 +410,25 @@ test('changing user closes the document and ignores the former user refresh resp
     await act(async () => { oldRefresh.resolve({ available: true, items: [item] }); });
     expect(screen.queryByText('Вх. № OLD от 20.09.2026')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opened-document')).not.toBeInTheDocument();
+});
+
+test.each([
+    ['user-events', undefined, 1, 0, 0],
+    ['document-changed', 'files', 0, 0, 0],
+    ['document-changed', 'links', 0, 0, 0],
+    ['document-changed', 'assignments', 0, 1, 0],
+    ['document-changed', 'acknowledgments', 0, 1, 0],
+    ['document-changed', 'document', 0, 1, 1],
+] as const)('%s %s refreshes only affected workspace data', async (topic, resource, eventDelta, overviewDelta, documentDelta) => {
+    setUser();
+    api.GetOverview.mockResolvedValue(overview('', ''));
+    api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
+    renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
+    await screen.findByText('Поручения');
+    await waitFor(() => expect(api.GetCurrentUserEvents).toHaveBeenCalledTimes(1));
+    const before = [api.GetCurrentUserEvents.mock.calls.length, api.GetOverview.mock.calls.length, api.GetRecentDocuments.mock.calls.length];
+    await act(async () => { api.serverListeners.forEach((listener) => listener({ topic, resource, documentId: 'doc-1' })); });
+    expect(api.GetCurrentUserEvents).toHaveBeenCalledTimes(before[0] + eventDelta);
+    expect(api.GetOverview).toHaveBeenCalledTimes(before[1] + overviewDelta);
+    expect(api.GetRecentDocuments).toHaveBeenCalledTimes(before[2] + documentDelta);
 });

@@ -17,8 +17,11 @@ type JournalEntry struct {
 
 // CreateJournalEntryRequest описывает внутренний запрос на создание записи в журнале.
 type CreateJournalEntryRequest struct {
-	DocumentID uuid.UUID
-	UserID     uuid.UUID
-	Action     string
-	Details    string
+	// PreviousReaderIDs preserves final invalidation recipients when implicit access is removed.
+	// Stored only in the outbox payload, never in document_journal.
+	PreviousReaderIDs []uuid.UUID `json:",omitempty"`
+	DocumentID        uuid.UUID
+	UserID            uuid.UUID
+	Action            string
+	Details           string
 }

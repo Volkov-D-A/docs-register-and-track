@@ -9,14 +9,14 @@ import AssignmentSeriesModal from './AssignmentSeriesModal';
 interface AssignmentListProps {
     documentId: string;
     documentKind: string;
-    onAssignmentsChanged?: () => void | Promise<void>;
 }
 
-const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKind, onAssignmentsChanged }) => {
+const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKind }) => {
     const {
         data,
         loadWarning,
         loading,
+        initialLoading,
         accessReady,
         canManageAssignments,
         load,
@@ -38,7 +38,6 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
 
     const handleAssignmentsChanged = async () => {
         await load();
-        await onAssignmentsChanged?.();
     };
 
     return (
@@ -63,7 +62,7 @@ const AssignmentList: React.FC<AssignmentListProps> = ({ documentId, documentKin
                 rowKey="id"
                 size="small"
                 pagination={false}
-                loading={loading || !accessReady}
+                loading={initialLoading || !accessReady}
                 expandable={{
                     expandedRowRender: (record) => (
                         <div style={{ margin: 0 }}>

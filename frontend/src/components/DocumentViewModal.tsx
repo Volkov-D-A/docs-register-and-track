@@ -17,7 +17,7 @@ import { getDocumentKindLabel, isAdministrativeOrderKind, isCitizenAppealKind, i
 import { getDocumentViewConfig } from '../config/documentViewConfig';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { useDocumentDetails } from '../hooks/useDocumentDetails';
-import { formatAppError } from '../utils/appError';
+import { formatAppError, normalizeAppError } from '../utils/appError';
 import { emitUserEventsDocumentRead, onUserEventsReceived } from '../events/userEvents';
 import { MarkDocumentRead } from '../../wailsjs/go/services/UserEventService';
 
@@ -26,7 +26,6 @@ interface DocumentViewModalProps {
     onCancel: () => void;
     documentId: string;
     documentKind: string;
-    onAssignmentsChanged?: () => void | Promise<void>;
     onAcknowledgmentsChanged?: () => void | Promise<void>;
 }
 
@@ -35,7 +34,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
     onCancel,
     documentId,
     documentKind,
-    onAssignmentsChanged,
     onAcknowledgmentsChanged,
 }) => {
     const { message } = App.useApp();
@@ -45,7 +43,8 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
 
     const handleLoadError = useCallback((error: unknown) => {
         message.error(formatAppError(error, 'Ошибка загрузки документа'));
-        onCancel();
+        const code = normalizeAppError(error).code;
+        if (code === 'FORBIDDEN' || code === 'NOT_FOUND') onCancel();
     }, [message, onCancel]);
 
     const { data, loading, reload } = useDocumentDetails({
@@ -106,7 +105,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                 : data?.outgoingLetter;
 
     const viewConfig = getDocumentViewConfig(resolvedKindCode);
-    const accessPending = !accessReady || kindsLoading;
+    const accessPending = !accessReady;
     const canManageAssignments = accessReady && hasAction(resolvedKindCode, 'assign');
     const canManageLinks = accessReady && hasAction(resolvedKindCode, 'link');
     const canManageAcknowledgments = accessReady && hasAction(resolvedKindCode, 'acknowledge');
@@ -164,7 +163,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                 <DocumentAssignmentWorkflowPanel
                     documentId={data?.id || documentId}
                     documentKind={resolvedKindCode}
-                    onAssignmentsChanged={onAssignmentsChanged}
                 />
                 <DocumentAcknowledgmentWorkflowPanel
                     documentId={data?.id || documentId}
@@ -192,7 +190,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                     <AssignmentList
                         documentId={data.id}
                         documentKind={resolvedKindCode}
-                        onAssignmentsChanged={onAssignmentsChanged}
                     />
                 ),
             },
@@ -258,8 +255,8 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                     </div>
                 }
             >
-                {(loading || accessPending) && <Spin />}
-                {!loading && !accessPending && data && details && (
+                {((loading && !data) || accessPending) && <Spin />}
+                {!accessPending && data && details && (
                     <Tabs
                         items={getTabs()}
                         activeKey={activeTab}
@@ -281,4 +278,4 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
     );
 };
 
-export default DocumentViewModal;
+export default React.memo(DocumentViewModal);

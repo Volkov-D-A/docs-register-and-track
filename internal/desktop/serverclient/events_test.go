@@ -74,3 +74,32 @@ func TestSessionStreamReconnectsAndStopsWithSession(t *testing.T) {
 	require.NoError(t, c.Logout(ctx))
 	require.Eventually(t, func() bool { return !c.SessionState().Authenticated }, time.Second, time.Millisecond)
 }
+
+func TestSessionStreamForwardsDocumentRoutingMetadata(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/auth/login" {
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"accessToken":"private-token","user":{"id":"user-id"}}`)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, "event: document-changed\ndata: {\"documentId\":\"doc-1\",\"documentKind\":\"incoming_letter\",\"resource\":\"assignments\",\"visibilityChanged\":true,\"revision\":999,\"token\":\"must-not-forward\"}\n\n")
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+	c, err := NewWithOptions(srv.URL, Options{AllowInsecureHTTP: true})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	events := make(chan LiveEvent, 1)
+	c.ConfigureEvents(ctx, func(event LiveEvent) { events <- event })
+	_, err = c.Login(ctx, "user", "password")
+	require.NoError(t, err)
+	select {
+	case event := <-events:
+		require.Equal(t, LiveEvent{Topic: "document-changed", DocumentID: "doc-1", DocumentKind: "incoming_letter", Resource: "assignments", VisibilityChanged: true, Revision: c.SessionState().Revision}, event)
+	case <-time.After(time.Second):
+		t.Fatal("missing document change")
+	}
+}

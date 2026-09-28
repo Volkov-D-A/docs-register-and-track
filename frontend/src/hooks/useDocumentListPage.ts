@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GetList } from '../../wailsjs/go/services/DocumentQueryService';
 import { useAuthStore } from '../store/useAuthStore';
 import { useLatestRequest } from './useLatestRequest';
+import { useDocumentListRefresh } from './useDocumentRefresh';
 
 type BuildFilter<TFilter> = (params: {
     search: string;
@@ -108,6 +109,8 @@ export const useDocumentListPage = <TFilter,>({
             setLoading(false);
         }
     }, [invalidateLatestRequest, isAuthenticated]);
+
+    useDocumentListRefresh(kindCode, load, enabled && isAuthenticated);
 
     const setPage = useCallback((nextPage: number) => {
         if (nextPage === 1) {

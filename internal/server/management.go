@@ -61,6 +61,7 @@ type managementAPI struct {
 	nomenclature                       nomenclatureManagementStore
 	settings                           settingsManagementStore
 	documentQueries                    func(*models.User) documentQueryAPI
+	eventAccess                        func(*models.User) eventDocumentAccess
 	documentCommands                   func(*models.User) documentCommandAPI
 	assignments                        func(*models.User) assignmentAPI
 	acknowledgments                    func(*models.User) acknowledgmentAPI
@@ -178,6 +179,9 @@ func newManagementAPI(app *App) *managementAPI {
 		references:     references,
 		nomenclature:   nomenclature,
 		settings:       settings,
+		eventAccess: func(user *models.User) eventDocumentAccess {
+			return serverservices.NewDocumentAccessService(requestDocumentPrincipal{user: user}, departments, assignments, acknowledgments, access, documents, substitutions)
+		},
 		documentQueries: func(user *models.User) documentQueryAPI {
 			documentAccess := serverservices.NewDocumentAccessService(
 				requestDocumentPrincipal{user: user}, departments, assignments,

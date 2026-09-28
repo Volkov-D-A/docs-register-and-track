@@ -301,7 +301,7 @@ func (api *managementAPI) changeRequiredPassword(w http.ResponseWriter, r *http.
 func (api *managementAPI) recordFailedLogin(user *models.User, details string) (int, bool, error) {
 	// A fresh key lets a later lock after an administrator unlocks the account
 	// produce its own audit. The repository enqueues only at the lock threshold.
-	effect, err := userAuditEffect(user, "user:"+user.ID.String()+":locked:"+uuid.NewString(), "USER_LOCKED", details)
+	effect, err := userAuditEffect(user, "user:"+user.ID.String()+":locked:"+uuid.NewString(), "USER_LOCKED", details, user.ID)
 	if err != nil {
 		return 0, false, err
 	}

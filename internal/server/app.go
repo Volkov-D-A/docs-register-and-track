@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/background"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
@@ -119,7 +120,15 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 	}
 	worker.SetMetrics(metrics)
 	worker.OnUserEvent = func(userID string) { events.Publish("user:" + userID) }
-	worker.OnDocumentsChanged = func() { events.Publish("documents") }
+	worker.OnDocumentChanged = events.PublishChange
+	worker.OnAccessChanged = func(request models.CreateAdminAuditLogRequest) {
+		// Legacy audit payloads lack an audience and require conservative resync.
+		resource := "access"
+		if request.Action == "FILES_BULK_DELETE" {
+			resource = "resync"
+		}
+		events.PublishChange(liveevents.Change{Resource: resource, Audience: request.AffectedUserIDs})
+	}
 	listenAddress := strings.TrimSpace(cfg.Server.ListenAddress)
 	if listenAddress == "" {
 		listenAddress = ":8080"

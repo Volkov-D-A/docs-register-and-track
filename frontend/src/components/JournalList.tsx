@@ -1,3 +1,4 @@
+import { useDocumentRefresh } from '../hooks/useDocumentRefresh';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Table, Spin, App, Tooltip, Typography } from 'antd';
 import {
@@ -46,6 +47,8 @@ const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
             loadJournal();
         }
     }, [documentId, loadJournal]);
+
+    useDocumentRefresh(documentId, 'journal', loadJournal);
 
     const actionConfig: Record<string, { color: string; icon: React.ReactNode; tooltip: string }> = {
         'CREATE': { color: 'green', icon: <PlusCircleOutlined />, tooltip: 'Документ создан' },

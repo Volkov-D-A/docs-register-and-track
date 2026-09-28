@@ -1,3 +1,4 @@
+import { useDocumentRefresh } from '../hooks/useDocumentRefresh';
 import React, { useCallback, useEffect, useState } from 'react';
 import { App, Button, Space, Spin, Tag, Typography } from 'antd';
 import { CheckCircleOutlined } from '@ant-design/icons';
@@ -39,6 +40,8 @@ const DocumentAcknowledgmentWorkflowPanel: React.FC<DocumentAcknowledgmentWorkfl
     useEffect(() => {
         void load();
     }, [load]);
+
+    useDocumentRefresh(documentId, 'acknowledgments', load);
 
     const confirmAcknowledgment = async (acknowledgmentId: string) => {
         try {

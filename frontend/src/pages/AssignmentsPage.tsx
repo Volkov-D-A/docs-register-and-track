@@ -1,3 +1,4 @@
+import { onServerEvent } from '../events/serverEvents';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Typography, Table, Button, Input, Select, DatePicker,
@@ -16,7 +17,6 @@ import DocumentViewModal from '../components/DocumentViewModal';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
 import { onAssignmentsChanged } from '../events/assignmentEvents';
-import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvents';
 import { dto, models } from '../../wailsjs/go/models';
 import { CoalescedRequest } from '../utils/coalescedRequest';
 import AssignmentSeriesModal from '../components/AssignmentSeriesModal';
@@ -129,8 +129,9 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
         }
     }, [accessReady, load]);
 
-    useEffect(() => onUserEventsReceived((events) => {
-        if (events.some(isAssignmentUserEvent)) {
+    useEffect(() => onServerEvent((event) => {
+        if (event.topic === 'resync' || event.topic === 'access-changed' || event.topic === 'documents'
+            || (event.topic === 'document-changed' && (event.resource === 'assignments' || event.resource === 'document'))) {
             void load();
         }
     }), [load]);
@@ -428,7 +429,6 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
                 onCancel={() => setViewModalOpen(false)}
                 documentId={viewDocId}
                 documentKind={viewDocKind}
-                onAssignmentsChanged={load}
             />
 
             <AssignmentSeriesModal

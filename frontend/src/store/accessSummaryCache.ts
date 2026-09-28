@@ -42,3 +42,15 @@ export const resetCurrentAccessSummaryCache = () => {
     pendingUserId = null;
     loadVersion++;
 };
+
+const invalidationListeners = new Set<() => void>();
+
+export const onAccessSummaryInvalidated = (listener: () => void) => {
+    invalidationListeners.add(listener);
+    return () => { invalidationListeners.delete(listener); };
+};
+
+export const invalidateCurrentAccessSummary = () => {
+    resetCurrentAccessSummaryCache();
+    for (const listener of invalidationListeners) listener();
+};

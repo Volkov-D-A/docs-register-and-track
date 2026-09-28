@@ -52,11 +52,3 @@ export const onUserEventsDocumentRead = (
     window.addEventListener(USER_EVENTS_DOCUMENT_READ_EVENT, handler);
     return () => window.removeEventListener(USER_EVENTS_DOCUMENT_READ_EVENT, handler);
 };
-
-export const isAssignmentUserEvent = (event: dto.UserEvent) => (
-    event.entityType === 'assignment' || event.eventType.startsWith('assignment_')
-);
-
-export const isAcknowledgmentUserEvent = (event: dto.UserEvent) => (
-    event.entityType === 'acknowledgment' || event.eventType.startsWith('acknowledgment_')
-);

@@ -14,6 +14,7 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 )
 
@@ -235,7 +236,8 @@ func TestWorkerNotifiesDocumentsOnlyAfterDurableJournalOrAuditDelivery(t *testin
 				wrapped := database.Wrap(db)
 				worker := NewWorker(repository.NewOutboxRepository(wrapped), nil, repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
 				notifications := 0
-				worker.OnDocumentsChanged = func() { notifications++ }
+				worker.OnDocumentChanged = func(liveevents.Change) { notifications++ }
+				worker.OnAccessChanged = func(models.CreateAdminAuditLogRequest) { notifications++ }
 				query := "INSERT INTO document_journal"
 				if eventType == models.OutboxEventAudit {
 					query = "INSERT INTO admin_audit_log"
@@ -257,5 +259,23 @@ func TestWorkerNotifiesDocumentsOnlyAfterDurableJournalOrAuditDelivery(t *testin
 				require.NoError(t, mock.ExpectationsWereMet())
 			})
 		}
+	}
+}
+
+func TestJournalChangesIdentifyOnlyAffectedResources(t *testing.T) {
+	documentID, readerID := uuid.New(), uuid.New()
+	for _, tc := range []struct {
+		action, resource string
+		visibility       bool
+	}{
+		{"CREATE", "document", false}, {"UPDATE", "document", false},
+		{"ASSIGNMENT_CREATE", "assignments", true}, {"ASSIGNMENT_STATUS", "assignments", false},
+		{"ASSIGNMENT_DELETE", "assignments", true}, {"ACK_CONFIRM", "acknowledgments", false},
+		{"ACK_DELETE", "acknowledgments", true}, {"FILE_UPLOAD", "files", false}, {"LINK_DELETE", "links", false},
+	} {
+		t.Run(tc.action, func(t *testing.T) {
+			change := journalChange(models.CreateJournalEntryRequest{DocumentID: documentID, Action: tc.action, PreviousReaderIDs: []uuid.UUID{readerID}})
+			require.Equal(t, liveevents.Change{DocumentID: documentID.String(), Resource: tc.resource, VisibilityChanged: tc.visibility, PreviousReaders: []uuid.UUID{readerID}}, change)
+		})
 	}
 }

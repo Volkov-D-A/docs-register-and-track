@@ -5,10 +5,8 @@ import { CheckCircleOutlined, ClockCircleOutlined, FileAddOutlined, FileDoneOutl
 import dayjs from 'dayjs';
 import { dto } from '../../wailsjs/go/models';
 import { GetOverview, ListAcknowledgments } from '../../wailsjs/go/services/WorkspaceService';
-import { GetCurrentUserEvents } from '../../wailsjs/go/services/UserEventService';
-import { models } from '../../wailsjs/go/models';
 import DocumentViewModal from '../components/DocumentViewModal';
-import WorkspaceEventTimeline from '../components/WorkspaceEventTimeline';
+import WorkspaceUserEventsPanel from '../components/WorkspaceUserEventsPanel';
 import RecentDocumentsPanel from '../components/RecentDocumentsPanel';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import type { DocumentKindMeta } from '../constants/documentKinds';
@@ -67,10 +65,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
     const [ackItems, setAckItems] = useState<dto.WorkspaceAcknowledgment[]>([]);
     const [ackTotal, setAckTotal] = useState(0);
     const [ackLoading, setAckLoading] = useState(false);
-    const [events, setEvents] = useState<dto.UserEvent[]>([]);
     const overviewRequest = useRef(new CoalescedRequest<dto.WorkspaceOverview>());
     const acknowledgmentsRequest = useRef(new CoalescedRequest<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_WorkspaceAcknowledgment_>());
-    const eventsRequest = useRef(new CoalescedRequest<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_UserEvent_>());
 
     useEffect(() => {
         let timer: number;
@@ -96,10 +92,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
         setAckItems([]);
         setAckTotal(0);
         setAckLoading(false);
-        setEvents([]);
         overviewRequest.current.invalidate();
         acknowledgmentsRequest.current.invalidate();
-        eventsRequest.current.invalidate();
     }, [userId]);
 
     const assignmentMode = workMode && overview?.assignmentModes.includes(workMode) ? workMode : '';
@@ -120,14 +114,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
             },
         });
     }, [ready, userId, assignmentMode, acknowledgmentMode, message]);
-
-    const loadEvents = useCallback(() => {
-        if (!ready || !userId) return Promise.resolve();
-        return eventsRequest.current.refresh(() => GetCurrentUserEvents(models.UserEventFilter.createFrom({ page: 1, pageSize: 5 })), {
-            onSuccess: (result) => setEvents(result?.items || []),
-            onError: (error) => console.error('Workspace events:', error),
-        });
-    }, [ready, userId]);
 
     const loadAcknowledgments = useCallback(() => {
         if (!ackListOpen || !ready || !userId || !overview?.acknowledgmentMode) return Promise.resolve();
@@ -150,18 +136,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
 
     useEffect(() => {
         void loadOverview();
-        void loadEvents();
-    }, [loadOverview, loadEvents]);
+    }, [loadOverview]);
 
     useEffect(() => { void loadAcknowledgments(); }, [loadAcknowledgments, overview?.acknowledgmentCount]);
     useEffect(() => onAssignmentsChanged(() => { void loadOverview(); }), [loadOverview]);
     useEffect(() => onServerEvent((event) => {
-        if (event.topic === 'documents' || event.topic === 'user-events' || event.topic === 'resync') {
-            void loadOverview();
-            void loadEvents();
-            void loadAcknowledgments();
-        }
-    }), [loadOverview, loadEvents, loadAcknowledgments]);
+        const resync = event.topic === 'documents' || event.topic === 'resync' || event.topic === 'access-changed';
+        if (resync || (event.topic === 'document-changed' && (event.resource === 'assignments' || event.resource === 'acknowledgments' || event.resource === 'document'))) void loadOverview();
+        if (resync || (event.topic === 'document-changed' && (event.resource === 'acknowledgments' || event.resource === 'document'))) void loadAcknowledgments();
+    }), [loadOverview, loadAcknowledgments]);
 
     useEffect(() => {
         let timer: number | undefined;
@@ -172,7 +155,6 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
             timer = window.setTimeout(() => {
                 setCurrentTime(new Date());
                 void loadOverview();
-                void loadEvents();
                 void loadAcknowledgments();
                 setDocumentsRefreshVersion((version) => version + 1);
             }, 150);
@@ -184,12 +166,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
             window.removeEventListener('focus', onResume);
             window.document.removeEventListener('visibilitychange', onResume);
         };
-    }, [loadOverview, loadEvents, loadAcknowledgments]);
+    }, [loadOverview, loadAcknowledgments]);
 
     useEffect(() => () => {
         overviewRequest.current.invalidate();
         acknowledgmentsRequest.current.invalidate();
-        eventsRequest.current.invalidate();
     }, []);
 
     const availableModes = (['execution', 'control'] as WorkMode[]).filter((mode) =>
@@ -206,7 +187,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
         setAckPage(1);
         setAckListOpen(true);
     };
-    const openDocument = (id: string, kind: string) => setDocument({ id, kind });
+    const openDocument = useCallback((id: string, kind: string) => setDocument({ id, kind }), []);
+    const closeDocument = useCallback(() => { setDocument(null); setDocumentsRefreshVersion((version) => version + 1); }, []);
     const acknowledgmentTitle = `Ознакомления ( ${activeAcknowledgmentMode === 'control' ? 'контроль' : 'исполнение'} )`;
     const counts = overview?.assignmentCounts;
     const assignmentColumns: TableProps<dto.WorkspaceAssignment>['columns'] = [
@@ -353,9 +335,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
                                 }]} />
                         </Card>
                     )}
-                    <Card title="Новое для меня" className="workspace-events-panel">
-                        <WorkspaceEventTimeline events={events} currentTime={currentTime} onOpenDocument={openDocument} />
-                    </Card>
+                    {userId && <WorkspaceUserEventsPanel key={`events:${userId}`} currentTime={currentTime}
+                        refreshVersion={documentsRefreshVersion} onOpenDocument={openDocument} />}
                     {userId && <RecentDocumentsPanel key={userId} refreshVersion={documentsRefreshVersion} onOpenDocument={openDocument} />}
                 </div>
             </div>
@@ -365,8 +346,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
                     locale={{ emptyText: 'Ознакомлений нет' }} />
                 <Pagination current={ackPage} pageSize={10} total={ackTotal} onChange={setAckPage} style={{ marginTop: 16 }} />
             </Drawer>
-            <DocumentViewModal open={!!document} onCancel={() => { setDocument(null); setDocumentsRefreshVersion((version) => version + 1); }} documentId={document?.id || ''}
-                documentKind={document?.kind || ''} onAssignmentsChanged={loadOverview} onAcknowledgmentsChanged={loadOverview} />
+            <DocumentViewModal open={!!document} onCancel={closeDocument} documentId={document?.id || ''}
+                documentKind={document?.kind || ''} onAcknowledgmentsChanged={loadOverview} />
         </div>
     );
 };

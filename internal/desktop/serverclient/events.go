@@ -16,9 +16,13 @@ import (
 
 // LiveEvent contains no tokens and can safely cross the Wails bridge.
 type LiveEvent struct {
-	Topic     string                  `json:"topic"`
-	Revision  uint64                  `json:"revision"`
-	Operation *models.BackupOperation `json:"operation,omitempty"`
+	DocumentKind      string                  `json:"documentKind,omitempty"`
+	DocumentID        string                  `json:"documentId,omitempty"`
+	Resource          string                  `json:"resource,omitempty"`
+	VisibilityChanged bool                    `json:"visibilityChanged,omitempty"`
+	Topic             string                  `json:"topic"`
+	Revision          uint64                  `json:"revision"`
+	Operation         *models.BackupOperation `json:"operation,omitempty"`
 }
 
 // ConfigureEvents is called by the composition root before login. Cancelling ctx
@@ -42,12 +46,27 @@ func (c *Client) startSessionEvents() {
 		defer cancel()
 		stop := context.AfterFunc(sessionCtx, cancel)
 		defer stop()
-		c.reconnectEvents(ctx, "/api/v1/events", session.token, func(topic string, _ []byte) bool {
+		c.reconnectEvents(ctx, "/api/v1/events", session.token, func(topic string, data []byte) bool {
 			if !c.matchesSession(session) {
 				return false
 			}
 			if topic != "heartbeat" {
-				handler(LiveEvent{Topic: topic, Revision: session.revision})
+				event := LiveEvent{Topic: topic, Revision: session.revision}
+				if topic == "document-changed" {
+					// Decode only routing metadata; session revision always comes from this connection.
+					var change struct {
+						DocumentKind      string `json:"documentKind"`
+						DocumentID        string `json:"documentId"`
+						Resource          string `json:"resource"`
+						VisibilityChanged bool   `json:"visibilityChanged"`
+					}
+					if json.Unmarshal(data, &change) != nil || change.DocumentID == "" || change.Resource == "" {
+						return true
+					}
+					event.DocumentID, event.Resource, event.VisibilityChanged = change.DocumentID, change.Resource, change.VisibilityChanged
+					event.DocumentKind = change.DocumentKind
+				}
+				handler(event)
 			}
 			return true
 		}, func(status int) bool {

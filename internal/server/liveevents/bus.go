@@ -6,6 +6,7 @@ import "sync"
 
 type Bus struct {
 	mu            sync.Mutex
+	changes       map[*changeSubscription]struct{}
 	subscriptions map[string]map[chan struct{}]struct{}
 }
 

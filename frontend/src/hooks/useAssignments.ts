@@ -1,9 +1,9 @@
+import { useDocumentRefresh } from './useDocumentRefresh';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App } from 'antd';
 import { useDocumentKindAccess } from './useDocumentKindAccess';
 import { formatAppError } from '../utils/appError';
 import { emitAssignmentsChanged } from '../events/assignmentEvents';
-import { isAssignmentUserEvent, onUserEventsReceived } from '../events/userEvents';
 import { dto, models } from '../../wailsjs/go/models';
 import { CoalescedRequest } from '../utils/coalescedRequest';
 
@@ -27,6 +27,7 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
     const activeDocumentRef = useRef(documentId);
     activeDocumentRef.current = documentId;
     const [loading, setLoading] = useState(false);
+    const [hasLoaded, setHasLoaded] = useState(false);
     const assignmentsRequestRef = useRef(new CoalescedRequest<AssignmentLoadResult>());
 
     const load = useCallback(async () => {
@@ -70,8 +71,9 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
             }
             return { items: [...items.values()], warning: `${INCOMPLETE_ASSIGNMENTS} Загружено не более ${MAX_ASSIGNMENT_PAGES * ASSIGNMENT_PAGE_SIZE} записей. Используйте раздел «Поручения» для поиска остальных.` };
         }, {
-            onSuccess: (result) => { setData(result.items); setLoadWarning(result.warning); },
+            onSuccess: (result) => { setData(result.items); setLoadWarning(result.warning); setHasLoaded(true); },
             onError: (error) => {
+                setHasLoaded(true);
                 setData([]);
                 setLoadWarning(`${INCOMPLETE_ASSIGNMENTS} ${formatAppError(error, 'Не удалось загрузить поручения')}`);
             },
@@ -83,15 +85,12 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
         const request = assignmentsRequestRef.current;
         setData([]);
         setLoadWarning(null);
+        setHasLoaded(false);
         void load();
         return () => request.invalidate();
     }, [load]);
 
-    useEffect(() => onUserEventsReceived((events) => {
-        if (events.some((event) => isAssignmentUserEvent(event) && event.documentId === documentId)) {
-            void load();
-        }
-    }), [documentId, load]);
+    useDocumentRefresh(documentId, 'assignments', load);
 
     const deleteAssignment = useCallback(async (id: string) => {
         try {
@@ -123,6 +122,7 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
         data,
         loadWarning,
         loading,
+        initialLoading: loading && !hasLoaded,
         accessReady,
         canManageAssignments,
         load,

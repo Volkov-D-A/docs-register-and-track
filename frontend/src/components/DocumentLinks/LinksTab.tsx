@@ -1,3 +1,4 @@
+import { useDocumentRefresh } from '../../hooks/useDocumentRefresh';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button, Popconfirm, Modal, Select, Tag, Switch, Space, Empty, Spin, App } from 'antd';
 import { LinkOutlined, DeleteOutlined, PlusOutlined, ApartmentOutlined, UnlockOutlined, LockOutlined } from '@ant-design/icons';
@@ -233,6 +234,8 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
 
         return () => latestLinksRequest.invalidate();
     }, [canManageLinks, documentId, fetchLinks]);
+
+    useDocumentRefresh(documentId, 'links', fetchLinks);
 
     const handleLink = async () => {
         if (!targetId) {

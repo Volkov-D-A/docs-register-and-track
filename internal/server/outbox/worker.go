@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -24,19 +26,20 @@ type FileDeleter interface {
 type Worker struct {
 	// OnUserEvent is configured before Run and called after durable delivery.
 	OnUserEvent func(string)
-	// OnDocumentsChanged sends payload-free invalidation after journal/audit delivery.
-	// These effects cover document changes and changes to read capabilities.
-	OnDocumentsChanged func()
-	outbox             *repository.OutboxRepository
-	events             *repository.UserEventRepository
-	journal            *repository.JournalRepository
-	audit              *repository.AdminAuditLogRepository
-	attachments        *repository.AttachmentRepository
-	storage            FileDeleter
-	lastRequiredAudit  models.RequiredAuditStats
-	metrics            *observability.Registry
-	now                func() time.Time
-	options            Options
+	// OnDocumentChanged runs only after durable journal delivery.
+	OnDocumentChanged func(liveevents.Change)
+	// OnAccessChanged preserves invalidation for administrative capability changes.
+	OnAccessChanged   func(models.CreateAdminAuditLogRequest)
+	outbox            *repository.OutboxRepository
+	events            *repository.UserEventRepository
+	journal           *repository.JournalRepository
+	audit             *repository.AdminAuditLogRepository
+	attachments       *repository.AttachmentRepository
+	storage           FileDeleter
+	lastRequiredAudit models.RequiredAuditStats
+	metrics           *observability.Registry
+	now               func() time.Time
+	options           Options
 }
 
 const (
@@ -288,8 +291,8 @@ func (w *Worker) process(parent context.Context, event models.OutboxEvent) error
 			return fmt.Errorf("invalid journal payload: %w", err)
 		}
 		err := w.journal.CreateFromOutbox(ctx, payload, event.DeduplicationKey)
-		if err == nil && w.OnDocumentsChanged != nil {
-			w.OnDocumentsChanged()
+		if err == nil && w.OnDocumentChanged != nil {
+			w.OnDocumentChanged(journalChange(payload))
 		}
 		return err
 	case models.OutboxEventAudit:
@@ -298,8 +301,8 @@ func (w *Worker) process(parent context.Context, event models.OutboxEvent) error
 			return fmt.Errorf("invalid admin_audit payload: %w", err)
 		}
 		err := w.audit.CreateFromOutbox(payload, event.DeduplicationKey)
-		if err == nil && w.OnDocumentsChanged != nil {
-			w.OnDocumentsChanged()
+		if err == nil && w.OnAccessChanged != nil {
+			w.OnAccessChanged(payload)
 		}
 		return err
 	case models.OutboxEventFileDelete:
@@ -329,4 +332,22 @@ func (w *Worker) process(parent context.Context, event models.OutboxEvent) error
 	default:
 		return fmt.Errorf("unsupported outbox event type %q", event.EventType)
 	}
+}
+
+func journalChange(request models.CreateJournalEntryRequest) liveevents.Change {
+	resource := "document"
+	visibility := false
+	switch {
+	case strings.HasPrefix(request.Action, "ASSIGNMENT_"):
+		resource = "assignments"
+		visibility = request.Action == "ASSIGNMENT_CREATE" || request.Action == "ASSIGNMENT_DELETE" || request.Action == "ASSIGNMENT_UPDATE" || request.Action == "ASSIGNMENT_SERIES_CREATE" || request.Action == "ASSIGNMENT_SERIES_ITERATION_CREATE"
+	case strings.HasPrefix(request.Action, "ACK_"):
+		resource = "acknowledgments"
+		visibility = request.Action == "ACK_CREATE" || request.Action == "ACK_DELETE"
+	case strings.HasPrefix(request.Action, "FILE_"):
+		resource = "files"
+	case strings.HasPrefix(request.Action, "LINK_"):
+		resource = "links"
+	}
+	return liveevents.Change{DocumentID: request.DocumentID.String(), Resource: resource, VisibilityChanged: visibility, PreviousReaders: request.PreviousReaderIDs}
 }

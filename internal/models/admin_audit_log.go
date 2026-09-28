@@ -17,8 +17,10 @@ type AdminAuditLog struct {
 
 // CreateAdminAuditLogRequest описывает внутренний запрос на создание записи в журнале администраторов.
 type CreateAdminAuditLogRequest struct {
-	UserID   uuid.UUID
-	UserName string
-	Action   string
-	Details  string
+	// Used only by outbox delivery to invalidate affected live sessions.
+	AffectedUserIDs []uuid.UUID `json:",omitempty"`
+	UserID          uuid.UUID
+	UserName        string
+	Action          string
+	Details         string
 }

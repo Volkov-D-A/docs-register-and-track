@@ -27,7 +27,7 @@ func (api *managementAPI) updateOwnProfile(w http.ResponseWriter, r *http.Reques
 	}
 	req.Login = strings.TrimSpace(req.Login)
 	auth := authenticatedFromContext(r.Context())
-	effect, err := userAuditEffect(auth.User, "profile:"+auth.User.ID.String()+":update:"+uuid.NewString(), "USER_PROFILE_UPDATE", fmt.Sprintf("Пользователь «%s» обновил собственный профиль", auth.User.FullName()))
+	effect, err := userAuditEffect(auth.User, "profile:"+auth.User.ID.String()+":update:"+uuid.NewString(), "USER_PROFILE_UPDATE", fmt.Sprintf("Пользователь «%s» обновил собственный профиль", auth.User.FullName()), auth.User.ID)
 	if err != nil {
 		writeUserError(w, err)
 		return

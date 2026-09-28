@@ -9,7 +9,6 @@ import { dto } from '../../wailsjs/go/models';
 interface DocumentAssignmentWorkflowPanelProps {
     documentId: string;
     documentKind: string;
-    onAssignmentsChanged?: () => void | Promise<void>;
 }
 
 const { Text } = Typography;
@@ -37,13 +36,13 @@ const getStatusTag = (status: string) => {
 const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelProps> = ({
     documentId,
     documentKind,
-    onAssignmentsChanged,
 }) => {
     const { message } = App.useApp();
     const {
         data,
         loadWarning,
         loading,
+        initialLoading,
         accessReady,
         canManageAssignments,
         load,
@@ -60,18 +59,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
         return executorCanAct || managerCanAct;
     }), [canManageAssignments, data]);
 
-    const notifyAssignmentsChanged = async () => {
-        await onAssignmentsChanged?.();
-    };
-
-    const handleUpdateStatus = async (id: string, status: string, report = '') => {
-        const updated = await updateStatus(id, status, report);
-        if (updated) {
-            await notifyAssignmentsChanged();
-        }
-    };
-
-    if (!loading && accessReady && !loadWarning && actionableAssignments.length === 0) {
+    if (!initialLoading && accessReady && !loadWarning && actionableAssignments.length === 0) {
         return null;
     }
 
@@ -84,7 +72,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
             message.error('Введите причину возврата');
             return;
         }
-        void handleUpdateStatus(currentAssignment.id, 'returned', returnReasonText);
+        void updateStatus(currentAssignment.id, 'returned', returnReasonText);
         setReturnModalOpen(false);
         setReturnReasonText('');
         setCurrentAssignment(null);
@@ -94,7 +82,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
         <div className="document-assignment-workflow">
             <div className="document-assignment-workflow__header">
                 <Text strong>Поручения к исполнению</Text>
-                {loading && <Spin size="small" />}
+                {initialLoading && <Spin size="small" />}
             </div>
 
             {loadWarning && <Alert
@@ -104,7 +92,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                 action={<Button size="small" loading={loading} onClick={() => void load()}>Обновить</Button>}
             />}
 
-            {!loading && actionableAssignments.map((assignment) => {
+            {actionableAssignments.map((assignment) => {
                 const canActAsExecutor = assignment.canAct;
                 return (
                     <div className="document-assignment-workflow__item" key={assignment.id}>
@@ -134,7 +122,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                                     <Button
                                         size="small"
                                         icon={<PlayCircleOutlined aria-hidden="true" />}
-                                        onClick={() => handleUpdateStatus(assignment.id, 'in_progress')}
+                                        onClick={() => updateStatus(assignment.id, 'in_progress')}
                                     >
                                         Взять в работу
                                     </Button>
@@ -162,7 +150,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                                             size="small"
                                             type="primary"
                                             icon={<FileDoneOutlined aria-hidden="true" />}
-                                            onClick={() => handleUpdateStatus(assignment.id, 'finished')}
+                                            onClick={() => updateStatus(assignment.id, 'finished')}
                                         >
                                             Завершить
                                         </Button>
@@ -200,7 +188,6 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                     setCompletionModalOpen(false);
                     setCurrentAssignment(null);
                     void load();
-                    void notifyAssignmentsChanged();
                 }}
             />
 

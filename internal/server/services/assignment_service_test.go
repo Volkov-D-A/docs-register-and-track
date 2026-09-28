@@ -5,6 +5,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -275,6 +276,9 @@ func TestAssignmentServiceDeletePassesJournalEffectToAtomicStore(t *testing.T) {
 	require.NoError(t, svc.Delete(assignmentID.String()))
 	require.Len(t, atomicRepo.Effects, 1)
 	assert.Equal(t, models.OutboxEventJournal, atomicRepo.Effects[0].EventType)
+	var journal models.CreateJournalEntryRequest
+	require.NoError(t, json.Unmarshal([]byte(atomicRepo.Effects[0].Payload), &journal))
+	require.Equal(t, []uuid.UUID{executorID}, journal.PreviousReaderIDs)
 }
 
 func TestAssignmentServiceUpdateStatusPassesJournalEffectToAtomicStore(t *testing.T) {

@@ -125,6 +125,8 @@ func (api *managementAPI) updateUser(w http.ResponseWriter, r *http.Request) {
 	req.Login = strings.TrimSpace(req.Login)
 	req.ID = id.String()
 	auth := authenticatedFromContext(r.Context())
+	// Participation/department changes can revoke substitution access; the former
+	// substitutes cannot be resolved from the post-update principal alone.
 	effect, err := userAuditEffect(auth.User, "user:"+req.ID+":update:"+uuid.NewString(), "USER_UPDATE", fmt.Sprintf("Обновлен пользователь «%s»", req.FullName()))
 	if err != nil {
 		writeUserError(w, err)
@@ -180,7 +182,7 @@ func (api *managementAPI) resetUserPassword(w http.ResponseWriter, r *http.Reque
 		targetName = user.Login
 	}
 	auth := authenticatedFromContext(r.Context())
-	effect, err := userAuditEffect(auth.User, "user:"+id.String()+":password-reset:"+uuid.NewString(), "USER_PASSWORD_RESET", fmt.Sprintf("Сброшен пароль пользователя «%s»", targetName))
+	effect, err := userAuditEffect(auth.User, "user:"+id.String()+":password-reset:"+uuid.NewString(), "USER_PASSWORD_RESET", fmt.Sprintf("Сброшен пароль пользователя «%s»", targetName), id)
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -192,12 +194,12 @@ func (api *managementAPI) resetUserPassword(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, resetPasswordResponse{TemporaryPassword: temporaryPassword})
 }
 
-func userAuditEffect(actor *models.User, key, action, details string) (models.OutboxEvent, error) {
+func userAuditEffect(actor *models.User, key, action, details string, affected ...uuid.UUID) (models.OutboxEvent, error) {
 	if actor == nil {
 		return models.OutboxEvent{}, models.ErrUnauthorized
 	}
 	return servereffects.NewAdminAuditOutboxEvent(key, models.CreateAdminAuditLogRequest{
-		UserID: actor.ID, UserName: actor.FullName(), Action: action, Details: details,
+		UserID: actor.ID, UserName: actor.FullName(), Action: action, Details: details, AffectedUserIDs: affected,
 	})
 }
 

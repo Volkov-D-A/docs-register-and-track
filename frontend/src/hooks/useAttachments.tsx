@@ -1,3 +1,4 @@
+import { useDocumentRefresh } from './useDocumentRefresh';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { App, Button, notification } from 'antd';
 import { FileOutlined } from '@ant-design/icons';
@@ -60,6 +61,8 @@ export const useAttachments = ({ documentId, documentKind, readOnly }: UseAttach
 
         return () => latestListRequest.invalidate();
     }, [documentId, loadFiles]);
+
+    useDocumentRefresh(documentId, 'files', loadFiles);
 
     const uploadFile = useCallback(async () => {
         if (uploading) {
