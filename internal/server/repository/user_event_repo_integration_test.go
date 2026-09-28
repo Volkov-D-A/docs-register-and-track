@@ -11,6 +11,7 @@ import (
 func TestUserEventOutboxInsertIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	userID, documentID := seedIntegrationDocument(t, sqlDB)
+	execSQL(t, sqlDB, `UPDATE documents SET registration_date = '2026-09-24' WHERE id = $1`, documentID)
 	repo := NewUserEventRepository(database.Wrap(sqlDB))
 	request := models.CreateUserEventRequest{
 		RecipientUserID: userID,
@@ -37,6 +38,10 @@ func TestUserEventOutboxInsertIntegration(t *testing.T) {
 	listed, err := repo.GetList(userID, models.UserEventFilter{Page: 1, PageSize: 20})
 	if err != nil || len(listed.Items) != 1 || listed.Items[0].DocumentID != documentID || listed.Items[0].Title != request.Title {
 		t.Fatalf("visible events=%+v err=%v", listed, err)
+	}
+
+	if listed.Items[0].DocumentDate == nil || listed.Items[0].DocumentDate.Format("2006-01-02") != "2026-09-24" {
+		t.Fatalf("document date=%v, want 2026-09-24", listed.Items[0].DocumentDate)
 	}
 
 	var unusedColumns int

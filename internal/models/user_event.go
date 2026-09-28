@@ -26,6 +26,7 @@ type UserEvent struct {
 	DocumentID      uuid.UUID  `json:"-"`
 	DocumentKind    string     `json:"documentKind"`
 	DocumentNumber  string     `json:"documentNumber,omitempty"`
+	DocumentDate    *time.Time `json:"documentDate,omitempty"`
 	EntityType      string     `json:"entityType"`
 	EventType       string     `json:"eventType"`
 	Title           string     `json:"title"`

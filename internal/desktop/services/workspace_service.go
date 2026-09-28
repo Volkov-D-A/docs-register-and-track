@@ -35,3 +35,12 @@ func (s *WorkspaceService) ListAcknowledgments(mode string, page, pageSize int) 
 	defer cancel()
 	return s.server.ListWorkspaceAcknowledgments(ctx, mode, page, pageSize)
 }
+
+func (s *WorkspaceService) GetRecentDocuments() (*dto.WorkspaceDocuments, error) {
+	if s.server == nil {
+		return nil, errWorkspaceServiceClientNotConfigured
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return s.server.GetWorkspaceDocuments(ctx)
+}

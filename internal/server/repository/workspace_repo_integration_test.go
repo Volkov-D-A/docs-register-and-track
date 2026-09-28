@@ -14,6 +14,7 @@ import (
 func TestWorkspaceCountsAndPreviewsRespectModesAndDocumentScope(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	owner, firstDocument := seedIntegrationDocument(t, sqlDB)
+	execSQL(t, sqlDB, `UPDATE documents SET registration_date = '2026-09-28', content = 'Document content' WHERE id = $1`, firstDocument)
 	other := insertIntegrationUser(t, sqlDB, "workspace_other")
 	secondNom, secondDocument := uuid.New(), uuid.New()
 	execSQL(t, sqlDB, `INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode)
@@ -52,6 +53,17 @@ func TestWorkspaceCountsAndPreviewsRespectModesAndDocumentScope(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, ackCount)
 	require.Len(t, ackItems, 2)
+	for _, item := range ackItems {
+		require.Equal(t, "2026-09-28", item.DocumentDate.Format("2006-01-02"))
+		require.Equal(t, "read", item.Content)
+		if item.DocumentID == firstDocument {
+			require.Equal(t, "Document content", item.DocumentContent)
+			require.Equal(t, "IT/1", item.DocumentNumber)
+		} else {
+			require.Equal(t, "other document", item.DocumentContent)
+			require.Equal(t, "OT/1", item.DocumentNumber)
+		}
+	}
 
 	var firstNom uuid.UUID
 	require.NoError(t, sqlDB.QueryRow(`SELECT nomenclature_id FROM documents WHERE id = $1`, firstDocument).Scan(&firstNom))
@@ -107,4 +119,10 @@ func TestWorkspaceCountsAndPreviewsRespectModesAndDocumentScope(t *testing.T) {
 	page, err = repo.ListAcknowledgments([]models.WorkspaceQuery{controlled}, 1, 10)
 	require.NoError(t, err)
 	require.Equal(t, 2, page.TotalCount)
+	for _, item := range page.Items {
+		require.Equal(t, "2026-09-28", item.DocumentDate.Format("2006-01-02"))
+		require.Equal(t, "Document content", item.DocumentContent)
+		require.Equal(t, "read", item.Content)
+		require.Equal(t, "IT/1", item.DocumentNumber)
+	}
 }

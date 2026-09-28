@@ -2,6 +2,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,9 @@ import (
 type workspaceStoreStub struct {
 	assignmentQueries []models.WorkspaceQuery
 	ackQueries        []models.WorkspaceQuery
+	acknowledgments   []models.WorkspaceAcknowledgment
+	documentScopes    map[models.DocumentKind]models.DocumentAccessScope
+	documents         []models.WorkspaceDocument
 }
 
 func (s *workspaceStoreStub) AssignmentSummary(query models.WorkspaceQuery) (models.WorkspaceAssignmentCounts, []models.WorkspaceAssignment, error) {
@@ -22,11 +26,11 @@ func (s *workspaceStoreStub) AssignmentSummary(query models.WorkspaceQuery) (mod
 
 func (s *workspaceStoreStub) AcknowledgmentSummary(query models.WorkspaceQuery) (int, []models.WorkspaceAcknowledgment, error) {
 	s.ackQueries = append(s.ackQueries, query)
-	return 3, []models.WorkspaceAcknowledgment{}, nil
+	return 3, s.acknowledgments, nil
 }
 
 func (s *workspaceStoreStub) ListAcknowledgments([]models.WorkspaceQuery, int, int) (*models.PagedResult[models.WorkspaceAcknowledgment], error) {
-	return &models.PagedResult[models.WorkspaceAcknowledgment]{Items: []models.WorkspaceAcknowledgment{}}, nil
+	return &models.PagedResult[models.WorkspaceAcknowledgment]{Items: s.acknowledgments}, nil
 }
 
 func workspaceServiceFixture(t *testing.T, participant bool, allowed map[models.DocumentKind]map[string]bool, substitutionIDs ...uuid.UUID) (*WorkspaceService, *workspaceStoreStub, uuid.UUID) {
@@ -118,4 +122,64 @@ func TestWorkspaceControlWithoutReadOrParticipationHasEmptyScope(t *testing.T) {
 	require.Len(t, store.assignmentQueries, 1)
 	require.True(t, store.assignmentQueries[0].ReadScope.Restricted)
 	require.Empty(t, store.assignmentQueries[0].ReadScope.AccessibleByUserIDs)
+}
+
+func TestWorkspaceAcknowledgmentsIncludeDocumentDetailsInOverviewAndList(t *testing.T) {
+	svc, store, _ := workspaceServiceFixture(t, true, nil)
+	item := models.WorkspaceAcknowledgment{
+		ID: uuid.New(), DocumentID: uuid.New(), DocumentKind: "incoming_letter",
+		DocumentNumber: "IT/43", DocumentDate: time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC),
+		DocumentContent: "Document content", Content: "Resolution", CreatedAt: time.Now(),
+	}
+	store.acknowledgments = []models.WorkspaceAcknowledgment{item}
+	overview, err := svc.GetOverview("", "")
+	require.NoError(t, err)
+	require.Len(t, overview.Acknowledgments, 1)
+	page, err := svc.ListAcknowledgments("execution", 1, 10)
+	require.NoError(t, err)
+	require.Equal(t, overview.Acknowledgments, page.Items)
+	acknowledgment := overview.Acknowledgments[0]
+	require.Equal(t, item.DocumentNumber, acknowledgment.DocumentNumber)
+	require.Equal(t, item.DocumentDate, acknowledgment.DocumentDate)
+	require.Equal(t, item.DocumentContent, acknowledgment.DocumentContent)
+	require.Equal(t, item.Content, acknowledgment.Content)
+}
+
+func (s *workspaceStoreStub) RecentDocuments(scopes map[models.DocumentKind]models.DocumentAccessScope) ([]models.WorkspaceDocument, error) {
+	s.documentScopes = scopes
+	return s.documents, nil
+}
+
+func TestWorkspaceRecentDocumentsUseReadScopesAndPreserveRegistrationTime(t *testing.T) {
+	subject := uuid.New()
+	kind := models.DocumentKindIncomingLetter
+	svc, store, userID := workspaceServiceFixture(t, true, map[models.DocumentKind]map[string]bool{kind: {"read": true}}, subject)
+	item := models.WorkspaceDocument{ID: uuid.New(), DocumentKind: string(kind), DocumentNumber: "IT/125",
+		DocumentDate: time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC), RegisteredAt: time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC),
+		Description: "Alpha", Correspondents: []string{"Alpha", "Beta"}}
+	store.documents = []models.WorkspaceDocument{item}
+	result, err := svc.GetRecentDocuments()
+	require.NoError(t, err)
+	require.True(t, result.Available)
+	require.Len(t, store.documentScopes, 4)
+	require.False(t, store.documentScopes[kind].Restricted)
+	restricted := store.documentScopes[models.DocumentKindOutgoingLetter]
+	require.True(t, restricted.Restricted)
+	require.Equal(t, []string{userID.String(), subject.String()}, restricted.AccessibleByUserIDs)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, item.ID.String(), result.Items[0].ID)
+	require.Equal(t, item.DocumentDate, result.Items[0].DocumentDate)
+	require.Equal(t, item.RegisteredAt, result.Items[0].RegisteredAt)
+	require.Equal(t, item.Correspondents, result.Items[0].Correspondents)
+}
+
+func TestWorkspaceRecentDocumentsHideWhenReadIsUnavailable(t *testing.T) {
+	for _, permissions := range []map[models.DocumentKind]map[string]bool{nil, {models.DocumentKindIncomingLetter: {"create": true, "assign": true}}} {
+		svc, store, _ := workspaceServiceFixture(t, false, permissions)
+		result, err := svc.GetRecentDocuments()
+		require.NoError(t, err)
+		require.False(t, result.Available)
+		require.Empty(t, result.Items)
+		require.Nil(t, store.documentScopes)
+	}
 }

@@ -426,12 +426,14 @@ type WorkspaceAssignment struct {
 }
 
 type WorkspaceAcknowledgment struct {
-	ID             string    `json:"id"`
-	DocumentID     string    `json:"documentId"`
-	DocumentKind   string    `json:"documentKind"`
-	DocumentNumber string    `json:"documentNumber,omitempty"`
-	Content        string    `json:"content"`
-	CreatedAt      time.Time `json:"createdAt"`
+	ID              string    `json:"id"`
+	DocumentID      string    `json:"documentId"`
+	DocumentKind    string    `json:"documentKind"`
+	DocumentNumber  string    `json:"documentNumber,omitempty"`
+	DocumentDate    time.Time `json:"documentDate"`
+	DocumentContent string    `json:"documentContent"`
+	Content         string    `json:"content"`
+	CreatedAt       time.Time `json:"createdAt"`
 }
 
 // Acknowledgment описывает DTO задачи на ознакомление.
@@ -474,6 +476,7 @@ type UserEvent struct {
 	DocumentID     string     `json:"documentId"`
 	DocumentKind   string     `json:"documentKind"`
 	DocumentNumber string     `json:"documentNumber,omitempty"`
+	DocumentDate   *time.Time `json:"documentDate,omitempty"`
 	EntityType     string     `json:"entityType"`
 	EventType      string     `json:"eventType"`
 	Title          string     `json:"title"`
@@ -505,4 +508,20 @@ type AdminAuditLogPage struct {
 	Items []AdminAuditLog `json:"items"`
 	Total int             `json:"total"`
 	Page  int             `json:"page"`
+}
+
+// WorkspaceDocuments contains only the four latest readable registrations.
+type WorkspaceDocuments struct {
+	Available bool                `json:"available"`
+	Items     []WorkspaceDocument `json:"items"`
+}
+
+type WorkspaceDocument struct {
+	ID             string    `json:"id"`
+	DocumentKind   string    `json:"documentKind"`
+	DocumentNumber string    `json:"documentNumber"`
+	DocumentDate   time.Time `json:"documentDate"`
+	RegisteredAt   time.Time `json:"registeredAt"`
+	Description    string    `json:"description"`
+	Correspondents []string  `json:"correspondents"`
 }

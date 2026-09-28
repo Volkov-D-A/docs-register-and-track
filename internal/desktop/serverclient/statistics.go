@@ -11,6 +11,7 @@ import (
 )
 
 type WorkspaceClient interface {
+	GetWorkspaceDocuments(context.Context) (*dto.WorkspaceDocuments, error)
 	GetWorkspaceOverview(context.Context, string, string) (*dto.WorkspaceOverview, error)
 	ListWorkspaceAcknowledgments(context.Context, string, int, int) (*dto.PagedResult[dto.WorkspaceAcknowledgment], error)
 }
@@ -113,4 +114,8 @@ func (c *Client) RetryStorageStatisticsRefresh(ctx context.Context) (*models.Sto
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (c *Client) GetWorkspaceDocuments(ctx context.Context) (*dto.WorkspaceDocuments, error) {
+	return getStatistics[dto.WorkspaceDocuments](ctx, c, "/api/v1/workspace/documents")
 }

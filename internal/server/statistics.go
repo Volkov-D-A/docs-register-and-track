@@ -9,6 +9,7 @@ import (
 )
 
 type workspaceAPI interface {
+	GetRecentDocuments() (*dto.WorkspaceDocuments, error)
 	GetOverview(string, string) (*dto.WorkspaceOverview, error)
 	ListAcknowledgments(string, int, int) (*dto.PagedResult[dto.WorkspaceAcknowledgment], error)
 }
@@ -134,4 +135,9 @@ func workspacePagination(r *http.Request) (int, int, error) {
 		pageSize = parsed
 	}
 	return page, pageSize, nil
+}
+
+func (api *managementAPI) getWorkspaceDocuments(w http.ResponseWriter, r *http.Request) {
+	result, err := api.workspaceService(r).GetRecentDocuments()
+	writeStatisticsResult(w, result, err)
 }

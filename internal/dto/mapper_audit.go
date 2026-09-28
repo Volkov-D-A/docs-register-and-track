@@ -7,7 +7,7 @@ func MapUserEvent(m *models.UserEvent) *UserEvent {
 	if m == nil {
 		return nil
 	}
-	return &UserEvent{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, DocumentNumber: m.DocumentNumber, EntityType: m.EntityType, EventType: m.EventType, Title: m.Title, Message: m.Message, CreatedAt: m.CreatedAt, ReadAt: m.ReadAt}
+	return &UserEvent{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, DocumentNumber: m.DocumentNumber, DocumentDate: m.DocumentDate, EntityType: m.EntityType, EventType: m.EventType, Title: m.Title, Message: m.Message, CreatedAt: m.CreatedAt, ReadAt: m.ReadAt}
 }
 
 func MapUserEvents(m []models.UserEvent) []UserEvent {

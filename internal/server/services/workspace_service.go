@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"sort"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
@@ -128,7 +129,8 @@ func (s *WorkspaceService) GetOverview(assignmentMode, acknowledgmentMode string
 			for _, item := range all[:min(len(all), 5)] {
 				result.Acknowledgments = append(result.Acknowledgments, dto.WorkspaceAcknowledgment{
 					ID: item.ID.String(), DocumentID: item.DocumentID.String(), DocumentKind: item.DocumentKind,
-					DocumentNumber: item.DocumentNumber, Content: item.Content, CreatedAt: item.CreatedAt,
+					DocumentNumber: item.DocumentNumber, DocumentDate: item.DocumentDate, DocumentContent: item.DocumentContent,
+					Content: item.Content, CreatedAt: item.CreatedAt,
 				})
 			}
 		}
@@ -210,8 +212,56 @@ func (s *WorkspaceService) ListAcknowledgments(mode string, page, pageSize int) 
 	for _, item := range result.Items {
 		items = append(items, dto.WorkspaceAcknowledgment{
 			ID: item.ID.String(), DocumentID: item.DocumentID.String(), DocumentKind: item.DocumentKind,
-			DocumentNumber: item.DocumentNumber, Content: item.Content, CreatedAt: item.CreatedAt,
+			DocumentNumber: item.DocumentNumber, DocumentDate: item.DocumentDate, DocumentContent: item.DocumentContent,
+			Content: item.Content, CreatedAt: item.CreatedAt,
 		})
 	}
 	return &dto.PagedResult[dto.WorkspaceAcknowledgment]{Items: items, TotalCount: result.TotalCount, Page: result.Page, PageSize: result.PageSize}, nil
+}
+
+// GetRecentDocuments is independent of assignment and acknowledgment modes.
+func (s *WorkspaceService) GetRecentDocuments() (*dto.WorkspaceDocuments, error) {
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
+	if s.access == nil || s.repo == nil {
+		return nil, models.ErrForbidden
+	}
+	result := &dto.WorkspaceDocuments{Items: []dto.WorkspaceDocument{}}
+	if err := s.access.RequireDomainRead(); err != nil {
+		if errors.Is(err, models.ErrForbidden) {
+			return result, nil
+		}
+		return nil, err
+	}
+	scopes := make(map[models.DocumentKind]models.DocumentAccessScope)
+	for _, spec := range models.AllDocumentKindSpecs() {
+		scope, err := s.access.ResolveReadScope(spec.Code)
+		if err != nil {
+			return nil, err
+		}
+		scopes[spec.Code] = *scope
+		if !scope.Restricted || len(scope.AllowedNomenclatureIDs) > 0 || scope.AccessibleByUserID != "" || len(scope.AccessibleByUserIDs) > 0 {
+			result.Available = true
+		}
+	}
+	if !result.Available {
+		return result, nil
+	}
+	items, err := s.repo.RecentDocuments(scopes)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		correspondents := item.Correspondents
+		if correspondents == nil {
+			correspondents = []string{}
+		}
+		result.Items = append(result.Items, dto.WorkspaceDocument{
+			ID: item.ID.String(), DocumentKind: item.DocumentKind,
+			DocumentNumber: item.DocumentNumber, DocumentDate: item.DocumentDate,
+			RegisteredAt: item.RegisteredAt, Description: item.Description, Correspondents: correspondents,
+		})
+	}
+	return result, nil
 }

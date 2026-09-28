@@ -3,6 +3,8 @@ package outbox
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -221,4 +223,39 @@ func TestWorkerOptionsDefaultsAndValidation(t *testing.T) {
 	invalid := defaults
 	invalid.BatchSize = 1001
 	require.Error(t, invalid.Validate())
+}
+
+func TestWorkerNotifiesDocumentsOnlyAfterDurableJournalOrAuditDelivery(t *testing.T) {
+	for _, eventType := range []string{models.OutboxEventJournal, models.OutboxEventAudit} {
+		for _, success := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/%t", eventType, success), func(t *testing.T) {
+				db, mock, err := sqlmock.New()
+				require.NoError(t, err)
+				defer db.Close()
+				wrapped := database.Wrap(db)
+				worker := NewWorker(repository.NewOutboxRepository(wrapped), nil, repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
+				notifications := 0
+				worker.OnDocumentsChanged = func() { notifications++ }
+				query := "INSERT INTO document_journal"
+				if eventType == models.OutboxEventAudit {
+					query = "INSERT INTO admin_audit_log"
+				}
+				expectation := mock.ExpectExec(query)
+				if success {
+					expectation.WillReturnResult(sqlmock.NewResult(0, 1))
+				} else {
+					expectation.WillReturnError(errors.New("write failed"))
+				}
+				err = worker.process(context.Background(), models.OutboxEvent{EventType: eventType, DeduplicationKey: "key", Payload: `{}`})
+				if success {
+					require.NoError(t, err)
+					require.Equal(t, 1, notifications)
+				} else {
+					require.Error(t, err)
+					require.Zero(t, notifications)
+				}
+				require.NoError(t, mock.ExpectationsWereMet())
+			})
+		}
+	}
 }

@@ -4,4 +4,6 @@ import {dto} from '../models';
 
 export function GetOverview(arg1:string,arg2:string):Promise<dto.WorkspaceOverview>;
 
+export function GetRecentDocuments():Promise<dto.WorkspaceDocuments>;
+
 export function ListAcknowledgments(arg1:string,arg2:number,arg3:number):Promise<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_WorkspaceAcknowledgment_>;

@@ -80,3 +80,20 @@ func TestWorkspaceClientPassesModesAndPagination(t *testing.T) {
 	_, err = client.ListWorkspaceAcknowledgments(context.Background(), "control", 2, 7)
 	require.NoError(t, err)
 }
+
+func TestWorkspaceRecentDocumentsClientUsesFixedAuthenticatedPreview(t *testing.T) {
+	client := userClientWithToken(t, func(r *http.Request) (*http.Response, error) {
+		require.Equal(t, "Bearer session-token", r.Header.Get("Authorization"))
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/api/v1/workspace/documents", r.URL.Path)
+		require.Empty(t, r.URL.RawQuery)
+		return response(http.StatusOK, `{"available":true,"items":[{"id":"doc","documentKind":"incoming_letter","documentNumber":"125","documentDate":"2026-09-20T00:00:00Z","registeredAt":"2026-09-24T12:00:00Z","description":"Alpha","correspondents":["Alpha","Beta"]}]}`), nil
+	})
+	result, err := client.GetWorkspaceDocuments(context.Background())
+	require.NoError(t, err)
+	require.True(t, result.Available)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, "2026-09-20", result.Items[0].DocumentDate.Format("2006-01-02"))
+	require.Equal(t, "2026-09-24", result.Items[0].RegisteredAt.Format("2006-01-02"))
+	require.Equal(t, []string{"Alpha", "Beta"}, result.Items[0].Correspondents)
+}

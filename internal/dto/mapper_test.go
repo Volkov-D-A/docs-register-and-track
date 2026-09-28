@@ -227,6 +227,7 @@ func TestMapUserEvent(t *testing.T) {
 			DocumentID:     documentID,
 			DocumentKind:   "incoming_letter",
 			DocumentNumber: "ВХ-1",
+			DocumentDate:   &now,
 			EntityType:     models.UserEventEntityAssignment,
 			EventType:      models.UserEventAssignmentCreated,
 			Title:          "Новое поручение",
@@ -241,6 +242,7 @@ func TestMapUserEvent(t *testing.T) {
 		assert.Equal(t, documentID.String(), d.DocumentID)
 		assert.Equal(t, models.UserEventAssignmentCreated, d.EventType)
 		assert.Equal(t, &readAt, d.ReadAt)
+		assert.Equal(t, &now, d.DocumentDate)
 	})
 }
 

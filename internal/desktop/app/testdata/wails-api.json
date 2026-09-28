@@ -50,6 +50,7 @@
   ],
   "WorkspaceService": [
     "GetOverview",
+    "GetRecentDocuments",
     "ListAcknowledgments"
   ],
   "DepartmentService": [

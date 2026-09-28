@@ -40,10 +40,23 @@ type WorkspaceAssignmentCounts struct {
 }
 
 type WorkspaceAcknowledgment struct {
+	ID              uuid.UUID
+	DocumentID      uuid.UUID
+	DocumentKind    string
+	DocumentNumber  string
+	DocumentDate    time.Time
+	DocumentContent string
+	Content         string
+	CreatedAt       time.Time
+}
+
+// WorkspaceDocument is a bounded document preview under server-resolved read scopes.
+type WorkspaceDocument struct {
 	ID             uuid.UUID
-	DocumentID     uuid.UUID
 	DocumentKind   string
 	DocumentNumber string
-	Content        string
-	CreatedAt      time.Time
+	DocumentDate   time.Time
+	RegisteredAt   time.Time
+	Description    string
+	Correspondents []string
 }

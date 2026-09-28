@@ -118,7 +118,7 @@ func (r *WorkspaceRepository) AcknowledgmentSummary(query models.WorkspaceQuery)
 	if limit < 1 || limit > 20 {
 		limit = 5
 	}
-	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number,
+	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number, d.registration_date, d.content,
 		a.content, a.created_at`+from+` ORDER BY a.created_at DESC, a.id LIMIT `+fmt.Sprint(limit), args...)
 	if err != nil {
 		return 0, nil, err
@@ -129,7 +129,7 @@ func (r *WorkspaceRepository) AcknowledgmentSummary(query models.WorkspaceQuery)
 		var item models.WorkspaceAcknowledgment
 		var number sql.NullString
 		if err := rows.Scan(&item.ID, &item.DocumentID, &item.DocumentKind, &number,
-			&item.Content, &item.CreatedAt); err != nil {
+			&item.DocumentDate, &item.DocumentContent, &item.Content, &item.CreatedAt); err != nil {
 			return 0, nil, err
 		}
 		item.DocumentNumber = number.String
@@ -160,7 +160,7 @@ func (r *WorkspaceRepository) ListAcknowledgments(queries []models.WorkspaceQuer
 		return nil, err
 	}
 	limitIdx := len(args) + 1
-	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number,
+	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number, d.registration_date, d.content,
 		a.content, a.created_at`+from+fmt.Sprintf(` ORDER BY a.created_at DESC, a.id LIMIT $%d OFFSET $%d`, limitIdx, limitIdx+1), append(args, pageSize, (page-1)*pageSize)...)
 	if err != nil {
 		return nil, err
@@ -171,7 +171,7 @@ func (r *WorkspaceRepository) ListAcknowledgments(queries []models.WorkspaceQuer
 		var item models.WorkspaceAcknowledgment
 		var number sql.NullString
 		if err := rows.Scan(&item.ID, &item.DocumentID, &item.DocumentKind, &number,
-			&item.Content, &item.CreatedAt); err != nil {
+			&item.DocumentDate, &item.DocumentContent, &item.Content, &item.CreatedAt); err != nil {
 			return nil, err
 		}
 		item.DocumentNumber = number.String

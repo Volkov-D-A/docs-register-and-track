@@ -367,6 +367,7 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/documents/{id}/links", api.requireSession(http.HandlerFunc(api.listDocumentLinks)))
 	mux.Handle("GET /api/v1/documents/{id}/link-graph", api.requireSession(http.HandlerFunc(api.getDocumentLinkGraph)))
 	mux.Handle("GET /api/v1/documents/{id}/journal", api.requireSession(http.HandlerFunc(api.getDocumentJournal)))
+	mux.Handle("GET /api/v1/workspace/documents", api.requireSession(http.HandlerFunc(api.getWorkspaceDocuments)))
 	mux.Handle("GET /api/v1/workspace/overview", api.requireSession(http.HandlerFunc(api.getWorkspaceOverview)))
 	mux.Handle("GET /api/v1/workspace/acknowledgments", api.requireSession(http.HandlerFunc(api.listWorkspaceAcknowledgments)))
 	mux.Handle("GET /api/v1/statistics/documents", api.requireSession(http.HandlerFunc(api.getDocumentStatistics)))

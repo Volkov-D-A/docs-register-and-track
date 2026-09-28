@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { App, Button, Card, Drawer, List, Pagination, Radio, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
+import { App, Button, Card, Drawer, Pagination, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
 import type { TableProps } from 'antd';
-import { CheckCircleOutlined, ClockCircleOutlined, FileAddOutlined, FileDoneOutlined, FileTextOutlined, InboxOutlined, MessageOutlined, PlayCircleOutlined, ReloadOutlined, RightOutlined, SendOutlined, WarningOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ClockCircleOutlined, FileAddOutlined, FileDoneOutlined, FileTextOutlined, InboxOutlined, MessageOutlined, PlayCircleOutlined, RightOutlined, SendOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { dto } from '../../wailsjs/go/models';
 import { GetOverview, ListAcknowledgments } from '../../wailsjs/go/services/WorkspaceService';
 import { GetCurrentUserEvents } from '../../wailsjs/go/services/UserEventService';
 import { models } from '../../wailsjs/go/models';
 import DocumentViewModal from '../components/DocumentViewModal';
+import WorkspaceEventTimeline from '../components/WorkspaceEventTimeline';
+import RecentDocumentsPanel from '../components/RecentDocumentsPanel';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import type { DocumentKindMeta } from '../constants/documentKinds';
 import { useAuthStore } from '../store/useAuthStore';
@@ -49,22 +51,16 @@ const assignmentStatuses: Record<string, { label: string; color: string }> = {
     completed: { label: 'Ожидает приёмки', color: 'green' },
 };
 
-const modeOptions = [
-    { label: 'Исполнение', value: 'execution' },
-    { label: 'Контроль', value: 'control' },
-];
-
 const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpenRegister }) => {
     const { message } = App.useApp();
     const user = useAuthStore((state) => state.user);
     const userId = user?.id;
     const { ready, registrationKinds } = useCurrentAccessSummary();
-    const [assignmentMode, setAssignmentMode] = useState<WorkMode | ''>('');
-    const [acknowledgmentMode, setAcknowledgmentMode] = useState<WorkMode | ''>('');
+    const [workMode, setWorkMode] = useState<WorkMode | ''>('');
     const [overview, setOverview] = useState<dto.WorkspaceOverview | null>(null);
-    const [loading, setLoading] = useState(false);
     const [currentTime, setCurrentTime] = useState(() => new Date());
     const [overviewError, setOverviewError] = useState('');
+    const [documentsRefreshVersion, setDocumentsRefreshVersion] = useState(0);
     const [document, setDocument] = useState<{ id: string; kind: string } | null>(null);
     const [ackListOpen, setAckListOpen] = useState(false);
     const [ackPage, setAckPage] = useState(1);
@@ -91,20 +87,26 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
     }, []);
 
     useEffect(() => {
-        setAssignmentMode('');
-        setAcknowledgmentMode('');
+        setWorkMode('');
+        setDocument(null);
         setOverview(null);
         setOverviewError('');
         setAckListOpen(false);
+        setAckPage(1);
+        setAckItems([]);
+        setAckTotal(0);
+        setAckLoading(false);
         setEvents([]);
         overviewRequest.current.invalidate();
         acknowledgmentsRequest.current.invalidate();
         eventsRequest.current.invalidate();
     }, [userId]);
 
+    const assignmentMode = workMode && overview?.assignmentModes.includes(workMode) ? workMode : '';
+    const acknowledgmentMode = workMode && overview?.acknowledgmentModes.includes(workMode) ? workMode : '';
+
     const loadOverview = useCallback(() => {
         if (!ready || !userId) return Promise.resolve();
-        setLoading(true);
         return overviewRequest.current.refresh(() => GetOverview(assignmentMode, acknowledgmentMode), {
             onSuccess: (result) => { setOverview(result); setOverviewError(''); },
             onError: (error) => {
@@ -112,12 +114,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
                 setOverview(null);
                 setOverviewError(text);
                 if (normalizeAppError(error).code === 'FORBIDDEN') {
-                    setAssignmentMode('');
-                    setAcknowledgmentMode('');
+                    setWorkMode('');
                 }
                 message.error(text);
             },
-            onSettled: () => setLoading(false),
         });
     }, [ready, userId, assignmentMode, acknowledgmentMode, message]);
 
@@ -129,33 +129,62 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
         });
     }, [ready, userId]);
 
-    useEffect(() => {
-        void loadOverview();
-        void loadEvents();
-    }, [loadOverview, loadEvents]);
-
-    useEffect(() => onAssignmentsChanged(() => { void loadOverview(); }), [loadOverview]);
-    useEffect(() => onServerEvent((event) => {
-        if (event.topic === 'user-events' || event.topic === 'resync') {
-            void loadOverview();
-            void loadEvents();
-        }
-    }), [loadOverview, loadEvents]);
-
-    useEffect(() => {
-        if (!ackListOpen || !overview?.acknowledgmentMode) return;
+    const loadAcknowledgments = useCallback(() => {
+        if (!ackListOpen || !ready || !userId || !overview?.acknowledgmentMode) return Promise.resolve();
         setAckLoading(true);
-        void acknowledgmentsRequest.current.refresh(
+        return acknowledgmentsRequest.current.refresh(
             () => ListAcknowledgments(overview.acknowledgmentMode, ackPage, 10), {
                 onSuccess: (result) => {
                     setAckItems(result?.items || []);
                     setAckTotal(result?.totalCount || 0);
                 },
-                onError: (error) => message.error(formatAppError(error, 'Не удалось загрузить ознакомления')),
+                onError: (error) => {
+                    setAckItems([]);
+                    setAckTotal(0);
+                    message.error(formatAppError(error, 'Не удалось загрузить ознакомления'));
+                },
                 onSettled: () => setAckLoading(false),
             },
         );
-    }, [ackListOpen, ackPage, overview?.acknowledgmentMode, overview?.acknowledgmentCount, message]);
+    }, [ackListOpen, ready, userId, ackPage, overview?.acknowledgmentMode, message]);
+
+    useEffect(() => {
+        void loadOverview();
+        void loadEvents();
+    }, [loadOverview, loadEvents]);
+
+    useEffect(() => { void loadAcknowledgments(); }, [loadAcknowledgments, overview?.acknowledgmentCount]);
+    useEffect(() => onAssignmentsChanged(() => { void loadOverview(); }), [loadOverview]);
+    useEffect(() => onServerEvent((event) => {
+        if (event.topic === 'documents' || event.topic === 'user-events' || event.topic === 'resync') {
+            void loadOverview();
+            void loadEvents();
+            void loadAcknowledgments();
+        }
+    }), [loadOverview, loadEvents, loadAcknowledgments]);
+
+    useEffect(() => {
+        let timer: number | undefined;
+        const onResume = () => {
+            window.clearTimeout(timer);
+            if (window.document.visibilityState === 'hidden') return;
+            // Focus and visibility events can arrive together after restoring the window.
+            timer = window.setTimeout(() => {
+                setCurrentTime(new Date());
+                void loadOverview();
+                void loadEvents();
+                void loadAcknowledgments();
+                setDocumentsRefreshVersion((version) => version + 1);
+            }, 150);
+        };
+        window.addEventListener('focus', onResume);
+        window.document.addEventListener('visibilitychange', onResume);
+        return () => {
+            window.clearTimeout(timer);
+            window.removeEventListener('focus', onResume);
+            window.document.removeEventListener('visibilitychange', onResume);
+        };
+    }, [loadOverview, loadEvents, loadAcknowledgments]);
 
     useEffect(() => () => {
         overviewRequest.current.invalidate();
@@ -163,14 +192,22 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
         eventsRequest.current.invalidate();
     }, []);
 
-    const activeAssignmentMode = overview?.assignmentMode as WorkMode | undefined;
-    const activeAcknowledgmentMode = overview?.acknowledgmentMode as WorkMode | undefined;
+    const availableModes = (['execution', 'control'] as WorkMode[]).filter((mode) =>
+        overview?.assignmentModes.includes(mode) || overview?.acknowledgmentModes.includes(mode));
+    const activeWorkMode = availableModes.includes(workMode as WorkMode) ? workMode : availableModes[0];
+    const activeAssignmentMode = overview?.assignmentMode === activeWorkMode ? activeWorkMode : undefined;
+    const activeAcknowledgmentMode = overview?.acknowledgmentMode === activeWorkMode ? activeWorkMode : undefined;
+    const changeWorkMode = (mode: WorkMode) => {
+        setWorkMode(mode);
+        setAckPage(1);
+        setAckListOpen(false);
+    };
     const openAcknowledgments = () => {
         setAckPage(1);
         setAckListOpen(true);
     };
     const openDocument = (id: string, kind: string) => setDocument({ id, kind });
-    const acknowledgmentTitle = activeAcknowledgmentMode === 'control' ? 'Контроль ознакомлений' : 'Мои ознакомления';
+    const acknowledgmentTitle = `Ознакомления ( ${activeAcknowledgmentMode === 'control' ? 'контроль' : 'исполнение'} )`;
     const counts = overview?.assignmentCounts;
     const assignmentColumns: TableProps<dto.WorkspaceAssignment>['columns'] = [
         {
@@ -202,20 +239,54 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
         },
     ];
 
-    if (!ready || (loading && !overview)) {
+    const acknowledgmentColumns: TableProps<dto.WorkspaceAcknowledgment>['columns'] = [
+        {
+            title: 'Документ', key: 'document', width: 190,
+            render: (_: unknown, item) => (
+                <div>
+                    <div>{item.documentNumber || '—'}</div>
+                    <Text type="secondary">{item.documentDate ? dayjs(item.documentDate).format('DD.MM.YYYY') : '—'}</Text>
+                </div>
+            ),
+        },
+        { title: 'Содержание', dataIndex: 'documentContent', key: 'documentContent' },
+        { title: 'Резолюция', dataIndex: 'content', key: 'content' },
+        {
+            title: 'Действие', key: 'action', width: 100,
+            render: (_: unknown, item) => (
+                <Button type="link" onClick={() => openDocument(item.documentId, item.documentKind)}>Открыть</Button>
+            ),
+        },
+    ];
+
+    if (!ready || (!overview && !overviewError)) {
         return <div style={{ textAlign: 'center', padding: 48 }}><Spin size="large" /></div>;
     }
 
     return (
-        <div style={{ padding: 8 }}>
-            <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div className="workspace-dashboard">
+            <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div>
-                    <Title level={4} style={{ margin: 0 }}>{workspaceGreeting(currentTime, user)}</Title>
+                    <div className="workspace-heading">
+                        <Title level={4} style={{ margin: 0 }}>{workspaceGreeting(currentTime, user)}</Title>
+                        {availableModes.length > 1 && (
+                            <span className="workspace-modes" role="group" aria-label="Режим рабочего стола">
+                                {'( '}
+                                <Button type="link" size="small" aria-pressed={activeWorkMode === 'execution'}
+                                    className={`workspace-mode-link${activeWorkMode === 'execution' ? ' workspace-mode-link--active' : ''}`}
+                                    onClick={() => changeWorkMode('execution')}>исполнение</Button>
+                                {' \\ '}
+                                <Button type="link" size="small" aria-pressed={activeWorkMode === 'control'}
+                                    className={`workspace-mode-link${activeWorkMode === 'control' ? ' workspace-mode-link--active' : ''}`}
+                                    onClick={() => changeWorkMode('control')}>контроль</Button>
+                                {' )'}
+                            </span>
+                        )}
+                    </div>
                     <Text type="secondary">{workspaceDate(currentTime)}</Text>
                 </div>
-                <Button icon={<ReloadOutlined />} loading={loading} onClick={() => { void loadOverview(); void loadEvents(); }}>Обновить</Button>
             </Space>
-            {overviewError && <Card style={{ marginBottom: 16 }}><Text type="danger">{overviewError}</Text></Card>}
+            {overviewError && <Card style={{ marginBottom: 12 }} extra={<Button onClick={() => { void loadOverview(); }}>Повторить</Button>}><Text type="danger">{overviewError}</Text></Card>}
             <div className={`workspace-overview-row${!(activeAssignmentMode || activeAcknowledgmentMode) ? ' workspace-overview-row--right-only' : ''}`}>
                 {(activeAssignmentMode || activeAcknowledgmentMode) && (
                     <div className="workspace-work-column">
@@ -242,22 +313,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
                                         ))}
                                     </div>
                                 </Card>
-                                <Card title={<Space>
-                                    <span>Поручения</span>
-                                    {overview && overview.assignmentModes.length > 1 ? (
-                                        <span className="workspace-assignment-modes">
-                                            {'( '}
-                                            <Button type="link" size="small" aria-pressed={activeAssignmentMode === 'execution'}
-                                                className={`workspace-assignment-mode-link${activeAssignmentMode === 'execution' ? ' workspace-assignment-mode-link--active' : ''}`}
-                                                onClick={() => setAssignmentMode('execution')}>исполнение</Button>
-                                            {' \\ '}
-                                            <Button type="link" size="small" aria-pressed={activeAssignmentMode === 'control'}
-                                                className={`workspace-assignment-mode-link${activeAssignmentMode === 'control' ? ' workspace-assignment-mode-link--active' : ''}`}
-                                                onClick={() => setAssignmentMode('control')}>контроль</Button>
-                                            {' )'}
-                                        </span>
-                                    ) : <Text type="secondary">( {activeAssignmentMode === 'control' ? 'контроль' : 'исполнение'} )</Text>}
-                                </Space>} extra={
+                                <Card title="Поручения" extra={
                                     <Button type="link" onClick={() => onOpenAssignments(activeAssignmentMode)}>Все поручения</Button>
                                 }>
                                     <Table<dto.WorkspaceAssignment> columns={assignmentColumns} dataSource={overview?.assignments || []}
@@ -267,16 +323,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
                             </>
                         )}
                         {activeAcknowledgmentMode && (
-                            <Card title={acknowledgmentTitle} extra={overview && overview.acknowledgmentModes.length > 1 && (
-                                <Radio.Group size="small" options={modeOptions} value={activeAcknowledgmentMode}
-                                    onChange={(event) => { setAcknowledgmentMode(event.target.value as WorkMode); setAckPage(1); }} />
-                            )}>
-                                <Button type="link" onClick={openAcknowledgments}>Ожидают внимания: {overview?.acknowledgmentCount || 0}</Button>
-                                <List dataSource={overview?.acknowledgments || []} locale={{ emptyText: 'Актуальных ознакомлений нет' }}
-                                    renderItem={(item) => <List.Item actions={[<Button key="open" type="link" onClick={() => openDocument(item.documentId, item.documentKind)}>Открыть</Button>]}>
-                                        <List.Item.Meta title={item.content || 'Ознакомление'} description={item.documentNumber || 'Документ без номера'} />
-                                    </List.Item>} />
-                                <Button type="link" onClick={openAcknowledgments}>Все ознакомления</Button>
+                            <Card title="Ознакомления" extra={<Button type="link" onClick={openAcknowledgments}>Все ознакомления</Button>}>
+                                <Table<dto.WorkspaceAcknowledgment> columns={acknowledgmentColumns} dataSource={overview?.acknowledgments || []}
+                                    rowKey="id" size="small" pagination={false} scroll={{ x: 800 }}
+                                    locale={{ emptyText: 'Актуальных ознакомлений нет' }} />
                             </Card>
                         )}
                     </div>
@@ -303,22 +353,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
                                 }]} />
                         </Card>
                     )}
-                    <Card title="Новое для меня">
-                        <List dataSource={events} locale={{ emptyText: 'Новых событий нет' }}
-                            renderItem={(item) => <List.Item actions={[<Button key="open" type="link" onClick={() => openDocument(item.documentId, item.documentKind)}>Открыть</Button>]}>
-                                <List.Item.Meta title={item.title} description={item.message} />
-                            </List.Item>} />
+                    <Card title="Новое для меня" className="workspace-events-panel">
+                        <WorkspaceEventTimeline events={events} currentTime={currentTime} onOpenDocument={openDocument} />
                     </Card>
+                    {userId && <RecentDocumentsPanel key={userId} refreshVersion={documentsRefreshVersion} onOpenDocument={openDocument} />}
                 </div>
             </div>
-            <Drawer title={acknowledgmentTitle} open={ackListOpen} width={640} onClose={() => setAckListOpen(false)}>
-                <List loading={ackLoading} dataSource={ackItems} locale={{ emptyText: 'Ознакомлений нет' }}
-                    renderItem={(item) => <List.Item actions={[<Button key="open" type="link" onClick={() => openDocument(item.documentId, item.documentKind)}>Открыть</Button>]}>
-                        <List.Item.Meta title={item.content || 'Ознакомление'} description={item.documentNumber || 'Документ без номера'} />
-                    </List.Item>} />
+            <Drawer title={acknowledgmentTitle} open={ackListOpen} width={960} onClose={() => setAckListOpen(false)}>
+                <Table<dto.WorkspaceAcknowledgment> columns={acknowledgmentColumns} dataSource={ackItems}
+                    loading={ackLoading} rowKey="id" size="small" pagination={false} scroll={{ x: 800 }}
+                    locale={{ emptyText: 'Ознакомлений нет' }} />
                 <Pagination current={ackPage} pageSize={10} total={ackTotal} onChange={setAckPage} style={{ marginTop: 16 }} />
             </Drawer>
-            <DocumentViewModal open={!!document} onCancel={() => setDocument(null)} documentId={document?.id || ''}
+            <DocumentViewModal open={!!document} onCancel={() => { setDocument(null); setDocumentsRefreshVersion((version) => version + 1); }} documentId={document?.id || ''}
                 documentKind={document?.kind || ''} onAssignmentsChanged={loadOverview} onAcknowledgmentsChanged={loadOverview} />
         </div>
     );

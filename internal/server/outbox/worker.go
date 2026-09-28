@@ -23,17 +23,20 @@ type FileDeleter interface {
 
 type Worker struct {
 	// OnUserEvent is configured before Run and called after durable delivery.
-	OnUserEvent       func(string)
-	outbox            *repository.OutboxRepository
-	events            *repository.UserEventRepository
-	journal           *repository.JournalRepository
-	audit             *repository.AdminAuditLogRepository
-	attachments       *repository.AttachmentRepository
-	storage           FileDeleter
-	lastRequiredAudit models.RequiredAuditStats
-	metrics           *observability.Registry
-	now               func() time.Time
-	options           Options
+	OnUserEvent func(string)
+	// OnDocumentsChanged sends payload-free invalidation after journal/audit delivery.
+	// These effects cover document changes and changes to read capabilities.
+	OnDocumentsChanged func()
+	outbox             *repository.OutboxRepository
+	events             *repository.UserEventRepository
+	journal            *repository.JournalRepository
+	audit              *repository.AdminAuditLogRepository
+	attachments        *repository.AttachmentRepository
+	storage            FileDeleter
+	lastRequiredAudit  models.RequiredAuditStats
+	metrics            *observability.Registry
+	now                func() time.Time
+	options            Options
 }
 
 const (
@@ -284,13 +287,21 @@ func (w *Worker) process(parent context.Context, event models.OutboxEvent) error
 		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
 			return fmt.Errorf("invalid journal payload: %w", err)
 		}
-		return w.journal.CreateFromOutbox(ctx, payload, event.DeduplicationKey)
+		err := w.journal.CreateFromOutbox(ctx, payload, event.DeduplicationKey)
+		if err == nil && w.OnDocumentsChanged != nil {
+			w.OnDocumentsChanged()
+		}
+		return err
 	case models.OutboxEventAudit:
 		var payload models.CreateAdminAuditLogRequest
 		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
 			return fmt.Errorf("invalid admin_audit payload: %w", err)
 		}
-		return w.audit.CreateFromOutbox(payload, event.DeduplicationKey)
+		err := w.audit.CreateFromOutbox(payload, event.DeduplicationKey)
+		if err == nil && w.OnDocumentsChanged != nil {
+			w.OnDocumentsChanged()
+		}
+		return err
 	case models.OutboxEventFileDelete:
 		if w.storage == nil || w.attachments == nil {
 			return fmt.Errorf("attachment deletion consumer is not configured")

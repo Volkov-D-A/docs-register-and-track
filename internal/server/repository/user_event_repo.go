@@ -69,8 +69,9 @@ func (r *UserEventRepository) GetList(userID uuid.UUID, filter models.UserEventF
 			e.document_id, e.document_kind, e.document_number,
 			e.entity_type, e.event_type,
 			e.title, e.message,
-			e.created_at, e.read_at
+			e.created_at, e.read_at, d.registration_date
 		FROM user_events e
+		LEFT JOIN documents d ON d.id = e.document_id
 		%s
 		ORDER BY e.created_at DESC
 		LIMIT $2 OFFSET $3
@@ -161,7 +162,7 @@ type userEventScanner interface {
 func scanUserEvent(scanner userEventScanner) (*models.UserEvent, error) {
 	var event models.UserEvent
 	var documentNumber sql.NullString
-	var readAt sql.NullTime
+	var readAt, documentDate sql.NullTime
 
 	err := scanner.Scan(
 		&event.ID,
@@ -175,6 +176,7 @@ func scanUserEvent(scanner userEventScanner) (*models.UserEvent, error) {
 		&event.Message,
 		&event.CreatedAt,
 		&readAt,
+		&documentDate,
 	)
 	if err != nil {
 		return nil, err
@@ -182,6 +184,9 @@ func scanUserEvent(scanner userEventScanner) (*models.UserEvent, error) {
 
 	if documentNumber.Valid {
 		event.DocumentNumber = documentNumber.String
+	}
+	if documentDate.Valid {
+		event.DocumentDate = &documentDate.Time
 	}
 	if readAt.Valid {
 		event.ReadAt = &readAt.Time

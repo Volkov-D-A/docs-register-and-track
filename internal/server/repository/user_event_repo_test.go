@@ -52,8 +52,9 @@ func TestUserEventRepository_GetList(t *testing.T) {
 			e.document_id, e.document_kind, e.document_number,
 			e.entity_type, e.event_type,
 			e.title, e.message,
-			e.created_at, e.read_at
+			e.created_at, e.read_at, d.registration_date
 		FROM user_events e
+		LEFT JOIN documents d ON d.id = e.document_id
 		WHERE e.recipient_user_id = $1 AND e.read_at IS NULL
 		ORDER BY e.created_at DESC
 		LIMIT $2 OFFSET $3`
@@ -71,6 +72,7 @@ func TestUserEventRepository_GetList(t *testing.T) {
 			"Исполнитель отправил поручение",
 			now,
 			nil,
+			now,
 		))
 
 	result, err := repo.GetList(userID, models.UserEventFilter{UnreadOnly: true, Page: 2, PageSize: 10})
@@ -80,6 +82,7 @@ func TestUserEventRepository_GetList(t *testing.T) {
 	assert.Equal(t, 2, result.Page)
 	require.Len(t, result.Items, 1)
 	assert.Equal(t, models.UserEventAssignmentCompleted, result.Items[0].EventType)
+	assert.Equal(t, &now, result.Items[0].DocumentDate)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -134,5 +137,6 @@ func userEventColumns() []string {
 		"message",
 		"created_at",
 		"read_at",
+		"registration_date",
 	}
 }

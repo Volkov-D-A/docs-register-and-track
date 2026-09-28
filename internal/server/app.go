@@ -119,6 +119,7 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 	}
 	worker.SetMetrics(metrics)
 	worker.OnUserEvent = func(userID string) { events.Publish("user:" + userID) }
+	worker.OnDocumentsChanged = func() { events.Publish("documents") }
 	listenAddress := strings.TrimSpace(cfg.Server.ListenAddress)
 	if listenAddress == "" {
 		listenAddress = ":8080"

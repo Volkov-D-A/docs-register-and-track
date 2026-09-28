@@ -56,6 +56,8 @@ func (api *managementAPI) sessionEvents(w http.ResponseWriter, r *http.Request) 
 	userID := auth.User.ID
 	users, stopUsers := api.events.Subscribe("user:" + userID.String())
 	defer stopUsers()
+	documents, stopDocuments := api.events.Subscribe("documents")
+	defer stopDocuments()
 	backups, stopBackups := api.events.Subscribe("backups")
 	defer stopBackups()
 	beginEvents(w)
@@ -71,6 +73,8 @@ func (api *managementAPI) sessionEvents(w http.ResponseWriter, r *http.Request) 
 			return
 		case <-users:
 			topic = "user-events"
+		case <-documents:
+			topic = "documents"
 		case <-backups:
 			topic = "backups"
 		case <-ticker.C:

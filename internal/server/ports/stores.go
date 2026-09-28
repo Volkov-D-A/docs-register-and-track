@@ -172,6 +172,7 @@ type UserEventStore interface {
 
 // WorkspaceStore reads counts and bounded previews under server-resolved scopes.
 type WorkspaceStore interface {
+	RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope) ([]models.WorkspaceDocument, error)
 	AssignmentSummary(models.WorkspaceQuery) (models.WorkspaceAssignmentCounts, []models.WorkspaceAssignment, error)
 	AcknowledgmentSummary(models.WorkspaceQuery) (int, []models.WorkspaceAcknowledgment, error)
 	ListAcknowledgments([]models.WorkspaceQuery, int, int) (*models.PagedResult[models.WorkspaceAcknowledgment], error)

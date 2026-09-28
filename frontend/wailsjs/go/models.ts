@@ -1605,6 +1605,8 @@ export namespace dto {
 	    documentId: string;
 	    documentKind: string;
 	    documentNumber?: string;
+	    // Go type: time
+	    documentDate?: any;
 	    entityType: string;
 	    eventType: string;
 	    title: string;
@@ -1624,6 +1626,7 @@ export namespace dto {
 	        this.documentId = source["documentId"];
 	        this.documentKind = source["documentKind"];
 	        this.documentNumber = source["documentNumber"];
+	        this.documentDate = this.convertValues(source["documentDate"], null);
 	        this.entityType = source["entityType"];
 	        this.eventType = source["eventType"];
 	        this.title = source["title"];
@@ -1695,6 +1698,9 @@ export namespace dto {
 	    documentId: string;
 	    documentKind: string;
 	    documentNumber?: string;
+	    // Go type: time
+	    documentDate: any;
+	    documentContent: string;
 	    content: string;
 	    // Go type: time
 	    createdAt: any;
@@ -1709,6 +1715,8 @@ export namespace dto {
 	        this.documentId = source["documentId"];
 	        this.documentKind = source["documentKind"];
 	        this.documentNumber = source["documentNumber"];
+	        this.documentDate = this.convertValues(source["documentDate"], null);
+	        this.documentContent = source["documentContent"];
 	        this.content = source["content"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	    }
@@ -1893,6 +1901,82 @@ export namespace dto {
 	        this.dueSoon = source["dueSoon"];
 	        this.awaitingAcceptance = source["awaitingAcceptance"];
 	    }
+	}
+	export class WorkspaceDocument {
+	    id: string;
+	    documentKind: string;
+	    documentNumber: string;
+	    // Go type: time
+	    documentDate: any;
+	    // Go type: time
+	    registeredAt: any;
+	    description: string;
+	    correspondents: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkspaceDocument(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.documentKind = source["documentKind"];
+	        this.documentNumber = source["documentNumber"];
+	        this.documentDate = this.convertValues(source["documentDate"], null);
+	        this.registeredAt = this.convertValues(source["registeredAt"], null);
+	        this.description = source["description"];
+	        this.correspondents = source["correspondents"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class WorkspaceDocuments {
+	    available: boolean;
+	    items: WorkspaceDocument[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkspaceDocuments(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.items = this.convertValues(source["items"], WorkspaceDocument);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class WorkspaceOverview {
 	    assignmentModes: string[];

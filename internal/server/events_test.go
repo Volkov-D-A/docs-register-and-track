@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -132,4 +132,31 @@ func TestSessionEventsRevalidateSessionBeforeDelivery(t *testing.T) {
 	api.Handler().ServeHTTP(w, req)
 	require.Contains(t, recorder.Body.String(), "event: resync")
 	require.NotContains(t, recorder.Body.String(), "event: user-events")
+}
+
+func TestSessionEventsDeliverDocumentInvalidationWithoutDocumentData(t *testing.T) {
+	user := &models.User{ID: uuid.New(), IsActive: true}
+	hash := sha256.Sum256([]byte("secret"))
+	sessions := &fakeAuthSessions{hash: hash[:], session: &models.ServerSession{UserID: user.ID}}
+	api := &managementAPI{events: &liveevents.Bus{}, authUsers: &fakeAuthUsers{user: user}, sessions: sessions}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/events", nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer secret")
+	recorder := httptest.NewRecorder()
+	writer := &eventTestWriter{ResponseRecorder: recorder}
+	flushes := 0
+	writer.onFlush = func() {
+		flushes++
+		if flushes == 1 {
+			api.events.Publish("documents")
+		} else {
+			cancel()
+		}
+	}
+	timer := time.AfterFunc(time.Second, cancel)
+	defer timer.Stop()
+	api.Handler().ServeHTTP(writer, req)
+	require.Contains(t, recorder.Body.String(), "event: documents\ndata: null")
+	require.NotContains(t, recorder.Body.String(), user.ID.String())
 }

@@ -119,3 +119,24 @@ func TestRequestPrincipalChecksSessionPermissions(t *testing.T) {
 	assert.True(t, principal.HasSystemPermission(models.SystemPermissionStatsDocuments))
 	assert.False(t, principal.HasSystemPermission(models.SystemPermissionStatsSystem))
 }
+
+func (f *fakeWorkspaceAPI) GetRecentDocuments() (*dto.WorkspaceDocuments, error) {
+	return &dto.WorkspaceDocuments{Available: true, Items: []dto.WorkspaceDocument{}}, nil
+}
+
+func TestWorkspaceRecentDocumentsEndpointUsesAuthenticatedPrincipal(t *testing.T) {
+	api, _, token := authenticatedUserAPI(t, nil)
+	var principal uuid.UUID
+	api.workspace = func(user *models.User) workspaceAPI { principal = user.ID; return &fakeWorkspaceAPI{} }
+	unauthorized := httptest.NewRecorder()
+	api.Handler().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/workspace/documents", nil))
+	require.Equal(t, http.StatusUnauthorized, unauthorized.Code)
+	require.Equal(t, uuid.Nil, principal)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workspace/documents", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, req)
+	require.Equal(t, http.StatusOK, response.Code)
+	require.NotEqual(t, uuid.Nil, principal)
+	require.JSONEq(t, `{"available":true,"items":[]}`, response.Body.String())
+}

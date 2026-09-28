@@ -6,6 +6,10 @@ export function GetOverview(arg1, arg2) {
   return window['go']['services']['WorkspaceService']['GetOverview'](arg1, arg2);
 }
 
+export function GetRecentDocuments() {
+  return window['go']['services']['WorkspaceService']['GetRecentDocuments']();
+}
+
 export function ListAcknowledgments(arg1, arg2, arg3) {
   return window['go']['services']['WorkspaceService']['ListAcknowledgments'](arg1, arg2, arg3);
 }
