@@ -32,8 +32,8 @@ func TestAssignmentAPIUsesServerPrincipalAndPersistsCoExecutorsIntegration(t *te
 		login string
 		name  string
 	}{{managerID, "assignment-manager", "Assignment Manager"}, {executorID, "assignment-executor", "Assignment Executor"}, {coExecutorID, "assignment-coexecutor", "Assignment Coexecutor"}} {
-		_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, is_document_participant, password_change_required)
-			VALUES ($1, $2, $3, $4, TRUE, TRUE, FALSE)`, user.id, user.login, hash, user.name)
+		_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, is_document_participant, password_change_required)
+			VALUES ($1, $2, $3, $4, 'User', TRUE, TRUE, TRUE, FALSE)`, user.id, user.login, hash, user.name)
 		require.NoError(t, err)
 	}
 	_, err = db.Exec(`INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed)
@@ -69,9 +69,9 @@ func TestAssignmentAPIUsesServerPrincipalAndPersistsCoExecutorsIntegration(t *te
 	}
 
 	inactiveID, nonparticipantID, unknownID := uuid.New(), uuid.New(), uuid.New()
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, is_document_participant, password_change_required)
-		VALUES ($1, 'assignment-inactive', $3, 'Inactive Executor', FALSE, TRUE, FALSE),
-		       ($2, 'assignment-nonparticipant', $3, 'Nonparticipant Executor', TRUE, FALSE, FALSE)`, inactiveID, nonparticipantID, hash)
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, is_document_participant, password_change_required)
+		VALUES ($1, 'assignment-inactive', $3, 'Inactive', 'Executor', TRUE, FALSE, TRUE, FALSE),
+		       ($2, 'assignment-nonparticipant', $3, 'Nonparticipant', 'Executor', TRUE, TRUE, FALSE, FALSE)`, inactiveID, nonparticipantID, hash)
 	require.NoError(t, err)
 
 	managerToken := login("assignment-manager")

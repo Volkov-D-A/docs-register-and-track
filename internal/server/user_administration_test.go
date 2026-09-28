@@ -129,7 +129,7 @@ func TestUserSubstitutionAPIValidatesAndPersistsSameDepartmentSubstitute(t *test
 	departmentID := uuid.New()
 	users.users[0].IsDocumentParticipant = true
 	users.users[0].DepartmentID = &departmentID
-	substitute := models.User{ID: uuid.New(), Login: "substitute", FullName: "Substitute", IsActive: true, DepartmentID: &departmentID}
+	substitute := models.User{ID: uuid.New(), Login: "substitute", LastName: "Substitute", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true, DepartmentID: &departmentID}
 	users.users = append(users.users, substitute)
 	substitutions := &fakeUserSubstitutionManagementStore{}
 	api.substitutions = substitutions

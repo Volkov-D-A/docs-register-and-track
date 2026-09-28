@@ -17,8 +17,8 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
@@ -236,7 +236,7 @@ func explain(db *sql.DB, query string, args ...any) explainDocument {
 
 func seed(db *sql.DB, count int) uuid.UUID {
 	userID, nomID, orgID := uuid.New(), uuid.New(), uuid.New()
-	mustExec(db, `INSERT INTO users (id, login, password_hash, full_name) VALUES ($1, 'dbperf', 'hash', 'DB Perf')`, userID)
+	mustExec(db, `INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic) VALUES ($1, 'dbperf', 'hash', 'DB', 'Perf', TRUE)`, userID)
 	mustExec(db, `INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode) VALUES ($1, 'Performance', 'PF', 2026, 'outgoing_letter', '/', 'index_and_number')`, nomID)
 	mustExec(db, `INSERT INTO organizations (id, name) VALUES ($1, 'Performance Org')`, orgID)
 	tx, err := db.Begin()

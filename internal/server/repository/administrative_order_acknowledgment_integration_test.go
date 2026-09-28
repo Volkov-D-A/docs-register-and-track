@@ -15,7 +15,7 @@ func TestAdministrativeOrderAcknowledgmentRepeatedMarkerIntegration(t *testing.T
 	sqlDB := integrationdb.Open(t)
 	db := database.Wrap(sqlDB)
 	firstMarker, secondMarker := uuid.New(), uuid.New()
-	execSQL(t, sqlDB, `INSERT INTO users (id, login, password_hash, full_name) VALUES ($1, 'order-first-marker', 'hash', 'First Marker'), ($2, 'order-second-marker', 'hash', 'Second Marker')`, firstMarker, secondMarker)
+	execSQL(t, sqlDB, `INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic) VALUES ($1, 'order-first-marker', 'hash', 'First', 'Marker', TRUE), ($2, 'order-second-marker', 'hash', 'Second', 'Marker', TRUE)`, firstMarker, secondMarker)
 	nomenclatureID, documentID, personID := uuid.New(), uuid.New(), uuid.New()
 	execSQL(t, sqlDB, `INSERT INTO nomenclature (id, name, index, year, kind_code) VALUES ($1, 'Orders', 'ACK', 2026, 'administrative_order')`, nomenclatureID)
 	execSQL(t, sqlDB, `INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date, document_type, content, created_by) VALUES ($1, 'administrative_order', $2, 'ACK/1', '2026-09-01', 'Приказ', 'Order', $3)`, documentID, nomenclatureID, firstMarker)

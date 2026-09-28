@@ -47,7 +47,7 @@ func TestAuthLockAuditUsesOutboxTransaction(t *testing.T) {
 				if outcome != "missing outbox" {
 					repo.SetOutbox(repository.NewOutboxRepository(db))
 				}
-				user := &models.User{ID: uuid.New(), Login: "user", FullName: "Test User", PasswordHash: hash, IsActive: true, FailedLoginAttempts: 4}
+				user := &models.User{ID: uuid.New(), Login: "user", LastName: "Test", FirstName: "User", Patronymic: "", NoPatronymic: true, PasswordHash: hash, IsActive: true, FailedLoginAttempts: 4}
 				attempts := 5
 				if outcome == "already locked" {
 					user.IsActive, user.FailedLoginAttempts, attempts = false, 5, 6
@@ -88,7 +88,7 @@ func TestAuthLockAuditUsesOutboxTransaction(t *testing.T) {
 				require.NoError(t, json.Unmarshal([]byte(users.effect.Payload), &payload))
 				require.Equal(t, "USER_LOCKED", payload.Action)
 				require.Equal(t, user.ID, payload.UserID)
-				require.Equal(t, user.FullName, payload.UserName)
+				require.Equal(t, user.FullName(), payload.UserName)
 				require.NoError(t, sql.ExpectationsWereMet())
 			})
 		}

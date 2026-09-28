@@ -106,7 +106,7 @@ func TestAssignmentSeriesFinishesWithoutNextWhenRecipientsBecomeIneligibleIntegr
 			repo := NewAssignmentRepository(db)
 			repo.SetOutbox(NewOutboxRepository(db))
 			executorID, coExecutorID := uuid.New(), uuid.New()
-			_, err := db.Exec(`INSERT INTO users(id,login,password_hash,full_name,is_active,is_document_participant) VALUES ($1,$2,'hash','Main Executor',TRUE,TRUE),($3,$4,'hash','Coexecutor',TRUE,TRUE)`, executorID, "series-main-"+executorID.String(), coExecutorID, "series-co-"+coExecutorID.String())
+			_, err := db.Exec(`INSERT INTO users(id, login, password_hash, last_name, first_name, no_patronymic, is_active, is_document_participant) VALUES ($1, $2, 'hash', 'Main', 'Executor', TRUE, TRUE, TRUE),($3, $4, 'hash', 'Coexecutor', 'User', TRUE, TRUE, TRUE)`, executorID, "series-main-"+executorID.String(), coExecutorID, "series-co-"+coExecutorID.String())
 			if err != nil {
 				t.Fatal(err)
 			}

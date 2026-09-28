@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
@@ -31,8 +31,8 @@ func TestSettingsAPIPersistsUpdatesWithAuditOutboxIntegration(t *testing.T) {
 	hash, err := security.HashPassword("SettingsPassw0rd!")
 	require.NoError(t, err)
 	userID := uuid.New()
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, password_change_required)
-		VALUES ($1, 'settings-admin', $2, 'Settings Admin', TRUE, FALSE)`, userID, hash)
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required)
+		VALUES ($1, 'settings-admin', $2, 'Settings', 'Admin', TRUE, TRUE, FALSE)`, userID, hash)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES ($1, $2, TRUE)`, userID, models.SystemPermissionAdmin)
 	require.NoError(t, err)

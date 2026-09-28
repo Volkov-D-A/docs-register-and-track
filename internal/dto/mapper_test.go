@@ -21,9 +21,9 @@ func TestMapUser(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		id := uuid.New()
 		m := &models.User{
-			ID:                id,
-			Login:             "test",
-			FullName:          "Test User",
+			ID:       id,
+			Login:    "test",
+			LastName: "Test", FirstName: "User", Patronymic: "", NoPatronymic: true,
 			IsActive:          true,
 			SystemPermissions: []string{"admin"},
 		}
@@ -31,6 +31,10 @@ func TestMapUser(t *testing.T) {
 		assert.Equal(t, id.String(), d.ID)
 		assert.Equal(t, "test", d.Login)
 		assert.Equal(t, "Test User", d.FullName)
+		assert.Equal(t, "Test", d.LastName)
+		assert.Equal(t, "User", d.FirstName)
+		assert.Empty(t, d.Patronymic)
+		assert.True(t, d.NoPatronymic)
 		assert.True(t, d.IsActive)
 		payload, err := json.Marshal(d)
 		require.NoError(t, err)
@@ -174,7 +178,7 @@ func TestMapAssignment(t *testing.T) {
 
 	t.Run("success with co-executors", func(t *testing.T) {
 		id := uuid.New()
-		coExec := models.User{ID: uuid.New(), Login: "co", FullName: "CoExec"}
+		coExec := models.User{ID: uuid.New(), Login: "co", LastName: "CoExec", FirstName: "User", Patronymic: "", NoPatronymic: true}
 		m := &models.Assignment{
 			ID:          id,
 			DocumentID:  uuid.New(),
@@ -186,7 +190,7 @@ func TestMapAssignment(t *testing.T) {
 		d := MapAssignment(m)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Len(t, d.CoExecutors, 1)
-		assert.Equal(t, "CoExec", d.CoExecutors[0].FullName)
+		assert.Equal(t, "CoExec User", d.CoExecutors[0].FullName)
 	})
 }
 

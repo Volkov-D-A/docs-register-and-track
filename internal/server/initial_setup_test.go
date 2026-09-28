@@ -16,16 +16,17 @@ import (
 )
 
 type fakeInitialSetupStore struct {
-	count int
-	hash  string
+	count   int
+	hash    string
+	request models.InitialSetupRequest
 }
 
 func (s *fakeInitialSetupStore) CountUsers() (int, error) { return s.count, nil }
-func (s *fakeInitialSetupStore) CreateInitialAdmin(hash string) error {
+func (s *fakeInitialSetupStore) CreateInitialAdmin(hash string, req models.InitialSetupRequest) error {
 	if s.count > 0 {
 		return models.NewConflict("начальная настройка уже выполнена")
 	}
-	s.hash, s.count = hash, 1
+	s.hash, s.count, s.request = hash, 1, req
 	return nil
 }
 
@@ -41,25 +42,30 @@ func TestInitialSetupAPIIsServerOwnedAndOneTime(t *testing.T) {
 	assert.True(t, result["required"])
 
 	setup := httptest.NewRecorder()
-	api.Handler().ServeHTTP(setup, httptest.NewRequest(http.MethodPost, "/api/v1/auth/setup", strings.NewReader(`{"password":"Passw0rd!"}`)))
+	api.Handler().ServeHTTP(setup, httptest.NewRequest(http.MethodPost, "/api/v1/auth/setup", strings.NewReader(`{"lastName":"Иванов","firstName":"Иван","noPatronymic":true,"password":"Passw0rd!"}`)))
 	require.Equal(t, http.StatusNoContent, setup.Code, setup.Body.String())
 	assert.True(t, security.VerifyPassword(store.hash, "Passw0rd!"))
+	assert.Equal(t, "Иванов", store.request.LastName)
+	assert.Equal(t, "Иван", store.request.FirstName)
+	assert.True(t, store.request.NoPatronymic)
 
 	repeated := httptest.NewRecorder()
-	api.Handler().ServeHTTP(repeated, httptest.NewRequest(http.MethodPost, "/api/v1/auth/setup", strings.NewReader(`{"password":"Passw0rd!"}`)))
+	api.Handler().ServeHTTP(repeated, httptest.NewRequest(http.MethodPost, "/api/v1/auth/setup", strings.NewReader(`{"lastName":"Иванов","firstName":"Иван","noPatronymic":true,"password":"Passw0rd!"}`)))
 	assert.Equal(t, http.StatusConflict, repeated.Code)
 }
 
 type failingInitialSetupStore struct{ countErr, createErr error }
 
-func (s failingInitialSetupStore) CountUsers() (int, error)        { return 0, s.countErr }
-func (s failingInitialSetupStore) CreateInitialAdmin(string) error { return s.createErr }
+func (s failingInitialSetupStore) CountUsers() (int, error) { return 0, s.countErr }
+func (s failingInitialSetupStore) CreateInitialAdmin(string, models.InitialSetupRequest) error {
+	return s.createErr
+}
 
 func TestInitialSetupRejectsWeakPasswordAndReportsStorageErrors(t *testing.T) {
 	store := &fakeInitialSetupStore{}
 	api := &managementAPI{initialSetup: store}
 	response := httptest.NewRecorder()
-	api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/auth/setup", strings.NewReader(`{"password":"123"}`)))
+	api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/auth/setup", strings.NewReader(`{"lastName":"Иванов","firstName":"Иван","noPatronymic":true,"password":"123"}`)))
 	require.Equal(t, http.StatusBadRequest, response.Code)
 	require.Zero(t, store.count)
 	require.Empty(t, store.hash)
@@ -68,7 +74,7 @@ func TestInitialSetupRejectsWeakPasswordAndReportsStorageErrors(t *testing.T) {
 		store              initialSetupStore
 	}{
 		{http.MethodGet, "/api/v1/auth/setup-required", "", failingInitialSetupStore{countErr: errors.New("unavailable")}},
-		{http.MethodPost, "/api/v1/auth/setup", `{"password":"Passw0rd!"}`, failingInitialSetupStore{createErr: errors.New("unavailable")}},
+		{http.MethodPost, "/api/v1/auth/setup", `{"lastName":"Иванов","firstName":"Иван","noPatronymic":true,"password":"Passw0rd!"}`, failingInitialSetupStore{createErr: errors.New("unavailable")}},
 	} {
 		api.initialSetup = tc.store
 		response := httptest.NewRecorder()

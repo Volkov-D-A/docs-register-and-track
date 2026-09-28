@@ -16,7 +16,7 @@ vi.mock('../../wailsjs/go/services/AuthService', () => api);
 vi.mock('../../wailsjs/go/services/DocumentKindService', () => api);
 vi.mock('../../wailsjs/runtime/runtime', () => ({ EventsOn: api.EventsOn }));
 
-const user = { id: 'user-1', login: 'user', fullName: 'User', isDocumentParticipant: false, systemPermissions: ['admin'] };
+const user = { id: 'user-1', login: 'user', fullName: 'User Test', lastName: 'User', firstName: 'Test', patronymic: '', noPatronymic: true, isDocumentParticipant: false, systemPermissions: ['admin'] };
 const state = (revision: number, authenticated = false, reason = 'session_invalid') => (
     serverclient.SessionState.createFrom({ revision, authenticated, userId: authenticated ? user.id : '', reason })
 );
@@ -38,6 +38,14 @@ beforeEach(() => {
 });
 
 describe('session invalidation', () => {
+    test('profile stores canonical server names instead of form values', async () => {
+        const updated = { ...user, login: 'renamed', lastName: 'Иванов', firstName: 'Иван', patronymic: '', noPatronymic: true, fullName: 'Иванов Иван' };
+        api.UpdateProfile.mockResolvedValue(updated);
+        await useAuthStore.getState().updateProfile({ login: ' renamed ', lastName: ' Иванов ', firstName: ' Иван ', patronymic: 'ignored', noPatronymic: true });
+        expect(api.UpdateProfile).toHaveBeenCalledWith(expect.objectContaining({ patronymic: '', noPatronymic: true }));
+        expect(useAuthStore.getState().user).toEqual(updated);
+    });
+
     test('event clears authentication, sensitive drafts and access cache; subscription is removed', async () => {
         api.GetCurrentAccessSummary.mockResolvedValue(dto.CurrentAccessSummary.createFrom({}));
         await loadAccessSummary(user.id);
@@ -147,7 +155,7 @@ describe('session invalidation', () => {
     test('old profile result cannot change the new session user', async () => {
         const response = deferred<void>();
         api.UpdateProfile.mockReturnValue(response.promise);
-        const update = useAuthStore.getState().updateProfile('old-login', 'old-name');
+        const update = useAuthStore.getState().updateProfile({ login: 'old-login', lastName: 'Old', firstName: 'Name', patronymic: '', noPatronymic: true });
         useAuthStore.getState().sessionEnded(state(2));
         useAuthStore.setState({ user: { ...user, fullName: 'New session' }, isAuthenticated: true, sessionRevision: 3 });
         response.resolve();

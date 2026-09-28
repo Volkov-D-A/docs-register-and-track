@@ -137,7 +137,7 @@ func (f *fakeAuthSessions) RevokeByTokenHash([]byte, time.Time) error { return n
 func TestAuthLoginCreatesHashedSessionAndBearerAuthenticatesMe(t *testing.T) {
 	hash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
-	user := &models.User{ID: uuid.New(), Login: "admin", PasswordHash: hash, FullName: "Admin", IsActive: true}
+	user := &models.User{ID: uuid.New(), Login: "admin", PasswordHash: hash, LastName: "Admin", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true}
 	sessions := &fakeAuthSessions{}
 	api := &managementAPI{
 		cfg:          &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}},
@@ -180,7 +180,7 @@ func TestAuthMeRejectsMissingBearerToken(t *testing.T) {
 func TestChangeRequiredPasswordUpdatesCredentials(t *testing.T) {
 	oldHash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
-	user := &models.User{ID: uuid.New(), Login: "user", PasswordHash: oldHash, FullName: "User", IsActive: true, PasswordChangeRequired: true}
+	user := &models.User{ID: uuid.New(), Login: "user", PasswordHash: oldHash, LastName: "User", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true, PasswordChangeRequired: true}
 	api := &managementAPI{
 		authUsers:    &fakeAuthUsers{user: user},
 		authSettings: fakeAuthSettings{},
@@ -199,7 +199,7 @@ func TestChangeRequiredPasswordUpdatesCredentials(t *testing.T) {
 func TestChangePasswordUsesBearerSessionAndInvalidatesOldCredentials(t *testing.T) {
 	oldHash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
-	user := &models.User{ID: uuid.New(), Login: "user", PasswordHash: oldHash, FullName: "User", IsActive: true}
+	user := &models.User{ID: uuid.New(), Login: "user", PasswordHash: oldHash, LastName: "User", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true}
 	sessions := &fakeAuthSessions{}
 	api := &managementAPI{
 		cfg:          &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}},

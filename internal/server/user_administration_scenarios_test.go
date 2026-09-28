@@ -116,7 +116,7 @@ func TestUserUpdateReportsLastAdministratorConflict(t *testing.T) {
 	} {
 		api, users, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
 		api.userCommands = failedAdminUpdateStore{users, tc.err}
-		request := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+users.users[0].ID.String(), strings.NewReader(`{"login":"target","fullName":"Target","isActive":false}`))
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+users.users[0].ID.String(), strings.NewReader(`{"login":"target","lastName":"Target","firstName":"User","noPatronymic":true,"isActive":false}`))
 		request.Header.Set("Authorization", "Bearer "+token)
 		response := httptest.NewRecorder()
 		api.Handler().ServeHTTP(response, request)

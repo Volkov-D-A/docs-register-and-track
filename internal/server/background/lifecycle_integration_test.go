@@ -9,9 +9,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
@@ -32,8 +32,8 @@ func TestLifecycleProcessesOutboxAfterMigrationIntegration(t *testing.T) {
 
 	require.NoError(t, db.RunMigrations(database.DefaultMigrationsPath))
 	userID := uuid.New()
-	_, err := db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active)
-		VALUES ($1, $2, 'integration-hash', 'Lifecycle Integration', TRUE)`, userID, "lifecycle_"+uuid.NewString())
+	_, err := db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active)
+		VALUES ($1, $2, 'integration-hash', 'Lifecycle', 'Integration', TRUE, TRUE)`, userID, "lifecycle_"+uuid.NewString())
 	require.NoError(t, err)
 
 	payload, err := json.Marshal(models.CreateAdminAuditLogRequest{

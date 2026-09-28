@@ -128,7 +128,7 @@ func (r *AssignmentRepository) GetAssignmentSeries(id uuid.UUID) (*models.Assign
 		value.CancelledAt = &cancelledAt.Time
 	}
 	rows, err := r.db.Query(`
-		SELECT u.id,u.login,u.full_name
+		SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic
 		FROM assignment_series_co_executors ce JOIN users u ON u.id=ce.user_id
 		WHERE ce.series_id=$1 ORDER BY u.full_name
 	`, id)
@@ -138,7 +138,7 @@ func (r *AssignmentRepository) GetAssignmentSeries(id uuid.UUID) (*models.Assign
 	defer rows.Close()
 	for rows.Next() {
 		var user models.User
-		if err = rows.Scan(&user.ID, &user.Login, &user.FullName); err != nil {
+		if err = rows.Scan(&user.ID, &user.Login, &user.LastName, &user.FirstName, &user.Patronymic, &user.NoPatronymic); err != nil {
 			return nil, err
 		}
 		value.CoExecutors = append(value.CoExecutors, user)
@@ -377,7 +377,7 @@ func (r *AssignmentRepository) GetAssignmentSeriesHistory(seriesID uuid.UUID) ([
 	if err = rows.Err(); err != nil || len(ids) == 0 {
 		return items, err
 	}
-	coRows, err := r.db.Query(`SELECT ce.assignment_id,u.id,u.login,u.full_name FROM assignment_co_executors ce JOIN users u ON u.id=ce.user_id WHERE ce.assignment_id=ANY($1)`, pq.Array(ids))
+	coRows, err := r.db.Query(`SELECT ce.assignment_id,u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic FROM assignment_co_executors ce JOIN users u ON u.id=ce.user_id WHERE ce.assignment_id=ANY($1)`, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func (r *AssignmentRepository) GetAssignmentSeriesHistory(seriesID uuid.UUID) ([
 	for coRows.Next() {
 		var assignmentID uuid.UUID
 		var user models.User
-		if err = coRows.Scan(&assignmentID, &user.ID, &user.Login, &user.FullName); err != nil {
+		if err = coRows.Scan(&assignmentID, &user.ID, &user.Login, &user.LastName, &user.FirstName, &user.Patronymic, &user.NoPatronymic); err != nil {
 			return nil, err
 		}
 		if i, ok := index[assignmentID]; ok {

@@ -46,11 +46,7 @@ type authenticatedRequest struct {
 
 type initialSetupStore interface {
 	CountUsers() (int, error)
-	CreateInitialAdmin(string) error
-}
-
-type initialSetupRequest struct {
-	Password string `json:"password"`
+	CreateInitialAdmin(string, models.InitialSetupRequest) error
 }
 
 func (api *managementAPI) setupRequired(w http.ResponseWriter, _ *http.Request) {
@@ -80,9 +76,13 @@ func (api *managementAPI) initialSetupAdmin(w http.ResponseWriter, r *http.Reque
 		writeUserError(w, models.NewConflict("начальная настройка уже выполнена"))
 		return
 	}
-	var req initialSetupRequest
+	var req models.InitialSetupRequest
 	if err := decodeJSON(r, &req); err != nil || req.Password == "" {
 		writeAPIError(w, http.StatusBadRequest, "invalid_request", errors.New("password is required"))
+		return
+	}
+	if err := req.NormalizeName(); err != nil {
+		writeUserError(w, err)
 		return
 	}
 	if err := security.ValidatePassword(req.Password); err != nil {
@@ -94,7 +94,7 @@ func (api *managementAPI) initialSetupAdmin(w http.ResponseWriter, r *http.Reque
 		writeAPIError(w, http.StatusInternalServerError, "initial_setup_failed", err)
 		return
 	}
-	if err := api.initialSetup.CreateInitialAdmin(hash); err != nil {
+	if err := api.initialSetup.CreateInitialAdmin(hash, req); err != nil {
 		writeUserError(w, err)
 		return
 	}

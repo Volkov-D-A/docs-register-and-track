@@ -32,8 +32,8 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 		login string
 		name  string
 	}{{managerID, "workflow-manager", "Workflow Manager"}, {otherManagerID, "workflow-other-manager", "Other Manager"}, {recipientID, "workflow-recipient", "Workflow Recipient"}, {outsiderID, "workflow-outsider", "Workflow Outsider"}} {
-		_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, is_document_participant, password_change_required)
-			VALUES ($1, $2, $3, $4, TRUE, TRUE, FALSE)`, user.id, user.login, hash, user.name)
+		_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, is_document_participant, password_change_required)
+			VALUES ($1, $2, $3, $4, 'User', TRUE, TRUE, TRUE, FALSE)`, user.id, user.login, hash, user.name)
 		require.NoError(t, err)
 	}
 	_, err = db.Exec(`INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed)
@@ -72,9 +72,9 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 
 	managerToken := login("workflow-manager")
 	inactiveID, nonParticipantID := uuid.New(), uuid.New()
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, is_document_participant)
-		VALUES ($1, 'workflow-inactive', $3, 'Inactive Recipient', FALSE, TRUE),
-		       ($2, 'workflow-non-participant', $3, 'Nonparticipant Recipient', TRUE, FALSE)`, inactiveID, nonParticipantID, hash)
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, is_document_participant)
+		VALUES ($1, 'workflow-inactive', $3, 'Inactive', 'Recipient', TRUE, FALSE, TRUE),
+		       ($2, 'workflow-non-participant', $3, 'Nonparticipant', 'Recipient', TRUE, TRUE, FALSE)`, inactiveID, nonParticipantID, hash)
 	require.NoError(t, err)
 	for _, recipientID := range []uuid.UUID{inactiveID, nonParticipantID, uuid.New()} {
 		body := `{"documentId":"` + document.ID.String() + `","content":"ineligible recipient","userIds":["` + recipientID.String() + `"]}`

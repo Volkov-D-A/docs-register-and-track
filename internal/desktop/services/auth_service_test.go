@@ -45,10 +45,10 @@ func (f *fakeServerAuthClient) ChangeRequiredPassword(context.Context, string, s
 	return nil
 }
 
-func (f *fakeServerAuthClient) UpdateProfile(_ context.Context, req models.UpdateProfileRequest) error {
+func (f *fakeServerAuthClient) UpdateProfile(_ context.Context, req models.UpdateProfileRequest) (*dto.User, error) {
 	f.updateProfileCalls++
 	f.profileRequest = req
-	return nil
+	return f.user, nil
 }
 
 func TestAuthServiceUsesRequiredServerSessionWhenConfigured(t *testing.T) {
@@ -82,9 +82,11 @@ func TestAuthServiceUsesServerForPasswordChangesWhenConfigured(t *testing.T) {
 func TestAuthServiceUsesServerForProfileUpdateWhenConfigured(t *testing.T) {
 	client := &fakeServerAuthClient{user: &dto.User{ID: uuid.NewString(), Login: "server-user", IsActive: true}}
 	service := NewAuthService(client, nil, nil)
-	req := models.UpdateProfileRequest{Login: "renamed", FullName: "Renamed User"}
+	req := models.UpdateProfileRequest{Login: "renamed", LastName: "Renamed", FirstName: "User", Patronymic: "", NoPatronymic: true}
 
-	require.NoError(t, service.UpdateProfile(req))
+	updated, err := service.UpdateProfile(req)
+	require.NoError(t, err)
+	require.Equal(t, client.user, updated)
 
 	assert.Equal(t, 1, client.updateProfileCalls)
 	assert.Equal(t, req, client.profileRequest)
@@ -99,10 +101,11 @@ func TestAuthServiceRequiresServerClient(t *testing.T) {
 	require.ErrorIs(t, NewPrincipal(service).RequireSystemPermission(models.SystemPermissionAdmin), errServerAuthNotConfigured)
 	require.ErrorIs(t, service.ChangePassword("old", "new"), errServerAuthNotConfigured)
 	require.ErrorIs(t, service.ChangeRequiredPassword("user", "old", "new"), errServerAuthNotConfigured)
-	require.ErrorIs(t, service.UpdateProfile(models.UpdateProfileRequest{}), errServerAuthNotConfigured)
+	_, err = service.UpdateProfile(models.UpdateProfileRequest{})
+	require.ErrorIs(t, err, errServerAuthNotConfigured)
 	_, err = service.NeedsInitialSetup()
 	require.ErrorIs(t, err, errServerAuthNotConfigured)
-	require.ErrorIs(t, service.InitialSetup("Passw0rd!"), errServerAuthNotConfigured)
+	require.ErrorIs(t, service.InitialSetup(models.InitialSetupRequest{Password: "Passw0rd!", LastName: "Иванов", FirstName: "Иван", NoPatronymic: true}), errServerAuthNotConfigured)
 }
 
 type setupAuthClient struct {
@@ -112,8 +115,8 @@ type setupAuthClient struct {
 }
 
 func (c *setupAuthClient) NeedsInitialSetup(context.Context) (bool, error) { return true, c.err }
-func (c *setupAuthClient) InitialSetup(_ context.Context, password string) error {
-	c.password = password
+func (c *setupAuthClient) InitialSetup(_ context.Context, req models.InitialSetupRequest) error {
+	c.password = req.Password
 	return c.err
 }
 func TestAuthServiceForwardsBootstrapAndErrors(t *testing.T) {
@@ -122,12 +125,12 @@ func TestAuthServiceForwardsBootstrapAndErrors(t *testing.T) {
 	required, err := service.NeedsInitialSetup()
 	require.NoError(t, err)
 	require.True(t, required)
-	require.NoError(t, service.InitialSetup("Passw0rd!"))
+	require.NoError(t, service.InitialSetup(models.InitialSetupRequest{Password: "Passw0rd!", LastName: "Иванов", FirstName: "Иван", NoPatronymic: true}))
 	require.Equal(t, "Passw0rd!", client.password)
 	client.err = errors.New("server unavailable")
 	_, err = service.NeedsInitialSetup()
 	require.ErrorIs(t, err, client.err)
-	require.ErrorIs(t, service.InitialSetup("another"), client.err)
+	require.ErrorIs(t, service.InitialSetup(models.InitialSetupRequest{Password: "another"}), client.err)
 }
 
 func (f *fakeServerAuthClient) SessionState() serverclient.SessionState {

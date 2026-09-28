@@ -28,7 +28,7 @@ func TestUserAPIPersistsChangeOutboxAndSessionRevocationIntegration(t *testing.T
 	hash, err := security.HashPassword("AdminPassw0rd!")
 	require.NoError(t, err)
 	adminID := uuid.New()
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, password_change_required) VALUES ($1, 'api-admin', $2, 'API Admin', TRUE, FALSE)`, adminID, hash)
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required) VALUES ($1, 'api-admin', $2, 'API', 'Admin', TRUE, TRUE, FALSE)`, adminID, hash)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES ($1, $2, TRUE)`, adminID, models.SystemPermissionAdmin)
 	require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestUserAPIPersistsChangeOutboxAndSessionRevocationIntegration(t *testing.T
 	}
 	require.NoError(t, json.NewDecoder(loginResult.Body).Decode(&loginBody))
 
-	create := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{"login":"api-target","fullName":"API Target","isDocumentParticipant":true}`))
+	create := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{"login":"api-target","lastName":"API","firstName":"Target","noPatronymic":true,"isDocumentParticipant":true}`))
 	create.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
 	createResult := httptest.NewRecorder()
 	api.Handler().ServeHTTP(createResult, create)
@@ -72,7 +72,7 @@ func TestUserAPIPersistsChangeOutboxAndSessionRevocationIntegration(t *testing.T
 	_, err = sessions.Create(targetID, []byte("target-session-hash-32-bytes-long!"), time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	update := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+created.ID, strings.NewReader(`{"login":"api-target","fullName":"API Target","isActive":false,"isDocumentParticipant":true}`))
+	update := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+created.ID, strings.NewReader(`{"login":"api-target","lastName":"API","firstName":"Target","noPatronymic":true,"isActive":false,"isDocumentParticipant":true}`))
 	update.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
 	updateResult := httptest.NewRecorder()
 	api.Handler().ServeHTTP(updateResult, update)

@@ -27,8 +27,8 @@ func TestServerAuthSessionLifecycleIntegration(t *testing.T) {
 	require.NoError(t, err)
 	userID := uuid.New()
 	_, err = db.Exec(`
-		INSERT INTO users (id, login, password_hash, full_name, is_active, password_change_required)
-		VALUES ($1, 'session-integration', $2, 'Session Integration', TRUE, FALSE)
+		INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required)
+		VALUES ($1, 'session-integration', $2, 'Session', 'Integration', TRUE, TRUE, FALSE)
 	`, userID, passwordHash)
 	require.NoError(t, err)
 
@@ -64,8 +64,8 @@ func TestServerPasswordChangeRevokesAllSessionsIntegration(t *testing.T) {
 	require.NoError(t, err)
 	userID := uuid.New()
 	_, err = db.Exec(`
-		INSERT INTO users (id, login, password_hash, full_name, is_active, password_change_required)
-		VALUES ($1, 'password-change-integration', $2, 'Password Change Integration', TRUE, FALSE)
+		INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required)
+		VALUES ($1, 'password-change-integration', $2, 'Password', 'Change Integration', TRUE, TRUE, FALSE)
 	`, userID, passwordHash)
 	require.NoError(t, err)
 
@@ -101,10 +101,10 @@ func TestServerRepeatedLockoutsAuditIntegration(t *testing.T) {
 	hash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
 	id := uuid.New()
-	_, err = db.Exec(`INSERT INTO users(id,login,password_hash,full_name,is_active,password_change_required) VALUES($1,'lock-audit',$2,'Lock Audit',TRUE,FALSE)`, id, hash)
+	_, err = db.Exec(`INSERT INTO users(id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required) VALUES($1, 'lock-audit', $2, 'Lock', 'Audit', TRUE, TRUE, FALSE)`, id, hash)
 	require.NoError(t, err)
 	adminID := uuid.New()
-	_, err = db.Exec(`INSERT INTO users(id,login,password_hash,full_name,is_active,password_change_required) VALUES($1,'lock-audit-admin',$2,'Admin',TRUE,FALSE)`, adminID, hash)
+	_, err = db.Exec(`INSERT INTO users(id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required) VALUES($1, 'lock-audit-admin', $2, 'Admin', 'User', TRUE, TRUE, FALSE)`, adminID, hash)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions(user_id,permission,is_allowed) VALUES($1,'admin',TRUE)`, adminID)
 	require.NoError(t, err)

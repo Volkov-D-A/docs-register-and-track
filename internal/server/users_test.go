@@ -81,14 +81,14 @@ func (s *fakeUserManagementStore) GetByID(id uuid.UUID) (*models.User, error) {
 }
 func (s *fakeUserManagementStore) CreateWithOutbox(req models.CreateUserRequest, effects []models.OutboxEvent) (*models.User, error) {
 	s.created, s.effects = req, effects
-	user := models.User{ID: uuid.New(), Login: req.Login, FullName: req.FullName, IsActive: true}
+	user := models.User{ID: uuid.New(), Login: req.Login, LastName: req.LastName, FirstName: req.FirstName, Patronymic: req.Patronymic, NoPatronymic: req.NoPatronymic, IsActive: true}
 	s.users = append(s.users, user)
 	return &user, nil
 }
 func (s *fakeUserManagementStore) UpdateWithOutbox(req models.UpdateUserRequest, effects []models.OutboxEvent) (*models.User, error) {
 	s.updated, s.effects = req, effects
 	id, _ := uuid.Parse(req.ID)
-	return &models.User{ID: id, Login: req.Login, FullName: req.FullName, IsActive: req.IsActive}, nil
+	return &models.User{ID: id, Login: req.Login, LastName: req.LastName, FirstName: req.FirstName, Patronymic: req.Patronymic, NoPatronymic: req.NoPatronymic, IsActive: req.IsActive}, nil
 }
 func (s *fakeUserManagementStore) ResetPasswordWithOutbox(id uuid.UUID, password string, effects []models.OutboxEvent) error {
 	s.resetID, s.resetPassword, s.effects = id, password, effects
@@ -97,7 +97,8 @@ func (s *fakeUserManagementStore) ResetPasswordWithOutbox(id uuid.UUID, password
 func (s *fakeUserManagementStore) UpdateProfileWithOutbox(id uuid.UUID, req models.UpdateProfileRequest, effects []models.OutboxEvent) error {
 	for i := range s.users {
 		if s.users[i].ID == id {
-			s.users[i].Login, s.users[i].FullName = req.Login, req.FullName
+			s.users[i].Login = req.Login
+			s.users[i].LastName, s.users[i].FirstName, s.users[i].Patronymic, s.users[i].NoPatronymic = req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic
 			s.effects = effects
 			return nil
 		}
@@ -109,9 +110,9 @@ func authenticatedUserAPI(t *testing.T, permissions []string) (*managementAPI, *
 	t.Helper()
 	hash, err := security.HashPassword("Passw0rd!")
 	require.NoError(t, err)
-	admin := &models.User{ID: uuid.New(), Login: "admin", PasswordHash: hash, FullName: "Admin", IsActive: true, SystemPermissions: permissions}
+	admin := &models.User{ID: uuid.New(), Login: "admin", PasswordHash: hash, LastName: "Admin", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true, SystemPermissions: permissions}
 	sessions := &fakeAuthSessions{}
-	store := &fakeUserManagementStore{users: []models.User{{ID: uuid.New(), Login: "target", FullName: "Target", IsActive: true}}}
+	store := &fakeUserManagementStore{users: []models.User{{ID: uuid.New(), Login: "target", LastName: "Target", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true}}}
 	api := &managementAPI{
 		cfg:       &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}},
 		authUsers: &fakeAuthUsers{user: admin}, authSettings: fakeAuthSettings{}, sessions: sessions,
@@ -142,7 +143,7 @@ func TestUserAPIRequiresAdminPermission(t *testing.T) {
 
 func TestExecutorLookupRequiresSessionButNotAdmin(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, nil)
-	api.executors = fakeExecutorStore{users: []models.User{{ID: uuid.New(), FullName: "Executor", IsActive: true}}}
+	api.executors = fakeExecutorStore{users: []models.User{{ID: uuid.New(), LastName: "Executor", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true}}}
 
 	unauthorized := httptest.NewRecorder()
 	api.Handler().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/users/executors", nil))
@@ -202,7 +203,7 @@ func TestUserAPIKeepsParallelRequestPrincipalsIsolated(t *testing.T) {
 
 func TestUserAPICreateGeneratesTemporaryPasswordWithoutLeakingItToOutbox(t *testing.T) {
 	api, store, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{"login":"new-user","fullName":"New User","isDocumentParticipant":true}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{"login":"new-user","lastName":"New","firstName":"User","noPatronymic":true,"isDocumentParticipant":true}`))
 	req.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -222,7 +223,7 @@ func TestUserAPICreateGeneratesTemporaryPasswordWithoutLeakingItToOutbox(t *test
 func TestUserAPIUpdateUsesPathID(t *testing.T) {
 	api, store, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
 	id := uuid.New()
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+id.String(), bytes.NewBufferString(`{"id":"`+uuid.NewString()+`","login":"updated","fullName":"Updated","isActive":true}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+id.String(), bytes.NewBufferString(`{"id":"`+uuid.NewString()+`","login":"updated","lastName":"Updated","firstName":"User","noPatronymic":true,"isActive":true}`))
 	req.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -247,4 +248,42 @@ func TestUserAPIResetReturnsPasswordOnlyInSuccessfulResponse(t *testing.T) {
 	require.Len(t, store.effects, 1)
 	assert.NotContains(t, store.effects[0].Payload, store.resetPassword)
 	assert.Contains(t, response.Body.String(), store.resetPassword)
+}
+
+func TestUserWritesNormalizeNameAndRejectMissingPatronymic(t *testing.T) {
+	for _, method := range []string{http.MethodPost, http.MethodPatch} {
+		for _, none := range []bool{false, true} {
+			t.Run(method+"/"+map[bool]string{true: "without", false: "with"}[none], func(t *testing.T) {
+				api, store, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
+				path := "/api/v1/users"
+				if method == http.MethodPatch {
+					path += "/" + store.users[0].ID.String()
+				}
+				body := `{"login":" target ","lastName":" Иванов ","firstName":" Иван ","patronymic":" ","noPatronymic":false}`
+				if none {
+					body = `{"login":" target ","lastName":" Иванов ","firstName":" Иван ","patronymic":"Ignored","noPatronymic":true}`
+				}
+				req := httptest.NewRequest(method, path, strings.NewReader(body))
+				req.Header.Set("Authorization", "Bearer "+token)
+				result := httptest.NewRecorder()
+				api.Handler().ServeHTTP(result, req)
+				if !none {
+					require.Equal(t, http.StatusBadRequest, result.Code, result.Body.String())
+					require.Empty(t, store.effects)
+					return
+				}
+				expected := http.StatusOK
+				if method == http.MethodPost {
+					expected = http.StatusCreated
+				}
+				require.Equal(t, expected, result.Code, result.Body.String())
+				var user map[string]any
+				require.NoError(t, json.Unmarshal(result.Body.Bytes(), &user))
+				require.Equal(t, "target", user["login"])
+				require.Equal(t, "Иванов Иван", user["fullName"])
+				require.Equal(t, "", user["patronymic"])
+				require.Equal(t, true, user["noPatronymic"])
+			})
+		}
+	}
 }

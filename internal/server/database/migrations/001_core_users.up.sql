@@ -9,7 +9,17 @@ CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     login VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    full_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(100) NOT NULL CHECK (length(btrim(last_name)) > 0),
+    first_name VARCHAR(100) NOT NULL CHECK (length(btrim(first_name)) > 0),
+    patronymic VARCHAR(100) NOT NULL DEFAULT '',
+    no_patronymic BOOLEAN NOT NULL DEFAULT false,
+    full_name TEXT GENERATED ALWAYS AS (
+        last_name || ' ' || first_name || CASE WHEN no_patronymic THEN '' ELSE ' ' || patronymic END
+    ) STORED,
+    CONSTRAINT users_patronymic_consistent CHECK (
+        (no_patronymic AND patronymic = '') OR
+        (NOT no_patronymic AND length(btrim(patronymic)) > 0)
+    ),
     department_id UUID REFERENCES departments (id) ON DELETE SET NULL,
     is_document_participant BOOLEAN NOT NULL DEFAULT false,
     is_active BOOLEAN NOT NULL DEFAULT true,

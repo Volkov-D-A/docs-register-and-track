@@ -21,7 +21,7 @@ func TestProfileClientUsesBearerProtectedTypedEndpoints(t *testing.T) {
 		case 1:
 			assert.Equal(t, http.MethodPatch, r.Method)
 			assert.Equal(t, "/api/v1/profile", r.URL.Path)
-			return response(http.StatusNoContent, ""), nil
+			return response(http.StatusOK, `{"id":"profile-user","login":"new","lastName":"New","firstName":"User","noPatronymic":true,"fullName":"New User"}`), nil
 		case 2:
 			assert.Equal(t, "/api/v1/profile/substitution-candidates", r.URL.Path)
 			return response(http.StatusOK, `[{"id":"`+uuid.NewString()+`","login":"candidate"}]`), nil
@@ -39,7 +39,9 @@ func TestProfileClientUsesBearerProtectedTypedEndpoints(t *testing.T) {
 		}
 	})
 
-	require.NoError(t, client.UpdateProfile(context.Background(), models.UpdateProfileRequest{Login: "new", FullName: "New"}))
+	updatedUser, err := client.UpdateProfile(context.Background(), models.UpdateProfileRequest{Login: "new", LastName: "New", FirstName: "User", NoPatronymic: true})
+	require.NoError(t, err)
+	assert.Equal(t, "New User", updatedUser.FullName)
 	candidates, err := client.ListSubstitutionCandidates(context.Background())
 	require.NoError(t, err)
 	require.Len(t, candidates, 1)

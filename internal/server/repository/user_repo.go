@@ -29,7 +29,7 @@ func NewUserRepository(db *database.DB) *UserRepository {
 
 // userSelectBase — базовый SELECT для получения пользователя с department.
 const userSelectBase = `
-	SELECT u.id, u.login, u.password_hash, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts,
+	SELECT u.id, u.login, u.password_hash, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active, u.failed_login_attempts,
 	       u.password_changed_at, u.password_change_required, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
@@ -44,7 +44,7 @@ func (r *UserRepository) getUserByCondition(whereClause string, arg interface{})
 
 	query := userSelectBase + " " + whereClause
 	err := r.db.QueryRow(query, arg).Scan(
-		&user.ID, &user.Login, &user.PasswordHash, &user.FullName,
+		&user.ID, &user.Login, &user.PasswordHash, &user.LastName, &user.FirstName, &user.Patronymic, &user.NoPatronymic,
 		&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts,
 		&user.PasswordChangedAt, &user.PasswordChangeRequired, &user.CreatedAt, &user.UpdatedAt,
 		&departmentID, &departmentName,
@@ -105,7 +105,7 @@ func (r *UserRepository) GetSessionPrincipal(id uuid.UUID) (*models.SessionPrinc
 // GetAll возвращает список всех пользователей.
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts,
+		SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active, u.failed_login_attempts,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -127,7 +127,7 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 		var departmentName sql.NullString
 
 		if err := rows.Scan(
-			&user.ID, &user.Login, &user.FullName,
+			&user.ID, &user.Login, &user.LastName, &user.FirstName, &user.Patronymic, &user.NoPatronymic,
 			&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts,
 			&departmentID, &departmentName,
 		); err != nil {
@@ -190,7 +190,7 @@ func (r *UserRepository) CreateWithOutbox(req models.CreateUserRequest, effects 
 	}
 	defer tx.Rollback()
 	var id uuid.UUID
-	if err := tx.QueryRow(`INSERT INTO users (login, password_hash, full_name, department_id, is_document_participant, password_changed_at, password_change_required) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6) RETURNING id`, req.Login, hash, req.FullName, depID, req.IsDocumentParticipant, req.PasswordChangeRequired).Scan(&id); err != nil {
+	if err := tx.QueryRow(`INSERT INTO users (login, password_hash, last_name, first_name, patronymic, no_patronymic, department_id, is_document_participant, password_changed_at, password_change_required) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9) RETURNING id`, req.Login, hash, req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, depID, req.IsDocumentParticipant, req.PasswordChangeRequired).Scan(&id); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
@@ -204,7 +204,7 @@ func (r *UserRepository) CreateWithOutbox(req models.CreateUserRequest, effects 
 
 // CreateInitialAdmin создаёт первого администратора и его системное право в одной транзакции.
 // Межпроцессная advisory lock предотвращает параллельное выполнение первичной настройки.
-func (r *UserRepository) CreateInitialAdmin(passwordHash string) error {
+func (r *UserRepository) CreateInitialAdmin(passwordHash string, req models.InitialSetupRequest) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin initial setup transaction: %w", err)
@@ -225,10 +225,10 @@ func (r *UserRepository) CreateInitialAdmin(passwordHash string) error {
 
 	var userID uuid.UUID
 	if err := tx.QueryRow(`
-		INSERT INTO users (login, password_hash, full_name, is_document_participant, password_changed_at, password_change_required)
-		VALUES ('admin', $1, 'Администратор', false, CURRENT_TIMESTAMP, false)
+		INSERT INTO users (login, password_hash, last_name, first_name, patronymic, no_patronymic, is_document_participant, password_changed_at, password_change_required)
+		VALUES ('admin', $1, $2, $3, $4, $5, false, CURRENT_TIMESTAMP, false)
 		RETURNING id
-	`, passwordHash).Scan(&userID); err != nil {
+	`, passwordHash, req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic).Scan(&userID); err != nil {
 		return fmt.Errorf("failed to create initial administrator: %w", err)
 	}
 
@@ -261,7 +261,7 @@ func (r *UserRepository) UpdateWithOutbox(req models.UpdateUserRequest, effects 
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`UPDATE users SET login=$1, full_name=$2, is_active=$3, department_id=$4, is_document_participant=$5, failed_login_attempts=CASE WHEN is_active=false AND $3=true THEN 0 ELSE failed_login_attempts END, updated_at=CURRENT_TIMESTAMP WHERE id=$6`, req.Login, req.FullName, req.IsActive, depID, req.IsDocumentParticipant, uid)
+	result, err := tx.Exec(`UPDATE users SET login=$1, last_name=$2, first_name=$3, patronymic=$4, no_patronymic=$5, is_active=$6, department_id=$7, is_document_participant=$8, failed_login_attempts=CASE WHEN is_active=false AND $6=true THEN 0 ELSE failed_login_attempts END, updated_at=CURRENT_TIMESTAMP WHERE id=$9`, req.Login, req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, req.IsActive, depID, req.IsDocumentParticipant, uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
@@ -341,7 +341,7 @@ func (r *UserRepository) GetEligibleRecipientIDs(candidateIDs []uuid.UUID) (map[
 // GetExecutors возвращает список активных пользователей, доступных для назначения и ознакомления.
 func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active,
+		SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -364,7 +364,7 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 		var departmentName sql.NullString
 
 		if err := rows.Scan(
-			&user.ID, &user.Login, &user.FullName,
+			&user.ID, &user.Login, &user.LastName, &user.FirstName, &user.Patronymic, &user.NoPatronymic,
 			&user.IsDocumentParticipant, &user.IsActive,
 			&departmentID, &departmentName,
 		); err != nil {
@@ -410,7 +410,7 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 // GetActiveUsers возвращает всех активных пользователей.
 func (r *UserRepository) GetActiveUsers() ([]models.User, error) {
 	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.full_name, u.is_document_participant, u.is_active,
+		SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active,
 		       d.id, d.name
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
@@ -433,7 +433,7 @@ func (r *UserRepository) GetActiveUsers() ([]models.User, error) {
 		var departmentName sql.NullString
 
 		if err := rows.Scan(
-			&user.ID, &user.Login, &user.FullName,
+			&user.ID, &user.Login, &user.LastName, &user.FirstName, &user.Patronymic, &user.NoPatronymic,
 			&user.IsDocumentParticipant, &user.IsActive,
 			&departmentID, &departmentName,
 		); err != nil {
@@ -558,9 +558,9 @@ func (r *UserRepository) updateProfile(userID uuid.UUID, req models.UpdateProfil
 	}
 	defer tx.Rollback()
 	result, err := tx.Exec(`
-		UPDATE users SET login = $1, full_name = $2, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $3
-	`, req.Login, req.FullName, userID)
+		UPDATE users SET login = $1, last_name = $2, first_name = $3, patronymic = $4, no_patronymic = $5, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $6
+	`, req.Login, req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, userID)
 	if err != nil {
 		return fmt.Errorf("failed to update profile: %w", err)
 	}

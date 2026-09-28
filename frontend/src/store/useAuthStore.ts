@@ -1,3 +1,4 @@
+import type { UserNameValues } from '../components/UserNameFields';
 import { create } from 'zustand';
 import { Login, Logout, ChangePassword, ChangeRequiredPassword, UpdateProfile, GetSessionState } from '../../wailsjs/go/services/AuthService';
 import { models, serverclient } from '../../wailsjs/go/models';
@@ -17,7 +18,7 @@ interface Department {
 /**
  * Интерфейс, описывающий пользователя системы.
  */
-interface User {
+interface User extends UserNameValues {
     id: string;
     login: string;
     fullName: string;
@@ -49,7 +50,7 @@ interface AuthState {
     logout: () => Promise<void>;
     changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
     changeRequiredPassword: (login: string, oldPassword: string, newPassword: string) => Promise<void>;
-    updateProfile: (login: string, fullName: string) => Promise<void>;
+    updateProfile: (values: UserNameValues & { login: string }) => Promise<void>;
     clearError: () => void;
     hasSystemPermission: (permission: string) => boolean;
 }
@@ -95,13 +96,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
             set({
                 user: {
-                    id: (user as any).id || '',
+                    id: user.id,
                     login: user.login,
                     fullName: user.fullName,
+                    lastName: user.lastName, firstName: user.firstName, patronymic: user.patronymic, noPatronymic: user.noPatronymic,
                     isDocumentParticipant: user.isDocumentParticipant ?? false,
                     systemPermissions,
                     department: user.department ? {
-                        id: (user.department as any).id || '',
+                        id: user.department.id,
                         name: user.department.name,
                     } : undefined,
                 },
@@ -164,22 +166,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
-    updateProfile: async (login: string, fullName: string) => {
+    updateProfile: async (values) => {
         const revision = get().sessionRevision;
         const attempt = get().authAttempt;
         set({ isLoading: true, error: null });
         try {
-            const req = new models.UpdateProfileRequest();
-            req.login = login;
-            req.fullName = fullName;
-
-            await UpdateProfile(req);
+            const req = models.UpdateProfileRequest.createFrom({ ...values,
+                patronymic: values.noPatronymic ? '' : (values.patronymic || ''), noPatronymic: !!values.noPatronymic });
+            const updated = await UpdateProfile(req);
             if (get().sessionRevision !== revision || get().authAttempt !== attempt) return;
 
             // Обновляем данные пользователя в store
             const { user } = get();
             if (user) {
-                set({ user: { ...user, login, fullName }, isLoading: false });
+                set({ user: { ...user, ...updated }, isLoading: false });
             } else {
                 set({ isLoading: false });
             }

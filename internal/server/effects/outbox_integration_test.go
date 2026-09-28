@@ -4,10 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 
 	"github.com/google/uuid"
@@ -20,8 +20,8 @@ func TestOutboxRejectsMismatchedDeduplicationCollisionIntegration(t *testing.T) 
 	outboxRepo := repository.NewOutboxRepository(db)
 
 	userID := uuid.New()
-	_, err := db.Exec(`INSERT INTO users (id, login, password_hash, full_name)
-		VALUES ($1, $2, 'integration-hash', 'Collision User')`, userID, "collision-"+uuid.NewString())
+	_, err := db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic)
+		VALUES ($1, $2, 'integration-hash', 'Collision', 'User', TRUE)`, userID, "collision-"+uuid.NewString())
 	require.NoError(t, err)
 
 	first, err := servereffects.NewAdminAuditOutboxEvent("collision:"+uuid.NewString(), models.CreateAdminAuditLogRequest{

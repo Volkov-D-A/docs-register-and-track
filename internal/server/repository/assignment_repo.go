@@ -237,7 +237,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 
 	// Получение соисполнителей
 	coExecQuery := `
-		SELECT u.id, u.login, u.full_name
+		SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic
 		FROM assignment_co_executors ce
 		JOIN users u ON ce.user_id = u.id
 		WHERE ce.assignment_id = $1
@@ -253,7 +253,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 
 	for ceRows.Next() {
 		var u models.User
-		if err := ceRows.Scan(&u.ID, &u.Login, &u.FullName); err != nil {
+		if err := ceRows.Scan(&u.ID, &u.Login, &u.LastName, &u.FirstName, &u.Patronymic, &u.NoPatronymic); err != nil {
 			return nil, err
 		}
 
@@ -498,7 +498,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	}
 	if len(assignmentIDs) > 0 {
 		coExecQuery := `
-			SELECT ce.assignment_id, u.id, u.login, u.full_name
+			SELECT ce.assignment_id, u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic
 			FROM assignment_co_executors ce
 			JOIN users u ON ce.user_id = u.id
 			WHERE ce.assignment_id = ANY($1)
@@ -512,7 +512,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		for ceRows.Next() {
 			var assignmentID uuid.UUID
 			var u models.User
-			if err := ceRows.Scan(&assignmentID, &u.ID, &u.Login, &u.FullName); err != nil {
+			if err := ceRows.Scan(&assignmentID, &u.ID, &u.Login, &u.LastName, &u.FirstName, &u.Patronymic, &u.NoPatronymic); err != nil {
 				return nil, fmt.Errorf("failed to scan co-executor: %w", err)
 			}
 

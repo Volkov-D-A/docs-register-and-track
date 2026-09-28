@@ -75,7 +75,7 @@ func TestDocumentQueryAPIRequiresSessionAndUsesRequestPrincipal(t *testing.T) {
 }
 
 func TestRequestDocumentPrincipalIsImmutablePerRequest(t *testing.T) {
-	user := &models.User{ID: uuid.New(), IsActive: true, FullName: "Reader"}
+	user := &models.User{ID: uuid.New(), IsActive: true, LastName: "Reader", FirstName: "User", Patronymic: "", NoPatronymic: true}
 	principal := requestDocumentPrincipal{user: user}
 	got, err := principal.GetCurrentUserUUID()
 	require.NoError(t, err)

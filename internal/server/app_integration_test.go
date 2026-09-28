@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
@@ -41,8 +41,8 @@ func TestServerProcessesOutboxWithoutWailsIntegration(t *testing.T) {
 	defer application.Close()
 
 	userID := uuid.New()
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active)
-		VALUES ($1, $2, 'integration-hash', 'Server Integration', TRUE)`, userID, "server_"+uuid.NewString())
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active)
+		VALUES ($1, $2, 'integration-hash', 'Server', 'Integration', TRUE, TRUE)`, userID, "server_"+uuid.NewString())
 	require.NoError(t, err)
 	payload, err := json.Marshal(models.CreateAdminAuditLogRequest{
 		UserID: userID, UserName: "Server Integration", Action: "SERVER_OUTBOX_INTEGRATION", Details: "processed without Wails",

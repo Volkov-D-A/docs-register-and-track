@@ -379,6 +379,10 @@ export namespace dto {
 	    id: string;
 	    login: string;
 	    fullName: string;
+	    lastName: string;
+	    firstName: string;
+	    patronymic: string;
+	    noPatronymic: boolean;
 	    isDocumentParticipant: boolean;
 	    isActive: boolean;
 	    failedLoginAttempts: number;
@@ -395,6 +399,10 @@ export namespace dto {
 	        this.id = source["id"];
 	        this.login = source["login"];
 	        this.fullName = source["fullName"];
+	        this.lastName = source["lastName"];
+	        this.firstName = source["firstName"];
+	        this.patronymic = source["patronymic"];
+	        this.noPatronymic = source["noPatronymic"];
 	        this.isDocumentParticipant = source["isDocumentParticipant"];
 	        this.isActive = source["isActive"];
 	        this.failedLoginAttempts = source["failedLoginAttempts"];
@@ -2548,7 +2556,10 @@ export namespace models {
 	export class CreateUserRequest {
 	    login: string;
 	    password: string;
-	    fullName: string;
+	    lastName: string;
+	    firstName: string;
+	    patronymic: string;
+	    noPatronymic: boolean;
 	    departmentId: string;
 	    isDocumentParticipant: boolean;
 	
@@ -2560,7 +2571,10 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.login = source["login"];
 	        this.password = source["password"];
-	        this.fullName = source["fullName"];
+	        this.lastName = source["lastName"];
+	        this.firstName = source["firstName"];
+	        this.patronymic = source["patronymic"];
+	        this.noPatronymic = source["noPatronymic"];
 	        this.departmentId = source["departmentId"];
 	        this.isDocumentParticipant = source["isDocumentParticipant"];
 	    }
@@ -2870,6 +2884,26 @@ export namespace models {
 	}
 	
 	
+	export class InitialSetupRequest {
+	    password: string;
+	    lastName: string;
+	    firstName: string;
+	    patronymic: string;
+	    noPatronymic: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new InitialSetupRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.password = source["password"];
+	        this.lastName = source["lastName"];
+	        this.firstName = source["firstName"];
+	        this.patronymic = source["patronymic"];
+	        this.noPatronymic = source["noPatronymic"];
+	    }
+	}
 	export class OutboxStats {
 	    Pending: number;
 	    Processing: number;
@@ -3242,7 +3276,10 @@ export namespace models {
 	
 	export class UpdateProfileRequest {
 	    login: string;
-	    fullName: string;
+	    lastName: string;
+	    firstName: string;
+	    patronymic: string;
+	    noPatronymic: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateProfileRequest(source);
@@ -3251,7 +3288,10 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.login = source["login"];
-	        this.fullName = source["fullName"];
+	        this.lastName = source["lastName"];
+	        this.firstName = source["firstName"];
+	        this.patronymic = source["patronymic"];
+	        this.noPatronymic = source["noPatronymic"];
 	    }
 	}
 	export class UserDocumentPermissionRule {
@@ -3321,7 +3361,10 @@ export namespace models {
 	export class UpdateUserRequest {
 	    id: string;
 	    login: string;
-	    fullName: string;
+	    lastName: string;
+	    firstName: string;
+	    patronymic: string;
+	    noPatronymic: boolean;
 	    isActive: boolean;
 	    departmentId: string;
 	    isDocumentParticipant: boolean;
@@ -3334,7 +3377,10 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.login = source["login"];
-	        this.fullName = source["fullName"];
+	        this.lastName = source["lastName"];
+	        this.firstName = source["firstName"];
+	        this.patronymic = source["patronymic"];
+	        this.noPatronymic = source["noPatronymic"];
 	        this.isActive = source["isActive"];
 	        this.departmentId = source["departmentId"];
 	        this.isDocumentParticipant = source["isDocumentParticipant"];

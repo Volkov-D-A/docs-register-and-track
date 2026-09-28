@@ -232,6 +232,6 @@ func seedIntegrationDocument(t *testing.T, db *sql.DB) (uuid.UUID, uuid.UUID) {
 func insertIntegrationUser(t testing.TB, db *sql.DB, login string) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
-	execSQL(t, db, `INSERT INTO users (id, login, password_hash, full_name) VALUES ($1, $2, 'hash', $3)`, id, login, fmt.Sprintf("%s name", login))
+	execSQL(t, db, `INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic) VALUES ($1, $2, 'hash', $3, 'User', TRUE)`, id, login, fmt.Sprintf("%s name", login))
 	return id
 }

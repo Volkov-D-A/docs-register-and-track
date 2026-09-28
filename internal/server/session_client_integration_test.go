@@ -27,14 +27,14 @@ func TestDesktopSessionInvalidationIntegration(t *testing.T) {
 			hash, err := security.HashPassword("Passw0rd!")
 			require.NoError(t, err)
 			adminID := uuid.New()
-			_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, password_change_required)
-    VALUES ($1, 'session-admin', $2, 'Session Admin', TRUE, FALSE)`, adminID, hash)
+			_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required)
+    VALUES ($1, 'session-admin', $2, 'Session', 'Admin', TRUE, TRUE, FALSE)`, adminID, hash)
 			require.NoError(t, err)
 			_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES ($1, 'admin', TRUE)`, adminID)
 			require.NoError(t, err)
 			userID := uuid.New()
-			_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, password_change_required)
-    VALUES ($1, 'session-client', $2, 'Session Client', TRUE, FALSE)`, userID, hash)
+			_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required)
+    VALUES ($1, 'session-client', $2, 'Session', 'Client', TRUE, TRUE, FALSE)`, userID, hash)
 			require.NoError(t, err)
 			lifecycle := background.NewLifecycle(func() (*dto.MigrationStatus, error) { return db.GetMigrationStatus(database.DefaultMigrationsPath) }, nil, nil)
 			lifecycle.ReconcileSchema()
@@ -63,7 +63,7 @@ func TestDesktopSessionInvalidationIntegration(t *testing.T) {
 			case "revoke":
 				_, err = db.Exec(`UPDATE server_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id=$1`, userID)
 			case "deactivate":
-				_, err = adminClient.UpdateUser(context.Background(), models.UpdateUserRequest{ID: userID.String(), Login: "session-client", FullName: "Session Client", IsActive: false})
+				_, err = adminClient.UpdateUser(context.Background(), models.UpdateUserRequest{ID: userID.String(), Login: "session-client", LastName: "Session", FirstName: "Client", Patronymic: "", NoPatronymic: true, IsActive: false})
 			case "password-reset":
 				_, err = adminClient.ResetUserPassword(context.Background(), userID.String())
 			}

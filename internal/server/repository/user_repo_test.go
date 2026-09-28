@@ -29,15 +29,15 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 
 	t.Run("success without department", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
-			"id", "login", "password_hash", "full_name", "is_document_participant", "is_active", "failed_login_attempts",
+			"id", "login", "password_hash", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active", "failed_login_attempts",
 			"password_changed_at", "password_change_required", "created_at", "updated_at",
 			"d.id", "d.name",
 		}).AddRow(
-			id, login, "hash", "Test User", true, true, 0, now, false, now, now,
+			id, login, "hash", "Test", "User", "", true, true, true, 0, now, false, now, now,
 			nil, nil, // нет подразделения
 		)
 
-		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts,
+		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active, u.failed_login_attempts,
 	       u.password_changed_at, u.password_change_required, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
@@ -54,14 +54,14 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 		require.NotNil(t, user)
 		assert.Equal(t, id, user.ID)
 		assert.Equal(t, login, user.Login)
-		assert.Equal(t, "Test User", user.FullName)
+		assert.Equal(t, "Test User", user.FullName())
 		assert.Equal(t, []string{"admin"}, user.SystemPermissions)
 		assert.Nil(t, user.Department)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.full_name, u.is_document_participant, u.is_active, u.failed_login_attempts,
+		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active, u.failed_login_attempts,
 	       u.password_changed_at, u.password_change_required, u.created_at, u.updated_at,
 	       d.id, d.name
 	FROM users u
@@ -159,11 +159,11 @@ func TestUserRepositoryUpdateProfileWithOutboxIsAtomic(t *testing.T) {
 	effect := models.OutboxEvent{EventType: models.OutboxEventAudit, DeduplicationKey: "profile:update", Payload: `{}`}
 
 	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE users SET login`).WithArgs("renamed", "Renamed", userID).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE users SET login`).WithArgs("renamed", "Renamed", "User", "", true, userID).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(effect.EventType, effect.DeduplicationKey, effect.Payload).WillReturnError(assert.AnError)
 	mock.ExpectRollback()
 
-	err = repo.UpdateProfileWithOutbox(userID, models.UpdateProfileRequest{Login: "renamed", FullName: "Renamed"}, []models.OutboxEvent{effect})
+	err = repo.UpdateProfileWithOutbox(userID, models.UpdateProfileRequest{Login: "renamed", LastName: "Renamed", FirstName: "User", Patronymic: "", NoPatronymic: true}, []models.OutboxEvent{effect})
 
 	require.ErrorIs(t, err, assert.AnError)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -182,13 +182,13 @@ func TestUserRepository_CreateInitialAdmin(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery(`INSERT INTO users`).WithArgs("password-hash").
+		mock.ExpectQuery(`INSERT INTO users`).WithArgs("password-hash", "Иванов", "Иван", "", true).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
 		mock.ExpectExec(`INSERT INTO user_system_permissions`).WithArgs(userID, models.SystemPermissionAdmin).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
-		err = repo.CreateInitialAdmin("password-hash")
+		err = repo.CreateInitialAdmin("password-hash", models.InitialSetupRequest{LastName: "Иванов", FirstName: "Иван", NoPatronymic: true})
 
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -206,13 +206,13 @@ func TestUserRepository_CreateInitialAdmin(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery(`INSERT INTO users`).WithArgs("password-hash").
+		mock.ExpectQuery(`INSERT INTO users`).WithArgs("password-hash", "Иванов", "Иван", "", true).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
 		mock.ExpectExec(`INSERT INTO user_system_permissions`).WithArgs(userID, models.SystemPermissionAdmin).
 			WillReturnError(sql.ErrConnDone)
 		mock.ExpectRollback()
 
-		err = repo.CreateInitialAdmin("password-hash")
+		err = repo.CreateInitialAdmin("password-hash", models.InitialSetupRequest{LastName: "Иванов", FirstName: "Иван", NoPatronymic: true})
 
 		require.ErrorIs(t, err, sql.ErrConnDone)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -231,9 +231,9 @@ func TestUserRepository_GetAll(t *testing.T) {
 
 	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "full_name", "is_document_participant", "is_active", "failed_login_attempts",
+			"id", "login", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active", "failed_login_attempts",
 			"d.id", "d.name",
-		}).AddRow(uid, "user1", "User One", true, false, 5, depID, "IT Dept"))
+		}).AddRow(uid, "user1", "User", "One", "", true, true, false, 5, depID, "IT Dept"))
 
 	// Expect system permissions
 	mock.ExpectQuery(`SELECT(.*)FROM user_system_permissions(.*)`).
@@ -269,11 +269,11 @@ func TestUserRepository_GetExecutors(t *testing.T) {
 		departmentID := uuid.New()
 		nomenclatureID := uuid.New()
 
-		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
+		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.last_name, u\.first_name, u\.patronymic, u\.no_patronymic, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
 			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "login", "full_name", "is_document_participant", "is_active",
+				"id", "login", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active",
 				"d.id", "d.name",
-			}).AddRow(userID, "executor", "Executor User", true, true, departmentID, "Office"))
+			}).AddRow(userID, "executor", "Executor", "User", "", true, true, true, departmentID, "Office"))
 
 		mock.ExpectQuery(`SELECT user_id, permission\s+FROM user_system_permissions\s+WHERE user_id = ANY\(\$1\) AND is_allowed = true`).
 			WithArgs(pq.Array([]uuid.UUID{userID})).
@@ -288,7 +288,7 @@ func TestUserRepository_GetExecutors(t *testing.T) {
 		require.Len(t, users, 1)
 		assert.Equal(t, userID, users[0].ID)
 		assert.Equal(t, "executor", users[0].Login)
-		assert.Equal(t, "Executor User", users[0].FullName)
+		assert.Equal(t, "Executor User", users[0].FullName())
 		assert.True(t, users[0].IsDocumentParticipant)
 		assert.True(t, users[0].IsActive)
 		assert.Equal(t, []string{"documents.assign"}, users[0].SystemPermissions)
@@ -306,9 +306,9 @@ func TestUserRepository_GetExecutors(t *testing.T) {
 
 		repo := NewUserRepository(database.Wrap(db))
 
-		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
+		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.last_name, u\.first_name, u\.patronymic, u\.no_patronymic, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
 			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "login", "full_name", "is_document_participant", "is_active",
+				"id", "login", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active",
 				"d.id", "d.name",
 			}))
 
@@ -328,11 +328,11 @@ func TestUserRepository_GetActiveUsers(t *testing.T) {
 	userID := uuid.New()
 	departmentID := uuid.New()
 
-	mock.ExpectQuery(`SELECT u\.id, u\.login, u\.full_name, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true\s+ORDER BY u\.full_name`).
+	mock.ExpectQuery(`SELECT u\.id, u\.login, u\.last_name, u\.first_name, u\.patronymic, u\.no_patronymic, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true\s+ORDER BY u\.full_name`).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "full_name", "is_document_participant", "is_active",
+			"id", "login", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active",
 			"d.id", "d.name",
-		}).AddRow(userID, "candidate", "Candidate User", false, true, departmentID, "Office"))
+		}).AddRow(userID, "candidate", "Candidate", "User", "", true, false, true, departmentID, "Office"))
 
 	mock.ExpectQuery(`SELECT user_id, permission\s+FROM user_system_permissions\s+WHERE user_id = ANY\(\$1\) AND is_allowed = true`).
 		WithArgs(pq.Array([]uuid.UUID{userID})).
@@ -364,9 +364,9 @@ func TestUserRepository_Create(t *testing.T) {
 		repo := NewUserRepository(database.Wrap(db))
 
 		req := models.CreateUserRequest{
-			Login:                 "newuser",
-			Password:              "Password123!",
-			FullName:              "New User",
+			Login:    "newuser",
+			Password: "Password123!",
+			LastName: "New", FirstName: "User", Patronymic: "", NoPatronymic: true,
 			IsDocumentParticipant: true,
 		}
 
@@ -374,7 +374,7 @@ func TestUserRepository_Create(t *testing.T) {
 		uid := uuid.New()
 
 		mock.ExpectQuery(`INSERT INTO users`).
-			WithArgs(req.Login, sqlmock.AnyArg(), req.FullName, nil, req.IsDocumentParticipant, req.PasswordChangeRequired).
+			WithArgs(req.Login, sqlmock.AnyArg(), req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, nil, req.IsDocumentParticipant, req.PasswordChangeRequired).
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uid))
 
 		mock.ExpectCommit()
@@ -383,10 +383,10 @@ func TestUserRepository_Create(t *testing.T) {
 		mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 			WithArgs(uid).
 			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "login", "password_hash", "full_name", "is_document_participant", "is_active", "failed_login_attempts",
+				"id", "login", "password_hash", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active", "failed_login_attempts",
 				"password_changed_at", "password_change_required", "created_at", "updated_at",
 				"d.id", "d.name",
-			}).AddRow(uid, req.Login, "hash", req.FullName, true, true, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
+			}).AddRow(uid, req.Login, "hash", req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, true, true, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
 		mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).
 			WithArgs(uid).
 			WillReturnRows(sqlmock.NewRows([]string{"permission"}))
@@ -408,7 +408,7 @@ func TestUserRepository_Create(t *testing.T) {
 		user, err := repo.CreateWithOutbox(models.CreateUserRequest{
 			Login:    "newuser",
 			Password: "weak",
-			FullName: "New User",
+			LastName: "New", FirstName: "User", Patronymic: "", NoPatronymic: true,
 		}, nil)
 
 		require.Error(t, err)
@@ -431,16 +431,16 @@ func TestUserRepository_Update(t *testing.T) {
 	repo := NewUserRepository(database.Wrap(db))
 	uid := uuid.New()
 	req := models.UpdateUserRequest{
-		ID:                    uid.String(),
-		Login:                 "upduser",
-		FullName:              "Upd User",
+		ID:       uid.String(),
+		Login:    "upduser",
+		LastName: "Upd", FirstName: "User", Patronymic: "", NoPatronymic: true,
 		IsActive:              false,
 		IsDocumentParticipant: true,
 	}
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE users SET`).
-		WithArgs(req.Login, req.FullName, req.IsActive, nil, req.IsDocumentParticipant, uid).
+		WithArgs(req.Login, req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, req.IsActive, nil, req.IsDocumentParticipant, uid).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`UPDATE server_sessions SET revoked_at`).
 		WithArgs(uid).
@@ -452,10 +452,10 @@ func TestUserRepository_Update(t *testing.T) {
 	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "login", "password_hash", "full_name", "is_document_participant", "is_active", "failed_login_attempts",
+			"id", "login", "password_hash", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active", "failed_login_attempts",
 			"password_changed_at", "password_change_required", "created_at", "updated_at",
 			"d.id", "d.name",
-		}).AddRow(uid, req.Login, "hash", req.FullName, true, req.IsActive, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
+		}).AddRow(uid, req.Login, "hash", req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, true, req.IsActive, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
 	mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{"permission"}))
@@ -495,12 +495,12 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 	t.Run("UpdateProfile", func(t *testing.T) {
 		// Редактирование собственного профиля пользователем
 		mock.ExpectBegin()
-		mock.ExpectExec(`UPDATE users SET login(.*)full_name(.*)`).
-			WithArgs("newlog", "newname", uid).
+		mock.ExpectExec(`UPDATE users SET login(.*)last_name(.*)`).
+			WithArgs("newlog", "newname", "User", "", true, uid).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
-		err = repo.UpdateProfileWithOutbox(uid, models.UpdateProfileRequest{Login: "newlog", FullName: "newname"}, nil)
+		err = repo.UpdateProfileWithOutbox(uid, models.UpdateProfileRequest{Login: "newlog", LastName: "newname", FirstName: "User", Patronymic: "", NoPatronymic: true}, nil)
 		require.NoError(t, err)
 	})
 

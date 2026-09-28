@@ -98,9 +98,9 @@ func (s *AuthService) ChangeRequiredPassword(login, oldPassword, newPassword str
 	return s.serverAuth.ChangeRequiredPassword(ctx, login, oldPassword, newPassword)
 }
 
-func (s *AuthService) UpdateProfile(req models.UpdateProfileRequest) error {
+func (s *AuthService) UpdateProfile(req models.UpdateProfileRequest) (*dto.User, error) {
 	if s.serverAuth == nil {
-		return errServerAuthNotConfigured
+		return nil, errServerAuthNotConfigured
 	}
 
 	ctx, cancel := s.operationContext(15 * time.Second)
@@ -125,12 +125,12 @@ func (s *AuthService) NeedsInitialSetup() (bool, error) {
 	return s.initialSetup.NeedsInitialSetup(ctx)
 }
 
-func (s *AuthService) InitialSetup(password string) error {
+func (s *AuthService) InitialSetup(req models.InitialSetupRequest) error {
 	if s.initialSetup == nil {
 		return errServerAuthNotConfigured
 	}
 
 	ctx, cancel := s.operationContext(30 * time.Second)
 	defer cancel()
-	return s.initialSetup.InitialSetup(ctx, password)
+	return s.initialSetup.InitialSetup(ctx, req)
 }

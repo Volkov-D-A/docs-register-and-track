@@ -51,7 +51,7 @@ func TestAssignmentSeriesRepositoryCreatesTemplateAndFirstIteration(t *testing.T
 		"interval_unit", "interval_value", "day_rule", "day_of_month", "current_assignment_id",
 		"current_iteration", "active", "created_by", "cancelled_by", "cancelled_at", "created_at", "updated_at",
 	}).AddRow(seriesID, documentID, "incoming_letter", "ВХ-1", executorID, "Исполнитель", "Отчёт", "month", 3, "last_day", nil, assignmentID, 1, true, actorID, nil, nil, now, now))
-	mockDB.ExpectQuery(`SELECT u.id,u.login,u.full_name`).WithArgs(seriesID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "full_name"}))
+	mockDB.ExpectQuery(`SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic`).WithArgs(seriesID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "last_name", "first_name", "patronymic", "no_patronymic"}))
 
 	series, err := repo.CreateSeriesWithFirstAssignment(seriesID, assignmentID, documentID, executorID, actorID, "Отчёт", deadline, "month", 3, "last_day", 0, []string{coExecutorID.String()}, nil)
 	require.NoError(t, err)
@@ -71,8 +71,8 @@ func TestAssignmentSeriesRepositoryLoadsHistoryAndCoExecutors(t *testing.T) {
 		"id", "document_id", "kind", "executor_id", "executor_name", "content", "deadline", "status", "report", "completed_at",
 		"series_id", "iteration_number", "planned_deadline", "is_series_current", "created_at", "updated_at", "registration_number", "document_content",
 	}).AddRow(assignmentID, documentID, "incoming_letter", executorID, "Исполнитель", "Отчёт", deadline, "finished", "готово", now, seriesID, 1, deadline, false, now, now, "ВХ-1", "Тема"))
-	mockDB.ExpectQuery(`SELECT ce.assignment_id,u.id,u.login,u.full_name`).WithArgs(sqlmock.AnyArg()).WillReturnRows(
-		sqlmock.NewRows([]string{"assignment_id", "user_id", "login", "full_name"}).AddRow(assignmentID, coExecutorID, "co", "Соисполнитель"),
+	mockDB.ExpectQuery(`SELECT ce.assignment_id,u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic`).WithArgs(sqlmock.AnyArg()).WillReturnRows(
+		sqlmock.NewRows([]string{"assignment_id", "user_id", "login", "last_name", "first_name", "patronymic", "no_patronymic"}).AddRow(assignmentID, coExecutorID, "co", "Соисполнитель", "Тест", "", true),
 	)
 
 	history, err := repo.GetAssignmentSeriesHistory(seriesID)

@@ -1,3 +1,4 @@
+import { UserNameFields, type UserNameValues } from '../components/UserNameFields';
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, Button, Typography, Space, Descriptions, Tag, Row, Col, App, Segmented, Select, DatePicker, Switch } from 'antd';
 import { UserOutlined, LockOutlined, BgColorsOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
@@ -31,7 +32,7 @@ const ProfilePage: React.FC = () => {
         if (isEditingProfile && user) {
             profileForm.setFieldsValue({
                 login: user.login,
-                fullName: user.fullName,
+                lastName: user.lastName, firstName: user.firstName, patronymic: user.patronymic, noPatronymic: user.noPatronymic,
             });
         }
     }, [isEditingProfile, user, profileForm]);
@@ -76,9 +77,9 @@ const ProfilePage: React.FC = () => {
         return <div style={{ padding: 24 }}><Text>Загрузка профиля...</Text></div>;
     }
 
-    const handleUpdateProfile = async (values: { login: string; fullName: string }) => {
+    const handleUpdateProfile = async (values: UserNameValues & { login: string }) => {
         try {
-            await updateProfile(values.login, values.fullName);
+            await updateProfile(values);
             message.success('Профиль успешно обновлён');
             setIsEditingProfile(false);
         } catch {
@@ -144,7 +145,9 @@ const ProfilePage: React.FC = () => {
                         {!isEditingProfile ? (
                             <>
                                 <Descriptions column={1} bordered size="small">
-                                    <Descriptions.Item label="ФИО">{user.fullName}</Descriptions.Item>
+                                    <Descriptions.Item label="Фамилия">{user.lastName}</Descriptions.Item>
+                                    <Descriptions.Item label="Имя">{user.firstName}</Descriptions.Item>
+                                    <Descriptions.Item label="Отчество">{user.noPatronymic ? 'Нет отчества' : user.patronymic}</Descriptions.Item>
                                     <Descriptions.Item label="Логин">{user.login}</Descriptions.Item>
                                     <Descriptions.Item label="Подразделение">
                                         {user.department?.name || <Text type="secondary">Не указано</Text>}
@@ -173,13 +176,7 @@ const ProfilePage: React.FC = () => {
                                 layout="vertical"
                                 onFinish={handleUpdateProfile}
                             >
-                                <Form.Item
-                                    name="fullName"
-                                    label="ФИО"
-                                    rules={[{ required: true, message: 'Пожалуйста, введите ФИО' }]}
-                                >
-                                    <Input placeholder="Иванов Иван Иванович" />
-                                </Form.Item>
+                                <UserNameFields />
 
                                 <Form.Item
                                     name="login"
@@ -197,7 +194,7 @@ const ProfilePage: React.FC = () => {
                                         Сохранить
                                     </Button>
                                     <Button onClick={() => {
-                                        profileForm.setFieldsValue({ login: user.login, fullName: user.fullName });
+                                        profileForm.resetFields();
                                         setIsEditingProfile(false);
                                     }}>
                                         Отмена

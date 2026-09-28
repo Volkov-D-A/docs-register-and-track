@@ -2,21 +2,36 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { App, Button, Checkbox, Collapse, DatePicker, Form, Input, Modal, Row, Col, Select, Space, Switch, Table, Tag, Typography } from 'antd';
 import { EditOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { models } from '../../../wailsjs/go/models';
+import { UserNameFields, type UserNameValues } from '../../components/UserNameFields';
+import { dto, models } from '../../../wailsjs/go/models';
 import { useCurrentAccessSummary } from '../../hooks/useCurrentAccessSummary';
 import { formatAppError } from '../../utils/appError';
 import { confirmDiscardFormChanges } from '../../utils/dirtyForm';
 
+type UserFormValues = UserNameValues & {
+  login: string;
+  password?: string;
+  departmentId: string;
+  isActive: boolean;
+  isDocumentParticipant: boolean;
+  substituteUserId?: string;
+  substitutionActive?: boolean;
+  substitutionPeriod?: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null;
+  systemPermissions?: string[];
+  statisticsPermissions?: string[];
+  documentAccess?: Record<string, { actions: string[] }>;
+};
+
 const UsersTab: React.FC = () => {
   const { message, modal } = App.useApp();
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<dto.User[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  const [editItem, setEditItem] = useState<any>(null);
+  const [editItem, setEditItem] = useState<dto.User | null>(null);
   const [documentAccessCollapseKeys, setDocumentAccessCollapseKeys] = useState<string[]>([]);
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<UserFormValues>();
   const { kinds: allDocumentKinds } = useCurrentAccessSummary();
 
   const documentActionOptions = [
@@ -86,15 +101,15 @@ const UsersTab: React.FC = () => {
     setEditItem(null);
     setDocumentAccessCollapseKeys([]);
     form.resetFields();
-    form.setFieldsValue({ documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], isActive: true, isDocumentParticipant: false, substitutionActive: true });
+    form.setFieldsValue({ documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], noPatronymic: false, patronymic: '', isActive: true, isDocumentParticipant: false, substitutionActive: true });
     setModalOpen(true);
   };
 
-  const openEditModal = async (record: any) => {
+  const openEditModal = async (record: dto.User) => {
     setEditItem(record);
     setDocumentAccessCollapseKeys([]);
     form.resetFields();
-    form.setFieldsValue({ ...record, departmentId: record.department?.id, documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], isDocumentParticipant: record.isDocumentParticipant });
+    form.setFieldsValue({ login: record.login, lastName: record.lastName, firstName: record.firstName, patronymic: record.patronymic, noPatronymic: record.noPatronymic, isActive: record.isActive, departmentId: record.department?.id, documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], isDocumentParticipant: record.isDocumentParticipant });
     setModalOpen(true);
 
     try {
@@ -105,8 +120,6 @@ const UsersTab: React.FC = () => {
         GetUserSubstitution(record.id),
       ]);
       form.setFieldsValue({
-        ...record,
-        departmentId: record.department?.id,
         systemPermissions: buildSystemPermissionsFormValue(profile),
         statisticsPermissions: buildStatisticsPermissionsFormValue(profile),
         documentAccess: buildDocumentAccessFormValue(profile),
@@ -139,7 +152,7 @@ const UsersTab: React.FC = () => {
 
   useEffect(() => { void load(); }, [load]);
 
-  const onSave = async (values: any) => {
+  const onSave = async (values: UserFormValues) => {
     if (loading) {
       return;
     }
@@ -154,7 +167,10 @@ const UsersTab: React.FC = () => {
         await UpdateUser({
           id: editItem.id,
           login: values.login,
-          fullName: values.fullName,
+          lastName: values.lastName,
+          firstName: values.firstName,
+          patronymic: values.noPatronymic ? '' : (values.patronymic || ''),
+          noPatronymic: !!values.noPatronymic,
           isActive: values.isActive,
           departmentId: values.departmentId,
           isDocumentParticipant: !!values.isDocumentParticipant,
@@ -172,7 +188,10 @@ const UsersTab: React.FC = () => {
         const createdUser = await CreateUser({
           login: values.login,
           password: values.password || '',
-          fullName: values.fullName,
+          lastName: values.lastName,
+          firstName: values.firstName,
+          patronymic: values.noPatronymic ? '' : (values.patronymic || ''),
+          noPatronymic: !!values.noPatronymic,
           departmentId: values.departmentId,
           isDocumentParticipant: !!values.isDocumentParticipant,
         });
@@ -221,6 +240,7 @@ const UsersTab: React.FC = () => {
     setLoading(true);
     try {
       const { ResetPassword } = await import('../../../wailsjs/go/services/UserService');
+      if (!editItem) return;
       const temporaryPassword = await ResetPassword(editItem.id);
       setPasswordModalOpen(false);
       setEditItem(null);
@@ -345,9 +365,7 @@ const UsersTab: React.FC = () => {
                   <Input.Password placeholder="Сгенерировать автоматически" />
                 </Form.Item>
               )}
-              <Form.Item name="fullName" label="ФИО" rules={[{ required: true }]} style={compactUserFormItemStyle}>
-                <Input />
-              </Form.Item>
+              <UserNameFields itemStyle={compactUserFormItemStyle} />
               <Form.Item name="departmentId" label="Подразделение" rules={[{ required: true }]} style={compactUserFormItemStyle}>
                 <Select
                   showSearch

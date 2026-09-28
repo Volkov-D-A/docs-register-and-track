@@ -24,8 +24,8 @@ func TestRepeatedSubstitutionTransitionsAuditIntegration(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO departments(id,name) VALUES ($1,'Substitution Audit')`, department)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO users(id,login,password_hash,full_name,is_active,is_document_participant,department_id,password_change_required) VALUES
- ($1,'audit-admin',$4,'Admin',TRUE,FALSE,$5,FALSE),($2,'audit-principal',$4,'Principal',TRUE,TRUE,$5,FALSE),($3,'audit-substitute',$4,'Substitute',TRUE,FALSE,$5,FALSE)`, adminID, principalID, substituteID, hash, department)
+	_, err = db.Exec(`INSERT INTO users(id, login, password_hash, last_name, first_name, no_patronymic, is_active, is_document_participant, department_id, password_change_required) VALUES
+ ($1, 'audit-admin', $4, 'Admin', 'User', TRUE, TRUE, FALSE, $5, FALSE),($2, 'audit-principal', $4, 'Principal', 'User', TRUE, TRUE, TRUE, $5, FALSE),($3, 'audit-substitute', $4, 'Substitute', 'User', TRUE, TRUE, FALSE, $5, FALSE)`, adminID, principalID, substituteID, hash, department)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions(user_id,permission,is_allowed) VALUES($1,'admin',TRUE)`, adminID)
 	require.NoError(t, err)

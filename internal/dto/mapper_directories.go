@@ -10,7 +10,7 @@ func MapUser(m *models.User) *User {
 	if m.Department != nil {
 		department = MapDepartment(m.Department)
 	}
-	return &User{ID: m.ID.String(), Login: m.Login, FullName: m.FullName, IsDocumentParticipant: m.IsDocumentParticipant, IsActive: m.IsActive, FailedLoginAttempts: m.FailedLoginAttempts, SystemPermissions: m.SystemPermissions, Department: department}
+	return &User{ID: m.ID.String(), Login: m.Login, FullName: m.FullName(), LastName: m.LastName, FirstName: m.FirstName, Patronymic: m.Patronymic, NoPatronymic: m.NoPatronymic, IsDocumentParticipant: m.IsDocumentParticipant, IsActive: m.IsActive, FailedLoginAttempts: m.FailedLoginAttempts, SystemPermissions: m.SystemPermissions, Department: department}
 }
 func MapUserSubstitution(m *models.UserSubstitution) *UserSubstitution {
 	if m == nil {

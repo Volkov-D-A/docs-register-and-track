@@ -17,12 +17,17 @@ func (api *managementAPI) updateOwnProfile(w http.ResponseWriter, r *http.Reques
 		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
 		return
 	}
-	if strings.TrimSpace(req.Login) == "" || strings.TrimSpace(req.FullName) == "" {
-		writeUserError(w, models.NewBadRequest("логин и ФИО обязательны"))
+	if err := req.NormalizeName(); err != nil {
+		writeUserError(w, err)
 		return
 	}
+	if err := validateUserInput(req.Login, ""); err != nil {
+		writeUserError(w, err)
+		return
+	}
+	req.Login = strings.TrimSpace(req.Login)
 	auth := authenticatedFromContext(r.Context())
-	effect, err := userAuditEffect(auth.User, "profile:"+auth.User.ID.String()+":update:"+uuid.NewString(), "USER_PROFILE_UPDATE", fmt.Sprintf("Пользователь «%s» обновил собственный профиль", auth.User.FullName))
+	effect, err := userAuditEffect(auth.User, "profile:"+auth.User.ID.String()+":update:"+uuid.NewString(), "USER_PROFILE_UPDATE", fmt.Sprintf("Пользователь «%s» обновил собственный профиль", auth.User.FullName()))
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -31,7 +36,16 @@ func (api *managementAPI) updateOwnProfile(w http.ResponseWriter, r *http.Reques
 		writeUserError(w, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	user, err := api.userCommands.GetByID(auth.User.ID)
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+	if user == nil {
+		writeUserError(w, models.NewNotFound("пользователь не найден"))
+		return
+	}
+	writeJSON(w, http.StatusOK, dto.MapUser(user))
 }
 
 func (api *managementAPI) listOwnSubstitutionCandidates(w http.ResponseWriter, _ *http.Request) {

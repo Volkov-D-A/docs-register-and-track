@@ -43,7 +43,7 @@ func setupAttachmentService(t *testing.T, role string) (
 		ID:    uuid.New(),
 		Login: role + "_att",
 
-		FullName:              "Test User",
+		LastName: "Test", FirstName: "User", Patronymic: "", NoPatronymic: true,
 		IsDocumentParticipant: role != "admin",
 		IsActive:              true,
 	}
@@ -116,7 +116,7 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 		ID:    uuid.New(),
 		Login: "multi_att_" + uuid.New().String(),
 
-		FullName:              "Test User",
+		LastName: "Test", FirstName: "User", Patronymic: "", NoPatronymic: true,
 		IsDocumentParticipant: true,
 		IsActive:              true,
 	}

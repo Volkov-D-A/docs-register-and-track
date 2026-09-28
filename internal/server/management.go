@@ -682,7 +682,7 @@ func (api *managementAPI) auditAction(user *models.User, action, details string)
 	if user == nil || api.audit == nil {
 		return
 	}
-	if _, err := api.audit.Create(models.CreateAdminAuditLogRequest{UserID: user.ID, UserName: user.FullName, Action: action, Details: details}); err != nil {
+	if _, err := api.audit.Create(models.CreateAdminAuditLogRequest{UserID: user.ID, UserName: user.FullName(), Action: action, Details: details}); err != nil {
 		slog.Error("failed to write migration audit", "action", action, "error", err)
 	}
 }

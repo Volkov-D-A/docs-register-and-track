@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
@@ -34,10 +34,10 @@ func TestUserAdministrationAPIPersistsAccessAndSubstitutionWithAuditIntegration(
 	adminID, targetID, substituteID, departmentID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	_, err = db.Exec(`INSERT INTO departments (id, name) VALUES ($1, 'Integration Department')`, departmentID)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, is_document_participant, department_id, password_change_required) VALUES
-		($1, 'access-admin', $4, 'Access Admin', TRUE, FALSE, NULL, FALSE),
-		($2, 'access-target', 'hash', 'Access Target', TRUE, TRUE, $5, FALSE),
-		($3, 'access-substitute', 'hash', 'Access Substitute', TRUE, FALSE, $5, FALSE)`, adminID, targetID, substituteID, hash, departmentID)
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, is_document_participant, department_id, password_change_required) VALUES
+		($1, 'access-admin', $4, 'Access', 'Admin', TRUE, TRUE, FALSE, NULL, FALSE),
+		($2, 'access-target', 'hash', 'Access', 'Target', TRUE, TRUE, TRUE, $5, FALSE),
+		($3, 'access-substitute', 'hash', 'Access', 'Substitute', TRUE, TRUE, FALSE, $5, FALSE)`, adminID, targetID, substituteID, hash, departmentID)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES ($1, $2, TRUE)`, adminID, models.SystemPermissionAdmin)
 	require.NoError(t, err)
@@ -56,11 +56,11 @@ func TestUserAdministrationAPIPersistsAccessAndSubstitutionWithAuditIntegration(
 		AccessToken string `json:"accessToken"`
 	}
 	require.NoError(t, json.NewDecoder(loginResult.Body).Decode(&loginBody))
-	profileRequest := httptest.NewRequest(http.MethodPatch, "/api/v1/profile", strings.NewReader(`{"login":"access-admin-renamed","fullName":"Access Admin Renamed"}`))
+	profileRequest := httptest.NewRequest(http.MethodPatch, "/api/v1/profile", strings.NewReader(`{"login":"access-admin-renamed","lastName":"Access","firstName":"Admin Renamed","noPatronymic":true}`))
 	profileRequest.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
 	profileResult := httptest.NewRecorder()
 	api.Handler().ServeHTTP(profileResult, profileRequest)
-	require.Equal(t, http.StatusNoContent, profileResult.Code, profileResult.Body.String())
+	require.Equal(t, http.StatusOK, profileResult.Code, profileResult.Body.String())
 
 	accessRequest := httptest.NewRequest(http.MethodPut, "/api/v1/users/"+targetID.String()+"/access-profile", strings.NewReader(`{"systemPermissions":[{"permission":"references","isAllowed":true}],"permissions":[{"kindCode":"incoming_letter","action":"read","isAllowed":true}]}`))
 	accessRequest.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
@@ -100,8 +100,8 @@ func TestDepartmentAPIPersistsCRUDWithAuditOutboxIntegration(t *testing.T) {
 	hash, err := security.HashPassword("AdminPassw0rd!")
 	require.NoError(t, err)
 	adminID := uuid.New()
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, password_change_required)
-		VALUES ($1, 'department-admin', $2, 'Department Admin', TRUE, FALSE)`, adminID, hash)
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required)
+		VALUES ($1, 'department-admin', $2, 'Department', 'Admin', TRUE, TRUE, FALSE)`, adminID, hash)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES ($1, $2, TRUE)`, adminID, models.SystemPermissionAdmin)
 	require.NoError(t, err)

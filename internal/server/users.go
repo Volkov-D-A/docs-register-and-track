@@ -11,8 +11,8 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 )
 
 const activeAdministratorInvariantMessage = "at least one active administrator must remain"
@@ -63,10 +63,15 @@ func (api *managementAPI) createUser(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
 		return
 	}
-	if err := validateUserInput(req.Login, req.FullName, req.DepartmentID); err != nil {
+	if err := req.NormalizeName(); err != nil {
 		writeUserError(w, err)
 		return
 	}
+	if err := validateUserInput(req.Login, req.DepartmentID); err != nil {
+		writeUserError(w, err)
+		return
+	}
+	req.Login = strings.TrimSpace(req.Login)
 	temporaryPassword := ""
 	if req.Password == "" {
 		password, err := security.GenerateTemporaryPassword()
@@ -79,7 +84,7 @@ func (api *managementAPI) createUser(w http.ResponseWriter, r *http.Request) {
 	}
 	req.PasswordChangeRequired = true
 	auth := authenticatedFromContext(r.Context())
-	effect, err := userAuditEffect(auth.User, "user:"+uuid.NewString()+":create", "USER_CREATE", fmt.Sprintf("Создан пользователь «%s» (%s)", req.FullName, req.Login))
+	effect, err := userAuditEffect(auth.User, "user:"+uuid.NewString()+":create", "USER_CREATE", fmt.Sprintf("Создан пользователь «%s» (%s)", req.FullName(), req.Login))
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -109,13 +114,18 @@ func (api *managementAPI) updateUser(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
 		return
 	}
-	if err := validateUserInput(req.Login, req.FullName, req.DepartmentID); err != nil {
+	if err := req.NormalizeName(); err != nil {
 		writeUserError(w, err)
 		return
 	}
+	if err := validateUserInput(req.Login, req.DepartmentID); err != nil {
+		writeUserError(w, err)
+		return
+	}
+	req.Login = strings.TrimSpace(req.Login)
 	req.ID = id.String()
 	auth := authenticatedFromContext(r.Context())
-	effect, err := userAuditEffect(auth.User, "user:"+req.ID+":update:"+uuid.NewString(), "USER_UPDATE", fmt.Sprintf("Обновлен пользователь «%s»", req.FullName))
+	effect, err := userAuditEffect(auth.User, "user:"+req.ID+":update:"+uuid.NewString(), "USER_UPDATE", fmt.Sprintf("Обновлен пользователь «%s»", req.FullName()))
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -133,9 +143,9 @@ func (api *managementAPI) updateUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func validateUserInput(login, fullName, departmentID string) error {
-	if strings.TrimSpace(login) == "" || strings.TrimSpace(fullName) == "" {
-		return models.NewBadRequest("логин и ФИО обязательны")
+func validateUserInput(login, departmentID string) error {
+	if strings.TrimSpace(login) == "" {
+		return models.NewBadRequest("логин обязателен")
 	}
 	if departmentID != "" {
 		if _, err := uuid.Parse(departmentID); err != nil {
@@ -165,7 +175,7 @@ func (api *managementAPI) resetUserPassword(w http.ResponseWriter, r *http.Reque
 		writeUserError(w, err)
 		return
 	}
-	targetName := user.FullName
+	targetName := user.FullName()
 	if targetName == "" {
 		targetName = user.Login
 	}
@@ -187,7 +197,7 @@ func userAuditEffect(actor *models.User, key, action, details string) (models.Ou
 		return models.OutboxEvent{}, models.ErrUnauthorized
 	}
 	return servereffects.NewAdminAuditOutboxEvent(key, models.CreateAdminAuditLogRequest{
-		UserID: actor.ID, UserName: actor.FullName, Action: action, Details: details,
+		UserID: actor.ID, UserName: actor.FullName(), Action: action, Details: details,
 	})
 }
 

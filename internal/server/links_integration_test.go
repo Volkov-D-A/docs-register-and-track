@@ -33,8 +33,8 @@ func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 		login string
 		name  string
 	}{{managerID, "links-manager", "Links Manager"}, {outsiderID, "links-outsider", "Links Outsider"}} {
-		_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, is_document_participant, password_change_required)
-			VALUES ($1, $2, $3, $4, TRUE, TRUE, FALSE)`, user.id, user.login, hash, user.name)
+		_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, is_document_participant, password_change_required)
+			VALUES ($1, $2, $3, $4, 'User', TRUE, TRUE, TRUE, FALSE)`, user.id, user.login, hash, user.name)
 		require.NoError(t, err)
 	}
 	_, err = db.Exec(`INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed)

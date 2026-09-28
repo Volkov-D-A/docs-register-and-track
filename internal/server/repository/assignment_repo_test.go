@@ -47,11 +47,11 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 		mock.ExpectQuery(expectedQuery).WithArgs(assignID).WillReturnRows(rows)
 
 		// Запрос соисполнителей (пустой)
-		coExecQuery := `SELECT u.id, u.login, u.full_name
+		coExecQuery := `SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic
 		FROM assignment_co_executors ce
 		JOIN users u ON ce.user_id = u.id
 		WHERE ce.assignment_id = $1`
-		mock.ExpectQuery(regexp.QuoteMeta(coExecQuery)).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "full_name"}))
+		mock.ExpectQuery(regexp.QuoteMeta(coExecQuery)).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "last_name", "first_name", "patronymic", "no_patronymic"}))
 
 		assign, err := repo.GetByID(assignID)
 		require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestAssignmentRepository_CreateWithOutbox(t *testing.T) {
 	}).AddRow(assignID, docID, "incoming_letter", execID, "Иванов", "Текст", now, "new", nil, nil, nil, nil, nil, false, now, now, "", "")
 
 	mock.ExpectQuery(expectedGetQuery).WithArgs(assignID).WillReturnRows(rows)
-	mock.ExpectQuery(`SELECT u.id, u.login, u.full_name FROM assignment_co_executors`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "full_name"}))
+	mock.ExpectQuery(`SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic FROM assignment_co_executors`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "last_name", "first_name", "patronymic", "no_patronymic"}))
 
 	assign, err := repo.CreateWithOutbox(assignID, docID, execID, "Текст", &now, []string{coExecID.String()}, nil)
 	require.NoError(t, err)
@@ -236,7 +236,7 @@ func TestAssignmentRepository_UpdateWithOutbox(t *testing.T) {
 	}).AddRow(assignID, uuid.New(), "incoming_letter", execID, "Иванов", "Обновленный текст", now, "in_progress", "Отчет", now, nil, nil, nil, false, now, now, "", "")
 
 	mock.ExpectQuery(expectedGetQuery).WithArgs(assignID).WillReturnRows(rows)
-	mock.ExpectQuery(`SELECT(.*)FROM assignment_co_executors(.*)`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "full_name"}))
+	mock.ExpectQuery(`SELECT(.*)FROM assignment_co_executors(.*)`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "last_name", "first_name", "patronymic", "no_patronymic"}))
 
 	assign, err := repo.UpdateWithOutbox(assignID, execID, "Обновленный текст", &now, "in_progress", "Отчет", &now, []string{coExecID.String()}, nil)
 	require.NoError(t, err)
@@ -274,7 +274,7 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 
 	// Co-executors fetching
 	mock.ExpectQuery(`SELECT(.*)FROM assignment_co_executors(.*)`).
-		WillReturnRows(sqlmock.NewRows([]string{"assignment_id", "user_id", "login", "full_name"}))
+		WillReturnRows(sqlmock.NewRows([]string{"assignment_id", "user_id", "login", "last_name", "first_name", "patronymic", "no_patronymic"}))
 
 	res, err := repo.GetList(filter)
 	require.NoError(t, err)

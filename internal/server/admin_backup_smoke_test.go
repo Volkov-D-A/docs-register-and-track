@@ -48,7 +48,7 @@ func TestBuiltAdminRestoreIntegration(t *testing.T) {
 	var token string
 	reset := os.Getenv("DOCFLOW_SMOKE_RESET") != ""
 	if reset {
-		request("POST", "/api/v1/auth/setup", map[string]string{"password": "NewAdminPassw0rd!"}, "", 204)
+		request("POST", "/api/v1/auth/setup", models.InitialSetupRequest{Password: "NewAdminPassw0rd!", LastName: "Иванов", FirstName: "Иван", NoPatronymic: true}, "", 204)
 		token = login("admin", "NewAdminPassw0rd!")
 	} else {
 		token = login("attachment-user", "AttachmentPassw0rd!")
@@ -90,7 +90,7 @@ func TestBuiltAdminRestoreIntegration(t *testing.T) {
 	db, err := sql.Open("postgres", os.Getenv("DOCFLOW_INTEGRATION_DSN"))
 	require.NoError(t, err)
 	defer db.Close()
-	_, err = db.Exec(`INSERT INTO users(login,password_hash,full_name,is_active) VALUES('replace-extra','unused','Must disappear',true)`)
+	_, err = db.Exec(`INSERT INTO users(login, password_hash, last_name, first_name, no_patronymic, is_active) VALUES('replace-extra', 'unused', 'Must', 'disappear', TRUE, true)`)
 	require.NoError(t, err)
 	var restore models.BackupOperationStarted
 	require.NoError(t, json.Unmarshal(request("POST", "/api/v1/admin/backups/catalog/restore", models.BackupOperationRequest{CopyID: id, VerificationID: verification.Job.ID, Confirmation: selected.RestoreConfirmation}, token, 202), &restore))

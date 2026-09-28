@@ -31,7 +31,7 @@ func TestSubstitutionProductionScenarios(t *testing.T) {
 					actor := api.authUsers.(*fakeAuthUsers).user
 					principal := actor
 					if admin {
-						principal = &models.User{ID: uuid.New(), FullName: "Principal", IsActive: true}
+						principal = &models.User{ID: uuid.New(), LastName: "Principal", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true}
 					}
 					department := uuid.New()
 					principal.DepartmentID = &department

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,9 +27,9 @@ func TestInitialSetupClientUsesUnauthenticatedServerEndpoints(t *testing.T) {
 		case 2:
 			assert.Equal(t, http.MethodPost, r.Method)
 			assert.Equal(t, "/api/v1/auth/setup", r.URL.Path)
-			var body map[string]string
+			var body models.InitialSetupRequest
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-			assert.Equal(t, "Passw0rd!", body["password"])
+			assert.Equal(t, models.InitialSetupRequest{Password: "Passw0rd!", LastName: "Иванов", FirstName: "Иван", NoPatronymic: true}, body)
 			return response(http.StatusNoContent, ``), nil
 		default:
 			t.Fatalf("unexpected request %d", requestNumber)
@@ -38,5 +40,5 @@ func TestInitialSetupClientUsesUnauthenticatedServerEndpoints(t *testing.T) {
 	required, err := client.NeedsInitialSetup(context.Background())
 	require.NoError(t, err)
 	assert.True(t, required)
-	require.NoError(t, client.InitialSetup(context.Background(), "Passw0rd!"))
+	require.NoError(t, client.InitialSetup(context.Background(), models.InitialSetupRequest{Password: "Passw0rd!", LastName: "Иванов", FirstName: "Иван", NoPatronymic: true}))
 }

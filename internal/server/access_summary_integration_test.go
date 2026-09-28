@@ -26,10 +26,10 @@ func TestCurrentAccessSummaryMatchesIndividualPermissionChecksIntegration(t *tes
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO departments (id, name) VALUES ($1, 'Access Department')`, departmentID)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, department_id, password_change_required) VALUES
-		($1, 'access-reader', $5, 'Access Reader', $4, FALSE),
-		($2, 'access-admin', $5, 'Access Admin', NULL, FALSE),
-		($3, 'access-other', $5, 'Access Other', NULL, FALSE)`, userID, adminID, otherID, departmentID, hash)
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, department_id, password_change_required) VALUES
+		($1, 'access-reader', $5, 'Access', 'Reader', TRUE, $4, FALSE),
+		($2, 'access-admin', $5, 'Access', 'Admin', TRUE, NULL, FALSE),
+		($3, 'access-other', $5, 'Access', 'Other', TRUE, NULL, FALSE)`, userID, adminID, otherID, departmentID, hash)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES
 		($1, 'references', TRUE), ($1, 'stats_documents', FALSE), ($2, 'admin', TRUE)`, userID, adminID)

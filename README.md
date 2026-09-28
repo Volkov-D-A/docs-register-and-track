@@ -102,6 +102,21 @@ creates the first administrator through the one-time
 `POST /api/v1/auth/setup` command. The desktop never connects to PostgreSQL for
 bootstrap.
 
+Setup asks for the administrator's surname, first name, patronymic (or “No
+patronymic”) and password; the initial login is always `admin`. User creation,
+administrative editing and `PATCH /api/v1/profile` use `lastName`, `firstName`,
+`patronymic` and `noPatronymic`. Surname and first name are required; patronymic
+is required unless `noPatronymic` is true, in which case it is cleared. Each name
+component allows up to 100 Unicode characters after trimming. Responses include
+the components and a computed `fullName`; profile updates return HTTP 200 with
+the canonical user DTO.
+
+The split name schema is defined in the existing `001_core_users` migration.
+An already initialized test database must be recreated explicitly: applying
+migrations again does not reapply version 001. Backups made with the former
+user schema are incompatible even if their migration version matches; use new
+backups after recreating the test environment.
+
 Password changes also go through the service:
 `POST /api/v1/auth/change-password` requires the current bearer session, while
 `POST /api/v1/auth/change-required-password` accepts the credentials that were

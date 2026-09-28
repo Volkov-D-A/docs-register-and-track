@@ -7,6 +7,10 @@ type User struct {
 	ID                    string      `json:"id"`
 	Login                 string      `json:"login"`
 	FullName              string      `json:"fullName"`
+	LastName              string      `json:"lastName"`
+	FirstName             string      `json:"firstName"`
+	Patronymic            string      `json:"patronymic"`
+	NoPatronymic          bool        `json:"noPatronymic"`
 	IsDocumentParticipant bool        `json:"isDocumentParticipant"`
 	IsActive              bool        `json:"isActive"`
 	FailedLoginAttempts   int         `json:"failedLoginAttempts"`

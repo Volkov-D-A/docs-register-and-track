@@ -34,8 +34,8 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 	orgID := uuid.New()
 
 	execSQL(t, sqlDB, `
-		INSERT INTO users (id, login, password_hash, full_name)
-		VALUES ($1, 'regression_user', 'hash', 'Regression User')
+		INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic)
+		VALUES ($1, 'regression_user', 'hash', 'Regression', 'User', TRUE)
 	`, userID)
 	execSQL(t, sqlDB, `
 		INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode, next_number)
@@ -124,8 +124,8 @@ func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
 	orgID := uuid.New()
 
 	execSQL(t, sqlDB, `
-		INSERT INTO users (id, login, password_hash, full_name)
-		VALUES ($1, 'concurrent_user', 'hash', 'Concurrent User')
+		INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic)
+		VALUES ($1, 'concurrent_user', 'hash', 'Concurrent', 'User', TRUE)
 	`, userID)
 	execSQL(t, sqlDB, `
 		INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode, next_number)
@@ -297,8 +297,8 @@ func TestJournalRetentionFKIntegration(t *testing.T) {
 	docID := uuid.New()
 
 	execSQL(t, sqlDB, `
-		INSERT INTO users (id, login, password_hash, full_name)
-		VALUES ($1, 'retention_user', 'hash', 'Retention User')
+		INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic)
+		VALUES ($1, 'retention_user', 'hash', 'Retention', 'User', TRUE)
 	`, userID)
 	execSQL(t, sqlDB, `
 		INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode, next_number)
@@ -346,8 +346,8 @@ func TestDatabaseConstraintsIntegration(t *testing.T) {
 	docID := uuid.New()
 
 	execSQL(t, sqlDB, `
-		INSERT INTO users (id, login, password_hash, full_name)
-		VALUES ($1, 'constraint_user', 'hash', 'Constraint User')
+		INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic)
+		VALUES ($1, 'constraint_user', 'hash', 'Constraint', 'User', TRUE)
 	`, userID)
 	execSQL(t, sqlDB, `
 		INSERT INTO organizations (id, name)

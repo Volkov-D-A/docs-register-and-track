@@ -39,8 +39,11 @@ func TestBearerUnauthorizedEndsSessionAcrossAllRequestPaths(t *testing.T) {
 			_, err := c.UploadAttachment(context.Background(), "doc", "", "a.txt", 1, strings.NewReader("a"))
 			return err
 		},
-		"download":        func(c *Client) error { _, _, err := c.GetAttachmentContent(context.Background(), "file"); return err },
-		"update":          func(c *Client) error { return c.UpdateProfile(context.Background(), models.UpdateProfileRequest{}) },
+		"download": func(c *Client) error { _, _, err := c.GetAttachmentContent(context.Background(), "file"); return err },
+		"update": func(c *Client) error {
+			_, err := c.UpdateProfile(context.Background(), models.UpdateProfileRequest{})
+			return err
+		},
 		"change-password": func(c *Client) error { return c.ChangePassword(context.Background(), "old", "new") },
 	}
 	for name, operation := range operations {

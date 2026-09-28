@@ -30,8 +30,8 @@ func TestReferenceAPIPersistsMutationsWithAuditOutboxIntegration(t *testing.T) {
 	hash, err := security.HashPassword("ReferencePassw0rd!")
 	require.NoError(t, err)
 	userID := uuid.New()
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_active, password_change_required)
-		VALUES ($1, 'reference-manager', $2, 'Reference Manager', TRUE, FALSE)`, userID, hash)
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_active, password_change_required)
+		VALUES ($1, 'reference-manager', $2, 'Reference', 'Manager', TRUE, TRUE, FALSE)`, userID, hash)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES
 		($1, $2, TRUE), ($1, $3, TRUE)`, userID, models.SystemPermissionAdmin, models.SystemPermissionReferences)

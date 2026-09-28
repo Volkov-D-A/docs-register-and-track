@@ -72,7 +72,7 @@ func (api *managementAPI) updateUserAccessProfile(w http.ResponseWriter, r *http
 		}
 	}
 	auth := authenticatedFromContext(r.Context())
-	effect, err := userAuditEffect(auth.User, "user-access:"+id.String()+":update:"+uuid.NewString(), "USER_ACCESS_UPDATE", fmt.Sprintf("Обновлены права пользователя «%s»", target.FullName))
+	effect, err := userAuditEffect(auth.User, "user-access:"+id.String()+":update:"+uuid.NewString(), "USER_ACCESS_UPDATE", fmt.Sprintf("Обновлены права пользователя «%s»", target.FullName()))
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -167,7 +167,7 @@ func (api *managementAPI) saveUserSubstitution(w http.ResponseWriter, r *http.Re
 	}
 
 	auth := authenticatedFromContext(r.Context())
-	effect, err := userAuditEffect(auth.User, "user-substitution:"+principalID.String()+":update:"+uuid.NewString(), auditAction, fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName))
+	effect, err := userAuditEffect(auth.User, "user-substitution:"+principalID.String()+":update:"+uuid.NewString(), auditAction, fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName()))
 	if err != nil {
 		writeUserError(w, err)
 		return

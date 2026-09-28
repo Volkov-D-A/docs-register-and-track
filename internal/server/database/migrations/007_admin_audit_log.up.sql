@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- Scheduled operations and actors absent after a restore have no current user.
     user_id UUID REFERENCES users(id) ON DELETE RESTRICT,
-    user_name VARCHAR(255) NOT NULL,
+    user_name TEXT NOT NULL,
     action VARCHAR(100) NOT NULL,
     details TEXT,
     outbox_deduplication_key VARCHAR(255),

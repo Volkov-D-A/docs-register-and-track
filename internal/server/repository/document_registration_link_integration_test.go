@@ -57,7 +57,7 @@ func TestLinkedRegistrationAtomicityAndReplayIntegration(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			db := database.Wrap(integrationdb.Open(t))
 			userID, nomID, targetNomID, targetID, orgID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
-			execSQL(t, db.SQLDB(), `INSERT INTO users(id,login,password_hash,full_name) VALUES($1,'linked-user','hash','Linked User')`, userID)
+			execSQL(t, db.SQLDB(), `INSERT INTO users(id, login, password_hash, last_name, first_name, no_patronymic) VALUES($1, 'linked-user', 'hash', 'Linked', 'User', TRUE)`, userID)
 			execSQL(t, db.SQLDB(), `INSERT INTO organizations(id,name) VALUES($1,'Linked Org')`, orgID)
 			execSQL(t, db.SQLDB(), `INSERT INTO nomenclature(id,name,index,year,kind_code,numbering_mode,next_number) VALUES($1,'New','LINK',2026,$2,'index_and_number',1)`, nomID, kind)
 			execSQL(t, db.SQLDB(), `INSERT INTO nomenclature(id,name,index,year,kind_code) VALUES($1,'Existing','OLD',2026,'administrative_order')`, targetNomID)

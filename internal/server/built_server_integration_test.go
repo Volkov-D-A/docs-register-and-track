@@ -78,8 +78,8 @@ func TestBuiltServerAttachmentsIntegration(t *testing.T) {
 	hash, err := security.HashPassword(password)
 	require.NoError(t, err)
 	userID, nomenclatureID, organizationID := uuid.New(), uuid.New(), uuid.New()
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, full_name, is_document_participant, is_active, password_change_required)
-		VALUES ($1, 'attachment-user', $2, 'Attachment User', TRUE, TRUE, FALSE)`, userID, hash)
+	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_document_participant, is_active, password_change_required)
+		VALUES ($1, 'attachment-user', $2, 'Attachment', 'User', TRUE, TRUE, TRUE, FALSE)`, userID, hash)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed)
 		VALUES ('outgoing_letter', 'user', $1, 'upload', TRUE),

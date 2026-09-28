@@ -19,12 +19,12 @@ type AuthClient interface {
 	Me(context.Context) (*dto.User, error)
 	ChangePassword(context.Context, string, string) error
 	ChangeRequiredPassword(context.Context, string, string, string) error
-	UpdateProfile(context.Context, models.UpdateProfileRequest) error
+	UpdateProfile(context.Context, models.UpdateProfileRequest) (*dto.User, error)
 }
 
 type InitialSetupClient interface {
 	NeedsInitialSetup(context.Context) (bool, error)
-	InitialSetup(context.Context, string) error
+	InitialSetup(context.Context, models.InitialSetupRequest) error
 }
 
 func (c *Client) NeedsInitialSetup(ctx context.Context) (bool, error) {
@@ -49,8 +49,8 @@ func (c *Client) NeedsInitialSetup(ctx context.Context) (bool, error) {
 	return result.Required, nil
 }
 
-func (c *Client) InitialSetup(ctx context.Context, password string) error {
-	data, err := json.Marshal(map[string]string{"password": password})
+func (c *Client) InitialSetup(ctx context.Context, input models.InitialSetupRequest) error {
+	data, err := json.Marshal(input)
 	if err != nil {
 		return err
 	}
@@ -70,8 +70,12 @@ func (c *Client) InitialSetup(ctx context.Context, password string) error {
 	return nil
 }
 
-func (c *Client) UpdateProfile(ctx context.Context, input models.UpdateProfileRequest) error {
-	return c.doUserRequest(ctx, http.MethodPatch, "/api/v1/profile", input, http.StatusNoContent, nil)
+func (c *Client) UpdateProfile(ctx context.Context, input models.UpdateProfileRequest) (*dto.User, error) {
+	var user dto.User
+	if err := c.doUserRequest(ctx, http.MethodPatch, "/api/v1/profile", input, http.StatusOK, &user); err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 type loginResponse struct {

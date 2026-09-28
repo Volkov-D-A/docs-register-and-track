@@ -1,3 +1,4 @@
+import { UserNameFields, type UserNameValues } from '../components/UserNameFields';
 import React, { useEffect, useState } from 'react';
 import { Form, Input, Button, Card, Typography, Alert, Space, Modal } from 'antd';
 import { UserOutlined, LockOutlined, SettingOutlined } from '@ant-design/icons';
@@ -9,7 +10,7 @@ const { Title, Text } = Typography;
 
 /**
  * Страница авторизации и первоначальной настройки системы.
- * Позволяет войти в систему или создать пароль администратора при первом запуске.
+ * Позволяет войти в систему или создать администратора при первом запуске.
  */
 const LoginPage: React.FC = () => {
     const { login, changeRequiredPassword, isLoading, error, clearError } = useAuthStore();
@@ -70,7 +71,7 @@ const LoginPage: React.FC = () => {
         }
     };
 
-    const onSetupFinish = async (values: { password: string; confirmPassword: string }) => {
+    const onSetupFinish = async (values: UserNameValues & { password: string; confirmPassword: string }) => {
         if (values.password !== values.confirmPassword) {
             setSetupError('Пароли не совпадают');
             return;
@@ -78,7 +79,7 @@ const LoginPage: React.FC = () => {
         setSetupLoading(true);
         setSetupError(null);
         try {
-            await InitialSetup(values.password);
+            await InitialSetup({ password: values.password, lastName: values.lastName, firstName: values.firstName, patronymic: values.noPatronymic ? '' : (values.patronymic || ''), noPatronymic: !!values.noPatronymic });
             setSetupSuccess(true);
             setTimeout(() => {
                 setSetupMode(false);
@@ -117,7 +118,7 @@ const LoginPage: React.FC = () => {
                         </Title>
                         <Text type="secondary">
                             {setupMode
-                                ? 'Задайте пароль для администратора'
+                                ? 'Укажите ФИО и пароль администратора'
                                 : 'Система регистрации документов'}
                         </Text>
                     </div>
@@ -144,6 +145,7 @@ const LoginPage: React.FC = () => {
 
                             <Form
                                 name="setup"
+                                initialValues={{ noPatronymic: false, patronymic: '' }}
                                 onFinish={onSetupFinish}
                                 layout="vertical"
                                 size="large"
@@ -156,11 +158,12 @@ const LoginPage: React.FC = () => {
                                     />
                                 </Form.Item>
 
+                                <UserNameFields />
                                 <Form.Item
                                     name="password"
                                     rules={[
                                         { required: true, message: 'Введите пароль' },
-                                        { min: 6, message: 'Минимум 6 символов' },
+                                        { min: 8, message: 'Минимум 8 символов' },
                                     ]}
                                 >
                                     <Input.Password
