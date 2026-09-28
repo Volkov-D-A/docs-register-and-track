@@ -56,7 +56,8 @@ const modeOptions = [
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpenRegister }) => {
     const { message } = App.useApp();
-    const userId = useAuthStore((state) => state.user?.id);
+    const user = useAuthStore((state) => state.user);
+    const userId = user?.id;
     const { ready, registrationKinds } = useCurrentAccessSummary();
     const [assignmentMode, setAssignmentMode] = useState<WorkMode | ''>('');
     const [acknowledgmentMode, setAcknowledgmentMode] = useState<WorkMode | ''>('');
@@ -209,7 +210,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
         <div style={{ padding: 8 }}>
             <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 20 }}>
                 <div>
-                    <Title level={4} style={{ margin: 0 }}>{workspaceGreeting(currentTime)}</Title>
+                    <Title level={4} style={{ margin: 0 }}>{workspaceGreeting(currentTime, user)}</Title>
                     <Text type="secondary">{workspaceDate(currentTime)}</Text>
                 </div>
                 <Button icon={<ReloadOutlined />} loading={loading} onClick={() => { void loadOverview(); void loadEvents(); }}>Обновить</Button>

@@ -29,7 +29,7 @@ const overview = (assignmentMode: string, acknowledgmentMode: string, mixed = tr
 });
 const setUser = () => useAuthStore.setState({
     isAuthenticated: true,
-    user: { id: 'workspace-user', login: 'tester', fullName: 'Tester', isDocumentParticipant: true, systemPermissions: [] },
+    user: { id: 'workspace-user', login: 'tester', fullName: 'Иванов Иван Иванович', lastName: 'Иванов', firstName: 'Иван', patronymic: 'Иванович', noPatronymic: false, isDocumentParticipant: true, systemPermissions: [] },
 });
 
 afterEach(() => {
@@ -39,6 +39,23 @@ afterEach(() => {
     api.serverListeners = [];
     api.registrationKinds = [];
     useAuthStore.setState({ user: null, isAuthenticated: false });
+});
+
+test('greeting follows profile changes without reloading workspace data', async () => {
+    vi.spyOn(Date.prototype, 'getHours').mockReturnValue(12);
+    setUser();
+    api.GetOverview.mockResolvedValue(overview('', ''));
+    api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
+    renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
+    expect(await screen.findByRole('heading', { name: 'Добрый день, Иван Иванович!' })).toBeInTheDocument();
+    await screen.findByText('Поручения');
+    const calls = api.GetOverview.mock.calls.length;
+    act(() => {
+        const user = useAuthStore.getState().user!;
+        useAuthStore.setState({ user: { ...user, firstName: 'Анна', patronymic: 'Ивановна', noPatronymic: true } });
+    });
+    expect(screen.getByRole('heading', { name: 'Добрый день, Анна!' })).toBeInTheDocument();
+    expect(api.GetOverview).toHaveBeenCalledTimes(calls);
 });
 
 test('mixed user switches assignment and acknowledgment scopes independently', async () => {

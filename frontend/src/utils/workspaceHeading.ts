@@ -1,9 +1,17 @@
-export const workspaceGreeting = (date: Date): string => {
+type GreetingUser = {
+    firstName: string;
+    patronymic: string;
+    noPatronymic: boolean;
+};
+
+export const workspaceGreeting = (date: Date, user?: GreetingUser | null): string => {
     const hour = date.getHours();
-    if (hour < 5) return 'Доброй ночи!';
-    if (hour < 12) return 'Доброе утро!';
-    if (hour < 18) return 'Добрый день!';
-    return 'Добрый вечер!';
+    const greeting = hour < 5 ? 'Доброй ночи'
+        : hour < 12 ? 'Доброе утро'
+        : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+    const name = [user?.firstName.trim(), user?.noPatronymic ? '' : user?.patronymic.trim()]
+        .filter(Boolean).join(' ');
+    return name ? `${greeting}, ${name}!` : `${greeting}!`;
 };
 
 const russianDate = new Intl.DateTimeFormat('ru-RU', {

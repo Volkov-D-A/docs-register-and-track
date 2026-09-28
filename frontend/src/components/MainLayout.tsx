@@ -11,6 +11,7 @@ import AppHeader from './layout/AppHeader';
 import AppSidebar from './layout/AppSidebar';
 import RegisterDocumentAction from './layout/RegisterDocumentAction';
 import DocumentViewModal from './DocumentViewModal';
+import { shortUserName } from '../utils/shortUserName';
 
 const { Content } = Layout;
 
@@ -83,7 +84,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             <Layout style={{ height: '100vh', overflow: 'hidden', background: token.colorBgLayout }}>
                 <AppHeader
                     token={token}
-                    userName={user?.fullName}
+                    userName={user ? shortUserName(user) : undefined}
                     onAboutModalOpen={onAboutModalOpen}
                     onUserMenu={handleUserMenu}
                     onOpenEvent={handleOpenEvent}
