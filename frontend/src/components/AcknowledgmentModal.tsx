@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, DatePicker, App } from 'antd';
+import { Modal, Form, Select, DatePicker, App } from 'antd';
 import dayjs from 'dayjs';
 import { models } from '../../wailsjs/go/models';
 import { emitAssignmentsChanged } from '../events/assignmentEvents';
@@ -33,7 +33,7 @@ const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCance
         if (open) {
             loadUsers();
             form.resetFields();
-            if (initialValues) form.setFieldsValue({ content: initialValues.content, userIds: (initialValues.users || []).map((u: any) => u.userId), deadline: initialValues.deadline ? dayjs(initialValues.deadline) : null });
+            if (initialValues) form.setFieldsValue({ userIds: (initialValues.users || []).map((u: any) => u.userId), deadline: initialValues.deadline ? dayjs(initialValues.deadline) : null });
         }
     }, [form, open, initialValues]);
 
@@ -57,8 +57,8 @@ const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCance
 
             const { CreateTask, Update } = await import('../../wailsjs/go/services/AssignmentService');
             const deadline = values.deadline?.format('YYYY-MM-DD') || '';
-            if (initialValues) await Update(initialValues.id, '', values.content || '', deadline, []);
-            else await CreateTask(models.AssignmentRequest.createFrom({ type: 'acknowledgment', documentId, content: values.content || '', deadline, userIds: values.userIds }));
+            if (initialValues) await Update(initialValues.id, '', '', deadline, []);
+            else await CreateTask(models.AssignmentRequest.createFrom({ type: 'acknowledgment', documentId, deadline, userIds: values.userIds }));
             emitAssignmentsChanged({ documentId });
 
             message.success(initialValues ? 'Ознакомление изменено' : 'Задача создана');
@@ -103,9 +103,6 @@ const AcknowledgmentModal: React.FC<AcknowledgmentModalProps> = ({ open, onCance
                 </Form.Item>
 
                 <Form.Item name="deadline" label="Срок ознакомления"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" /></Form.Item>
-                <Form.Item name="content" label="Содержание / Комментарий">
-                    <Input.TextArea rows={4} />
-                </Form.Item>
             </Form>
         </Modal>
     );

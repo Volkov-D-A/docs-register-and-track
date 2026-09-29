@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func (s *AssignmentService) createRecipientTask(documentID, content, deadline string, userIds []string) (*dto.Assignment, error) {
+func (s *AssignmentService) createRecipientTask(documentID, deadline string, userIds []string) (*dto.Assignment, error) {
 	var deadlineTime *time.Time
 	if deadline != "" {
 		parsed, err := time.Parse("2006-01-02", deadline)
@@ -41,7 +41,6 @@ func (s *AssignmentService) createRecipientTask(documentID, content, deadline st
 		DocumentID:   docUUID,
 		DocumentKind: string(doc.Kind),
 		CreatorID:    creatorUUID,
-		Content:      content,
 		CreatedAt:    time.Now(),
 	}
 

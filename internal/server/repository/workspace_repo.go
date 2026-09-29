@@ -78,7 +78,7 @@ func (r *WorkspaceRepository) AssignmentSummary(query models.WorkspaceQuery) (mo
 		limit = 5
 	}
 	rows, err := r.db.Query(`SELECT a.id, a.document_id, d.kind, d.registration_number, d.registration_date,
-		a.content, a.deadline, a.status, a.type, d.content, a.created_at`+from+`
+		CASE WHEN a.type = 'execution' THEN a.content ELSE '' END, a.deadline, a.status, a.type, d.content, a.created_at`+from+`
 		ORDER BY CASE WHEN a.status = 'completed' THEN 0 WHEN a.deadline::date < CURRENT_DATE THEN 1 ELSE 2 END,
 		a.deadline ASC NULLS LAST, a.created_at DESC, a.id LIMIT `+fmt.Sprint(limit), args...)
 	if err != nil {

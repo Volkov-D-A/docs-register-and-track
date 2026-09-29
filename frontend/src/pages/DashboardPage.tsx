@@ -169,11 +169,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAssignments, onOpen
             title: 'Содержание', dataIndex: 'documentContent', key: 'documentContent',
         },
         {
-            title: 'Поручение', key: 'content', width: 240,
+            title: 'Поручение', key: 'content',
             render: (_: unknown, item) => (
                 <div>
-                    {item.type === 'acknowledgment' && <Tag>Ознакомление</Tag>}
-                    {item.content}
+                    {item.type === 'acknowledgment' ? <Tag>Ознакомление</Tag> : item.content}
                 </div>
             ),
         },

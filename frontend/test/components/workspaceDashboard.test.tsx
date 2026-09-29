@@ -267,10 +267,11 @@ test('acknowledgment preview opens its document and full list navigates to assig
         expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
             'Срок', 'Документ', 'Содержание', 'Поручение', 'Статус',
         ]);
-        for (const value of ['ИТ/43', '28.09.2026', 'Об изменении графика', 'Принять к сведению']) {
+        for (const value of ['ИТ/43', '28.09.2026', 'Об изменении графика', 'Ознакомление']) {
             expect(within(table).getByText(value)).toBeInTheDocument();
         }
-        const row = within(table).getByText('Принять к сведению').closest('tr')!;
+        expect(within(table).queryByText('Принять к сведению')).not.toBeInTheDocument();
+        const row = within(table).getByText('ИТ/43').closest('tr')!;
         expect(row).toHaveAttribute('tabindex', '0');
         fireEvent.keyDown(row, { key: 'Enter' });
         expect(screen.getByTestId('opened-document')).toHaveTextContent('document-ack');

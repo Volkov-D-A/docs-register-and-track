@@ -95,9 +95,13 @@ func (s *WorkspaceService) GetOverview(assignmentMode string) (*dto.WorkspaceOve
 			}
 			sort.SliceStable(all, func(i, j int) bool { return workspaceAssignmentLess(all[i], all[j]) })
 			for _, item := range all[:min(len(all), 5)] {
+				content := item.Content
+				if item.Type == models.AssignmentTypeAcknowledgment {
+					content = ""
+				}
 				result.Assignments = append(result.Assignments, dto.WorkspaceAssignment{
 					ID: item.ID.String(), DocumentID: item.DocumentID.String(), DocumentKind: item.DocumentKind,
-					DocumentNumber: item.DocumentNumber, DocumentDate: item.DocumentDate, Content: item.Content,
+					DocumentNumber: item.DocumentNumber, DocumentDate: item.DocumentDate, Content: content,
 					Deadline: item.Deadline, Status: item.Status, Type: item.Type, DocumentContent: item.DocumentContent,
 				})
 			}

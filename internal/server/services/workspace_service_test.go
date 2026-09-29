@@ -124,7 +124,7 @@ func TestWorkspaceAcknowledgmentsIncludeDocumentDetailsInOverview(t *testing.T) 
 	require.Equal(t, item.DocumentNumber, acknowledgment.DocumentNumber)
 	require.Equal(t, item.DocumentDate, acknowledgment.DocumentDate)
 	require.Equal(t, item.DocumentContent, acknowledgment.DocumentContent)
-	require.Equal(t, item.Content, acknowledgment.Content)
+	require.Empty(t, acknowledgment.Content)
 	require.Equal(t, models.AssignmentTypeAcknowledgment, acknowledgment.Type)
 }
 

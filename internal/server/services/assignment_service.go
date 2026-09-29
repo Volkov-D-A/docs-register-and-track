@@ -36,7 +36,7 @@ func (s *AssignmentService) CreateTask(request models.AssignmentRequest) (*dto.A
 		if request.ExecutorID != "" || len(request.CoExecutorIDs) > 0 {
 			return nil, models.NewBadRequest("для ознакомления укажите равноправных адресатов")
 		}
-		result, err := s.createRecipientTask(request.DocumentID, request.Content, request.Deadline, request.UserIDs)
+		result, err := s.createRecipientTask(request.DocumentID, request.Deadline, request.UserIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -553,7 +553,7 @@ func (s *AssignmentService) Update(
 		if executorID != "" || len(coExecutorIDs) > 0 {
 			return nil, models.NewBadRequest("адресатов ознакомления нельзя заменять исполнителем")
 		}
-		return s.updateAcknowledgment(existing, content, deadline)
+		return s.updateAcknowledgment(existing, deadline)
 	}
 
 	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
@@ -1010,7 +1010,7 @@ func (s *AssignmentService) getTypedList(filter models.AssignmentFilter) (*dto.P
 	return &dto.PagedResult[dto.Assignment]{Items: items, TotalCount: res.TotalCount, Page: res.Page, PageSize: res.PageSize}, nil
 }
 
-func (s *AssignmentService) updateAcknowledgment(existing *models.Assignment, content, deadline string) (*dto.Assignment, error) {
+func (s *AssignmentService) updateAcknowledgment(existing *models.Assignment, deadline string) (*dto.Assignment, error) {
 	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
 		return nil, err
 	}
@@ -1033,7 +1033,7 @@ func (s *AssignmentService) updateAcknowledgment(existing *models.Assignment, co
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.UpdateRecipientTaskDetails(existing.ID, content, due, []models.OutboxEvent{event}); err != nil {
+	if err := s.repo.UpdateRecipientTaskDeadline(existing.ID, due, []models.OutboxEvent{event}); err != nil {
 		return nil, err
 	}
 	return s.assignmentResult(existing.ID.String())

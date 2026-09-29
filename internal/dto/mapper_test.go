@@ -204,11 +204,13 @@ func TestMapAcknowledgmentAssignment(t *testing.T) {
 		id := uuid.New()
 		now := time.Now()
 		u := models.AssignmentRecipient{ID: uuid.New(), UserID: uuid.New(), UserName: "Tester", CreatedAt: now}
-		m := &models.Assignment{ID: id, DocumentID: uuid.New(), CreatorID: uuid.New(), Users: []models.AssignmentRecipient{u}}
+		m := &models.Assignment{Type: models.AssignmentTypeAcknowledgment, ID: id, DocumentID: uuid.New(), CreatorID: uuid.New(), Content: "Legacy comment", Users: []models.AssignmentRecipient{u}}
 		d := MapAssignment(m)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Len(t, d.Users, 1)
 		assert.Equal(t, "Tester", d.Users[0].UserName)
+		assert.Empty(t, d.Content)
+		assert.Equal(t, "Legacy comment", m.Content)
 	})
 }
 

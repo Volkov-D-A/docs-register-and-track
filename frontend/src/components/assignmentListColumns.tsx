@@ -26,7 +26,7 @@ export const buildAssignmentColumns = ({
         render: (value: string) => dayjs(value).format('DD.MM.YYYY'),
     },
     { title: 'Тип', key: 'type', width: 130, render: (_: any, r: any) => r.type === 'acknowledgment' ? 'Ознакомление' : 'Исполнение' },
-    { title: 'Содержание', dataIndex: 'content', key: 'content' },
+    { title: 'Содержание', dataIndex: 'content', key: 'content', render: (content: string, record: any) => record.type === 'acknowledgment' ? 'Ознакомиться с документом' : content },
     {
         title: 'Исполнитель / адресаты',
         key: 'executorName',

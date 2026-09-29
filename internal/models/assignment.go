@@ -19,7 +19,7 @@ type Assignment struct {
 	ExecutorID   uuid.UUID `json:"-"`
 	ExecutorName string    `json:"executorName,omitempty"`
 
-	Content     string     `json:"content"`
+	Content     string     `json:"content"` // Только для исполнения; ознакомление не имеет содержания.
 	Deadline    *time.Time `json:"deadline,omitempty"`
 	Status      string     `json:"status"` // new, in_progress, completed, cancelled, returned, finished
 	Report      string     `json:"report,omitempty"`
@@ -124,7 +124,7 @@ type AssignmentRequest struct {
 	Type          string   `json:"type"`
 	DocumentID    string   `json:"documentId"`
 	ExecutorID    string   `json:"executorId,omitempty"`
-	Content       string   `json:"content"`
+	Content       string   `json:"content"` // Используется только для type=execution.
 	Deadline      string   `json:"deadline,omitempty"`
 	CoExecutorIDs []string `json:"coExecutorIds,omitempty"`
 	UserIDs       []string `json:"userIds,omitempty"`

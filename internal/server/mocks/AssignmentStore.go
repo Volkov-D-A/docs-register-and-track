@@ -234,6 +234,6 @@ func (m *AssignmentStore) CreateRecipientTaskWithOutbox(a *models.Assignment, ef
 func (m *AssignmentStore) ConfirmRecipientWithEffects(id, user uuid.UUID, effects models.AssignmentConfirmationEffects) error {
 	return m.Called(id, user, effects).Error(0)
 }
-func (m *AssignmentStore) UpdateRecipientTaskDetails(id uuid.UUID, content string, deadline *time.Time, effects []models.OutboxEvent) error {
-	return m.Called(id, content, deadline, effects).Error(0)
+func (m *AssignmentStore) UpdateRecipientTaskDeadline(id uuid.UUID, deadline *time.Time, effects []models.OutboxEvent) error {
+	return m.Called(id, deadline, effects).Error(0)
 }

@@ -56,7 +56,7 @@ func TestWorkspaceCountsAndPreviewsRespectModesAndDocumentScope(t *testing.T) {
 			continue
 		}
 		require.Equal(t, "2026-09-28", item.DocumentDate.Format("2006-01-02"))
-		require.Equal(t, "read", item.Content)
+		require.Empty(t, item.Content)
 		if item.DocumentID == firstDocument {
 			require.Equal(t, "Document content", item.DocumentContent)
 			require.Equal(t, "IT/1", item.DocumentNumber)

@@ -40,7 +40,11 @@ func MapAssignment(m *models.Assignment) *Assignment {
 	for i := range m.Users {
 		users[i] = *MapAssignmentRecipient(&m.Users[i])
 	}
-	return &Assignment{Type: m.Type, CreatorID: uuidString(m.CreatorID), CreatorName: m.CreatorName, Users: users, ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, ExecutorID: uuidString(m.ExecutorID), ExecutorName: m.ExecutorName, Content: m.Content, Deadline: m.Deadline, Status: m.Status, Report: m.Report, CompletedAt: m.CompletedAt, SeriesID: seriesID, IterationNumber: m.IterationNumber, PlannedDeadline: m.PlannedDeadline, DocumentNumber: m.DocumentNumber, DocumentSubject: m.DocumentSubject, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+	content := m.Content
+	if m.Type == models.AssignmentTypeAcknowledgment {
+		content = ""
+	}
+	return &Assignment{Type: m.Type, CreatorID: uuidString(m.CreatorID), CreatorName: m.CreatorName, Users: users, ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, ExecutorID: uuidString(m.ExecutorID), ExecutorName: m.ExecutorName, Content: content, Deadline: m.Deadline, Status: m.Status, Report: m.Report, CompletedAt: m.CompletedAt, SeriesID: seriesID, IterationNumber: m.IterationNumber, PlannedDeadline: m.PlannedDeadline, DocumentNumber: m.DocumentNumber, DocumentSubject: m.DocumentSubject, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
 }
 
 func MapAssignmentSeries(m *models.AssignmentSeries) *AssignmentSeries {

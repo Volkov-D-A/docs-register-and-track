@@ -1362,3 +1362,32 @@ func TestAssignmentServiceRejectsUnknownListFilterValues(t *testing.T) {
 		})
 	}
 }
+
+func TestAssignmentAcknowledgmentIgnoresContent(t *testing.T) {
+	t.Run("create", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		var created *models.Assignment
+		repo.On("CreateRecipientTaskWithOutbox", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			created = args.Get(0).(*models.Assignment)
+			require.Empty(t, created.Content)
+		}).Return(nil).Once()
+		repo.On("GetByID", mock.Anything).Return(func(uuid.UUID) *models.Assignment { return created }, nil).Once()
+		result, err := svc.CreateTask(models.AssignmentRequest{
+			Type: models.AssignmentTypeAcknowledgment, DocumentID: uuid.NewString(),
+			Content: "Legacy client comment", UserIDs: []string{uuid.NewString()},
+		})
+		require.NoError(t, err)
+		require.Empty(t, result.Content)
+	})
+	t.Run("update", func(t *testing.T) {
+		svc, repo, _, _, _ := setupAssignmentService(t, "clerk")
+		existing := &models.Assignment{ID: uuid.New(), DocumentID: uuid.New(), Type: models.AssignmentTypeAcknowledgment, Status: "new", Content: "Historical comment"}
+		repo.On("GetByID", existing.ID).Return(existing, nil)
+		due := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+		repo.On("UpdateRecipientTaskDeadline", existing.ID, &due, mock.Anything).Return(nil).Once()
+		result, err := svc.Update(existing.ID.String(), "", "New comment", "2026-12-31", nil)
+		require.NoError(t, err)
+		require.Empty(t, result.Content)
+		require.Equal(t, "Historical comment", existing.Content)
+	})
+}

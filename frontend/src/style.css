@@ -476,10 +476,16 @@ body {
 }
 
 .assignment-filters-toggles {
+  margin-bottom: 18px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.assignment-filters-reset {
+  margin-inline-start: auto;
+  flex-shrink: 0;
 }
 
 .assignment-filter-buttons {
@@ -540,6 +546,27 @@ body {
     width: 100%;
   }
 
+}
+
+.document-assignment-type-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.document-assignment-type-icon--execution {
+  color: #1677ff;
+}
+
+.document-assignment-type-icon--acknowledgment {
+  color: #08979c;
+}
+
+:root[data-app-theme='dark'] .document-assignment-type-icon--execution {
+  color: #69b1ff;
+}
+
+:root[data-app-theme='dark'] .document-assignment-type-icon--acknowledgment {
+  color: #5cdbd3;
 }
 
 .assignments-table .ant-table-tbody > tr > td {
@@ -723,6 +750,9 @@ body {
 }
 
 .document-assignment-workflow__content {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   margin-bottom: 6px;
   font-weight: 500;
   overflow-wrap: anywhere;

@@ -81,14 +81,14 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 		       ($2, 'workflow-non-participant', $3, 'Nonparticipant', 'Recipient', TRUE, TRUE, FALSE)`, inactiveID, nonParticipantID, hash)
 	require.NoError(t, err)
 	for _, recipientID := range []uuid.UUID{inactiveID, nonParticipantID, uuid.New()} {
-		body := `{"type":"acknowledgment","documentId":"` + document.ID.String() + `","content":"ineligible recipient","userIds":["` + recipientID.String() + `"]}`
+		body := `{"type":"acknowledgment","documentId":"` + document.ID.String() + `","userIds":["` + recipientID.String() + `"]}`
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(body))
 		request.Header.Set("Authorization", "Bearer "+managerToken)
 		response := httptest.NewRecorder()
 		api.Handler().ServeHTTP(response, request)
 		require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
 	}
-	invalidBody := `{"type":"acknowledgment","documentId":"` + document.ID.String() + `","content":"invalid recipients","userIds":["` + recipientID.String() + `","not-a-uuid"]}`
+	invalidBody := `{"type":"acknowledgment","documentId":"` + document.ID.String() + `","userIds":["` + recipientID.String() + `","not-a-uuid"]}`
 	invalidCreate := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(invalidBody))
 	invalidCreate.Header.Set("Authorization", "Bearer "+managerToken)
 	invalidResponse := httptest.NewRecorder()
@@ -98,7 +98,7 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM assignments WHERE document_id = $1`, document.ID).Scan(&acknowledgmentCount))
 	require.Zero(t, acknowledgmentCount)
 
-	duplicateBody := `{"type":"acknowledgment","documentId":"` + document.ID.String() + `","content":"duplicate recipients","userIds":["` + recipientID.String() + `","` + recipientID.String() + `"]}`
+	duplicateBody := `{"type":"acknowledgment","documentId":"` + document.ID.String() + `","userIds":["` + recipientID.String() + `","` + recipientID.String() + `"]}`
 	duplicateCreate := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(duplicateBody))
 	duplicateCreate.Header.Set("Authorization", "Bearer "+managerToken)
 	duplicateResponse := httptest.NewRecorder()
@@ -110,7 +110,7 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM assignment_recipients WHERE assignment_id = $1`, duplicateAcknowledgment.ID).Scan(&recipientCount))
 	require.Equal(t, 1, recipientCount)
 
-	createBody := `{"type":"acknowledgment","documentId":"` + document.ID.String() + `","content":"Read the document","userIds":["` + recipientID.String() + `"]}`
+	createBody := `{"type":"acknowledgment","documentId":"` + document.ID.String() + `","userIds":["` + recipientID.String() + `"]}`
 	create := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(createBody))
 	create.Header.Set("Authorization", "Bearer "+managerToken)
 	createResponse := httptest.NewRecorder()
@@ -157,6 +157,17 @@ func TestWorkflowAPIPersistsAcknowledgmentAndScopesUserEventsIntegration(t *test
 	require.Empty(t, typed.ExecutorID)
 	require.Len(t, typed.Users, 2)
 	require.Equal(t, "2026-12-31", typed.Deadline.Format("2006-01-02"))
+	require.Empty(t, typed.Content)
+	updatedTask := requestTask(http.MethodPatch, "/api/v1/assignments/"+typed.ID, `{"content":"Legacy update comment","deadline":"2026-12-30"}`, managerToken)
+	require.Equal(t, http.StatusOK, updatedTask.Code, updatedTask.Body.String())
+	var updated dto.Assignment
+	require.NoError(t, json.Unmarshal(updatedTask.Body.Bytes(), &updated))
+	require.Empty(t, updated.Content)
+	require.Equal(t, "2026-12-30", updated.Deadline.Format("2006-01-02"))
+	var storedContent string
+	require.NoError(t, db.QueryRow(`SELECT content FROM assignments WHERE id=$1`, typed.ID).Scan(&storedContent))
+	require.Empty(t, storedContent)
+
 	executionBody := `{"type":"execution","documentId":"` + document.ID.String() + `","executorId":"` + recipientID.String() + `","content":"Execute"}`
 	require.Equal(t, http.StatusForbidden, requestTask(http.MethodPost, "/api/v1/assignments", executionBody, recipientToken).Code)
 	executionResponse := requestTask(http.MethodPost, "/api/v1/assignments", executionBody, assignOnlyToken)

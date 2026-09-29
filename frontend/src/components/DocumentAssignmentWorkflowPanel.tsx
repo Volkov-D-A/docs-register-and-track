@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, App, Button, Input, Modal, Space, Spin, Tag, Tooltip, Typography } from 'antd';
-import { CheckCircleOutlined, FileDoneOutlined, PlayCircleOutlined, UndoOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, CheckSquareOutlined, FileDoneOutlined, PlayCircleOutlined, ReadOutlined, UndoOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import AssignmentCompletionModal from './AssignmentCompletionModal';
 import { useAssignments } from '../hooks/useAssignments';
@@ -94,10 +94,19 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
 
             {actionableAssignments.map((assignment) => {
                 const canActAsExecutor = assignment.canAct;
+                const acknowledgment = assignment.type === 'acknowledgment';
+                const typeLabel = acknowledgment ? 'Ознакомление' : 'Поручение';
                 return (
                     <div className="document-assignment-workflow__item" key={assignment.id}>
                         <div className="document-assignment-workflow__body">
-                            <div className="document-assignment-workflow__content">{assignment.content || (assignment.type === 'acknowledgment' ? 'Ознакомиться с документом' : '')}</div>
+                            <div className="document-assignment-workflow__content">
+                                <Tooltip title={typeLabel}>
+                                    {acknowledgment
+                                        ? <ReadOutlined className="document-assignment-type-icon document-assignment-type-icon--acknowledgment" aria-label={typeLabel} />
+                                        : <CheckSquareOutlined className="document-assignment-type-icon document-assignment-type-icon--execution" aria-label={typeLabel} />}
+                                </Tooltip>
+                                <span>{acknowledgment ? 'Ознакомиться с документом' : assignment.content}</span>
+                            </div>
                             <Space size={4} wrap>
                                 {assignment.type === 'acknowledgment' ? <Tag color="orange">Ознакомление</Tag> : getStatusTag(assignment.status)}
                                 {assignment.type === 'acknowledgment' && assignment.creatorName && <Text type="secondary">{assignment.creatorName}</Text>}

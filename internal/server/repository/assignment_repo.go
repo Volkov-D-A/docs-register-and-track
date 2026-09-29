@@ -171,7 +171,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 		SELECT
 			a.id, a.document_id, d.kind,
 			COALESCE(a.executor_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(u_executor.full_name, ''),
-			a.content, a.deadline, a.status, a.report, a.completed_at,
+			CASE WHEN a.type = 'execution' THEN a.content ELSE '' END, a.deadline, a.status, a.report, a.completed_at,
 			a.series_id, a.iteration_number, a.planned_deadline,
 			COALESCE(s.current_assignment_id = a.id, FALSE) AS is_series_current,
 			a.created_at, a.updated_at,
@@ -299,7 +299,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		SELECT
 			a.id, a.document_id, d.kind,
 			COALESCE(a.executor_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(u_executor.full_name, ''),
-			a.content, a.deadline, a.status, a.report, a.completed_at,
+			CASE WHEN a.type = 'execution' THEN a.content ELSE '' END, a.deadline, a.status, a.report, a.completed_at,
 			a.series_id, a.iteration_number, a.planned_deadline,
 			COALESCE(s.current_assignment_id = a.id, FALSE) AS is_series_current,
 			a.created_at, a.updated_at,
@@ -414,7 +414,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 
 	if filter.Search != "" {
 		search := "%" + strings.ToLower(filter.Search) + "%"
-		where = append(where, fmt.Sprintf("(LOWER(a.content) LIKE $%d OR LOWER(d.registration_number) LIKE $%d OR LOWER(d.content) LIKE $%d)", argIdx, argIdx, argIdx))
+		where = append(where, fmt.Sprintf("((a.type = 'execution' AND LOWER(a.content) LIKE $%d) OR LOWER(d.registration_number) LIKE $%d OR LOWER(d.content) LIKE $%d)", argIdx, argIdx, argIdx))
 		args = append(args, search)
 		argIdx++
 	}

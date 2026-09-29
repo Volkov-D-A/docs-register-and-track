@@ -17,9 +17,13 @@ vi.mock('../../src/components/RecentDocumentsPanel', () => ({ default: () => nul
 vi.mock('../../src/components/DocumentSearchPanel', () => ({ default: () => null }));
 afterEach(() => { useAuthStore.setState({ user: null, isAuthenticated: false }); });
 
-vi.mock('../../src/components/DocumentViewModal', () => ({ default: () => null }));
-vi.mock('../../src/components/AssignmentModal', () => ({ default: () => null }));
-vi.mock('../../src/components/AssignmentSeriesModal', () => ({ default: () => null }));
+vi.mock('../../src/components/DocumentViewModal', () => ({
+    default: ({ open, documentId, documentKind, onCancel }: { open: boolean; documentId: string; documentKind: string; onCancel: () => void }) => open ? (
+        <div role="dialog" aria-label="Карточка документа" data-document-id={documentId} data-document-kind={documentKind}>
+            <button onClick={onCancel}>Закрыть карточку</button>
+        </div>
+    ) : null,
+}));
 
 test.each([
     ['new', 'new', 'Новые'],
@@ -76,8 +80,8 @@ test('control-only user opens the server-selected list mode', async () => {
     });
     renderWithApp(<AssignmentsPage initialView={null} />);
     await waitFor(() => expect(getList.mock.lastCall?.[0]).toMatchObject({ mode: 'control' }));
-    expect(screen.getByText('Поручения под контролем')).toBeInTheDocument();
-    expect(screen.queryByRole('radio', { name: 'Исполнение' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Поручения' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Режим поручений' })).not.toBeInTheDocument();
 });
 
 
@@ -117,8 +121,13 @@ test('work mode survives navigation between dashboard and assignments in both di
 
     const assignments = renderWithApp(<AssignmentsPage initialView={{ requestId: 1, mode: 'control' }} />);
     await waitFor(() => expect(getList.mock.lastCall?.[0]).toMatchObject({ mode: 'control' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Исполнение' }));
+    expect(screen.getByRole('heading', { name: 'Поручения' })).toBeInTheDocument();
+    const modes = within(screen.getByRole('group', { name: 'Режим поручений' }));
+    expect(modes.getByRole('button', { name: 'контроль' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(modes.getByRole('button', { name: 'исполнение' }));
     await waitFor(() => expect(getList.mock.lastCall?.[0]).toMatchObject({ mode: 'execution' }));
+    expect(modes.getByRole('button', { name: 'исполнение' })).toHaveAttribute('aria-pressed', 'true');
+    expect(modes.getByRole('button', { name: 'контроль' })).toHaveAttribute('aria-pressed', 'false');
     assignments.unmount();
 
     const returnedDashboard = renderWithApp(<DashboardPage onOpenAssignments={openAssignments} onOpenRegister={vi.fn()} />);
@@ -129,7 +138,7 @@ test('work mode survives navigation between dashboard and assignments in both di
     // An earlier dashboard navigation must not overwrite a later selection on remount.
     renderWithApp(<AssignmentsPage initialView={{ requestId: 1, mode: 'control' }} />);
     await waitFor(() => expect(getList.mock.lastCall?.[0]).toMatchObject({ mode: 'execution' }));
-    expect(screen.getByText('Мои поручения')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Поручения' })).toBeInTheDocument();
 });
 
 test('an unavailable saved mode falls back to an allowed mode', async () => {
@@ -269,4 +278,38 @@ test.each([1, 12])('acknowledgment rows display %i recipients compactly and reta
     fireEvent.click(screen.getByRole('button', { name: 'Expand row' }));
     expect(screen.getByText(/Адресат 1: ознакомлен/)).toBeInTheDocument();
     if (count > 1) expect(screen.getByText('Адресат 12: ожидает ознакомления')).toBeInTheDocument();
+});
+
+
+test.each(['click', 'Enter', ' '] as const)('assignment row opens its document with %s and keeps expansion separate', async (action) => {
+    useAuthStore.setState({ isAuthenticated: true, user: {
+        id: 'row-user', login: 'tester', fullName: 'Tester', isDocumentParticipant: true, systemPermissions: [],
+    } });
+    const getList = vi.fn().mockResolvedValue({ items: [{
+        id: 'assignment-row', documentId: 'document-row', documentKind: 'administrative_order',
+        documentNumber: 'ROW-001', content: 'Проверить документ',
+        type: 'execution', status: 'new', createdAt: '2026-09-29', report: 'Подробности исполнения',
+    }], totalCount: 1 });
+    installWailsMock({
+        WorkspaceService: { GetOverview: vi.fn().mockResolvedValue({ assignmentModes: ['execution', 'control'] }) },
+        AssignmentService: { GetList: getList },
+        UserService: { GetExecutors: vi.fn().mockResolvedValue([]) },
+    });
+    renderWithApp(<AssignmentsPage initialView={{ requestId: 1, mode: 'control' }} />);
+    const row = (await screen.findByText('ROW-001')).closest('tr')!;
+    expect(screen.queryByRole('columnheader', { name: 'Действия' })).not.toBeInTheDocument();
+    expect(row).toHaveAttribute('tabindex', '0');
+    const expand = within(row).getByRole('button', { name: 'Expand row' });
+    fireEvent.keyDown(expand, { key: 'Enter' });
+    expect(screen.queryByRole('dialog', { name: 'Карточка документа' })).not.toBeInTheDocument();
+    fireEvent.click(expand);
+    expect(screen.getByText('Подробности исполнения')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Карточка документа' })).not.toBeInTheDocument();
+    if (action === 'click') fireEvent.click(within(row).getByText('Проверить документ'));
+    else fireEvent.keyDown(row, { key: action });
+    const card = screen.getByRole('dialog', { name: 'Карточка документа' });
+    expect(card).toHaveAttribute('data-document-id', 'document-row');
+    expect(card).toHaveAttribute('data-document-kind', 'administrative_order');
+    fireEvent.click(within(card).getByRole('button', { name: 'Закрыть карточку' }));
+    expect(screen.queryByRole('dialog', { name: 'Карточка документа' })).not.toBeInTheDocument();
 });

@@ -20,9 +20,9 @@ func (r *AssignmentRepository) CreateRecipientTaskWithOutbox(a *models.Assignmen
 	// 1. Создание ознакомления
 	query := `
 		INSERT INTO assignments (id, document_id, creator_id, content, created_at, updated_at, type, deadline)
-		VALUES ($1, $2, $3, $4, $5, $5, 'acknowledgment', $6)
+		VALUES ($1, $2, $3, '', $4, $4, 'acknowledgment', $5)
 	`
-	_, err = tx.Exec(query, a.ID, a.DocumentID, a.CreatorID, a.Content, a.CreatedAt, a.Deadline)
+	_, err = tx.Exec(query, a.ID, a.DocumentID, a.CreatorID, a.CreatedAt, a.Deadline)
 	if err != nil {
 		return fmt.Errorf("failed to create acknowledgment: %w", err)
 	}
@@ -187,13 +187,13 @@ func (r *AssignmentRepository) confirmRecipient(ackID, userID, actorID uuid.UUID
 	return tx.Commit()
 }
 
-func (r *AssignmentRepository) UpdateRecipientTaskDetails(id uuid.UUID, content string, deadline *time.Time, effects []models.OutboxEvent) error {
+func (r *AssignmentRepository) UpdateRecipientTaskDeadline(id uuid.UUID, deadline *time.Time, effects []models.OutboxEvent) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`UPDATE assignments SET content=$2, deadline=$3, updated_at=NOW() WHERE id=$1 AND type='acknowledgment' AND status='new'`, id, content, deadline)
+	result, err := tx.Exec(`UPDATE assignments SET deadline=$2, updated_at=NOW() WHERE id=$1 AND type='acknowledgment' AND status='new'`, id, deadline)
 	if err != nil {
 		return err
 	}
