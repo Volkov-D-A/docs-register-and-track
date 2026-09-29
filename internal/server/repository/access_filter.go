@@ -89,8 +89,8 @@ func applyDocumentListAccess(where *[]string, args *[]interface{}, argIdx *int, 
 
 		accessClauses = append(accessClauses, fmt.Sprintf(`EXISTS (
 			SELECT 1
-			FROM acknowledgment_users au
-			JOIN acknowledgments a ON au.acknowledgment_id = a.id
+			FROM assignment_recipients au
+			JOIN assignments a ON au.assignment_id = a.id
 			WHERE %s
 			  AND a.document_id = d.id
 		)`, ackUserPredicate))

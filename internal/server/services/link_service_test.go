@@ -27,7 +27,6 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore port
 	outRepo := mocks.NewOutgoingDocStore(t)
 	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
-	ackRepo := mocks.NewAcknowledgmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 
 	auth := newAttachmentPrincipalStub(userRepo)
@@ -44,7 +43,6 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore port
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
-	ackRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	incRepo.On("GetByIDs", mock.Anything).Return(func(ids []uuid.UUID) ([]models.IncomingDocument, error) {
 		result := make([]models.IncomingDocument, 0, len(ids))
 		for _, id := range ids {
@@ -72,7 +70,7 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore port
 		return result, nil
 	}).Maybe()
 
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, ackRepo, accessStore, &kindBackedDocumentStore{incoming: incRepo, outgoing: outRepo})
+	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, accessStore, &kindBackedDocumentStore{incoming: incRepo, outgoing: outRepo})
 
 	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, nil, accessSvc, auth, nil)
 	return svc, linkRepo, incRepo, outRepo, auth
@@ -518,7 +516,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		appealID := uuid.New()
 		registrationDate := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
 
-		svc.access = NewDocumentAccessService(svc.authService, nil, nil, nil, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
+		svc.access = NewDocumentAccessService(svc.authService, nil, nil, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
 			docs: map[uuid.UUID]*models.Document{
 				rootID: {
 					ID:                 rootID,
@@ -574,7 +572,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		cancelledOrderID := uuid.New()
 		registrationDate := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
 
-		svc.access = NewDocumentAccessService(svc.authService, nil, nil, nil, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
+		svc.access = NewDocumentAccessService(svc.authService, nil, nil, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
 			docs: map[uuid.UUID]*models.Document{
 				rootID: {
 					ID:                 rootID,

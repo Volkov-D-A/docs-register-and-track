@@ -103,13 +103,24 @@ body {
   font-size: 12px;
 }
 
-.workspace-dashboard .ant-btn:not(.workspace-mode-link):not(.workspace-registration-action) {
+.workspace-dashboard .ant-btn:not(.workspace-mode-link):not(.workspace-registration-action):not(.workspace-document-search-trigger) {
   height: 24px;
   padding: 0 6px;
 }
 
+.workspace-dashboard .ant-btn.workspace-document-search-trigger {
+  height: 40px;
+  padding-inline: 16px;
+  font-size: 14px;
+}
+
 .workspace-dashboard .ant-table {
   font-size: 12px;
+}
+
+.workspace-dashboard .ant-table-thead > tr > th {
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .workspace-dashboard .ant-table.ant-table-small .ant-table-cell {
@@ -163,16 +174,25 @@ body {
 }
 
 /* Показатели рабочего стола сохраняют читаемый контраст в обеих темах. */
-.workspace-metric-card--new {
+.workspace-metric-card--new,
+.assignment-filter-button--new {
   --metric-bg: #eaf4ff;
   --metric-border: #b9dcff;
   --metric-accent: #0958d9;
 }
 
-.workspace-metric-card--in_progress {
+.workspace-metric-card--in_progress,
+.assignment-filter-button--in_progress {
   --metric-bg: #e8f8f2;
   --metric-border: #b4e4d0;
   --metric-accent: #137a55;
+}
+
+.workspace-metric-card--returned,
+.assignment-filter-button--returned {
+  --metric-bg: #fff0f6;
+  --metric-border: #ffd6e7;
+  --metric-accent: #c41d7f;
 }
 
 .workspace-metric-card--overdue {
@@ -187,22 +207,32 @@ body {
   --metric-accent: #ad6800;
 }
 
-.workspace-metric-card--acceptance {
+.workspace-metric-card--acceptance,
+.assignment-filter-button--acceptance {
   --metric-bg: #f7f0ff;
   --metric-border: #dec8ff;
   --metric-accent: #722ed1;
 }
 
-:root[data-app-theme='dark'] .workspace-metric-card--new {
+:root[data-app-theme='dark'] .workspace-metric-card--new,
+:root[data-app-theme='dark'] .assignment-filter-button--new {
   --metric-bg: #19354f;
   --metric-border: #30618a;
   --metric-accent: #91caff;
 }
 
-:root[data-app-theme='dark'] .workspace-metric-card--in_progress {
+:root[data-app-theme='dark'] .workspace-metric-card--in_progress,
+:root[data-app-theme='dark'] .assignment-filter-button--in_progress {
   --metric-bg: #1c4038;
   --metric-border: #367962;
   --metric-accent: #7de2bd;
+}
+
+:root[data-app-theme='dark'] .workspace-metric-card--returned,
+:root[data-app-theme='dark'] .assignment-filter-button--returned {
+  --metric-bg: #452337;
+  --metric-border: #823957;
+  --metric-accent: #ff85c0;
 }
 
 :root[data-app-theme='dark'] .workspace-metric-card--overdue {
@@ -217,7 +247,8 @@ body {
   --metric-accent: #ffd666;
 }
 
-:root[data-app-theme='dark'] .workspace-metric-card--acceptance {
+:root[data-app-theme='dark'] .workspace-metric-card--acceptance,
+:root[data-app-theme='dark'] .assignment-filter-button--acceptance {
   --metric-bg: #37244b;
   --metric-border: #664789;
   --metric-accent: #d3adf7;
@@ -364,6 +395,151 @@ body {
 
 .outgoing-documents-table .ant-table-tbody > tr > td {
   font-size: 15px;
+}
+
+.assignments-page-heading {
+  margin-bottom: 16px;
+}
+
+.assignment-filters {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: var(--app-surface);
+}
+
+.assignment-filters-toolbar,
+.assignment-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.assignment-filters-toolbar {
+  margin-bottom: 18px;
+  gap: 12px;
+}
+
+.assignment-filters-search {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.assignment-filters-executor {
+  flex: 0 1 240px;
+  min-width: 200px;
+}
+
+
+
+.assignment-filter-row + .assignment-filter-row {
+  margin-top: 12px;
+}
+
+.assignment-filter-label {
+  width: 54px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--app-text-muted);
+}
+
+.assignment-filter-button--neutral {
+  --metric-bg: var(--app-subtle-surface);
+  --metric-border: var(--app-border);
+  --metric-accent: var(--app-text-secondary);
+}
+
+.assignment-filter-button.ant-btn {
+  height: 42px;
+  min-width: 112px;
+  padding-inline: 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--metric-bg);
+  border-color: var(--metric-border);
+  color: var(--metric-accent);
+}
+
+.assignment-filter-button.ant-btn:is(:hover, :focus-visible),
+.assignment-filter-button.ant-btn[aria-pressed='true'] {
+  background: var(--metric-bg);
+  border-color: var(--metric-accent);
+  color: var(--metric-accent);
+}
+
+.assignment-filter-button[aria-pressed='true'] {
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--metric-accent);
+}
+
+.assignment-filters-toggles {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.assignment-filter-buttons {
+  display: contents;
+}
+
+.assignment-filter-divider {
+  width: 1px;
+  height: 28px;
+  margin-inline: 4px;
+  flex-shrink: 0;
+  background: var(--app-border);
+}
+
+:root[data-app-theme='dark'] .assignment-deadline-link {
+  --assignment-link-color: #91caff;
+}
+
+.assignment-deadline-link.ant-btn {
+  height: 30px;
+  padding-inline: 4px;
+  font-size: 13px;
+  color: var(--app-text-muted);
+}
+
+.assignment-deadline-link.ant-btn:is(:hover, :focus-visible),
+.assignment-deadline-link.ant-btn[aria-pressed='true'] {
+  color: var(--assignment-link-color, #0958d9);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.assignment-deadline-link[aria-pressed='true'] {
+  font-weight: 600;
+}
+
+.assignment-period-button.ant-btn {
+  margin-left: 6px;
+  font-size: 13px;
+}
+
+.assignment-period-picker {
+  width: 260px;
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .assignment-filters {
+    padding: 12px;
+  }
+
+  .assignment-filters-search,
+  .assignment-filters-executor {
+    flex-basis: 100%;
+  }
+
+  .assignment-filter-label {
+    width: 100%;
+  }
+
 }
 
 .assignments-table .ant-table-tbody > tr > td {
@@ -608,7 +784,6 @@ body {
 
 .workspace-event--red { --event-accent: #f5222d; }
 .workspace-event--green { --event-accent: #078536; }
-.workspace-event--purple { --event-accent: #722ed1; }
 .workspace-event--slate { --event-accent: #52647b; }
 
 .workspace-event:not(:last-child)::before {
@@ -698,7 +873,6 @@ body {
 :root[data-app-theme='dark'] .workspace-event--blue { --event-accent: #69b1ff; }
 :root[data-app-theme='dark'] .workspace-event--red { --event-accent: #ff7875; }
 :root[data-app-theme='dark'] .workspace-event--green { --event-accent: #73d89a; }
-:root[data-app-theme='dark'] .workspace-event--purple { --event-accent: #b995ff; }
 :root[data-app-theme='dark'] .workspace-event--slate { --event-accent: #a7b6ca; }
 
 .workspace-recent-documents.ant-card .ant-card-body {

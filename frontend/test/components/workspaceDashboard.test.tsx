@@ -5,8 +5,8 @@ import DashboardPage from '../../src/pages/DashboardPage';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { deferred, renderWithApp } from '../componentTestUtils';
 
-const api = vi.hoisted(() => ({ GetRecentDocuments: vi.fn(), GetOverview: vi.fn(), ListAcknowledgments: vi.fn(), GetCurrentUserEvents: vi.fn(), serverListeners: [] as Array<(event: { topic: string; resource?: string; documentId?: string; visibilityChanged?: boolean }) => void>, registrationKinds: [] as Array<{ code: string; label: string; pageKey: string }> }));
-vi.mock('../../wailsjs/go/services/WorkspaceService', () => ({ GetRecentDocuments: api.GetRecentDocuments, GetOverview: api.GetOverview, ListAcknowledgments: api.ListAcknowledgments }));
+const api = vi.hoisted(() => ({ GetRecentDocuments: vi.fn(), GetOverview: vi.fn(), GetCurrentUserEvents: vi.fn(), serverListeners: [] as Array<(event: { topic: string; resource?: string; documentId?: string; visibilityChanged?: boolean }) => void>, registrationKinds: [] as Array<{ code: string; label: string; pageKey: string }> }));
+vi.mock('../../wailsjs/go/services/WorkspaceService', () => ({ GetRecentDocuments: api.GetRecentDocuments, GetOverview: api.GetOverview }));
 vi.mock('../../wailsjs/go/services/UserEventService', () => ({ GetCurrentUserEvents: api.GetCurrentUserEvents }));
 vi.mock('../../src/events/serverEvents', () => ({ onServerEvent: (listener: (event: { topic: string; resource?: string; documentId?: string; visibilityChanged?: boolean }) => void) => {
     api.serverListeners.push(listener);
@@ -17,15 +17,11 @@ vi.mock('../../src/components/DocumentViewModal', () => ({ default: ({ open, doc
 ) }));
 vi.mock('../../src/hooks/useCurrentAccessSummary', () => ({ useCurrentAccessSummary: () => ({ ready: true, registrationKinds: api.registrationKinds }) }));
 
-const overview = (assignmentMode: string, acknowledgmentMode: string, mixed = true) => ({
+const overview = (assignmentMode: string, mixed = true) => ({
     assignmentModes: mixed ? ['execution', 'control'] : ['control'],
     assignmentMode: assignmentMode || (mixed ? 'execution' : 'control'),
-    assignmentCounts: { new: 2, inProgress: 5, overdue: 1, dueSoon: 1, awaitingAcceptance: 3 },
+    assignmentCounts: { new: 2, inProgress: 5, returned: 4, overdue: 1, dueSoon: 1, awaitingAcceptance: 3 },
     assignments: [],
-    acknowledgmentModes: mixed ? ['execution', 'control'] : ['control'],
-    acknowledgmentMode: acknowledgmentMode || (mixed ? 'execution' : 'control'),
-    acknowledgmentCount: 4,
-    acknowledgments: [],
 });
 const setUser = () => useAuthStore.setState({
     isAuthenticated: true,
@@ -37,7 +33,6 @@ beforeEach(() => { api.GetRecentDocuments.mockResolvedValue({ available: false, 
 afterEach(() => {
     api.GetRecentDocuments.mockReset();
     api.GetOverview.mockReset();
-    api.ListAcknowledgments.mockReset();
     api.GetCurrentUserEvents.mockReset();
     api.serverListeners = [];
     api.registrationKinds = [];
@@ -47,11 +42,14 @@ afterEach(() => {
 test('greeting follows profile changes without reloading workspace data', async () => {
     vi.spyOn(Date.prototype, 'getHours').mockReturnValue(12);
     setUser();
-    api.GetOverview.mockResolvedValue(overview('', ''));
+    api.GetOverview.mockResolvedValue(overview(''));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
     expect(await screen.findByRole('heading', { name: 'Добрый день, Иван Иванович!' })).toBeInTheDocument();
     await screen.findByText('Поручения');
+    const header = screen.getByRole('heading').closest('.workspace-dashboard-header') as HTMLElement;
+    expect(within(header).getByRole('button', { name: 'Найти документ' })).toBeInTheDocument();
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
     const calls = api.GetOverview.mock.calls.length;
     act(() => {
         const user = useAuthStore.getState().user!;
@@ -63,8 +61,7 @@ test('greeting follows profile changes without reloading workspace data', async 
 
 test('one switch beside the greeting changes both task scopes and list navigation', async () => {
     setUser();
-    api.GetOverview.mockImplementation(async (assignmentMode: string, acknowledgmentMode: string) => overview(assignmentMode, acknowledgmentMode));
-    api.ListAcknowledgments.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    api.GetOverview.mockImplementation(async (assignmentMode: string) => overview(assignmentMode));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     const openAssignments = vi.fn();
     renderWithApp(<DashboardPage onOpenAssignments={openAssignments} onOpenRegister={vi.fn()} />);
@@ -75,26 +72,27 @@ test('one switch beside the greeting changes both task scopes and list navigatio
     expect(heading.parentElement).toHaveClass('workspace-heading');
     expect(heading.nextElementSibling).toBe(modes);
     expect(screen.getAllByRole('button', { name: 'контроль' })).toHaveLength(1);
-    for (const [title, link] of [['Поручения', 'Все поручения'], ['Ознакомления', 'Все ознакомления']]) {
+    for (const [title, link] of [['Поручения', 'Все поручения']]) {
         const card = screen.getByText(title).closest('.ant-card') as HTMLElement;
         expect(within(card).queryByRole('button', { name: 'контроль' })).not.toBeInTheDocument();
         expect(within(card).getByText(link).closest('.ant-card-head')).toBe(screen.getByText(title).closest('.ant-card-head'));
     }
     expect(screen.queryByText(/Ожидают внимания/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('На доработке').closest('[role="button"]')!);
+    expect(openAssignments).toHaveBeenLastCalledWith('execution', 'returned');
     fireEvent.click(screen.getByText('В работе').closest('[role="button"]')!);
     expect(openAssignments).toHaveBeenLastCalledWith('execution', 'in_progress');
     fireEvent.click(within(modes).getByRole('button', { name: 'контроль' }));
-    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith('control', 'control'));
+    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith('control'));
     await waitFor(() => expect(screen.getByText('Ожидают приёмки')).toBeInTheDocument());
     expect(within(modes).getByRole('button', { name: 'контроль' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByText('Ожидают приёмки').closest('[role="button"]')!);
     expect(openAssignments).toHaveBeenLastCalledWith('control', 'acceptance');
     fireEvent.click(screen.getByRole('button', { name: 'Все поручения' }));
     expect(openAssignments).toHaveBeenLastCalledWith('control');
-    fireEvent.click(screen.getByRole('button', { name: 'Все ознакомления' }));
-    await waitFor(() => expect(api.ListAcknowledgments).toHaveBeenLastCalledWith('control', 1, 10));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     fireEvent.click(within(modes).getByRole('button', { name: 'исполнение' }));
-    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith('execution', 'execution'));
+    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith('execution'));
     await waitFor(() => expect(screen.queryByText('Ожидают приёмки')).not.toBeInTheDocument());
     expect(within(modes).getByRole('button', { name: 'исполнение' })).toHaveAttribute('aria-pressed', 'true');
 });
@@ -105,12 +103,12 @@ test('quick registration appears to the right of metrics and opens the selected 
         { code: 'incoming_letter', label: 'Входящий документ', pageKey: 'incoming' },
         { code: 'outgoing_letter', label: 'Исходящий документ', pageKey: 'outgoing' },
     ];
-    api.GetOverview.mockResolvedValue(overview('', ''));
+    api.GetOverview.mockResolvedValue(overview(''));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     const onOpenRegister = vi.fn();
     renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={onOpenRegister} />);
     expect(await screen.findByText('Поручения')).toBeInTheDocument();
-    expect(screen.getByRole('searchbox', { name: 'Поиск по документам' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Найти документ' })).toBeInTheDocument();
     const row = screen.getByText('Новые').closest('.workspace-overview-row');
     expect(row).toBeInTheDocument();
     expect(row?.querySelector('.workspace-metrics-panel')).toBeInTheDocument();
@@ -121,7 +119,7 @@ test('quick registration appears to the right of metrics and opens the selected 
     const sideColumn = row?.querySelector('.workspace-side-column');
     expect(workColumn?.children[0]).toHaveClass('workspace-metrics-panel');
     expect(workColumn?.children[1]).toContainElement(screen.getByText('Поручения'));
-    expect(workColumn?.children[2]).toContainElement(screen.getByText('Ознакомления'));
+    expect(workColumn?.children).toHaveLength(2);
     expect(sideColumn?.children[0]).toHaveClass('workspace-registration-panel');
     expect(sideColumn?.children[1]).toContainElement(screen.getByText('Новое для меня'));
     const registrationTable = row?.querySelector('.workspace-registration-table');
@@ -133,30 +131,15 @@ test('quick registration appears to the right of metrics and opens the selected 
     expect(onOpenRegister).toHaveBeenCalledWith('incoming_letter', 'incoming');
 });
 
-test('acknowledgments stay in the first column when assignments are unavailable', async () => {
-    setUser();
-    api.GetOverview.mockResolvedValue({
-        ...overview('', ''),
-        assignmentModes: [], assignmentMode: '', assignmentCounts: null, assignments: [],
-        acknowledgmentModes: ['control'], acknowledgmentMode: 'control',
-    });
-    api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
-    renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
-    expect(await screen.findByText('Ознакомления')).toBeInTheDocument();
-    const row = screen.getByText('Ознакомления').closest('.workspace-overview-row');
-    expect(row?.querySelector('.workspace-work-column')).toContainElement(screen.getByText('Ознакомления'));
-    expect(row?.querySelector('.workspace-side-column')).toContainElement(screen.getByText('Новое для меня'));
-    expect(row?.querySelector('.workspace-metrics-panel')).not.toBeInTheDocument();
-});
 
 test('assignment preview shows registration details in five columns and opens its document', async () => {
     setUser();
     api.GetOverview.mockResolvedValue({
-        ...overview('', ''),
+        ...overview(''),
         assignments: [{
             id: 'assignment-1', documentId: 'document-1', documentKind: 'incoming_letter',
             documentNumber: 'ИТ/42', documentDate: '2026-09-28T12:00:00Z',
-            content: 'Подготовить ответ', deadline: '2026-10-01T12:00:00Z', status: 'in_progress',
+            documentContent: 'Обращение о поставке', content: 'Подготовить ответ', deadline: '2026-10-01T12:00:00Z', status: 'in_progress',
         }],
     });
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
@@ -164,33 +147,35 @@ test('assignment preview shows registration details in five columns and opens it
     expect(await screen.findByText('Подготовить ответ')).toBeInTheDocument();
     const table = within(screen.getByText('Поручения').closest('.ant-card') as HTMLElement).getByRole('table');
     expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
-        'Срок', 'Документ', 'Содержание поручения', 'Статус', 'Действие',
+        'Срок', 'Документ', 'Содержание', 'Поручение', 'Статус',
     ]);
+    expect(within(table).getByText('Обращение о поставке').closest('td')).not.toHaveTextContent('Подготовить ответ');
     expect(within(table).getByText('ИТ/42')).toBeInTheDocument();
     expect(within(table).getByText('28.09.2026')).toBeInTheDocument();
     expect(within(table).getByText('01.10.2026')).toBeInTheDocument();
     expect(within(table).getByText('В работе')).toBeInTheDocument();
-    fireEvent.click(within(table).getByRole('button', { name: 'Открыть' }));
+    fireEvent.click(within(table).getByText('Подготовить ответ').closest('tr')!);
     expect(screen.getByTestId('opened-document')).toHaveTextContent('document-1');
 });
 
-test('controller only sees the control mode and opens its scoped acknowledgment list', async () => {
+test('controller opens the unified assignments list with control mode', async () => {
     setUser();
-    api.GetOverview.mockImplementation(async (assignmentMode: string, acknowledgmentMode: string) => overview(assignmentMode, acknowledgmentMode, false));
-    api.ListAcknowledgments.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    api.GetOverview.mockImplementation(async (assignmentMode: string) => overview(assignmentMode, false));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
-    renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
+    const openAssignments = vi.fn();
+    renderWithApp(<DashboardPage onOpenAssignments={openAssignments} onOpenRegister={vi.fn()} />);
     expect(await screen.findByText('Поручения')).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Режим рабочего стола' })).not.toBeInTheDocument();
     expect(within(screen.getByText('Поручения').closest('.ant-card') as HTMLElement).queryByRole('button', { name: 'контроль' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('Все ознакомления'));
-    expect(api.ListAcknowledgments).toHaveBeenCalledWith('control', 1, 10);
+    fireEvent.click(screen.getByText('Все поручения'));
+    expect(openAssignments).toHaveBeenCalledWith('control');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
 test('failed refresh hides stale task counts and shows the access error', async () => {
     setUser();
-    api.GetOverview.mockResolvedValueOnce(overview('', '')).mockRejectedValueOnce(new Error('Доступ прекращён'))
-        .mockResolvedValueOnce(overview('', ''));
+    api.GetOverview.mockResolvedValueOnce(overview('')).mockRejectedValueOnce(new Error('Доступ прекращён'))
+        .mockResolvedValueOnce(overview(''));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
     expect(await screen.findByText('Поручения')).toBeInTheDocument();
@@ -204,7 +189,7 @@ test('failed refresh hides stale task counts and shows the access error', async 
 
 test.each(['resync', 'access-changed'])('%s rereads every workspace block from the server', async (topic) => {
     setUser();
-    api.GetOverview.mockResolvedValue(overview('', ''));
+    api.GetOverview.mockResolvedValue(overview(''));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
     expect(await screen.findByText('Поручения')).toBeInTheDocument();
@@ -219,13 +204,13 @@ test.each(['resync', 'access-changed'])('%s rereads every workspace block from t
 
 test('returning to the window refreshes all blocks once and preserves control mode', async () => {
     setUser();
-    api.GetOverview.mockImplementation(async (assignmentMode: string, acknowledgmentMode: string) => overview(assignmentMode, acknowledgmentMode));
+    api.GetOverview.mockImplementation(async (assignmentMode: string) => overview(assignmentMode));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
     const { unmount } = renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
     await screen.findByText('Поручения');
     fireEvent.click(screen.getByRole('button', { name: 'контроль' }));
-    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith('control', 'control'));
+    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith('control'));
     const counts = [api.GetOverview.mock.calls.length, api.GetCurrentUserEvents.mock.calls.length, api.GetRecentDocuments.mock.calls.length];
     visibility.mockReturnValue('hidden');
     fireEvent(document, new Event('visibilitychange'));
@@ -237,7 +222,7 @@ test('returning to the window refreshes all blocks once and preserves control mo
     fireEvent(window, new Event('focus'));
     await waitFor(() => expect(api.GetRecentDocuments).toHaveBeenCalledTimes(counts[2] + 1));
     expect(api.GetOverview).toHaveBeenCalledTimes(counts[0] + 1);
-    expect(api.GetOverview).toHaveBeenLastCalledWith('control', 'control');
+    expect(api.GetOverview).toHaveBeenLastCalledWith('control');
     expect(api.GetCurrentUserEvents).toHaveBeenCalledTimes(counts[1] + 1);
     fireEvent(window, new Event('focus'));
     unmount();
@@ -245,26 +230,6 @@ test('returning to the window refreshes all blocks once and preserves control mo
     expect(api.GetOverview).toHaveBeenCalledTimes(counts[0] + 1);
 });
 
-test('document invalidation updates the open acknowledgment list with an unchanged count', async () => {
-    setUser();
-    api.GetOverview.mockResolvedValue(overview('', ''));
-    api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
-    const acknowledgment = {
-        id: 'ack-1', documentId: 'ack-doc', documentKind: 'incoming_letter',
-        documentNumber: '43', documentContent: 'Документ', content: 'Старая резолюция',
-    };
-    api.ListAcknowledgments.mockResolvedValueOnce({ items: [acknowledgment], totalCount: 1 })
-        .mockResolvedValueOnce({ items: [{ ...acknowledgment, content: 'Новая резолюция' }], totalCount: 1 });
-    renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
-    await screen.findByText('Ознакомления');
-    fireEvent.click(screen.getByRole('button', { name: 'Все ознакомления' }));
-    const drawer = await screen.findByRole('dialog');
-    await within(drawer).findByText('Старая резолюция');
-    await act(async () => { api.serverListeners.forEach((listener) => listener({ topic: 'documents' })); });
-    await within(drawer).findByText('Новая резолюция');
-    expect(within(drawer).queryByText('Старая резолюция')).not.toBeInTheDocument();
-    expect(api.ListAcknowledgments).toHaveBeenCalledTimes(2);
-});
 
 test('revoked control permission resets the selected mode', async () => {
     setUser();
@@ -274,74 +239,52 @@ test('revoked control permission resets the selected mode', async () => {
         if (assignmentMode === 'control') {
             throw new Error(JSON.stringify({ code: 'FORBIDDEN', status: 403, message: 'Доступ отозван' }));
         }
-        return requests === 1 ? overview('', '') : { ...overview('', ''), assignmentModes: ['execution'], acknowledgmentModes: ['execution'] };
+        return requests === 1 ? overview('') : { ...overview(''), assignmentModes: ['execution'] };
     });
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
     expect(await screen.findByText('Поручения')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'контроль' }));
     await waitFor(() => expect(api.GetOverview).toHaveBeenCalledTimes(3));
-    expect(api.GetOverview).toHaveBeenLastCalledWith('', '');
+    expect(api.GetOverview).toHaveBeenLastCalledWith('');
     expect(await screen.findByText('Поручения')).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Режим рабочего стола' })).not.toBeInTheDocument();
 });
 
-test('acknowledgment preview and full list show document details and resolution and open the document', async () => {
+test('acknowledgment preview opens its document and full list navigates to assignments', async () => {
     setUser();
     const acknowledgment = {
-        id: 'ack-1', documentId: 'document-ack', documentKind: 'incoming_letter',
+        id: 'ack-1', type: 'acknowledgment', status: 'new', documentId: 'document-ack', documentKind: 'incoming_letter',
         documentNumber: 'ИТ/43', documentDate: '2026-09-28T12:00:00Z',
         documentContent: 'Об изменении графика', content: 'Принять к сведению',
     };
-    api.GetOverview.mockResolvedValue({ ...overview('', ''), acknowledgments: [acknowledgment] });
-    api.ListAcknowledgments.mockResolvedValue({ items: [acknowledgment], totalCount: 1, page: 1, pageSize: 10 });
+    api.GetOverview.mockResolvedValue({ ...overview(''), assignments: [acknowledgment] });
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
-    renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
-    const card = (await screen.findByText('Ознакомления')).closest('.ant-card') as HTMLElement;
+    const openAssignments = vi.fn();
+    renderWithApp(<DashboardPage onOpenAssignments={openAssignments} onOpenRegister={vi.fn()} />);
+    const card = (await screen.findByText('Поручения')).closest('.ant-card') as HTMLElement;
     const checkTable = (table: HTMLElement) => {
         expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
-            'Документ', 'Содержание', 'Резолюция', 'Действие',
+            'Срок', 'Документ', 'Содержание', 'Поручение', 'Статус',
         ]);
         for (const value of ['ИТ/43', '28.09.2026', 'Об изменении графика', 'Принять к сведению']) {
             expect(within(table).getByText(value)).toBeInTheDocument();
         }
-        fireEvent.click(within(table).getByRole('button', { name: 'Открыть' }));
+        const row = within(table).getByText('Принять к сведению').closest('tr')!;
+        expect(row).toHaveAttribute('tabindex', '0');
+        fireEvent.keyDown(row, { key: 'Enter' });
         expect(screen.getByTestId('opened-document')).toHaveTextContent('document-ack');
     };
     checkTable(within(card).getByRole('table'));
-    fireEvent.click(within(card).getByRole('button', { name: 'Все ознакомления' }));
-    const drawer = await screen.findByRole('dialog');
-    await waitFor(() => expect(within(drawer).getByText('Принять к сведению')).toBeInTheDocument());
-    expect(api.ListAcknowledgments).toHaveBeenCalledWith('execution', 1, 10);
-    checkTable(within(drawer).getByRole('table'));
+    fireEvent.click(within(card).getByRole('button', { name: 'Все поручения' }));
+    expect(openAssignments).toHaveBeenCalledWith('execution');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
-test.each(['assignments', 'acknowledgments'])('unified mode respects control access limited to %s', async (controlBlock) => {
-    setUser();
-    api.GetOverview.mockImplementation(async (assignmentMode: string, acknowledgmentMode: string) => ({
-        ...overview(assignmentMode, acknowledgmentMode),
-        assignmentModes: controlBlock === 'assignments' ? ['execution', 'control'] : ['execution'],
-        acknowledgmentModes: controlBlock === 'acknowledgments' ? ['execution', 'control'] : ['execution'],
-    }));
-    api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
-    renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
-    expect(await screen.findByText('Поручения')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'контроль' }));
-    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith(
-        controlBlock === 'assignments' ? 'control' : '', controlBlock === 'acknowledgments' ? 'control' : '',
-    ));
-    const visibleTitle = controlBlock === 'assignments' ? 'Поручения' : 'Ознакомления';
-    const hiddenTitle = controlBlock === 'assignments' ? 'Ознакомления' : 'Поручения';
-    await waitFor(() => expect(screen.getByText(visibleTitle)).toBeInTheDocument());
-    expect(screen.queryByText(hiddenTitle)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'исполнение' }));
-    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith('execution', 'execution'));
-    expect(await screen.findByText(hiddenTitle)).toBeInTheDocument();
-});
 
 test('personal events show only the preview and open documents without a full list drawer', async () => {
     setUser();
-    api.GetOverview.mockResolvedValue(overview('', ''));
+    api.GetOverview.mockResolvedValue(overview(''));
     const event = {
         id: 'event-1', documentId: 'event-document', documentKind: 'incoming_letter', documentNumber: '238',
         documentDate: '2026-09-24T00:00:00', createdAt: '2026-09-28T12:47:00',
@@ -362,7 +305,7 @@ test('personal events show only the preview and open documents without a full li
 
 test('recent documents stay below events and do not change with execution/control mode', async () => {
     setUser();
-    api.GetOverview.mockImplementation(async (assignmentMode: string, acknowledgmentMode: string) => overview(assignmentMode, acknowledgmentMode));
+    api.GetOverview.mockImplementation(async (assignmentMode: string) => overview(assignmentMode));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     api.GetRecentDocuments.mockResolvedValue({ available: true, items: [{
         id: 'latest-document', documentKind: 'incoming_letter', documentNumber: '125',
@@ -378,14 +321,14 @@ test('recent documents stay below events and do not change with execution/contro
     expect(screen.getByTestId('opened-document')).toHaveTextContent('latest-document');
     const requests = api.GetRecentDocuments.mock.calls.length;
     fireEvent.click(screen.getByRole('button', { name: 'контроль' }));
-    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith('control', 'control'));
+    await waitFor(() => expect(api.GetOverview).toHaveBeenLastCalledWith('control'));
     expect(api.GetRecentDocuments).toHaveBeenCalledTimes(requests);
     expect(screen.getByText('Вх. № 125 от 20.09.2026')).toBeInTheDocument();
 });
 
 test('changing user closes the document and ignores the former user refresh response', async () => {
     setUser();
-    api.GetOverview.mockResolvedValue(overview('', ''));
+    api.GetOverview.mockResolvedValue(overview(''));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     const item = { id: 'old-doc', documentKind: 'incoming_letter', documentNumber: 'OLD', documentDate: '2026-09-20', registeredAt: '2026-09-24T12:00:00', description: 'Old caption', correspondents: [] };
     const oldRefresh = deferred<{ available: boolean; items: typeof item[] }>();
@@ -418,11 +361,10 @@ test.each([
     ['document-changed', 'files', 0, 0, 0],
     ['document-changed', 'links', 0, 0, 0],
     ['document-changed', 'assignments', 0, 1, 0],
-    ['document-changed', 'acknowledgments', 0, 1, 0],
     ['document-changed', 'document', 0, 1, 1],
 ] as const)('%s %s refreshes only affected workspace data', async (topic, resource, eventDelta, overviewDelta, documentDelta) => {
     setUser();
-    api.GetOverview.mockResolvedValue(overview('', ''));
+    api.GetOverview.mockResolvedValue(overview(''));
     api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
     renderWithApp(<DashboardPage onOpenAssignments={vi.fn()} onOpenRegister={vi.fn()} />);
     await screen.findByText('Поручения');
@@ -432,4 +374,28 @@ test.each([
     expect(api.GetCurrentUserEvents).toHaveBeenCalledTimes(before[0] + eventDelta);
     expect(api.GetOverview).toHaveBeenCalledTimes(before[1] + overviewDelta);
     expect(api.GetRecentDocuments).toHaveBeenCalledTimes(before[2] + documentDelta);
+});
+
+test('both task types share one assignments table and navigation', async () => {
+    setUser();
+    api.GetOverview.mockResolvedValue({ ...overview(''), assignments: [
+        { id: 'exec-1', type: 'execution', status: 'in_progress', content: 'Подготовить ответ', documentId: 'doc-1', documentKind: 'incoming_letter' },
+        { id: 'ack-1', type: 'acknowledgment', status: 'new', content: '', documentContent: 'Новый регламент', documentId: 'doc-2', documentKind: 'incoming_letter' },
+    ] });
+    api.GetCurrentUserEvents.mockResolvedValue({ items: [] });
+    const openAssignments = vi.fn();
+    renderWithApp(<DashboardPage onOpenAssignments={openAssignments} onOpenRegister={vi.fn()} />);
+    const card = (await screen.findByText('Поручения')).closest('.ant-card') as HTMLElement;
+    const table = within(card).getByRole('table');
+    for (const value of ['Подготовить ответ', 'Новый регламент', 'Ознакомление', 'В работе', 'Ожидает']) {
+        expect(within(table).getByText(value)).toBeInTheDocument();
+    }
+    const acknowledgmentTag = within(table).getByText('Ознакомление');
+    expect(acknowledgmentTag).toHaveClass('ant-tag');
+    expect(acknowledgmentTag.closest('td')).toHaveTextContent(/^Ознакомление$/);
+    expect(within(table).getByText('Новый регламент').closest('td')).not.toContainElement(acknowledgmentTag);
+    expect(within(table).queryByRole('columnheader', { name: 'Тип' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Все ознакомления' })).not.toBeInTheDocument();
+    fireEvent.click(within(card).getByRole('button', { name: 'Все поручения' }));
+    expect(openAssignments).toHaveBeenCalledWith('execution');
 });

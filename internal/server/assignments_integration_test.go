@@ -75,7 +75,7 @@ func TestAssignmentAPIUsesServerPrincipalAndPersistsCoExecutorsIntegration(t *te
 	require.NoError(t, err)
 
 	managerToken := login("assignment-manager")
-	invalidBody := `{"documentId":"` + document.ID.String() + `","executorId":"` + executorID.String() + `","content":"invalid co-executor","coExecutorIds":["` + coExecutorID.String() + `","not-a-uuid"]}`
+	invalidBody := `{"type":"execution","documentId":"` + document.ID.String() + `","executorId":"` + executorID.String() + `","content":"invalid co-executor","coExecutorIds":["` + coExecutorID.String() + `","not-a-uuid"]}`
 	invalidCreate := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(invalidBody))
 	invalidCreate.Header.Set("Authorization", "Bearer "+managerToken)
 	invalidResponse := httptest.NewRecorder()
@@ -98,7 +98,7 @@ func TestAssignmentAPIUsesServerPrincipalAndPersistsCoExecutorsIntegration(t *te
 		{"unknown coexecutor", executorID, unknownID},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			body := `{"documentId":"` + document.ID.String() + `","executorId":"` + tc.executorID.String() + `","content":"ineligible executor","coExecutorIds":["` + tc.coExecutorID.String() + `"]}`
+			body := `{"type":"execution","documentId":"` + document.ID.String() + `","executorId":"` + tc.executorID.String() + `","content":"ineligible executor","coExecutorIds":["` + tc.coExecutorID.String() + `"]}`
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(body))
 			request.Header.Set("Authorization", "Bearer "+managerToken)
 			response := httptest.NewRecorder()
@@ -109,7 +109,7 @@ func TestAssignmentAPIUsesServerPrincipalAndPersistsCoExecutorsIntegration(t *te
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM assignments WHERE document_id = $1`, document.ID).Scan(&assignmentCount))
 	require.Zero(t, assignmentCount)
 
-	duplicateBody := `{"documentId":"` + document.ID.String() + `","executorId":"` + executorID.String() + `","content":"deduplicated co-executors","coExecutorIds":["` + executorID.String() + `","` + coExecutorID.String() + `","` + coExecutorID.String() + `"]}`
+	duplicateBody := `{"type":"execution","documentId":"` + document.ID.String() + `","executorId":"` + executorID.String() + `","content":"deduplicated co-executors","coExecutorIds":["` + executorID.String() + `","` + coExecutorID.String() + `","` + coExecutorID.String() + `"]}`
 	duplicateCreate := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(duplicateBody))
 	duplicateCreate.Header.Set("Authorization", "Bearer "+managerToken)
 	duplicateResponse := httptest.NewRecorder()
@@ -123,7 +123,7 @@ func TestAssignmentAPIUsesServerPrincipalAndPersistsCoExecutorsIntegration(t *te
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM assignment_co_executors WHERE assignment_id = $1`, duplicateAssignment.ID).Scan(&duplicateCoExecutorCount))
 	require.Equal(t, 1, duplicateCoExecutorCount)
 
-	createBody := `{"documentId":"` + document.ID.String() + `","executorId":"` + executorID.String() + `","content":"Server-owned assignment","deadline":"2026-09-30","coExecutorIds":["` + coExecutorID.String() + `"]}`
+	createBody := `{"type":"execution","documentId":"` + document.ID.String() + `","executorId":"` + executorID.String() + `","content":"Server-owned assignment","deadline":"2026-09-30","coExecutorIds":["` + coExecutorID.String() + `"]}`
 	create := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(createBody))
 	create.Header.Set("Authorization", "Bearer "+managerToken)
 	createResponse := httptest.NewRecorder()

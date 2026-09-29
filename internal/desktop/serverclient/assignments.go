@@ -10,7 +10,7 @@ import (
 )
 
 type AssignmentClient interface {
-	CreateAssignment(context.Context, string, string, string, string, []string) (*dto.Assignment, error)
+	CreateTask(context.Context, models.AssignmentRequest) (*dto.Assignment, error)
 	CreateAssignmentSeries(context.Context, models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error)
 	GetAssignmentSeries(context.Context, string) (*dto.AssignmentSeries, error)
 	GetAssignmentSeriesHistory(context.Context, string) ([]dto.Assignment, error)
@@ -33,15 +33,6 @@ type assignmentDetailsRequest struct {
 type assignmentStatusRequest struct {
 	Status string `json:"status"`
 	Report string `json:"report"`
-}
-
-func (c *Client) CreateAssignment(ctx context.Context, documentID, executorID, content, deadline string, coExecutorIDs []string) (*dto.Assignment, error) {
-	request := assignmentDetailsRequest{DocumentID: documentID, ExecutorID: executorID, Content: content, Deadline: deadline, CoExecutorIDs: coExecutorIDs}
-	var result dto.Assignment
-	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/assignments", request, http.StatusCreated, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
 }
 
 func (c *Client) ListAssignments(ctx context.Context, filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
@@ -111,4 +102,12 @@ func (c *Client) UpdateAssignmentSeries(ctx context.Context, id string, request 
 
 func (c *Client) CancelAssignmentSeries(ctx context.Context, id string) error {
 	return c.doUserRequest(ctx, http.MethodDelete, "/api/v1/assignment-series/"+url.PathEscape(id), nil, http.StatusNoContent, nil)
+}
+
+func (c *Client) CreateTask(ctx context.Context, request models.AssignmentRequest) (*dto.Assignment, error) {
+	var result dto.Assignment
+	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/assignments", request, http.StatusCreated, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }

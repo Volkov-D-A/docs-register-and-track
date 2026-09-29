@@ -100,7 +100,6 @@ func newWailsOptionsWithDependencies(
 	workspaceService := desktopservices.NewWorkspaceService(serverClient)
 	statisticsService := desktopservices.NewStatisticsService(serverClient)
 	linkService := desktopservices.NewLinkService(serverClient)
-	acknowledgmentService := desktopservices.NewAcknowledgmentService(serverClient)
 	clientVersion, err := releaseassets.CurrentVersion()
 	if err != nil {
 		return nil, &startupdiag.Failure{
@@ -183,7 +182,6 @@ func newWailsOptionsWithDependencies(
 			settingsService,
 			attachmentService,
 			linkService,
-			acknowledgmentService,
 			systemService,
 			releaseNoteService,
 			themeService,

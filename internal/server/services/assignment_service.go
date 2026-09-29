@@ -24,6 +24,48 @@ type AssignmentService struct {
 	substitutions  ports.UserSubstitutionStore
 }
 
+// CreateTask validates the assignment type and creates its workflow.
+func (s *AssignmentService) CreateTask(request models.AssignmentRequest) (*dto.Assignment, error) {
+	switch request.Type {
+	case models.AssignmentTypeExecution:
+		if len(request.UserIDs) > 0 {
+			return nil, models.NewBadRequest("для исполнения укажите исполнителя и соисполнителей")
+		}
+		return s.createExecution(request.DocumentID, request.ExecutorID, request.Content, request.Deadline, request.CoExecutorIDs)
+	case models.AssignmentTypeAcknowledgment:
+		if request.ExecutorID != "" || len(request.CoExecutorIDs) > 0 {
+			return nil, models.NewBadRequest("для ознакомления укажите равноправных адресатов")
+		}
+		result, err := s.createRecipientTask(request.DocumentID, request.Content, request.Deadline, request.UserIDs)
+		if err != nil {
+			return nil, err
+		}
+		return s.assignmentResult(result.ID)
+	default:
+		return nil, models.NewBadRequest("неизвестный тип поручения")
+	}
+}
+
+func (s *AssignmentService) assignmentResult(id string) (*dto.Assignment, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.repo.GetByID(uid)
+	if err != nil {
+		return nil, err
+	}
+	mapped := dto.MapAssignment(result)
+	if mapped != nil {
+		_, subjects, err := s.currentUserAndSubstitutionSubjectIDs()
+		if err != nil {
+			return nil, err
+		}
+		mapped.CanAct = isAssignmentExecutorInSubjects(subjects, result)
+	}
+	return mapped, nil
+}
+
 // NewAssignmentService creates a request-scoped server service with its dependencies.
 func NewAssignmentService(
 	repo ports.AssignmentStore,
@@ -206,7 +248,7 @@ func (s *AssignmentService) requireEligibleExecutors(executorID uuid.UUID, coExe
 }
 
 // Create — создание поручения
-func (s *AssignmentService) Create(
+func (s *AssignmentService) createExecution(
 	documentID string,
 	executorID string,
 	content string,
@@ -507,6 +549,13 @@ func (s *AssignmentService) Update(
 	if existing == nil {
 		return nil, models.NewNotFound("поручение не найдено")
 	}
+	if existing.Type == models.AssignmentTypeAcknowledgment {
+		if executorID != "" || len(coExecutorIDs) > 0 {
+			return nil, models.NewBadRequest("адресатов ознакомления нельзя заменять исполнителем")
+		}
+		return s.updateAcknowledgment(existing, content, deadline)
+	}
+
 	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
 		return nil, err
 	}
@@ -579,6 +628,15 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 	}
 	if existing == nil {
 		return nil, models.NewNotFound("поручение не найдено")
+	}
+	if existing.Type == models.AssignmentTypeAcknowledgment {
+		if status != "finished" || strings.TrimSpace(report) != "" {
+			return nil, models.NewBadRequest("ознакомление допускает только личное подтверждение без отчёта")
+		}
+		if err := s.confirmAcknowledgment(id); err != nil {
+			return nil, err
+		}
+		return s.assignmentResult(id)
 	}
 
 	currentUserUUID, err := s.auth.GetCurrentUserUUID()
@@ -688,6 +746,21 @@ func (s *AssignmentService) UpdateStatus(id, status, report string) (*dto.Assign
 
 // GetList возвращает список поручений с учетом фильтрации.
 func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
+	for _, typ := range filter.Types {
+		if typ != models.AssignmentTypeExecution && typ != models.AssignmentTypeAcknowledgment {
+			return nil, models.NewBadRequest("неизвестный тип поручения")
+		}
+	}
+	for _, status := range filter.Statuses {
+		switch status {
+		case "new", "in_progress", "returned", "completed", "finished", "cancelled":
+		default:
+			return nil, models.NewBadRequest("неизвестный статус поручения")
+		}
+	}
+	if len(filter.Types) != 1 || filter.Types[0] != models.AssignmentTypeExecution {
+		return s.getTypedList(filter)
+	}
 	if err := s.access.RequireDomainRead(); err != nil {
 		return nil, err
 	}
@@ -731,9 +804,6 @@ func (s *AssignmentService) GetList(filter models.AssignmentFilter) (*dto.PagedR
 	}
 	if filter.Mode != "" && filter.Mode != models.WorkspaceModeExecution && filter.Mode != models.WorkspaceModeControl {
 		return nil, models.NewBadRequest("неизвестный режим списка поручений")
-	}
-	if filter.Metric != "" && filter.Metric != "new" && filter.Metric != "in_progress" && filter.Metric != "overdue" && filter.Metric != "due_soon" && filter.Metric != "acceptance" {
-		return nil, models.NewBadRequest("неизвестный показатель поручений")
 	}
 	if filter.Mode == models.WorkspaceModeExecution {
 		filter.AllowedDocumentKinds = nil
@@ -797,6 +867,19 @@ func isAssignmentExecutorInSubjects(subjectIDs []string, assignment *models.Assi
 	if assignment == nil {
 		return false
 	}
+	if assignment.Type == models.AssignmentTypeAcknowledgment {
+		for _, recipient := range assignment.Users {
+			if recipient.ConfirmedAt != nil {
+				continue
+			}
+			for _, subjectID := range subjectIDs {
+				if recipient.UserID.String() == subjectID {
+					return true
+				}
+			}
+		}
+		return false
+	}
 	executorID := assignment.ExecutorID.String()
 	for _, subjectID := range subjectIDs {
 		if subjectID == executorID {
@@ -849,6 +932,10 @@ func (s *AssignmentService) Delete(id string) error {
 	if existing == nil {
 		return models.NewNotFound("поручение не найдено")
 	}
+	if existing.Type == models.AssignmentTypeAcknowledgment {
+		return s.deleteRecipientTask(id)
+	}
+
 	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
 		return err
 	}
@@ -868,4 +955,86 @@ func (s *AssignmentService) Delete(id string) error {
 	}
 	err = s.repo.DeleteWithOutbox(uid, []models.OutboxEvent{event})
 	return err
+}
+
+func (s *AssignmentService) getTypedList(filter models.AssignmentFilter) (*dto.PagedResult[dto.Assignment], error) {
+	if err := s.access.RequireDomainRead(); err != nil {
+		return nil, err
+	}
+	if filter.Mode != "" && filter.Mode != models.WorkspaceModeExecution && filter.Mode != models.WorkspaceModeControl {
+		return nil, models.NewBadRequest("неизвестный режим списка поручений")
+	}
+	if filter.DocumentID != "" {
+		id, err := uuid.Parse(filter.DocumentID)
+		if err != nil {
+			return nil, models.NewBadRequest("неверный ID документа")
+		}
+		if err := s.access.RequireReadAnyType(id); err != nil {
+			return nil, err
+		}
+	}
+	_, subjects, err := s.currentUserAndSubstitutionSubjectIDs()
+	if err != nil {
+		return nil, err
+	}
+	filter.AllowedDocumentKinds = nil
+	filter.AccessibleByUserID = subjects[0]
+	filter.AccessibleByUserIDs = subjects
+	filter.ControlScopes = map[models.DocumentKind]models.DocumentAccessScope{}
+	kinds, err := s.access.GetDocumentKindsWithAction("assign")
+	if err != nil {
+		return nil, err
+	}
+	for _, kind := range kinds {
+		scope, err := s.access.ResolveReadScope(kind)
+		if err != nil {
+			return nil, err
+		}
+		filter.ControlScopes[kind] = *scope
+	}
+	if filter.Mode == models.WorkspaceModeControl && len(filter.ControlScopes) == 0 {
+		return nil, models.ErrForbidden
+	}
+	if filter.Page < 1 {
+		filter.Page = 1
+	}
+	if filter.PageSize < 1 {
+		filter.PageSize = 20
+	}
+	res, err := s.repo.GetList(filter)
+	if err != nil {
+		return nil, err
+	}
+	items := dto.MapAssignments(res.Items)
+	markAssignmentsCanAct(items, subjects, res.Items)
+	return &dto.PagedResult[dto.Assignment]{Items: items, TotalCount: res.TotalCount, Page: res.Page, PageSize: res.PageSize}, nil
+}
+
+func (s *AssignmentService) updateAcknowledgment(existing *models.Assignment, content, deadline string) (*dto.Assignment, error) {
+	if err := s.access.RequireDocumentAction(existing.DocumentID, "assign"); err != nil {
+		return nil, err
+	}
+	if existing.Status == "finished" {
+		return nil, models.NewConflict("нельзя изменить завершённое ознакомление")
+	}
+	var due *time.Time
+	if deadline != "" {
+		parsed, err := time.Parse("2006-01-02", deadline)
+		if err != nil {
+			return nil, models.NewBadRequest("неверный формат срока ознакомления")
+		}
+		due = &parsed
+	}
+	actor, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return nil, err
+	}
+	event, err := servereffects.NewJournalOutboxEvent(assignmentOutboxKey(existing.ID, "ack-update", existing.UpdatedAt.String(), nil, "journal"), models.CreateJournalEntryRequest{DocumentID: existing.DocumentID, UserID: actor, Action: "ASSIGNMENT_UPDATE", Details: "Изменено поручение на ознакомление"})
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateRecipientTaskDetails(existing.ID, content, due, []models.OutboxEvent{event}); err != nil {
+		return nil, err
+	}
+	return s.assignmentResult(existing.ID.String())
 }

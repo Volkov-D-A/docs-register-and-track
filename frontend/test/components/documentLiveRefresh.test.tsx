@@ -10,7 +10,6 @@ vi.mock('../../src/hooks/useDocumentKindAccess', () => ({
     useDocumentKindAccess: () => ({ ready: true, loading: false, kinds: [], hasAction: (_kind: string, action: string) => action === 'assign' }),
 }));
 vi.mock('../../src/components/DocumentAssignmentWorkflowPanel', () => ({ default: () => null }));
-vi.mock('../../src/components/DocumentAcknowledgmentWorkflowPanel', () => ({ default: () => null }));
 vi.mock('../../src/components/documentDetails/IncomingDocumentDetails', () => ({ default: () => <div>Карточка документа</div> }));
 vi.mock('../../src/components/FileListComponent', () => ({ default: () => null }));
 vi.mock('../../src/components/RelatedDocumentModal', () => ({ default: () => null }));

@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS assignment_recipients;
+
 ALTER TABLE assignment_series DROP CONSTRAINT IF EXISTS assignment_series_current_assignment_fk;
 
 DROP TABLE IF EXISTS assignment_co_executors;

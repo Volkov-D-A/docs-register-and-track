@@ -19,6 +19,9 @@ const renderSearch = (onOpenDocument: (id: string, kind: string) => void = vi.fn
     <ConfigProvider theme={{ token: { motion: false } }}><DocumentSearchPanel onOpenDocument={onOpenDocument} /></ConfigProvider>,
 );
 const submit = (text: string) => {
+    if (!screen.queryByRole('searchbox', { name: 'Поиск по документам' })) {
+        fireEvent.click(screen.getByRole('button', { name: 'Найти документ' }));
+    }
     fireEvent.change(screen.getByRole('searchbox', { name: 'Поиск по документам' }), { target: { value: text } });
     fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
 };
@@ -45,7 +48,8 @@ test('blank input never calls the server and pagination repeats the submitted qu
     renderSearch();
     submit('   ');
     expect(api.search).not.toHaveBeenCalled();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Поиск документов' })).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
     submit('ремонт');
     await screen.findByRole('button', { name: '№ 123' });
     fireEvent.click(screen.getByTitle('2'));
@@ -90,4 +94,17 @@ test.each(['access-changed', 'document-changed'])('access invalidation %s clears
     await act(async () => { pending.resolve(result()); });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.queryByRole('button', { name: '№ 123' })).not.toBeInTheDocument();
+});
+
+
+test('find document button reveals and focuses the search field without a server request', async () => {
+    renderSearch();
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Найти документ' }));
+    const input = await screen.findByRole('searchbox', { name: 'Поиск по документам' });
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(api.search).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('searchbox')).not.toBeInTheDocument());
 });

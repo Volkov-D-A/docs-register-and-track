@@ -87,7 +87,7 @@ func setupCitizenAppealCommandHandler(t *testing.T, allowed map[models.DocumentK
 		auth,
 		&documentAccessDepartmentStore{},
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
-		&documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}},
+
 		&kindActionDocumentAccessStore{allowed: allowed},
 		docRepo,
 	)

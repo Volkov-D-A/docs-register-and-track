@@ -53,7 +53,8 @@ type FailedOutboxEvent struct {
 	FailedAt  time.Time `json:"failedAt"`
 }
 
-type AcknowledgmentConfirmationEffects struct {
+type AssignmentConfirmationEffects struct {
+	ActorID    uuid.UUID
 	UserEvents []CreateUserEventRequest
 }
 

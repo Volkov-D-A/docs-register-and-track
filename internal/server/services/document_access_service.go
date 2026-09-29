@@ -10,13 +10,12 @@ import (
 // DocumentAccessService инкапсулирует политику доступа к документному домену.
 // Нужен как единая точка переиспользования для сервисов документов, файлов, журнала и связанных сущностей.
 type DocumentAccessService struct {
-	auth               ports.DocumentAccessPrincipal
-	depRepo            ports.DepartmentStore
-	assignmentRepo     ports.AssignmentReader
-	acknowledgmentRepo ports.AcknowledgmentReader
-	substitutionRepo   ports.UserSubstitutionStore
-	accessRepo         ports.DocumentAccessStore
-	documentRepo       ports.DocumentStore
+	auth             ports.DocumentAccessPrincipal
+	depRepo          ports.DepartmentStore
+	assignmentRepo   ports.AssignmentReader
+	substitutionRepo ports.UserSubstitutionStore
+	accessRepo       ports.DocumentAccessStore
+	documentRepo     ports.DocumentStore
 }
 
 // NewDocumentAccessService создает сервис проверки доступа к документам.
@@ -24,18 +23,16 @@ func NewDocumentAccessService(
 	auth ports.DocumentAccessPrincipal,
 	depRepo ports.DepartmentStore,
 	assignmentRepo ports.AssignmentReader,
-	acknowledgmentRepo ports.AcknowledgmentReader,
 	accessRepo ports.DocumentAccessStore,
 	documentRepo ports.DocumentStore,
 	substitutionRepos ...ports.UserSubstitutionStore,
 ) *DocumentAccessService {
 	svc := &DocumentAccessService{
-		auth:               auth,
-		depRepo:            depRepo,
-		assignmentRepo:     assignmentRepo,
-		acknowledgmentRepo: acknowledgmentRepo,
-		accessRepo:         accessRepo,
-		documentRepo:       documentRepo,
+		auth:           auth,
+		depRepo:        depRepo,
+		assignmentRepo: assignmentRepo,
+		accessRepo:     accessRepo,
+		documentRepo:   documentRepo,
 	}
 	if len(substitutionRepos) > 0 {
 		svc.substitutionRepo = substitutionRepos[0]
@@ -289,18 +286,6 @@ func (s *DocumentAccessService) hasImplicitReadAccess(doc *models.Document) (boo
 		}
 	}
 
-	if s.acknowledgmentRepo != nil {
-		for _, subjectID := range subjectIDs {
-			ok, err := s.acknowledgmentRepo.HasDocumentAccess(subjectID, doc.ID)
-			if err != nil {
-				return false, err
-			}
-			if ok {
-				return true, nil
-			}
-		}
-	}
-
 	return false, nil
 }
 
@@ -454,7 +439,6 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 	}
 
 	assignmentAccessibleDocuments := make(map[uuid.UUID]struct{})
-	acknowledgmentAccessibleDocuments := make(map[uuid.UUID]struct{})
 	if user.IsDocumentParticipant || len(subjectIDs) > 1 {
 		for _, subjectID := range subjectIDs {
 			if s.assignmentRepo != nil {
@@ -467,15 +451,6 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 				}
 			}
 
-			if s.acknowledgmentRepo != nil {
-				ids, err := s.acknowledgmentRepo.GetAccessibleDocumentIDs(subjectID, uniqueIDs)
-				if err != nil {
-					return nil, err
-				}
-				for documentID := range ids {
-					acknowledgmentAccessibleDocuments[documentID] = struct{}{}
-				}
-			}
 		}
 	}
 
@@ -514,11 +489,6 @@ func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID
 			}
 		}
 
-		if s.acknowledgmentRepo != nil {
-			if _, ok := acknowledgmentAccessibleDocuments[doc.ID]; ok {
-				readable[doc.ID] = doc
-			}
-		}
 	}
 
 	return readable, nil

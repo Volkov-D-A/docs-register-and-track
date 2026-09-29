@@ -170,16 +170,17 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	query := `
 		SELECT
 			a.id, a.document_id, d.kind,
-			a.executor_id, u_executor.full_name,
+			COALESCE(a.executor_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(u_executor.full_name, ''),
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.series_id, a.iteration_number, a.planned_deadline,
 			COALESCE(s.current_assignment_id = a.id, FALSE) AS is_series_current,
 			a.created_at, a.updated_at,
 			d.registration_number as doc_number,
-			d.content as doc_subject
+			d.content as doc_subject, a.type, a.creator_id, COALESCE(u_creator.full_name, '')
 		FROM assignments a
 		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
+		LEFT JOIN users u_creator ON a.creator_id = u_creator.id
 		LEFT JOIN assignment_series s ON s.id = a.series_id
 		WHERE a.id = $1
 	`
@@ -193,6 +194,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	var seriesID uuid.NullUUID
 	var iterationNumber sql.NullInt64
 	var plannedDeadline sql.NullTime
+	var creatorID uuid.NullUUID
 
 	err := r.db.QueryRow(query, id).Scan(
 		&a.ID, &a.DocumentID, &a.DocumentKind,
@@ -200,7 +202,7 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 		&a.Content, &deadline, &a.Status, &report, &completedAt,
 		&seriesID, &iterationNumber, &plannedDeadline, &a.IsSeriesCurrent,
 		&a.CreatedAt, &a.UpdatedAt,
-		&docNumber, &docSubject,
+		&docNumber, &docSubject, &a.Type, &creatorID, &a.CreatorName,
 	)
 
 	if err == sql.ErrNoRows {
@@ -210,6 +212,9 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 		return nil, fmt.Errorf("failed to get assignment: %w", err)
 	}
 
+	if creatorID.Valid {
+		a.CreatorID = creatorID.UUID
+	}
 	if deadline.Valid {
 		a.Deadline = &deadline.Time
 	}
@@ -266,30 +271,55 @@ func (r *AssignmentRepository) GetByID(id uuid.UUID) (*models.Assignment, error)
 	a.CoExecutors = coExecutors
 	a.CoExecutorIDs = coExecutorIDs
 
+	if a.Type == models.AssignmentTypeAcknowledgment {
+		recipients, err := r.GetRecipientsByAssignmentIDs([]uuid.UUID{a.ID})
+		if err != nil {
+			return nil, err
+		}
+		a.Users = recipients[a.ID]
+	}
 	return &a, nil
 }
 
 // GetList возвращает список поручений с учетом фильтрации и пагинации.
 func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error) {
+	if !filter.ShowFinished && len(filter.Statuses) > 0 {
+		hasVisibleStatus := false
+		for _, status := range filter.Statuses {
+			if status != "finished" {
+				hasVisibleStatus = true
+				break
+			}
+		}
+		if !hasVisibleStatus {
+			return &models.PagedResult[models.Assignment]{Items: []models.Assignment{}, Page: filter.Page, PageSize: filter.PageSize}, nil
+		}
+	}
 	query := `
 		SELECT
 			a.id, a.document_id, d.kind,
-			a.executor_id, u_executor.full_name,
+			COALESCE(a.executor_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(u_executor.full_name, ''),
 			a.content, a.deadline, a.status, a.report, a.completed_at,
 			a.series_id, a.iteration_number, a.planned_deadline,
 			COALESCE(s.current_assignment_id = a.id, FALSE) AS is_series_current,
 			a.created_at, a.updated_at,
 			d.registration_number as doc_number,
-			d.content as doc_subject
+			d.content as doc_subject, a.type, a.creator_id, COALESCE(u_creator.full_name, '')
 		FROM assignments a
 		JOIN documents d ON d.id = a.document_id
 		LEFT JOIN users u_executor ON a.executor_id = u_executor.id
+		LEFT JOIN users u_creator ON a.creator_id = u_creator.id
 		LEFT JOIN assignment_series s ON s.id = a.series_id
 	`
 
 	where := []string{"(a.series_id IS NULL OR s.current_assignment_id = a.id)"}
 	args := []interface{}{}
 	argIdx := 1
+	if len(filter.Types) > 0 {
+		where = append(where, fmt.Sprintf("a.type = ANY($%d)", argIdx))
+		args = append(args, pq.Array(filter.Types))
+		argIdx++
+	}
 
 	if filter.DocumentID != "" {
 		where = append(where, fmt.Sprintf("a.document_id = $%d", argIdx))
@@ -297,7 +327,9 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		argIdx++
 	}
 	accessibleIDs := accessibleUserIDs(filter.AccessibleByUserID, filter.AccessibleByUserIDs)
-	if filter.Mode == models.WorkspaceModeControl {
+	if len(filter.Types) != 1 || filter.Types[0] != models.AssignmentTypeExecution {
+		applyTypedAssignmentAccess(&where, &args, &argIdx, filter)
+	} else if filter.Mode == models.WorkspaceModeControl {
 		controlClauses := make([]string, 0, len(filter.ControlScopes))
 		for _, spec := range models.AllDocumentKindSpecs() {
 			scope, ok := filter.ControlScopes[spec.Code]
@@ -336,7 +368,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 	}
 	if filter.ExecutorID != "" {
 		// Фильтр по основному исполнителю ИЛИ соисполнителю
-		where = append(where, fmt.Sprintf("(a.executor_id = $%d OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $%d))", argIdx, argIdx))
+		where = append(where, fmt.Sprintf("(a.executor_id = $%d OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id = a.id AND ce.user_id = $%d) OR EXISTS (SELECT 1 FROM assignment_recipients ar WHERE ar.assignment_id=a.id AND ar.user_id=$%d))", argIdx, argIdx, argIdx))
 		args = append(args, filter.ExecutorID)
 		argIdx++
 	}
@@ -354,57 +386,36 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 			where = append(where, "a.status IN ('new', 'in_progress', 'returned', 'completed')")
 		}
 	}
-	switch filter.Metric {
-	case "new":
-		where = append(where, "a.status = 'new'")
-	case "in_progress":
-		where = append(where, "a.status = 'in_progress'")
-	case "overdue":
-		where = append(where, "a.status IN ('new', 'in_progress', 'returned') AND a.deadline::date < CURRENT_DATE")
-	case "due_soon":
-		where = append(where, "a.status IN ('new', 'in_progress', 'returned') AND a.deadline::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 3")
-	case "acceptance":
-		where = append(where, "a.status = 'completed'")
-	}
+
 	if filter.OverdueOnly {
-		// Просроченные: deadline < CURRENT_DATE и статус не в (завершенных),
-		// или статус completed, но completed_at > deadline
-		where = append(where, "(a.deadline < CURRENT_DATE AND (a.status NOT IN ('completed', 'finished', 'cancelled') OR (a.status = 'completed' AND a.completed_at::date > a.deadline)))")
+		where = append(where, "a.status IN ('new', 'in_progress', 'returned') AND a.deadline::date < CURRENT_DATE")
 	}
 
-	if filter.Status != "" {
-		// Если ShowFinished = false, запрещаем статус "finished"
-		if !filter.ShowFinished && filter.Status == "finished" {
-			// Возвращаем пустой результат
-			return &models.PagedResult[models.Assignment]{Items: []models.Assignment{}, TotalCount: 0, Page: filter.Page, PageSize: filter.PageSize}, nil
-		}
-
-		where = append(where, fmt.Sprintf("a.status = $%d", argIdx))
-		args = append(args, filter.Status)
+	if len(filter.Statuses) > 0 {
+		where = append(where, fmt.Sprintf("a.status = ANY($%d)", argIdx))
+		args = append(args, pq.Array(filter.Statuses))
 		argIdx++
-	} else {
-		// Если статус не указан, скрываем 'finished' если ShowFinished = false
-		if !filter.ShowFinished {
-			where = append(where, fmt.Sprintf("a.status != $%d", argIdx))
-			args = append(args, "finished")
-			argIdx++
-		}
+	}
+	if !filter.ShowFinished {
+		where = append(where, fmt.Sprintf("a.status != $%d", argIdx))
+		args = append(args, "finished")
+		argIdx++
 	}
 	if filter.DateFrom != "" {
-		where = append(where, fmt.Sprintf("a.deadline >= $%d", argIdx))
+		where = append(where, fmt.Sprintf("a.deadline::date >= $%d::date", argIdx))
 		args = append(args, filter.DateFrom)
 		argIdx++
 	}
 	if filter.DateTo != "" {
-		where = append(where, fmt.Sprintf("a.deadline <= $%d", argIdx))
-		args = append(args, filter.DateTo+" 23:59:59")
+		where = append(where, fmt.Sprintf("a.deadline::date <= $%d::date", argIdx))
+		args = append(args, filter.DateTo)
 		argIdx++
 	}
 
 	if filter.Search != "" {
 		search := "%" + strings.ToLower(filter.Search) + "%"
 		where = append(where, fmt.Sprintf("(LOWER(a.content) LIKE $%d OR LOWER(d.registration_number) LIKE $%d OR LOWER(d.content) LIKE $%d)", argIdx, argIdx, argIdx))
-		args = append(args, search, search, search)
+		args = append(args, search)
 		argIdx++
 	}
 
@@ -452,6 +463,7 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		var seriesID uuid.NullUUID
 		var iterationNumber sql.NullInt64
 		var plannedDeadline sql.NullTime
+		var creatorID uuid.NullUUID
 
 		if err := rows.Scan(
 			&a.ID, &a.DocumentID, &a.DocumentKind,
@@ -459,11 +471,14 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 			&a.Content, &deadline, &a.Status, &report, &completedAt,
 			&seriesID, &iterationNumber, &plannedDeadline, &a.IsSeriesCurrent,
 			&a.CreatedAt, &a.UpdatedAt,
-			&docNumber, &docSubject,
+			&docNumber, &docSubject, &a.Type, &creatorID, &a.CreatorName,
 		); err != nil {
 			return nil, err
 		}
 
+		if creatorID.Valid {
+			a.CreatorID = creatorID.UUID
+		}
 		if deadline.Valid {
 			a.Deadline = &deadline.Time
 		}
@@ -526,6 +541,21 @@ func (r *AssignmentRepository) GetList(filter models.AssignmentFilter) (*models.
 		}
 	}
 
+	var recipientTaskIDs []uuid.UUID
+	for _, item := range items {
+		if item.Type == models.AssignmentTypeAcknowledgment {
+			recipientTaskIDs = append(recipientTaskIDs, item.ID)
+		}
+	}
+	if len(recipientTaskIDs) > 0 {
+		recipients, err := r.GetRecipientsByAssignmentIDs(recipientTaskIDs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range items {
+			items[i].Users = recipients[items[i].ID]
+		}
+	}
 	return &models.PagedResult[models.Assignment]{
 		Items:      items,
 		TotalCount: totalCount,
@@ -544,6 +574,7 @@ func (r *AssignmentRepository) HasDocumentAccess(userID, documentID uuid.UUID) (
 			WHERE a.document_id = $1
 			  AND (
 				a.executor_id = $2
+                OR EXISTS (SELECT 1 FROM assignment_recipients ar WHERE ar.assignment_id = a.id AND ar.user_id = $2)
 				OR EXISTS (
 					SELECT 1
 					FROM assignment_co_executors ce
@@ -578,6 +609,7 @@ func (r *AssignmentRepository) GetAccessibleDocumentIDs(userID uuid.UUID, docume
 		WHERE a.document_id = ANY($1::uuid[])
 		  AND (
 			a.executor_id = $2
+                OR EXISTS (SELECT 1 FROM assignment_recipients ar WHERE ar.assignment_id = a.id AND ar.user_id = $2)
 			OR EXISTS (
 				SELECT 1
 				FROM assignment_co_executors ce
@@ -602,4 +634,44 @@ func (r *AssignmentRepository) GetAccessibleDocumentIDs(userID uuid.UUID, docume
 	}
 
 	return result, nil
+}
+
+// Management of both types uses assign; participation never grants control.
+func applyTypedAssignmentAccess(where *[]string, args *[]interface{}, argIdx *int, filter models.AssignmentFilter) {
+	clauses := []string{}
+	if filter.Mode != models.WorkspaceModeExecution {
+		for _, typ := range []string{models.AssignmentTypeExecution, models.AssignmentTypeAcknowledgment} {
+			scopes := filter.ControlScopes
+			for _, spec := range models.AllDocumentKindSpecs() {
+				scope, ok := scopes[spec.Code]
+				if !ok {
+					continue
+				}
+				part := []string{fmt.Sprintf("a.type = '%s' AND d.kind = $%d", typ, *argIdx)}
+				*args = append(*args, string(spec.Code))
+				*argIdx++
+				applyDocumentListAccess(&part, args, argIdx, scope)
+				clauses = append(clauses, "("+strings.Join(part, " AND ")+")")
+			}
+		}
+	}
+	if filter.Mode != models.WorkspaceModeControl {
+		ids := accessibleUserIDs(filter.AccessibleByUserID, filter.AccessibleByUserIDs)
+		if len(ids) > 0 {
+			pending := ""
+			if filter.Mode == models.WorkspaceModeExecution && !filter.ShowFinished {
+				pending = " AND ar.confirmed_at IS NULL"
+			}
+			clauses = append(clauses, fmt.Sprintf(`(a.executor_id = ANY($%d::uuid[])
+    OR EXISTS (SELECT 1 FROM assignment_co_executors ce WHERE ce.assignment_id=a.id AND ce.user_id=ANY($%d::uuid[]))
+    OR EXISTS (SELECT 1 FROM assignment_recipients ar WHERE ar.assignment_id=a.id AND ar.user_id=ANY($%d::uuid[])%s))`, *argIdx, *argIdx, *argIdx, pending))
+			*args = append(*args, pq.Array(ids))
+			*argIdx++
+		}
+	}
+	if len(clauses) == 0 {
+		*where = append(*where, "1=0")
+	} else {
+		*where = append(*where, "("+strings.Join(clauses, " OR ")+")")
+	}
 }

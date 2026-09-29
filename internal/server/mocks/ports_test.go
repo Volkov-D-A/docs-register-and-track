@@ -14,6 +14,5 @@ var (
 	_ ports.DepartmentStore     = (*DepartmentStore)(nil)
 	_ ports.IncomingDocStore    = (*IncomingDocStore)(nil)
 	_ ports.NomenclatureStore   = (*NomenclatureStore)(nil)
-	_ ports.AcknowledgmentStore = (*AcknowledgmentStore)(nil)
 	_ ports.SettingsStore       = (*SettingsStore)(nil)
 )

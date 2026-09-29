@@ -8,7 +8,7 @@ import (
 )
 
 type assignmentAPI interface {
-	Create(string, string, string, string, []string) (*dto.Assignment, error)
+	CreateTask(models.AssignmentRequest) (*dto.Assignment, error)
 	CreateSeries(models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error)
 	GetSeries(string) (*dto.AssignmentSeries, error)
 	GetSeriesHistory(string) ([]dto.Assignment, error)
@@ -26,6 +26,8 @@ type assignmentDetailsRequest struct {
 	Content       string   `json:"content"`
 	Deadline      string   `json:"deadline"`
 	CoExecutorIDs []string `json:"coExecutorIds"`
+	Type          string   `json:"type,omitempty"`
+	UserIDs       []string `json:"userIds,omitempty"`
 }
 
 type assignmentStatusRequest struct {
@@ -43,7 +45,8 @@ func (api *managementAPI) createAssignment(w http.ResponseWriter, r *http.Reques
 		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
 		return
 	}
-	result, err := api.assignmentService(r).Create(req.DocumentID, req.ExecutorID, req.Content, req.Deadline, req.CoExecutorIDs)
+	service := api.assignmentService(r)
+	result, err := service.CreateTask(models.AssignmentRequest{Type: req.Type, DocumentID: req.DocumentID, ExecutorID: req.ExecutorID, Content: req.Content, Deadline: req.Deadline, CoExecutorIDs: req.CoExecutorIDs, UserIDs: req.UserIDs})
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -73,6 +76,10 @@ func (api *managementAPI) updateAssignment(w http.ResponseWriter, r *http.Reques
 	var req assignmentDetailsRequest
 	if err := decodeJSON(r, &req); err != nil {
 		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
+		return
+	}
+	if req.Type != "" || len(req.UserIDs) > 0 {
+		writeUserError(w, models.NewBadRequest("тип и адресатов созданного поручения нельзя изменять"))
 		return
 	}
 	result, err := api.assignmentService(r).Update(r.PathValue("id"), req.ExecutorID, req.Content, req.Deadline, req.CoExecutorIDs)

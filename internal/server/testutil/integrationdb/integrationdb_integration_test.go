@@ -18,8 +18,10 @@ func TestEmbeddedMigrationsLifecycleIntegration(t *testing.T) {
 	if !status.UpToDate || !status.Compatible || status.AvailableCount == 0 || status.LatestAvailableVersion == 0 {
 		t.Fatalf("unexpected migrated status: %+v", status)
 	}
-	if err := db.RollbackMigration(database.DefaultMigrationsPath); err != nil {
-		t.Fatalf("rollback latest embedded migration: %v", err)
+	for step := 0; step < status.AvailableCount; step++ {
+		if err := db.RollbackMigration(database.DefaultMigrationsPath); err != nil {
+			t.Fatalf("rollback embedded migration step %d: %v", step, err)
+		}
 	}
 	if err := db.RunMigrations(database.DefaultMigrationsPath); err != nil {
 		t.Fatalf("reapply embedded migrations: %v", err)
@@ -37,7 +39,7 @@ func TestFreshSchemaExcludesUnusedHistoryIntegration(t *testing.T) {
 		t.Fatalf("expected migration 012, version=%d err=%v", version, err)
 	}
 	var remaining int
-	if err := sqlDB.QueryRow(`SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND (table_name,column_name) IN (('system_settings','updated_at'),('storage_statistics','refresh_failed_at'),('acknowledgment_users','viewed_at'),('organizations','created_at'),('resolution_executors','created_at'),('nomenclature','created_at'),('nomenclature','updated_at'),('departments','created_at'),('departments','updated_at'),('user_substitutions','created_by'),('user_substitutions','created_at'),('user_substitutions','updated_at'),('user_events','actor_user_id'),('user_events','entity_id'),('user_events','metadata'))`).Scan(&remaining); err != nil || remaining != 0 {
+	if err := sqlDB.QueryRow(`SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND (table_name,column_name) IN (('system_settings','updated_at'),('storage_statistics','refresh_failed_at'),('assignment_recipients','viewed_at'),('organizations','created_at'),('resolution_executors','created_at'),('nomenclature','created_at'),('nomenclature','updated_at'),('departments','created_at'),('departments','updated_at'),('user_substitutions','created_by'),('user_substitutions','created_at'),('user_substitutions','updated_at'),('user_events','actor_user_id'),('user_events','entity_id'),('user_events','metadata'))`).Scan(&remaining); err != nil || remaining != 0 {
 		t.Fatalf("obsolete columns in fresh schema: count=%d err=%v", remaining, err)
 	}
 	if err := sqlDB.QueryRow(`SELECT count(*) FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname IN ('backup_jobs','backup_audit','idx_user_events_entity')`).Scan(&remaining); err != nil || remaining != 0 {

@@ -59,7 +59,6 @@ changes:
 		"*services.SettingsService",
 		"*services.AttachmentService",
 		"*services.LinkService",
-		"*services.AcknowledgmentService",
 		"*services.SystemService",
 		"*services.ReleaseNoteService",
 		"*services.ThemeService",

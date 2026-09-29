@@ -15,9 +15,8 @@ const eventAppearance = (event: dto.UserEvent): { tone: string; icon: React.Reac
     switch (event.eventType) {
         case 'assignment_created': return { tone: 'red', icon: <UserOutlined /> };
         case 'assignment_finished':
-        case 'acknowledgment_confirmed': return { tone: 'green', icon: <CheckCircleFilled /> };
+        case 'assignment_acknowledged': return { tone: 'green', icon: <CheckCircleFilled /> };
         case 'assignment_returned': return { tone: 'red', icon: <WarningOutlined /> };
-        case 'acknowledgment_created': return { tone: 'purple', icon: <FileTextOutlined /> };
         default: return event.entityType === 'assignment'
             ? { tone: 'slate', icon: <MessageOutlined /> }
             : { tone: 'blue', icon: <FileTextOutlined /> };

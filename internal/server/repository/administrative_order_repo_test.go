@@ -33,7 +33,7 @@ func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *te
 		PageSize:    10,
 	}
 
-	expectedCountQuery := `SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id(.*)acknowledgment_users au(.*)JOIN acknowledgments a ON au.acknowledgment_id = a.id(.*)a.document_id = d.id`
+	expectedCountQuery := `SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id(.*)assignment_recipients au(.*)JOIN assignments a ON au.assignment_id = a.id(.*)a.document_id = d.id`
 	mock.ExpectQuery(expectedCountQuery).
 		WithArgs(models.DocumentKindAdministrativeOrder, userID, userID).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
@@ -58,7 +58,7 @@ func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *te
 		now, now,
 	)
 
-	expectedListQuery := `SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id(.*)acknowledgment_users au(.*)JOIN acknowledgments a ON au.acknowledgment_id = a.id(.*)ORDER BY d.created_at DESC`
+	expectedListQuery := `SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id(.*)assignment_recipients au(.*)JOIN assignments a ON au.assignment_id = a.id(.*)ORDER BY d.created_at DESC`
 	mock.ExpectQuery(expectedListQuery).
 		WithArgs(models.DocumentKindAdministrativeOrder, userID, userID, 10, 0).
 		WillReturnRows(rows)
@@ -292,7 +292,7 @@ func TestAdministrativeOrderRepositoryMarkAcknowledgmentPersonWithOutboxRollsBac
 	repo := NewAdministrativeOrderRepository(database.Wrap(db))
 	repo.SetOutbox(NewOutboxRepository(repo.db))
 	personID, documentID, acknowledgedBy := uuid.New(), uuid.New(), uuid.New()
-	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "order-ack:" + personID.String(), Payload: `{"action":"ACK_CONFIRM"}`}
+	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "order-ack:" + personID.String(), Payload: `{"action":"ORDER_ACKNOWLEDGE"}`}
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`UPDATE administrative_order_acknowledgment_people`).

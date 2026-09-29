@@ -1,6 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import { Spin } from 'antd';
-import type { AssignmentNavigation, AssignmentMode, AssignmentMetric } from './assignmentNavigation';
+import type { AssignmentNavigation, AssignmentMode, AssignmentMetric, AssignmentType } from './assignmentNavigation';
 
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
@@ -26,7 +26,7 @@ type AppRouterProps = {
     accessLoading: boolean;
     canAccessPage: (page: string) => boolean;
     assignmentNavigation: AssignmentNavigation | null;
-    onOpenAssignments: (mode: AssignmentMode, metric?: AssignmentMetric) => void;
+    onOpenAssignments: (mode: AssignmentMode, metric?: AssignmentMetric, type?: AssignmentType) => void;
     onOpenRegister: (kindCode: string, page: string) => void;
 };
 

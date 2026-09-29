@@ -35,14 +35,14 @@ func TestAssignmentRepository_GetByID(t *testing.T) {
 			"series_id", "iteration_number", "planned_deadline", "is_series_current",
 			"created_at", "updated_at",
 			"doc_number", "doc_subject",
-		}).AddRow(
+			"type", "creator_id", "creator_name"}).AddRow(
 			assignID, uuid.New(), "incoming_letter",
 			uuid.New(), "Иванов И.И.",
 			"Выполнить задачу", now, "new", nil, nil,
 			nil, nil, nil, false,
 			now, now,
 			"ВХ-1", "Тема",
-		)
+			"execution", nil, "")
 
 		mock.ExpectQuery(expectedQuery).WithArgs(assignID).WillReturnRows(rows)
 
@@ -187,7 +187,7 @@ func TestAssignmentRepository_CreateWithOutbox(t *testing.T) {
 		"series_id", "iteration_number", "planned_deadline", "is_series_current",
 		"created_at", "updated_at",
 		"doc_number", "doc_subject",
-	}).AddRow(assignID, docID, "incoming_letter", execID, "Иванов", "Текст", now, "new", nil, nil, nil, nil, nil, false, now, now, "", "")
+		"type", "creator_id", "creator_name"}).AddRow(assignID, docID, "incoming_letter", execID, "Иванов", "Текст", now, "new", nil, nil, nil, nil, nil, false, now, now, "", "", "execution", nil, "")
 
 	mock.ExpectQuery(expectedGetQuery).WithArgs(assignID).WillReturnRows(rows)
 	mock.ExpectQuery(`SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic FROM assignment_co_executors`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "last_name", "first_name", "patronymic", "no_patronymic"}))
@@ -233,7 +233,7 @@ func TestAssignmentRepository_UpdateWithOutbox(t *testing.T) {
 		"series_id", "iteration_number", "planned_deadline", "is_series_current",
 		"created_at", "updated_at",
 		"doc_number", "doc_subject",
-	}).AddRow(assignID, uuid.New(), "incoming_letter", execID, "Иванов", "Обновленный текст", now, "in_progress", "Отчет", now, nil, nil, nil, false, now, now, "", "")
+		"type", "creator_id", "creator_name"}).AddRow(assignID, uuid.New(), "incoming_letter", execID, "Иванов", "Обновленный текст", now, "in_progress", "Отчет", now, nil, nil, nil, false, now, now, "", "", "execution", nil, "")
 
 	mock.ExpectQuery(expectedGetQuery).WithArgs(assignID).WillReturnRows(rows)
 	mock.ExpectQuery(`SELECT(.*)FROM assignment_co_executors(.*)`).WithArgs(assignID).WillReturnRows(sqlmock.NewRows([]string{"id", "login", "last_name", "first_name", "patronymic", "no_patronymic"}))
@@ -255,7 +255,7 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 	repo := NewAssignmentRepository(database.Wrap(db))
 	now := time.Now()
 
-	filter := models.AssignmentFilter{
+	filter := models.AssignmentFilter{Types: []string{models.AssignmentTypeExecution},
 		Page:     1,
 		PageSize: 10,
 	}
@@ -270,7 +270,7 @@ func TestAssignmentRepository_GetList(t *testing.T) {
 		"content", "deadline", "status", "report", "completed_at",
 		"series_id", "iteration_number", "planned_deadline", "is_series_current",
 		"created_at", "updated_at", "doc_number", "doc_subject",
-	}).AddRow(uuid.New(), uuid.New(), "incoming_letter", uuid.New(), "Executor", "Content", now, "new", nil, nil, nil, nil, nil, false, now, now, "doc-1", "subj-1"))
+		"type", "creator_id", "creator_name"}).AddRow(uuid.New(), uuid.New(), "incoming_letter", uuid.New(), "Executor", "Content", now, "new", nil, nil, nil, nil, nil, false, now, now, "doc-1", "subj-1", "execution", nil, ""))
 
 	// Co-executors fetching
 	mock.ExpectQuery(`SELECT(.*)FROM assignment_co_executors(.*)`).
@@ -290,8 +290,8 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		res, err := NewAssignmentRepository(database.Wrap(db)).GetList(models.AssignmentFilter{
-			Status:       "finished",
+		res, err := NewAssignmentRepository(database.Wrap(db)).GetList(models.AssignmentFilter{Types: []string{models.AssignmentTypeExecution},
+			Statuses:     []string{"finished"},
 			ShowFinished: false,
 			Page:         3,
 			PageSize:     50,
@@ -311,13 +311,13 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 		defer db.Close()
 
 		repo := NewAssignmentRepository(database.Wrap(db))
-		filter := models.AssignmentFilter{
+		filter := models.AssignmentFilter{Types: []string{models.AssignmentTypeExecution},
 			DocumentID:           uuid.New().String(),
 			AllowedDocumentKinds: []string{string(models.DocumentKindIncomingLetter), string(models.DocumentKindOutgoingLetter)},
 			AccessibleByUserID:   uuid.New().String(),
 			ExecutorID:           uuid.New().String(),
 			OverdueOnly:          true,
-			Status:               "completed",
+			Statuses:             []string{"completed"},
 			ShowFinished:         true,
 			DateFrom:             "2026-01-01",
 			DateTo:               "2026-12-31",
@@ -334,7 +334,7 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 				"content", "deadline", "status", "report", "completed_at",
 				"series_id", "iteration_number", "planned_deadline", "is_series_current",
 				"created_at", "updated_at", "doc_number", "doc_subject",
-			}))
+				"type", "creator_id", "creator_name"}))
 
 		res, err := repo.GetList(filter)
 		require.NoError(t, err)
@@ -355,7 +355,7 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM assignments a JOIN documents d ON d.id = a.document_id(.*)`).
 			WillReturnError(sql.ErrConnDone)
 
-		res, err := repo.GetList(models.AssignmentFilter{Search: "test"})
+		res, err := repo.GetList(models.AssignmentFilter{Types: []string{models.AssignmentTypeExecution}, Search: "test"})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to count assignments")
@@ -374,7 +374,7 @@ func TestAssignmentRepository_GetListFiltersAndErrors(t *testing.T) {
 		mock.ExpectQuery(`SELECT(.*)FROM assignments a(.*)JOIN documents d ON d.id = a.document_id(.*)`).
 			WillReturnError(sql.ErrConnDone)
 
-		res, err := repo.GetList(models.AssignmentFilter{})
+		res, err := repo.GetList(models.AssignmentFilter{Types: []string{models.AssignmentTypeExecution}})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to list assignments")

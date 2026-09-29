@@ -97,13 +97,13 @@ func TestAtomicOutboxWorkflowsIntegration(t *testing.T) {
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM assignments WHERE content = 'rollback'`, nil, 0)
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE deduplication_key = 'assignment-bad'`, nil, 0)
 
-	acks := NewAcknowledgmentRepository(db)
+	acks := NewAssignmentRepository(db)
 	acks.SetOutbox(outbox)
-	ack := &models.Acknowledgment{ID: uuid.New(), DocumentID: documentID, CreatorID: userID, Content: "read", Users: []models.AcknowledgmentUser{{ID: uuid.New(), UserID: userID}}}
-	if err := acks.CreateWithOutbox(ack, []models.OutboxEvent{{EventType: models.OutboxEventJournal, DeduplicationKey: "ack-ok", Payload: `{}`}}); err != nil {
+	ack := &models.Assignment{ID: uuid.New(), DocumentID: documentID, CreatorID: userID, Content: "read", Users: []models.AssignmentRecipient{{ID: uuid.New(), UserID: userID}}}
+	if err := acks.CreateRecipientTaskWithOutbox(ack, []models.OutboxEvent{{EventType: models.OutboxEventJournal, DeduplicationKey: "ack-ok", Payload: `{}`}}); err != nil {
 		t.Fatalf("create acknowledgment with outbox: %v", err)
 	}
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM acknowledgments WHERE id = $1`, []any{ack.ID}, 1)
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM assignments WHERE id = $1`, []any{ack.ID}, 1)
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE deduplication_key = 'ack-ok'`, nil, 1)
 }
 

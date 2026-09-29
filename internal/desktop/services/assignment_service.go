@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 )
 
 // AssignmentService exposes assignments and recurring series through the HTTP API.
@@ -21,21 +21,6 @@ var errAssignmentClientNotConfigured = errors.New("docflow-server assignment cli
 
 func assignmentClientContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 30*time.Second)
-}
-
-func (s *AssignmentService) Create(
-	documentID string,
-	executorID string,
-	content string,
-	deadline string,
-	coExecutorIDs []string,
-) (*dto.Assignment, error) {
-	if s.server == nil {
-		return nil, errAssignmentClientNotConfigured
-	}
-	ctx, cancel := assignmentClientContext()
-	defer cancel()
-	return s.server.CreateAssignment(ctx, documentID, executorID, content, deadline, coExecutorIDs)
 }
 
 func (s *AssignmentService) CreateSeries(request models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error) {
@@ -123,4 +108,14 @@ func (s *AssignmentService) Delete(id string) error {
 	ctx, cancel := assignmentClientContext()
 	defer cancel()
 	return s.server.DeleteAssignment(ctx, id)
+}
+
+// CreateTask creates either an execution or an acknowledgment assignment.
+func (s *AssignmentService) CreateTask(request models.AssignmentRequest) (*dto.Assignment, error) {
+	if s.server == nil {
+		return nil, errAssignmentClientNotConfigured
+	}
+	ctx, cancel := assignmentClientContext()
+	defer cancel()
+	return s.server.CreateTask(ctx, request)
 }

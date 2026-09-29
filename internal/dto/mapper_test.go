@@ -153,17 +153,17 @@ func TestMapAttachment(t *testing.T) {
 	})
 }
 
-func TestMapAcknowledgmentUser(t *testing.T) {
+func TestMapAssignmentRecipient(t *testing.T) {
 	// Тестирование маппинга записи ознакомления конкретного пользователя в DTO
 	t.Run("nil", func(t *testing.T) {
-		assert.Nil(t, MapAcknowledgmentUser(nil))
+		assert.Nil(t, MapAssignmentRecipient(nil))
 	})
 
 	t.Run("success", func(t *testing.T) {
 		userID := uuid.New()
 		confirmedAt := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
-		m := &models.AcknowledgmentUser{ID: uuid.New(), UserID: userID, UserName: "U", ConfirmedAt: &confirmedAt, CreatedAt: time.Now()}
-		d := MapAcknowledgmentUser(m)
+		m := &models.AssignmentRecipient{ID: uuid.New(), UserID: userID, UserName: "U", ConfirmedAt: &confirmedAt, CreatedAt: time.Now()}
+		d := MapAssignmentRecipient(m)
 		payload, err := json.Marshal(d)
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"userId":"`+userID.String()+`","userName":"U","confirmedAt":"2026-09-25T12:00:00Z"}`, string(payload))
@@ -194,18 +194,18 @@ func TestMapAssignment(t *testing.T) {
 	})
 }
 
-func TestMapAcknowledgment(t *testing.T) {
+func TestMapAcknowledgmentAssignment(t *testing.T) {
 	// Тестирование маппинга листа ознакомления в DTO
 	t.Run("nil", func(t *testing.T) {
-		assert.Nil(t, MapAcknowledgment(nil))
+		assert.Nil(t, MapAssignment(nil))
 	})
 
 	t.Run("success with users", func(t *testing.T) {
 		id := uuid.New()
 		now := time.Now()
-		u := models.AcknowledgmentUser{ID: uuid.New(), UserID: uuid.New(), UserName: "Tester", CreatedAt: now}
-		m := &models.Acknowledgment{ID: id, DocumentID: uuid.New(), CreatorID: uuid.New(), Users: []models.AcknowledgmentUser{u}}
-		d := MapAcknowledgment(m)
+		u := models.AssignmentRecipient{ID: uuid.New(), UserID: uuid.New(), UserName: "Tester", CreatedAt: now}
+		m := &models.Assignment{ID: id, DocumentID: uuid.New(), CreatorID: uuid.New(), Users: []models.AssignmentRecipient{u}}
+		d := MapAssignment(m)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Len(t, d.Users, 1)
 		assert.Equal(t, "Tester", d.Users[0].UserName)
@@ -599,14 +599,6 @@ func TestMapSlices(t *testing.T) {
 		assert.Len(t, result, 2)
 	})
 
-	t.Run("MapAcknowledgments nil", func(t *testing.T) {
-		assert.Nil(t, MapAcknowledgments(nil))
-	})
-	t.Run("MapAcknowledgments success", func(t *testing.T) {
-		res := MapAcknowledgments([]models.Acknowledgment{{ID: uuid.New(), Content: "A1"}})
-		require.Len(t, res, 1)
-		assert.Equal(t, "A1", res[0].Content)
-	})
 }
 
 func TestMapCitizenAppealDocument(t *testing.T) {

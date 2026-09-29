@@ -48,6 +48,7 @@ export const useAssignments = ({ documentId, documentKind }: UseAssignmentsOptio
                 try {
                     const result = await GetList(models.AssignmentFilter.createFrom({
                         documentId,
+                        types: [],
                         page,
                         pageSize: ASSIGNMENT_PAGE_SIZE,
                         showFinished: true,

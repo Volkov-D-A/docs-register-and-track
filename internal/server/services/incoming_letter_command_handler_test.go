@@ -41,7 +41,7 @@ func setupIncomingLetterCommandHandler(t *testing.T, allowed map[models.Document
 		auth,
 		&documentAccessDepartmentStore{},
 		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
-		&documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}},
+
 		&kindActionDocumentAccessStore{allowed: allowed},
 		docRepo,
 	)

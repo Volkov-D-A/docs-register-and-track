@@ -39,7 +39,6 @@ const UsersTab: React.FC = () => {
     { value: 'read', label: 'Просмотр всех' },
     { value: 'update', label: 'Редактирование' },
     { value: 'assign', label: 'Поручения' },
-    { value: 'acknowledge', label: 'Ознакомления' },
     { value: 'upload', label: 'Управление файлами' },
     { value: 'link', label: 'Связи' },
     { value: 'view_journal', label: 'Журнал' },

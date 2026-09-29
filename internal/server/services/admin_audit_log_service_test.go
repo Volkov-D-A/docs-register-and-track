@@ -3,8 +3,8 @@ package services
 import (
 	"testing"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

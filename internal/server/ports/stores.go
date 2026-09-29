@@ -150,17 +150,6 @@ type LinkStore interface {
 	GetGraph(ctx context.Context, rootID uuid.UUID) ([]models.DocumentLink, error)
 }
 
-// AcknowledgmentReader provides acknowledgment queries and access checks.
-type AcknowledgmentReader interface {
-	GetByID(id uuid.UUID) (*models.Acknowledgment, error)
-	GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error)
-	GetAllActive(filter models.AcknowledgmentFilter) ([]models.Acknowledgment, error)
-	GetUsersByAcknowledgmentIDs(ackIDs []uuid.UUID) (map[uuid.UUID][]models.AcknowledgmentUser, error)
-	GetPendingRecipientIDs(ackID uuid.UUID, candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
-	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
-	GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
-}
-
 // UserEventStore — интерфейс для работы с персональными событиями.
 type UserEventStore interface {
 	GetList(userID uuid.UUID, filter models.UserEventFilter) (*models.PagedResult[models.UserEvent], error)
@@ -174,8 +163,6 @@ type UserEventStore interface {
 type WorkspaceStore interface {
 	RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope) ([]models.WorkspaceDocument, error)
 	AssignmentSummary(models.WorkspaceQuery) (models.WorkspaceAssignmentCounts, []models.WorkspaceAssignment, error)
-	AcknowledgmentSummary(models.WorkspaceQuery) (int, []models.WorkspaceAcknowledgment, error)
-	ListAcknowledgments([]models.WorkspaceQuery, int, int) (*models.PagedResult[models.WorkspaceAcknowledgment], error)
 }
 
 // StatisticsStore — интерфейс для получения аналитических данных раздела статистики.

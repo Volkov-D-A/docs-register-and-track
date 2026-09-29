@@ -133,6 +133,9 @@ func (s *ServerAttachmentService) requireAssignmentUploadAccess(assignmentID uui
 	if assignment == nil {
 		return nil, false, models.NewNotFound("поручение не найдено")
 	}
+	if assignment.Type == models.AssignmentTypeAcknowledgment {
+		return nil, false, models.NewBadRequest("ознакомление не требует файлов исполнения")
+	}
 	if assignment.SeriesID != nil && !assignment.IsSeriesCurrent {
 		return nil, false, models.ErrForbidden
 	}

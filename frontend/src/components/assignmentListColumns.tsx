@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 
 type BuildAssignmentColumnsParams = {
     canManageAssignments: boolean;
+    currentUserId?: string;
     onEdit: (assignment: any) => void;
     onDelete: (id: string) => void;
     onManageSeries: (assignment: any) => void;
@@ -12,6 +13,7 @@ type BuildAssignmentColumnsParams = {
 
 export const buildAssignmentColumns = ({
     canManageAssignments,
+    currentUserId,
     onEdit,
     onDelete,
     onManageSeries,
@@ -23,14 +25,15 @@ export const buildAssignmentColumns = ({
         width: 100,
         render: (value: string) => dayjs(value).format('DD.MM.YYYY'),
     },
+    { title: 'Тип', key: 'type', width: 130, render: (_: any, r: any) => r.type === 'acknowledgment' ? 'Ознакомление' : 'Исполнение' },
     { title: 'Содержание', dataIndex: 'content', key: 'content' },
     {
-        title: 'Ответственный исполнитель',
+        title: 'Исполнитель / адресаты',
         key: 'executorName',
         width: 200,
         render: (_: any, record: any) => (
             <div>
-                <div>{record.executorName}</div>
+                <div>{record.type === 'acknowledgment' ? (record.users || []).map((u: any) => `${u.userName}${u.confirmedAt ? ' ✓' : ''}`).join(', ') : record.executorName}</div>
                 {record.coExecutors && record.coExecutors.length > 0 && (
                     <div style={{ fontSize: '11px', color: 'var(--app-text-muted)' }}>
                         + {record.coExecutors.map((user: any) => user.fullName).join(', ')}
@@ -52,6 +55,10 @@ export const buildAssignmentColumns = ({
         key: 'status',
         width: 120,
         render: (status: string, record: any) => {
+            if (record.type === 'acknowledgment') {
+                const users = record.users || [];
+                return <Tag color={record.status === 'finished' ? 'green' : 'orange'}>{record.status === 'finished' ? 'Ознакомлены' : 'Ожидает'} ({users.filter((u: any) => u.confirmedAt).length}/{users.length})</Tag>;
+            }
             let color = 'default';
             let text = status;
             const isOverdue = status === 'completed' && record.completedAt && record.deadline
@@ -81,7 +88,9 @@ export const buildAssignmentColumns = ({
         key: 'actions',
         width: 150,
         render: (_: any, record: any) => {
+            const acknowledgment = record.type === 'acknowledgment';
             const canEdit = canManageAssignments && record.status !== 'finished';
+            const canDelete = acknowledgment ? canManageAssignments && record.creatorId === currentUserId : canEdit && !record.seriesId;
 
             return (
                 <Space size={2}>
@@ -89,7 +98,7 @@ export const buildAssignmentColumns = ({
                         <>
                             {canEdit && <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => onEdit(record)} />}
                             {record.seriesId && <Button size="small" title="Управление серией" icon={<SyncOutlined />} onClick={() => onManageSeries(record)} />}
-                            {canEdit && !record.seriesId && <Popconfirm
+                            {canDelete && <Popconfirm
                                 title="Удалить поручение?"
                                 description="Это действие нельзя отменить. Поручение исчезнет из документа и списка исполнителя."
                                 okText="Удалить"

@@ -341,9 +341,6 @@ func journalChange(request models.CreateJournalEntryRequest) liveevents.Change {
 	case strings.HasPrefix(request.Action, "ASSIGNMENT_"):
 		resource = "assignments"
 		visibility = request.Action == "ASSIGNMENT_CREATE" || request.Action == "ASSIGNMENT_DELETE" || request.Action == "ASSIGNMENT_UPDATE" || request.Action == "ASSIGNMENT_SERIES_CREATE" || request.Action == "ASSIGNMENT_SERIES_ITERATION_CREATE"
-	case strings.HasPrefix(request.Action, "ACK_"):
-		resource = "acknowledgments"
-		visibility = request.Action == "ACK_CREATE" || request.Action == "ACK_DELETE"
 	case strings.HasPrefix(request.Action, "FILE_"):
 		resource = "files"
 	case strings.HasPrefix(request.Action, "LINK_"):

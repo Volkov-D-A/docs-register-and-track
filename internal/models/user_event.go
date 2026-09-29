@@ -7,16 +7,14 @@ import (
 )
 
 const (
-	UserEventEntityAssignment     = "assignment"
-	UserEventEntityAcknowledgment = "acknowledgment"
+	UserEventEntityAssignment = "assignment"
 
-	UserEventAssignmentCreated       = "assignment_created"
-	UserEventAssignmentUpdated       = "assignment_updated"
-	UserEventAssignmentCompleted     = "assignment_completed"
-	UserEventAssignmentFinished      = "assignment_finished"
-	UserEventAssignmentReturned      = "assignment_returned"
-	UserEventAcknowledgmentCreated   = "acknowledgment_created"
-	UserEventAcknowledgmentConfirmed = "acknowledgment_confirmed"
+	UserEventAssignmentCreated      = "assignment_created"
+	UserEventAssignmentUpdated      = "assignment_updated"
+	UserEventAssignmentCompleted    = "assignment_completed"
+	UserEventAssignmentFinished     = "assignment_finished"
+	UserEventAssignmentReturned     = "assignment_returned"
+	UserEventAssignmentAcknowledged = "assignment_acknowledged"
 )
 
 // UserEvent описывает персональное событие пользователя.

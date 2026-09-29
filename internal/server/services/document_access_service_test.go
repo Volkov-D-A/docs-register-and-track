@@ -18,7 +18,6 @@ type documentAccessTestDeps struct {
 	accessRepo *kindActionDocumentAccessStore
 	depRepo    *documentAccessDepartmentStore
 	assignRepo *documentAccessAssignmentStore
-	ackRepo    *documentAccessAcknowledgmentStore
 	docRepo    *documentAccessDocumentStore
 	subRepo    *userSubstitutionStoreStub
 	service    *DocumentAccessService
@@ -87,52 +86,6 @@ func (s *documentAccessAssignmentStore) GetAccessibleDocumentIDs(userID uuid.UUI
 	return result, nil
 }
 
-type documentAccessAcknowledgmentStore struct {
-	accessible map[uuid.UUID]struct{}
-	err        error
-}
-
-func (s *documentAccessAcknowledgmentStore) GetByID(id uuid.UUID) (*models.Acknowledgment, error) {
-	return nil, nil
-}
-
-func (s *documentAccessAcknowledgmentStore) GetByDocumentID(documentID uuid.UUID) ([]models.Acknowledgment, error) {
-	return nil, nil
-}
-
-func (s *documentAccessAcknowledgmentStore) GetAllActive(filter models.AcknowledgmentFilter) ([]models.Acknowledgment, error) {
-	return nil, nil
-}
-
-func (s *documentAccessAcknowledgmentStore) GetUsersByAcknowledgmentIDs(ackIDs []uuid.UUID) (map[uuid.UUID][]models.AcknowledgmentUser, error) {
-	return nil, nil
-}
-
-func (s *documentAccessAcknowledgmentStore) GetPendingRecipientIDs(ackID uuid.UUID, candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
-	return nil, nil
-}
-
-func (s *documentAccessAcknowledgmentStore) HasDocumentAccess(userID, documentID uuid.UUID) (bool, error) {
-	if s.err != nil {
-		return false, s.err
-	}
-	_, ok := s.accessible[documentID]
-	return ok, nil
-}
-
-func (s *documentAccessAcknowledgmentStore) GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	result := make(map[uuid.UUID]struct{})
-	for _, documentID := range documentIDs {
-		if _, ok := s.accessible[documentID]; ok {
-			result[documentID] = struct{}{}
-		}
-	}
-	return result, nil
-}
-
 type documentAccessDocumentStore struct {
 	docs map[uuid.UUID]models.Document
 	err  error
@@ -170,17 +123,15 @@ func setupDocumentAccessService(t *testing.T, user *models.User, allowed map[mod
 	accessRepo := &kindActionDocumentAccessStore{allowed: allowed}
 	depRepo := &documentAccessDepartmentStore{}
 	assignRepo := &documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}}
-	ackRepo := &documentAccessAcknowledgmentStore{accessible: map[uuid.UUID]struct{}{}}
 	docRepo := &documentAccessDocumentStore{docs: map[uuid.UUID]models.Document{}}
 	subRepo := &userSubstitutionStoreStub{}
-	service := NewDocumentAccessService(auth, depRepo, assignRepo, ackRepo, accessRepo, docRepo, subRepo)
+	service := NewDocumentAccessService(auth, depRepo, assignRepo, accessRepo, docRepo, subRepo)
 
 	return &documentAccessTestDeps{
 		auth:       auth,
 		accessRepo: accessRepo,
 		depRepo:    depRepo,
 		assignRepo: assignRepo,
-		ackRepo:    ackRepo,
 		docRepo:    docRepo,
 		subRepo:    subRepo,
 		service:    service,
@@ -383,7 +334,7 @@ func TestDocumentAccessService_ResolveReadableDocuments(t *testing.T) {
 	deps := setupDocumentAccessService(t, user, nil)
 	deps.depRepo.nomenclatureIDs = []string{allowedNomenclatureID.String()}
 	deps.assignRepo.accessible[byAssignmentID] = struct{}{}
-	deps.ackRepo.accessible[byAcknowledgmentID] = struct{}{}
+	deps.assignRepo.accessible[byAcknowledgmentID] = struct{}{}
 	deps.docRepo.docs = map[uuid.UUID]models.Document{
 		byDepartmentID: {
 			ID:             byDepartmentID,
@@ -480,7 +431,7 @@ func TestDocumentAccessService_HasImplicitReadAccess(t *testing.T) {
 		departmentID := uuid.New()
 		expectedErr := errors.New("acknowledgment access failed")
 		deps := setupDocumentAccessService(t, documentAccessUser(true, &departmentID), nil)
-		deps.ackRepo.err = expectedErr
+		deps.assignRepo.err = expectedErr
 
 		ok, err := deps.service.hasImplicitReadAccess(&models.Document{ID: uuid.New(), NomenclatureID: uuid.New()})
 

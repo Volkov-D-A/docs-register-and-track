@@ -27,7 +27,7 @@ func TestApplyDocumentListAccess(t *testing.T) {
 		assert.Contains(t, predicate, "a.executor_id = ANY($3::uuid[])")
 		assert.Contains(t, predicate, "ce.user_id = ANY($3::uuid[])")
 		assert.Contains(t, predicate, "au.user_id = ANY($4::uuid[])")
-		assert.Contains(t, predicate, "acknowledgment_users au")
+		assert.Contains(t, predicate, "assignment_recipients au")
 		assert.Len(t, args, 4)
 		assert.Equal(t, 5, argIdx)
 	})

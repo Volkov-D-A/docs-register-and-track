@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS resolution_executors;
+
 DROP TABLE IF EXISTS organizations;
 
 DROP TABLE IF EXISTS department_nomenclature;

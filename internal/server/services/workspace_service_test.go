@@ -13,24 +13,14 @@ import (
 
 type workspaceStoreStub struct {
 	assignmentQueries []models.WorkspaceQuery
-	ackQueries        []models.WorkspaceQuery
-	acknowledgments   []models.WorkspaceAcknowledgment
+	assignments       []models.WorkspaceAssignment
 	documentScopes    map[models.DocumentKind]models.DocumentAccessScope
 	documents         []models.WorkspaceDocument
 }
 
 func (s *workspaceStoreStub) AssignmentSummary(query models.WorkspaceQuery) (models.WorkspaceAssignmentCounts, []models.WorkspaceAssignment, error) {
 	s.assignmentQueries = append(s.assignmentQueries, query)
-	return models.WorkspaceAssignmentCounts{New: 2, InProgress: 4, Overdue: 1}, []models.WorkspaceAssignment{}, nil
-}
-
-func (s *workspaceStoreStub) AcknowledgmentSummary(query models.WorkspaceQuery) (int, []models.WorkspaceAcknowledgment, error) {
-	s.ackQueries = append(s.ackQueries, query)
-	return 3, s.acknowledgments, nil
-}
-
-func (s *workspaceStoreStub) ListAcknowledgments([]models.WorkspaceQuery, int, int) (*models.PagedResult[models.WorkspaceAcknowledgment], error) {
-	return &models.PagedResult[models.WorkspaceAcknowledgment]{Items: s.acknowledgments}, nil
+	return models.WorkspaceAssignmentCounts{New: 2, InProgress: 4, Returned: 1, Overdue: 1}, s.assignments, nil
 }
 
 func workspaceServiceFixture(t *testing.T, participant bool, allowed map[models.DocumentKind]map[string]bool, substitutionIDs ...uuid.UUID) (*WorkspaceService, *workspaceStoreStub, uuid.UUID) {
@@ -43,7 +33,7 @@ func workspaceServiceFixture(t *testing.T, participant bool, allowed map[models.
 	principal.currentUserID = userID
 	permissions := &kindActionDocumentAccessStore{allowed: allowed}
 	principal.SetAccessStore(permissions)
-	access := NewDocumentAccessService(principal, nil, nil, nil, permissions, nil,
+	access := NewDocumentAccessService(principal, nil, nil, permissions, nil,
 		&userSubstitutionStoreStub{activePrincipals: substitutionIDs})
 	store := &workspaceStoreStub{}
 	return NewWorkspaceService(store, principal, access, nil), store, userID
@@ -53,35 +43,32 @@ func TestWorkspaceModesUsePermissionsAndSubstitution(t *testing.T) {
 	kind := models.DocumentKindIncomingLetter
 	subject := uuid.New()
 	svc, store, userID := workspaceServiceFixture(t, true, map[models.DocumentKind]map[string]bool{
-		kind: {"read": true, "assign": true, "acknowledge": true},
+		kind: {"read": true, "assign": true},
 	}, subject)
 
-	personal, err := svc.GetOverview("", "")
+	personal, err := svc.GetOverview("")
 	require.NoError(t, err)
 	require.Equal(t, []string{"execution", "control"}, personal.AssignmentModes)
 	require.Equal(t, "execution", personal.AssignmentMode)
-	require.Equal(t, "execution", personal.AcknowledgmentMode)
 	require.Equal(t, 2, personal.AssignmentCounts.New)
 	require.Equal(t, 4, personal.AssignmentCounts.InProgress)
-	require.Equal(t, 3, personal.AcknowledgmentCount)
+	require.Equal(t, 1, personal.AssignmentCounts.Returned)
 	require.Equal(t, []string{userID.String(), subject.String()}, store.assignmentQueries[0].SubjectIDs)
-	require.Equal(t, []string{userID.String(), subject.String()}, store.ackQueries[0].SubjectIDs)
 
-	controlled, err := svc.GetOverview("control", "control")
+	controlled, err := svc.GetOverview("control")
 	require.NoError(t, err)
 	require.Equal(t, "control", controlled.AssignmentMode)
 	require.Equal(t, kind, store.assignmentQueries[1].Kind)
 	require.False(t, store.assignmentQueries[1].ReadScope.Restricted)
-	require.Equal(t, kind, store.ackQueries[1].Kind)
 }
 
 func TestWorkspaceRejectsUnavailableMode(t *testing.T) {
 	svc, store, _ := workspaceServiceFixture(t, true, nil)
-	_, err := svc.GetOverview("control", "")
+	_, err := svc.GetOverview("control")
 	require.ErrorIs(t, err, models.ErrForbidden)
 	require.Empty(t, store.assignmentQueries)
 
-	_, err = svc.GetOverview("unexpected", "")
+	_, err = svc.GetOverview("unexpected")
 	require.Error(t, err)
 }
 
@@ -90,14 +77,12 @@ func TestWorkspaceControlOnlyDoesNotRequestPersonalTasks(t *testing.T) {
 	svc, store, _ := workspaceServiceFixture(t, false, map[models.DocumentKind]map[string]bool{
 		kind: {"read": true, "assign": true},
 	})
-	result, err := svc.GetOverview("", "")
+	result, err := svc.GetOverview("")
 	require.NoError(t, err)
 	require.Equal(t, []string{"control"}, result.AssignmentModes)
 	require.Equal(t, "control", result.AssignmentMode)
-	require.Empty(t, result.AcknowledgmentModes)
 	require.Len(t, store.assignmentQueries, 1)
 	require.Equal(t, kind, store.assignmentQueries[0].Kind)
-	require.Empty(t, store.ackQueries)
 }
 
 func TestWorkspaceControlKeepsParticipantDocumentScope(t *testing.T) {
@@ -105,7 +90,7 @@ func TestWorkspaceControlKeepsParticipantDocumentScope(t *testing.T) {
 	svc, store, userID := workspaceServiceFixture(t, true, map[models.DocumentKind]map[string]bool{
 		kind: {"assign": true},
 	})
-	_, err := svc.GetOverview("control", "")
+	_, err := svc.GetOverview("control")
 	require.NoError(t, err)
 	require.Len(t, store.assignmentQueries, 1)
 	require.True(t, store.assignmentQueries[0].ReadScope.Restricted)
@@ -117,32 +102,30 @@ func TestWorkspaceControlWithoutReadOrParticipationHasEmptyScope(t *testing.T) {
 	svc, store, _ := workspaceServiceFixture(t, false, map[models.DocumentKind]map[string]bool{
 		kind: {"assign": true},
 	})
-	_, err := svc.GetOverview("control", "")
+	_, err := svc.GetOverview("control")
 	require.NoError(t, err)
 	require.Len(t, store.assignmentQueries, 1)
 	require.True(t, store.assignmentQueries[0].ReadScope.Restricted)
 	require.Empty(t, store.assignmentQueries[0].ReadScope.AccessibleByUserIDs)
 }
 
-func TestWorkspaceAcknowledgmentsIncludeDocumentDetailsInOverviewAndList(t *testing.T) {
+func TestWorkspaceAcknowledgmentsIncludeDocumentDetailsInOverview(t *testing.T) {
 	svc, store, _ := workspaceServiceFixture(t, true, nil)
-	item := models.WorkspaceAcknowledgment{
-		ID: uuid.New(), DocumentID: uuid.New(), DocumentKind: "incoming_letter",
+	item := models.WorkspaceAssignment{
+		Type: models.AssignmentTypeAcknowledgment, Status: "new", ID: uuid.New(), DocumentID: uuid.New(), DocumentKind: "incoming_letter",
 		DocumentNumber: "IT/43", DocumentDate: time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC),
 		DocumentContent: "Document content", Content: "Resolution", CreatedAt: time.Now(),
 	}
-	store.acknowledgments = []models.WorkspaceAcknowledgment{item}
-	overview, err := svc.GetOverview("", "")
+	store.assignments = []models.WorkspaceAssignment{item}
+	overview, err := svc.GetOverview("")
 	require.NoError(t, err)
-	require.Len(t, overview.Acknowledgments, 1)
-	page, err := svc.ListAcknowledgments("execution", 1, 10)
-	require.NoError(t, err)
-	require.Equal(t, overview.Acknowledgments, page.Items)
-	acknowledgment := overview.Acknowledgments[0]
+	require.Len(t, overview.Assignments, 1)
+	acknowledgment := overview.Assignments[0]
 	require.Equal(t, item.DocumentNumber, acknowledgment.DocumentNumber)
 	require.Equal(t, item.DocumentDate, acknowledgment.DocumentDate)
 	require.Equal(t, item.DocumentContent, acknowledgment.DocumentContent)
 	require.Equal(t, item.Content, acknowledgment.Content)
+	require.Equal(t, models.AssignmentTypeAcknowledgment, acknowledgment.Type)
 }
 
 func (s *workspaceStoreStub) RecentDocuments(scopes map[models.DocumentKind]models.DocumentAccessScope) ([]models.WorkspaceDocument, error) {
@@ -182,4 +165,24 @@ func TestWorkspaceRecentDocumentsHideWhenReadIsUnavailable(t *testing.T) {
 		require.Empty(t, result.Items)
 		require.Nil(t, store.documentScopes)
 	}
+}
+
+func TestWorkspaceUnifiedPreviewLimitsBothTypesTogether(t *testing.T) {
+	svc, store, _ := workspaceServiceFixture(t, true, nil)
+	now := time.Now()
+	for i := 0; i < 7; i++ {
+		taskType := models.AssignmentTypeExecution
+		if i%2 == 0 {
+			taskType = models.AssignmentTypeAcknowledgment
+		}
+		store.assignments = append(store.assignments, models.WorkspaceAssignment{
+			ID: uuid.New(), Type: taskType, Status: "new", CreatedAt: now.Add(time.Duration(i) * time.Minute),
+		})
+	}
+	overview, err := svc.GetOverview("")
+	require.NoError(t, err)
+	require.Len(t, overview.Assignments, 5)
+	require.Equal(t, store.assignments[6].ID.String(), overview.Assignments[0].ID)
+	require.Equal(t, models.AssignmentTypeAcknowledgment, overview.Assignments[0].Type)
+	require.Equal(t, models.AssignmentTypeExecution, overview.Assignments[1].Type)
 }

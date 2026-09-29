@@ -63,10 +63,7 @@ const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
         'FILE_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Файл удалён' },
         'LINK_CREATE': { color: 'geekblue', icon: <LinkOutlined />, tooltip: 'Добавлена связь' },
         'LINK_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Связь удалена' },
-        'ACK_CREATE': { color: 'cyan', icon: <FileAddOutlined />, tooltip: 'Ознакомление создано' },
-        'ACK_VIEW': { color: 'blue', icon: <EyeOutlined />, tooltip: 'Ознакомление просмотрено' },
-        'ACK_CONFIRM': { color: 'green', icon: <CheckCircleOutlined />, tooltip: 'Ознакомление подтверждено' },
-        'ACK_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Ознакомление удалено' },
+        'ASSIGNMENT_ACKNOWLEDGED': { color: 'green', icon: <CheckCircleOutlined />, tooltip: 'Ознакомление подтверждено' },
     };
 
     const columns = [

@@ -75,7 +75,7 @@ func TestAttachmentRepositoryCreateForAssignmentRejectsNonCurrentIteration(t *te
 		FROM assignments assignment
 		LEFT JOIN assignment_series series ON series.id=assignment.series_id
 		WHERE assignment.id=$2
-		  AND assignment.document_id=$1
+		  AND assignment.document_id=$1 AND assignment.type='execution'
 		  AND (assignment.series_id IS NULL OR series.current_assignment_id=assignment.id)
 		  AND (NOT $8 OR assignment.status='in_progress')
 		RETURNING id,uploaded_at

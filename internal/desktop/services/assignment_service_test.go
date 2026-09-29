@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,8 +18,8 @@ type assignmentClientStub struct {
 	series func(context.Context, models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error)
 }
 
-func (c assignmentClientStub) CreateAssignment(ctx context.Context, doc, executor, content, deadline string, coExecutors []string) (*dto.Assignment, error) {
-	return c.create(ctx, doc, executor, content, deadline, coExecutors)
+func (c assignmentClientStub) CreateTask(ctx context.Context, request models.AssignmentRequest) (*dto.Assignment, error) {
+	return c.create(ctx, request.DocumentID, request.ExecutorID, request.Content, request.Deadline, request.CoExecutorIDs)
 }
 func (c assignmentClientStub) UpdateAssignmentStatus(ctx context.Context, id, status, report string) (*dto.Assignment, error) {
 	return c.status(ctx, id, status, report)
@@ -41,7 +41,7 @@ func TestAssignmentAdapterPreservesServerResultsAndRequestContext(t *testing.T) 
 		require.NoError(t, ctx.Err())
 		return want, nil
 	}}
-	result, err := NewAssignmentService(client).Create("document", "executor", "Проверить документ", "2026-09-30", []string{"co-executor"})
+	result, err := NewAssignmentService(client).CreateTask(models.AssignmentRequest{Type: models.AssignmentTypeExecution, DocumentID: "document", ExecutorID: "executor", Content: "Проверить документ", Deadline: "2026-09-30", CoExecutorIDs: []string{"co-executor"}})
 	require.NoError(t, err)
 	require.Same(t, want, result)
 	require.ErrorIs(t, requestContext.Err(), context.Canceled)
@@ -72,7 +72,7 @@ func TestAssignmentAdapterPreservesSeriesCalendarRule(t *testing.T) {
 
 func TestAssignmentAdapterMissingClient(t *testing.T) {
 	s := NewAssignmentService(nil)
-	_, err := s.Create("", "", "", "", nil)
+	_, err := s.CreateTask(models.AssignmentRequest{})
 	require.ErrorIs(t, err, errAssignmentClientNotConfigured)
 	_, err = s.Update("", "", "", "", nil)
 	require.ErrorIs(t, err, errAssignmentClientNotConfigured)

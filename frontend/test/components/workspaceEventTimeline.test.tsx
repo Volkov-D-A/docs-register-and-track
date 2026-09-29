@@ -13,7 +13,7 @@ test('event timeline shows document details, relative time and semantic icons an
             title: 'Новое поручение', message: 'Петров П.П. назначил вам поручение', documentKind: 'incoming_letter', documentNumber: '238', documentDate: '2026-09-24T00:00:00' },
         { id: 'accepted', eventType: 'assignment_finished', entityType: 'assignment', createdAt: '2026-09-28T09:41:00',
             title: 'Ваше исполнение принято', message: '', documentKind: 'citizen_appeal', documentNumber: '531', documentDate: '2026-09-21T00:00:00' },
-        { id: 'ack', eventType: 'acknowledgment_created', entityType: 'acknowledgment', createdAt: '2026-09-27T17:30:00',
+        { id: 'ack', eventType: 'assignment_created', entityType: 'assignment', createdAt: '2026-09-27T17:30:00',
             title: 'Требуется ознакомление', message: '', documentKind: 'administrative_order', documentNumber: '47', readAt: '2026-09-28T08:00:00' },
         { id: 'updated', eventType: 'assignment_updated', entityType: 'assignment', createdAt: '2026-09-26T18:00:00',
             title: 'Поручение изменено', message: '', documentKind: 'outgoing_letter', documentNumber: '' },
@@ -25,7 +25,7 @@ test('event timeline shows document details, relative time and semantic icons an
     expect(rows.map((row) => row.querySelector('time')?.textContent)).toEqual(['12:47', '09:41', 'Вчера', '26.09.2026']);
     expect(rows[0]).toHaveClass('workspace-event--red');
     expect(rows[1]).toHaveClass('workspace-event--green');
-    expect(rows[2]).toHaveClass('workspace-event--purple', 'workspace-event--read');
+    expect(rows[2]).toHaveClass('workspace-event--red', 'workspace-event--read');
     expect(rows[3]).toHaveClass('workspace-event--slate');
     expect(screen.getByText('Входящий № 238 от 24.09.2026')).toBeInTheDocument();
     expect(screen.getByText('Обращение № 531 от 21.09.2026')).toBeInTheDocument();

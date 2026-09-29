@@ -211,14 +211,14 @@ func (r *StatisticsRepository) GetAssignmentMonthlyOverview(yearStart, yearEnd t
 		WITH totals AS (
 			SELECT EXTRACT(MONTH FROM created_at)::int AS month, COUNT(*) AS total
 			FROM assignments
-			WHERE created_at >= $1 AND created_at < $2
+			WHERE type = 'execution' AND created_at >= $1 AND created_at < $2
 			GROUP BY month
 		),
 		overdue AS (
 			SELECT EXTRACT(MONTH FROM violation_date)::int AS month, COUNT(*) AS overdue
 			FROM (
 				SELECT %s AS violation_date
-				FROM assignments a
+				FROM assignments a WHERE a.type = 'execution'
 			) v
 			WHERE violation_date >= $1::date AND violation_date < $2::date
 			GROUP BY month
@@ -258,7 +258,7 @@ func (r *StatisticsRepository) GetAssignmentMonthlyByExecutor(yearStart, yearEnd
 			COUNT(*)
 		FROM assignments a
 		LEFT JOIN users u ON u.id = a.executor_id
-		WHERE a.created_at >= $1 AND a.created_at < $2
+		WHERE a.type = 'execution' AND a.created_at >= $1 AND a.created_at < $2
 		GROUP BY month, a.executor_id, u.full_name, u.login
 		ORDER BY month, user_name
 	`, yearStart, yearEnd)
@@ -290,7 +290,7 @@ func (r *StatisticsRepository) GetAssignmentOverdueRating(yearStart, yearEnd tim
 			COUNT(*) AS count
 		FROM assignments a
 		LEFT JOIN users u ON u.id = a.executor_id
-		WHERE %s
+		WHERE a.type = 'execution' AND (%s)
 		  AND (%s) >= $1::date
 		  AND (%s) < $2::date
 		GROUP BY a.executor_id, u.full_name, u.login
@@ -308,7 +308,7 @@ func (r *StatisticsRepository) GetAssignmentOverdueRating(yearStart, yearEnd tim
 func (r *StatisticsRepository) GetAssignmentStatusCounts() ([]models.StatisticsReportRow, error) {
 	rows, err := r.db.Query(`
 		SELECT status AS key, status AS name, COUNT(*) AS count
-		FROM assignments
+		FROM assignments WHERE type = 'execution'
 		GROUP BY status
 		ORDER BY status
 	`)
@@ -348,7 +348,7 @@ func (r *StatisticsRepository) GetAssignmentReport(startDate, endDate time.Time,
 			COUNT(*) AS count
 		FROM assignments a
 		LEFT JOIN users u ON u.id = a.executor_id
-		WHERE %s
+		WHERE a.type = 'execution' AND (%s)
 		GROUP BY a.executor_id, u.full_name, u.login
 		ORDER BY count DESC, name
 	`, strings.Join(where, " AND ")), args...)

@@ -2,15 +2,17 @@ import { onServerEvent } from '../events/serverEvents';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Typography, Table, Button, Input, Select, DatePicker,
-    Space, Row, Col, Tag, Popconfirm, Tooltip, Switch, Radio, App
+    Space, Tag, Popconfirm, Tooltip, Radio, App
 } from 'antd';
 import {
     SearchOutlined, EditOutlined, DeleteOutlined,
-    ClearOutlined, EyeOutlined, SyncOutlined
+    CalendarOutlined, ClearOutlined, EyeOutlined, SyncOutlined, CheckOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
+import { useAssignmentModeStore } from '../store/useAssignmentModeStore';
 import { DOCUMENT_KIND_INCOMING_LETTER } from '../constants/documentKinds';
+import AcknowledgmentModal from '../components/AcknowledgmentModal';
 import AssignmentModal from '../components/AssignmentModal';
 
 import DocumentViewModal from '../components/DocumentViewModal';
@@ -20,11 +22,23 @@ import { onAssignmentsChanged } from '../events/assignmentEvents';
 import { dto, models } from '../../wailsjs/go/models';
 import { CoalescedRequest } from '../utils/coalescedRequest';
 import AssignmentSeriesModal from '../components/AssignmentSeriesModal';
-import type { AssignmentNavigation, AssignmentMode, AssignmentMetric } from '../components/assignmentNavigation';
+import { assignmentFiltersFromMetric, type AssignmentNavigation, type AssignmentMode } from '../components/assignmentNavigation';
 import { GetOverview } from '../../wailsjs/go/services/WorkspaceService';
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 const { RangePicker } = DatePicker;
+const statusFilters = [
+    { value: 'new', label: 'Новые', tone: 'new' },
+    { value: 'in_progress', label: 'В работе', tone: 'in_progress' },
+    { value: 'returned', label: 'На доработке', tone: 'returned' },
+    { value: 'completed', label: 'На приёмке', tone: 'acceptance' },
+] as const;
+
+const recipientPluralRules = new Intl.PluralRules('ru');
+const formatRecipientCount = (count: number) => {
+    const form = recipientPluralRules.select(count);
+    return `${count} ${form === 'one' ? 'адресат' : form === 'few' ? 'адресата' : 'адресатов'}`;
+};
 
 /**
  * Страница управления поручениями.
@@ -39,20 +53,28 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
     const [totalCount, setTotalCount] = useState(0);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
-    const [mode, setMode] = useState<AssignmentMode>(initialView?.mode || 'execution');
+    const selectedMode = useAssignmentModeStore((state) => state.mode);
+    const setMode = useAssignmentModeStore((state) => state.setMode);
+    const [defaultMode, setDefaultMode] = useState<AssignmentMode>(initialView?.mode || 'execution');
+    const mode = selectedMode || defaultMode;
     const [availableModes, setAvailableModes] = useState<AssignmentMode[]>([]);
-    const [metric, setMetric] = useState<AssignmentMetric | ''>(initialView?.metric || '');
+    const [initialFilters] = useState(() => assignmentFiltersFromMetric(initialView?.metric));
 
     // Фильтры
     const [search, setSearch] = useState('');
-    const [filterStatus, setFilterStatus] = useState('');
-    const [filterDateFrom, setFilterDateFrom] = useState('');
-    const [filterDateTo, setFilterDateTo] = useState('');
+    const [searchInput, setSearchInput] = useState('');
+    const [filterTypes, setFilterTypes] = useState<string[]>(initialView?.type && initialView.type !== 'all' ? [initialView.type] : []);
+    const [filterStatuses, setFilterStatuses] = useState<string[]>(initialFilters.status ? [initialFilters.status] : []);
+    const [filterDateFrom, setFilterDateFrom] = useState(initialFilters.dateFrom);
+    const [filterDateTo, setFilterDateTo] = useState(initialFilters.dateTo);
     const [filterExecutorId, setFilterExecutorId] = useState('');
-    const [filterOverdue, setFilterOverdue] = useState(false);
+    const [filterOverdue, setFilterOverdue] = useState(initialFilters.overdueOnly);
     const [showFinished, setShowFinished] = useState(false);
+    const [periodOpen, setPeriodOpen] = useState(false);
+    const periodButtonRef = useRef<HTMLButtonElement>(null);
 
     // Модальные окна
+    const [acknowledgmentOpen, setAcknowledgmentOpen] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
     const [editAssignment, setEditAssignment] = useState<dto.Assignment | null>(null);
     const [seriesAssignment, setSeriesAssignment] = useState<dto.Assignment | null>(null);
@@ -75,7 +97,7 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
     };
 
     const load = useCallback(async () => {
-        if (!accessReady || (!initialView && availableModes.length === 0)) {
+        if (!accessReady || availableModes.length === 0) {
             return;
         }
         setLoading(true);
@@ -87,15 +109,15 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
             const result = await GetList(models.AssignmentFilter.createFrom({
                 page,
                 pageSize,
+                types: filterTypes,
                 search,
-                status: filterStatus,
+                statuses: filterStatuses,
                 dateFrom: filterDateFrom,
                 dateTo: filterDateTo,
                 executorId: executorId,
                 showFinished: showFinished,
                 overdueOnly: filterOverdue,
                 mode,
-                metric,
             }));
             return { items: result?.items || [], totalCount: result?.totalCount || 0 };
         }, {
@@ -106,14 +128,13 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
     }, [
         accessReady,
         availableModes,
-        initialView,
         filterDateFrom,
         filterDateTo,
         filterExecutorId,
         filterOverdue,
-        filterStatus,
+        filterStatuses,
+        filterTypes,
         mode,
-        metric,
         message,
         page,
         pageSize,
@@ -147,15 +168,24 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
     useEffect(() => {
         if (!accessReady || !user?.id) return;
         let active = true;
-        void GetOverview('', '').then((result) => {
+        void GetOverview('').then((result) => {
             if (!active) return;
-            setAvailableModes((result.assignmentModes || []) as AssignmentMode[]);
-            if (!initialView && result.assignmentMode) setMode(result.assignmentMode as AssignmentMode);
+            const modes = result.assignmentModes as AssignmentMode[];
+            setAvailableModes(modes);
+            const savedMode = useAssignmentModeStore.getState().mode;
+            const fallback = initialView && modes.includes(initialView.mode)
+                ? initialView.mode : modes[0];
+            if (fallback) {
+                setDefaultMode(fallback);
+                if (savedMode && !modes.includes(savedMode)) setMode(fallback);
+            } else if (savedMode) {
+                setMode('');
+            }
         }).catch((error) => {
             if (active) message.error(formatAppError(error, 'Не удалось определить режимы поручений'));
         });
         return () => { active = false; };
-    }, [accessReady, user?.id, initialView, message]);
+    }, [accessReady, user?.id, initialView, message, setMode]);
 
     const onDelete = async (id: string) => {
         try {
@@ -169,15 +199,18 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
     };
 
     const clearFilters = () => {
-        setSearch(''); setFilterStatus('');
+        setSearch(''); setSearchInput(''); setFilterStatuses([]); setFilterTypes([]);
         setFilterDateFrom(''); setFilterDateTo('');
         setFilterExecutorId('');
         setFilterOverdue(false);
-        setMetric('');
+        setShowFinished(false);
+        setPeriodOpen(false);
         setPage(1);
     };
 
     const setDateFilterToday = () => {
+        setPeriodOpen(false);
+        setPage(1);
         const today = dayjs().format('YYYY-MM-DD');
         setFilterDateFrom(today);
         setFilterDateTo(today);
@@ -185,6 +218,8 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
     };
 
     const setDateFilterLess3Days = () => {
+        setPeriodOpen(false);
+        setPage(1);
         const today = dayjs().format('YYYY-MM-DD');
         const next3Days = dayjs().add(3, 'day').format('YYYY-MM-DD');
         setFilterDateFrom(today);
@@ -193,6 +228,8 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
     };
 
     const setDateFilterOverdue = () => {
+        setPeriodOpen(false);
+        setPage(1);
         setFilterDateFrom('');
         setFilterDateTo('');
         setFilterOverdue(true);
@@ -224,17 +261,17 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
             key: 'content',
             width: '25%',
             ellipsis: true,
-            render: (value: string) => (
+            render: (value: string, r: dto.Assignment) => (
                 <div className="assignments-content-cell" title={value}>
-                    {value}
+                    {r.type === 'acknowledgment' && <Tag>Ознакомление</Tag>}{value}
                 </div>
             )
         },
         {
-            title: 'Ответственный исполнитель', key: 'executorName', width: 148,
+            title: 'Исполнитель / адресаты', key: 'executorName', width: 148,
             render: (_: unknown, r: dto.Assignment) => (
                 <div>
-                    <div>{r.executorName}</div>
+                    <div>{r.type === 'acknowledgment' ? (r.users?.length === 1 ? r.users[0].userName : formatRecipientCount((r.users || []).length)) : r.executorName}</div>
                     {r.coExecutors && r.coExecutors.length > 0 && (
                         <div style={{ fontSize: '11px', color: 'var(--app-text-muted)' }}>
                             + {r.coExecutors.map((u) => u.fullName).join(', ')}
@@ -250,6 +287,7 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
         {
             title: 'Статус', dataIndex: 'status', key: 'status', width: 110,
             render: (status: string, record: dto.Assignment) => {
+                if (record.type === 'acknowledgment') { const users = record.users || []; return <Tag color={record.status === 'finished' ? 'green' : 'orange'}>{record.status === 'finished' ? 'Ознакомлены' : 'Ожидает'} ({users.filter(u => u.confirmedAt).length}/{users.length})</Tag>; }
                 let color = 'default';
                 let text = status;
 
@@ -279,7 +317,9 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
         {
             title: 'Действия', key: 'actions', width: 140,
             render: (_: unknown, r: dto.Assignment) => {
+                const acknowledgment = r.type === 'acknowledgment';
                 const canManageAssignment = mode === 'control' && hasAction(r.documentKind, 'assign');
+                const canDelete = acknowledgment ? canManageAssignment && user?.id === r.creatorId : canManageAssignment && r.status !== 'finished' && !r.seriesId;
                 const canEdit = canManageAssignment && r.status !== 'finished';
 
                 return (
@@ -289,9 +329,9 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
                         </Tooltip>
                         {canManageAssignment && (
                             <>
-                                {canEdit && <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); setModalOpen(true); }} />}
+                                {canEdit && <Button size="small" title="Редактировать поручение" icon={<EditOutlined />} onClick={() => { setEditAssignment(r); if (acknowledgment) setAcknowledgmentOpen(true); else setModalOpen(true); }} />}
                                 {(r as any).seriesId && <Button size="small" title="Управление серией" icon={<SyncOutlined />} onClick={() => setSeriesAssignment(r)} />}
-                                {canEdit && !(r as any).seriesId && <Popconfirm
+                                {canDelete && <Popconfirm
                                     title="Удалить поручение?"
                                     description="Это действие нельзя отменить. Поручение исчезнет из документа и списка исполнителя."
                                     okText="Удалить"
@@ -311,90 +351,108 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
 
 
 
-    const hasFilters = !!search || !!filterStatus || !!filterDateFrom || !!filterDateTo || !!filterExecutorId || filterOverdue || !!metric;
+    const hasFilters = showFinished || !!searchInput || filterTypes.length > 0 || !!search || filterStatuses.length > 0 || !!filterDateFrom || !!filterDateTo || !!filterExecutorId || filterOverdue;
+
+    const today = dayjs().format('YYYY-MM-DD');
+    const deadlinePreset = filterOverdue ? 'overdue'
+        : !filterDateFrom && !filterDateTo ? 'all'
+        : filterDateFrom === today && filterDateTo === today ? 'today'
+        : filterDateFrom === today && filterDateTo === dayjs().add(3, 'day').format('YYYY-MM-DD') ? 'soon'
+        : 'period';
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Space>
+            <div className="assignments-page-heading">
+                <Space wrap>
                     <Title level={4} style={{ margin: 0 }}>{mode === 'control' ? 'Поручения под контролем' : 'Мои поручения'}</Title>
                     {availableModes.length > 1 && <Radio.Group size="small" value={mode} options={[
                         { label: 'Исполнение', value: 'execution' },
                         { label: 'Контроль', value: 'control' },
-                    ]} onChange={(event) => { setMode(event.target.value as AssignmentMode); setMetric(''); setPage(1); }} />}
-                    {metric && <Tag closable onClose={() => setMetric('')}>{({
-                        new: 'Новые', in_progress: 'В работе', overdue: 'Просрочены', due_soon: 'Срок в ближайшие 3 дня', acceptance: 'Ожидают приёмки',
-                    } as Record<AssignmentMetric, string>)[metric]}</Tag>}
+                    ]} onChange={(event) => { setMode(event.target.value as AssignmentMode); setPage(1); }} />}
                 </Space>
-                <Input.Search placeholder="Поиск по тексту поручения или документу" allowClear onSearch={setSearch} style={{ width: 320 }} prefix={<SearchOutlined />} />
             </div>
 
 
 
-            {/* Фильтры */}
-            <div style={{ marginBottom: 16, padding: '12px', background: '#f5f5f5', borderRadius: 6 }}>
-                <Row gutter={16} align="middle">
-                    <Col span={4}>
-                        <Select style={{ width: '100%' }} placeholder="Статус" allowClear value={filterStatus || undefined} onChange={setFilterStatus}>
-                            <Select.Option value="new">Новое</Select.Option>
-                            <Select.Option value="in_progress">В работе</Select.Option>
-                            <Select.Option value="completed">Исполнено</Select.Option>
-                            {showFinished && <Select.Option value="finished">Завершён</Select.Option>}
-                            <Select.Option value="returned">Возврат</Select.Option>
-                        </Select>
-                    </Col>
-                    <Col span={10}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                            <Space size="small" style={{ marginRight: 8, flexShrink: 0 }}>
-                                <Button size="small" type={filterOverdue ? 'primary' : 'link'} onClick={setDateFilterOverdue} style={filterOverdue ? {} : { padding: 0 }}>Просроченные</Button>
-                                <Button size="small" type="link" onClick={setDateFilterToday} style={{ padding: 0 }}>Сегодня</Button>
-                                <Button size="small" type="link" onClick={setDateFilterLess3Days} style={{ padding: 0 }}>До 3 дней</Button>
-                            </Space>
-                            <RangePicker style={{ flex: 1 }} format="DD.MM.YYYY"
-                                value={filterDateFrom && filterDateTo ? [dayjs(filterDateFrom), dayjs(filterDateTo)] : null}
-                                onChange={(dates) => {
-                                    setFilterDateFrom(dates?.[0]?.format('YYYY-MM-DD') || '');
-                                    setFilterDateTo(dates?.[1]?.format('YYYY-MM-DD') || '');
-                                    setFilterOverdue(false);
-                                }}
-                            />
-                        </div>
-                    </Col>
+            <section className="assignment-filters assignment-filters-toggles" aria-label="Статус и тип поручений">
+                <div className="assignment-filter-buttons" role="group" aria-label="Статус поручения">
+                    {statusFilters.map((option) => (
+                        <Button key={option.value} className={`assignment-filter-button assignment-filter-button--${option.tone}`}
+                            aria-pressed={filterStatuses.includes(option.value)}
+                            icon={filterStatuses.includes(option.value) ? <CheckOutlined aria-hidden /> : undefined}
+                            onClick={() => { setFilterStatuses((selected) => selected.includes(option.value) ? selected.filter((value) => value !== option.value) : [...selected, option.value]); setPage(1); }}>{option.label}</Button>
+                    ))}
+                </div>
+                <Button className="assignment-filter-button assignment-filter-button--neutral"
+                    aria-pressed={showFinished} icon={showFinished ? <CheckOutlined aria-hidden /> : undefined}
+                    onClick={() => {
+                        setShowFinished(!showFinished);
+                        setPage(1);
+                    }}>Показать завершённые</Button>
+                <span className="assignment-filter-divider" aria-hidden="true" />
+                <div className="assignment-filter-buttons" role="group" aria-label="Тип поручения">
+                    {([{ value: 'execution', label: 'Исполнение', tone: 'new' }, { value: 'acknowledgment', label: 'Ознакомление', tone: 'acceptance' }] as const).map((option) => (
+                        <Button key={option.value} className={`assignment-filter-button assignment-filter-button--${option.tone}`}
+                            aria-pressed={filterTypes.includes(option.value)}
+                            icon={filterTypes.includes(option.value) ? <CheckOutlined aria-hidden /> : undefined}
+                            onClick={() => { setFilterTypes((selected) => selected.includes(option.value) ? selected.filter((value) => value !== option.value) : [...selected, option.value]); setPage(1); }}>{option.label}</Button>
+                    ))}
+                </div>
+            </section>
+
+            <section className="assignment-filters" aria-label="Поиск и срок поручений">
+                <div className="assignment-filters-toolbar">
+                    <Input.Search className="assignment-filters-search" aria-label="Поиск поручений"
+                        placeholder="Поиск по поручению или документу" allowClear prefix={<SearchOutlined aria-hidden />}
+                        value={searchInput} onChange={(event) => setSearchInput(event.target.value)}
+                        onSearch={(value) => { setSearch(value.trim()); setPage(1); }} />
                     {mode === 'control' && hasAnyAction('assign') && (
-                        <>
-                            <Col span={4}>
-                    <Select style={{ width: '100%' }} placeholder="Ответственный исполнитель" allowClear showSearch
-                                    options={executors.map((u) => ({ value: u.id, label: u.fullName }))}
-                                    value={filterExecutorId || undefined} onChange={setFilterExecutorId}
-                                />
-                            </Col>
-                        </>
+                        <Select className="assignment-filters-executor" aria-label="Исполнитель поручения"
+                            placeholder="Исполнитель / адресат" allowClear showSearch optionFilterProp="label"
+                            options={executors.map((u) => ({ value: u.id, label: u.fullName }))}
+                            value={filterExecutorId || undefined}
+                            onChange={(value) => { setFilterExecutorId(value || ''); setPage(1); }} />
                     )}
-                    <Col span={4}>
-                        <Space>
-                            <Switch checked={showFinished} onChange={(checked) => {
-                                setShowFinished(checked);
-                                if (!checked && filterStatus === 'finished') {
-                                    setFilterStatus('');
-                                }
-                            }} />
-                            <Text style={{ fontSize: 12 }}>Показать<br />завершённые</Text>
-                        </Space>
-                    </Col>
-                    <Col span={2} style={{ textAlign: 'right' }}>
-                        {hasFilters && (
-                            <Tooltip title="Сбросить фильтры">
-                                <Button icon={<ClearOutlined />} onClick={clearFilters} />
-                            </Tooltip>
-                        )}
-                    </Col>
-                </Row>
-            </div>
+                    <Button type="text" aria-label="Сбросить фильтры" icon={<ClearOutlined aria-hidden />}
+                        disabled={!hasFilters} onClick={clearFilters}>Сбросить</Button>
+                </div>
+                <div className="assignment-filter-row" role="group" aria-label="Срок поручения">
+                    <span className="assignment-filter-label">Срок</span>
+                    <Button className="assignment-deadline-link" type="link" aria-pressed={deadlinePreset === 'all'}
+                        onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); setFilterOverdue(false); setPeriodOpen(false); setPage(1); }}>Любой</Button>
+                    <Button className="assignment-deadline-link" type="link" aria-pressed={deadlinePreset === 'overdue'}
+                        onClick={setDateFilterOverdue}>Просроченные</Button>
+                    <Button className="assignment-deadline-link" type="link" aria-pressed={deadlinePreset === 'today'}
+                        onClick={setDateFilterToday}>Сегодня</Button>
+                    <Button className="assignment-deadline-link" type="link" aria-pressed={deadlinePreset === 'soon'}
+                        onClick={setDateFilterLess3Days}>До 3 дней</Button>
+                    <Button ref={periodButtonRef} className="assignment-period-button" icon={<CalendarOutlined aria-hidden />}
+                        aria-pressed={deadlinePreset === 'period'} aria-expanded={periodOpen}
+                        type={deadlinePreset === 'period' ? 'primary' : 'default'}
+                        onClick={() => setPeriodOpen(!periodOpen)}>
+                        {deadlinePreset === 'period'
+                            ? `${dayjs(filterDateFrom).format('DD.MM.YYYY')} — ${dayjs(filterDateTo).format('DD.MM.YYYY')}`
+                            : 'Выбрать период'}
+                    </Button>
+                    {periodOpen && <RangePicker className="assignment-period-picker" format="DD.MM.YYYY" autoFocus open
+                        placeholder={['Срок от', 'Срок до']}
+                        value={filterDateFrom && filterDateTo ? [dayjs(filterDateFrom), dayjs(filterDateTo)] : null}
+                        onOpenChange={(visible) => { if (!visible) { setPeriodOpen(false); periodButtonRef.current?.focus(); } }}
+                        onChange={(dates) => {
+                            setFilterDateFrom(dates?.[0]?.format('YYYY-MM-DD') || '');
+                            setFilterDateTo(dates?.[1]?.format('YYYY-MM-DD') || '');
+                            setFilterOverdue(false);
+                            setPeriodOpen(false);
+                            setPage(1);
+                            periodButtonRef.current?.focus();
+                        }} />}
+                </div>
+            </section>
 
             <Table
                 className="assignments-table"
                 columns={columns} dataSource={data} rowKey="id"
-                loading={loading || !accessReady || (!initialView && availableModes.length === 0)} size="small" tableLayout="fixed"
+                loading={loading || !accessReady || availableModes.length === 0} size="small" tableLayout="fixed"
                 rowClassName={(record: dto.Assignment) => {
                     const isOverdue = record.deadline && dayjs(record.deadline).isBefore(dayjs(), 'day') && !['completed', 'finished', 'cancelled'].includes(record.status);
                     return isOverdue ? 'assignment-overdue' : '';
@@ -408,13 +466,16 @@ const AssignmentsPage: React.FC<{ initialView: AssignmentNavigation | null }> = 
                     columnWidth: 28,
                     expandedRowRender: (record: dto.Assignment) => (
                         <div style={{ margin: 0 }}>
+                            {record.type === 'acknowledgment' && (record.users || []).map(u => <p key={u.userId}>{u.userName}: {u.confirmedAt ? `ознакомлен ${dayjs(u.confirmedAt).format('DD.MM.YYYY HH:mm')}` : 'ожидает ознакомления'}</p>)}
                             {record.report && <p><b>{record.status === 'returned' ? 'Причина возврата:' : 'Отчет:'}</b> {record.report}</p>}
                         </div>
                     ),
-                    rowExpandable: (record: dto.Assignment) => !!record.report
+                    rowExpandable: (record: dto.Assignment) => !!record.report || record.type === 'acknowledgment'
                 }}
             />
 
+            <AcknowledgmentModal open={acknowledgmentOpen} initialValues={editAssignment} documentId={editAssignment?.documentId || ''}
+                onCancel={() => { setAcknowledgmentOpen(false); setEditAssignment(null); }} onSuccess={load} />
             <AssignmentModal
                 open={modalOpen}
                 onCancel={() => { setModalOpen(false); setEditAssignment(null); }}

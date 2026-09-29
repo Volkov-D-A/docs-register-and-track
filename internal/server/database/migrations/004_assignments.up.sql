@@ -36,7 +36,9 @@ CREATE INDEX idx_assignment_series_active ON assignment_series(active) WHERE act
 CREATE TABLE assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     document_id UUID NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
-    executor_id UUID NOT NULL REFERENCES users (id),
+    executor_id UUID REFERENCES users (id),
+    type TEXT NOT NULL DEFAULT 'execution' CHECK (type IN ('execution', 'acknowledgment')),
+    creator_id UUID REFERENCES users(id),
     content TEXT NOT NULL,
     deadline DATE,
     status VARCHAR(50) NOT NULL DEFAULT 'new', -- new, in_progress, completed, cancelled
@@ -47,6 +49,11 @@ CREATE TABLE assignments (
     series_id UUID REFERENCES assignment_series(id) ON DELETE CASCADE,
     iteration_number INTEGER,
     planned_deadline DATE,
+    CONSTRAINT assignments_type_consistency CHECK (
+        (type = 'execution' AND executor_id IS NOT NULL)
+        OR (type = 'acknowledgment' AND executor_id IS NULL AND creator_id IS NOT NULL
+            AND series_id IS NULL AND report IS NULL AND status IN ('new', 'finished'))
+    ),
     CONSTRAINT assignments_series_iteration_consistency CHECK (
         (series_id IS NULL AND iteration_number IS NULL)
         OR (series_id IS NOT NULL AND iteration_number IS NOT NULL AND iteration_number > 0)
@@ -81,3 +88,18 @@ CREATE INDEX idx_assignment_co_executors_assignment ON assignment_co_executors (
 
 CREATE INDEX idx_assignment_co_executors_user ON assignment_co_executors (user_id);
 CREATE INDEX idx_assignment_co_executors_user_assignment ON assignment_co_executors (user_id, assignment_id);
+
+CREATE INDEX idx_assignments_type_document ON assignments(type, document_id);
+
+CREATE TABLE assignment_recipients (
+    id UUID PRIMARY KEY,
+    assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    confirmed_at TIMESTAMPTZ,
+    confirmed_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (assignment_id, user_id)
+);
+CREATE INDEX idx_assignment_recipients_user_assignment ON assignment_recipients(user_id, assignment_id);
+CREATE INDEX idx_assignment_recipients_pending_user ON assignment_recipients(user_id, assignment_id)
+    WHERE confirmed_at IS NULL;

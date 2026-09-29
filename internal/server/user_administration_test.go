@@ -108,7 +108,7 @@ func TestUserAccessAPIReplacesProfileWithAtomicAudit(t *testing.T) {
 
 func TestUserAccessAPIRejectsInvalidPermissionsBeforePersistence(t *testing.T) {
 	for _, tc := range []struct{ kind, action string }{
-		{"incoming_letter", "delete"}, {"incoming", "read"}, {"outgoing", "read"},
+		{"incoming_letter", "delete"}, {"incoming_letter", "acknowledge"}, {"incoming", "read"}, {"outgoing", "read"},
 	} {
 		t.Run(tc.kind+"/"+tc.action, func(t *testing.T) {
 			api, users, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})

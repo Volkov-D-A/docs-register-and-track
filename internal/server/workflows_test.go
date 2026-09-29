@@ -3,7 +3,6 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,30 +12,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
-
-type fakeAcknowledgmentAPI struct {
-	createdDocumentID string
-	createdUserIDs    []string
-}
-
-func (f *fakeAcknowledgmentAPI) Create(documentID, _ string, userIDs []string) (*dto.Acknowledgment, error) {
-	f.createdDocumentID, f.createdUserIDs = documentID, userIDs
-	return &dto.Acknowledgment{ID: uuid.NewString()}, nil
-}
-func (*fakeAcknowledgmentAPI) GetList(string) ([]dto.Acknowledgment, error) {
-	return []dto.Acknowledgment{}, nil
-}
-func (*fakeAcknowledgmentAPI) GetPendingForCurrentUser() ([]dto.Acknowledgment, error) {
-	return []dto.Acknowledgment{}, nil
-}
-func (*fakeAcknowledgmentAPI) GetCurrentUserPendingByDocument(string) ([]dto.Acknowledgment, error) {
-	return []dto.Acknowledgment{}, nil
-}
-func (*fakeAcknowledgmentAPI) GetAllActive() ([]dto.Acknowledgment, error) {
-	return []dto.Acknowledgment{}, nil
-}
-func (*fakeAcknowledgmentAPI) MarkConfirmed(string) error { return nil }
-func (*fakeAcknowledgmentAPI) Delete(string) error        { return nil }
 
 type fakeUserEventAPI struct {
 	filter       models.UserEventFilter
@@ -61,49 +36,10 @@ func (f *fakeAdministrativeOrderAcknowledgmentAPI) MarkAcknowledged(id string) (
 	return &dto.AdministrativeOrderAcknowledgmentPerson{ID: id}, nil
 }
 
-func TestWorkflowAPIsRequireSessionAndUseRequestPrincipal(t *testing.T) {
-	api, _, token := authenticatedUserAPI(t, nil)
-	acknowledgments := &fakeAcknowledgmentAPI{}
-	events := &fakeUserEventAPI{}
-	var acknowledgmentPrincipal, eventPrincipal uuid.UUID
-	api.acknowledgments = func(user *models.User) acknowledgmentAPI {
-		acknowledgmentPrincipal = user.ID
-		return acknowledgments
-	}
-	api.userEvents = func(user *models.User) userEventAPI {
-		eventPrincipal = user.ID
-		return events
-	}
-
-	unauthorized := httptest.NewRecorder()
-	api.Handler().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/acknowledgments/pending", nil))
-	assert.Equal(t, http.StatusUnauthorized, unauthorized.Code)
-
-	create := httptest.NewRequest(http.MethodPost, "/api/v1/acknowledgments", strings.NewReader(`{"documentId":"doc","content":"read","userIds":["user"]}`))
-	create.Header.Set("Authorization", "Bearer "+token)
-	createResponse := httptest.NewRecorder()
-	api.Handler().ServeHTTP(createResponse, create)
-	require.Equal(t, http.StatusCreated, createResponse.Code, createResponse.Body.String())
-	assert.Equal(t, "doc", acknowledgments.createdDocumentID)
-	assert.Equal(t, []string{"user"}, acknowledgments.createdUserIDs)
-	assert.NotEqual(t, uuid.Nil, acknowledgmentPrincipal)
-
-	query := httptest.NewRequest(http.MethodPost, "/api/v1/user-events/query", strings.NewReader(`{"unreadOnly":true,"page":2,"pageSize":10}`))
-	query.Header.Set("Authorization", "Bearer "+token)
-	queryResponse := httptest.NewRecorder()
-	api.Handler().ServeHTTP(queryResponse, query)
-	require.Equal(t, http.StatusOK, queryResponse.Code, queryResponse.Body.String())
-	assert.True(t, events.filter.UnreadOnly)
-	assert.Equal(t, 2, events.filter.Page)
-	assert.NotEqual(t, uuid.Nil, eventPrincipal)
-}
-
 func TestWorkflowMutationRoutes(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, nil)
-	acknowledgments := &fakeAcknowledgmentAPI{}
 	events := &fakeUserEventAPI{}
 	orderAcknowledgments := &fakeAdministrativeOrderAcknowledgmentAPI{}
-	api.acknowledgments = func(*models.User) acknowledgmentAPI { return acknowledgments }
 	api.userEvents = func(*models.User) userEventAPI { return events }
 	api.administrativeOrderAcknowledgments = func(*models.User) administrativeOrderAcknowledgmentAPI { return orderAcknowledgments }
 

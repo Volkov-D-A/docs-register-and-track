@@ -36,7 +36,6 @@ CREATE TABLE document_permissions (
             'update',
             'delete',
             'assign',
-            'acknowledge',
             'upload',
             'link',
             'view_journal'

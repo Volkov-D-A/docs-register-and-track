@@ -14,7 +14,8 @@ import { useCurrentAccessSummary } from './hooks/useCurrentAccessSummary';
 import { useOrganizationSetup } from './hooks/useOrganizationSetup';
 import { useSessionEvents } from './hooks/useSessionEvents';
 import SystemBootstrapGate from './components/SystemBootstrapGate';
-import type { AssignmentNavigation, AssignmentMode, AssignmentMetric } from './components/assignmentNavigation';
+import type { AssignmentNavigation, AssignmentMode, AssignmentMetric, AssignmentType } from './components/assignmentNavigation';
+import { useAssignmentModeStore } from './store/useAssignmentModeStore';
 
 function AppContent() {
     const { message } = AntdApp.useApp();
@@ -159,9 +160,10 @@ function AppContent() {
             });
     };
 
-    const openAssignments = (mode: AssignmentMode, metric?: AssignmentMetric) => {
+    const openAssignments = (mode: AssignmentMode, metric?: AssignmentMetric, type?: AssignmentType) => {
+        useAssignmentModeStore.getState().setMode(mode);
         nextAssignmentRequest.current += 1;
-        setAssignmentNavigation({ requestId: nextAssignmentRequest.current, mode, metric });
+        setAssignmentNavigation({ requestId: nextAssignmentRequest.current, mode, metric, type });
         setCurrentPage('assignments');
     };
 

@@ -3,7 +3,7 @@ import { models } from '../../wailsjs/go/models';
 import { useAuthStore } from '../store/useAuthStore';
 import { invalidateCurrentAccessSummary } from '../store/accessSummaryCache';
 
-export type DocumentResource = 'document' | 'assignments' | 'acknowledgments' | 'files' | 'links';
+export type DocumentResource = 'document' | 'assignments' | 'files' | 'links';
 
 export type ServerEvent = {
     topic: string;

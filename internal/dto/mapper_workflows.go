@@ -1,6 +1,9 @@
 package dto
 
-import "github.com/Volkov-D-A/docs-register-and-track/internal/models"
+import (
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/google/uuid"
+)
 
 func MapDocumentLink(m *models.DocumentLink) *DocumentLink {
 	if m == nil {
@@ -33,7 +36,11 @@ func MapAssignment(m *models.Assignment) *Assignment {
 	if m.SeriesID != nil {
 		seriesID = m.SeriesID.String()
 	}
-	return &Assignment{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, ExecutorID: m.ExecutorID.String(), ExecutorName: m.ExecutorName, Content: m.Content, Deadline: m.Deadline, Status: m.Status, Report: m.Report, CompletedAt: m.CompletedAt, SeriesID: seriesID, IterationNumber: m.IterationNumber, PlannedDeadline: m.PlannedDeadline, DocumentNumber: m.DocumentNumber, DocumentSubject: m.DocumentSubject, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+	users := make([]AssignmentRecipient, len(m.Users))
+	for i := range m.Users {
+		users[i] = *MapAssignmentRecipient(&m.Users[i])
+	}
+	return &Assignment{Type: m.Type, CreatorID: uuidString(m.CreatorID), CreatorName: m.CreatorName, Users: users, ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, ExecutorID: uuidString(m.ExecutorID), ExecutorName: m.ExecutorName, Content: m.Content, Deadline: m.Deadline, Status: m.Status, Report: m.Report, CompletedAt: m.CompletedAt, SeriesID: seriesID, IterationNumber: m.IterationNumber, PlannedDeadline: m.PlannedDeadline, DocumentNumber: m.DocumentNumber, DocumentSubject: m.DocumentSubject, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
 }
 
 func MapAssignmentSeries(m *models.AssignmentSeries) *AssignmentSeries {
@@ -53,27 +60,15 @@ func MapAssignmentSeries(m *models.AssignmentSeries) *AssignmentSeries {
 	return &AssignmentSeries{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, DocumentNumber: m.DocumentNumber, ExecutorID: m.ExecutorID.String(), ExecutorName: m.ExecutorName, Content: m.Content, IntervalUnit: m.IntervalUnit, IntervalValue: m.IntervalValue, DayRule: m.DayRule, DayOfMonth: m.DayOfMonth, CurrentAssignmentID: currentID, CurrentIteration: m.CurrentIteration, Active: m.Active, CancelledAt: m.CancelledAt, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
 }
 
-func MapAcknowledgment(m *models.Acknowledgment) *Acknowledgment {
+func MapAssignmentRecipient(m *models.AssignmentRecipient) *AssignmentRecipient {
 	if m == nil {
 		return nil
 	}
-	var users []AcknowledgmentUser
-	if m.Users != nil {
-		users = make([]AcknowledgmentUser, len(m.Users))
-		for i, user := range m.Users {
-			if mapped := MapAcknowledgmentUser(&user); mapped != nil {
-				users[i] = *mapped
-			}
-		}
+	confirmedBy := ""
+	if m.ConfirmedBy != nil {
+		confirmedBy = m.ConfirmedBy.String()
 	}
-	return &Acknowledgment{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, DocumentNumber: m.DocumentNumber, CreatorID: m.CreatorID.String(), CreatorName: m.CreatorName, Content: m.Content, CreatedAt: m.CreatedAt, CompletedAt: m.CompletedAt, Users: users}
-}
-
-func MapAcknowledgmentUser(m *models.AcknowledgmentUser) *AcknowledgmentUser {
-	if m == nil {
-		return nil
-	}
-	return &AcknowledgmentUser{UserID: m.UserID.String(), UserName: m.UserName, ConfirmedAt: m.ConfirmedAt}
+	return &AssignmentRecipient{ConfirmedBy: confirmedBy, UserID: m.UserID.String(), UserName: m.UserName, ConfirmedAt: m.ConfirmedAt}
 }
 
 func MapDocumentLinks(m []models.DocumentLink) []DocumentLink {
@@ -112,15 +107,9 @@ func MapAssignments(m []models.Assignment) []Assignment {
 	}
 	return res
 }
-func MapAcknowledgments(m []models.Acknowledgment) []Acknowledgment {
-	if m == nil {
-		return nil
+func uuidString(id uuid.UUID) string {
+	if id == uuid.Nil {
+		return ""
 	}
-	res := make([]Acknowledgment, len(m))
-	for i, item := range m {
-		if mapped := MapAcknowledgment(&item); mapped != nil {
-			res[i] = *mapped
-		}
-	}
-	return res
+	return id.String()
 }

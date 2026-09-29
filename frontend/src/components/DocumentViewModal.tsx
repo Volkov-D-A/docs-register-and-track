@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { App, Button, Modal, Spin, Tabs } from 'antd';
 import AssignmentList from './AssignmentList';
-import AcknowledgmentList from './AcknowledgmentList';
 import FileListComponent from './FileListComponent';
 import DocumentAssignmentWorkflowPanel from './DocumentAssignmentWorkflowPanel';
-import DocumentAcknowledgmentWorkflowPanel from './DocumentAcknowledgmentWorkflowPanel';
 import { LinksTab } from './DocumentLinks/LinksTab';
 import JournalList from './JournalList';
 import RelatedDocumentModal from './RelatedDocumentModal';
@@ -26,7 +24,6 @@ interface DocumentViewModalProps {
     onCancel: () => void;
     documentId: string;
     documentKind: string;
-    onAcknowledgmentsChanged?: () => void | Promise<void>;
 }
 
 const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
@@ -34,7 +31,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
     onCancel,
     documentId,
     documentKind,
-    onAcknowledgmentsChanged,
 }) => {
     const { message } = App.useApp();
     const { hasAction, kinds, loading: kindsLoading, ready: accessReady } = useDocumentKindAccess();
@@ -108,7 +104,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
     const accessPending = !accessReady;
     const canManageAssignments = accessReady && hasAction(resolvedKindCode, 'assign');
     const canManageLinks = accessReady && hasAction(resolvedKindCode, 'link');
-    const canManageAcknowledgments = accessReady && hasAction(resolvedKindCode, 'acknowledge');
     const canUpdateDocument = accessReady && hasAction(resolvedKindCode, 'update');
     const canViewJournal = accessReady && hasAction(resolvedKindCode, 'view_journal');
     const canViewFiles = !!data;
@@ -164,10 +159,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                     documentId={data?.id || documentId}
                     documentKind={resolvedKindCode}
                 />
-                <DocumentAcknowledgmentWorkflowPanel
-                    documentId={data?.id || documentId}
-                    onAcknowledgmentsChanged={onAcknowledgmentsChanged}
-                />
+
             </>
         );
     };
@@ -204,11 +196,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                 children: <LinksTab documentId={data.id} documentKind={resolvedKindCode} />,
             },
             {
-                key: 'acknowledgments',
-                label: 'Ознакомление',
-                children: <AcknowledgmentList documentId={data.id} documentKind={resolvedKindCode} />,
-            },
-            {
                 key: 'journal',
                 label: 'Журнал',
                 children: <JournalList documentId={data.id} />,
@@ -221,8 +208,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                     return canManageAssignments;
                 case 'links':
                     return canManageLinks;
-                case 'acknowledgments':
-                    return canManageAcknowledgments;
                 case 'journal':
                     return canViewJournal;
                 case 'files':
@@ -241,7 +226,8 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                 title={`${data?.kindName || getDocumentKindLabel(documentKind)} №${getNumber()}`}
                 open={open}
                 onCancel={onCancel}
-                width={800}
+                width={1200}
+                style={{ maxWidth: 'calc(100vw - 32px)' }}
                 footer={
                     <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                         <div>

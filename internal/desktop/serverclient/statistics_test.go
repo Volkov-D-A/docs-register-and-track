@@ -18,7 +18,7 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 		switch requestNumber {
 		case 1:
 			assert.Equal(t, "/api/v1/workspace/overview", r.URL.Path)
-			return response(http.StatusOK, `{"assignments":[],"acknowledgments":[]}`), nil
+			return response(http.StatusOK, `{"assignments":[]}`), nil
 		case 2:
 			assert.Equal(t, "/api/v1/statistics/documents", r.URL.Path)
 			return response(http.StatusOK, `{"year":2026,"totalYear":0,"documentsByKindMonthly":[],"documentsByRegistrarMonthly":[]}`), nil
@@ -43,7 +43,7 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 		}
 	})
 
-	_, err := client.GetWorkspaceOverview(context.Background(), "execution", "control")
+	_, err := client.GetWorkspaceOverview(context.Background(), "execution")
 	require.NoError(t, err)
 	_, err = client.GetDocumentStatistics(context.Background())
 	require.NoError(t, err)
@@ -57,27 +57,19 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 	assert.Equal(t, 5, requestNumber)
 }
 
-func TestWorkspaceClientPassesModesAndPagination(t *testing.T) {
+func TestWorkspaceClientPassesModes(t *testing.T) {
 	client := userClientWithToken(t, func(r *http.Request) (*http.Response, error) {
 		assert.Equal(t, "Bearer session-token", r.Header.Get("Authorization"))
 		switch r.URL.Path {
 		case "/api/v1/workspace/overview":
 			assert.Equal(t, "execution", r.URL.Query().Get("assignmentMode"))
-			assert.Equal(t, "control", r.URL.Query().Get("acknowledgmentMode"))
-			return response(http.StatusOK, `{"assignmentModes":[],"assignments":[],"acknowledgmentModes":[],"acknowledgments":[]}`), nil
-		case "/api/v1/workspace/acknowledgments":
-			assert.Equal(t, "control", r.URL.Query().Get("mode"))
-			assert.Equal(t, "2", r.URL.Query().Get("page"))
-			assert.Equal(t, "7", r.URL.Query().Get("pageSize"))
-			return response(http.StatusOK, `{"items":[],"page":2,"pageSize":7}`), nil
+			return response(http.StatusOK, `{"assignmentModes":[],"assignments":[]}`), nil
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
 			return nil, nil
 		}
 	})
-	_, err := client.GetWorkspaceOverview(context.Background(), "execution", "control")
-	require.NoError(t, err)
-	_, err = client.ListWorkspaceAcknowledgments(context.Background(), "control", 2, 7)
+	_, err := client.GetWorkspaceOverview(context.Background(), "execution")
 	require.NoError(t, err)
 }
 

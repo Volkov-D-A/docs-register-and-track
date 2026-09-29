@@ -28,92 +28,6 @@ export namespace dto {
 	        this.settings = source["settings"];
 	    }
 	}
-	export class AcknowledgmentUser {
-	    userId: string;
-	    userName?: string;
-	    // Go type: time
-	    confirmedAt?: any;
-	
-	    static createFrom(source: any = {}) {
-	        return new AcknowledgmentUser(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.userId = source["userId"];
-	        this.userName = source["userName"];
-	        this.confirmedAt = this.convertValues(source["confirmedAt"], null);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class Acknowledgment {
-	    id: string;
-	    documentId: string;
-	    documentKind: string;
-	    documentNumber?: string;
-	    creatorId: string;
-	    creatorName?: string;
-	    content: string;
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    completedAt?: any;
-	    users?: AcknowledgmentUser[];
-	
-	    static createFrom(source: any = {}) {
-	        return new Acknowledgment(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.documentId = source["documentId"];
-	        this.documentKind = source["documentKind"];
-	        this.documentNumber = source["documentNumber"];
-	        this.creatorId = source["creatorId"];
-	        this.creatorName = source["creatorName"];
-	        this.content = source["content"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.completedAt = this.convertValues(source["completedAt"], null);
-	        this.users = this.convertValues(source["users"], AcknowledgmentUser);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
 	export class AdminAuditLog {
 	    id: string;
 	    userName: string;
@@ -429,7 +343,48 @@ export namespace dto {
 		    return a;
 		}
 	}
+	export class AssignmentRecipient {
+	    confirmedBy?: string;
+	    userId: string;
+	    userName?: string;
+	    // Go type: time
+	    confirmedAt?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentRecipient(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.confirmedBy = source["confirmedBy"];
+	        this.userId = source["userId"];
+	        this.userName = source["userName"];
+	        this.confirmedAt = this.convertValues(source["confirmedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Assignment {
+	    type: string;
+	    creatorId?: string;
+	    creatorName?: string;
+	    users?: AssignmentRecipient[];
 	    id: string;
 	    documentId: string;
 	    documentKind: string;
@@ -462,6 +417,10 @@ export namespace dto {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.creatorId = source["creatorId"];
+	        this.creatorName = source["creatorName"];
+	        this.users = this.convertValues(source["users"], AssignmentRecipient);
 	        this.id = source["id"];
 	        this.documentId = source["documentId"];
 	        this.documentKind = source["documentKind"];
@@ -502,6 +461,7 @@ export namespace dto {
 		    return a;
 		}
 	}
+	
 	export class AssignmentSeries {
 	    id: string;
 	    documentId: string;
@@ -1792,92 +1752,6 @@ export namespace dto {
 		    return a;
 		}
 	}
-	export class WorkspaceAcknowledgment {
-	    id: string;
-	    documentId: string;
-	    documentKind: string;
-	    documentNumber?: string;
-	    // Go type: time
-	    documentDate: any;
-	    documentContent: string;
-	    content: string;
-	    // Go type: time
-	    createdAt: any;
-	
-	    static createFrom(source: any = {}) {
-	        return new WorkspaceAcknowledgment(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.documentId = source["documentId"];
-	        this.documentKind = source["documentKind"];
-	        this.documentNumber = source["documentNumber"];
-	        this.documentDate = this.convertValues(source["documentDate"], null);
-	        this.documentContent = source["documentContent"];
-	        this.content = source["content"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_WorkspaceAcknowledgment_ {
-	    items: WorkspaceAcknowledgment[];
-	    totalCount: number;
-	    page: number;
-	    pageSize: number;
-	    nextCursor?: string;
-	    hasMore: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_WorkspaceAcknowledgment_(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.items = this.convertValues(source["items"], WorkspaceAcknowledgment);
-	        this.totalCount = source["totalCount"];
-	        this.page = source["page"];
-	        this.pageSize = source["pageSize"];
-	        this.nextCursor = source["nextCursor"];
-	        this.hasMore = source["hasMore"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class ResolutionExecutor {
 	    id: string;
 	    name: string;
@@ -1934,8 +1808,9 @@ export namespace dto {
 		    return a;
 		}
 	}
-	
 	export class WorkspaceAssignment {
+	    type: string;
+	    documentContent: string;
 	    id: string;
 	    documentId: string;
 	    documentKind: string;
@@ -1953,6 +1828,8 @@ export namespace dto {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.documentContent = source["documentContent"];
 	        this.id = source["id"];
 	        this.documentId = source["documentId"];
 	        this.documentKind = source["documentKind"];
@@ -1984,6 +1861,7 @@ export namespace dto {
 	export class WorkspaceAssignmentCounts {
 	    new: number;
 	    inProgress: number;
+	    returned: number;
 	    overdue: number;
 	    dueSoon: number;
 	    awaitingAcceptance: number;
@@ -1996,6 +1874,7 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.new = source["new"];
 	        this.inProgress = source["inProgress"];
+	        this.returned = source["returned"];
 	        this.overdue = source["overdue"];
 	        this.dueSoon = source["dueSoon"];
 	        this.awaitingAcceptance = source["awaitingAcceptance"];
@@ -2082,10 +1961,6 @@ export namespace dto {
 	    assignmentMode: string;
 	    assignmentCounts: WorkspaceAssignmentCounts;
 	    assignments: WorkspaceAssignment[];
-	    acknowledgmentModes: string[];
-	    acknowledgmentMode: string;
-	    acknowledgmentCount: number;
-	    acknowledgments: WorkspaceAcknowledgment[];
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkspaceOverview(source);
@@ -2097,10 +1972,6 @@ export namespace dto {
 	        this.assignmentMode = source["assignmentMode"];
 	        this.assignmentCounts = this.convertValues(source["assignmentCounts"], WorkspaceAssignmentCounts);
 	        this.assignments = this.convertValues(source["assignments"], WorkspaceAssignment);
-	        this.acknowledgmentModes = source["acknowledgmentModes"];
-	        this.acknowledgmentMode = source["acknowledgmentMode"];
-	        this.acknowledgmentCount = source["acknowledgmentCount"];
-	        this.acknowledgments = this.convertValues(source["acknowledgments"], WorkspaceAcknowledgment);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2127,16 +1998,16 @@ export namespace dto {
 export namespace models {
 	
 	export class AssignmentFilter {
+	    types?: string[];
 	    search?: string;
 	    documentId?: string;
 	    executorId?: string;
-	    status?: string;
+	    statuses?: string[];
 	    dateFrom?: string;
 	    dateTo?: string;
 	    overdueOnly: boolean;
 	    showFinished: boolean;
 	    mode?: string;
-	    metric?: string;
 	    page: number;
 	    pageSize: number;
 	
@@ -2146,16 +2017,16 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.types = source["types"];
 	        this.search = source["search"];
 	        this.documentId = source["documentId"];
 	        this.executorId = source["executorId"];
-	        this.status = source["status"];
+	        this.statuses = source["statuses"];
 	        this.dateFrom = source["dateFrom"];
 	        this.dateTo = source["dateTo"];
 	        this.overdueOnly = source["overdueOnly"];
 	        this.showFinished = source["showFinished"];
 	        this.mode = source["mode"];
-	        this.metric = source["metric"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	    }
@@ -2176,6 +2047,30 @@ export namespace models {
 	        this.period = source["period"];
 	        this.total = source["total"];
 	        this.overdue = source["overdue"];
+	    }
+	}
+	export class AssignmentRequest {
+	    type: string;
+	    documentId: string;
+	    executorId?: string;
+	    content: string;
+	    deadline?: string;
+	    coExecutorIds?: string[];
+	    userIds?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.documentId = source["documentId"];
+	        this.executorId = source["executorId"];
+	        this.content = source["content"];
+	        this.deadline = source["deadline"];
+	        this.coExecutorIds = source["coExecutorIds"];
+	        this.userIds = source["userIds"];
 	    }
 	}
 	export class AssignmentSeriesRequest {

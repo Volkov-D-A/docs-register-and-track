@@ -130,8 +130,11 @@ random temporary password, returns it once for copying, and marks it for a
 mandatory change at the user's next login.
 
 This development baseline expects a fresh database: the migration history was
-compacted and ends with migration 12 (`backups`). No direct-login
-fallback is enabled in the production composition root.
+compacted through migration 12 (`backups`). Typed assignments and recipient
+confirmations are defined directly in migration 4; both assignment types use
+`assign`. Reset databases created with the previous development schema before
+starting this version. There is no data-transfer migration for that schema.
+No direct-login fallback is enabled in the production composition root.
 
 Install frontend dependencies and build assets:
 

@@ -6,12 +6,12 @@ export function CancelSeries(arg1) {
   return window['go']['services']['AssignmentService']['CancelSeries'](arg1);
 }
 
-export function Create(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['services']['AssignmentService']['Create'](arg1, arg2, arg3, arg4, arg5);
-}
-
 export function CreateSeries(arg1) {
   return window['go']['services']['AssignmentService']['CreateSeries'](arg1);
+}
+
+export function CreateTask(arg1) {
+  return window['go']['services']['AssignmentService']['CreateTask'](arg1);
 }
 
 export function Delete(arg1) {

@@ -15,7 +15,7 @@ import (
 
 type summaryAccessStore struct {
 	fakeUserAccessManagementStore
-	clerk, admin bool
+	clerk, admin, assignmentOnly bool
 }
 
 func (s *summaryAccessStore) GetAllowedActions(_, _ string) (map[string]map[string]bool, error) {
@@ -28,6 +28,9 @@ func (s *summaryAccessStore) GetAllowedActions(_, _ string) (map[string]map[stri
 				string(models.DocumentActionAssign): true,
 			}
 		}
+	}
+	if s.assignmentOnly {
+		allowed[string(models.DocumentKindIncomingLetter)] = map[string]bool{string(models.DocumentActionRead): true, string(models.DocumentActionAssign): true}
 	}
 	return allowed, nil
 }
@@ -95,4 +98,20 @@ func TestCurrentAccessSummaryMaintenanceUsesHTTPGate(t *testing.T) {
 			assert.Contains(t, response.Body.String(), `"currentVersion":7`)
 		})
 	}
+}
+
+func TestCurrentAccessSummaryExposesAssignmentsToAssignmentController(t *testing.T) {
+	api, _, token := authenticatedUserAPI(t, nil)
+	api.authUsers.(*fakeAuthUsers).user.IsDocumentParticipant = false
+	api.userAccess = &summaryAccessStore{assignmentOnly: true}
+	api.substitutions = &fakeUserSubstitutionManagementStore{}
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/access/current", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	var summary dto.CurrentAccessSummary
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &summary))
+	require.True(t, summary.Sections.Assignments)
+	require.True(t, summary.Sections.Dashboard)
 }

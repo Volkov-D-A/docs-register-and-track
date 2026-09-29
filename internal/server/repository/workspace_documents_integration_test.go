@@ -76,8 +76,8 @@ func TestWorkspaceRecentDocumentsIntegration(t *testing.T) {
 	execSQL(t, db, `INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)`, assn, user)
 	execSQL(t, db, `INSERT INTO assignments (document_id, executor_id, content, status) VALUES ($1, $2, 'Substitution edge', 'new')`, appeal, other)
 	ack := uuid.New()
-	execSQL(t, db, `INSERT INTO acknowledgments (id, document_id, creator_id, content) VALUES ($1, $2, $3, 'Read')`, ack, incoming, user)
-	execSQL(t, db, `INSERT INTO acknowledgment_users (id, acknowledgment_id, user_id) VALUES ($1, $2, $3)`, uuid.New(), ack, user)
+	execSQL(t, db, `INSERT INTO assignments (id, document_id, creator_id, content, type) VALUES ($1, $2, $3, 'Read', 'acknowledgment')`, ack, incoming, user)
+	execSQL(t, db, `INSERT INTO assignment_recipients (id, assignment_id, user_id) VALUES ($1, $2, $3)`, uuid.New(), ack, user)
 	unrelated := uuid.New()
 	insert(unrelated, "outgoing_letter", "85", "2026-09-25", "2026-09-25T12:00:00Z")
 	scopes := map[models.DocumentKind]models.DocumentAccessScope{}

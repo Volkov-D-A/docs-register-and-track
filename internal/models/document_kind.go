@@ -8,7 +8,6 @@ const (
 	DocumentActionRead        DocumentKindAction = "read"
 	DocumentActionUpdate      DocumentKindAction = "update"
 	DocumentActionAssign      DocumentKindAction = "assign"
-	DocumentActionAcknowledge DocumentKindAction = "acknowledge"
 	DocumentActionUpload      DocumentKindAction = "upload"
 	DocumentActionLink        DocumentKindAction = "link"
 	DocumentActionViewJournal DocumentKindAction = "view_journal"
@@ -30,7 +29,6 @@ var documentKindSpecs = []DocumentKindSpec{
 			DocumentActionRead,
 			DocumentActionUpdate,
 			DocumentActionAssign,
-			DocumentActionAcknowledge,
 			DocumentActionUpload,
 			DocumentActionLink,
 			DocumentActionViewJournal,
@@ -44,7 +42,6 @@ var documentKindSpecs = []DocumentKindSpec{
 			DocumentActionRead,
 			DocumentActionUpdate,
 			DocumentActionAssign,
-			DocumentActionAcknowledge,
 			DocumentActionUpload,
 			DocumentActionLink,
 			DocumentActionViewJournal,
@@ -58,7 +55,6 @@ var documentKindSpecs = []DocumentKindSpec{
 			DocumentActionRead,
 			DocumentActionUpdate,
 			DocumentActionAssign,
-			DocumentActionAcknowledge,
 			DocumentActionUpload,
 			DocumentActionLink,
 			DocumentActionViewJournal,
@@ -72,7 +68,6 @@ var documentKindSpecs = []DocumentKindSpec{
 			DocumentActionRead,
 			DocumentActionUpdate,
 			DocumentActionAssign,
-			DocumentActionAcknowledge,
 			DocumentActionUpload,
 			DocumentActionLink,
 			DocumentActionViewJournal,

@@ -96,13 +96,14 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                         coExecutorIds: values.coExecutorIds || [],
                     } as any);
                 } else {
-                    await assignmentService.Create(
-                        documentId,
-                        values.executorId,
-                        values.content,
-                        values.deadline?.format('YYYY-MM-DD') || '',
-                        values.coExecutorIds || []
-                    );
+                    await assignmentService.CreateTask({
+                        type: 'execution', documentId,
+                        executorId: values.executorId,
+                        content: values.content,
+                        deadline: values.deadline?.format('YYYY-MM-DD') || '',
+                        coExecutorIds: values.coExecutorIds || [],
+                        userIds: [],
+                    } as any);
                 }
                 message.success('Поручение создано');
                 emitAssignmentsChanged({ documentId });

@@ -21,33 +21,26 @@ type WorkspaceQuery struct {
 }
 
 type WorkspaceAssignment struct {
-	ID             uuid.UUID
-	DocumentID     uuid.UUID
-	DocumentKind   string
-	DocumentNumber string
-	DocumentDate   time.Time
-	Content        string
-	Deadline       *time.Time
-	Status         string
-}
-
-type WorkspaceAssignmentCounts struct {
-	New                int
-	InProgress         int
-	Overdue            int
-	DueSoon            int
-	AwaitingAcceptance int
-}
-
-type WorkspaceAcknowledgment struct {
+	Type            string
+	DocumentContent string
 	ID              uuid.UUID
 	DocumentID      uuid.UUID
 	DocumentKind    string
 	DocumentNumber  string
 	DocumentDate    time.Time
-	DocumentContent string
 	Content         string
+	Deadline        *time.Time
+	Status          string
 	CreatedAt       time.Time
+}
+
+type WorkspaceAssignmentCounts struct {
+	New                int
+	InProgress         int
+	Returned           int
+	Overdue            int
+	DueSoon            int
+	AwaitingAcceptance int
 }
 
 // WorkspaceDocument is a bounded document preview under server-resolved read scopes.

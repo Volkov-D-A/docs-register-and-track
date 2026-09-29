@@ -64,7 +64,6 @@ type managementAPI struct {
 	eventAccess                        func(*models.User) eventDocumentAccess
 	documentCommands                   func(*models.User) documentCommandAPI
 	assignments                        func(*models.User) assignmentAPI
-	acknowledgments                    func(*models.User) acknowledgmentAPI
 	userEvents                         func(*models.User) userEventAPI
 	administrativeOrderAcknowledgments func(*models.User) administrativeOrderAcknowledgmentAPI
 	links                              func(*models.User) linkAPI
@@ -135,8 +134,6 @@ func newManagementAPI(app *App) *managementAPI {
 	settings.SetOutbox(outboxRepo)
 	assignments := repository.NewAssignmentRepository(app.db)
 	assignments.SetOutbox(outboxRepo)
-	acknowledgments := repository.NewAcknowledgmentRepository(app.db)
-	acknowledgments.SetOutbox(outboxRepo)
 	userEvents := repository.NewUserEventRepository(app.db)
 	links := repository.NewLinkRepository(app.db)
 	links.SetOutbox(outboxRepo)
@@ -180,12 +177,12 @@ func newManagementAPI(app *App) *managementAPI {
 		nomenclature:   nomenclature,
 		settings:       settings,
 		eventAccess: func(user *models.User) eventDocumentAccess {
-			return serverservices.NewDocumentAccessService(requestDocumentPrincipal{user: user}, departments, assignments, acknowledgments, access, documents, substitutions)
+			return serverservices.NewDocumentAccessService(requestDocumentPrincipal{user: user}, departments, assignments, access, documents, substitutions)
 		},
 		documentQueries: func(user *models.User) documentQueryAPI {
 			documentAccess := serverservices.NewDocumentAccessService(
 				requestDocumentPrincipal{user: user}, departments, assignments,
-				acknowledgments, access, documents, substitutions,
+				access, documents, substitutions,
 			)
 			query := serverservices.NewDocumentQueryEngine(queryRegistry, documentAccess, app.metrics, documents)
 			return query
@@ -193,7 +190,7 @@ func newManagementAPI(app *App) *managementAPI {
 		documentCommands: func(user *models.User) documentCommandAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+				principal, departments, assignments, access, documents, substitutions,
 			)
 			registry := serverservices.NewDocumentKindCommandRegistry(
 				serverservices.NewIncomingLetterCommandHandler(incomingCommands, nomenclature, references, principal, documentAccess),
@@ -207,16 +204,9 @@ func newManagementAPI(app *App) *managementAPI {
 		assignments: func(user *models.User) assignmentAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+				principal, departments, assignments, access, documents, substitutions,
 			)
 			return serverservices.NewAssignmentService(assignments, users, principal, documentAccess, substitutions, true)
-		},
-		acknowledgments: func(user *models.User) acknowledgmentAPI {
-			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, acknowledgments, access, documents, substitutions,
-			)
-			return serverservices.NewAcknowledgmentService(acknowledgments, users, principal, documentAccess, substitutions)
 		},
 		userEvents: func(user *models.User) userEventAPI {
 			return serverservices.NewUserEventService(userEvents, requestDocumentPrincipal{user: user})
@@ -224,27 +214,27 @@ func newManagementAPI(app *App) *managementAPI {
 		administrativeOrderAcknowledgments: func(user *models.User) administrativeOrderAcknowledgmentAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+				principal, departments, assignments, access, documents, substitutions,
 			)
 			return serverservices.NewAdministrativeOrderService(administrativeOrderCommands, principal, documentAccess)
 		},
 		links: func(user *models.User) linkAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+				principal, departments, assignments, access, documents, substitutions,
 			)
 			return serverservices.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal, app.metrics)
 		},
 		journal: func(user *models.User) journalAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, acknowledgments, access, documents, substitutions,
+				principal, departments, assignments, access, documents, substitutions,
 			)
 			return serverservices.NewJournalService(journal, documentAccess)
 		},
 		workspace: func(user *models.User) workspaceAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
+			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, access, documents, substitutions)
 			return serverservices.NewWorkspaceService(workspace, principal, documentAccess, app.metrics)
 		},
 		statistics: func(user *models.User) statisticsAPI {
@@ -262,7 +252,7 @@ func newManagementAPI(app *App) *managementAPI {
 		},
 		attachments: func(user *models.User) attachmentAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, acknowledgments, access, documents, substitutions)
+			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, access, documents, substitutions)
 			service := serverservices.NewServerAttachmentService(attachmentRepo, serverservices.NewSettingsService(settings), principal, app.storage, documentAccess, serverservices.ServerAttachmentOptions{Assignments: assignments, Substitutions: substitutions, Metrics: app.metrics})
 			return service
 		},
@@ -354,13 +344,6 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/assignment-series/{id}/history", api.requireSession(http.HandlerFunc(api.getAssignmentSeriesHistory)))
 	mux.Handle("PATCH /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.updateAssignmentSeries)))
 	mux.Handle("DELETE /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.cancelAssignmentSeries)))
-	mux.Handle("POST /api/v1/acknowledgments", api.requireSession(http.HandlerFunc(api.createAcknowledgment)))
-	mux.Handle("GET /api/v1/acknowledgments", api.requireSession(http.HandlerFunc(api.listAcknowledgments)))
-	mux.Handle("GET /api/v1/acknowledgments/pending", api.requireSession(http.HandlerFunc(api.listPendingAcknowledgments)))
-	mux.Handle("GET /api/v1/acknowledgments/pending/{documentId}", api.requireSession(http.HandlerFunc(api.listPendingAcknowledgmentsByDocument)))
-	mux.Handle("GET /api/v1/acknowledgments/active", api.requireSession(http.HandlerFunc(api.listActiveAcknowledgments)))
-	mux.Handle("POST /api/v1/acknowledgments/{id}/confirm", api.requireSession(http.HandlerFunc(api.markAcknowledgmentConfirmed)))
-	mux.Handle("DELETE /api/v1/acknowledgments/{id}", api.requireSession(http.HandlerFunc(api.deleteAcknowledgment)))
 	mux.Handle("POST /api/v1/user-events/query", api.requireSession(http.HandlerFunc(api.listUserEvents)))
 	mux.Handle("GET /api/v1/user-events/unread-count", api.requireSession(http.HandlerFunc(api.getUnreadUserEventCount)))
 	mux.Handle("POST /api/v1/user-events/{id}/read", api.requireSession(http.HandlerFunc(api.markUserEventRead)))
@@ -374,7 +357,6 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/documents/{id}/journal", api.requireSession(http.HandlerFunc(api.getDocumentJournal)))
 	mux.Handle("GET /api/v1/workspace/documents", api.requireSession(http.HandlerFunc(api.getWorkspaceDocuments)))
 	mux.Handle("GET /api/v1/workspace/overview", api.requireSession(http.HandlerFunc(api.getWorkspaceOverview)))
-	mux.Handle("GET /api/v1/workspace/acknowledgments", api.requireSession(http.HandlerFunc(api.listWorkspaceAcknowledgments)))
 	mux.Handle("GET /api/v1/statistics/documents", api.requireSession(http.HandlerFunc(api.getDocumentStatistics)))
 	mux.Handle("POST /api/v1/statistics/documents/report", api.requireSession(http.HandlerFunc(api.getDocumentStatisticsReport)))
 	mux.Handle("GET /api/v1/statistics/documents/filters", api.requireSession(http.HandlerFunc(api.getDocumentStatisticsFilters)))

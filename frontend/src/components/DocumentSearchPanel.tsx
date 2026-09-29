@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Input, Modal, Pagination, Table, Tag, Typography } from 'antd';
-import type { TableProps } from 'antd';
+import type { InputRef, TableProps } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { dto } from '../../wailsjs/go/models';
 import { Search } from '../../wailsjs/go/services/DocumentQueryService';
@@ -22,6 +23,7 @@ const DocumentSearchPanel: React.FC<Props> = ({ onOpenDocument }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const version = useRef(0);
+    const inputRef = useRef<InputRef>(null);
 
     const load = async (text: string, nextPage: number) => {
         const current = ++version.current;
@@ -38,25 +40,24 @@ const DocumentSearchPanel: React.FC<Props> = ({ onOpenDocument }) => {
         }
     };
 
-    const close = () => {
+    const close = useCallback(() => {
         version.current += 1;
         setOpen(false);
+        setInput('');
+        setQuery('');
+        setPage(1);
         setResult(null);
         setLoading(false);
         setError('');
-    };
+    }, []);
 
     useEffect(() => () => { version.current += 1; }, []);
     // A changed read scope must discard already displayed rows as well as late replies.
     useEffect(() => onServerEvent((event) => {
         if (event.topic === 'access-changed' || event.visibilityChanged) {
-            version.current += 1;
-            setOpen(false);
-            setResult(null);
-            setLoading(false);
-            setError('');
+            close();
         }
-    }), []);
+    }), [close]);
 
     const columns: TableProps<dto.DocumentSearchItem>['columns'] = [
         {
@@ -76,25 +77,29 @@ const DocumentSearchPanel: React.FC<Props> = ({ onOpenDocument }) => {
     ];
 
     return <>
-        <Input.Search aria-label="Поиск по документам" placeholder="Поиск по документам: содержание, резолюция, корреспондент, подписант"
-            value={input} onChange={(event) => setInput(event.target.value)} allowClear maxLength={500}
-            enterButton="Найти" style={{ marginBottom: 16 }} onSearch={(value) => {
-                const text = value.trim().replace(/\s+/g, ' ');
-                if (!text) return;
-                setQuery(text);
-                setPage(1);
-                setOpen(true);
-                void load(text, 1);
-            }} />
-        <Modal title="Поиск документов" open={open} onCancel={close} footer={null} width={1150}>
-            <Typography.Paragraph>Результаты для «{query}» · по релевантности</Typography.Paragraph>
-            {error ? <Alert type="error" title={error} action={<Button onClick={() => { void load(query, page); }}>Повторить</Button>} /> : <>
-                <Table<dto.DocumentSearchItem> columns={columns} dataSource={result?.items || []} rowKey="id"
-                    loading={loading} size="small" pagination={false} scroll={{ x: 1100, y: 480 }}
-                    locale={{ emptyText: loading ? 'Выполняется поиск…' : 'Документы не найдены' }} />
-                <Pagination current={page} total={result?.totalCount || 0} pageSize={pageSize} showSizeChanger={false}
-                    disabled={loading} showTotal={(total) => `Найдено: ${total}`} style={{ marginTop: 16 }}
-                    onChange={(value) => { setPage(value); void load(query, value); }} />
+        <Button type="primary" size="large" icon={<SearchOutlined aria-hidden />} className="workspace-document-search-trigger"
+            onClick={() => setOpen(true)}>Найти документ</Button>
+        <Modal title="Поиск документов" open={open} onCancel={close} footer={null} width={1150}
+            afterOpenChange={(visible) => { if (visible) inputRef.current?.focus(); }}>
+            <Input.Search ref={inputRef} aria-label="Поиск по документам" placeholder="Поиск по документам: содержание, резолюция, корреспондент, подписант"
+                value={input} onChange={(event) => setInput(event.target.value)} allowClear maxLength={500}
+                enterButton="Найти" style={{ marginBottom: 16 }} onSearch={(value) => {
+                    const text = value.trim().replace(/\s+/g, ' ');
+                    if (!text) return;
+                    setQuery(text);
+                    setPage(1);
+                    void load(text, 1);
+                }} />
+            {query && <>
+                <Typography.Paragraph>Результаты для «{query}» · по релевантности</Typography.Paragraph>
+                {error ? <Alert type="error" title={error} action={<Button onClick={() => { void load(query, page); }}>Повторить</Button>} /> : <>
+                    <Table<dto.DocumentSearchItem> columns={columns} dataSource={result?.items || []} rowKey="id"
+                        loading={loading} size="small" pagination={false} scroll={{ x: 1100, y: 480 }}
+                        locale={{ emptyText: loading ? 'Выполняется поиск…' : 'Документы не найдены' }} />
+                    <Pagination current={page} total={result?.totalCount || 0} pageSize={pageSize} showSizeChanger={false}
+                        disabled={loading} showTotal={(total) => `Найдено: ${total}`} style={{ marginTop: 16 }}
+                        onChange={(value) => { setPage(value); void load(query, value); }} />
+                </>}
             </>}
         </Modal>
     </>;

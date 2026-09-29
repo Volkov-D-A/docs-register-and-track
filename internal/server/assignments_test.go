@@ -19,10 +19,11 @@ type fakeAssignmentAPI struct {
 	created assignmentDetailsRequest
 }
 
-func (f *fakeAssignmentAPI) Create(documentID, executorID, content, deadline string, coExecutorIDs []string) (*dto.Assignment, error) {
-	f.created = assignmentDetailsRequest{DocumentID: documentID, ExecutorID: executorID, Content: content, Deadline: deadline, CoExecutorIDs: coExecutorIDs}
-	return &dto.Assignment{ID: uuid.NewString()}, nil
+func (f *fakeAssignmentAPI) CreateTask(request models.AssignmentRequest) (*dto.Assignment, error) {
+	f.created = assignmentDetailsRequest{Type: request.Type, DocumentID: request.DocumentID, Content: request.Content, Deadline: request.Deadline, ExecutorID: request.ExecutorID, CoExecutorIDs: request.CoExecutorIDs, UserIDs: request.UserIDs}
+	return &dto.Assignment{ID: uuid.NewString(), Type: request.Type}, nil
 }
+
 func (*fakeAssignmentAPI) CreateSeries(models.AssignmentSeriesRequest) (*dto.AssignmentSeries, error) {
 	return &dto.AssignmentSeries{}, nil
 }
@@ -67,13 +68,15 @@ func TestAssignmentAPIRequiresSessionAndUsesRequestPrincipal(t *testing.T) {
 	api.Handler().ServeHTTP(maliciousResponse, malicious)
 	require.Equal(t, http.StatusBadRequest, maliciousResponse.Code, maliciousResponse.Body.String())
 
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/assignments/query", strings.NewReader(`{"search":"needle"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/assignments/query", strings.NewReader(`{"search":"needle","types":["execution","acknowledgment"],"statuses":["new","in_progress"]}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 	api.Handler().ServeHTTP(response, request)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	assert.NotEqual(t, uuid.Nil, principalID)
 	assert.Equal(t, "needle", assignments.filter.Search)
+	assert.Equal(t, []string{"execution", "acknowledgment"}, assignments.filter.Types)
+	assert.Equal(t, []string{"new", "in_progress"}, assignments.filter.Statuses)
 	assert.Empty(t, assignments.filter.AllowedDocumentKinds)
 	assert.Empty(t, assignments.filter.AccessibleByUserID)
 }
@@ -83,10 +86,22 @@ func TestAssignmentAPIDecodesCoExecutors(t *testing.T) {
 	assignments := &fakeAssignmentAPI{}
 	api.assignments = func(*models.User) assignmentAPI { return assignments }
 
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(`{"documentId":"doc","executorId":"executor","content":"work","deadline":"2026-09-01","coExecutorIds":["co-1","co-2"]}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/assignments", strings.NewReader(`{"type":"execution","documentId":"doc","executorId":"executor","content":"work","deadline":"2026-09-01","coExecutorIds":["co-1","co-2"]}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 	api.Handler().ServeHTTP(response, request)
 	require.Equal(t, http.StatusCreated, response.Code, response.Body.String())
 	assert.Equal(t, []string{"co-1", "co-2"}, assignments.created.CoExecutorIDs)
+}
+
+func TestAssignmentAPIRejectsChangingTaskTypeOrRecipients(t *testing.T) {
+	api, _, token := authenticatedUserAPI(t, nil)
+	api.assignments = func(*models.User) assignmentAPI { return &fakeAssignmentAPI{} }
+	for _, body := range []string{`{"type":"execution"}`, `{"userIds":["replacement"]}`} {
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/assignments/"+uuid.NewString(), strings.NewReader(body))
+		request.Header.Set("Authorization", "Bearer "+token)
+		response := httptest.NewRecorder()
+		api.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+	}
 }

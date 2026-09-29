@@ -1,13 +1,4 @@
 {
-  "AcknowledgmentService": [
-    "Create",
-    "Delete",
-    "GetAllActive",
-    "GetCurrentUserPendingByDocument",
-    "GetList",
-    "GetPendingForCurrentUser",
-    "MarkConfirmed"
-  ],
   "AdminAuditLogService": [
     "GetAll"
   ],
@@ -16,8 +7,8 @@
   ],
   "AssignmentService": [
     "CancelSeries",
-    "Create",
     "CreateSeries",
+    "CreateTask",
     "Delete",
     "GetList",
     "GetSeries",
@@ -50,8 +41,7 @@
   ],
   "WorkspaceService": [
     "GetOverview",
-    "GetRecentDocuments",
-    "ListAcknowledgments"
+    "GetRecentDocuments"
   ],
   "DepartmentService": [
     "CreateDepartment",
@@ -68,7 +58,8 @@
   ],
   "DocumentQueryService": [
     "GetByID",
-    "GetList"
+    "GetList",
+    "Search"
   ],
   "DocumentRegistrationService": [
     "CreateAdminDraft",

@@ -133,3 +133,19 @@ test.each([false, true])('SSE refresh keeps the workflow layout stable (actionab
     await act(async () => { pending.resolve(page([item], 1)); });
   } finally { view.unmount(); useAuthStore.setState(previous); }
 });
+
+
+test('acknowledgment confirms directly without an execution report or acceptance', async () => {
+  const item = { ...assignments(1, 1)[0], type: 'acknowledgment', status: 'new', canAct: true, content: 'Ознакомиться с документом' };
+  const getList = vi.fn().mockResolvedValueOnce(page([item], 1)).mockResolvedValue(page([{ ...item, canAct: false }], 1));
+  const updateStatus = vi.fn().mockResolvedValue({ ...item, canAct: false });
+  installWailsMock({ AssignmentService: { GetList: getList, UpdateStatus: updateStatus } });
+  renderWithApp(<DocumentAssignmentWorkflowPanel documentId="doc-1" documentKind="incoming_letter" />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Ознакомлен' }));
+  await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(item.id, 'finished', ''));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Ознакомлен' })).not.toBeInTheDocument());
+  expect(screen.queryByRole('button', { name: 'Взять в работу' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Исполнить' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Завершить' })).not.toBeInTheDocument();
+  expect(getList).toHaveBeenCalledWith(expect.objectContaining({ types: [] }));
+});

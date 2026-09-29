@@ -388,8 +388,8 @@ func TestDatabaseConstraintsIntegration(t *testing.T) {
 		VALUES ($1, $2, 'invalid executor')
 	`, docID, uuid.New())
 	expectExecError(t, sqlDB, `
-		INSERT INTO acknowledgments (id, document_id, creator_id, content)
-		VALUES ($1, $2, $3, 'invalid document')
+		INSERT INTO assignments (id, document_id, creator_id, content, type)
+		VALUES ($1, $2, $3, 'invalid document', 'acknowledgment')
 	`, uuid.New(), uuid.New(), userID)
 	expectExecError(t, sqlDB, `
 		INSERT INTO attachments (document_id, filename, file_size, storage_path, uploaded_by)
@@ -398,15 +398,15 @@ func TestDatabaseConstraintsIntegration(t *testing.T) {
 
 	ackID := uuid.New()
 	execSQL(t, sqlDB, `
-		INSERT INTO acknowledgments (id, document_id, creator_id, content)
-		VALUES ($1, $2, $3, 'ack')
+		INSERT INTO assignments (id, document_id, creator_id, content, type)
+		VALUES ($1, $2, $3, 'ack', 'acknowledgment')
 	`, ackID, docID, userID)
 	execSQL(t, sqlDB, `
-		INSERT INTO acknowledgment_users (id, acknowledgment_id, user_id)
+		INSERT INTO assignment_recipients (id, assignment_id, user_id)
 		VALUES ($1, $2, $3)
 	`, uuid.New(), ackID, userID)
 	expectExecError(t, sqlDB, `
-		INSERT INTO acknowledgment_users (id, acknowledgment_id, user_id)
+		INSERT INTO assignment_recipients (id, assignment_id, user_id)
 		VALUES ($1, $2, $3)
 	`, uuid.New(), ackID, userID)
 

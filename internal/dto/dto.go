@@ -344,9 +344,13 @@ type Attachment struct {
 
 // Assignment описывает DTO поручения.
 type Assignment struct {
-	ID           string `json:"id"`
-	DocumentID   string `json:"documentId"`
-	DocumentKind string `json:"documentKind"`
+	Type         string                `json:"type"`
+	CreatorID    string                `json:"creatorId,omitempty"`
+	CreatorName  string                `json:"creatorName,omitempty"`
+	Users        []AssignmentRecipient `json:"users,omitempty"`
+	ID           string                `json:"id"`
+	DocumentID   string                `json:"documentId"`
+	DocumentKind string                `json:"documentKind"`
 
 	ExecutorID   string `json:"executorId"`
 	ExecutorName string `json:"executorName,omitempty"`
@@ -394,67 +398,39 @@ type AssignmentSeries struct {
 	UpdatedAt           time.Time  `json:"updatedAt"`
 }
 
-// WorkspaceOverview contains server-scoped work for the selected modes.
+// WorkspaceOverview contains server-scoped work for the selected mode.
 type WorkspaceOverview struct {
-	AssignmentModes     []string                  `json:"assignmentModes"`
-	AssignmentMode      string                    `json:"assignmentMode"`
-	AssignmentCounts    WorkspaceAssignmentCounts `json:"assignmentCounts"`
-	Assignments         []WorkspaceAssignment     `json:"assignments"`
-	AcknowledgmentModes []string                  `json:"acknowledgmentModes"`
-	AcknowledgmentMode  string                    `json:"acknowledgmentMode"`
-	AcknowledgmentCount int                       `json:"acknowledgmentCount"`
-	Acknowledgments     []WorkspaceAcknowledgment `json:"acknowledgments"`
+	AssignmentModes  []string                  `json:"assignmentModes"`
+	AssignmentMode   string                    `json:"assignmentMode"`
+	AssignmentCounts WorkspaceAssignmentCounts `json:"assignmentCounts"`
+	Assignments      []WorkspaceAssignment     `json:"assignments"`
 }
 
 type WorkspaceAssignmentCounts struct {
 	New                int `json:"new"`
 	InProgress         int `json:"inProgress"`
+	Returned           int `json:"returned"`
 	Overdue            int `json:"overdue"`
 	DueSoon            int `json:"dueSoon"`
 	AwaitingAcceptance int `json:"awaitingAcceptance"`
 }
 
 type WorkspaceAssignment struct {
-	ID             string     `json:"id"`
-	DocumentID     string     `json:"documentId"`
-	DocumentKind   string     `json:"documentKind"`
-	DocumentNumber string     `json:"documentNumber"`
-	DocumentDate   time.Time  `json:"documentDate"`
-	Content        string     `json:"content"`
-	Deadline       *time.Time `json:"deadline,omitempty"`
-	Status         string     `json:"status"`
+	Type            string     `json:"type"`
+	DocumentContent string     `json:"documentContent"`
+	ID              string     `json:"id"`
+	DocumentID      string     `json:"documentId"`
+	DocumentKind    string     `json:"documentKind"`
+	DocumentNumber  string     `json:"documentNumber"`
+	DocumentDate    time.Time  `json:"documentDate"`
+	Content         string     `json:"content"`
+	Deadline        *time.Time `json:"deadline,omitempty"`
+	Status          string     `json:"status"`
 }
 
-type WorkspaceAcknowledgment struct {
-	ID              string    `json:"id"`
-	DocumentID      string    `json:"documentId"`
-	DocumentKind    string    `json:"documentKind"`
-	DocumentNumber  string    `json:"documentNumber,omitempty"`
-	DocumentDate    time.Time `json:"documentDate"`
-	DocumentContent string    `json:"documentContent"`
-	Content         string    `json:"content"`
-	CreatedAt       time.Time `json:"createdAt"`
-}
-
-// Acknowledgment описывает DTO задачи на ознакомление.
-type Acknowledgment struct {
-	ID             string `json:"id"`
-	DocumentID     string `json:"documentId"`
-	DocumentKind   string `json:"documentKind"`
-	DocumentNumber string `json:"documentNumber,omitempty"`
-
-	CreatorID   string `json:"creatorId"`
-	CreatorName string `json:"creatorName,omitempty"`
-
-	Content     string     `json:"content"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
-
-	Users []AcknowledgmentUser `json:"users,omitempty"`
-}
-
-// AcknowledgmentUser описывает DTO связи пользователя с задачей на ознакомление.
-type AcknowledgmentUser struct {
+// AssignmentRecipient описывает DTO связи пользователя с задачей на ознакомление.
+type AssignmentRecipient struct {
+	ConfirmedBy string     `json:"confirmedBy,omitempty"`
 	UserID      string     `json:"userId"`
 	UserName    string     `json:"userName,omitempty"`
 	ConfirmedAt *time.Time `json:"confirmedAt,omitempty"`

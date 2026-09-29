@@ -15,7 +15,7 @@ import (
 )
 
 func TestAttachmentDownloadIgnoresReducedUploadLimit(t *testing.T) {
-	svc, _, settings, storage, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
+	svc, _, settings, storage, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
 	// An existing 2 MiB file remains downloadable after reducing uploads to 1 MiB.
 	settings.On("Get", "max_file_size_mb").Return(&models.SystemSetting{Value: "1"}, nil).Maybe()
 	content := bytes.Repeat([]byte("x"), 2*1024*1024)
@@ -35,7 +35,7 @@ func TestAttachmentDownloadIgnoresReducedUploadLimit(t *testing.T) {
 func TestAttachmentDownloadRejectsInvalidStoredSizeBeforeStorageAccess(t *testing.T) {
 	for _, size := range []int64{-1, int64(MaximumAttachmentSizeMB)*1024*1024 + 1} {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
-			svc, repo, _, storage, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
+			svc, repo, _, storage, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
 			attachment := &models.Attachment{ID: uuid.New(), DocumentID: uuid.New(), FileSize: size, StoragePath: "invalid.pdf"}
 			repo.On("GetByID", attachment.ID).Return(attachment, nil).Once()
 
@@ -60,7 +60,7 @@ func TestAttachmentDownloadChecksStoredLength(t *testing.T) {
 		{"shorter than metadata", 4, "abc", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			svc, _, _, storage, _, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
+			svc, _, _, storage, _, _, _, _, _, _ := setupAttachmentService(t, "clerk")
 			attachment := &models.Attachment{StoragePath: "file.pdf", FileSize: tc.size}
 			storage.On("DownloadFileToWriter", mock.Anything, attachment.StoragePath, mock.Anything, tc.size).
 				Run(func(args mock.Arguments) {

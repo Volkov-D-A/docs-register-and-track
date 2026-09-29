@@ -31,7 +31,7 @@ func TestAssignmentSeriesLifecycleIntegration(t *testing.T) {
 		t.Fatalf("unexpected initial series: %+v", series)
 	}
 
-	visible, err := repo.GetList(models.AssignmentFilter{DocumentID: documentID.String(), Page: 1, PageSize: 20, ShowFinished: true})
+	visible, err := repo.GetList(models.AssignmentFilter{Types: []string{models.AssignmentTypeExecution}, DocumentID: documentID.String(), Page: 1, PageSize: 20, ShowFinished: true})
 	if err != nil || len(visible.Items) != 1 || visible.Items[0].ID != firstID {
 		t.Fatalf("initial visible assignments=%+v err=%v", visible, err)
 	}
@@ -56,7 +56,7 @@ func TestAssignmentSeriesLifecycleIntegration(t *testing.T) {
 		t.Fatalf("advance series: %v", err)
 	}
 
-	visible, err = repo.GetList(models.AssignmentFilter{DocumentID: documentID.String(), Page: 1, PageSize: 20, ShowFinished: true})
+	visible, err = repo.GetList(models.AssignmentFilter{Types: []string{models.AssignmentTypeExecution}, DocumentID: documentID.String(), Page: 1, PageSize: 20, ShowFinished: true})
 	if err != nil || len(visible.Items) != 1 || visible.Items[0].ID != secondID || visible.Items[0].IterationNumber != 2 {
 		t.Fatalf("advanced visible assignments=%+v err=%v", visible, err)
 	}

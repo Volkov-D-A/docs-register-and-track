@@ -97,9 +97,10 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                 return (
                     <div className="document-assignment-workflow__item" key={assignment.id}>
                         <div className="document-assignment-workflow__body">
-                            <div className="document-assignment-workflow__content">{assignment.content}</div>
+                            <div className="document-assignment-workflow__content">{assignment.content || (assignment.type === 'acknowledgment' ? 'Ознакомиться с документом' : '')}</div>
                             <Space size={4} wrap>
-                                {getStatusTag(assignment.status)}
+                                {assignment.type === 'acknowledgment' ? <Tag color="orange">Ознакомление</Tag> : getStatusTag(assignment.status)}
+                                {assignment.type === 'acknowledgment' && assignment.creatorName && <Text type="secondary">{assignment.creatorName}</Text>}
                                 {assignment.executorName && <Text type="secondary">{assignment.executorName}</Text>}
                                 {assignment.deadline && (
                                     <Text type="secondary">Срок: {dayjs(assignment.deadline).format('DD.MM.YYYY')}</Text>
@@ -117,7 +118,8 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                             )}
                         </div>
                         <Space size={6} wrap className="document-assignment-workflow__actions">
-                            {canActAsExecutor && (assignment.status === 'new' || assignment.status === 'returned') && (
+                            {canActAsExecutor && assignment.type === 'acknowledgment' && <Button size="small" type="primary" icon={<CheckCircleOutlined aria-hidden="true" />} onClick={() => updateStatus(assignment.id, 'finished')}>Ознакомлен</Button>}
+                            {canActAsExecutor && assignment.type !== 'acknowledgment' && (assignment.status === 'new' || assignment.status === 'returned') && (
                                 <Tooltip title="Взять в работу">
                                     <Button
                                         size="small"
@@ -128,7 +130,7 @@ const DocumentAssignmentWorkflowPanel: React.FC<DocumentAssignmentWorkflowPanelP
                                     </Button>
                                 </Tooltip>
                             )}
-                            {canActAsExecutor && assignment.status === 'in_progress' && (
+                            {canActAsExecutor && assignment.type !== 'acknowledgment' && assignment.status === 'in_progress' && (
                                 <Tooltip title="Исполнить">
                                     <Button
                                         size="small"

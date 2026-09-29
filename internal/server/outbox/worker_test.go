@@ -270,8 +270,8 @@ func TestJournalChangesIdentifyOnlyAffectedResources(t *testing.T) {
 	}{
 		{"CREATE", "document", false}, {"UPDATE", "document", false},
 		{"ASSIGNMENT_CREATE", "assignments", true}, {"ASSIGNMENT_STATUS", "assignments", false},
-		{"ASSIGNMENT_DELETE", "assignments", true}, {"ACK_CONFIRM", "acknowledgments", false},
-		{"ACK_DELETE", "acknowledgments", true}, {"FILE_UPLOAD", "files", false}, {"LINK_DELETE", "links", false},
+		{"ASSIGNMENT_DELETE", "assignments", true}, {"ASSIGNMENT_ACKNOWLEDGED", "assignments", false},
+		{"ASSIGNMENT_DELETE", "assignments", true}, {"FILE_UPLOAD", "files", false}, {"LINK_DELETE", "links", false},
 	} {
 		t.Run(tc.action, func(t *testing.T) {
 			change := journalChange(models.CreateJournalEntryRequest{DocumentID: documentID, Action: tc.action, PreviousReaderIDs: []uuid.UUID{readerID}})

@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -12,8 +11,7 @@ import (
 
 type WorkspaceClient interface {
 	GetWorkspaceDocuments(context.Context) (*dto.WorkspaceDocuments, error)
-	GetWorkspaceOverview(context.Context, string, string) (*dto.WorkspaceOverview, error)
-	ListWorkspaceAcknowledgments(context.Context, string, int, int) (*dto.PagedResult[dto.WorkspaceAcknowledgment], error)
+	GetWorkspaceOverview(context.Context, string) (*dto.WorkspaceOverview, error)
 }
 
 type StatisticsClient interface {
@@ -52,20 +50,11 @@ func getStatistics[T any](ctx context.Context, c *Client, path string) (*T, erro
 	return &result, nil
 }
 
-func (c *Client) GetWorkspaceOverview(ctx context.Context, assignmentMode, acknowledgmentMode string) (*dto.WorkspaceOverview, error) {
+func (c *Client) GetWorkspaceOverview(ctx context.Context, assignmentMode string) (*dto.WorkspaceOverview, error) {
 	query := url.Values{}
 	query.Set("assignmentMode", assignmentMode)
-	query.Set("acknowledgmentMode", acknowledgmentMode)
 	return getStatistics[dto.WorkspaceOverview](ctx, c, "/api/v1/workspace/overview?"+query.Encode())
 }
-func (c *Client) ListWorkspaceAcknowledgments(ctx context.Context, mode string, page, pageSize int) (*dto.PagedResult[dto.WorkspaceAcknowledgment], error) {
-	query := url.Values{}
-	query.Set("mode", mode)
-	query.Set("page", strconv.Itoa(page))
-	query.Set("pageSize", strconv.Itoa(pageSize))
-	return getStatistics[dto.PagedResult[dto.WorkspaceAcknowledgment]](ctx, c, "/api/v1/workspace/acknowledgments?"+query.Encode())
-}
-
 func (c *Client) GetDocumentStatistics(ctx context.Context) (*models.DocumentStatistics, error) {
 	return getStatistics[models.DocumentStatistics](ctx, c, "/api/v1/statistics/documents")
 }
