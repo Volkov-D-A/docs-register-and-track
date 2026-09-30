@@ -9,6 +9,7 @@ export namespace dto {
 	    assignments: boolean;
 	    references: boolean;
 	    statistics: boolean;
+	    reports: boolean;
 	    settings: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -25,6 +26,7 @@ export namespace dto {
 	        this.assignments = source["assignments"];
 	        this.references = source["references"];
 	        this.statistics = source["statistics"];
+	        this.reports = source["reports"];
 	        this.settings = source["settings"];
 	    }
 	}
@@ -3064,6 +3066,273 @@ export namespace models {
 		    return a;
 		}
 	}
+	
+	export class ReportFilters {
+	    kinds: StatisticsOption[];
+	    nomenclature: StatisticsOption[];
+	    users: StatisticsOption[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportFilters(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kinds = this.convertValues(source["kinds"], StatisticsOption);
+	        this.nomenclature = this.convertValues(source["nomenclature"], StatisticsOption);
+	        this.users = this.convertValues(source["users"], StatisticsOption);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ReportRequest {
+	    template: string;
+	    startDate: string;
+	    endDate: string;
+	    organizationId?: string;
+	    departmentId?: string;
+	    kindCode?: string;
+	    nomenclatureId?: string;
+	    userId?: string;
+	    status?: string;
+	    onlyWithDeadline?: boolean;
+	    timezone?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.template = source["template"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.organizationId = source["organizationId"];
+	        this.departmentId = source["departmentId"];
+	        this.kindCode = source["kindCode"];
+	        this.nomenclatureId = source["nomenclatureId"];
+	        this.userId = source["userId"];
+	        this.status = source["status"];
+	        this.onlyWithDeadline = source["onlyWithDeadline"];
+	        this.timezone = source["timezone"];
+	    }
+	}
+	export class ReportSummary {
+	    count: number;
+	    incoming: number;
+	    outgoing: number;
+	    overdue: number;
+	    openOverdue: number;
+	    metric: number;
+	    uniqueDocuments: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.count = source["count"];
+	        this.incoming = source["incoming"];
+	        this.outgoing = source["outgoing"];
+	        this.overdue = source["overdue"];
+	        this.openOverdue = source["openOverdue"];
+	        this.metric = source["metric"];
+	        this.uniqueDocuments = source["uniqueDocuments"];
+	    }
+	}
+	export class ReportRow {
+	    key: string;
+	    name: string;
+	    period?: string;
+	    incoming?: number;
+	    outgoing?: number;
+	    overdue?: number;
+	    count: number;
+	    metric: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.period = source["period"];
+	        this.incoming = source["incoming"];
+	        this.outgoing = source["outgoing"];
+	        this.overdue = source["overdue"];
+	        this.count = source["count"];
+	        this.metric = source["metric"];
+	    }
+	}
+	export class ReportResult {
+	    template: string;
+	    startDate: string;
+	    endDate: string;
+	    generatedAt: string;
+	    definition: string;
+	    filters: string;
+	    version: number;
+	    timezone: string;
+	    rows: ReportRow[];
+	    summary: ReportSummary;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.template = source["template"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.generatedAt = source["generatedAt"];
+	        this.definition = source["definition"];
+	        this.filters = source["filters"];
+	        this.version = source["version"];
+	        this.timezone = source["timezone"];
+	        this.rows = this.convertValues(source["rows"], ReportRow);
+	        this.summary = this.convertValues(source["summary"], ReportSummary);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class ReportRun {
+	    id: string;
+	    scheduleId: string;
+	    plannedAt: string;
+	    status: string;
+	    format: string;
+	    version: number;
+	    startDate: string;
+	    endDate: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportRun(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.scheduleId = source["scheduleId"];
+	        this.plannedAt = source["plannedAt"];
+	        this.status = source["status"];
+	        this.format = source["format"];
+	        this.version = source["version"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.error = source["error"];
+	    }
+	}
+	export class ReportScheduleRequest {
+	    report: ReportRequest;
+	    frequency: string;
+	    timezone: string;
+	    format: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportScheduleRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.report = this.convertValues(source["report"], ReportRequest);
+	        this.frequency = source["frequency"];
+	        this.timezone = source["timezone"];
+	        this.format = source["format"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ReportSchedule {
+	    id: string;
+	    request: ReportScheduleRequest;
+	    enabled: boolean;
+	    nextRunAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportSchedule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.request = this.convertValues(source["request"], ReportScheduleRequest);
+	        this.enabled = source["enabled"];
+	        this.nextRunAt = source["nextRunAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	export class RollbackMigrationRequest {
 	    backupCompleted: boolean;

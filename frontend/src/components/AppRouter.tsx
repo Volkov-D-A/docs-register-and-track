@@ -6,6 +6,7 @@ const DashboardPage = lazy(() => import('../pages/DashboardPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
 const ReferencesPage = lazy(() => import('../pages/ReferencesPage'));
 const StatisticsPage = lazy(() => import('../pages/StatisticsPage'));
+const ReportsPage = lazy(() => import('../pages/ReportsPage'));
 const IncomingPage = lazy(() => import('../pages/IncomingPage'));
 const OutgoingPage = lazy(() => import('../pages/OutgoingPage'));
 const CitizenAppealsPage = lazy(() => import('../pages/CitizenAppealsPage'));
@@ -52,6 +53,8 @@ const resolvePage = (pageKey: string, props: Pick<AppRouterProps, 'assignmentNav
             return <ReferencesPage />;
         case 'statistics':
             return <StatisticsPage />;
+        case 'reports':
+            return <ReportsPage />;
         case 'profile':
             return <ProfilePage />;
         default:

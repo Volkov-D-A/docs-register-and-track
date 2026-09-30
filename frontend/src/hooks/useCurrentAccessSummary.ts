@@ -23,6 +23,7 @@ const emptySections = dto.AccessSections.createFrom({
     assignments: false,
     references: false,
     statistics: false,
+    reports: false,
     settings: false,
 });
 
@@ -142,6 +143,8 @@ export const useCurrentAccessSummary = () => {
                 return sections.references;
             case 'statistics':
                 return sections.statistics;
+            case 'reports':
+                return sections.reports;
             case 'profile':
                 return true;
             default:
@@ -161,6 +164,9 @@ export const useCurrentAccessSummary = () => {
         }
         if (sections.statistics) {
             return 'statistics';
+        }
+        if (sections.reports) {
+            return 'reports';
         }
         return 'profile';
     }, [sections]);

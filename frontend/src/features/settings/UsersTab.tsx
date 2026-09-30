@@ -268,6 +268,7 @@ const UsersTab: React.FC = () => {
     stats_documents: 'Статистика: документы',
     stats_assignments: 'Статистика: поручения',
     stats_system: 'Статистика: системная',
+    reports: 'Отчёты',
   };
 
   const isBruteforceLocked = (user: any) => !user?.isActive && (user?.failedLoginAttempts || 0) >= 5;
@@ -431,6 +432,7 @@ const UsersTab: React.FC = () => {
                 <Checkbox.Group options={[
                   { label: 'Администратор', value: 'admin' },
                   { label: 'Справочники', value: 'references' },
+                  { label: 'Отчёты', value: 'reports' },
                 ]} />
               </Form.Item>
               <Form.Item name="statisticsPermissions" label="Статистика" style={{ marginBottom: 8 }}>

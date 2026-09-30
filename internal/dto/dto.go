@@ -70,6 +70,7 @@ type AccessSections struct {
 	Assignments bool `json:"assignments"`
 	References  bool `json:"references"`
 	Statistics  bool `json:"statistics"`
+	Reports     bool `json:"reports"`
 	Settings    bool `json:"settings"`
 }
 

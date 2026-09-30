@@ -318,7 +318,7 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 	}
 
 	systemPermissions := make([]string, 0)
-	for _, permission := range []string{models.SystemPermissionAdmin, models.SystemPermissionReferences, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem} {
+	for _, permission := range []string{models.SystemPermissionAdmin, models.SystemPermissionReferences, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem, models.SystemPermissionReports} {
 		if contains(user.SystemPermissions, permission) {
 			systemPermissions = append(systemPermissions, permission)
 		}
@@ -334,6 +334,7 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 			Assignments: user.IsDocumentParticipant || hasActiveSubstitution || hasAnyTaskControl,
 			References:  contains(systemPermissions, models.SystemPermissionReferences),
 			Statistics:  containsAny(systemPermissions, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem),
+			Reports:     contains(systemPermissions, models.SystemPermissionReports),
 			Settings:    contains(systemPermissions, models.SystemPermissionAdmin),
 		},
 		DocumentKinds: documentKinds, SystemPermissions: systemPermissions,
