@@ -30,7 +30,6 @@ func TestServerDiagnosticsAggregatesRuntimeMetrics(t *testing.T) {
 	metrics.AddCounter("outbox.processed", 7)
 	metrics.AddCounter("outbox.retries", 1)
 	metrics.SetGauge("http.in_flight", 3)
-	metrics.SetGauge("attachments.reconciliation.missing", 2)
 
 	diagnostics := &serverDiagnostics{app: &App{db: database.Wrap(sqlDB), metrics: metrics}}
 	result := &models.SystemDiagnostics{}
@@ -45,7 +44,4 @@ func TestServerDiagnosticsAggregatesRuntimeMetrics(t *testing.T) {
 	assert.EqualValues(t, 1, result.Database.OperationsSinceStart)
 	assert.EqualValues(t, 7, result.Outbox.ProcessedSinceStart)
 	assert.EqualValues(t, 1, result.Outbox.RetriesSinceStart)
-	require.NotNil(t, result.Attachments.MissingObjects)
-	assert.Equal(t, 2, *result.Attachments.MissingObjects)
-	assert.Nil(t, result.Attachments.OrphanObjects)
 }

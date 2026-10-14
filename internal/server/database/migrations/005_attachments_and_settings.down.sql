@@ -1,7 +1,0 @@
-DROP TABLE IF EXISTS system_settings;
-
-DROP TABLE IF EXISTS storage_statistics_mutations;
-
-DROP TABLE IF EXISTS storage_statistics;
-
-DROP TABLE IF EXISTS attachments;

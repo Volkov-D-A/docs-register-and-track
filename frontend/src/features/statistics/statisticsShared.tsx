@@ -1,9 +1,9 @@
 import React from 'react';
 import { Card, Empty, Statistic, Table, Typography } from 'antd';
 import {
-  BarChartOutlined, CheckCircleOutlined, ClockCircleOutlined, FileDoneOutlined,
-  FileTextOutlined, InboxOutlined, MessageOutlined, PlayCircleOutlined,
-  RollbackOutlined, SendOutlined, StopOutlined, FileProtectOutlined,
+  BarChartOutlined, CheckCircleOutlined, ClockCircleOutlined,
+  FileTextOutlined, InboxOutlined, MessageOutlined,
+  SendOutlined, StopOutlined, FileProtectOutlined,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -44,20 +44,20 @@ export const DocumentYearCard = ({ year, total, items }: any) => (
   </Card>
 );
 
-const assignmentStatusVisuals: Record<string, { icon: React.ReactNode; color: string }> = {
-  new: { icon: <ClockCircleOutlined />, color: '#1677ff' }, in_progress: { icon: <PlayCircleOutlined />, color: '#faad14' },
-  completed: { icon: <CheckCircleOutlined />, color: '#52c41a' }, finished: { icon: <FileDoneOutlined />, color: '#13c2c2' },
-  returned: { icon: <RollbackOutlined />, color: '#fa541c' }, cancelled: { icon: <StopOutlined />, color: '#8c8c8c' },
+const deadlineStatusVisuals: Record<string, { icon: React.ReactNode; color: string }> = {
+  active: { icon: <ClockCircleOutlined />, color: '#1677ff' },
+  completed: { icon: <CheckCircleOutlined />, color: '#52c41a' },
+  cancelled: { icon: <StopOutlined />, color: '#8c8c8c' },
 };
 
-export const AssignmentStatusCard = ({ items }: any) => {
+export const DeadlineStatusCard = ({ items }: any) => {
   const total = (items || []).reduce((sum: number, item: any) => sum + (item.count || 0), 0);
   return <Card variant="borderless" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
-      <Statistic title="Поручения по статусам" value={total} prefix={<span style={{ color: '#52c41a', marginRight: 8 }}><CheckCircleOutlined /></span>} />
+      <Statistic title="Контроли по статусам" value={total} prefix={<span style={{ color: '#52c41a', marginRight: 8 }}><CheckCircleOutlined /></span>} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         {(items || []).map((item: any) => {
-          const visual = assignmentStatusVisuals[item.key] || { icon: <BarChartOutlined />, color: '#8c8c8c' };
+          const visual = deadlineStatusVisuals[item.key] || { icon: <BarChartOutlined />, color: '#8c8c8c' };
           return <div key={item.key} title={item.name} style={{ width: 68, minHeight: 58, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, border: '1px solid var(--app-border)', borderRadius: 8, background: 'var(--app-bg-container)' }}>
             <span style={{ color: visual.color, fontSize: 18, lineHeight: 1 }}>{visual.icon}</span><Text strong style={{ fontSize: 16, lineHeight: '18px' }}>{item.count}</Text>
           </div>;
@@ -67,11 +67,11 @@ export const AssignmentStatusCard = ({ items }: any) => {
   </Card>;
 };
 
-const assignmentRatingColumns: any[] = [
+const deadlineRatingColumns: any[] = [
   { title: 'Исп.', dataIndex: 'name', key: 'name', ellipsis: true },
   { title: 'Нар.', dataIndex: 'count', key: 'count', width: 44, align: 'right' },
 ];
 
-export const AssignmentRatingTable = ({ items }: any) => <Card title="Рейтинг" variant="borderless" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
-  <Table size="small" rowKey="key" showHeader={false} columns={assignmentRatingColumns} dataSource={items || []} pagination={false} scroll={{ y: 250 }} locale={{ emptyText: 'Нет нарушений сроков за выбранный период.' }} />
+export const DeadlineRatingTable = ({ items }: any) => <Card title="Рейтинг" variant="borderless" style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px var(--app-panel-shadow)' }}>
+  <Table size="small" rowKey="key" showHeader={false} columns={deadlineRatingColumns} dataSource={items || []} pagination={false} scroll={{ y: 250 }} locale={{ emptyText: 'Нет нарушений сроков за выбранный период.' }} />
 </Card>;

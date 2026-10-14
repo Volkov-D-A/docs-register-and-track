@@ -24,7 +24,7 @@ func TestLifecycleProcessesOutboxAfterMigrationIntegration(t *testing.T) {
 
 	outboxRepo := repository.NewOutboxRepository(db)
 	auditRepo := repository.NewAdminAuditLogRepository(db)
-	worker := outbox.NewWorker(outboxRepo, nil, nil, auditRepo, nil, nil)
+	worker := outbox.NewWorker(outboxRepo, nil, nil, auditRepo)
 	lifecycle := NewLifecycle(func() (*dto.MigrationStatus, error) { return db.GetMigrationStatus(database.DefaultMigrationsPath) }, worker, nil)
 	lifecycle.SetApplicationContext(context.Background())
 	lifecycle.ReconcileSchema()

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { App, Button, Checkbox, Collapse, DatePicker, Form, Input, Modal, Row, Col, Select, Space, Switch, Table, Tag, Typography } from 'antd';
+import { App, Button, Checkbox, Collapse, Form, Input, Modal, Row, Col, Select, Space, Switch, Table, Tag, Typography } from 'antd';
 import { EditOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { UserNameFields, type UserNameValues } from '../../components/UserNameFields';
 import { dto, models } from '../../../wailsjs/go/models';
 import { useCurrentAccessSummary } from '../../hooks/useCurrentAccessSummary';
@@ -14,11 +13,8 @@ type UserFormValues = UserNameValues & {
   departmentId: string;
   isActive: boolean;
   isDocumentParticipant: boolean;
-  substituteUserId?: string;
-  substitutionActive?: boolean;
-  substitutionPeriod?: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null;
   systemPermissions?: string[];
-  statisticsPermissions?: string[];
+
   documentAccess?: Record<string, { actions: string[] }>;
 };
 
@@ -61,20 +57,13 @@ const UsersTab: React.FC = () => {
   const buildSystemPermissionsFormValue = (profile?: any) => (
     (profile?.systemPermissions || [])
       .filter((permission: any) => permission?.isAllowed)
-      .filter((permission: any) => !String(permission.permission || '').startsWith('stats_'))
-      .map((permission: any) => permission.permission)
-  );
-
-  const buildStatisticsPermissionsFormValue = (profile?: any) => (
-    (profile?.systemPermissions || [])
-      .filter((permission: any) => permission?.isAllowed)
-      .filter((permission: any) => String(permission.permission || '').startsWith('stats_'))
+      .filter((permission: any) => ['admin','references'].includes(permission.permission))
       .map((permission: any) => permission.permission)
   );
 
   const buildAccessRequest = (userId: string, values: any) => {
     const documentAccess = values.documentAccess || {};
-    const systemPermissions = [...(values.systemPermissions || []), ...(values.statisticsPermissions || [])]
+    const systemPermissions = (values.systemPermissions || [])
       .map((permission: string) => ({ permission, isAllowed: true }));
     const permissions: any[] = [];
 
@@ -95,7 +84,7 @@ const UsersTab: React.FC = () => {
     setEditItem(null);
     setDocumentAccessCollapseKeys([]);
     form.resetFields();
-    form.setFieldsValue({ documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], noPatronymic: false, patronymic: '', isActive: true, isDocumentParticipant: false, substitutionActive: true });
+    form.setFieldsValue({ documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], noPatronymic: false, patronymic: '', isActive: true, isDocumentParticipant: false });
     setModalOpen(true);
   };
 
@@ -103,25 +92,16 @@ const UsersTab: React.FC = () => {
     setEditItem(record);
     setDocumentAccessCollapseKeys([]);
     form.resetFields();
-    form.setFieldsValue({ login: record.login, lastName: record.lastName, firstName: record.firstName, patronymic: record.patronymic, noPatronymic: record.noPatronymic, isActive: record.isActive, departmentId: record.department?.id, documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], statisticsPermissions: [], isDocumentParticipant: record.isDocumentParticipant });
+    form.setFieldsValue({ login: record.login, lastName: record.lastName, firstName: record.firstName, patronymic: record.patronymic, noPatronymic: record.noPatronymic, isActive: record.isActive, departmentId: record.department?.id, documentAccess: buildEmptyDocumentAccess(), systemPermissions: [], isDocumentParticipant: record.isDocumentParticipant });
     setModalOpen(true);
 
     try {
       const { GetUserAccessProfile } = await import('../../../wailsjs/go/services/DocumentAccessAdminService');
-      const { GetUserSubstitution } = await import('../../../wailsjs/go/services/UserSubstitutionService');
-      const [profile, substitution] = await Promise.all([
-        GetUserAccessProfile(record.id),
-        GetUserSubstitution(record.id),
-      ]);
+      const profile = await GetUserAccessProfile(record.id);
       form.setFieldsValue({
         systemPermissions: buildSystemPermissionsFormValue(profile),
-        statisticsPermissions: buildStatisticsPermissionsFormValue(profile),
         documentAccess: buildDocumentAccessFormValue(profile),
-        substituteUserId: substitution?.substituteUserId || undefined,
-        substitutionActive: substitution?.isActive ?? true,
-        substitutionPeriod: substitution?.startsAt || substitution?.endsAt
-          ? [substitution?.startsAt ? dayjs(substitution.startsAt) : null, substitution?.endsAt ? dayjs(substitution.endsAt) : null]
-          : null,
+
       });
     } catch (error: unknown) {
       message.error(formatAppError(error));
@@ -153,7 +133,6 @@ const UsersTab: React.FC = () => {
     setLoading(true);
     try {
       const { UpdateUserAccessProfile } = await import('../../../wailsjs/go/services/DocumentAccessAdminService');
-      const { UpdateUserSubstitution } = await import('../../../wailsjs/go/services/UserSubstitutionService');
       let generatedTemporaryPassword = '';
 
       if (editItem) {
@@ -170,13 +149,6 @@ const UsersTab: React.FC = () => {
           isDocumentParticipant: !!values.isDocumentParticipant,
         });
         await UpdateUserAccessProfile(buildAccessRequest(editItem.id, values));
-        await UpdateUserSubstitution({
-          principalUserId: editItem.id,
-          substituteUserId: values.isDocumentParticipant ? (values.substituteUserId || '') : '',
-          startsAt: values.isDocumentParticipant && values.substitutionPeriod?.[0] ? values.substitutionPeriod[0].format('YYYY-MM-DD') : '',
-          endsAt: values.isDocumentParticipant && values.substitutionPeriod?.[1] ? values.substitutionPeriod[1].format('YYYY-MM-DD') : '',
-          isActive: values.substitutionActive ?? true,
-        });
       } else {
         const { CreateUser } = await import('../../../wailsjs/go/services/UserService');
         const createdUser = await CreateUser({
@@ -190,13 +162,6 @@ const UsersTab: React.FC = () => {
           isDocumentParticipant: !!values.isDocumentParticipant,
         });
         await UpdateUserAccessProfile(buildAccessRequest(createdUser.id, values));
-        await UpdateUserSubstitution({
-          principalUserId: createdUser.id,
-          substituteUserId: values.isDocumentParticipant ? (values.substituteUserId || '') : '',
-          startsAt: values.isDocumentParticipant && values.substitutionPeriod?.[0] ? values.substitutionPeriod[0].format('YYYY-MM-DD') : '',
-          endsAt: values.isDocumentParticipant && values.substitutionPeriod?.[1] ? values.substitutionPeriod[1].format('YYYY-MM-DD') : '',
-          isActive: values.substitutionActive ?? true,
-        });
         generatedTemporaryPassword = createdUser.temporaryPassword || '';
       }
       message.success(editItem ? 'Пользователь обновлён' : 'Пользователь создан');
@@ -260,10 +225,6 @@ const UsersTab: React.FC = () => {
   const systemPermissionLabels: Record<string, string> = {
     admin: 'Администратор',
     references: 'Справочники',
-    stats_documents: 'Статистика: документы',
-    stats_assignments: 'Статистика: поручения',
-    stats_system: 'Статистика: системная',
-    reports: 'Отчёты',
   };
 
   const isBruteforceLocked = (user: any) => !user?.isActive && (user?.failedLoginAttempts || 0) >= 5;
@@ -365,7 +326,6 @@ const UsersTab: React.FC = () => {
                 <Select
                   showSearch
                   optionFilterProp="children"
-                  onChange={() => form.setFieldsValue({ substituteUserId: undefined, substitutionPeriod: null })}
                 >
                   {departments.map((department) => (
                     <Select.Option key={department.id} value={department.id}>{department.name}</Select.Option>
@@ -374,39 +334,6 @@ const UsersTab: React.FC = () => {
               </Form.Item>
               <Form.Item name="isDocumentParticipant" label="Можно назначать исполнителем" valuePropName="checked" style={compactUserFormItemStyle}>
                 <Switch />
-              </Form.Item>
-              <Form.Item shouldUpdate={(prev, next) => prev.isDocumentParticipant !== next.isDocumentParticipant} noStyle>
-                {({ getFieldValue }) => {
-                  const participant = !!getFieldValue('isDocumentParticipant');
-                  const departmentID = getFieldValue('departmentId');
-                  return (
-                    <>
-                      <Form.Item name="substituteUserId" label="Замещающий" style={compactUserFormItemStyle}>
-                        <Select
-                          allowClear
-                          showSearch
-                          disabled={!participant}
-                          optionFilterProp="label"
-                          placeholder="Выберите сотрудника"
-                          options={data
-                            .filter((user) => user.id !== editItem?.id && user.isActive && user.department?.id === departmentID)
-                            .map((user) => ({ value: user.id, label: user.fullName }))}
-                        />
-                      </Form.Item>
-                      <Form.Item name="substitutionPeriod" label="Период замещения" style={compactUserFormItemStyle}>
-                        <DatePicker.RangePicker
-                          style={{ width: '100%' }}
-                          format="DD.MM.YYYY"
-                          allowEmpty={[true, true]}
-                          disabled={!participant}
-                        />
-                      </Form.Item>
-                      <Form.Item name="substitutionActive" label="Замещение активно" valuePropName="checked" style={compactUserFormItemStyle}>
-                        <Switch disabled={!participant} />
-                      </Form.Item>
-                    </>
-                  );
-                }}
               </Form.Item>
               {editItem && (
                 <>
@@ -427,14 +354,6 @@ const UsersTab: React.FC = () => {
                 <Checkbox.Group options={[
                   { label: 'Администратор', value: 'admin' },
                   { label: 'Справочники', value: 'references' },
-                  { label: 'Отчёты', value: 'reports' },
-                ]} />
-              </Form.Item>
-              <Form.Item name="statisticsPermissions" label="Статистика" style={{ marginBottom: 8 }}>
-                <Checkbox.Group options={[
-                  { label: 'Документы', value: 'stats_documents' },
-                  { label: 'Поручения', value: 'stats_assignments' },
-                  { label: 'Системная', value: 'stats_system' },
                 ]} />
               </Form.Item>
               <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 6 }}>Права на документы</Typography.Title>

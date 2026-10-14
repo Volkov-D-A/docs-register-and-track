@@ -5,18 +5,6 @@
   "AdministrativeOrderService": [
     "MarkAcknowledged"
   ],
-  "AttachmentService": [
-    "BulkDeleteOlderThan",
-    "Delete",
-    "DownloadToDisk",
-    "GetAssignmentFiles",
-    "GetList",
-    "OpenFile",
-    "OpenFolder",
-    "ReconcileStorage",
-    "Upload",
-    "UploadForAssignment"
-  ],
   "AuthService": [
     "ChangePassword",
     "ChangeRequiredPassword",
@@ -117,7 +105,6 @@
     "GetBackupSettings",
     "GetMigrationStatus",
     "GetOrganizationShortName",
-    "IsAssignmentCompletionAttachmentsEnabled",
     "ListBackupCopies",
     "ListBackups",
     "RetryBackup",
@@ -129,15 +116,13 @@
     "Update"
   ],
   "StatisticsService": [
-    "GetAssignmentFilterOptions",
-    "GetAssignmentReport",
-    "GetAssignmentStatistics",
+    "GetDeadlineFilterOptions",
+    "GetDeadlineReport",
+    "GetDeadlineStatistics",
     "GetDocumentFilterOptions",
     "GetDocumentReport",
     "GetDocumentStatistics",
-    "GetStorageStatisticsStatus",
-    "GetSystemStatistics",
-    "RetryStorageStatisticsRefresh"
+    "GetSystemStatistics"
   ],
   "SystemService": [
     "GetBootstrapStatus"
@@ -157,15 +142,8 @@
     "CreateUser",
     "GetAllUsers",
     "GetExecutors",
-    "GetSubstitutionCandidates",
     "ResetPassword",
     "UpdateUser"
-  ],
-  "UserSubstitutionService": [
-    "GetMySubstitution",
-    "GetUserSubstitution",
-    "UpdateMySubstitution",
-    "UpdateUserSubstitution"
   ],
   "WorkspaceService": [
     "GetRecentDocuments"

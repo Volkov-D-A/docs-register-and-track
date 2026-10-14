@@ -1,10 +1,7 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,14 +15,13 @@ import (
 )
 
 type fakeStatisticsStore struct {
-	storageMu           sync.Mutex
 	documentTotal       int
 	documentByKind      []models.StatisticsSeriesPoint
 	documentByRegistrar []models.StatisticsSeriesPoint
 	documentReport      []models.StatisticsReportRow
 	nomenclatureOptions []models.StatisticsOption
 	userOptions         []models.StatisticsOption
-	assignmentMonthly   []models.AssignmentMonthlyPoint
+	assignmentMonthly   []models.DeadlineMonthlyPoint
 	assignmentExecutor  []models.StatisticsSeriesPoint
 	assignmentOverdue   []models.StatisticsReportRow
 	assignmentStatuses  []models.StatisticsReportRow
@@ -33,12 +29,6 @@ type fakeStatisticsStore struct {
 	systemUserCount     int
 	systemDocumentCount int
 	dbSize              string
-	storageSnapshot     models.StorageStatisticsSnapshot
-	refreshLeaseGranted bool
-	refreshLeaseActive  bool
-	mutationActive      bool
-	refreshLastError    string
-	storageSnapshotErr  error
 	err                 error
 
 	lastDocumentReportGroupBy string
@@ -80,23 +70,23 @@ func (s *fakeStatisticsStore) GetUserOptions() ([]models.StatisticsOption, error
 	return s.userOptions, s.err
 }
 
-func (s *fakeStatisticsStore) GetAssignmentMonthlyOverview(yearStart, yearEnd time.Time) ([]models.AssignmentMonthlyPoint, error) {
+func (s *fakeStatisticsStore) GetDeadlineMonthlyOverview(yearStart, yearEnd time.Time) ([]models.DeadlineMonthlyPoint, error) {
 	return s.assignmentMonthly, s.err
 }
 
-func (s *fakeStatisticsStore) GetAssignmentMonthlyByExecutor(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error) {
+func (s *fakeStatisticsStore) GetDeadlineMonthlyByExecutor(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error) {
 	return s.assignmentExecutor, s.err
 }
 
-func (s *fakeStatisticsStore) GetAssignmentOverdueRating(yearStart, yearEnd time.Time) ([]models.StatisticsReportRow, error) {
+func (s *fakeStatisticsStore) GetDeadlineOverdueRating(yearStart, yearEnd time.Time) ([]models.StatisticsReportRow, error) {
 	return s.assignmentOverdue, s.err
 }
 
-func (s *fakeStatisticsStore) GetAssignmentStatusCounts() ([]models.StatisticsReportRow, error) {
+func (s *fakeStatisticsStore) GetDeadlineStatusCounts() ([]models.StatisticsReportRow, error) {
 	return s.assignmentStatuses, s.err
 }
 
-func (s *fakeStatisticsStore) GetAssignmentReport(startDate, endDate time.Time, onlyOverdue bool, userID string) ([]models.StatisticsReportRow, error) {
+func (s *fakeStatisticsStore) GetDeadlineReport(startDate, endDate time.Time, onlyOverdue bool, userID string) ([]models.StatisticsReportRow, error) {
 	s.lastAssignmentOnlyOverdue = onlyOverdue
 	s.lastAssignmentUserID = userID
 	return s.assignmentReport, s.err
@@ -114,62 +104,7 @@ func (s *fakeStatisticsStore) GetDBSize() string {
 	return s.dbSize
 }
 
-func (s *fakeStatisticsStore) GetStorageStatisticsRefreshRecord() (models.StorageStatisticsRefreshRecord, error) {
-	s.storageMu.Lock()
-	defer s.storageMu.Unlock()
-	return models.StorageStatisticsRefreshRecord{
-		Snapshot:       s.storageSnapshot,
-		RefreshActive:  s.refreshLeaseActive,
-		MutationActive: s.mutationActive,
-		LastError:      s.refreshLastError,
-	}, s.storageSnapshotErr
-}
-
-func (s *fakeStatisticsStore) TryStartStorageStatisticsRefresh(_ uuid.UUID, _ time.Time) (bool, error) {
-	s.storageMu.Lock()
-	defer s.storageMu.Unlock()
-	if s.err != nil || !s.refreshLeaseGranted || s.refreshLeaseActive || s.mutationActive {
-		return false, s.err
-	}
-	s.refreshLeaseActive = true
-	return true, nil
-}
-
-func (s *fakeStatisticsStore) SaveStorageStatisticsSnapshot(_ uuid.UUID, snapshot models.StorageStatisticsSnapshot) error {
-	s.storageMu.Lock()
-	defer s.storageMu.Unlock()
-	s.storageSnapshot = snapshot
-	s.refreshLeaseActive = false
-	s.refreshLastError = ""
-	return s.err
-}
-
-func (s *fakeStatisticsStore) FailStorageStatisticsRefresh(_ uuid.UUID, message string) error {
-	s.storageMu.Lock()
-	defer s.storageMu.Unlock()
-	s.refreshLeaseActive = false
-	s.refreshLastError = message
-	return s.err
-}
-
-func (s *fakeStatisticsStore) ClearStorageStatisticsRefreshError() error {
-	s.storageMu.Lock()
-	defer s.storageMu.Unlock()
-	s.refreshLastError = ""
-	return s.err
-}
-
-type fakeStatisticsStorage struct {
-	objectCount int
-	totalBytes  int64
-	err         error
-}
-
-func (s *fakeStatisticsStorage) RefreshStorageUsage(ctx context.Context) (int, int64, error) {
-	return s.objectCount, s.totalBytes, s.err
-}
-
-func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsService, *fakeStatisticsStore, *fakeStatisticsStorage, *statisticsPrincipalStub) {
+func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsService, *fakeStatisticsStore, any, *statisticsPrincipalStub) {
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
@@ -178,13 +113,12 @@ func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsSer
 	userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
 	auth.SetAccessStore(newRoleMappedDocumentAccessStore(permissions...))
 	store := &fakeStatisticsStore{dbSize: "42 MB"}
-	storage := &fakeStatisticsStorage{objectCount: 5, totalBytes: 10 * 1024 * 1024}
 
-	return NewStatisticsService(store, auth, storage, StatisticsOptions{}), store, storage, auth
+	return NewStatisticsService(store, auth, StatisticsOptions{}), store, nil, auth
 }
 
 func TestStatisticsService_GetDocumentStatistics(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionStatsDocuments)
+	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
 	store.documentTotal = 7
 	store.documentByKind = []models.StatisticsSeriesPoint{{
 		Month:       1,
@@ -251,7 +185,7 @@ func TestRunStatisticsQueries_LimitsConcurrentQueries(t *testing.T) {
 }
 
 func TestStatisticsService_GetDocumentReport(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionStatsDocuments)
+	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
 	store.documentReport = []models.StatisticsReportRow{
 		{Key: string(models.DocumentKindIncomingLetter), Count: 2},
 		{Key: string(models.DocumentKindOutgoingLetter), Count: 3},
@@ -286,7 +220,7 @@ func TestStatisticsService_GetDocumentReport(t *testing.T) {
 }
 
 func TestStatisticsService_GetDocumentFilterOptions(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionStatsDocuments)
+	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
 	store.nomenclatureOptions = []models.StatisticsOption{{Value: "nom-1", Label: "01-01"}}
 	store.userOptions = []models.StatisticsOption{{Value: "user-1", Label: "Пользователь"}}
 
@@ -299,9 +233,9 @@ func TestStatisticsService_GetDocumentFilterOptions(t *testing.T) {
 	assert.Equal(t, store.userOptions, filters.Users)
 }
 
-func TestStatisticsService_GetAssignmentStatistics(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionStatsAssignments)
-	store.assignmentMonthly = []models.AssignmentMonthlyPoint{{Month: 3, Total: 4, Overdue: 1}}
+func TestStatisticsService_GetDeadlineStatistics(t *testing.T) {
+	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
+	store.assignmentMonthly = []models.DeadlineMonthlyPoint{{Month: 3, Total: 4, Overdue: 1}}
 	store.assignmentExecutor = []models.StatisticsSeriesPoint{{
 		Month:        4,
 		CategoryKey:  "user-1",
@@ -311,24 +245,24 @@ func TestStatisticsService_GetAssignmentStatistics(t *testing.T) {
 	store.assignmentOverdue = []models.StatisticsReportRow{{Key: "user-1", Name: "Исполнитель", Count: 1}}
 	store.assignmentStatuses = []models.StatisticsReportRow{{Key: "completed", Count: 5}}
 
-	stats, err := svc.GetAssignmentStatistics()
+	stats, err := svc.GetDeadlineStatistics()
 
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	assert.Equal(t, "Мар", stats.MonthlyTotals[0].Period)
 	assert.Len(t, stats.MonthlyByExecutor, 12)
 	assert.Equal(t, "Апр", stats.MonthlyByExecutor[3].Period)
-	assert.Equal(t, "Исполнено", stats.StatusCounts[0].Name)
+	assert.Equal(t, "Исполнен", stats.StatusCounts[0].Name)
 	assert.Equal(t, store.assignmentOverdue, stats.OverdueRating)
 }
 
-func TestStatisticsService_GetAssignmentReportAndFilters(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionStatsAssignments)
+func TestStatisticsService_GetDeadlineReportAndFilters(t *testing.T) {
+	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
 	userID := uuid.New().String()
 	store.assignmentReport = []models.StatisticsReportRow{{Key: userID, Name: "Исполнитель", Count: 6}}
 	store.userOptions = []models.StatisticsOption{{Value: userID, Label: "Исполнитель"}}
 
-	report, err := svc.GetAssignmentReport("2026-01-01", "2026-01-31", true, userID)
+	report, err := svc.GetDeadlineReport("2026-01-01", "2026-01-31", true, userID)
 	require.NoError(t, err)
 	require.NotNil(t, report)
 	assert.Equal(t, 6, report.Total)
@@ -342,49 +276,37 @@ func TestStatisticsService_GetAssignmentReportAndFilters(t *testing.T) {
 	assert.Contains(t, payload, "total")
 	assert.Contains(t, payload, "rows")
 
-	filters, err := svc.GetAssignmentFilterOptions()
+	filters, err := svc.GetDeadlineFilterOptions()
 	require.NoError(t, err)
 	require.NotNil(t, filters)
 	assert.Equal(t, store.userOptions, filters.Users)
 
-	report, err = svc.GetAssignmentReport("2026-01-01", "2026-01-31", false, "bad-id")
+	report, err = svc.GetDeadlineReport("2026-01-01", "2026-01-31", false, "bad-id")
 	require.Error(t, err)
 	assert.Nil(t, report)
 }
 
 func TestStatisticsService_GetSystemStatistics(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
+	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionAdmin)
 	store.systemUserCount = 4
 	store.systemDocumentCount = 11
 	store.dbSize = "128 MB"
-	store.storageSnapshot = models.StorageStatisticsSnapshot{ObjectCount: 9, TotalBytes: 256 * 1024 * 1024, RefreshedAt: time.Now()}
-
 	stats, err := svc.GetSystemStatistics()
-
 	require.NoError(t, err)
-	require.NotNil(t, stats)
-	assert.Equal(t, 4, stats.UserCount)
-	assert.Equal(t, 11, stats.TotalDocuments)
-	assert.Equal(t, "128 MB", stats.DBSize)
-	assert.Equal(t, 9, stats.StorageObjects)
-	assert.Equal(t, "256.0 MB", stats.StorageSize)
+	require.Equal(t, 4, stats.UserCount)
+	require.Equal(t, 11, stats.TotalDocuments)
+	require.Equal(t, "128 MB", stats.DBSize)
 	body, err := json.Marshal(stats)
 	require.NoError(t, err)
-	var payload map[string]json.RawMessage
+	var payload map[string]any
 	require.NoError(t, json.Unmarshal(body, &payload))
-	assert.NotContains(t, payload, "dbSizeBytes")
-	assert.NotContains(t, payload, "storageBytes")
-	assert.NotContains(t, payload, "storageRefreshInProgress")
-
-	store.storageSnapshotErr = errors.New("storage failed")
-	stats, err = svc.GetSystemStatistics()
-	require.NoError(t, err)
-	assert.Equal(t, "Нет данных", stats.StorageSize)
-	assert.Zero(t, stats.StorageObjects)
+	for _, key := range []string{"storageObjects", "storageSize", "storageRefreshedAt", "attachments"} {
+		require.NotContains(t, payload, key)
+	}
 }
 
 func TestStatisticsServiceIncludesServerDiagnostics(t *testing.T) {
-	svc, _, _, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
+	svc, _, _, _ := setupStatisticsService(t, models.SystemPermissionAdmin)
 	svc.diagnostics = fakeSystemDiagnostics{value: &models.SystemDiagnostics{
 		Service:  models.SystemServiceStatistics{Version: "1.0.6", State: "ready"},
 		Usage:    models.SystemUsageStatistics{ActiveUsers15m: 3, ActiveSessions: 4},
@@ -412,119 +334,6 @@ func TestStatisticsServiceIncludesServerDiagnostics(t *testing.T) {
 	assert.NotContains(t, payload.Service, "schemaCompatible")
 	assert.NotContains(t, payload.Service, "schemaDirty")
 	assert.NotContains(t, payload.Database, "sizeBytes")
-}
-
-func TestStatisticsServiceUsesLocalizedFallbackWithoutStorage(t *testing.T) {
-	svc, _, _, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
-	svc.storage = nil
-
-	stats, err := svc.GetSystemStatistics()
-	require.NoError(t, err)
-	assert.Equal(t, "Нет данных", stats.StorageSize)
-
-	status, err := svc.GetStorageStatisticsStatus()
-	require.NoError(t, err)
-	assert.Equal(t, "Нет данных", status.StorageSize)
-	assert.Equal(t, models.StorageStatisticsRefreshIdle, status.State)
-
-	status, err = svc.RetryStorageStatisticsRefresh()
-	require.NoError(t, err)
-	assert.Equal(t, "Нет данных", status.StorageSize)
-	assert.Equal(t, models.StorageStatisticsRefreshIdle, status.State)
-}
-
-func TestStatisticsService_GetSystemStatisticsStartsStaleStorageRefreshInBackground(t *testing.T) {
-	svc, store, storage, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
-	store.storageSnapshot = models.StorageStatisticsSnapshot{
-		ObjectCount: 3,
-		TotalBytes:  3 * 1024 * 1024,
-		RefreshedAt: time.Now().Add(-storageStatisticsRefreshInterval - time.Second),
-	}
-	store.refreshLeaseGranted = true
-	storage.objectCount = 8
-	storage.totalBytes = 8 * 1024 * 1024
-
-	stats, err := svc.GetSystemStatistics()
-
-	require.NoError(t, err)
-	assert.Equal(t, 3, stats.StorageObjects)
-	assert.Equal(t, "3.0 MB", stats.StorageSize)
-	require.Eventually(t, func() bool {
-		record, _ := store.GetStorageStatisticsRefreshRecord()
-		return record.Snapshot.ObjectCount == 8 && record.Snapshot.TotalBytes == 8*1024*1024 && !record.RefreshActive
-	}, time.Second, 10*time.Millisecond)
-}
-
-func TestStatisticsServiceStorageStatusWaitsForMutationThenPublishesRefresh(t *testing.T) {
-	svc, store, storage, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
-	store.storageSnapshot = models.StorageStatisticsSnapshot{ObjectCount: 2, TotalBytes: 2048}
-	store.mutationActive = true
-	store.refreshLeaseGranted = true
-	storage.objectCount = 7
-	storage.totalBytes = 7 * 1024
-
-	status, err := svc.GetStorageStatisticsStatus()
-	require.NoError(t, err)
-	assert.Equal(t, models.StorageStatisticsRefreshPending, status.State)
-	assert.Equal(t, 2, status.StorageObjects)
-
-	store.mutationActive = false
-	status, err = svc.GetStorageStatisticsStatus()
-	require.NoError(t, err)
-	assert.Equal(t, models.StorageStatisticsRefreshRunning, status.State)
-	require.Eventually(t, func() bool {
-		record, _ := store.GetStorageStatisticsRefreshRecord()
-		return record.Snapshot.ObjectCount == 7 && !record.RefreshActive
-	}, time.Second, 10*time.Millisecond)
-
-	status, err = svc.GetStorageStatisticsStatus()
-	require.NoError(t, err)
-	assert.Equal(t, models.StorageStatisticsRefreshIdle, status.State)
-	assert.Equal(t, 7, status.StorageObjects)
-	assert.Equal(t, "7.0 KB", status.StorageSize)
-	require.NotNil(t, status.RefreshedAt)
-}
-
-func TestStatisticsServiceStorageStatusDoesNotRunUnrelatedSystemQueries(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
-	store.storageSnapshot = models.StorageStatisticsSnapshot{ObjectCount: 4, TotalBytes: 4096, RefreshedAt: time.Now()}
-	store.err = errors.New("system count queries must not run")
-
-	status, err := svc.GetStorageStatisticsStatus()
-	require.NoError(t, err)
-	assert.Equal(t, models.StorageStatisticsRefreshIdle, status.State)
-	assert.Equal(t, 4, status.StorageObjects)
-}
-
-func TestStatisticsServiceStorageStatusExposesFailureAndRetriesExplicitly(t *testing.T) {
-	svc, store, storage, _ := setupStatisticsService(t, models.SystemPermissionStatsSystem)
-	store.refreshLeaseGranted = true
-	storage.err = errors.New("object storage unavailable")
-
-	status, err := svc.GetStorageStatisticsStatus()
-	require.NoError(t, err)
-	assert.Equal(t, models.StorageStatisticsRefreshRunning, status.State)
-	require.Eventually(t, func() bool {
-		record, _ := store.GetStorageStatisticsRefreshRecord()
-		return record.LastError != ""
-	}, time.Second, 10*time.Millisecond)
-
-	status, err = svc.GetStorageStatisticsStatus()
-	require.NoError(t, err)
-	assert.Equal(t, models.StorageStatisticsRefreshFailed, status.State)
-	assert.Equal(t, storageStatisticsRefreshError, status.LastError)
-	payload, err := json.Marshal(status)
-	require.NoError(t, err)
-	assert.NotContains(t, string(payload), "failedAt")
-
-	storage.err = nil
-	status, err = svc.RetryStorageStatisticsRefresh()
-	require.NoError(t, err)
-	assert.Equal(t, models.StorageStatisticsRefreshRunning, status.State)
-	require.Eventually(t, func() bool {
-		record, _ := store.GetStorageStatisticsRefreshRecord()
-		return record.LastError == "" && !record.Snapshot.RefreshedAt.IsZero()
-	}, time.Second, 10*time.Millisecond)
 }
 
 func TestParseStatisticsDateRange(t *testing.T) {
@@ -572,13 +381,17 @@ func TestParseStatisticsDateRange(t *testing.T) {
 	})
 }
 
-func TestStatisticsService_RejectsMissingPermission(t *testing.T) {
-	svc, _, _, _ := setupStatisticsService(t)
-
-	stats, err := svc.GetDocumentStatistics()
-
-	require.Error(t, err)
-	assert.Nil(t, stats)
+func TestStatisticsServiceBusinessDataRequiresLoginAndDiagnosticsRequireAdmin(t *testing.T) {
+	svc, _, _, auth := setupStatisticsService(t)
+	_, err := svc.GetDocumentStatistics()
+	require.NoError(t, err)
+	_, err = svc.GetDeadlineStatistics()
+	require.NoError(t, err)
+	_, err = svc.GetSystemStatistics()
+	requireAppError(t, err, "FORBIDDEN", 403, "Недостаточно прав для просмотра статистики")
+	auth.currentUserID = uuid.Nil
+	_, err = svc.GetDocumentStatistics()
+	require.ErrorIs(t, err, models.ErrUnauthorized)
 }
 
 // statisticsPrincipalStub uses the same permission source as the server fixtures.
@@ -588,29 +401,6 @@ func (p *statisticsPrincipalStub) HasSystemPermission(permission string) bool {
 	return p.RequireSystemPermission(permission) == nil
 }
 
-func TestStatisticsRefreshUsesConstructorRunnerBeforeScanning(t *testing.T) {
-	_, store, storage, auth := setupStatisticsService(t, models.SystemPermissionStatsSystem)
-	store.refreshLeaseGranted = true
-	var pending []func()
-	service := NewStatisticsService(store, auth, storage, StatisticsOptions{
-		RefreshRunner: func(work func()) { pending = append(pending, work) },
-	})
-	status, err := service.GetStorageStatisticsStatus()
-	require.NoError(t, err)
-	require.Equal(t, models.StorageStatisticsRefreshRunning, status.State)
-	require.Len(t, pending, 1)
-	record, err := store.GetStorageStatisticsRefreshRecord()
-	require.NoError(t, err)
-	require.True(t, record.RefreshActive)
-	require.True(t, record.Snapshot.RefreshedAt.IsZero())
-	// Polling while queued must not launch another scan or bypass the runner.
-	_, err = service.GetStorageStatisticsStatus()
-	require.NoError(t, err)
-	require.Len(t, pending, 1)
-	pending[0]()
-	record, err = store.GetStorageStatisticsRefreshRecord()
-	require.NoError(t, err)
-	require.False(t, record.RefreshActive)
-	require.Equal(t, storage.objectCount, record.Snapshot.ObjectCount)
-	require.Equal(t, storage.totalBytes, record.Snapshot.TotalBytes)
+func (s *fakeStatisticsStore) GetExecutorOptions() ([]models.StatisticsOption, error) {
+	return s.userOptions, s.err
 }

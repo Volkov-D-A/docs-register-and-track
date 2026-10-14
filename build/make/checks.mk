@@ -25,8 +25,8 @@ go-test:
 	$(MAKE) release-assets
 	GOCACHE=$(GOCACHE) go test $(GO_PACKAGES)
 
-# Запускает изолированные PostgreSQL и SeaweedFS, затем отдельный стек
-# PostgreSQL/S3/Samba для резервирования. Оба стека удаляются после проверки.
+# Запускает изолированные PostgreSQL, затем отдельный стек
+# PostgreSQL/Samba для резервирования. Оба стека удаляются после проверки.
 _check-integration-env:
 	@command -v docker >/dev/null 2>&1 || (echo "docker is required for PostgreSQL integration tests" >&2; exit 1)
 	@docker compose version >/dev/null 2>&1 || (echo "docker compose is required for PostgreSQL integration tests" >&2; exit 1)
@@ -34,12 +34,13 @@ _check-integration-env:
 	@test -n "$(POSTGRES_VERSION)" || (echo "POSTGRES_VERSION is required for PostgreSQL integration tests" >&2; exit 1)
 
 integration-test: _check-integration-env
+	@command -v pg_dump >/dev/null 2>&1 && command -v pg_restore >/dev/null 2>&1 || (echo "pg_dump and pg_restore compatible with POSTGRES_VERSION are required" >&2; exit 1)
 	@set -eu; \
 		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \
 		$(INTEGRATION_COMPOSE) up -d --build --wait; \
 		mkdir -p build/release-evidence; \
-		DOCFLOW_INTEGRATION_S3_ENDPOINT=127.0.0.1:58333 DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1 -coverprofile=build/release-evidence/integration-go-coverage.out; \
+		DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1 -coverprofile=build/release-evidence/integration-go-coverage.out; \
 		GOCACHE=$(GOCACHE) bash testing/scripts/backup-integration.sh; \
 		python3 tools/merge-go-coverage.py build/release-evidence/integration-combined-coverage.out build/release-evidence/integration-go-coverage.out build/release-evidence/backup-integration/server-coverage.out
 

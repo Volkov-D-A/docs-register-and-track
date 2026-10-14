@@ -13,11 +13,11 @@ type WorkspaceEventTimelineProps = {
 
 const eventAppearance = (event: dto.UserEvent): { tone: string; icon: React.ReactNode } => {
     switch (event.eventType) {
-        case 'assignment_created': return { tone: 'red', icon: <UserOutlined /> };
-        case 'assignment_finished':
-        case 'assignment_acknowledged': return { tone: 'green', icon: <CheckCircleFilled /> };
-        case 'assignment_returned': return { tone: 'red', icon: <WarningOutlined /> };
-        default: return event.entityType === 'assignment'
+        case 'deadline_control_create': return { tone: 'red', icon: <UserOutlined /> };
+        case 'deadline_control_complete': return { tone: 'green', icon: <CheckCircleFilled /> };
+        case 'deadline_control_cancel':
+        case 'deadline_series_stopped': return { tone: 'red', icon: <WarningOutlined /> };
+        default: return event.entityType === 'deadline_control' || event.entityType === 'deadline_series'
             ? { tone: 'slate', icon: <MessageOutlined /> }
             : { tone: 'blue', icon: <FileTextOutlined /> };
     }

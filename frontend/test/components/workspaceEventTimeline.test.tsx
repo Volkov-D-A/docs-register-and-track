@@ -9,14 +9,14 @@ const currentTime = new Date('2026-09-28T15:00:00');
 
 test('event timeline shows document details, relative time and semantic icons and opens documents', () => {
     const events = [
-        { id: 'assigned', eventType: 'assignment_created', entityType: 'assignment', createdAt: '2026-09-28T12:47:00',
-            title: 'Новое поручение', message: 'Петров П.П. назначил вам поручение', documentKind: 'incoming_letter', documentNumber: '238', documentDate: '2026-09-24T00:00:00' },
-        { id: 'accepted', eventType: 'assignment_finished', entityType: 'assignment', createdAt: '2026-09-28T09:41:00',
-            title: 'Ваше исполнение принято', message: '', documentKind: 'citizen_appeal', documentNumber: '531', documentDate: '2026-09-21T00:00:00' },
-        { id: 'ack', eventType: 'assignment_created', entityType: 'assignment', createdAt: '2026-09-27T17:30:00',
-            title: 'Требуется ознакомление', message: '', documentKind: 'administrative_order', documentNumber: '47', readAt: '2026-09-28T08:00:00' },
-        { id: 'updated', eventType: 'assignment_updated', entityType: 'assignment', createdAt: '2026-09-26T18:00:00',
-            title: 'Поручение изменено', message: '', documentKind: 'outgoing_letter', documentNumber: '' },
+        { id: 'assigned', eventType: 'deadline_control_create', entityType: 'deadline_control', createdAt: '2026-09-28T12:47:00',
+            title: 'Контроль срока', message: 'Петров П.П. назначил вас исполнителем', documentKind: 'incoming_letter', documentNumber: '238', documentDate: '2026-09-24T00:00:00' },
+        { id: 'accepted', eventType: 'deadline_control_complete', entityType: 'deadline_control', createdAt: '2026-09-28T09:41:00',
+            title: 'Контроль окончательно исполнен', message: '', documentKind: 'citizen_appeal', documentNumber: '531', documentDate: '2026-09-21T00:00:00' },
+        { id: 'stopped', eventType: 'deadline_series_stopped', entityType: 'deadline_series', createdAt: '2026-09-27T17:30:00',
+            title: 'Регулярный контроль остановлен', message: '', documentKind: 'administrative_order', documentNumber: '47', readAt: '2026-09-28T08:00:00' },
+        { id: 'updated', eventType: 'deadline_control_update', entityType: 'deadline_control', createdAt: '2026-09-26T18:00:00',
+            title: 'Контроль изменён', message: '', documentKind: 'outgoing_letter', documentNumber: '' },
     ].map((event) => dto.UserEvent.createFrom({ ...event, documentId: `doc-${event.id}` }));
     const openDocument = vi.fn();
     renderWithApp(<WorkspaceEventTimeline events={events} currentTime={currentTime} onOpenDocument={openDocument} />);

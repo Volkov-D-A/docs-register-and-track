@@ -206,33 +206,6 @@ func TestSettingsService_GetOrganizationShortName(t *testing.T) {
 	})
 }
 
-func TestSettingsService_IsAssignmentCompletionAttachmentsEnabled(t *testing.T) {
-	t.Run("from settings enabled", func(t *testing.T) {
-		svc, client := setupSettingsService(t, "admin")
-		client.setting = &models.SystemSetting{
-			Key:   "assignment_completion_attachments_enabled",
-			Value: "true",
-		}
-		assert.True(t, svc.IsAssignmentCompletionAttachmentsEnabled())
-		assert.Equal(t, "assignment_completion_attachments_enabled", client.getKey)
-	})
-
-	t.Run("from settings disabled", func(t *testing.T) {
-		svc, client := setupSettingsService(t, "admin")
-		client.setting = &models.SystemSetting{
-			Key:   "assignment_completion_attachments_enabled",
-			Value: "false",
-		}
-		assert.False(t, svc.IsAssignmentCompletionAttachmentsEnabled())
-	})
-
-	t.Run("default on error", func(t *testing.T) {
-		svc, client := setupSettingsService(t, "admin")
-		client.getErr = assert.AnError
-		assert.False(t, svc.IsAssignmentCompletionAttachmentsEnabled())
-	})
-}
-
 func TestSettingsService_RunMigrations(t *testing.T) {
 	t.Run("forbidden non-admin", func(t *testing.T) {
 		svc, _ := setupSettingsService(t, "executor")
@@ -325,5 +298,4 @@ func TestSettingsServiceMissingClients(t *testing.T) {
 		Confirmation: rollbackMigrationConfirmationPhrase, Password: "password",
 	}), "не настроен")
 	assert.Empty(t, svc.GetOrganizationShortName())
-	assert.False(t, svc.IsAssignmentCompletionAttachmentsEnabled())
 }

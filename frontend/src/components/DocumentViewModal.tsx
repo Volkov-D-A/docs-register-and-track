@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { App, Button, Modal, Spin, Tabs } from 'antd';
 import DeadlineControls from '../features/deadlines/DeadlineControls';
-import FileListComponent from './FileListComponent';
 
 import { LinksTab } from './DocumentLinks/LinksTab';
 import JournalList from './JournalList';
@@ -106,7 +105,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
     const canManageLinks = accessReady && kinds.some((kind) => hasAction(kind.code, 'register'));
     const canUpdateDocument = accessReady && hasAction(resolvedKindCode, 'register');
     const canViewJournal = accessReady && !!data;
-    const canViewFiles = !!data;
     const creatableKinds = accessReady ? kinds.filter((kind) => hasAction(kind.code, 'register')) : [];
 
     const getNumber = () => data?.registrationNumber || '';
@@ -173,7 +171,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                 children: infoContent(),
             },
             {
-                key: 'assignments',
+                key: 'controls',
                 label: 'Контроль сроков',
                 children: (
                     <DeadlineControls
@@ -182,11 +180,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                     />
                 ),
             },
-            {
-                key: 'files',
-                label: 'Файлы',
-                children: <FileListComponent documentId={data.id} documentKind={resolvedKindCode} readOnly={false} />,
-            },
+
             {
                 key: 'links',
                 label: 'Связи',
@@ -201,14 +195,12 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
 
         const allowedKeys = new Set(viewConfig.tabs.filter((key) => {
             switch (key) {
-                case 'assignments':
+                case 'controls':
                     return true;
                 case 'links':
                     return true;
                 case 'journal':
                     return canViewJournal;
-                case 'files':
-                    return canViewFiles;
                 default:
                     return true;
             }

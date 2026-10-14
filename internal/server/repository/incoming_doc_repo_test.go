@@ -462,9 +462,7 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 	t.Run("success with broad filters and pagination limits", func(t *testing.T) {
 		filter := models.DocumentFilter{
 			AccessScope: &models.DocumentAccessScope{
-				Restricted:             true,
-				AccessibleByUserID:     uuid.New().String(),
-				AllowedNomenclatureIDs: []string{uuid.New().String()},
+				UserID: uuid.New().String(),
 			},
 			NomenclatureIDs:  []string{uuid.New().String(), uuid.New().String()},
 			DocumentTypeID:   string(models.DocumentTypeContract),

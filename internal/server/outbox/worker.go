@@ -12,15 +12,10 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
-	"github.com/google/uuid"
 )
 
 type userEventPayload struct {
 	Request models.CreateUserEventRequest `json:"request"`
-}
-
-type FileDeleter interface {
-	DeleteFile(ctx context.Context, objectName string) error
 }
 
 type Worker struct {
@@ -34,8 +29,6 @@ type Worker struct {
 	events            *repository.UserEventRepository
 	journal           *repository.JournalRepository
 	audit             *repository.AdminAuditLogRepository
-	attachments       *repository.AttachmentRepository
-	storage           FileDeleter
 	lastRequiredAudit models.RequiredAuditStats
 	metrics           *observability.Registry
 	now               func() time.Time
@@ -115,15 +108,15 @@ func (o Options) Validate() error {
 	return nil
 }
 
-func NewWorker(outbox *repository.OutboxRepository, events *repository.UserEventRepository, journal *repository.JournalRepository, audit *repository.AdminAuditLogRepository, attachments *repository.AttachmentRepository, storage FileDeleter) *Worker {
-	worker, err := NewWorkerWithOptions(outbox, events, journal, audit, attachments, storage, DefaultOptions())
+func NewWorker(outbox *repository.OutboxRepository, events *repository.UserEventRepository, journal *repository.JournalRepository, audit *repository.AdminAuditLogRepository) *Worker {
+	worker, err := NewWorkerWithOptions(outbox, events, journal, audit, DefaultOptions())
 	if err != nil {
 		panic(err)
 	}
 	return worker
 }
 
-func NewWorkerWithOptions(outbox *repository.OutboxRepository, events *repository.UserEventRepository, journal *repository.JournalRepository, audit *repository.AdminAuditLogRepository, attachments *repository.AttachmentRepository, storage FileDeleter, options Options) (*Worker, error) {
+func NewWorkerWithOptions(outbox *repository.OutboxRepository, events *repository.UserEventRepository, journal *repository.JournalRepository, audit *repository.AdminAuditLogRepository, options Options) (*Worker, error) {
 	options = options.WithDefaults()
 	if err := options.Validate(); err != nil {
 		return nil, err
@@ -131,7 +124,7 @@ func NewWorkerWithOptions(outbox *repository.OutboxRepository, events *repositor
 	if outbox == nil {
 		return nil, fmt.Errorf("outbox repository is required")
 	}
-	return &Worker{outbox: outbox, events: events, journal: journal, audit: audit, attachments: attachments, storage: storage, now: time.Now, options: options}, nil
+	return &Worker{outbox: outbox, events: events, journal: journal, audit: audit, now: time.Now, options: options}, nil
 }
 
 func (w *Worker) SetMetrics(metrics *observability.Registry) { w.metrics = metrics }
@@ -305,30 +298,6 @@ func (w *Worker) process(parent context.Context, event models.OutboxEvent) error
 			w.OnAccessChanged(payload)
 		}
 		return err
-	case models.OutboxEventFileDelete:
-		if w.storage == nil || w.attachments == nil {
-			return fmt.Errorf("attachment deletion consumer is not configured")
-		}
-		var payload models.AttachmentDeletePayload
-		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
-			return fmt.Errorf("invalid attachment_delete payload: %w", err)
-		}
-		if payload.AttachmentID == uuid.Nil || payload.StoragePath == "" {
-			return fmt.Errorf("invalid attachment_delete payload")
-		}
-		mutation, err := w.attachments.BeginStorageMutation(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to coordinate attachment deletion: %w", err)
-		}
-		if err := w.storage.DeleteFile(mutation.Context(), payload.StoragePath); err != nil {
-			_ = mutation.Finish()
-			return err
-		}
-		if err := w.attachments.DeleteMarkedAndDecrementStorageStatistics(payload.AttachmentID); err != nil {
-			_ = mutation.Finish()
-			return err
-		}
-		return mutation.Finish()
 	default:
 		return fmt.Errorf("unsupported outbox event type %q", event.EventType)
 	}
@@ -341,11 +310,6 @@ func journalChange(request models.CreateJournalEntryRequest) liveevents.Change {
 	case strings.HasPrefix(request.Action, "DEADLINE_"):
 		resource = "controls"
 		visibility = request.Action == "DEADLINE_CONTROL_CREATE" || request.Action == "DEADLINE_CONTROL_UPDATE" || request.Action == "DEADLINE_CONTROL_CANCEL"
-	case strings.HasPrefix(request.Action, "ASSIGNMENT_"):
-		resource = "assignments"
-		visibility = request.Action == "ASSIGNMENT_CREATE" || request.Action == "ASSIGNMENT_DELETE" || request.Action == "ASSIGNMENT_UPDATE" || request.Action == "ASSIGNMENT_SERIES_CREATE" || request.Action == "ASSIGNMENT_SERIES_ITERATION_CREATE"
-	case strings.HasPrefix(request.Action, "FILE_"):
-		resource = "files"
 	case strings.HasPrefix(request.Action, "LINK_"):
 		resource = "links"
 		visibility = true

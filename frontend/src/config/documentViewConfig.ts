@@ -7,8 +7,7 @@ import {
 
 export type DocumentViewTabKey =
     | 'info'
-    | 'assignments'
-    | 'files'
+    | 'controls'
     | 'links'
     | 'journal';
 
@@ -18,7 +17,7 @@ export type DocumentViewConfig = {
 };
 
 const defaultViewConfig: DocumentViewConfig = {
-    tabs: ['info', 'assignments', 'files', 'links', 'journal'],
+    tabs: ['info', 'controls', 'links', 'journal'],
     createRelatedLabel: 'Создать связанный документ',
 };
 

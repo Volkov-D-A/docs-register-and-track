@@ -239,8 +239,8 @@ func TestDB_MigratorCloseKeepsSharedDatabaseOpen(t *testing.T) {
 func TestEmbeddedMigrationsAvailable(t *testing.T) {
 	catalog, err := inspectMigrationCatalog(DefaultMigrationsPath)
 	require.NoError(t, err)
-	assert.Equal(t, 13, catalog.AvailableCount)
-	assert.Equal(t, uint(13), catalog.LatestAvailableVersion)
+	assert.Equal(t, 1, catalog.AvailableCount)
+	assert.Equal(t, uint(1), catalog.LatestAvailableVersion)
 }
 
 func TestInspectMigrationCatalog(t *testing.T) {
@@ -308,7 +308,7 @@ func TestInspectMigrationCatalog(t *testing.T) {
 }
 
 func TestActiveAdministratorInvariantMigration(t *testing.T) {
-	migration, err := embeddedMigrations.ReadFile("migrations/001_core_users.up.sql")
+	migration, err := embeddedMigrations.ReadFile("migrations/001_docflow.up.sql")
 	require.NoError(t, err)
 	sql := string(migration)
 

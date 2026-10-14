@@ -23,14 +23,13 @@ func (s *summaryAccessStore) GetAllowedActions(_, _ string) (map[string]map[stri
 	if s.clerk {
 		for _, spec := range models.AllDocumentKindSpecs() {
 			allowed[string(spec.Code)] = map[string]bool{
-				string(models.DocumentActionRead):   true,
-				string(models.DocumentActionCreate): true,
-				string(models.DocumentActionAssign): true,
+				string(models.DocumentActionRegister):         true,
+				string(models.DocumentActionControlDeadlines): true,
 			}
 		}
 	}
 	if s.assignmentOnly {
-		allowed[string(models.DocumentKindIncomingLetter)] = map[string]bool{string(models.DocumentActionRead): true, string(models.DocumentActionAssign): true}
+		allowed[string(models.DocumentKindIncomingLetter)] = map[string]bool{string(models.DocumentActionControlDeadlines): true}
 	}
 	return allowed, nil
 }
@@ -50,7 +49,6 @@ func TestCurrentAccessSummaryProductionScenarios(t *testing.T) {
 			api, _, token := authenticatedUserAPI(t, permissions)
 			api.authUsers.(*fakeAuthUsers).user.IsDocumentParticipant = tc.participant
 			api.userAccess = &summaryAccessStore{clerk: tc.clerk, admin: tc.admin}
-			api.substitutions = &fakeUserSubstitutionManagementStore{}
 			request := httptest.NewRequest(http.MethodGet, "/api/v1/access/current", nil)
 			request.Header.Set("Authorization", "Bearer "+token)
 			response := httptest.NewRecorder()
@@ -58,9 +56,9 @@ func TestCurrentAccessSummaryProductionScenarios(t *testing.T) {
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			var summary dto.CurrentAccessSummary
 			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &summary))
-			documentAccess := tc.clerk || tc.participant
+			documentAccess := true
 			assert.Equal(t, documentAccess, summary.Sections.Dashboard)
-			assert.Equal(t, documentAccess, summary.Sections.Assignments)
+			assert.Equal(t, documentAccess, summary.Sections.Controls)
 			assert.Equal(t, documentAccess, summary.Sections.Incoming)
 			assert.Equal(t, documentAccess, summary.Sections.Outgoing)
 			assert.Equal(t, documentAccess, summary.Sections.Appeals)
@@ -68,8 +66,8 @@ func TestCurrentAccessSummaryProductionScenarios(t *testing.T) {
 			assert.Equal(t, tc.admin, summary.Sections.Settings)
 			require.Len(t, summary.DocumentKinds, 4)
 			for _, kind := range summary.DocumentKinds {
-				assert.Equal(t, tc.clerk, contains(kind.AvailableActions, string(models.DocumentActionRead)))
-				assert.Equal(t, tc.clerk, contains(kind.AvailableActions, string(models.DocumentActionCreate)))
+				assert.Equal(t, tc.clerk, contains(kind.AvailableActions, string(models.DocumentActionControlDeadlines)))
+				assert.Equal(t, tc.clerk, contains(kind.AvailableActions, string(models.DocumentActionRegister)))
 			}
 			assert.ElementsMatch(t, permissions, summary.SystemPermissions)
 		})
@@ -100,11 +98,10 @@ func TestCurrentAccessSummaryMaintenanceUsesHTTPGate(t *testing.T) {
 	}
 }
 
-func TestCurrentAccessSummaryExposesAssignmentsToAssignmentController(t *testing.T) {
+func TestCurrentAccessSummaryExposesControlsToController(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, nil)
 	api.authUsers.(*fakeAuthUsers).user.IsDocumentParticipant = false
 	api.userAccess = &summaryAccessStore{assignmentOnly: true}
-	api.substitutions = &fakeUserSubstitutionManagementStore{}
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/access/current", nil)
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
@@ -112,6 +109,6 @@ func TestCurrentAccessSummaryExposesAssignmentsToAssignmentController(t *testing
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	var summary dto.CurrentAccessSummary
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &summary))
-	require.True(t, summary.Sections.Assignments)
+	require.True(t, summary.Sections.Controls)
 	require.True(t, summary.Sections.Dashboard)
 }

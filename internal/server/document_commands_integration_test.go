@@ -60,7 +60,7 @@ func TestDocumentCommandAPIAllKindsIntegration(t *testing.T) {
 			nomID := uuid.New()
 			_, err = db.Exec(`INSERT INTO nomenclature (id,name,index,year,kind_code,separator,numbering_mode) VALUES ($1,$2,'CMD',2026,$2,'/','index_and_number')`, nomID, tc.kind)
 			require.NoError(t, err)
-			_, err = db.Exec(`INSERT INTO document_permissions (kind_code,subject_type,subject_key,action,is_allowed) SELECT $1,'user',$2,action,TRUE FROM unnest(ARRAY['create','read','update']) action`, tc.kind, userID.String())
+			_, err = db.Exec(`INSERT INTO document_permissions (kind_code,subject_type,subject_key,action,is_allowed) SELECT $1,'user',$2,action,TRUE FROM unnest(ARRAY['register']) action`, tc.kind, userID.String())
 			require.NoError(t, err)
 			tc.payload["nomenclatureId"] = nomID.String()
 			path := "/api/v1/documents/" + tc.kind

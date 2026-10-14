@@ -14,10 +14,6 @@ export function GetExecutors() {
   return window['go']['services']['UserService']['GetExecutors']();
 }
 
-export function GetSubstitutionCandidates() {
-  return window['go']['services']['UserService']['GetSubstitutionCandidates']();
-}
-
 export function ResetPassword(arg1) {
   return window['go']['services']['UserService']['ResetPassword'](arg1);
 }

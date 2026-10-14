@@ -50,25 +50,25 @@ func TestSettingsAPIPersistsUpdatesWithAuditOutboxIntegration(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(loginResult.Body).Decode(&loginBody))
 
-	current, err := settings.Get("max_file_size_mb")
+	current, err := settings.Get("password_lifetime_days")
 	require.NoError(t, err)
 	firstValue := "16"
 	if current.Value == firstValue {
 		firstValue = "17"
 	}
 	for _, value := range []string{firstValue, current.Value} {
-		request := httptest.NewRequest(http.MethodPatch, "/api/v1/settings/max_file_size_mb", strings.NewReader(`{"value":"`+value+`"}`))
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/settings/password_lifetime_days", strings.NewReader(`{"value":"`+value+`"}`))
 		request.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
 		response := httptest.NewRecorder()
 		api.Handler().ServeHTTP(response, request)
 		require.Equal(t, http.StatusNoContent, response.Code, response.Body.String())
 	}
 
-	updated, err := settings.Get("max_file_size_mb")
+	updated, err := settings.Get("password_lifetime_days")
 	require.NoError(t, err)
 	require.Equal(t, current.Value, updated.Value)
 	var effects, distinctKeys int
-	require.NoError(t, db.QueryRow(`SELECT COUNT(*), COUNT(DISTINCT deduplication_key) FROM event_outbox WHERE event_type=$1 AND deduplication_key LIKE 'setting:max_file_size_mb:update:%'`, models.OutboxEventAudit).Scan(&effects, &distinctKeys))
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*), COUNT(DISTINCT deduplication_key) FROM event_outbox WHERE event_type=$1 AND deduplication_key LIKE 'setting:password_lifetime_days:update:%'`, models.OutboxEventAudit).Scan(&effects, &distinctKeys))
 	require.Equal(t, 2, effects)
 	require.Equal(t, 2, distinctKeys)
 }

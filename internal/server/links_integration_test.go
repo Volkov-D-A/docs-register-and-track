@@ -38,9 +38,7 @@ func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 		require.NoError(t, err)
 	}
 	_, err = db.Exec(`INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed)
-		VALUES ('outgoing_letter', 'user', $1, 'read', TRUE),
-		       ('outgoing_letter', 'user', $1, 'link', TRUE),
-		       ('outgoing_letter', 'user', $1, 'view_journal', TRUE)`, managerID.String())
+		VALUES ('outgoing_letter', 'user', $1, 'register', TRUE)`, managerID.String())
 	require.NoError(t, err)
 	nomenclatureID, organizationID := uuid.New(), uuid.New()
 	_, err = db.Exec(`INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode)

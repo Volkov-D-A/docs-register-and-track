@@ -16,7 +16,7 @@ type workspaceStoreStub struct {
 	documents      []models.WorkspaceDocument
 }
 
-func workspaceServiceFixture(t *testing.T, participant bool, allowed map[models.DocumentKind]map[string]bool, substitutionIDs ...uuid.UUID) (*WorkspaceService, *workspaceStoreStub, uuid.UUID) {
+func workspaceServiceFixture(t *testing.T, participant bool, allowed map[models.DocumentKind]map[string]bool) (*WorkspaceService, *workspaceStoreStub, uuid.UUID) {
 	t.Helper()
 	userID := uuid.New()
 	user := &models.User{ID: userID, IsActive: true, IsDocumentParticipant: participant}
@@ -37,9 +37,8 @@ func (s *workspaceStoreStub) RecentDocuments(scopes map[models.DocumentKind]mode
 }
 
 func TestWorkspaceRecentDocumentsUseReadScopesAndPreserveRegistrationTime(t *testing.T) {
-	subject := uuid.New()
 	kind := models.DocumentKindIncomingLetter
-	svc, store, userID := workspaceServiceFixture(t, true, map[models.DocumentKind]map[string]bool{kind: {"read": true}}, subject)
+	svc, store, userID := workspaceServiceFixture(t, true, map[models.DocumentKind]map[string]bool{kind: {"read": true}})
 	item := models.WorkspaceDocument{ID: uuid.New(), DocumentKind: string(kind), DocumentNumber: "IT/125",
 		DocumentDate: time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC), RegisteredAt: time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC),
 		Description: "Alpha", Correspondents: []string{"Alpha", "Beta"}}
@@ -48,10 +47,8 @@ func TestWorkspaceRecentDocumentsUseReadScopesAndPreserveRegistrationTime(t *tes
 	require.NoError(t, err)
 	require.True(t, result.Available)
 	require.Len(t, store.documentScopes, 4)
-	require.True(t, store.documentScopes[kind].Restricted)
 	require.Equal(t, userID.String(), store.documentScopes[kind].UserID)
 	restricted := store.documentScopes[models.DocumentKindOutgoingLetter]
-	require.True(t, restricted.Restricted)
 	require.Equal(t, userID.String(), restricted.UserID)
 	require.Len(t, result.Items, 1)
 	require.Equal(t, item.ID.String(), result.Items[0].ID)
@@ -69,6 +66,5 @@ func TestWorkspaceRecentDocumentsWithoutRootsStillQueryScopedStore(t *testing.T)
 	require.Len(t, store.documentScopes, 4)
 	for _, scope := range store.documentScopes {
 		require.Equal(t, userID.String(), scope.UserID)
-		require.True(t, scope.Restricted)
 	}
 }

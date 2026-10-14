@@ -16,12 +16,10 @@ type StatisticsClient interface {
 	GetDocumentStatistics(context.Context) (*models.DocumentStatistics, error)
 	GetDocumentReport(context.Context, string, string, string, string, string, string) (*models.DocumentStatisticsReport, error)
 	GetDocumentFilterOptions(context.Context) (*models.DocumentStatisticsFilters, error)
-	GetAssignmentStatistics(context.Context) (*models.AssignmentStatistics, error)
-	GetAssignmentReport(context.Context, string, string, bool, string) (*models.AssignmentStatisticsReport, error)
-	GetAssignmentFilterOptions(context.Context) (*models.AssignmentStatisticsFilters, error)
+	GetDeadlineStatistics(context.Context) (*models.DeadlineStatistics, error)
+	GetDeadlineReport(context.Context, string, string, bool, string) (*models.DeadlineStatisticsReport, error)
+	GetDeadlineFilterOptions(context.Context) (*models.DeadlineStatisticsFilters, error)
 	GetSystemStatistics(context.Context) (*models.SystemStatistics, error)
-	GetStorageStatisticsStatus(context.Context) (*models.StorageStatisticsStatus, error)
-	RetryStorageStatisticsRefresh(context.Context) (*models.StorageStatisticsStatus, error)
 }
 
 type documentStatisticsReportRequest struct {
@@ -33,7 +31,7 @@ type documentStatisticsReportRequest struct {
 	UserID         string `json:"userId"`
 }
 
-type assignmentStatisticsReportRequest struct {
+type deadlineStatisticsReportRequest struct {
 	StartDate   string `json:"startDate"`
 	EndDate     string `json:"endDate"`
 	OnlyOverdue bool   `json:"onlyOverdue"`
@@ -65,37 +63,25 @@ func (c *Client) GetDocumentFilterOptions(ctx context.Context) (*models.Document
 	return getStatistics[models.DocumentStatisticsFilters](ctx, c, "/api/v1/statistics/documents/filters")
 }
 
-func (c *Client) GetAssignmentStatistics(ctx context.Context) (*models.AssignmentStatistics, error) {
-	return getStatistics[models.AssignmentStatistics](ctx, c, "/api/v1/statistics/assignments")
+func (c *Client) GetDeadlineStatistics(ctx context.Context) (*models.DeadlineStatistics, error) {
+	return getStatistics[models.DeadlineStatistics](ctx, c, "/api/v1/statistics/controls")
 }
 
-func (c *Client) GetAssignmentReport(ctx context.Context, startDate, endDate string, onlyOverdue bool, userID string) (*models.AssignmentStatisticsReport, error) {
-	var result models.AssignmentStatisticsReport
-	req := assignmentStatisticsReportRequest{StartDate: startDate, EndDate: endDate, OnlyOverdue: onlyOverdue, UserID: userID}
-	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/statistics/assignments/report", req, http.StatusOK, &result); err != nil {
+func (c *Client) GetDeadlineReport(ctx context.Context, startDate, endDate string, onlyOverdue bool, userID string) (*models.DeadlineStatisticsReport, error) {
+	var result models.DeadlineStatisticsReport
+	req := deadlineStatisticsReportRequest{StartDate: startDate, EndDate: endDate, OnlyOverdue: onlyOverdue, UserID: userID}
+	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/statistics/controls/report", req, http.StatusOK, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (c *Client) GetAssignmentFilterOptions(ctx context.Context) (*models.AssignmentStatisticsFilters, error) {
-	return getStatistics[models.AssignmentStatisticsFilters](ctx, c, "/api/v1/statistics/assignments/filters")
+func (c *Client) GetDeadlineFilterOptions(ctx context.Context) (*models.DeadlineStatisticsFilters, error) {
+	return getStatistics[models.DeadlineStatisticsFilters](ctx, c, "/api/v1/statistics/controls/filters")
 }
 
 func (c *Client) GetSystemStatistics(ctx context.Context) (*models.SystemStatistics, error) {
 	return getStatistics[models.SystemStatistics](ctx, c, "/api/v1/statistics/system")
-}
-
-func (c *Client) GetStorageStatisticsStatus(ctx context.Context) (*models.StorageStatisticsStatus, error) {
-	return getStatistics[models.StorageStatisticsStatus](ctx, c, "/api/v1/statistics/system/storage")
-}
-
-func (c *Client) RetryStorageStatisticsRefresh(ctx context.Context) (*models.StorageStatisticsStatus, error) {
-	var result models.StorageStatisticsStatus
-	if err := c.doUserRequest(ctx, http.MethodPost, "/api/v1/statistics/system/storage/retry", nil, http.StatusOK, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
 }
 
 func (c *Client) GetWorkspaceDocuments(ctx context.Context) (*dto.WorkspaceDocuments, error) {

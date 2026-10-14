@@ -3,7 +3,6 @@ package server
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -15,12 +14,6 @@ type userAccessManagementStore interface {
 	GetAllowedActions(departmentID, userID string) (map[string]map[string]bool, error)
 	GetUserAccessProfile(string) (*models.UserDocumentAccessProfile, error)
 	ReplaceUserAccessProfileWithOutbox(string, []models.UserSystemPermissionRule, []models.UserDocumentPermissionRule, []models.OutboxEvent) error
-}
-
-type userSubstitutionManagementStore interface {
-	GetByPrincipalID(uuid.UUID) (*models.UserSubstitution, error)
-	GetActivePrincipalIDs(uuid.UUID) ([]uuid.UUID, error)
-	ReplaceForPrincipalWithOutbox(uuid.UUID, *uuid.UUID, *time.Time, *time.Time, bool, []models.OutboxEvent) (*models.UserSubstitution, error)
 }
 
 type departmentManagementStore interface {
@@ -71,6 +64,12 @@ func (api *managementAPI) updateUserAccessProfile(w http.ResponseWriter, r *http
 			return
 		}
 	}
+	for _, permission := range req.SystemPermissions {
+		if permission.Permission != models.SystemPermissionAdmin && permission.Permission != models.SystemPermissionReferences {
+			writeUserError(w, models.NewBadRequest("неизвестное системное право"))
+			return
+		}
+	}
 	auth := authenticatedFromContext(r.Context())
 	effect, err := userAuditEffect(auth.User, "user-access:"+id.String()+":update:"+uuid.NewString(), "USER_ACCESS_UPDATE", fmt.Sprintf("Обновлены права пользователя «%s»", target.FullName()), id)
 	if err != nil {
@@ -82,106 +81,6 @@ func (api *managementAPI) updateUserAccessProfile(w http.ResponseWriter, r *http
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (api *managementAPI) getUserSubstitution(w http.ResponseWriter, r *http.Request) {
-	id, _, ok := api.targetUser(w, r)
-	if !ok {
-		return
-	}
-	substitution, err := api.substitutions.GetByPrincipalID(id)
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, dto.MapUserSubstitution(substitution))
-}
-
-func (api *managementAPI) updateUserSubstitution(w http.ResponseWriter, r *http.Request) {
-	principalID, principal, ok := api.targetUser(w, r)
-	if !ok {
-		return
-	}
-	var req models.UpdateUserSubstitutionRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
-		return
-	}
-	req.PrincipalUserID = principalID.String()
-	api.saveUserSubstitution(w, r, principalID, principal, req, "USER_SUBSTITUTION_UPDATE")
-}
-
-func (api *managementAPI) saveUserSubstitution(w http.ResponseWriter, r *http.Request, principalID uuid.UUID, principal *models.User, req models.UpdateUserSubstitutionRequest, auditAction string) {
-	startsAt, err := parseOptionalSubstitutionDate(req.StartsAt)
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	endsAt, err := parseOptionalSubstitutionDate(req.EndsAt)
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	if startsAt != nil && endsAt != nil && startsAt.After(*endsAt) {
-		writeUserError(w, models.NewBadRequest("дата начала замещения не может быть позже даты окончания"))
-		return
-	}
-
-	var substituteID *uuid.UUID
-	if req.SubstituteUserID != "" {
-		if !principal.IsDocumentParticipant {
-			writeUserError(w, models.NewBadRequest("замещение доступно только участникам документооборота"))
-			return
-		}
-		parsed, parseErr := uuid.Parse(req.SubstituteUserID)
-		if parseErr != nil {
-			writeUserError(w, models.NewBadRequestWrapped("некорректный идентификатор замещающего", parseErr))
-			return
-		}
-		if parsed == principalID {
-			writeUserError(w, models.NewBadRequest("пользователь не может замещать самого себя"))
-			return
-		}
-		substitute, getErr := api.userCommands.GetByID(parsed)
-		if getErr != nil {
-			writeUserError(w, getErr)
-			return
-		}
-		if substitute == nil {
-			writeUserError(w, models.NewNotFound("замещающий пользователь не найден"))
-			return
-		}
-		if !substitute.IsActive {
-			writeUserError(w, models.NewBadRequest("замещающий должен быть активным пользователем"))
-			return
-		}
-		if principal.DepartmentID == nil {
-			writeUserError(w, models.NewBadRequest("для замещаемого должно быть указано подразделение"))
-			return
-		}
-		if substitute.DepartmentID == nil || *substitute.DepartmentID != *principal.DepartmentID {
-			writeUserError(w, models.NewBadRequest("замещающий должен быть из подразделения замещаемого"))
-			return
-		}
-		substituteID = &parsed
-	}
-
-	auth := authenticatedFromContext(r.Context())
-	effect, err := userAuditEffect(auth.User, "user-substitution:"+principalID.String()+":update:"+uuid.NewString(), auditAction, fmt.Sprintf("Обновлено замещение пользователя «%s»", principal.FullName()))
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	if substituteID == nil {
-		startsAt, endsAt = nil, nil
-		req.IsActive = false
-	}
-	result, err := api.substitutions.ReplaceForPrincipalWithOutbox(principalID, substituteID, startsAt, endsAt, req.IsActive, []models.OutboxEvent{effect})
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, dto.MapUserSubstitution(result))
 }
 
 func (api *managementAPI) listDepartments(w http.ResponseWriter, _ *http.Request) {
@@ -301,7 +200,7 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 	}
 
 	systemPermissions := make([]string, 0)
-	for _, permission := range []string{models.SystemPermissionAdmin, models.SystemPermissionReferences, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem, models.SystemPermissionReports} {
+	for _, permission := range []string{models.SystemPermissionAdmin, models.SystemPermissionReferences} {
 		if contains(user.SystemPermissions, permission) {
 			systemPermissions = append(systemPermissions, permission)
 		}
@@ -309,16 +208,16 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 	documentDomainAccess := true
 	writeJSON(w, http.StatusOK, &dto.CurrentAccessSummary{
 		Sections: dto.AccessSections{
-			Dashboard:   documentDomainAccess,
-			Incoming:    pageAccess[string(models.DocumentKindIncomingLetter)],
-			Outgoing:    pageAccess[string(models.DocumentKindOutgoingLetter)],
-			Appeals:     pageAccess[string(models.DocumentKindCitizenAppeal)],
-			Orders:      pageAccess[string(models.DocumentKindAdministrativeOrder)],
-			Assignments: true,
-			References:  contains(systemPermissions, models.SystemPermissionReferences),
-			Statistics:  containsAny(systemPermissions, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem),
-			Reports:     contains(systemPermissions, models.SystemPermissionReports),
-			Settings:    contains(systemPermissions, models.SystemPermissionAdmin),
+			Dashboard:  documentDomainAccess,
+			Incoming:   pageAccess[string(models.DocumentKindIncomingLetter)],
+			Outgoing:   pageAccess[string(models.DocumentKindOutgoingLetter)],
+			Appeals:    pageAccess[string(models.DocumentKindCitizenAppeal)],
+			Orders:     pageAccess[string(models.DocumentKindAdministrativeOrder)],
+			Controls:   true,
+			References: contains(systemPermissions, models.SystemPermissionReferences),
+			Statistics: true,
+			Reports:    true,
+			Settings:   contains(systemPermissions, models.SystemPermissionAdmin),
 		},
 		DocumentKinds: documentKinds, SystemPermissions: systemPermissions,
 	})
@@ -349,15 +248,4 @@ func (api *managementAPI) targetUser(w http.ResponseWriter, r *http.Request) (uu
 		return uuid.Nil, nil, false
 	}
 	return id, user, true
-}
-
-func parseOptionalSubstitutionDate(value string) (*time.Time, error) {
-	if value == "" {
-		return nil, nil
-	}
-	parsed, err := time.Parse("2006-01-02", value)
-	if err != nil {
-		return nil, models.NewBadRequestWrapped("неверный формат даты замещения", err)
-	}
-	return &parsed, nil
 }

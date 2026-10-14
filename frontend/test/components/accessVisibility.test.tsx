@@ -1,19 +1,18 @@
 import React from 'react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import StatisticsPage from '../../src/pages/StatisticsPage';
 import SettingsPage from '../../src/pages/SettingsPage';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { renderWithApp } from '../componentTestUtils';
 
 vi.mock('../../src/features/statistics/DocumentStatisticsTab', () => ({ default: () => <div>documents statistics content</div> }));
-vi.mock('../../src/features/statistics/AssignmentStatisticsTab', () => ({ default: () => <div>assignments statistics content</div> }));
+vi.mock('../../src/features/statistics/DeadlineStatisticsTab', () => ({ default: () => <div>controls statistics content</div> }));
 vi.mock('../../src/features/statistics/SystemStatisticsTab', () => ({ default: () => <div>system statistics content</div> }));
 vi.mock('../../src/features/settings/NomenclatureTab', () => ({ default: () => <div>nomenclature content</div> }));
 vi.mock('../../src/features/settings/DepartmentsTab', () => ({ default: () => <div>departments content</div> }));
 vi.mock('../../src/features/settings/UsersTab', () => ({ default: () => <div>users content</div> }));
 vi.mock('../../src/features/settings/SystemSettingsTab', () => ({ default: () => <div>settings content</div> }));
-vi.mock('../../src/features/settings/StorageTab', () => ({ default: () => <div>storage content</div> }));
 vi.mock('../../src/features/settings/MigrationsTab', () => ({ default: () => <div>migrations content</div> }));
 vi.mock('../../src/features/settings/AuditLogTab', () => ({ default: () => <div>audit content</div> }));
 vi.mock('../../src/features/settings/OutboxTab', () => ({ default: () => <div>outbox content</div> }));
@@ -36,21 +35,19 @@ afterEach(() => {
 });
 
 describe('permission-based page visibility', () => {
-  test('statistics page shows a role-safe empty state without permissions', () => {
+  test('business statistics are available without separate permissions', () => {
     setPermissions([]);
     renderWithApp(<StatisticsPage />);
 
-    expect(screen.getByText(/Статистика недоступна для вашей роли/)).toBeInTheDocument();
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Документы' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Контроль сроков' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Системная' })).not.toBeInTheDocument();
   });
 
-  test('statistics page exposes only the permitted tab', async () => {
-    setPermissions(['stats_system']);
-    renderWithApp(<StatisticsPage />);
-
-    expect(screen.getByRole('tab', { name: 'Системная' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Документы' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Поручения' })).not.toBeInTheDocument();
+  test('technical diagnostics are shown only in administrator settings', async () => {
+    setPermissions(['admin']);
+    renderWithApp(<SettingsPage />);
+    fireEvent.click(screen.getByRole('tab', { name: /Техническая диагностика/ }));
     expect(await screen.findByText('system statistics content')).toBeInTheDocument();
   });
 
@@ -60,6 +57,7 @@ describe('permission-based page visibility', () => {
 
     expect(screen.getByText('Настройки')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByText('system statistics content')).not.toBeInTheDocument();
   });
 
   test('settings page exposes administration tabs to an admin', () => {

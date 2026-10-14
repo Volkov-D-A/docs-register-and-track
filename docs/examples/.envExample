@@ -11,7 +11,6 @@
 # ==========================================
 # Версии
 # ==========================================
-SEAWEEDFS_VERSION=4.46
 POSTGRES_VERSION=18.3
 SEQ_VERSION=2025.2.16020-x64
 DOCFLOW_SERVER_VERSION=1.0.7
@@ -24,14 +23,6 @@ CADDY_VERSION=2.11.4-alpine
 SEQ_ADMIN_USERNAME=admin
 SEQ_URL=http://seq:80
 SEQ_ENABLED=true
-
-# ==========================================
-# Настройки SeaweedFS
-# ==========================================
-S3_ACCESS_KEY_ID=docflow
-S3_ENDPOINT=http://seaweedfs:8333
-S3_BUCKET=docflow-attachments
-
 
 # ==========================================
 # Настройки Postgres
@@ -69,5 +60,4 @@ DOCFLOW_BACKUP_MAX_BYTES=21474836480
 # Файл должен читаться UID 65532 (владелец 65532, права 0400).
 POSTGRES_PASSWORD_FILE_PATH=/etc/docflow/secrets/postgres_password
 SEQ_ADMIN_PASSWORD_FILE_PATH=/etc/docflow/secrets/seq_admin_password
-S3_SECRET_KEY_FILE_PATH=/etc/docflow/secrets/s3_secret_key
 DOCFLOW_SETTINGS_KEY_PATH=/etc/docflow/secrets/settings_key

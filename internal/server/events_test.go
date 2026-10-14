@@ -153,7 +153,7 @@ func TestSessionEventsDeliverOnlyReadableDocumentChanges(t *testing.T) {
 	writer.onFlush = func() {
 		flushes++
 		if flushes == 1 {
-			api.events.PublishChange(liveevents.Change{DocumentID: documentID.String(), Resource: "assignments"})
+			api.events.PublishChange(liveevents.Change{DocumentID: documentID.String(), Resource: "controls"})
 		} else {
 			cancel()
 		}
@@ -163,32 +163,32 @@ func TestSessionEventsDeliverOnlyReadableDocumentChanges(t *testing.T) {
 	api.Handler().ServeHTTP(writer, req)
 	require.Contains(t, recorder.Body.String(), `event: document-changed`)
 	require.Contains(t, recorder.Body.String(), `"documentId":"`+documentID.String()+`"`)
-	require.Contains(t, recorder.Body.String(), `"resource":"assignments"`)
+	require.Contains(t, recorder.Body.String(), `"resource":"controls"`)
 	require.NotContains(t, recorder.Body.String(), user.ID.String())
 }
 
 type eventAccessStub struct {
 	readable map[uuid.UUID]*models.Document
-	subjects []uuid.UUID
+	userID   uuid.UUID
 	err      error
 }
 
 func (s eventAccessStub) ResolveReadableDocuments([]uuid.UUID) (map[uuid.UUID]*models.Document, error) {
 	return s.readable, s.err
 }
-func (s eventAccessStub) GetCurrentReadSubjectIDs() ([]uuid.UUID, error) {
-	return s.subjects, nil
+func (s eventAccessStub) GetCurrentReadUserID() (uuid.UUID, error) {
+	return s.userID, nil
 }
 
 func TestDocumentChangesFilterAccessAndIncludeRevokedRecipients(t *testing.T) {
 	allowed, denied, revoked, principal := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	api := &managementAPI{eventAccess: func(*models.User) eventDocumentAccess {
-		return eventAccessStub{readable: map[uuid.UUID]*models.Document{allowed: {ID: allowed}}, subjects: []uuid.UUID{principal}}
+		return eventAccessStub{readable: map[uuid.UUID]*models.Document{allowed: {ID: allowed}}, userID: principal}
 	}}
 	changes := []liveevents.Change{
-		{DocumentID: allowed.String(), Resource: "files"},
-		{DocumentID: denied.String(), Resource: "assignments"},
-		{DocumentID: revoked.String(), Resource: "assignments", PreviousReaders: []uuid.UUID{principal}},
+		{DocumentID: allowed.String(), Resource: "document"},
+		{DocumentID: denied.String(), Resource: "controls"},
+		{DocumentID: revoked.String(), Resource: "controls", PreviousReaders: []uuid.UUID{principal}},
 	}
 	visible, err := api.readableChanges(&models.User{}, changes)
 	require.NoError(t, err)
@@ -200,17 +200,8 @@ func TestDocumentChangesFilterAccessAndIncludeRevokedRecipients(t *testing.T) {
 
 func TestDocumentChangesCloseStreamOnReadPolicyFailure(t *testing.T) {
 	api := &managementAPI{eventAccess: func(*models.User) eventDocumentAccess { return eventAccessStub{err: context.DeadlineExceeded} }}
-	_, err := api.readableChanges(&models.User{}, []liveevents.Change{{DocumentID: uuid.NewString(), Resource: "files"}})
+	_, err := api.readableChanges(&models.User{}, []liveevents.Change{{DocumentID: uuid.NewString(), Resource: "document"}})
 	require.ErrorIs(t, err, context.DeadlineExceeded)
-}
-
-func TestCapabilityChangesAreScopedToAffectedUsersAndTheirSubstitutes(t *testing.T) {
-	principal, unrelated := uuid.New(), uuid.New()
-	api := &managementAPI{eventAccess: func(*models.User) eventDocumentAccess { return eventAccessStub{subjects: []uuid.UUID{principal}} }}
-	changes := []liveevents.Change{{Resource: "access", Audience: []uuid.UUID{unrelated}}, {Resource: "access", Audience: []uuid.UUID{principal}}}
-	result, err := api.readableChanges(&models.User{}, changes)
-	require.NoError(t, err)
-	require.Equal(t, changes[1:], result)
 }
 
 func TestVisibilityChangesInvalidateWholeGraphWithoutDocumentMetadata(t *testing.T) {

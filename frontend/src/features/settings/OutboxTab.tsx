@@ -11,7 +11,6 @@ const eventTypeLabels: Record<string, string> = {
   user_event: 'Уведомление пользователя',
   journal_entry: 'Запись журнала',
   admin_audit: 'Административный аудит',
-  attachment_delete: 'Удаление вложения',
 };
 
 const formatUUID = (value: unknown): string => {

@@ -115,8 +115,6 @@ func (d *serverDiagnostics) addRuntimeMetrics(result *models.SystemDiagnostics) 
 	gauges := gaugeMetrics(metrics.Gauges())
 	// The diagnostics request itself is in flight while the snapshot is built.
 	result.API.InFlight = max(0, int64(gauges["http.in_flight"])-1)
-	result.Attachments.MissingObjects = optionalGauge(gauges, "attachments.reconciliation.missing")
-	result.Attachments.OrphanObjects = optionalGauge(gauges, "attachments.reconciliation.orphan")
 }
 
 func operationMetrics(values []observability.OperationSnapshot) map[string]observability.OperationSnapshot {
@@ -141,13 +139,4 @@ func gaugeMetrics(values []observability.GaugeSnapshot) map[string]float64 {
 		result[value.Name] = value.Value
 	}
 	return result
-}
-
-func optionalGauge(values map[string]float64, name string) *int {
-	value, ok := values[name]
-	if !ok {
-		return nil
-	}
-	result := int(value)
-	return &result
 }

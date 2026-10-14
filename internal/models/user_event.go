@@ -6,17 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	UserEventEntityAssignment = "assignment"
-
-	UserEventAssignmentCreated      = "assignment_created"
-	UserEventAssignmentUpdated      = "assignment_updated"
-	UserEventAssignmentCompleted    = "assignment_completed"
-	UserEventAssignmentFinished     = "assignment_finished"
-	UserEventAssignmentReturned     = "assignment_returned"
-	UserEventAssignmentAcknowledged = "assignment_acknowledged"
-)
-
 // UserEvent описывает персональное событие пользователя.
 type UserEvent struct {
 	ID              uuid.UUID  `json:"-"`

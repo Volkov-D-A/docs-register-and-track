@@ -205,28 +205,21 @@ func (p PostgreSQL) Restore(ctx context.Context, file string) error {
 	}
 	return nil
 }
-func ValidateReferences(ctx context.Context, db *sql.DB, m Manifest) error {
-	objects := map[string]int64{}
-	for _, obj := range m.Objects {
-		objects[obj.Key] = obj.Size
-	}
-	rows, err := db.QueryContext(ctx, "SELECT storage_path,file_size FROM attachments WHERE deletion_requested_at IS NULL")
+
+// Array references need explicit validation because they cannot use a foreign key.
+func ValidateControlReferences(ctx context.Context, db *sql.DB) error {
+	var missing bool
+	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM (
+ SELECT unnest(co_executor_ids) AS executor FROM document_deadline_controls
+ UNION ALL SELECT unnest(co_executor_ids) FROM document_deadline_series
+ ) refs LEFT JOIN deadline_executors e ON e.id=refs.executor WHERE e.id IS NULL)`).Scan(&missing)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var key string
-		var size int64
-		if err = rows.Scan(&key, &size); err != nil {
-			return err
-		}
-		actual, ok := objects[key]
-		if !ok || actual != size {
-			return fmt.Errorf("active attachment is missing or has a different size: %s", key)
-		}
+	if missing {
+		return fmt.Errorf("в контролях отсутствует соисполнитель из справочника")
 	}
-	return rows.Err()
+	return nil
 }
 
 type boundedWriter struct {

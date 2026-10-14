@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/background"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 )
 
 var maintenanceBusinessRoutes = []struct{ method, path string }{
@@ -24,9 +24,6 @@ var maintenanceBusinessRoutes = []struct{ method, path string }{
 	{"GET", "/api/v1/auth/me"},
 	{"GET", "/api/v1/documents/00000000-0000-0000-0000-000000000001"},
 	{"POST", "/api/v1/documents/incoming"},
-	{"POST", "/api/v1/documents/00000000-0000-0000-0000-000000000001/attachments"},
-	{"POST", "/api/v1/assignments/00000000-0000-0000-0000-000000000001/attachments"},
-	{"GET", "/api/v1/attachments/00000000-0000-0000-0000-000000000001/content"},
 	{"PATCH", "/api/v1/settings/example"},
 	{"POST", "/api/v1/telemetry/logs"},
 	{"GET", "/api/v1/admin/outbox/stats"},
@@ -35,7 +32,7 @@ var maintenanceBusinessRoutes = []struct{ method, path string }{
 
 func assertBusinessMaintenance(t *testing.T, handler http.Handler) {
 	t.Helper()
-	// The API has no session, document, or attachment dependencies: reaching any
+	// The API has no session, document dependencies: reaching any
 	// of those layers with a bearer token would panic instead of returning 503.
 	for _, route := range maintenanceBusinessRoutes {
 		req := httptest.NewRequest(route.method, route.path, strings.NewReader(`{}`))

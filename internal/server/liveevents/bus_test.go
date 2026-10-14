@@ -41,15 +41,15 @@ func TestSubscriptionsAreScopedBoundedAndRemovable(t *testing.T) {
 
 func TestChangesRetainDifferentDocumentsAndCoalesceRecipients(t *testing.T) {
 	bus := &Bus{}
-	bus.PublishChange(Change{DocumentID: "offline", Resource: "files"})
+	bus.PublishChange(Change{DocumentID: "offline", Resource: "document"})
 	wake, drain, stop := bus.SubscribeChanges()
 	require.Empty(t, drain())
 	recipient := uuid.New()
 	for range 1000 {
-		bus.PublishChange(Change{DocumentID: "a", Resource: "assignments", PreviousReaders: []uuid.UUID{recipient}, VisibilityChanged: true})
+		bus.PublishChange(Change{DocumentID: "a", Resource: "controls", PreviousReaders: []uuid.UUID{recipient}, VisibilityChanged: true})
 	}
-	bus.PublishChange(Change{DocumentID: "a", Resource: "assignments"})
-	bus.PublishChange(Change{DocumentID: "b", Resource: "files"})
+	bus.PublishChange(Change{DocumentID: "a", Resource: "controls"})
+	bus.PublishChange(Change{DocumentID: "b", Resource: "document"})
 	<-wake
 	changes := drain()
 	require.Len(t, changes, 2)
@@ -61,7 +61,7 @@ func TestChangesRetainDifferentDocumentsAndCoalesceRecipients(t *testing.T) {
 	}
 	stop()
 	stop()
-	bus.PublishChange(Change{DocumentID: "c", Resource: "files"})
+	bus.PublishChange(Change{DocumentID: "c", Resource: "document"})
 	require.Empty(t, drain())
 }
 
@@ -70,11 +70,11 @@ func TestSlowChangeConsumerResynchronizesAfterOverflow(t *testing.T) {
 	wake, drain, stop := bus.SubscribeChanges()
 	defer stop()
 	for range maxPendingChanges + 1 {
-		bus.PublishChange(Change{DocumentID: uuid.NewString(), Resource: "files"})
+		bus.PublishChange(Change{DocumentID: uuid.NewString(), Resource: "document"})
 	}
 	<-wake
 	require.Equal(t, []Change{{Resource: "resync"}}, drain())
-	bus.PublishChange(Change{DocumentID: "next", Resource: "files"})
+	bus.PublishChange(Change{DocumentID: "next", Resource: "document"})
 	<-wake
-	require.Equal(t, []Change{{DocumentID: "next", Resource: "files"}}, drain())
+	require.Equal(t, []Change{{DocumentID: "next", Resource: "document"}}, drain())
 }

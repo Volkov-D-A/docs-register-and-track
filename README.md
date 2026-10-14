@@ -5,19 +5,17 @@ Wails desktop application for registering and tracking documents. The app uses:
 - Go backend with Wails bindings;
 - React + Ant Design frontend;
 - PostgreSQL for relational data;
-- SeaweedFS for attachments;
 - Seq for technical logs.
 
-`docflow-server` owns PostgreSQL, SeaweedFS, transactional outbox consumption,
+`docflow-server` owns PostgreSQL, transactional outbox consumption,
 database migrations, authentication and all business operations. The desktop
 uses the versioned HTTP API and does not create database or object-storage
 connections.
 
-The separate **Reports** section builds period reports for correspondence by
-organization, department workload, average assignment execution time and overdue
-rate. It exports XLSX/PDF and can generate weekly or monthly reports on the server.
-Access requires the `reports` system permission; scheduled files remain available
-in the owner's report history for 90 days. See [technical documentation](docs/tech_docs.md#отчёты).
+The **Reports** section builds reports over the documents visible to the signed-in
+user. Periods can follow registration, due or actual execution dates. Users
+export XLSX/PDF to their computer. Reports are generated on request; there is no
+scheduled report history. See [technical documentation](docs/tech_docs.md#отчёты).
 
 The repository keeps application code and a compact maintained documentation set. Production readiness is determined by the release gate plus environment-specific smoke and recovery checks.
 
@@ -28,7 +26,7 @@ Prerequisites:
 - Go version required by `go.mod`;
 - Node.js and npm compatible with `frontend/package-lock.json`;
 - Wails CLI v2;
-- Docker Compose for local PostgreSQL, SeaweedFS, Seq, `docflow-server` and Caddy;
+- Docker Compose for local PostgreSQL, Seq, `docflow-server` and Caddy;
 - Linux WebKit dependencies required by Wails on the target developer OS.
 
 Start local infrastructure:
@@ -40,14 +38,14 @@ cp docs/examples/config.example.json config/config.json
 make storage-up
 ```
 
-`docker-compose.yaml`, `docs/examples/.envExample` and `docs/examples/config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains only the server connection settings and no PostgreSQL, SeaweedFS or Seq credentials/endpoints. Authenticated desktop technical logs are sent in bounded batches to `POST /api/v1/telemetry/logs`; `docflow-server` adds the session identity and forwards them through its logging pipeline to Seq.
+`docker-compose.yaml`, `docs/examples/.envExample` and `docs/examples/config.example.json` are local development examples only. Infrastructure credentials belong in the server environment; desktop `config.json` contains only the server connection settings and no PostgreSQL or Seq credentials/endpoints. Authenticated desktop technical logs are sent in bounded batches to `POST /api/v1/telemetry/logs`; `docflow-server` adds the session identity and forwards them through its logging pipeline to Seq.
 
 The root Compose file builds `docflow-service-local:dev` from local sources via
 `make storage-up` or `make dev-server`. The production example pulls
 `hehelf/docflow-service:<DOCFLOW_SERVER_IMAGE_TAG>` from Docker Hub (default: `latest`); optionally pin a published tag in the production `.env`.
-Both wait for PostgreSQL and the S3 probe and include backup storage.
-Keep settings and usernames (`POSTGRES_USER`, `S3_ACCESS_KEY_ID`,
-`SEQ_ADMIN_USERNAME`) in `.env` beside Compose. Before starting, create four
+Both wait for PostgreSQL and include backup storage.
+Keep settings and usernames (`POSTGRES_USER`,
+`SEQ_ADMIN_USERNAME`) in `.env` beside Compose. Before starting, create three
 secret files outside Git, for example in `/etc/docflow/secrets`. Each file
 contains only its value, without `NAME=` or quotes:
 
@@ -55,15 +53,14 @@ contains only its value, without `NAME=` or quotes:
 | --- | --- |
 | `POSTGRES_PASSWORD_FILE_PATH` | PostgreSQL password |
 | `SEQ_ADMIN_PASSWORD_FILE_PATH` | Initial Seq administrator password |
-| `S3_SECRET_KEY_FILE_PATH` | S3 secret access key |
 | `DOCFLOW_SETTINGS_KEY_PATH` | Settings encryption key |
 
 Create the encryption key as described in [backup setup](docs/instructions.md#серверное-резервирование-и-восстановление).
-Use a protected host directory (mode `0700`). The PostgreSQL password, S3 secret
+Use a protected host directory (mode `0700`). The PostgreSQL password
 and settings key must be readable by server UID 65532 (owner 65532, mode `0400`).
 The supplied Seq image starts as root; its password file can be owned by root
 with mode `0400`. Compose file secrets preserve host file permissions.
-Set the four absolute file paths in `.env`; Compose mounts only the required
+Set the three absolute file paths in `.env`; Compose mounts only the required
 secrets into each service. Keep existing passwords and the settings key when
 migrating an existing deployment. Changing these files does not change an
 existing PostgreSQL role password or Seq account password; Seq uses this password
@@ -75,10 +72,9 @@ The only environment difference is Caddy: dev exposes HTTP on
 `./caddy/Caddyfile` and persistent certificate storage. Provide that production
 Caddyfile on the host and create the external `docflow-caddy-data` volume before
 starting production. Preserve existing certificate storage when upgrading.
-Copy [seaweedfs-entrypoint.sh](scripts/seaweedfs-entrypoint.sh) and
-[seq-entrypoint.sh](scripts/seq-entrypoint.sh) to `scripts/` beside the deployed
-Compose file. Both environments mount these startup scripts read-only and run
-them with `/bin/sh`; preserve LF line endings. When running the production
+Copy [seq-entrypoint.sh](scripts/seq-entrypoint.sh) to `scripts/` beside the deployed
+Compose file. Both environments mount it read-only and run it with `/bin/sh`;
+preserve LF line endings. When running the production
 example directly from this repository, use `--project-directory .` from the
 repository root so that `scripts/` and `caddy/` resolve correctly.
 On a genuinely empty database the server applies its embedded bootstrap
@@ -135,11 +131,11 @@ An administrator does not choose a replacement password: reset generates a
 random temporary password, returns it once for copying, and marks it for a
 mandatory change at the user's next login.
 
-This development baseline expects a fresh database: the migration history was
-compacted through migration 12 (`backups`). Typed assignments and recipient
-confirmations are defined directly in migration 4; both assignment types use
-`assign`. Reset databases created with the previous development schema before
-starting this version. There is no data-transfer migration for that schema.
+The new deadline-control model requires a fresh database. The source schema no
+longer creates assignments, internal acknowledgments or document file storage.
+Baseline 001 creates the complete schema without substitutions; existing databases
+from the previous model require an agreed reset. There is no dataset conversion. Backups use format 4, containing
+PostgreSQL only, and reject older object-storage archives.
 No direct-login fallback is enabled in the production composition root.
 
 Install frontend dependencies and build assets:
@@ -160,8 +156,8 @@ make dev-client
 
 The local `docflow-server` is started by `make storage-up` as part of the
 Compose stack; a second standalone server process is not required. Fill the
-PostgreSQL, SeaweedFS, Seq and outbox values before starting the stack.
-The same database and SeaweedFS credentials are used both to initialize the local
+PostgreSQL, Seq and outbox values before starting the stack.
+The same database credentials are used both to initialize the local
 containers and to connect `docflow-server`; no duplicate service credentials
 are required. The example contains placeholders and is not a production
 secret-delivery mechanism. The server reads its configuration exclusively from
@@ -186,9 +182,9 @@ by default; set `DOCFLOW_SERVER_IMAGE_TAG` to a full tag to pin a build.
 On the server, run `docker compose up -d --pull always docflow-server` to update.
 A running container does not update itself when an image is published.
 The desktop still needs to match the deployed server build. The Makefile never accepts or stores a Docker Hub password/token. The
-runtime image contains only the static server binary. Pass `.env` with
+runtime image contains the server binary and PostgreSQL backup tools. Pass `.env` with
 `--env-file` or the equivalent orchestrator mechanism.
-PostgreSQL and SeaweedFS passwords must be supplied as runtime secrets; production
+PostgreSQL passwords must be supplied as runtime secrets; production
 secret delivery must be verified on the target host.
 
 Run automated checks:
@@ -300,7 +296,7 @@ configuration.
 
 Safety rules:
 
-- create a fresh PostgreSQL+SeaweedFS backup before migration rollback;
+- create a fresh PostgreSQL backup before migration rollback;
 - enter the current administrator password for every schema-changing command;
 - never run an older binary against a newer DB schema;
 - stop application use if migration status is dirty;
@@ -314,19 +310,19 @@ Configure direct SMB access and the schedule in Settings → Backups.
 See [server backup and recovery](docs/instructions.md#серверное-резервирование-и-восстановление) for Compose
 secrets, persistent staging, and restoration through the ordinary admin panel, including after a complete target reset.
 
-Release requires a successful manual test restore of PostgreSQL and SeaweedFS from an actual backup archive or production-like backup set.
+Release requires a successful manual test restore of PostgreSQL from an actual backup archive or production-like backup set.
 
 ## Diagnostics
 
 Operator-facing startup behavior, logging and recovery constraints are described in the [technical reference](docs/tech_docs.md).
 
-SeaweedFS configuration, runtime secrets, dev reset and S3 operations are
-covered in the [storage operations guide](docs/instructions.md#эксплуатация-seaweedfs).
-Run `make integration-test` to check backup, verify, restore, and delete against
-disposable PostgreSQL, S3, and Samba services. It saves integration-only Go
-coverage profiles in `build/release-evidence/`. Run `make storage-smoke-test`
-to verify the production Compose example and attachment persistence across
-container restarts.
+Runtime secrets and recovery are covered in the
+[backup operations guide](docs/instructions.md#серверное-резервирование-и-восстановление).
+Run `make integration-test` with PostgreSQL client tools (`pg_dump`, `pg_restore`)
+compatible with the configured database version. It checks controls and database-only
+backup/verify/restore/delete against disposable PostgreSQL and Samba services,
+saving coverage in `build/release-evidence/`. Run `make storage-smoke-test` to
+verify the production Compose example and control persistence after server restarts.
 
 ## Internal build identity
 
@@ -350,7 +346,7 @@ After edits, rebuild the server and restart/rebuild the client from the same
 source state. The client command does not restart containers.
 
 `make storage-down` stops the whole stack and preserves data. `make storage-reset`
-deletes all named Compose volumes (including PostgreSQL, SeaweedFS, Seq and backup
+deletes all named Compose volumes (including PostgreSQL, Seq and backup
 staging) and starts the stack again. All storage commands use the root Compose
 file. If sources change during compilation, the server update is cancelled.
 Use the Make targets for rebuilding: plain `docker compose build` lacks the
@@ -388,9 +384,9 @@ supply these arguments when building; metadata must not be guessed.
 The individual gate steps remain available through `build/make/checks.mk`;
 `make help-checks` lists them and the additional diagnostic commands. They are
 useful for focused checks without rerunning the whole gate. `integration-test`
-checks the backup lifecycle with real PostgreSQL, S3, and Samba.
+checks the backup lifecycle with real PostgreSQL and Samba.
 `storage-smoke-test` checks the production Compose topology and persisted
-attachments; `db-performance-check` measures database performance. The last two
+controls; `db-performance-check` measures database performance. The last two
 are not part of `release-gate`.
 `integration-db-up` / `integration-db-down` support manual integration debugging.
 `release-assets` regenerates release metadata; `clean` removes local binaries only.

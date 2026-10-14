@@ -100,7 +100,6 @@ type IncomingDocument struct {
 	UpdatedAt     time.Time `json:"updatedAt"`
 
 	// Связанные данные
-	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
 // DocumentCorrespondentRegistration — регистрационные реквизиты корреспондента документа.
@@ -154,8 +153,6 @@ type CitizenAppealDocument struct {
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
-
-	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
 // OutgoingDocument — исходящий документ
@@ -191,7 +188,6 @@ type OutgoingDocument struct {
 	UpdatedAt     time.Time `json:"updatedAt"`
 
 	// Связанные данные
-	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
 // AdministrativeOrderDocument — приказ.
@@ -216,8 +212,6 @@ type AdministrativeOrderDocument struct {
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
-
-	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
 // AdministrativeOrderAcknowledgmentPerson описывает строку листа ознакомления приказа.
@@ -253,11 +247,7 @@ type DocumentLink struct {
 // document list. It is deliberately not serialized: callers must not be able
 // to broaden it through the Wails API.
 type DocumentAccessScope struct {
-	UserID                 string
-	Restricted             bool
-	AllowedNomenclatureIDs []string
-	AccessibleByUserID     string
-	AccessibleByUserIDs    []string
+	UserID string
 }
 
 // DocumentFilter — фильтры для журналов

@@ -134,21 +134,6 @@ func (s *SettingsService) GetOrganizationShortName() string {
 	return setting.Value
 }
 
-// IsAssignmentCompletionAttachmentsEnabled возвращает признак доступности загрузки файлов при завершении поручения.
-func (s *SettingsService) IsAssignmentCompletionAttachmentsEnabled() bool {
-	setting, err := s.getSetting("assignment_completion_attachments_enabled")
-	if err != nil || setting == nil || setting.Value == "" {
-		return false
-	}
-
-	switch strings.ToLower(strings.TrimSpace(setting.Value)) {
-	case "false", "0", "no", "off":
-		return false
-	default:
-		return true
-	}
-}
-
 func validateRollbackMigrationRequest(req models.RollbackMigrationRequest) error {
 	if !req.BackupCompleted {
 		return models.NewBadRequest("Перед откатом миграции подтвердите свежую резервную копию PostgreSQL и хранилища вложений")

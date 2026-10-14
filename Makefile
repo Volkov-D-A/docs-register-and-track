@@ -49,7 +49,7 @@ dev-client: _build-compiler
 dev-server: release-assets _build-compiler _check-docker
 	GOCACHE=$(GOCACHE) DOCKER_PLATFORM=$(DOCKER_PLATFORM) bash tools/dev-server.sh
 
-# Весь локальный стек: PostgreSQL, SeaweedFS, Seq, сервер и Caddy.
+# Весь локальный стек: PostgreSQL, Seq, сервер и Caddy.
 storage-up: dev-server
 
 storage-down:

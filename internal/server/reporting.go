@@ -12,7 +12,7 @@ func (api *managementAPI) runReport(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
 		return
 	}
-	result, err := api.reporting.Run(r.Context(), req)
+	result, err := api.reporting(authenticatedFromContext(r.Context()).User).Run(r.Context(), req)
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -21,7 +21,7 @@ func (api *managementAPI) runReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *managementAPI) reportFilterOptions(w http.ResponseWriter, r *http.Request) {
-	result, err := api.reporting.FilterOptions()
+	result, err := api.reporting(authenticatedFromContext(r.Context()).User).FilterOptions()
 	if err != nil {
 		writeUserError(w, err)
 		return

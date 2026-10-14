@@ -1,4 +1,4 @@
-# Disposable PostgreSQL and SeaweedFS instances for integration tests. It is intentionally
+# Disposable PostgreSQL instances for integration tests. It is intentionally
 # separate from docker-compose.yaml, which serves the local development stack.
 services:
   postgres:
@@ -18,23 +18,6 @@ services:
       # PostgreSQL 18+ stores data in a versioned subdirectory under this
       # mount point; it also remains compatible with the development compose.
       - integration_pgdata:/var/lib/postgresql
-  seaweedfs:
-    image: chrislusf/seaweedfs:4.46
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "3", "http://127.0.0.1:8333/healthz"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    command: mini -dir=/data -s3.port=8333
-    environment:
-      AWS_ACCESS_KEY_ID: docflow_integration
-      AWS_SECRET_ACCESS_KEY: docflow_integration_secret
-    ports:
-      - "127.0.0.1:${DOCFLOW_TEST_S3_PORT:-58333}:8333"
-    volumes:
-      - integration_s3data:/data
-
   docflow-server:
     profiles: [smoke]
     image: docflow-server:integration
@@ -53,10 +36,6 @@ services:
       POSTGRES_PASSWORD: docflow_integration
       POSTGRES_DB: docflow_test_outbox
       POSTGRES_SSLMODE: disable
-      S3_ENDPOINT: http://seaweedfs:8333
-      S3_ACCESS_KEY_ID: docflow_integration
-      S3_SECRET_ACCESS_KEY: docflow_integration_secret
-      S3_BUCKET: docflow-test-smoke
       DOCFLOW_SERVER_LISTEN_ADDRESS: :8080
       DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS: 1
       SEQ_ENABLED: false
@@ -65,10 +44,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
     stop_grace_period: 40s
 
 volumes:
   integration_pgdata:
-  integration_s3data:

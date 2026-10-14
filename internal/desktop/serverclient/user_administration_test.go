@@ -30,23 +30,20 @@ func TestUserAdministrationClientUsesTypedEndpoints(t *testing.T) {
 			assert.Equal(t, "/api/v1/users/"+userID+"/access-profile", r.URL.Path)
 			return response(http.StatusNoContent, ""), nil
 		case 3:
-			assert.Equal(t, "/api/v1/users/"+userID+"/substitution", r.URL.Path)
-			return response(http.StatusOK, "null"), nil
-		case 4:
 			assert.Equal(t, "/api/v1/departments", r.URL.Path)
 			return response(http.StatusOK, `[{"id":"`+uuid.NewString()+`","name":"Legal"}]`), nil
-		case 5:
+		case 4:
 			assert.Equal(t, http.MethodPost, r.Method)
 			assert.Equal(t, "/api/v1/departments", r.URL.Path)
 			body, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
 			assert.JSONEq(t, `{"name":"Legal","nomenclatureIds":[]}`, string(body))
 			return response(http.StatusCreated, `{"id":"`+userID+`","name":"Legal","nomenclatureIds":[]}`), nil
-		case 6:
+		case 5:
 			assert.Equal(t, http.MethodPatch, r.Method)
 			assert.Equal(t, "/api/v1/departments/"+userID, r.URL.Path)
 			return response(http.StatusOK, `{"id":"`+userID+`","name":"Compliance","nomenclatureIds":[]}`), nil
-		case 7:
+		case 6:
 			assert.Equal(t, http.MethodDelete, r.Method)
 			assert.Equal(t, "/api/v1/departments/"+userID, r.URL.Path)
 			return response(http.StatusNoContent, ""), nil
@@ -63,9 +60,6 @@ func TestUserAdministrationClientUsesTypedEndpoints(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, profile)
 	require.NoError(t, client.UpdateUserAccessProfile(context.Background(), models.UpdateUserDocumentAccessRequest{UserID: userID}))
-	substitution, err := client.GetUserSubstitution(context.Background(), userID)
-	require.NoError(t, err)
-	assert.Nil(t, substitution)
 	departments, err := client.ListDepartments(context.Background())
 	require.NoError(t, err)
 	require.Len(t, departments, 1)

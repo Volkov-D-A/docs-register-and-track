@@ -1,9 +1,7 @@
 package services
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -19,40 +17,29 @@ import (
 // whole server database pool.
 const statisticsQueryConcurrency = 2
 
-const (
-	storageStatisticsRefreshInterval = 24 * time.Hour
-	storageStatisticsLeaseDuration   = 2 * time.Minute
-	storageStatisticsRefreshError    = "Не удалось выполнить сверку хранилища. Повторите попытку."
-)
-
 // StatisticsService предоставляет бизнес-логику раздела статистики.
 type StatisticsService struct {
-	refreshRunner func(func())
-	repo          ports.StatisticsStore
-	auth          ports.StatisticsPrincipal
-	storage       ports.StorageInfoProvider
-	metrics       *observability.Registry
-	diagnostics   ports.SystemDiagnosticsProvider
+	repo        ports.StatisticsStore
+	auth        ports.StatisticsPrincipal
+	metrics     *observability.Registry
+	diagnostics ports.SystemDiagnosticsProvider
 }
 
 // StatisticsOptions configures server diagnostics and refresh coordination.
 type StatisticsOptions struct {
 	Diagnostics ports.SystemDiagnosticsProvider
 	Metrics     *observability.Registry
-	// RefreshRunner registers detached work before starting it so backup can drain it.
-	RefreshRunner func(func())
 }
 
-func NewStatisticsService(repo ports.StatisticsStore, auth ports.StatisticsPrincipal, storage ports.StorageInfoProvider, options StatisticsOptions) *StatisticsService {
-	return &StatisticsService{repo: repo, auth: auth, storage: storage,
-		diagnostics: options.Diagnostics, metrics: options.Metrics,
-		refreshRunner: options.RefreshRunner}
+func NewStatisticsService(repo ports.StatisticsStore, auth ports.StatisticsPrincipal, options StatisticsOptions) *StatisticsService {
+	return &StatisticsService{repo: repo, auth: auth,
+		diagnostics: options.Diagnostics, metrics: options.Metrics}
 }
 
 // GetDocumentStatistics возвращает обзорную статистику по всем документам за текущий год.
 func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics, error) {
 	return observability.Measure(s.metrics, "statistics.get_documents", func() (*models.DocumentStatistics, error) {
-		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
+		if err := s.auth.RequireAuthenticated(); err != nil {
 			return nil, err
 		}
 
@@ -94,7 +81,7 @@ func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics,
 // GetDocumentReport возвращает документный отчет за период.
 func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy, kindCode, nomenclatureID, userID string) (*models.DocumentStatisticsReport, error) {
 	return observability.Measure(s.metrics, "statistics.get_document_report", func() (*models.DocumentStatisticsReport, error) {
-		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
+		if err := s.auth.RequireAuthenticated(); err != nil {
 			return nil, err
 		}
 		if groupBy == "" {
@@ -138,7 +125,7 @@ func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy,
 // GetDocumentFilterOptions возвращает значения фильтров для документной статистики.
 func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisticsFilters, error) {
 	return observability.Measure(s.metrics, "statistics.get_document_filters", func() (*models.DocumentStatisticsFilters, error) {
-		if err := s.requirePermission(models.SystemPermissionStatsDocuments); err != nil {
+		if err := s.auth.RequireAuthenticated(); err != nil {
 			return nil, err
 		}
 
@@ -159,37 +146,37 @@ func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisti
 	})
 }
 
-// GetAssignmentStatistics возвращает обзорную статистику по всем поручениям.
-func (s *StatisticsService) GetAssignmentStatistics() (*models.AssignmentStatistics, error) {
-	return observability.Measure(s.metrics, "statistics.get_assignments", func() (*models.AssignmentStatistics, error) {
-		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
+// GetDeadlineStatistics возвращает обзорную статистику по всем контролям.
+func (s *StatisticsService) GetDeadlineStatistics() (*models.DeadlineStatistics, error) {
+	return observability.Measure(s.metrics, "statistics.get_controls", func() (*models.DeadlineStatistics, error) {
+		if err := s.auth.RequireAuthenticated(); err != nil {
 			return nil, err
 		}
 
 		year, yearStart, yearEnd := currentYearRange()
 
-		var monthlyTotals []models.AssignmentMonthlyPoint
+		var monthlyTotals []models.DeadlineMonthlyPoint
 		var monthlyByExecutor []models.StatisticsSeriesPoint
 		var overdueRating, statusCounts []models.StatisticsReportRow
 		if err := runStatisticsQueries(
 			func() error {
 				var err error
-				monthlyTotals, err = s.repo.GetAssignmentMonthlyOverview(yearStart, yearEnd)
+				monthlyTotals, err = s.repo.GetDeadlineMonthlyOverview(yearStart, yearEnd)
 				return err
 			},
 			func() error {
 				var err error
-				monthlyByExecutor, err = s.repo.GetAssignmentMonthlyByExecutor(yearStart, yearEnd)
+				monthlyByExecutor, err = s.repo.GetDeadlineMonthlyByExecutor(yearStart, yearEnd)
 				return err
 			},
 			func() error {
 				var err error
-				overdueRating, err = s.repo.GetAssignmentOverdueRating(yearStart, yearEnd)
+				overdueRating, err = s.repo.GetDeadlineOverdueRating(yearStart, yearEnd)
 				return err
 			},
 			func() error {
 				var err error
-				statusCounts, err = s.repo.GetAssignmentStatusCounts()
+				statusCounts, err = s.repo.GetDeadlineStatusCounts()
 				return err
 			},
 		); err != nil {
@@ -199,9 +186,9 @@ func (s *StatisticsService) GetAssignmentStatistics() (*models.AssignmentStatist
 			monthlyTotals[i].Period = monthLabel(monthlyTotals[i].Month)
 		}
 		monthlyByExecutor = completeMonthlySeries(withMonthPeriods(monthlyByExecutor), categoriesFromPoints(monthlyByExecutor))
-		statusCounts = withAssignmentStatusLabels(statusCounts)
+		statusCounts = withDeadlineStatusLabels(statusCounts)
 
-		return &models.AssignmentStatistics{
+		return &models.DeadlineStatistics{
 			Year:              year,
 			MonthlyTotals:     monthlyTotals,
 			MonthlyByExecutor: monthlyByExecutor,
@@ -250,10 +237,10 @@ func runStatisticsQueries(tasks ...func() error) error {
 	return firstErr
 }
 
-// GetAssignmentReport возвращает отчет по поручениям за период.
-func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string, onlyOverdue bool, userID string) (*models.AssignmentStatisticsReport, error) {
-	return observability.Measure(s.metrics, "statistics.get_assignment_report", func() (*models.AssignmentStatisticsReport, error) {
-		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
+// GetDeadlineReport возвращает отчет по контролям за период.
+func (s *StatisticsService) GetDeadlineReport(startDateStr, endDateStr string, onlyOverdue bool, userID string) (*models.DeadlineStatisticsReport, error) {
+	return observability.Measure(s.metrics, "statistics.get_control_report", func() (*models.DeadlineStatisticsReport, error) {
+		if err := s.auth.RequireAuthenticated(); err != nil {
 			return nil, err
 		}
 		if err := validateOptionalUUID(userID, "некорректный пользователь"); err != nil {
@@ -265,38 +252,38 @@ func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string,
 			return nil, err
 		}
 
-		rows, err := s.repo.GetAssignmentReport(startDate, endDate, onlyOverdue, userID)
+		rows, err := s.repo.GetDeadlineReport(startDate, endDate, onlyOverdue, userID)
 		if err != nil {
 			return nil, err
 		}
 
-		return &models.AssignmentStatisticsReport{
+		return &models.DeadlineStatisticsReport{
 			Rows:  rows,
 			Total: sumReportRows(rows),
 		}, nil
 	})
 }
 
-// GetAssignmentFilterOptions возвращает значения фильтров для статистики поручений.
-func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStatisticsFilters, error) {
-	return observability.Measure(s.metrics, "statistics.get_assignment_filters", func() (*models.AssignmentStatisticsFilters, error) {
-		if err := s.requirePermission(models.SystemPermissionStatsAssignments); err != nil {
+// GetDeadlineFilterOptions возвращает значения фильтров для статистики контролей.
+func (s *StatisticsService) GetDeadlineFilterOptions() (*models.DeadlineStatisticsFilters, error) {
+	return observability.Measure(s.metrics, "statistics.get_control_filters", func() (*models.DeadlineStatisticsFilters, error) {
+		if err := s.auth.RequireAuthenticated(); err != nil {
 			return nil, err
 		}
 
-		users, err := s.repo.GetUserOptions()
+		users, err := s.repo.GetExecutorOptions()
 		if err != nil {
 			return nil, err
 		}
 
-		return &models.AssignmentStatisticsFilters{Users: users}, nil
+		return &models.DeadlineStatisticsFilters{Users: users}, nil
 	})
 }
 
 // GetSystemStatistics возвращает системную статистику.
 func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, error) {
 	return observability.Measure(s.metrics, "statistics.get_system", func() (*models.SystemStatistics, error) {
-		if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
+		if err := s.requirePermission(models.SystemPermissionAdmin); err != nil {
 			return nil, err
 		}
 
@@ -313,7 +300,6 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 			UserCount:      userCount,
 			TotalDocuments: documentCount,
 			DBSize:         s.repo.GetDBSize(),
-			StorageSize:    "Нет данных",
 			GeneratedAt:    time.Now().UTC(),
 		}
 		if s.diagnostics != nil {
@@ -326,152 +312,10 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 			result.API = diagnostics.API
 			result.Database = diagnostics.Database
 			result.Outbox = diagnostics.Outbox
-			result.Attachments = diagnostics.Attachments
-		}
-
-		if s.storage != nil {
-			record, err := s.repo.GetStorageStatisticsRefreshRecord()
-			if err != nil {
-				slog.Warn("failed to get persisted storage statistics", "error", err)
-			} else {
-				snapshot := record.Snapshot
-				result.StorageObjects = snapshot.ObjectCount
-				result.StorageSize = formatStorageSize(snapshot.TotalBytes)
-				if !snapshot.RefreshedAt.IsZero() {
-					refreshedAt := snapshot.RefreshedAt
-					result.StorageRefreshedAt = &refreshedAt
-				}
-				if _, statusErr := s.ensureStorageStatisticsStatus(record); statusErr != nil {
-					slog.Warn("failed to get storage statistics refresh status", "error", statusErr)
-				}
-			}
 		}
 
 		return result, nil
 	})
-}
-
-// GetStorageStatisticsStatus returns only the storage snapshot and refresh
-// lifecycle, making it cheap enough for bounded UI polling.
-func (s *StatisticsService) GetStorageStatisticsStatus() (*models.StorageStatisticsStatus, error) {
-	if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
-		return nil, err
-	}
-	if s.storage == nil {
-		return &models.StorageStatisticsStatus{StorageSize: "Нет данных", State: models.StorageStatisticsRefreshIdle}, nil
-	}
-	record, err := s.repo.GetStorageStatisticsRefreshRecord()
-	if err != nil {
-		return nil, err
-	}
-	return s.ensureStorageStatisticsStatus(record)
-}
-
-// RetryStorageStatisticsRefresh acknowledges the last failure and starts a new
-// scan as soon as no attachment mutation is active.
-func (s *StatisticsService) RetryStorageStatisticsRefresh() (*models.StorageStatisticsStatus, error) {
-	if err := s.requirePermission(models.SystemPermissionStatsSystem); err != nil {
-		return nil, err
-	}
-	if s.storage == nil {
-		return &models.StorageStatisticsStatus{StorageSize: "Нет данных", State: models.StorageStatisticsRefreshIdle}, nil
-	}
-	if err := s.repo.ClearStorageStatisticsRefreshError(); err != nil {
-		return nil, err
-	}
-	record, err := s.repo.GetStorageStatisticsRefreshRecord()
-	if err != nil {
-		return nil, err
-	}
-	return s.ensureStorageStatisticsStatus(record)
-}
-
-func (s *StatisticsService) ensureStorageStatisticsStatus(record models.StorageStatisticsRefreshRecord) (*models.StorageStatisticsStatus, error) {
-	stale := record.Snapshot.RefreshedAt.IsZero() || time.Since(record.Snapshot.RefreshedAt) >= storageStatisticsRefreshInterval
-	if stale && !record.RefreshActive && !record.MutationActive && record.LastError == "" {
-		token := uuid.New()
-		started, err := s.repo.TryStartStorageStatisticsRefresh(token, time.Now().Add(storageStatisticsLeaseDuration))
-		if err != nil {
-			return nil, err
-		}
-		if started {
-			record.RefreshActive = true
-			if s.refreshRunner != nil {
-				s.refreshRunner(func() { s.refreshStorageStatistics(token) })
-			} else {
-				go s.refreshStorageStatistics(token)
-			}
-		} else {
-			record, err = s.repo.GetStorageStatisticsRefreshRecord()
-			if err != nil {
-				return nil, err
-			}
-			stale = record.Snapshot.RefreshedAt.IsZero() || time.Since(record.Snapshot.RefreshedAt) >= storageStatisticsRefreshInterval
-		}
-	}
-
-	state := models.StorageStatisticsRefreshIdle
-	switch {
-	case record.RefreshActive:
-		state = models.StorageStatisticsRefreshRunning
-	case record.MutationActive || (stale && record.LastError == ""):
-		state = models.StorageStatisticsRefreshPending
-	case record.LastError != "":
-		state = models.StorageStatisticsRefreshFailed
-	}
-	status := &models.StorageStatisticsStatus{
-		StorageObjects: record.Snapshot.ObjectCount,
-		StorageSize:    formatStorageSize(record.Snapshot.TotalBytes),
-		State:          state,
-		LastError:      record.LastError,
-	}
-	if !record.Snapshot.RefreshedAt.IsZero() {
-		refreshedAt := record.Snapshot.RefreshedAt
-		status.RefreshedAt = &refreshedAt
-	}
-	return status, nil
-}
-
-func (s *StatisticsService) refreshStorageStatistics(token uuid.UUID) {
-	ctx := context.Background()
-
-	objectCount, totalBytes, err := s.storage.RefreshStorageUsage(ctx)
-	if err != nil {
-		slog.Warn("failed to refresh storage statistics", "error", err)
-		if failureErr := s.repo.FailStorageStatisticsRefresh(token, storageStatisticsRefreshError); failureErr != nil {
-			slog.Warn("failed to record storage statistics refresh failure", "error", failureErr)
-		}
-		return
-	}
-
-	if err := s.repo.SaveStorageStatisticsSnapshot(token, models.StorageStatisticsSnapshot{
-		ObjectCount: objectCount,
-		TotalBytes:  totalBytes,
-		RefreshedAt: time.Now(),
-	}); err != nil {
-		slog.Warn("failed to save refreshed storage statistics", "error", err)
-		if failureErr := s.repo.FailStorageStatisticsRefresh(token, storageStatisticsRefreshError); failureErr != nil {
-			slog.Warn("failed to record storage statistics snapshot failure", "error", failureErr)
-		}
-	}
-}
-
-func formatStorageSize(bytes int64) string {
-	const (
-		kb = int64(1024)
-		mb = kb * 1024
-		gb = mb * 1024
-	)
-	switch {
-	case bytes >= gb:
-		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(gb))
-	case bytes >= mb:
-		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(mb))
-	case bytes >= kb:
-		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(kb))
-	default:
-		return fmt.Sprintf("%d B", bytes)
-	}
 }
 
 func (s *StatisticsService) requirePermission(permission string) error {
@@ -485,14 +329,14 @@ func (s *StatisticsService) requirePermission(permission string) error {
 }
 
 func currentYearRange() (int, time.Time, time.Time) {
-	now := time.Now()
+	now := time.Now().In(models.OrganizationLocation())
 	yearStart := time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, now.Location())
 	return now.Year(), yearStart, yearStart.AddDate(1, 0, 0)
 }
 
 func parseStatisticsDateRange(startDateStr, endDateStr string) (time.Time, time.Time, error) {
 	if startDateStr == "" || endDateStr == "" {
-		now := time.Now()
+		now := time.Now().In(models.OrganizationLocation())
 		start := time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, now.Location())
 		return start, start.AddDate(1, 0, -1), nil
 	}
@@ -557,15 +401,8 @@ func withDocumentKindReportLabels(rows []models.StatisticsReportRow) []models.St
 	return rows
 }
 
-func withAssignmentStatusLabels(rows []models.StatisticsReportRow) []models.StatisticsReportRow {
-	labels := map[string]string{
-		"new":         "Новое",
-		"in_progress": "В работе",
-		"completed":   "Исполнено",
-		"finished":    "Завершено",
-		"returned":    "Возврат",
-		"cancelled":   "Отменено",
-	}
+func withDeadlineStatusLabels(rows []models.StatisticsReportRow) []models.StatisticsReportRow {
+	labels := map[string]string{"active": "Активен", "completed": "Исполнен", "cancelled": "Отменён"}
 	for i := range rows {
 		if label, ok := labels[rows[i].Key]; ok {
 			rows[i].Name = label

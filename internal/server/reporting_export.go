@@ -20,7 +20,7 @@ func (api *managementAPI) exportReport(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
 		return
 	}
-	result, err := api.reporting.Run(r.Context(), req)
+	result, err := api.reporting(authenticatedFromContext(r.Context()).User).Run(r.Context(), req)
 	if err != nil {
 		writeUserError(w, err)
 		return
@@ -73,11 +73,11 @@ func reportHeaders(template string) []string {
 	case "organizations":
 		return []string{"Организация", "Входящих", "Исходящих"}
 	case "department_load":
-		return []string{"Период", "Подразделение", "Поручений"}
+		return []string{"Период", "Подразделение", "Контролей"}
 	case "execution_time":
-		return []string{"Подразделение", "Поручений", "Среднее, суток"}
+		return []string{"Подразделение", "Контролей", "Среднее, суток"}
 	default:
-		return []string{"Подразделение", "Поручений со сроком", "С просрочкой", "Доля, %"}
+		return []string{"Подразделение", "Контролей со сроком", "С просрочкой", "Доля, %"}
 	}
 }
 
@@ -215,16 +215,16 @@ func reportSummaryText(result *models.ReportResult) string {
 	case "organizations":
 		return fmt.Sprintf("Итого по организациям: входящих %d, исходящих %d; уникальных документов %d", s.Incoming, s.Outgoing, s.UniqueDocuments)
 	case "department_load":
-		return fmt.Sprintf("Всего поручений: %d", s.Count)
+		return fmt.Sprintf("Всего контролей: %d", s.Count)
 	case "execution_time":
 		if s.Count == 0 {
-			return "Поручений нет; среднее время: нет данных"
+			return "Контролей нет; среднее время: нет данных"
 		}
-		return fmt.Sprintf("Всего поручений: %d; среднее время: %.1f суток", s.Count, s.Metric)
+		return fmt.Sprintf("Всего контролей: %d; среднее время: %.1f суток", s.Count, s.Metric)
 	default:
 		if s.Count == 0 {
-			return fmt.Sprintf("Поручений со сроком нет; доля: нет данных; открытая просрочка: %d", s.OpenOverdue)
+			return fmt.Sprintf("Контролей со сроком нет; доля: нет данных; открытая просрочка: %d", s.OpenOverdue)
 		}
-		return fmt.Sprintf("Поручений со сроком: %d; просрочено: %d; доля: %.1f %%; открытая просрочка: %d", s.Count, s.Overdue, s.Metric, s.OpenOverdue)
+		return fmt.Sprintf("Контролей со сроком: %d; просрочено: %d; доля: %.1f %%; открытая просрочка: %d", s.Count, s.Overdue, s.Metric, s.OpenOverdue)
 	}
 }

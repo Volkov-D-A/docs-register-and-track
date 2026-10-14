@@ -174,22 +174,19 @@ body {
 }
 
 /* Показатели рабочего стола сохраняют читаемый контраст в обеих темах. */
-.workspace-metric-card--new,
-.assignment-filter-button--new {
+.workspace-metric-card--new {
   --metric-bg: #eaf4ff;
   --metric-border: #b9dcff;
   --metric-accent: #0958d9;
 }
 
-.workspace-metric-card--in_progress,
-.assignment-filter-button--in_progress {
+.workspace-metric-card--in_progress {
   --metric-bg: #e8f8f2;
   --metric-border: #b4e4d0;
   --metric-accent: #137a55;
 }
 
-.workspace-metric-card--returned,
-.assignment-filter-button--returned {
+.workspace-metric-card--returned {
   --metric-bg: #fff0f6;
   --metric-border: #ffd6e7;
   --metric-accent: #c41d7f;
@@ -207,29 +204,25 @@ body {
   --metric-accent: #ad6800;
 }
 
-.workspace-metric-card--acceptance,
-.assignment-filter-button--acceptance {
+.workspace-metric-card--acceptance {
   --metric-bg: #f7f0ff;
   --metric-border: #dec8ff;
   --metric-accent: #722ed1;
 }
 
-:root[data-app-theme='dark'] .workspace-metric-card--new,
-:root[data-app-theme='dark'] .assignment-filter-button--new {
+:root[data-app-theme='dark'] .workspace-metric-card--new {
   --metric-bg: #19354f;
   --metric-border: #30618a;
   --metric-accent: #91caff;
 }
 
-:root[data-app-theme='dark'] .workspace-metric-card--in_progress,
-:root[data-app-theme='dark'] .assignment-filter-button--in_progress {
+:root[data-app-theme='dark'] .workspace-metric-card--in_progress {
   --metric-bg: #1c4038;
   --metric-border: #367962;
   --metric-accent: #7de2bd;
 }
 
-:root[data-app-theme='dark'] .workspace-metric-card--returned,
-:root[data-app-theme='dark'] .assignment-filter-button--returned {
+:root[data-app-theme='dark'] .workspace-metric-card--returned {
   --metric-bg: #452337;
   --metric-border: #823957;
   --metric-accent: #ff85c0;
@@ -247,8 +240,7 @@ body {
   --metric-accent: #ffd666;
 }
 
-:root[data-app-theme='dark'] .workspace-metric-card--acceptance,
-:root[data-app-theme='dark'] .assignment-filter-button--acceptance {
+:root[data-app-theme='dark'] .workspace-metric-card--acceptance {
   --metric-bg: #37244b;
   --metric-border: #664789;
   --metric-accent: #d3adf7;
@@ -385,220 +377,12 @@ body {
   line-height: 1;
 }
 
-.assignment-overdue .ant-table-cell {
-  background-color: var(--app-overdue-bg) !important;
-}
-
 .incoming-documents-table .ant-table-tbody > tr > td {
   font-size: 15px;
 }
 
 .outgoing-documents-table .ant-table-tbody > tr > td {
   font-size: 15px;
-}
-
-.assignments-page-heading {
-  margin-bottom: 16px;
-}
-
-.assignment-filters {
-  margin-bottom: 16px;
-  padding: 16px;
-  border: 1px solid var(--app-border);
-  border-radius: 14px;
-  background: var(--app-surface);
-}
-
-.assignment-filters-toolbar,
-.assignment-filter-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.assignment-filters-toolbar {
-  margin-bottom: 18px;
-  gap: 12px;
-}
-
-.assignment-filters-search {
-  flex: 1 1 280px;
-  min-width: 0;
-}
-
-.assignment-filters-executor {
-  flex: 0 1 240px;
-  min-width: 200px;
-}
-
-
-
-.assignment-filter-row + .assignment-filter-row {
-  margin-top: 12px;
-}
-
-.assignment-filter-label {
-  width: 54px;
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--app-text-muted);
-}
-
-.assignment-filter-button--neutral {
-  --metric-bg: var(--app-subtle-surface);
-  --metric-border: var(--app-border);
-  --metric-accent: var(--app-text-secondary);
-}
-
-.assignment-filter-button.ant-btn {
-  height: 42px;
-  min-width: 112px;
-  padding-inline: 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  background: var(--metric-bg);
-  border-color: var(--metric-border);
-  color: var(--metric-accent);
-}
-
-.assignment-filter-button.ant-btn:is(:hover, :focus-visible),
-.assignment-filter-button.ant-btn[aria-pressed='true'] {
-  background: var(--metric-bg);
-  border-color: var(--metric-accent);
-  color: var(--metric-accent);
-}
-
-.assignment-filter-button[aria-pressed='true'] {
-  font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--metric-accent);
-}
-
-.assignment-filters-toggles {
-  margin-bottom: 18px;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.assignment-filters-reset {
-  margin-inline-start: auto;
-  flex-shrink: 0;
-}
-
-.assignment-filter-buttons {
-  display: contents;
-}
-
-.assignment-filter-divider {
-  width: 1px;
-  height: 28px;
-  margin-inline: 4px;
-  flex-shrink: 0;
-  background: var(--app-border);
-}
-
-:root[data-app-theme='dark'] .assignment-deadline-link {
-  --assignment-link-color: #91caff;
-}
-
-.assignment-deadline-link.ant-btn {
-  height: 30px;
-  padding-inline: 4px;
-  font-size: 13px;
-  color: var(--app-text-muted);
-}
-
-.assignment-deadline-link.ant-btn:is(:hover, :focus-visible),
-.assignment-deadline-link.ant-btn[aria-pressed='true'] {
-  color: var(--assignment-link-color, #0958d9);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
-.assignment-deadline-link[aria-pressed='true'] {
-  font-weight: 600;
-}
-
-.assignment-period-button.ant-btn {
-  margin-left: 6px;
-  font-size: 13px;
-}
-
-.assignment-period-picker {
-  width: 260px;
-  max-width: 100%;
-}
-
-@media (max-width: 640px) {
-  .assignment-filters {
-    padding: 12px;
-  }
-
-  .assignment-filters-search,
-  .assignment-filters-executor {
-    flex-basis: 100%;
-  }
-
-  .assignment-filter-label {
-    width: 100%;
-  }
-
-}
-
-.document-assignment-type-icon {
-  flex-shrink: 0;
-  font-size: 16px;
-}
-
-.document-assignment-type-icon--execution {
-  color: #1677ff;
-}
-
-.document-assignment-type-icon--acknowledgment {
-  color: #08979c;
-}
-
-:root[data-app-theme='dark'] .document-assignment-type-icon--execution {
-  color: #69b1ff;
-}
-
-:root[data-app-theme='dark'] .document-assignment-type-icon--acknowledgment {
-  color: #5cdbd3;
-}
-
-.assignments-table .ant-table-tbody > tr > td {
-  font-size: 15px;
-}
-
-.assignments-table .ant-table-thead > tr > th {
-  white-space: nowrap;
-}
-
-.assignments-table .ant-table-thead > tr > th.assignments-date-column,
-.assignments-table .ant-table-tbody > tr > td.assignments-date-column {
-  padding-left: 0 !important;
-}
-
-.assignments-table .assignments-content-cell {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.assignments-table .assignments-document-cell {
-  overflow: hidden;
-}
-
-.assignments-table .assignments-document-subject {
-  font-size: 13px;
-  color: var(--app-text-muted);
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .app-sider {
@@ -685,24 +469,10 @@ body {
   opacity: 1;
 }
 
-.document-assignment-workflow {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--app-border);
-}
-
 .document-acknowledgment-workflow {
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--app-border);
-}
-
-.document-assignment-workflow__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 24px;
-  margin-bottom: 8px;
 }
 
 .document-acknowledgment-workflow__header {
@@ -711,15 +481,6 @@ body {
   gap: 8px;
   min-height: 24px;
   margin-bottom: 8px;
-}
-
-.document-assignment-workflow__item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--app-border);
 }
 
 .document-acknowledgment-workflow__item {
@@ -731,31 +492,13 @@ body {
   border-top: 1px solid var(--app-border);
 }
 
-.document-assignment-workflow__item:first-of-type {
-  border-top: none;
-}
-
 .document-acknowledgment-workflow__item:first-of-type {
   border-top: none;
-}
-
-.document-assignment-workflow__body {
-  min-width: 0;
-  flex: 1 1 auto;
 }
 
 .document-acknowledgment-workflow__body {
   min-width: 0;
   flex: 1 1 auto;
-}
-
-.document-assignment-workflow__content {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
 }
 
 .document-acknowledgment-workflow__content {
@@ -764,32 +507,15 @@ body {
   overflow-wrap: anywhere;
 }
 
-.document-assignment-workflow__report {
-  margin-top: 6px;
-  overflow-wrap: anywhere;
-}
-
-.document-assignment-workflow__actions {
-  flex: 0 0 auto;
-  justify-content: flex-end;
-}
-
 .document-acknowledgment-workflow__actions {
   flex: 0 0 auto;
   justify-content: flex-end;
 }
 
 @media (max-width: 720px) {
-  .document-assignment-workflow__item {
-    flex-direction: column;
-  }
 
   .document-acknowledgment-workflow__item {
     flex-direction: column;
-  }
-
-  .document-assignment-workflow__actions {
-    justify-content: flex-start;
   }
 
   .document-acknowledgment-workflow__actions {

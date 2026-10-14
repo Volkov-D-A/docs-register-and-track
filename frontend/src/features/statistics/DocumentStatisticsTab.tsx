@@ -4,6 +4,7 @@ import { BarChartOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { formatAppError } from '../../utils/appError';
 import { useLatestRequest } from '../../hooks/useLatestRequest';
+import { onServerEvent } from '../../events/serverEvents';
 import { DocumentYearCard, ReportTotal } from './statisticsShared';
 import { chartHeight, reportColumns } from './statisticsConstants';
 
@@ -24,9 +25,9 @@ const DocumentStatisticsTab: React.FC = () => {
   const [kind, setKind] = useState<string | undefined>();
   const [nomenclature, setNomenclature] = useState<string | undefined>();
   const [user, setUser] = useState<string | undefined>();
-  const { run: runLatestStats } = useLatestRequest();
-  const { run: runLatestFilters } = useLatestRequest();
-  const { run: runLatestReport } = useLatestRequest();
+  const { run: runLatestStats, invalidate: invalidateStats } = useLatestRequest();
+  const { run: runLatestFilters, invalidate: invalidateFilters } = useLatestRequest();
+  const { run: runLatestReport, invalidate: invalidateReport } = useLatestRequest();
 
   const loadOverview = useCallback(async () => {
     setStatsLoading(true);
@@ -62,6 +63,18 @@ const DocumentStatisticsTab: React.FC = () => {
       onSettled: () => setReportLoading(false),
     });
   }, [groupBy, kind, message, nomenclature, range, runLatestReport, user]);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stop = onServerEvent((event) => {
+      if (!['resync', 'access-changed', 'documents', 'document-changed'].includes(event.topic)) return;
+      invalidateStats(); invalidateFilters(); invalidateReport();
+      setStats(null); setReport(null); setFilters({ users: [], kinds: [], nomenclature: [] });
+      clearTimeout(timer);
+      timer = setTimeout(() => { void loadOverview(); void loadReport(); }, 100);
+    });
+    return () => { stop(); clearTimeout(timer); };
+  }, [invalidateStats, invalidateFilters, invalidateReport, loadOverview, loadReport]);
 
   useEffect(() => { void loadOverview(); }, [loadOverview]);
   useEffect(() => { void loadReport(); }, [loadReport]);

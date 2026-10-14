@@ -1,12 +1,8 @@
 package models
 
 const (
-	SystemPermissionAdmin            = "admin"
-	SystemPermissionReferences       = "references"
-	SystemPermissionStatsDocuments   = "stats_documents"
-	SystemPermissionStatsAssignments = "stats_assignments"
-	SystemPermissionStatsSystem      = "stats_system"
-	SystemPermissionReports          = "reports"
+	SystemPermissionAdmin      = "admin"
+	SystemPermissionReferences = "references"
 )
 
 // UserDocumentPermissionRule описывает прямое назначение действия пользователю.

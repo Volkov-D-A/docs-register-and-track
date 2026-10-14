@@ -22,25 +22,20 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
-
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
 )
 
 const shutdownTimeout = 30 * time.Second
 
 type App struct {
 	events    *liveevents.Bus
-	detached  sync.WaitGroup
 	backups   *backup.Service
 	db        *database.DB
 	cfg       *config.Config
 	metrics   *observability.Registry
 	lifecycle *background.Lifecycle
 	http      *http.Server
-	storage   serverStorage
 	version   string
 	startedAt time.Time
 	closeOnce sync.Once
@@ -48,13 +43,6 @@ type App struct {
 
 type dependencies struct {
 	connectDatabase func(config.DatabaseConfig) (*database.DB, error)
-	newStorage      func(config.S3Config) (serverStorage, error)
-}
-
-type serverStorage interface {
-	outbox.FileDeleter
-	ports.StorageInfoProvider
-	ports.FileStorage
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -67,9 +55,6 @@ func New(cfg *config.Config) (*App, error) {
 	}
 	return newWithDependencies(cfg, dependencies{
 		connectDatabase: database.Connect,
-		newStorage: func(cfg config.S3Config) (serverStorage, error) {
-			return storage.NewS3Storage(cfg)
-		},
 	})
 }
 
@@ -96,10 +81,6 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 	events := &liveevents.Bus{}
 	metrics := observability.NewRegistry(256)
 	db.SetMetrics(metrics)
-	objectStorage, err := deps.newStorage(cfg.S3)
-	if err != nil {
-		return nil, fmt.Errorf("connect S3: %w", err)
-	}
 
 	outboxRepo := repository.NewOutboxRepository(db)
 	workerOptions, err := ResolveOutboxOptions(cfg.Outbox)
@@ -110,11 +91,7 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		outboxRepo,
 		repository.NewUserEventRepository(db),
 		repository.NewJournalRepository(db),
-		repository.NewAdminAuditLogRepository(db),
-		repository.NewAttachmentRepository(db),
-		objectStorage,
-		workerOptions,
-	)
+		repository.NewAdminAuditLogRepository(db), workerOptions)
 	if err != nil {
 		return nil, fmt.Errorf("create outbox worker: %w", err)
 	}
@@ -124,9 +101,7 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 	worker.OnAccessChanged = func(request models.CreateAdminAuditLogRequest) {
 		// Legacy audit payloads lack an audience and require conservative resync.
 		resource := "access"
-		if request.Action == "FILES_BULK_DELETE" {
-			resource = "resync"
-		}
+
 		events.PublishChange(liveevents.Change{Resource: resource, Audience: request.AffectedUserIDs})
 	}
 	listenAddress := strings.TrimSpace(cfg.Server.ListenAddress)
@@ -139,7 +114,6 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		db:        db,
 		cfg:       cfg,
 		metrics:   metrics,
-		storage:   objectStorage,
 		version:   version,
 		startedAt: time.Now().UTC(),
 	}
@@ -149,17 +123,8 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		(&sessionCleaner{store: repository.NewServerSessionRepository(db)}).Run,
 	)
 	api := newManagementAPI(app)
-	app.backups = &backup.Service{DB: db.SQLDB(), PostgreSQL: backup.PostgreSQL{Config: cfg.Database}, S3: cfg.S3, Directory: cfg.Backup.Directory, MaxBytes: cfg.Backup.MaxBytes, Version: version, Snapshot: func(ctx context.Context, fn func(context.Context) error) error {
-		return api.backupSnapshot(ctx, func(ctx context.Context) error {
-			finished := make(chan struct{})
-			go func() { app.detached.Wait(); close(finished) }()
-			select {
-			case <-finished:
-				return fn(ctx)
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		})
+	app.backups = &backup.Service{DB: db.SQLDB(), PostgreSQL: backup.PostgreSQL{Config: cfg.Database}, Directory: cfg.Backup.Directory, MaxBytes: cfg.Backup.MaxBytes, Version: version, Snapshot: func(ctx context.Context, fn func(context.Context) error) error {
+		return api.backupSnapshot(ctx, fn)
 	}}
 	if cfg.Backup.KeyFile != "" {
 		box, err := backup.LoadSecretBox(cfg.Backup.KeyFile)
@@ -322,8 +287,6 @@ func HealthCheck(ctx context.Context, cfg *config.Config) error {
 	if status == nil || !status.UpToDate || !status.Compatible {
 		return fmt.Errorf("database schema is not ready")
 	}
-	if err := storage.CheckS3(ctx, cfg.S3); err != nil {
-		return fmt.Errorf("check S3: %w", err)
-	}
+
 	return nil
 }

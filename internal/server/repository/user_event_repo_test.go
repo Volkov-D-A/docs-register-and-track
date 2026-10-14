@@ -21,8 +21,8 @@ func TestUserEventRepository_CreateFromOutboxDoesNotReloadEvent(t *testing.T) {
 
 	request := models.CreateUserEventRequest{
 		RecipientUserID: uuid.New(), DocumentID: uuid.New(),
-		DocumentKind: "incoming_letter", EntityType: models.UserEventEntityAssignment,
-		EventType: models.UserEventAssignmentCreated, Title: "Новое поручение", Message: "Назначено поручение",
+		DocumentKind: "incoming_letter", EntityType: "deadline_control",
+		EventType: "deadline_control_create", Title: "Новое поручение", Message: "Назначено поручение",
 	}
 	mock.ExpectExec(`INSERT INTO user_events`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -43,7 +43,7 @@ func TestUserEventRepository_GetList(t *testing.T) {
 	documentID := uuid.New()
 	now := time.Now()
 
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM user_events e WHERE e.recipient_user_id = $1 AND e.read_at IS NULL")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM user_events e JOIN documents d ON d.id=e.document_id WHERE e.recipient_user_id = $1 AND " + documentReadPredicate("$1", "d") + " AND e.read_at IS NULL")).
 		WithArgs(userID).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
@@ -55,7 +55,7 @@ func TestUserEventRepository_GetList(t *testing.T) {
 			e.created_at, e.read_at, d.registration_date
 		FROM user_events e
 		LEFT JOIN documents d ON d.id = e.document_id
-		WHERE e.recipient_user_id = $1 AND e.read_at IS NULL
+		WHERE e.recipient_user_id = $1 AND ` + documentReadPredicate("$1", "d") + ` AND e.read_at IS NULL
 		ORDER BY e.created_at DESC
 		LIMIT $2 OFFSET $3`
 	mock.ExpectQuery(regexp.QuoteMeta(listQuery)).
@@ -66,8 +66,8 @@ func TestUserEventRepository_GetList(t *testing.T) {
 			documentID,
 			"incoming_letter",
 			"ВХ-1",
-			models.UserEventEntityAssignment,
-			models.UserEventAssignmentCompleted,
+			"deadline_control",
+			"deadline_control_complete",
 			"Поручение ожидает приемки",
 			"Исполнитель отправил поручение",
 			now,
@@ -81,7 +81,7 @@ func TestUserEventRepository_GetList(t *testing.T) {
 	assert.Equal(t, 1, result.TotalCount)
 	assert.Equal(t, 2, result.Page)
 	require.Len(t, result.Items, 1)
-	assert.Equal(t, models.UserEventAssignmentCompleted, result.Items[0].EventType)
+	assert.Equal(t, "deadline_control_complete", result.Items[0].EventType)
 	assert.Equal(t, &now, result.Items[0].DocumentDate)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

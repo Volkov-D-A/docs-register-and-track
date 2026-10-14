@@ -83,7 +83,7 @@ func TestSessionStreamForwardsDocumentRoutingMetadata(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		io.WriteString(w, "event: document-changed\ndata: {\"documentId\":\"doc-1\",\"documentKind\":\"incoming_letter\",\"resource\":\"assignments\",\"visibilityChanged\":true,\"revision\":999,\"token\":\"must-not-forward\"}\n\n")
+		io.WriteString(w, "event: document-changed\ndata: {\"documentId\":\"doc-1\",\"documentKind\":\"incoming_letter\",\"resource\":\"controls\",\"visibilityChanged\":true,\"revision\":999,\"token\":\"must-not-forward\"}\n\n")
 		w.(http.Flusher).Flush()
 		<-r.Context().Done()
 	}))
@@ -98,7 +98,7 @@ func TestSessionStreamForwardsDocumentRoutingMetadata(t *testing.T) {
 	require.NoError(t, err)
 	select {
 	case event := <-events:
-		require.Equal(t, LiveEvent{Topic: "document-changed", DocumentID: "doc-1", DocumentKind: "incoming_letter", Resource: "assignments", VisibilityChanged: true, Revision: c.SessionState().Revision}, event)
+		require.Equal(t, LiveEvent{Topic: "document-changed", DocumentID: "doc-1", DocumentKind: "incoming_letter", Resource: "controls", VisibilityChanged: true, Revision: c.SessionState().Revision}, event)
 	case <-time.After(time.Second):
 		t.Fatal("missing document change")
 	}

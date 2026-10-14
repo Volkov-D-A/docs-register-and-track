@@ -16,29 +16,6 @@ type UserAccessClient interface {
 	UpdateUserAccessProfile(context.Context, models.UpdateUserDocumentAccessRequest) error
 }
 
-type UserSubstitutionAdminClient interface {
-	GetUserSubstitution(context.Context, string) (*dto.UserSubstitution, error)
-	UpdateUserSubstitution(context.Context, models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error)
-	GetMySubstitution(context.Context) (*dto.UserSubstitution, error)
-	UpdateMySubstitution(context.Context, models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error)
-}
-
-func (c *Client) GetMySubstitution(ctx context.Context) (*dto.UserSubstitution, error) {
-	var result *dto.UserSubstitution
-	if err := c.doUserRequest(ctx, http.MethodGet, "/api/v1/profile/substitution", nil, http.StatusOK, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (c *Client) UpdateMySubstitution(ctx context.Context, input models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error) {
-	var result *dto.UserSubstitution
-	if err := c.doUserRequest(ctx, http.MethodPut, "/api/v1/profile/substitution", input, http.StatusOK, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
 type DepartmentClient interface {
 	ListDepartments(context.Context) ([]dto.Department, error)
 	CreateDepartment(context.Context, string, []string) (*dto.Department, error)
@@ -68,30 +45,6 @@ func (c *Client) UpdateUserAccessProfile(ctx context.Context, input models.Updat
 	}
 	path := "/api/v1/users/" + url.PathEscape(input.UserID) + "/access-profile"
 	return c.doUserRequest(ctx, http.MethodPut, path, input, http.StatusNoContent, nil)
-}
-
-func (c *Client) GetUserSubstitution(ctx context.Context, userID string) (*dto.UserSubstitution, error) {
-	if userID == "" {
-		return nil, models.NewBadRequest("идентификатор пользователя обязателен")
-	}
-	var result *dto.UserSubstitution
-	path := "/api/v1/users/" + url.PathEscape(userID) + "/substitution"
-	if err := c.doUserRequest(ctx, http.MethodGet, path, nil, http.StatusOK, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (c *Client) UpdateUserSubstitution(ctx context.Context, input models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error) {
-	if input.PrincipalUserID == "" {
-		return nil, models.NewBadRequest("идентификатор пользователя обязателен")
-	}
-	var result *dto.UserSubstitution
-	path := "/api/v1/users/" + url.PathEscape(input.PrincipalUserID) + "/substitution"
-	if err := c.doUserRequest(ctx, http.MethodPut, path, input, http.StatusOK, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
 }
 
 func (c *Client) ListDepartments(ctx context.Context) ([]dto.Department, error) {

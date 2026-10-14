@@ -30,7 +30,7 @@ func TestWorkspaceAndStatisticsAPIEnforceServerPermissionsIntegration(t *testing
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES ($1, 'admin', TRUE)`, userID)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES ($1, $2, TRUE)`, userID, models.SystemPermissionStatsDocuments)
+	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES ($1, $2, TRUE)`, userID, models.SystemPermissionReferences)
 	require.NoError(t, err)
 
 	api := newIntegrationManagementAPI(t, &App{db: db, cfg: &config.Config{Server: config.ServerConfig{SessionTTLHours: 12}}, metrics: observability.NewRegistry(32)})
@@ -50,11 +50,11 @@ func TestWorkspaceAndStatisticsAPIEnforceServerPermissionsIntegration(t *testing
 		return response
 	}
 
-	workspace := request("/api/v1/workspace/overview")
+	workspace := request("/api/v1/workspace/documents")
 	require.Equal(t, http.StatusOK, workspace.Code, workspace.Body.String())
 	documents := request("/api/v1/statistics/documents")
 	require.Equal(t, http.StatusOK, documents.Code, documents.Body.String())
 	require.Contains(t, documents.Body.String(), `"totalYear":0`)
 	system := request("/api/v1/statistics/system")
-	require.Equal(t, http.StatusForbidden, system.Code, system.Body.String())
+	require.Equal(t, http.StatusOK, system.Code, system.Body.String())
 }

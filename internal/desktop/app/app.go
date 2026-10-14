@@ -79,7 +79,6 @@ func newWailsOptionsWithDependencies(
 	adminAuditLogService := desktopservices.NewAdminAuditLogService(serverClient)
 	outboxAdminService := desktopservices.NewOutboxAdminService(serverClient)
 	userService := desktopservices.NewUserService(serverClient)
-	userSubstitutionService := desktopservices.NewUserSubstitutionService(serverClient)
 	nomenclatureService := desktopservices.NewNomenclatureService(serverClient)
 	referenceService := desktopservices.NewReferenceService(serverClient)
 	documentAccessAdminService := desktopservices.NewDocumentAccessAdminService(serverClient)
@@ -91,11 +90,6 @@ func newWailsOptionsWithDependencies(
 	administrativeOrderService := desktopservices.NewAdministrativeOrderService(serverClient)
 	deadlineControlService := desktopservices.NewDeadlineControlService(serverClient, operationLifecycle)
 	departmentService := desktopservices.NewDepartmentService(serverClient)
-
-	attachmentService, startAttachments, err := desktopservices.NewDesktopAttachmentService(serverClient, desktopservices.DesktopAttachmentOptions{Lifecycle: operationLifecycle})
-	if err != nil {
-		return nil, &startupdiag.Failure{Component: "attachments", ConfigPath: params.ConfigPath, Summary: "Не удалось настроить сервис вложений.", Err: err}
-	}
 
 	workspaceService := desktopservices.NewWorkspaceService(serverClient)
 	statisticsService := desktopservices.NewStatisticsService(serverClient)
@@ -150,7 +144,6 @@ func newWailsOptionsWithDependencies(
 				wailsruntime.EventsEmit(ctx, "auth:session-ended", state)
 			})
 			startSystem(ctx)
-			startAttachments(ctx)
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnShutdown: func(ctx context.Context) {
@@ -168,7 +161,6 @@ func newWailsOptionsWithDependencies(
 		Bind: []interface{}{
 			authService,
 			userService,
-			userSubstitutionService,
 			nomenclatureService,
 			referenceService,
 			documentAccessAdminService,
@@ -182,7 +174,6 @@ func newWailsOptionsWithDependencies(
 			reportingService,
 			departmentService,
 			settingsService,
-			attachmentService,
 			linkService,
 			systemService,
 			releaseNoteService,

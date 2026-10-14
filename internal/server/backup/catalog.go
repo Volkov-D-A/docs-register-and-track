@@ -39,10 +39,13 @@ func parseCopyMarker(id string, raw []byte) (RemoteCopy, error) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return m, err
 	}
-	if m.ID != id || m.Format != 3 {
+	if m.ID != id {
 		return m, fmt.Errorf("invalid remote manifest identity")
 	}
 
+	if m.Format != ArchiveFormat {
+		return m, fmt.Errorf("несовместимый формат резервной копии: %d", m.Format)
+	}
 	digest, err := hex.DecodeString(m.SHA256)
 	if err != nil || len(digest) != 32 || m.Size < 0 || m.Size >= 1<<60 || m.CreatedAt.IsZero() {
 		return m, fmt.Errorf("invalid remote manifest metadata")
@@ -95,7 +98,7 @@ func Catalog(ctx context.Context, remote remoteReader) ([]models.BackupCopy, err
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		copy := models.BackupCopy{ID: id, Format: 3, Verification: "incomplete"}
+		copy := models.BackupCopy{ID: id, Format: ArchiveFormat, Verification: "incomplete"}
 		archive, exists := files[id+".tar.gz"]
 		if exists {
 			copy.Size = archive.Size()
@@ -105,6 +108,11 @@ func Catalog(ctx context.Context, remote remoteReader) ([]models.BackupCopy, err
 		switch {
 		case err != nil:
 			copy.Issue = "Manifest отсутствует или повреждён"
+			if m.Format != 0 && m.Format != ArchiveFormat {
+				copy.Format = m.Format
+				copy.Verification = "incompatible"
+				copy.Issue = "Несовместимый формат: требуется копия без объектного хранилища (формат 4)"
+			}
 		case !exists:
 			copy.CreatedAt = m.CreatedAt
 			copy.Size = m.Size
@@ -120,10 +128,10 @@ func Catalog(ctx context.Context, remote remoteReader) ([]models.BackupCopy, err
 			copy.CanDelete = true
 		}
 		if _, deleting := files[id+".delete.json"]; deleting {
-			copy.Verification = "deleting"
-			copy.CanDelete = true
-			copy.Issue = "Удаление не завершено; повторите операцию"
 			if m, err := readDeletion(ctx, remote, id); err == nil {
+				copy.Verification = "deleting"
+				copy.CanDelete = true
+				copy.Issue = "Удаление не завершено; повторите операцию"
 				copy.CreatedAt = m.CreatedAt
 				copy.Size = m.Size
 				copy.SHA256 = m.SHA256

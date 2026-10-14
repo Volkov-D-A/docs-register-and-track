@@ -12,12 +12,6 @@ func MapUser(m *models.User) *User {
 	}
 	return &User{ID: m.ID.String(), Login: m.Login, FullName: m.FullName(), LastName: m.LastName, FirstName: m.FirstName, Patronymic: m.Patronymic, NoPatronymic: m.NoPatronymic, IsDocumentParticipant: m.IsDocumentParticipant, IsActive: m.IsActive, FailedLoginAttempts: m.FailedLoginAttempts, SystemPermissions: m.SystemPermissions, Department: department}
 }
-func MapUserSubstitution(m *models.UserSubstitution) *UserSubstitution {
-	if m == nil {
-		return nil
-	}
-	return &UserSubstitution{SubstituteUserID: m.SubstituteUserID.String(), StartsAt: m.StartsAt, EndsAt: m.EndsAt, IsActive: m.IsActive}
-}
 func MapDepartment(m *models.Department) *Department {
 	if m == nil {
 		return nil

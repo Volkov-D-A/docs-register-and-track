@@ -29,19 +29,22 @@ func (s *ReportingService) FilterOptions() (*models.ReportFilters, error) {
 
 func ValidateReportRequest(req *models.ReportRequest) (time.Time, time.Time, string, error) {
 	if req.Timezone == "" {
-		req.Timezone = "UTC"
+		req.Timezone = models.OrganizationTimezone
 	}
-	if len(req.Timezone) > 100 {
-		return time.Time{}, time.Time{}, "", models.NewBadRequest("некорректный часовой пояс")
+	if req.Timezone != models.OrganizationTimezone {
+		return time.Time{}, time.Time{}, "", models.NewBadRequest("используется часовой пояс организации")
 	}
-	if _, err := time.LoadLocation(req.Timezone); err != nil {
-		return time.Time{}, time.Time{}, "", models.NewBadRequest("некорректный часовой пояс")
+	if req.PeriodBasis == "" {
+		req.PeriodBasis = "registration_date"
+	}
+	if req.PeriodBasis != "registration_date" && req.PeriodBasis != "due_date" && req.PeriodBasis != "executed_on" {
+		return time.Time{}, time.Time{}, "", models.NewBadRequest("неверное основание периода")
 	}
 	definitions := map[string]string{
 		"organizations":   "Число зарегистрированных входящих и исходящих писем по организациям. Одно входящее письмо может учитываться у нескольких организаций.",
-		"department_load": "Число созданных поручений основным исполнителям по месяцам. Подразделение определяется на момент формирования отчёта.",
-		"execution_time":  "Среднее календарное время от создания поручения до последней сдачи исполнителем, в сутках. Период определяется датой сдачи.",
-		"overdue_rate":    "Доля сданных после срока среди сданных в период поручений с установленным сроком, в процентах.",
+		"department_load": "Число контролей основным исполнителям по месяцам создания. Подразделение определяется на момент формирования отчёта.",
+		"execution_time":  "Среднее календарное время от создания контроля до фактической даты исполнения, в сутках.",
+		"overdue_rate":    "Доля исполненных после срока среди исполненных контролей выбранного периода, в процентах.",
 	}
 	definition, ok := definitions[req.Template]
 	if !ok {
@@ -94,13 +97,10 @@ func ValidateReportRequest(req *models.ReportRequest) (time.Time, time.Time, str
 			return time.Time{}, time.Time{}, "", models.NewBadRequest("фильтр статуса недоступен для этого отчёта")
 		}
 		switch req.Status {
-		case "new", "in_progress", "completed", "finished", "returned", "cancelled":
+		case "active", "completed", "cancelled":
 		default:
-			return time.Time{}, time.Time{}, "", models.NewBadRequest("неизвестный статус поручения")
+			return time.Time{}, time.Time{}, "", models.NewBadRequest("неизвестное состояние контроля")
 		}
-	}
-	if req.Template == "organizations" && req.OnlyWithDeadline {
-		return time.Time{}, time.Time{}, "", models.NewBadRequest("фильтр срока недоступен для этого отчёта")
 	}
 	return start, end, definition, nil
 }
@@ -142,12 +142,11 @@ func (s *ReportingService) Run(ctx context.Context, req models.ReportRequest) (*
 		}
 	}
 	if req.Template == "overdue_rate" {
-		loc, _ := time.LoadLocation(req.Timezone)
-		summary.OpenOverdue, err = s.repo.OpenOverdueCount(ctx, time.Now().In(loc), req)
+		summary.OpenOverdue, err = s.repo.OpenOverdueCount(ctx, time.Now().In(models.OrganizationLocation()), req)
 		if err != nil {
 			return nil, err
 		}
 	}
 	return &models.ReportResult{Template: req.Template, StartDate: req.StartDate, EndDate: req.EndDate,
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339), Definition: definition, Filters: filters, Version: 1, Timezone: req.Timezone, Rows: rows, Summary: summary}, nil
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339), Definition: definition, Filters: filters, Version: 2, Timezone: req.Timezone, Rows: rows, Summary: summary}, nil
 }

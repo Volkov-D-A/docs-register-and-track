@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 )
 
 type settingsManagementStore interface {
@@ -84,21 +83,16 @@ func (api *managementAPI) updateSetting(w http.ResponseWriter, r *http.Request) 
 
 func settingKey(w http.ResponseWriter, raw string) (string, bool) {
 	key := strings.TrimSpace(raw)
-	if key == "" {
-		writeUserError(w, models.NewBadRequest("ключ настройки обязателен"))
+	switch key {
+	case "organization_name", "organization_short_name", "password_lifetime_days":
+	default:
+		writeUserError(w, models.NewBadRequest("неизвестная настройка"))
 		return "", false
 	}
 	return key, true
 }
 
 func validateSystemSettingValue(key, value string) error {
-	if key == "max_file_size_mb" {
-		megabytes, err := strconv.Atoi(strings.TrimSpace(value))
-		if err != nil || megabytes < 1 || megabytes > services.MaximumAttachmentSizeMB {
-			return models.NewBadRequest(fmt.Sprintf("Максимальный размер файла должен быть целым числом от 1 до %d МБ", services.MaximumAttachmentSizeMB))
-		}
-		return nil
-	}
 	if key != "password_lifetime_days" {
 		return nil
 	}
@@ -115,12 +109,6 @@ func settingAuditLabel(key string, current *models.SystemSetting) string {
 		return "Название организации"
 	case "organization_short_name":
 		return "Краткое название организации"
-	case "max_file_size_mb":
-		return "Максимальный размер файла"
-	case "allowed_file_types":
-		return "Разрешенные типы файлов"
-	case "assignment_completion_attachments_enabled":
-		return "Файлы при завершении поручения"
 	case "password_lifetime_days":
 		return "Срок жизни пароля"
 	}

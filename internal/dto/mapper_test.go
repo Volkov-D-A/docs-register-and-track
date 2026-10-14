@@ -44,22 +44,6 @@ func TestMapUser(t *testing.T) {
 	})
 }
 
-func TestMapUserSubstitution(t *testing.T) {
-	assert.Nil(t, MapUserSubstitution(nil))
-	startsAt := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
-	endsAt := time.Date(2026, time.June, 10, 0, 0, 0, 0, time.UTC)
-	substituteID := uuid.New()
-	item := MapUserSubstitution(&models.UserSubstitution{
-		SubstituteUserID: substituteID,
-		StartsAt:         &startsAt,
-		EndsAt:           &endsAt,
-		IsActive:         true,
-	})
-	payload, err := json.Marshal(item)
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"substituteUserId":"`+substituteID.String()+`","startsAt":"2026-06-01T00:00:00Z","endsAt":"2026-06-10T00:00:00Z","isActive":true}`, string(payload))
-}
-
 func TestMapDepartment(t *testing.T) {
 	// Тестирование маппинга подразделения в DTO
 	t.Run("nil", func(t *testing.T) {
@@ -138,82 +122,6 @@ func TestMapDocumentLink(t *testing.T) {
 	})
 }
 
-func TestMapAttachment(t *testing.T) {
-	// Тестирование маппинга вложения файла в DTO
-	t.Run("nil", func(t *testing.T) {
-		assert.Nil(t, MapAttachment(nil))
-	})
-
-	t.Run("success", func(t *testing.T) {
-		id := uuid.New()
-		m := &models.Attachment{ID: id, Filename: "f.txt"}
-		d := MapAttachment(m)
-		assert.Equal(t, id.String(), d.ID)
-		assert.Equal(t, "f.txt", d.Filename)
-	})
-}
-
-func TestMapAssignmentRecipient(t *testing.T) {
-	// Тестирование маппинга записи ознакомления конкретного пользователя в DTO
-	t.Run("nil", func(t *testing.T) {
-		assert.Nil(t, MapAssignmentRecipient(nil))
-	})
-
-	t.Run("success", func(t *testing.T) {
-		userID := uuid.New()
-		confirmedAt := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
-		m := &models.AssignmentRecipient{ID: uuid.New(), UserID: userID, UserName: "U", ConfirmedAt: &confirmedAt, CreatedAt: time.Now()}
-		d := MapAssignmentRecipient(m)
-		payload, err := json.Marshal(d)
-		require.NoError(t, err)
-		assert.JSONEq(t, `{"userId":"`+userID.String()+`","userName":"U","confirmedAt":"2026-09-25T12:00:00Z"}`, string(payload))
-	})
-}
-
-func TestMapAssignment(t *testing.T) {
-	// Тестирование маппинга поручения (резолюции) в DTO
-	t.Run("nil", func(t *testing.T) {
-		assert.Nil(t, MapAssignment(nil))
-	})
-
-	t.Run("success with co-executors", func(t *testing.T) {
-		id := uuid.New()
-		coExec := models.User{ID: uuid.New(), Login: "co", LastName: "CoExec", FirstName: "User", Patronymic: "", NoPatronymic: true}
-		m := &models.Assignment{
-			ID:          id,
-			DocumentID:  uuid.New(),
-			ExecutorID:  uuid.New(),
-			Content:     "Do it",
-			Status:      "new",
-			CoExecutors: []models.User{coExec},
-		}
-		d := MapAssignment(m)
-		assert.Equal(t, id.String(), d.ID)
-		assert.Len(t, d.CoExecutors, 1)
-		assert.Equal(t, "CoExec User", d.CoExecutors[0].FullName)
-	})
-}
-
-func TestMapAcknowledgmentAssignment(t *testing.T) {
-	// Тестирование маппинга листа ознакомления в DTO
-	t.Run("nil", func(t *testing.T) {
-		assert.Nil(t, MapAssignment(nil))
-	})
-
-	t.Run("success with users", func(t *testing.T) {
-		id := uuid.New()
-		now := time.Now()
-		u := models.AssignmentRecipient{ID: uuid.New(), UserID: uuid.New(), UserName: "Tester", CreatedAt: now}
-		m := &models.Assignment{Type: models.AssignmentTypeAcknowledgment, ID: id, DocumentID: uuid.New(), CreatorID: uuid.New(), Content: "Legacy comment", Users: []models.AssignmentRecipient{u}}
-		d := MapAssignment(m)
-		assert.Equal(t, id.String(), d.ID)
-		assert.Len(t, d.Users, 1)
-		assert.Equal(t, "Tester", d.Users[0].UserName)
-		assert.Empty(t, d.Content)
-		assert.Equal(t, "Legacy comment", m.Content)
-	})
-}
-
 func TestMapUserEvent(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		assert.Nil(t, MapUserEvent(nil))
@@ -230,8 +138,8 @@ func TestMapUserEvent(t *testing.T) {
 			DocumentKind:   "incoming_letter",
 			DocumentNumber: "ВХ-1",
 			DocumentDate:   &now,
-			EntityType:     models.UserEventEntityAssignment,
-			EventType:      models.UserEventAssignmentCreated,
+			EntityType:     "deadline_control",
+			EventType:      "deadline_control_create",
 			Title:          "Новое поручение",
 			Message:        "Текст",
 			CreatedAt:      now,
@@ -242,7 +150,7 @@ func TestMapUserEvent(t *testing.T) {
 		require.NotNil(t, d)
 		assert.Equal(t, id.String(), d.ID)
 		assert.Equal(t, documentID.String(), d.DocumentID)
-		assert.Equal(t, models.UserEventAssignmentCreated, d.EventType)
+		assert.Equal(t, "deadline_control_create", d.EventType)
 		assert.Equal(t, &readAt, d.ReadAt)
 		assert.Equal(t, &now, d.DocumentDate)
 	})
@@ -583,24 +491,6 @@ func TestMapSlices(t *testing.T) {
 		assert.Equal(t, "reply", res[0].LinkType)
 	})
 
-	t.Run("MapAttachments nil", func(t *testing.T) {
-		assert.Nil(t, MapAttachments(nil))
-	})
-	t.Run("MapAttachments success", func(t *testing.T) {
-		res := MapAttachments([]models.Attachment{{ID: uuid.New(), Filename: "F1"}})
-		require.Len(t, res, 1)
-		assert.Equal(t, "F1", res[0].Filename)
-	})
-
-	t.Run("MapAssignments nil", func(t *testing.T) {
-		assert.Nil(t, MapAssignments(nil))
-	})
-	t.Run("MapAssignments success", func(t *testing.T) {
-		items := []models.Assignment{{ID: uuid.New(), Status: "new"}, {ID: uuid.New(), Status: "done"}}
-		result := MapAssignments(items)
-		assert.Len(t, result, 2)
-	})
-
 }
 
 func TestMapCitizenAppealDocument(t *testing.T) {
@@ -656,11 +546,10 @@ func TestMapCitizenAppealDocument(t *testing.T) {
 					Position:            1,
 				},
 			},
-			CreatedBy:        createdBy,
-			CreatedByName:    "Registrar",
-			CreatedAt:        regDate,
-			UpdatedAt:        appealDate,
-			AttachmentsCount: 1,
+			CreatedBy:     createdBy,
+			CreatedByName: "Registrar",
+			CreatedAt:     regDate,
+			UpdatedAt:     appealDate,
 		})
 
 		require.NotNil(t, dto)
@@ -678,7 +567,6 @@ func TestMapCitizenAppealDocument(t *testing.T) {
 		assert.Len(t, dto.Resolutions, 1)
 		assert.Equal(t, resolutionText, *dto.Resolutions[0].Resolution)
 		assert.Equal(t, createdBy.String(), dto.CreatedBy)
-		assert.Equal(t, 1, dto.AttachmentsCount)
 	})
 }
 
@@ -768,11 +656,10 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 					CreatedAt:          orderDate,
 				},
 			},
-			CreatedBy:        createdBy,
-			CreatedByName:    "Creator",
-			CreatedAt:        orderDate,
-			UpdatedAt:        ackTime,
-			AttachmentsCount: 1,
+			CreatedBy:     createdBy,
+			CreatedByName: "Creator",
+			CreatedAt:     orderDate,
+			UpdatedAt:     ackTime,
 		})
 
 		require.NotNil(t, dto)
@@ -790,7 +677,6 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 		assert.Equal(t, ackID.String(), dto.AcknowledgmentPeople[0].ID)
 		assert.Equal(t, ackBy.String(), dto.AcknowledgmentPeople[0].AcknowledgedBy)
 		assert.Equal(t, createdBy.String(), dto.CreatedBy)
-		assert.Equal(t, 1, dto.AttachmentsCount)
 	})
 }
 

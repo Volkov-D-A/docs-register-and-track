@@ -53,7 +53,7 @@ func (s *ReportingService) Export(req models.ReportRequest, format string) (stri
 	if err := os.MkdirAll(directory, 0755); err != nil {
 		return "", err
 	}
-	return writeDownloadFileFromStorage(directory, filename, func(file *os.File) error {
+	return writeExportFile(directory, filename, func(file *os.File) error {
 		_, err := io.Copy(file, content)
 		return err
 	})

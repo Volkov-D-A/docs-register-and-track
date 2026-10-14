@@ -88,7 +88,6 @@ test('registration form passes all four name fields to CreateUser', async () => 
         UserService: { GetAllUsers: vi.fn().mockResolvedValue([]), CreateUser: create },
         DepartmentService: { GetAllDepartments: vi.fn().mockResolvedValue([{ id: 'department', name: 'Тестовое подразделение' }]) },
         DocumentAccessAdminService: { UpdateUserAccessProfile: vi.fn().mockResolvedValue(undefined) },
-        UserSubstitutionService: { UpdateUserSubstitution: vi.fn().mockResolvedValue(undefined) },
     });
     renderWithApp(<UsersTab />);
     const user = userEvent.setup();

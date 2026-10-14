@@ -19,8 +19,6 @@ export function GetMigrationStatus():Promise<dto.MigrationStatus>;
 
 export function GetOrganizationShortName():Promise<string>;
 
-export function IsAssignmentCompletionAttachmentsEnabled():Promise<boolean>;
-
 export function ListBackupCopies():Promise<Array<models.BackupCopy>>;
 
 export function ListBackups():Promise<Array<models.BackupJob>>;

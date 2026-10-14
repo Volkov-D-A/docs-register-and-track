@@ -395,7 +395,7 @@ func TestDeadlineGlobalReadScopeAndNotificationRevocationIntegration(t *testing.
 	require.Len(t, readable, 3)
 	scopes := map[models.DocumentKind]models.DocumentAccessScope{}
 	for _, spec := range models.AllDocumentKindSpecs() {
-		scopes[spec.Code] = models.DocumentAccessScope{Restricted: true, UserID: f.users[2].String()}
+		scopes[spec.Code] = models.DocumentAccessScope{UserID: f.users[2].String()}
 	}
 	recent := repository.NewWorkspaceRepository(wrapped)
 	items, err := recent.RecentDocuments(scopes)

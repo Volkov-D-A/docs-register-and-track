@@ -2,32 +2,11 @@ import React from 'react';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
-import StorageTab from '../../src/features/settings/StorageTab';
 import MigrationsTab from '../../src/features/settings/MigrationsTab';
 import OutboxTab from '../../src/features/settings/OutboxTab';
 import { deferred, installWailsMock, renderWithApp } from '../componentTestUtils';
 
 describe('critical administration tabs', () => {
-  test('storage reconciliation prevents overlap and renders actionable discrepancies', async () => {
-    const pending = deferred<{ missingObjects: string[]; orphanObjects: string[] }>();
-    const reconcile = vi.fn().mockReturnValue(pending.promise);
-    installWailsMock({ AttachmentService: { ReconcileStorage: reconcile } });
-    renderWithApp(<StorageTab />);
-    const button = screen.getByRole('button', { name: /Сверить с объектным хранилищем/ });
-
-    fireEvent.click(button);
-    fireEvent.click(button);
-    await waitFor(() => expect(reconcile).toHaveBeenCalledTimes(1));
-    await act(async () => {
-      pending.resolve({ missingObjects: ['missing/report.pdf'], orphanObjects: ['orphan/scan.pdf'] });
-    });
-
-    expect(await screen.findByText('Ссылки без файлов: 1')).toBeInTheDocument();
-    expect(screen.getByText('missing/report.pdf')).toBeInTheDocument();
-    expect(screen.getByText('Файлы без ссылок: 1')).toBeInTheDocument();
-    expect(screen.getByText('orphan/scan.pdf')).toBeInTheDocument();
-  });
-
   test('migration execution requires confirmation and refreshes status', async () => {
     const getStatus = vi.fn()
       .mockResolvedValueOnce({ currentVersion: 10, availableCount: 11, latestAvailableVersion: 11, upToDate: false, schemaTooNew: false, dirty: false })

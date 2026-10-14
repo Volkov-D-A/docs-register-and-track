@@ -14,7 +14,7 @@ func TestApplyDocumentListAccess(t *testing.T) {
 		where := []string{"d.kind=$1"}
 		args := []interface{}{models.DocumentKindIncomingLetter}
 		index := 2
-		applyDocumentListAccess(&where, &args, &index, models.DocumentAccessScope{UserID: "user-id", Restricted: true})
+		applyDocumentListAccess(&where, &args, &index, models.DocumentAccessScope{UserID: "user-id"})
 		predicate := strings.Join(where, " AND ")
 		assert.Contains(t, predicate, "WITH RECURSIVE visible")
 		assert.Contains(t, predicate, "u.id=$2")
@@ -31,7 +31,7 @@ func TestApplyDocumentListAccess(t *testing.T) {
 		args := []interface{}{models.DocumentKindIncomingLetter}
 		argIdx := 2
 
-		applyDocumentListAccess(&where, &args, &argIdx, models.DocumentAccessScope{Restricted: true})
+		applyDocumentListAccess(&where, &args, &argIdx, models.DocumentAccessScope{})
 
 		assert.Equal(t, []string{"d.kind = $1", "1=0"}, where)
 		assert.Len(t, args, 1)

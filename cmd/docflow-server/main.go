@@ -14,10 +14,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	logger "github.com/Volkov-D-A/docs-register-and-track/internal/server/logging"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/startupdiag"
 )
 
@@ -79,7 +79,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return &startupdiag.Failure{
 			Component: "configuration",
 			Summary:   "Не удалось загрузить конфигурацию docflow-server.",
-			NextStep:  "Проверьте переменные PostgreSQL, S3, Seq и outbox.",
+			NextStep:  "Проверьте переменные PostgreSQL, Seq, outbox и резервного копирования.",
 			Err:       err,
 		}
 	}

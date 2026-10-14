@@ -48,7 +48,7 @@ func TestWorkspaceRecentDocumentsIntegration(t *testing.T) {
 	repo := NewWorkspaceRepository(database.Wrap(db))
 	all := map[models.DocumentKind]models.DocumentAccessScope{}
 	for _, spec := range models.AllDocumentKindSpecs() {
-		all[spec.Code] = models.DocumentAccessScope{Restricted: true, UserID: user.String()}
+		all[spec.Code] = models.DocumentAccessScope{UserID: user.String()}
 		execSQL(t, db, `INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES($1,'user',$2,'register')`, spec.Code, user.String())
 	}
 	items, err := repo.RecentDocuments(all)
@@ -84,7 +84,7 @@ func TestWorkspaceRecentDocumentsIntegration(t *testing.T) {
 	insert(unrelated, "outgoing_letter", "85", "2026-09-25", "2026-09-25T12:00:00Z")
 	scopes := map[models.DocumentKind]models.DocumentAccessScope{}
 	for _, spec := range models.AllDocumentKindSpecs() {
-		scopes[spec.Code] = models.DocumentAccessScope{Restricted: true, UserID: other.String()}
+		scopes[spec.Code] = models.DocumentAccessScope{UserID: other.String()}
 	}
 	items, err = repo.RecentDocuments(scopes)
 	require.NoError(t, err)
@@ -92,10 +92,10 @@ func TestWorkspaceRecentDocumentsIntegration(t *testing.T) {
 	require.NotContains(t, ids(items), unrelated)
 	// Combined roots and links never duplicate the bounded preview.
 	require.Len(t, items, 4)
-	items, err = repo.RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope{models.DocumentKindOutgoingLetter: {Restricted: true}})
+	items, err = repo.RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope{models.DocumentKindOutgoingLetter: {}})
 	require.NoError(t, err)
 	require.Empty(t, items)
-	items, err = repo.RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope{models.DocumentKindIncomingLetter: {Restricted: true, UserID: user.String()}})
+	items, err = repo.RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope{models.DocumentKindIncomingLetter: {UserID: user.String()}})
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{incoming, older}, ids(items))
 	require.Equal(t, "Content fallback", items[1].Description)

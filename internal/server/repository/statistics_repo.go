@@ -12,26 +12,13 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
-const assignmentOverdueCondition = `
-	a.deadline IS NOT NULL
-	AND (
-		(a.completed_at IS NOT NULL AND a.completed_at::date > a.deadline)
-		OR
-		(a.completed_at IS NULL AND a.status NOT IN ('completed', 'finished', 'cancelled') AND a.deadline < CURRENT_DATE)
-	)
-`
-
-const assignmentViolationDateExpr = `
-	CASE
-		WHEN a.deadline IS NOT NULL AND a.completed_at IS NOT NULL AND a.completed_at::date > a.deadline THEN a.completed_at::date
-		WHEN a.deadline IS NOT NULL AND a.completed_at IS NULL AND a.status NOT IN ('completed', 'finished', 'cancelled') AND a.deadline < CURRENT_DATE THEN a.deadline
-		ELSE NULL
-	END
-`
+const deadlineOverdueCondition = `((a.status='completed' AND a.executed_on > a.due_date) OR (a.status='active' AND a.due_date < (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Yekaterinburg')::date))`
+const deadlineViolationDateExpr = `CASE WHEN a.status='completed' AND a.executed_on > a.due_date THEN a.executed_on WHEN a.status='active' AND a.due_date < (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Yekaterinburg')::date THEN a.due_date ELSE NULL END`
 
 // StatisticsRepository предоставляет запросы для раздела статистики.
 type StatisticsRepository struct {
-	db *database.DB
+	db     *database.DB
+	userID uuid.UUID
 }
 
 // NewStatisticsRepository создает новый экземпляр StatisticsRepository.
@@ -39,13 +26,21 @@ func NewStatisticsRepository(db *database.DB) *StatisticsRepository {
 	return &StatisticsRepository{db: db}
 }
 
+// ForUser returns an immutable request scope; an unscoped repository reads no business data.
+func (r *StatisticsRepository) ForUser(id uuid.UUID) *StatisticsRepository {
+	return &StatisticsRepository{db: r.db, userID: id}
+}
+func (r *StatisticsRepository) readPredicate(alias string) string {
+	return documentReadPredicate("'"+r.userID.String()+"'::uuid", alias)
+}
+
 // GetDocumentTotalByYear возвращает общее количество документов за год по дате регистрации.
 func (r *StatisticsRepository) GetDocumentTotalByYear(yearStart, yearEnd time.Time) (int, error) {
 	var count int
 	err := r.db.QueryRow(`
 		SELECT COUNT(*)
-		FROM documents
-		WHERE registration_date >= $1::date AND registration_date < $2::date
+		FROM documents d
+		WHERE `+r.readPredicate("d")+` AND registration_date >= $1::date AND registration_date < $2::date
 	`, yearStart, yearEnd).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get document total by year: %w", err)
@@ -57,8 +52,8 @@ func (r *StatisticsRepository) GetDocumentTotalByYear(yearStart, yearEnd time.Ti
 func (r *StatisticsRepository) GetMonthlyDocumentCountsByKind(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error) {
 	rows, err := r.db.Query(`
 		SELECT EXTRACT(MONTH FROM registration_date)::int AS month, kind, COUNT(*)
-		FROM documents
-		WHERE registration_date >= $1::date AND registration_date < $2::date
+		FROM documents d
+		WHERE `+r.readPredicate("d")+` AND registration_date >= $1::date AND registration_date < $2::date
 		GROUP BY month, kind
 		ORDER BY month, kind
 	`, yearStart, yearEnd)
@@ -91,7 +86,7 @@ func (r *StatisticsRepository) GetMonthlyDocumentCountsByRegistrar(yearStart, ye
 			COUNT(*)
 		FROM documents d
 		LEFT JOIN users u ON u.id = d.created_by
-		WHERE d.registration_date >= $1::date AND d.registration_date < $2::date
+		WHERE `+r.readPredicate("d")+` AND d.registration_date >= $1::date AND d.registration_date < $2::date
 		GROUP BY month, d.created_by, u.full_name, u.login
 		ORDER BY month, user_name
 	`, yearStart, yearEnd)
@@ -138,7 +133,7 @@ func (r *StatisticsRepository) GetDocumentReport(startDate, endDate time.Time, g
 		return nil, fmt.Errorf("unsupported document report group: %s", groupBy)
 	}
 
-	where := []string{"d.registration_date >= $1::date", "d.registration_date <= $2::date"}
+	where := []string{r.readPredicate("d"), "d.registration_date >= $1::date", "d.registration_date <= $2::date"}
 	args := []any{startDate, endDate}
 	argIdx := 3
 
@@ -179,7 +174,8 @@ func (r *StatisticsRepository) GetDocumentReport(startDate, endDate time.Time, g
 func (r *StatisticsRepository) GetNomenclatureOptions() ([]models.StatisticsOption, error) {
 	rows, err := r.db.Query(`
 		SELECT id::text, CONCAT(index, ' - ', name, ' (', year, ')')
-		FROM nomenclature
+		FROM nomenclature n
+		WHERE EXISTS(SELECT 1 FROM documents d WHERE d.nomenclature_id=n.id AND ` + r.readPredicate("d") + `)
 		ORDER BY year DESC, kind_code, index, name
 	`)
 	if err != nil {
@@ -194,7 +190,8 @@ func (r *StatisticsRepository) GetNomenclatureOptions() ([]models.StatisticsOpti
 func (r *StatisticsRepository) GetUserOptions() ([]models.StatisticsOption, error) {
 	rows, err := r.db.Query(`
 		SELECT id::text, COALESCE(NULLIF(full_name, ''), login, id::text)
-		FROM users
+		FROM users u
+		WHERE EXISTS(SELECT 1 FROM documents d WHERE d.created_by=u.id AND ` + r.readPredicate("d") + `)
 		ORDER BY full_name, login
 	`)
 	if err != nil {
@@ -205,20 +202,29 @@ func (r *StatisticsRepository) GetUserOptions() ([]models.StatisticsOption, erro
 	return scanOptions(rows)
 }
 
-// GetAssignmentMonthlyOverview возвращает помесячные общие и просроченные поручения.
-func (r *StatisticsRepository) GetAssignmentMonthlyOverview(yearStart, yearEnd time.Time) ([]models.AssignmentMonthlyPoint, error) {
+func (r *StatisticsRepository) GetExecutorOptions() ([]models.StatisticsOption, error) {
+	rows, err := r.db.Query(`SELECT DISTINCT e.id::text,COALESCE(NULLIF(u.full_name,''),e.name) AS name FROM deadline_executors e LEFT JOIN users u ON u.id=e.user_id JOIN document_deadline_controls a ON a.executor_id=e.id JOIN documents d ON d.id=a.document_id WHERE ` + r.readPredicate("d") + ` ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanOptions(rows)
+}
+
+// GetDeadlineMonthlyOverview возвращает помесячные общие и просроченные контроли.
+func (r *StatisticsRepository) GetDeadlineMonthlyOverview(yearStart, yearEnd time.Time) ([]models.DeadlineMonthlyPoint, error) {
 	rows, err := r.db.Query(fmt.Sprintf(`
 		WITH totals AS (
-			SELECT EXTRACT(MONTH FROM created_at)::int AS month, COUNT(*) AS total
-			FROM assignments
-			WHERE type = 'execution' AND created_at >= $1 AND created_at < $2
+			SELECT EXTRACT(MONTH FROM a.created_at AT TIME ZONE 'Asia/Yekaterinburg')::int AS month, COUNT(*) AS total
+			FROM document_deadline_controls a JOIN documents d ON d.id=a.document_id
+			WHERE %s AND (a.created_at AT TIME ZONE 'Asia/Yekaterinburg')::date >= $1::date AND (a.created_at AT TIME ZONE 'Asia/Yekaterinburg')::date < $2::date
 			GROUP BY month
 		),
 		overdue AS (
 			SELECT EXTRACT(MONTH FROM violation_date)::int AS month, COUNT(*) AS overdue
 			FROM (
 				SELECT %s AS violation_date
-				FROM assignments a WHERE a.type = 'execution'
+				FROM document_deadline_controls a JOIN documents d ON d.id=a.document_id WHERE %s
 			) v
 			WHERE violation_date >= $1::date AND violation_date < $2::date
 			GROUP BY month
@@ -228,15 +234,15 @@ func (r *StatisticsRepository) GetAssignmentMonthlyOverview(yearStart, yearEnd t
 		LEFT JOIN totals t ON t.month = m.month
 		LEFT JOIN overdue o ON o.month = m.month
 		ORDER BY m.month
-	`, assignmentViolationDateExpr), yearStart, yearEnd)
+	`, r.readPredicate("d"), deadlineViolationDateExpr, r.readPredicate("d")), yearStart, yearEnd)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get assignment monthly overview: %w", err)
+		return nil, fmt.Errorf("failed to get deadline monthly overview: %w", err)
 	}
 	defer rows.Close()
 
-	points := make([]models.AssignmentMonthlyPoint, 0, 12)
+	points := make([]models.DeadlineMonthlyPoint, 0, 12)
 	for rows.Next() {
-		var point models.AssignmentMonthlyPoint
+		var point models.DeadlineMonthlyPoint
 		if err := rows.Scan(&point.Month, &point.Total, &point.Overdue); err != nil {
 			return nil, err
 		}
@@ -248,22 +254,23 @@ func (r *StatisticsRepository) GetAssignmentMonthlyOverview(yearStart, yearEnd t
 	return points, nil
 }
 
-// GetAssignmentMonthlyByExecutor возвращает помесячное количество поручений по основным исполнителям.
-func (r *StatisticsRepository) GetAssignmentMonthlyByExecutor(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error) {
+// GetDeadlineMonthlyByExecutor возвращает помесячное количество контролей по основным исполнителям.
+func (r *StatisticsRepository) GetDeadlineMonthlyByExecutor(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error) {
 	rows, err := r.db.Query(`
 		SELECT
-			EXTRACT(MONTH FROM a.created_at)::int AS month,
+			EXTRACT(MONTH FROM a.created_at AT TIME ZONE 'Asia/Yekaterinburg')::int AS month,
 			a.executor_id::text,
-			COALESCE(NULLIF(u.full_name, ''), u.login, a.executor_id::text) AS user_name,
+			COALESCE(NULLIF(u.full_name, ''), e.name, a.executor_id::text) AS user_name,
 			COUNT(*)
-		FROM assignments a
-		LEFT JOIN users u ON u.id = a.executor_id
-		WHERE a.type = 'execution' AND a.created_at >= $1 AND a.created_at < $2
-		GROUP BY month, a.executor_id, u.full_name, u.login
+		FROM document_deadline_controls a JOIN documents d ON d.id=a.document_id
+		JOIN deadline_executors e ON e.id=a.executor_id
+		LEFT JOIN users u ON u.id = e.user_id
+		WHERE `+r.readPredicate("d")+` AND (a.created_at AT TIME ZONE 'Asia/Yekaterinburg')::date >= $1::date AND (a.created_at AT TIME ZONE 'Asia/Yekaterinburg')::date < $2::date
+		GROUP BY month, a.executor_id, u.full_name, e.name
 		ORDER BY month, user_name
 	`, yearStart, yearEnd)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get assignment monthly by executor: %w", err)
+		return nil, fmt.Errorf("failed to get deadline monthly by executor: %w", err)
 	}
 	defer rows.Close()
 
@@ -281,59 +288,60 @@ func (r *StatisticsRepository) GetAssignmentMonthlyByExecutor(yearStart, yearEnd
 	return points, nil
 }
 
-// GetAssignmentOverdueRating возвращает рейтинг основных исполнителей по нарушениям сроков.
-func (r *StatisticsRepository) GetAssignmentOverdueRating(yearStart, yearEnd time.Time) ([]models.StatisticsReportRow, error) {
+// GetDeadlineOverdueRating возвращает рейтинг основных исполнителей по нарушениям сроков.
+func (r *StatisticsRepository) GetDeadlineOverdueRating(yearStart, yearEnd time.Time) ([]models.StatisticsReportRow, error) {
 	rows, err := r.db.Query(fmt.Sprintf(`
 		SELECT
 			a.executor_id::text AS key,
-			COALESCE(NULLIF(u.full_name, ''), u.login, a.executor_id::text) AS name,
+			COALESCE(NULLIF(u.full_name, ''), e.name, a.executor_id::text) AS name,
 			COUNT(*) AS count
-		FROM assignments a
-		LEFT JOIN users u ON u.id = a.executor_id
-		WHERE a.type = 'execution' AND (%s)
+		FROM document_deadline_controls a JOIN documents d ON d.id=a.document_id
+		JOIN deadline_executors e ON e.id=a.executor_id
+		LEFT JOIN users u ON u.id = e.user_id
+		WHERE %s AND (%s)
 		  AND (%s) >= $1::date
 		  AND (%s) < $2::date
-		GROUP BY a.executor_id, u.full_name, u.login
+		GROUP BY a.executor_id, u.full_name, e.name
 		ORDER BY count DESC, name
-	`, assignmentOverdueCondition, assignmentViolationDateExpr, assignmentViolationDateExpr), yearStart, yearEnd)
+	`, r.readPredicate("d"), deadlineOverdueCondition, deadlineViolationDateExpr, deadlineViolationDateExpr), yearStart, yearEnd)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get assignment overdue rating: %w", err)
+		return nil, fmt.Errorf("failed to get deadline overdue rating: %w", err)
 	}
 	defer rows.Close()
 
 	return scanReportRows(rows)
 }
 
-// GetAssignmentStatusCounts возвращает количество поручений по статусам.
-func (r *StatisticsRepository) GetAssignmentStatusCounts() ([]models.StatisticsReportRow, error) {
+// GetDeadlineStatusCounts возвращает количество контролей по статусам.
+func (r *StatisticsRepository) GetDeadlineStatusCounts() ([]models.StatisticsReportRow, error) {
 	rows, err := r.db.Query(`
 		SELECT status AS key, status AS name, COUNT(*) AS count
-		FROM assignments WHERE type = 'execution'
+		FROM document_deadline_controls a JOIN documents d ON d.id=a.document_id WHERE ` + r.readPredicate("d") + `
 		GROUP BY status
 		ORDER BY status
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get assignment status counts: %w", err)
+		return nil, fmt.Errorf("failed to get deadline status counts: %w", err)
 	}
 	defer rows.Close()
 
 	return scanReportRows(rows)
 }
 
-// GetAssignmentReport возвращает отчет по поручениям за период, сгруппированный по основным исполнителям.
-func (r *StatisticsRepository) GetAssignmentReport(startDate, endDate time.Time, onlyOverdue bool, userID string) ([]models.StatisticsReportRow, error) {
-	where := []string{}
+// GetDeadlineReport возвращает отчет по контролям за период, сгруппированный по основным исполнителям.
+func (r *StatisticsRepository) GetDeadlineReport(startDate, endDate time.Time, onlyOverdue bool, userID string) ([]models.StatisticsReportRow, error) {
+	where := []string{r.readPredicate("d")}
 	args := []any{startDate, endDate}
 	argIdx := 3
 
 	if onlyOverdue {
 		where = append(where,
-			assignmentOverdueCondition,
-			fmt.Sprintf("(%s) >= $1::date", assignmentViolationDateExpr),
-			fmt.Sprintf("(%s) <= $2::date", assignmentViolationDateExpr),
+			deadlineOverdueCondition,
+			fmt.Sprintf("(%s) >= $1::date", deadlineViolationDateExpr),
+			fmt.Sprintf("(%s) <= $2::date", deadlineViolationDateExpr),
 		)
 	} else {
-		where = append(where, "a.created_at::date >= $1::date", "a.created_at::date <= $2::date")
+		where = append(where, "a.due_date >= $1::date", "a.due_date <= $2::date")
 	}
 
 	if userID != "" {
@@ -344,16 +352,17 @@ func (r *StatisticsRepository) GetAssignmentReport(startDate, endDate time.Time,
 	rows, err := r.db.Query(fmt.Sprintf(`
 		SELECT
 			a.executor_id::text AS key,
-			COALESCE(NULLIF(u.full_name, ''), u.login, a.executor_id::text) AS name,
+			COALESCE(NULLIF(u.full_name, ''), e.name, a.executor_id::text) AS name,
 			COUNT(*) AS count
-		FROM assignments a
-		LEFT JOIN users u ON u.id = a.executor_id
-		WHERE a.type = 'execution' AND (%s)
-		GROUP BY a.executor_id, u.full_name, u.login
+		FROM document_deadline_controls a JOIN documents d ON d.id=a.document_id
+		JOIN deadline_executors e ON e.id=a.executor_id
+		LEFT JOIN users u ON u.id = e.user_id
+		WHERE (%s)
+		GROUP BY a.executor_id, u.full_name, e.name
 		ORDER BY count DESC, name
 	`, strings.Join(where, " AND ")), args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get assignment report: %w", err)
+		return nil, fmt.Errorf("failed to get deadline report: %w", err)
 	}
 	defer rows.Close()
 
@@ -388,145 +397,6 @@ func (r *StatisticsRepository) GetDBSize() string {
 		return "Нет данных"
 	}
 	return size
-}
-
-func (r *StatisticsRepository) GetStorageStatisticsRefreshRecord() (models.StorageStatisticsRefreshRecord, error) {
-	var record models.StorageStatisticsRefreshRecord
-	var refreshedAt sql.NullTime
-	var lastError sql.NullString
-	err := r.db.QueryRow(`
-		SELECT s.object_count, s.total_bytes, s.refreshed_at,
-			(s.refresh_lease_until IS NOT NULL AND s.refresh_lease_until >= CURRENT_TIMESTAMP),
-			EXISTS (
-				SELECT 1 FROM storage_statistics_mutations m
-				WHERE m.lease_until >= CURRENT_TIMESTAMP
-			),
-			s.refresh_last_error
-		FROM storage_statistics s
-		WHERE s.id = true
-	`).Scan(
-		&record.Snapshot.ObjectCount,
-		&record.Snapshot.TotalBytes,
-		&refreshedAt,
-		&record.RefreshActive,
-		&record.MutationActive,
-		&lastError,
-	)
-	if err != nil {
-		return models.StorageStatisticsRefreshRecord{}, fmt.Errorf("failed to get storage statistics refresh state: %w", err)
-	}
-	if refreshedAt.Valid {
-		record.Snapshot.RefreshedAt = refreshedAt.Time
-	}
-	if lastError.Valid {
-		record.LastError = lastError.String
-	}
-	return record, nil
-}
-
-// TryStartStorageStatisticsRefresh obtains a database-backed lease, so only
-// one desktop instance can scan the bucket at a time.
-func (r *StatisticsRepository) TryStartStorageStatisticsRefresh(token uuid.UUID, leaseUntil time.Time) (bool, error) {
-	tx, err := r.db.Begin()
-	if err != nil {
-		return false, fmt.Errorf("failed to begin storage statistics refresh: %w", err)
-	}
-	defer tx.Rollback()
-
-	var revision int64
-	var refreshActive bool
-	if err := tx.QueryRow(`
-		SELECT mutation_revision,
-			(refresh_lease_until IS NOT NULL AND refresh_lease_until >= CURRENT_TIMESTAMP)
-		FROM storage_statistics
-		WHERE id = true
-		FOR UPDATE
-	`).Scan(&revision, &refreshActive); err != nil {
-		return false, fmt.Errorf("failed to lock storage statistics refresh: %w", err)
-	}
-	if _, err := tx.Exec(`DELETE FROM storage_statistics_mutations WHERE lease_until < CURRENT_TIMESTAMP`); err != nil {
-		return false, fmt.Errorf("failed to reap stale storage mutations: %w", err)
-	}
-	var mutationActive bool
-	if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM storage_statistics_mutations)`).Scan(&mutationActive); err != nil {
-		return false, fmt.Errorf("failed to check active storage mutations: %w", err)
-	}
-	if refreshActive || mutationActive {
-		if err := tx.Commit(); err != nil {
-			return false, fmt.Errorf("failed to finish storage statistics refresh check: %w", err)
-		}
-		return false, nil
-	}
-	if _, err := tx.Exec(`
-		UPDATE storage_statistics
-		SET refresh_token = $1, refresh_lease_until = $2, refresh_revision = $3
-		WHERE id = true
-	`, token, leaseUntil, revision); err != nil {
-		return false, fmt.Errorf("failed to acquire storage statistics refresh lease: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("failed to commit storage statistics refresh lease: %w", err)
-	}
-	return true, nil
-}
-
-func (r *StatisticsRepository) SaveStorageStatisticsSnapshot(token uuid.UUID, snapshot models.StorageStatisticsSnapshot) error {
-	result, err := r.db.Exec(`
-		UPDATE storage_statistics
-		SET object_count = $1, total_bytes = $2, refreshed_at = $3,
-			refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL,
-			refresh_last_error = NULL
-		WHERE id = true AND refresh_token = $4
-		  AND refresh_revision = mutation_revision
-	`, snapshot.ObjectCount, snapshot.TotalBytes, snapshot.RefreshedAt, token)
-	if err != nil {
-		return fmt.Errorf("failed to save storage statistics snapshot: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to confirm storage statistics snapshot save: %w", err)
-	}
-	if affected != 1 {
-		return fmt.Errorf("storage statistics refresh lease was lost")
-	}
-	return nil
-}
-
-func (r *StatisticsRepository) FailStorageStatisticsRefresh(token uuid.UUID, message string) error {
-	_, err := r.db.Exec(`
-		UPDATE storage_statistics
-		SET refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL,
-			refresh_last_error = $2
-		WHERE id = true AND refresh_token = $1
-	`, token, message)
-	if err != nil {
-		return fmt.Errorf("failed to record storage statistics refresh failure: %w", err)
-	}
-	return nil
-}
-
-func (r *StatisticsRepository) ClearStorageStatisticsRefreshError() error {
-	_, err := r.db.Exec(`
-		UPDATE storage_statistics
-		SET refresh_last_error = NULL
-		WHERE id = true
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to clear storage statistics refresh failure: %w", err)
-	}
-	return nil
-}
-
-// IncrementStorageStatistics updates the shared aggregate atomically. It is
-// called inside the attachment creation transaction.
-func incrementStorageStatisticsTx(tx *sql.Tx, bytes int64) error {
-	_, err := tx.Exec(`
-		UPDATE storage_statistics
-		SET object_count = object_count + 1,
-			total_bytes = total_bytes + $1
-		WHERE id = true
-	`, bytes)
-	return err
 }
 
 func scanOptions(rows *sql.Rows) ([]models.StatisticsOption, error) {

@@ -21,7 +21,7 @@ func NewWorkspaceService(repo ports.WorkspaceStore, auth ports.DocumentAccessPri
 	return &WorkspaceService{repo: repo, auth: auth, access: access, metrics: metrics}
 }
 
-// GetRecentDocuments is independent of the assignment mode.
+// GetRecentDocuments is scoped to the current document visibility.
 func (s *WorkspaceService) GetRecentDocuments() (*dto.WorkspaceDocuments, error) {
 	if err := s.auth.RequireAuthenticated(); err != nil {
 		return nil, err

@@ -29,7 +29,7 @@ func TestPrepareRejectsOtherSchemaBeforeRunningPostgresTools(t *testing.T) {
 			require.NoError(t, os.WriteFile(dump, []byte("dump"), 0600))
 			digest, size, err := FileDigest(dump)
 			require.NoError(t, err)
-			m := Manifest{ID: uuid.NewString(), Format: 3, Schema: tc.schema, CreatedAt: time.Now().UTC(), DatabaseSHA256: digest, DatabaseSize: size, Objects: []Object{}}
+			m := Manifest{ID: uuid.NewString(), Format: ArchiveFormat, Schema: tc.schema, CreatedAt: time.Now().UTC(), DatabaseSHA256: digest, DatabaseSize: size}
 			require.NoError(t, writeJSONFile(filepath.Join(stage, "manifest.json"), m))
 			archive := filepath.Join(t.TempDir(), m.ID+".tar.gz")
 			require.NoError(t, Pack(context.Background(), stage, archive, m))
@@ -67,7 +67,7 @@ func TestDownloadSelectedRejectsChangedOrCorruptRemoteCopy(t *testing.T) {
 	good := []byte("verified archive")
 	bad := []byte("modified archive")
 	expected := RemoteCopy{
-		ID: uuid.NewString(), Format: 3, Size: int64(len(good)),
+		ID: uuid.NewString(), Format: ArchiveFormat, Size: int64(len(good)),
 		SHA256: fmt.Sprintf("%x", sha256.Sum256(good)), CreatedAt: time.Now().UTC(),
 	}
 	for _, tc := range []struct {

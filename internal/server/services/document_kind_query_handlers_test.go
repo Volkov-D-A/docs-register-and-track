@@ -205,9 +205,7 @@ func TestOutgoingLetterQueryHandler(t *testing.T) {
 	filter := models.DocumentFilter{
 		NomenclatureIDs: []string{"nom-a"},
 		AccessScope: &models.DocumentAccessScope{
-			Restricted:             true,
-			AllowedNomenclatureIDs: []string{"nom-b"},
-			AccessibleByUserID:     "user-1",
+			UserID: "user-1",
 		},
 		DocumentTypeID: "type-1",
 		OrgID:          "org-1",

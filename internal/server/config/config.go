@@ -20,7 +20,6 @@ type BackupConfig struct {
 type Config struct {
 	Backup   BackupConfig       `json:"-"`
 	Database DatabaseConfig     `json:"database"`
-	S3       S3Config           `json:"s3"`
 	Seq      SeqConfig          `json:"seq"`
 	Outbox   OutboxWorkerConfig `json:"outbox,omitempty"`
 	Server   ServerConfig       `json:"server,omitempty"`
@@ -52,19 +51,6 @@ type DatabaseConfig struct {
 	Password string `json:"password"`
 	DBName   string `json:"dbname"`
 	SSLMode  string `json:"sslmode"`
-}
-
-type S3Config struct {
-	Endpoint        string `json:"endpoint"`
-	AccessKeyID     string `json:"accessKeyId"`
-	SecretAccessKey string `json:"secretAccessKey"`
-	UseSSL          bool   `json:"useSSL"`
-	BucketName      string `json:"bucketName"`
-}
-
-// GetSecretAccessKey возвращает ключ доступа, полученный из server environment.
-func (m S3Config) GetSecretAccessKey() string {
-	return m.SecretAccessKey
 }
 
 // ConnectionString формирует строку подключения к базе данных.

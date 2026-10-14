@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup/smb"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +47,7 @@ func TestBuiltServerBackupIntegration(t *testing.T) {
 	var session struct {
 		AccessToken string `json:"accessToken"`
 	}
-	require.NoError(t, json.Unmarshal(request("POST", "/api/v1/auth/login", map[string]string{"login": "attachment-user", "password": "AttachmentPassw0rd!"}, "", 200), &session))
+	require.NoError(t, json.Unmarshal(request("POST", "/api/v1/auth/login", map[string]string{"login": "control-user", "password": "ControlPassw0rd!"}, "", 200), &session))
 	token := session.AccessToken
 	settings := backup.DefaultSettings()
 	settings.SMB = models.SMBDestination{Host: "samba", Share: "backups", User: "docflow"}

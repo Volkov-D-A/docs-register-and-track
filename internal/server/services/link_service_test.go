@@ -25,7 +25,6 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore port
 	linkRepo := mocks.NewLinkStore(t)
 	incRepo := mocks.NewIncomingDocStore(t)
 	outRepo := mocks.NewOutgoingDocStore(t)
-	assignmentRepo := mocks.NewAssignmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 
 	auth := newAttachmentPrincipalStub(userRepo)
@@ -41,7 +40,6 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore port
 		auth.currentUserID = user.ID
 		userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 	}
-	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	incRepo.On("GetByIDs", mock.Anything).Return(func(ids []uuid.UUID) ([]models.IncomingDocument, error) {
 		result := make([]models.IncomingDocument, 0, len(ids))
 		for _, id := range ids {

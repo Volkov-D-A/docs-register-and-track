@@ -27,13 +27,6 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 			assert.Equal(t, "kind", body["groupBy"])
 			assert.NotContains(t, body, "accessScope")
 			return response(http.StatusOK, `{"rows":[],"total":0}`), nil
-		case 3:
-			assert.Equal(t, "/api/v1/statistics/system/storage", r.URL.Path)
-			return response(http.StatusOK, `{"state":"idle","storageSize":"0 B"}`), nil
-		case 4:
-			assert.Equal(t, http.MethodPost, r.Method)
-			assert.Equal(t, "/api/v1/statistics/system/storage/retry", r.URL.Path)
-			return response(http.StatusOK, `{"state":"pending","storageSize":"0 B"}`), nil
 		default:
 			t.Fatalf("unexpected request %d", requestNumber)
 			return nil, nil
@@ -44,12 +37,7 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 	require.NoError(t, err)
 	_, err = client.GetDocumentReport(context.Background(), "2026-01-01", "2026-09-01", "kind", "", "", "")
 	require.NoError(t, err)
-	_, err = client.GetStorageStatisticsStatus(context.Background())
-	require.NoError(t, err)
-	status, err := client.RetryStorageStatisticsRefresh(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, "pending", string(status.State))
-	assert.Equal(t, 4, requestNumber)
+	assert.Equal(t, 2, requestNumber)
 }
 
 func TestWorkspaceRecentDocumentsClientUsesFixedAuthenticatedPreview(t *testing.T) {

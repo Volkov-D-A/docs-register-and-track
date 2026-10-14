@@ -171,7 +171,7 @@ func (s *Service) StartOperation(ctx context.Context, kind string, req models.Ba
 			return out, err
 		}
 	}
-	if kind == "delete" && op.Copy.Format != 3 {
+	if kind == "delete" && op.Copy.Format != ArchiveFormat {
 		return out, fmt.Errorf("неверный идентификатор или формат резервной копии")
 	}
 	confirmationKind := kind
@@ -381,7 +381,7 @@ func (s *Service) executeOperation(ctx context.Context, op *operation) error {
 	if err != nil {
 		return err
 	}
-	if prepared.Manifest.Format == 3 && prepared.Manifest.ID != op.Copy.ID {
+	if prepared.Manifest.Format == ArchiveFormat && prepared.Manifest.ID != op.Copy.ID {
 		return fmt.Errorf("archive identity mismatch")
 	}
 	return s.operationPhase(op, "completed", false)

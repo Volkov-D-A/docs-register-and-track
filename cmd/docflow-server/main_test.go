@@ -24,10 +24,6 @@ func TestCheckConfigCommand(t *testing.T) {
 	t.Setenv("POSTGRES_PASSWORD", "test")
 	t.Setenv("POSTGRES_DB", "docflow")
 	t.Setenv("POSTGRES_SSLMODE", "require")
-	t.Setenv("S3_ENDPOINT", "http://seaweedfs:8333")
-	t.Setenv("S3_ACCESS_KEY_ID", "docflow")
-	t.Setenv("S3_SECRET_ACCESS_KEY", "test")
-	t.Setenv("S3_BUCKET", "docflow-attachments")
 	t.Setenv("SEQ_ENABLED", "false")
 	t.Setenv("DOCFLOW_OUTBOX_BATCH_SIZE", "75")
 	var stdout bytes.Buffer

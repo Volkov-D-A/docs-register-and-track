@@ -163,7 +163,7 @@ function AppContent() {
     const openControls = (view: DeadlineView) => {
         nextDeadlineRequest.current += 1;
         setDeadlineNavigation({ requestId: nextDeadlineRequest.current, view });
-        setCurrentPage('assignments');
+        setCurrentPage('controls');
     };
 
     const openRegister = (_kindCode: string, page: string) => {
@@ -179,7 +179,7 @@ function AppContent() {
             <MainLayout
                 currentPage={currentPage}
                 onPageChange={(page) => {
-                    if (page === 'assignments') setDeadlineNavigation(null);
+                    if (page === 'controls') setDeadlineNavigation(null);
                     setCurrentPage(page);
                 }}
                 isAboutModalOpen={isAboutModalOpen}

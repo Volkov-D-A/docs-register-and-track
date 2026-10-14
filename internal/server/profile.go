@@ -47,33 +47,3 @@ func (api *managementAPI) updateOwnProfile(w http.ResponseWriter, r *http.Reques
 	}
 	writeJSON(w, http.StatusOK, dto.MapUser(user))
 }
-
-func (api *managementAPI) listOwnSubstitutionCandidates(w http.ResponseWriter, _ *http.Request) {
-	users, err := api.userCommands.GetActiveUsers()
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, dto.MapUsers(users))
-}
-
-func (api *managementAPI) getOwnSubstitution(w http.ResponseWriter, r *http.Request) {
-	auth := authenticatedFromContext(r.Context())
-	item, err := api.substitutions.GetByPrincipalID(auth.User.ID)
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, dto.MapUserSubstitution(item))
-}
-
-func (api *managementAPI) updateOwnSubstitution(w http.ResponseWriter, r *http.Request) {
-	auth := authenticatedFromContext(r.Context())
-	var req models.UpdateUserSubstitutionRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_request", err)
-		return
-	}
-	req.PrincipalUserID = auth.User.ID.String()
-	api.saveUserSubstitution(w, r, auth.User.ID, auth.User, req, "USER_SUBSTITUTION_SELF_UPDATE")
-}

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -20,11 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Invoked by backup-integration.sh or prod-compose-smoke.sh after starting the built server.
-func TestBuiltServerAttachmentsIntegration(t *testing.T) {
+// Invoked by the built-server persistence and backup/restore smoke scripts.
+func TestBuiltServerControlsIntegration(t *testing.T) {
 	base := os.Getenv("DOCFLOW_INTEGRATION_SERVER_URL")
 	if base == "" {
-		t.Skip("run make storage-smoke-test for the built-server and backup/restore smoke")
+		t.Skip("set DOCFLOW_INTEGRATION_SERVER_URL for the built-server smoke")
 	}
 	dsn := os.Getenv("DOCFLOW_INTEGRATION_DSN")
 	require.NoError(t, integrationdb.ValidateDSN(dsn))
@@ -38,94 +37,53 @@ func TestBuiltServerAttachmentsIntegration(t *testing.T) {
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
-		if method == http.MethodPost && strings.HasSuffix(path, "/attachments") {
-			req.Header.Set("Content-Disposition", `attachment; filename="report.pdf"`)
-		}
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
+		response, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 		require.NoError(t, err)
-		t.Cleanup(func() { resp.Body.Close() })
-		return resp
+		t.Cleanup(func() { response.Body.Close() })
+		return response
 	}
 	login := func() string {
-		resp := request(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"login":"attachment-user","password":"AttachmentPassw0rd!"}`), "")
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		response := request(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"login":"control-user","password":"ControlPassw0rd!"}`), "")
+		require.Equal(t, http.StatusOK, response.StatusCode)
 		var session struct {
 			AccessToken string `json:"accessToken"`
 		}
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&session))
+		require.NoError(t, json.NewDecoder(response.Body).Decode(&session))
 		return session.AccessToken
 	}
-	content := []byte("%PDF built server persistence and backup smoke\n")
-	if os.Getenv("DOCFLOW_SMOKE_VERIFY") == "1" {
-		token := login()
-		var attachmentID string
-		require.NoError(t, db.QueryRow(`SELECT id FROM attachments WHERE filename='report.pdf' AND deletion_requested_at IS NULL`).Scan(&attachmentID))
-		resp := request(http.MethodGet, "/api/v1/attachments/"+attachmentID+"/content", nil, token)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
+	if os.Getenv("DOCFLOW_SMOKE_VERIFY") != "1" {
+		hash, err := security.HashPassword("ControlPassw0rd!")
 		require.NoError(t, err)
-		require.Equal(t, content, body)
-		resp = request(http.MethodGet, "/api/v1/admin/attachments/reconciliation", nil, token)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		var result models.AttachmentStorageReconciliation
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
-		require.Empty(t, result.MissingObjects)
-		require.Empty(t, result.OrphanObjects)
-		return
+		user, nom, org := uuid.New(), uuid.New(), uuid.New()
+		_, err = db.Exec(`INSERT INTO users(id,login,password_hash,last_name,first_name,no_patronymic,is_document_participant,password_change_required) VALUES($1,'control-user',$2,'Control','User',true,true,false)`, user, hash)
+		require.NoError(t, err)
+		_, err = db.Exec(`INSERT INTO user_system_permissions(user_id,permission) VALUES($1,'admin')`, user)
+		require.NoError(t, err)
+		_, err = db.Exec(`INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES('outgoing_letter','user',$1,'register'),('outgoing_letter','user',$1,'control_deadlines')`, user.String())
+		require.NoError(t, err)
+		_, err = db.Exec(`INSERT INTO nomenclature(id,name,index,year,kind_code) VALUES($1,'Outgoing','OUT',2026,'outgoing_letter')`, nom)
+		require.NoError(t, err)
+		_, err = db.Exec(`INSERT INTO organizations(id,name) VALUES($1,'Control Organization')`, org)
+		require.NoError(t, err)
+		documents := repository.NewOutgoingDocumentRepository(db)
+		documents.SetOutbox(repository.NewOutboxRepository(db))
+		doc, err := documents.CreateWithJournal(models.CreateOutgoingDocRequest{NomenclatureID: nom, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter, RecipientOrgID: org, CreatedBy: user, OutgoingDate: time.Now().UTC(), Content: "Control persistence", PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee"}, "CREATE", "Created %s")
+		require.NoError(t, err)
+		body, err := json.Marshal(models.DeadlineControlRequest{DocumentID: doc.ID.String(), ExecutorID: user.String(), Subject: "Проверить сохранность", DueDate: "2026-10-20"})
+		require.NoError(t, err)
+		response := request(http.MethodPost, "/api/v1/deadline-controls", strings.NewReader(string(body)), login())
+		require.Equal(t, http.StatusCreated, response.StatusCode)
 	}
-	password := "AttachmentPassw0rd!"
-	hash, err := security.HashPassword(password)
-	require.NoError(t, err)
-	userID, nomenclatureID, organizationID := uuid.New(), uuid.New(), uuid.New()
-	_, err = db.Exec(`INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic, is_document_participant, is_active, password_change_required)
-		VALUES ($1, 'attachment-user', $2, 'Attachment', 'User', TRUE, TRUE, TRUE, FALSE)`, userID, hash)
-	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed)
-		VALUES ('outgoing_letter', 'user', $1, 'upload', TRUE),
-		       ('outgoing_letter', 'user', $1, 'read', TRUE)`, userID.String())
-	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode)
-		VALUES ($1, 'Outgoing', 'OUT', 2026, 'outgoing_letter', '/', 'index_and_number')`, nomenclatureID)
-	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO organizations (id, name) VALUES ($1, 'Attachment Organization')`, organizationID)
-	require.NoError(t, err)
-	documentRepo := repository.NewOutgoingDocumentRepository(db)
-	documentRepo.SetOutbox(repository.NewOutboxRepository(db))
-	document, err := documentRepo.CreateWithJournal(models.CreateOutgoingDocRequest{
-		NomenclatureID: nomenclatureID, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter,
-		RecipientOrgID: organizationID, CreatedBy: userID, OutgoingDate: time.Now().UTC(), Content: "attachment integration",
-		PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee",
-	}, "CREATE", "Created %s")
-	require.NoError(t, err)
-	allowed, err := repository.NewDocumentAccessRepository(db).HasPermission(string(models.DocumentKindOutgoingLetter), "upload", "", userID.String())
-	require.NoError(t, err)
-	require.True(t, allowed)
-
-	_, err = db.Exec(`INSERT INTO user_system_permissions(user_id,permission,is_allowed) VALUES($1,'admin',TRUE)`, userID)
-	require.NoError(t, err)
 	token := login()
-	upload := func() string {
-		resp := request(http.MethodPost, "/api/v1/documents/"+document.ID.String()+"/attachments", bytes.NewReader(content), token)
-		require.Equal(t, http.StatusCreated, resp.StatusCode)
-		var result struct {
-			ID string `json:"id"`
-		}
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
-		return result.ID
-	}
-	id := upload()
-	resp := request(http.MethodGet, "/api/v1/attachments/"+id+"/content", nil, token)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, content, body)
-	resp = request(http.MethodDelete, "/api/v1/attachments/"+id, nil, token)
-	require.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Eventually(t, func() bool {
-		var n int
-		err := db.QueryRow(`SELECT COUNT(*) FROM attachments WHERE id=$1`, id).Scan(&n)
-		return err == nil && n == 0
-	}, 10*time.Second, 100*time.Millisecond)
-	upload() // Leave a real attachment for restart and backup/restore verification.
+	var id string
+	require.NoError(t, db.QueryRow(`SELECT id::text FROM document_deadline_controls WHERE subject='Проверить сохранность'`).Scan(&id))
+	response := request(http.MethodGet, "/api/v1/deadline-controls/"+id, nil, token)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	var control models.DocumentDeadlineControl
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&control))
+	require.Equal(t, models.DeadlineActive, control.Status)
+	require.Equal(t, "Проверить сохранность", control.Subject)
+	require.True(t, control.CanManage)
+	response = request(http.MethodGet, "/api/v1/documents/"+control.DocumentID+"/attachments", nil, token)
+	require.Contains(t, []int{http.StatusNotFound, http.StatusMethodNotAllowed}, response.StatusCode)
 }

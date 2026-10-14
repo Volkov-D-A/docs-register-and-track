@@ -29,7 +29,6 @@ func MapIncomingDocument(m *models.IncomingDocument) *IncomingDocument {
 		CreatedByName:        m.CreatedByName,
 		CreatedAt:            m.CreatedAt,
 		UpdatedAt:            m.UpdatedAt,
-		AttachmentsCount:     m.AttachmentsCount,
 	}
 }
 
@@ -99,7 +98,6 @@ func MapCitizenAppealDocument(m *models.CitizenAppealDocument) *CitizenAppealDoc
 		CreatedByName:        m.CreatedByName,
 		CreatedAt:            m.CreatedAt,
 		UpdatedAt:            m.UpdatedAt,
-		AttachmentsCount:     m.AttachmentsCount,
 	}
 }
 
@@ -128,7 +126,6 @@ func MapOutgoingDocument(m *models.OutgoingDocument) *OutgoingDocument {
 		CreatedByName:        m.CreatedByName,
 		CreatedAt:            m.CreatedAt,
 		UpdatedAt:            m.UpdatedAt,
-		AttachmentsCount:     m.AttachmentsCount,
 	}
 }
 
@@ -181,7 +178,6 @@ func MapAdministrativeOrderDocument(m *models.AdministrativeOrderDocument) *Admi
 		CreatedByName:        m.CreatedByName,
 		CreatedAt:            m.CreatedAt,
 		UpdatedAt:            m.UpdatedAt,
-		AttachmentsCount:     m.AttachmentsCount,
 	}
 }
 

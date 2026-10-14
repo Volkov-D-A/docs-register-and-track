@@ -119,7 +119,7 @@ func TestDocumentListAccessScopeIntegration(t *testing.T) {
 	insertScopedOutgoing(t, sqlDB, deniedNom, other, org, "DN/1", "denied searchable")
 
 	items, err := NewOutgoingDocumentRepository(db).GetList(models.OutgoingDocumentFilter{
-		AccessScope: &models.DocumentAccessScope{Restricted: true, UserID: owner.String()},
+		AccessScope: &models.DocumentAccessScope{UserID: owner.String()},
 		Search:      "searchable", Page: 1, PageSize: 50,
 	})
 	if err != nil {
@@ -198,23 +198,9 @@ func TestLinkGraphAndOutboxLifecycleIntegration(t *testing.T) {
 	}
 }
 
-func TestUserSubstitutionAndReferenceMergeIntegration(t *testing.T) {
+func TestReferenceMergeIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	db := database.Wrap(sqlDB)
-	principal := insertIntegrationUser(t, sqlDB, "principal")
-	substitute := insertIntegrationUser(t, sqlDB, "substitute")
-	repo := NewUserSubstitutionRepository(db)
-	if _, err := repo.ReplaceForPrincipalWithOutbox(principal, &substitute, nil, nil, true, nil); err != nil {
-		t.Fatalf("set substitution: %v", err)
-	}
-	active, err := repo.IsActiveSubstitute(substitute, principal)
-	if err != nil || !active {
-		t.Fatalf("active substitution=%v err=%v", active, err)
-	}
-	if _, err := repo.ReplaceForPrincipalWithOutbox(principal, &principal, nil, nil, true, nil); err == nil {
-		t.Fatal("self substitution accepted")
-	}
-
 	_, documentID := seedIntegrationDocument(t, sqlDB)
 	source, target := uuid.New(), uuid.New()
 	execSQL(t, sqlDB, `INSERT INTO organizations (id, name) VALUES ($1, 'Source'), ($2, 'Target')`, source, target)

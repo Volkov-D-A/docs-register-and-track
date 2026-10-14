@@ -6,11 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	WorkspaceModeExecution = "execution"
-	WorkspaceModeControl   = "control"
-)
-
 // WorkspaceDocument is a bounded document preview under server-resolved read scopes.
 type WorkspaceDocument struct {
 	ID             uuid.UUID

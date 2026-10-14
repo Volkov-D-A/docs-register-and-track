@@ -2,6 +2,7 @@ package backup
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -12,20 +13,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 )
 
-type Object struct {
-	Key         string `json:"key"`
-	File        string `json:"file"`
-	Size        int64  `json:"size"`
-	SHA256      string `json:"sha256"`
-	ContentType string `json:"contentType"`
-}
+const ArchiveFormat = 4
+
 type Manifest struct {
 	Format         int       `json:"format"`
 	ID             string    `json:"id"`
@@ -34,7 +26,6 @@ type Manifest struct {
 	Schema         int       `json:"schema"`
 	DatabaseSHA256 string    `json:"databaseSha256"`
 	DatabaseSize   int64     `json:"databaseSize"`
-	Objects        []Object  `json:"objects"`
 }
 
 func FileDigest(name string) (string, int64, error) {
@@ -63,68 +54,6 @@ func writeJSONFile(name string, value any) error {
 	return closed
 }
 
-// SnapshotObjects is called while all application writers are quiesced.
-func SnapshotObjects(ctx context.Context, cfg config.S3Config, directory string, m *Manifest, maxBytes int64) error {
-	client, err := storage.NewS3Client(cfg)
-	if err != nil {
-		return err
-	}
-	if err = os.Mkdir(filepath.Join(directory, "objects"), 0700); err != nil {
-		return err
-	}
-	pages := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{Bucket: aws.String(cfg.BucketName)})
-	used := m.DatabaseSize
-	if used < 0 || used > maxBytes {
-		return fmt.Errorf("dump exceeds staging limit")
-	}
-	for pages.HasMorePages() {
-		page, err := pages.NextPage(ctx)
-		if err != nil {
-			return err
-		}
-		for _, entry := range page.Contents {
-			if entry.Size == nil || *entry.Size < 0 || *entry.Size > maxBytes-used {
-				return fmt.Errorf("snapshot exceeds staging limit")
-			}
-			key := aws.ToString(entry.Key)
-			obj, err := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(cfg.BucketName), Key: aws.String(key)})
-			if err != nil {
-				return err
-			}
-			member := fmt.Sprintf("objects/%08d", len(m.Objects))
-			err = func() error {
-				defer obj.Body.Close()
-				file, err := os.OpenFile(filepath.Join(directory, member), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-				if err != nil {
-					return err
-				}
-				hash := sha256.New()
-				n, copyErr := io.Copy(io.MultiWriter(file, hash), io.LimitReader(obj.Body, *entry.Size+1))
-				syncErr := file.Sync()
-				closeErr := file.Close()
-				if copyErr != nil {
-					return copyErr
-				}
-				if syncErr != nil {
-					return syncErr
-				}
-				if closeErr != nil {
-					return closeErr
-				}
-				if n != *entry.Size {
-					return fmt.Errorf("object changed during snapshot")
-				}
-				m.Objects = append(m.Objects, Object{Key: key, File: member, Size: n, SHA256: fmt.Sprintf("%x", hash.Sum(nil)), ContentType: aws.ToString(obj.ContentType)})
-				used += n
-				return nil
-			}()
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return writeJSONFile(filepath.Join(directory, "manifest.json"), m)
-}
 func Pack(ctx context.Context, directory, archive string, m Manifest) error {
 	file, err := os.OpenFile(archive, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
@@ -133,9 +62,6 @@ func Pack(ctx context.Context, directory, archive string, m Manifest) error {
 	gz := gzip.NewWriter(file)
 	tw := tar.NewWriter(gz)
 	names := []string{"manifest.json", "database.dump"}
-	for _, obj := range m.Objects {
-		names = append(names, obj.File)
-	}
 	for _, name := range names {
 		if err = ctx.Err(); err != nil {
 			break
@@ -169,7 +95,7 @@ func Pack(ctx context.Context, directory, archive string, m Manifest) error {
 	return err
 }
 
-// Unpack verifies a v3 archive into a new directory, with bounded expanded size.
+// Unpack verifies a database-only v4 archive into a new directory, with bounded expanded size.
 func Unpack(ctx context.Context, archive, directory string, maxBytes int64) (Manifest, error) {
 	var m Manifest
 	source, err := os.Open(archive)
@@ -206,15 +132,7 @@ func Unpack(ctx context.Context, archive, directory string, maxBytes int64) (Man
 		}
 		name := header.Name
 		allowed := name == "manifest.json" || name == "database.dump"
-		if len(name) == 16 && name[:8] == "objects/" {
-			allowed = true
-			for _, c := range name[8:] {
-				if c < '0' || c > '9' {
-					allowed = false
-				}
-			}
-		}
-		if len(seen) >= 100002 || !allowed || header.Typeflag != tar.TypeReg || seen[name] || header.Size < 0 || header.Size > maxBytes-used {
+		if len(seen) >= 2 || !allowed || header.Typeflag != tar.TypeReg || seen[name] || header.Size < 0 || header.Size > maxBytes-used {
 			return m, fmt.Errorf("invalid or oversized archive member")
 		}
 		if name == "manifest.json" && header.Size > 16<<20 {
@@ -245,14 +163,19 @@ func Unpack(ctx context.Context, archive, directory string, maxBytes int64) (Man
 	if err != nil {
 		return m, err
 	}
-	if err = json.Unmarshal(raw, &m); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(&m); err != nil {
 		return m, err
+	}
+	if decoder.Decode(new(any)) != io.EOF {
+		return m, fmt.Errorf("manifest должен содержать один JSON-объект")
 	}
 	if _, err = uuid.Parse(m.ID); err != nil {
 		return m, fmt.Errorf("invalid backup identifier")
 	}
-	if m.Format != 3 || m.ID == "" || m.Schema < 1 || len(seen) != len(m.Objects)+2 {
-		return m, fmt.Errorf("invalid backup manifest")
+	if m.Format != ArchiveFormat || m.ID == "" || m.Schema < 1 || len(seen) != 2 {
+		return m, fmt.Errorf("несовместимый архив: требуется формат 4 без объектного хранилища")
 	}
 	if err = VerifyFiles(directory, m); err != nil {
 		return m, err
@@ -266,20 +189,6 @@ func VerifyFiles(directory string, m Manifest) error {
 	}
 	if digest != m.DatabaseSHA256 || size != m.DatabaseSize {
 		return fmt.Errorf("database dump checksum mismatch")
-	}
-	keys := map[string]bool{}
-	for i, obj := range m.Objects {
-		if obj.File != fmt.Sprintf("objects/%08d", i) || keys[obj.Key] || obj.Key == "" {
-			return fmt.Errorf("invalid object manifest")
-		}
-		keys[obj.Key] = true
-		digest, size, err = FileDigest(filepath.Join(directory, obj.File))
-		if err != nil {
-			return err
-		}
-		if digest != obj.SHA256 || size != obj.Size {
-			return fmt.Errorf("object checksum mismatch")
-		}
 	}
 	return nil
 }

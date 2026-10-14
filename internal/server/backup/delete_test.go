@@ -38,7 +38,7 @@ func TestDeletionResumesPartialSetWithoutTouchingOtherFiles(t *testing.T) {
 	dir := t.TempDir()
 	remote := &deletionFiles{catalogFiles: catalogFiles(dir)}
 	s := &Service{Directory: t.TempDir()}
-	copy := RemoteCopy{ID: uuid.NewString(), Format: 3, Size: 3, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()}
+	copy := RemoteCopy{ID: uuid.NewString(), Format: ArchiveFormat, Size: 3, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()}
 	raw, err := json.Marshal(copy)
 	require.NoError(t, err)
 	for _, name := range []string{copy.ID + ".delete.json", copy.ID + ".manifest.json"} {
@@ -66,7 +66,7 @@ func TestDeletionPreservesLastCopyEvenWithZeroMinimum(t *testing.T) {
 	dir := t.TempDir()
 	remote := &deletionFiles{catalogFiles: catalogFiles(dir)}
 	s := &Service{Directory: t.TempDir()}
-	copy := RemoteCopy{ID: uuid.NewString(), Format: 3, Size: 3, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()}
+	copy := RemoteCopy{ID: uuid.NewString(), Format: ArchiveFormat, Size: 3, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()}
 	raw, err := json.Marshal(copy)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, copy.ID+".manifest.json"), raw, 0600))

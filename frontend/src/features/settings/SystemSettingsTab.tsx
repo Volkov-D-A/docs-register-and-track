@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { App, Button, Form, Input, InputNumber, Switch } from 'antd';
+import { App, Button, Form, Input, InputNumber } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
 import { formatAppError } from '../../utils/appError';
 
@@ -16,15 +16,8 @@ const SystemSettingsTab: React.FC = () => {
       if (settings) {
         const values: any = {};
         settings.forEach((setting: any) => {
-          if (setting.key === 'assignment_completion_attachments_enabled') {
-            values[setting.key] = String(setting.value).toLowerCase() === 'true';
-            return;
-          }
           values[setting.key] = setting.value;
         });
-        if (values.assignment_completion_attachments_enabled === undefined) {
-          values.assignment_completion_attachments_enabled = false;
-        }
         form.setFieldsValue(values);
       }
     } catch (error: unknown) {
@@ -70,25 +63,12 @@ const SystemSettingsTab: React.FC = () => {
         <Form.Item name="organization_short_name" label="Краткое название организации" rules={[{ required: true }]}>
           <Input placeholder="Краткое название организации" />
         </Form.Item>
-        <Form.Item name="max_file_size_mb" label="Максимальный размер файла (МБ)" rules={[{ required: true }]}>
-          <InputNumber min={1} max={1000} style={{ width: '100%' }} />
-        </Form.Item>
         <Form.Item
           name="password_lifetime_days"
           label="Срок жизни пароля, дней"
           rules={[{ required: true, message: 'Укажите срок жизни пароля' }]}
         >
           <InputNumber min={0} max={3650} placeholder="0 - без ограничения" style={{ width: '100%' }} />
-        </Form.Item>
-        <Form.Item name="allowed_file_types" label="Разрешенные типы файлов (через запятую)" rules={[{ required: true }]}>
-          <Input placeholder=".pdf, .doc, .docx" />
-        </Form.Item>
-        <Form.Item
-          name="assignment_completion_attachments_enabled"
-          label="Файлы при завершении поручения"
-          valuePropName="checked"
-        >
-          <Switch checkedChildren="Включено" unCheckedChildren="Выключено" />
         </Form.Item>
         <Form.Item>
           <Button type="primary" htmlType="submit" loading={loading} icon={<EditOutlined />}>

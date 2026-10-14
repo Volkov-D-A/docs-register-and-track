@@ -33,7 +33,7 @@ func digestReader(reader io.Reader, limit int64) (string, int64, error) {
 }
 func ReadMarker(ctx context.Context, client *smb.Client, id string) (RemoteCopy, error) {
 	if !validCopyID(id) {
-		return RemoteCopy{}, fmt.Errorf("invalid v3 copy identifier")
+		return RemoteCopy{}, fmt.Errorf("invalid copy identifier")
 	}
 	return readCopyMarker(ctx, client, id)
 }

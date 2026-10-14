@@ -32,20 +32,19 @@ func TestCurrentAccessSummaryMatchesIndividualPermissionChecksIntegration(t *tes
 		($3, 'access-other', $5, 'Access', 'Other', TRUE, NULL, FALSE)`, userID, adminID, otherID, departmentID, hash)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions (user_id, permission, is_allowed) VALUES
-		($1, 'references', TRUE), ($1, 'stats_documents', FALSE), ($2, 'admin', TRUE)`, userID, adminID)
+		($1, 'references', TRUE), ($1, 'admin', FALSE), ($2, 'admin', TRUE)`, userID, adminID)
 	require.NoError(t, err)
 	for _, rule := range []struct {
 		kind, subjectType, subjectKey, action string
 		allowed                               bool
 	}{
-		{"incoming_letter", "department", departmentID.String(), "read", true},
-		{"incoming_letter", "user", userID.String(), "read", false},
-		{"incoming_letter", "user", userID.String(), "create", true},
-		{"incoming_letter", "user", userID.String(), "assign", false},
-		{"incoming_letter", "role", "clerk", "update", true},
-		{"outgoing_letter", "user", userID.String(), "link", true},
-		{"citizen_appeal", "department", departmentID.String(), "read", false},
-		{"administrative_order", "user", otherID.String(), "read", true},
+		{"incoming_letter", "department", departmentID.String(), "control_deadlines", true},
+		{"incoming_letter", "user", userID.String(), "control_deadlines", false},
+		{"incoming_letter", "user", userID.String(), "register", true},
+		{"incoming_letter", "role", "clerk", "register", true},
+		{"outgoing_letter", "user", userID.String(), "register", true},
+		{"citizen_appeal", "department", departmentID.String(), "control_deadlines", false},
+		{"administrative_order", "user", otherID.String(), "register", true},
 	} {
 		_, err = db.Exec(`INSERT INTO document_permissions (kind_code, subject_type, subject_key, action, is_allowed) VALUES ($1, $2, $3, $4, $5)`, rule.kind, rule.subjectType, rule.subjectKey, rule.action, rule.allowed)
 		require.NoError(t, err)
@@ -74,7 +73,8 @@ func TestCurrentAccessSummaryMatchesIndividualPermissionChecksIntegration(t *tes
 	readerSummary := getSummary("access-reader")
 	require.Equal(t, []string{models.SystemPermissionReferences}, readerSummary.SystemPermissions)
 	require.True(t, readerSummary.Sections.References)
-	require.False(t, readerSummary.Sections.Statistics)
+	require.True(t, readerSummary.Sections.Statistics)
+	require.True(t, readerSummary.Sections.Reports)
 	access := repository.NewDocumentAccessRepository(db)
 	require.Len(t, readerSummary.DocumentKinds, len(models.AllDocumentKindSpecs()))
 	for i, spec := range models.AllDocumentKindSpecs() {
@@ -90,8 +90,8 @@ func TestCurrentAccessSummaryMatchesIndividualPermissionChecksIntegration(t *tes
 		}
 		require.Equal(t, expected, kind.AvailableActions)
 	}
-	require.Equal(t, []string{"create", "read"}, readerSummary.DocumentKinds[0].AvailableActions)
-	require.Equal(t, []string{"link"}, readerSummary.DocumentKinds[1].AvailableActions)
+	require.Equal(t, []string{"register", "control_deadlines"}, readerSummary.DocumentKinds[0].AvailableActions)
+	require.Equal(t, []string{"register"}, readerSummary.DocumentKinds[1].AvailableActions)
 
 	adminSummary := getSummary("access-admin")
 	require.Equal(t, []string{models.SystemPermissionAdmin}, adminSummary.SystemPermissions)

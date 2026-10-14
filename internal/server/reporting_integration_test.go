@@ -15,7 +15,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
-func TestReportsPermissionIntegration(t *testing.T) {
+func TestReportsAuthenticatedAccessIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	db := database.Wrap(sqlDB)
 	admin, reporter, viewer := uuid.New(), uuid.New(), uuid.New()
@@ -27,7 +27,7 @@ func TestReportsPermissionIntegration(t *testing.T) {
 		($3,'reports-viewer',$4,'Reports','Viewer',true,false)`, admin, reporter, viewer, hash)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO user_system_permissions(user_id,permission,is_allowed) VALUES
-		($1,'admin',true),($2,'reports',true),($3,'stats_documents',true)`, admin, reporter, viewer)
+		($1,'admin',true)`, admin)
 	require.NoError(t, err)
 	api := newIntegrationManagementAPI(t, &App{db: db, cfg: validConfig()})
 	login := func(name string) string {
@@ -50,7 +50,32 @@ func TestReportsPermissionIntegration(t *testing.T) {
 		return w
 	}
 	require.Equal(t, http.StatusOK, request(login("reports-user"), "/api/v1/reports/run").Code)
-	require.Equal(t, http.StatusForbidden, request(login("reports-viewer"), "/api/v1/reports/run").Code)
-	require.Equal(t, http.StatusForbidden, request(login("reports-viewer"), "/api/v1/reports/export/pdf").Code)
+	viewerToken := login("reports-viewer")
+	require.Equal(t, http.StatusOK, request(viewerToken, "/api/v1/reports/run").Code)
+	pdf := request(viewerToken, "/api/v1/reports/export/pdf")
+	require.Equal(t, http.StatusOK, pdf.Code)
+	require.True(t, strings.HasPrefix(pdf.Body.String(), "%PDF"))
+	xlsx := request(viewerToken, "/api/v1/reports/export/xlsx")
+	require.Equal(t, http.StatusOK, xlsx.Code)
+	require.True(t, strings.HasPrefix(xlsx.Body.String(), "PK"))
+	require.Equal(t, http.StatusUnauthorized, request("", "/api/v1/reports/run").Code)
+	require.Equal(t, http.StatusUnauthorized, request("", "/api/v1/reports/export/xlsx").Code)
+	spoof := httptest.NewRequest(http.MethodPost, "/api/v1/reports/run", strings.NewReader(`{"template":"organizations","startDate":"2026-01-01","endDate":"2026-01-31","accessScope":{"restricted":false}}`))
+	spoof.Header.Set("Authorization", "Bearer "+viewerToken)
+	response := httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, spoof)
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	system := httptest.NewRequest(http.MethodGet, "/api/v1/statistics/system", nil)
+	system.Header.Set("Authorization", "Bearer "+viewerToken)
+	response = httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, system)
+	require.Equal(t, http.StatusForbidden, response.Code)
+	for _, path := range []string{"/api/v1/statistics/assignments", "/api/v1/statistics/assignments/filters"} {
+		old := httptest.NewRequest(http.MethodGet, path, nil)
+		old.Header.Set("Authorization", "Bearer "+viewerToken)
+		response = httptest.NewRecorder()
+		api.Handler().ServeHTTP(response, old)
+		require.Equal(t, http.StatusNotFound, response.Code)
+	}
 
 }

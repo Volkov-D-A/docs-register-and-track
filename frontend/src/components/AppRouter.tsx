@@ -32,7 +32,7 @@ type AppRouterProps = {
     onOpenRegister: (kindCode: string, page: string) => void;
 };
 
-const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'appeals', 'orders', 'assignments']);
+const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'appeals', 'orders', 'controls']);
 
 const resolvePage = (pageKey: string, props: Pick<AppRouterProps, 'deadlineNavigation' | 'onOpenControls' | 'onOpenRegister'>) => {
     switch (pageKey) {
@@ -46,7 +46,7 @@ const resolvePage = (pageKey: string, props: Pick<AppRouterProps, 'deadlineNavig
             return <CitizenAppealsPage />;
         case 'orders':
             return <OrdersPage />;
-        case 'assignments':
+        case 'controls':
             return <DeadlineControlsPage key={props.deadlineNavigation?.requestId || 0} initialView={props.deadlineNavigation?.view} />;
         case 'settings':
             return <SettingsPage />;

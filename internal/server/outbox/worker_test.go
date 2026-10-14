@@ -2,7 +2,6 @@ package outbox
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"testing"
@@ -18,24 +17,12 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
 )
 
-type fileDeleterStub struct {
-	path string
-	err  error
-	ctx  context.Context
-}
-
-func (s *fileDeleterStub) DeleteFile(ctx context.Context, path string) error {
-	s.ctx = ctx
-	s.path = path
-	return s.err
-}
-
 func TestWorkerProcessOnceMarksAlreadyDeliveredUserEvent(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 	wrapped := database.Wrap(db)
-	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
+	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
 	id, now := uuid.New(), time.Now()
 	mock.ExpectBegin()
 	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).
@@ -54,7 +41,7 @@ func TestWorkerProcessOnceSchedulesRetryForUnsupportedEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 	wrapped := database.Wrap(db)
-	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
+	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
 	id, now := uuid.New(), time.Now()
 	mock.ExpectBegin()
 	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).
@@ -72,7 +59,7 @@ func TestWorkerProcessOnceDeliversAdministrativeAudit(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 	wrapped := database.Wrap(db)
-	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
+	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
 	id, userID, now := uuid.New(), uuid.New(), time.Now()
 	mock.ExpectBegin()
 	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).
@@ -83,59 +70,6 @@ func TestWorkerProcessOnceDeliversAdministrativeAudit(t *testing.T) {
 	mock.ExpectExec(`UPDATE event_outbox SET processed_at = CURRENT_TIMESTAMP`).WithArgs(id).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	require.NoError(t, worker.ProcessOnce())
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestWorkerProcessOnceDeletesAttachmentObjectAndMarkedRow(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-	wrapped := database.Wrap(db)
-	storage := &fileDeleterStub{}
-	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), repository.NewAttachmentRepository(wrapped), storage)
-	eventID, attachmentID, now := uuid.New(), uuid.New(), time.Now()
-	payload := `{"attachmentId":"` + attachmentID.String() + `","storagePath":"attachments/report.pdf"}`
-	mock.ExpectBegin()
-	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
-			AddRow(eventID, models.OutboxEventFileDelete, "attachment-key", payload, now, now, nil, nil, 1, nil, now))
-	mock.ExpectCommit()
-	expectStorageMutationBegin(mock)
-	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT file_size FROM attachments WHERE id = \$1 AND deletion_requested_at IS NOT NULL FOR UPDATE`).WithArgs(attachmentID).WillReturnRows(sqlmock.NewRows([]string{"file_size"}).AddRow(42))
-	mock.ExpectExec(`DELETE FROM attachments WHERE id = \$1 AND deletion_requested_at IS NOT NULL`).WithArgs(attachmentID).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`UPDATE storage_statistics`).WithArgs(42).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectCommit()
-	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE token = \$1`).WithArgs(sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`UPDATE event_outbox SET processed_at = CURRENT_TIMESTAMP`).WithArgs(eventID).WillReturnResult(sqlmock.NewResult(0, 1))
-
-	require.NoError(t, worker.ProcessOnce())
-	require.Equal(t, "attachments/report.pdf", storage.path)
-	_, hasDeadline := storage.ctx.Deadline()
-	require.True(t, hasDeadline)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestWorkerProcessOnceRetriesAttachmentDeletionAfterStorageFailure(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-	wrapped := database.Wrap(db)
-	storage := &fileDeleterStub{err: sql.ErrConnDone}
-	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), repository.NewAttachmentRepository(wrapped), storage)
-	eventID, attachmentID, now := uuid.New(), uuid.New(), time.Now()
-	payload := `{"attachmentId":"` + attachmentID.String() + `","storagePath":"attachments/retry.pdf"}`
-	mock.ExpectBegin()
-	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
-			AddRow(eventID, models.OutboxEventFileDelete, "attachment-key", payload, now, now, nil, nil, 1, nil, now))
-	mock.ExpectCommit()
-	expectStorageMutationBegin(mock)
-	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE token = \$1`).WithArgs(sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`UPDATE event_outbox.*failed_at = CASE`).WithArgs(eventID, 1, 10, 1.0, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
-
-	require.NoError(t, worker.ProcessOnce())
-	require.Equal(t, "attachments/retry.pdf", storage.path)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -158,7 +92,7 @@ func TestWorkerRunReleasesStaleClaimsAndStopsOnContextCancellation(t *testing.T)
 	require.NoError(t, err)
 	defer db.Close()
 	wrapped := database.Wrap(db)
-	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
+	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
 	mock.ExpectExec(`UPDATE event_outbox SET processing_started_at = NULL`).WithArgs(sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
 	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}))
@@ -178,7 +112,7 @@ func TestWorkerCleanupProcessedUsesRetentionAndBoundedBatches(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 	wrapped := database.Wrap(db)
-	worker := NewWorker(repository.NewOutboxRepository(wrapped), nil, nil, nil, nil, nil)
+	worker := NewWorker(repository.NewOutboxRepository(wrapped), nil, nil, nil)
 	now := time.Date(2026, time.August, 5, 12, 0, 0, 0, time.UTC)
 	worker.now = func() time.Time { return now }
 	cutoff := now.Add(-worker.options.ProcessedRetention)
@@ -195,7 +129,7 @@ func TestTwoWorkersClaimIndependently(t *testing.T) {
 	defer db.Close()
 	wrapped := database.Wrap(db)
 	newWorker := func() *Worker {
-		return NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
+		return NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
 	}
 	for range 2 {
 		mock.ExpectBegin()
@@ -234,7 +168,7 @@ func TestWorkerNotifiesDocumentsOnlyAfterDurableJournalOrAuditDelivery(t *testin
 				require.NoError(t, err)
 				defer db.Close()
 				wrapped := database.Wrap(db)
-				worker := NewWorker(repository.NewOutboxRepository(wrapped), nil, repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped), nil, nil)
+				worker := NewWorker(repository.NewOutboxRepository(wrapped), nil, repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
 				notifications := 0
 				worker.OnDocumentChanged = func(liveevents.Change) { notifications++ }
 				worker.OnAccessChanged = func(models.CreateAdminAuditLogRequest) { notifications++ }
@@ -269,10 +203,7 @@ func TestJournalChangesIdentifyOnlyAffectedResources(t *testing.T) {
 		visibility       bool
 	}{
 		{"CREATE", "document", false}, {"UPDATE", "document", false},
-		{"DEADLINE_CONTROL_CREATE", "controls", true}, {"DEADLINE_CONTROL_UPDATE", "controls", true}, {"DEADLINE_CONTROL_CANCEL", "controls", true}, {"DEADLINE_CONTROL_COMPLETE", "controls", false},
-		{"ASSIGNMENT_CREATE", "assignments", true}, {"ASSIGNMENT_STATUS", "assignments", false},
-		{"ASSIGNMENT_DELETE", "assignments", true}, {"ASSIGNMENT_ACKNOWLEDGED", "assignments", false},
-		{"ASSIGNMENT_DELETE", "assignments", true}, {"FILE_UPLOAD", "files", false}, {"LINK_DELETE", "links", true},
+		{"DEADLINE_CONTROL_CREATE", "controls", true}, {"DEADLINE_CONTROL_UPDATE", "controls", true}, {"DEADLINE_CONTROL_CANCEL", "controls", true}, {"DEADLINE_CONTROL_COMPLETE", "controls", false}, {"LINK_DELETE", "links", true},
 	} {
 		t.Run(tc.action, func(t *testing.T) {
 			change := journalChange(models.CreateJournalEntryRequest{DocumentID: documentID, Action: tc.action, PreviousReaderIDs: []uuid.UUID{readerID}})

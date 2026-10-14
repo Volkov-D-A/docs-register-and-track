@@ -15,9 +15,8 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
-func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *testing.T) {
-	// При ограниченном доступе пользователь должен видеть приказ не только через поручение,
-	// но и через задачу на ознакомление.
+func TestAdministrativeOrderRepository_GetListUsesVisibilityClosure(t *testing.T) {
+	// The same visibility closure scopes both the count and the returned cards.
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -28,14 +27,14 @@ func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *te
 	userID := uuid.New().String()
 	now := time.Now()
 	filter := models.DocumentFilter{
-		AccessScope: &models.DocumentAccessScope{Restricted: true, AccessibleByUserID: userID},
+		AccessScope: &models.DocumentAccessScope{UserID: userID},
 		Page:        1,
 		PageSize:    10,
 	}
 
-	expectedCountQuery := `SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id(.*)assignment_recipients au(.*)JOIN assignments a ON au.assignment_id = a.id(.*)a.document_id = d.id`
+	expectedCountQuery := `SELECT COUNT\(\*\)(.*)WITH RECURSIVE(.*)document_deadline_controls(.*)document_links`
 	mock.ExpectQuery(expectedCountQuery).
-		WithArgs(models.DocumentKindAdministrativeOrder, userID, userID).
+		WithArgs(models.DocumentKindAdministrativeOrder, userID).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
 	rows := sqlmock.NewRows([]string{
@@ -58,9 +57,9 @@ func TestAdministrativeOrderRepository_GetListIncludesAcknowledgmentAccess(t *te
 		now, now,
 	)
 
-	expectedListQuery := `SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id(.*)assignment_recipients au(.*)JOIN assignments a ON au.assignment_id = a.id(.*)ORDER BY d.created_at DESC`
+	expectedListQuery := `SELECT(.*)ord\.order_number(.*)WITH RECURSIVE(.*)document_deadline_controls(.*)document_links(.*)ORDER BY d.created_at DESC`
 	mock.ExpectQuery(expectedListQuery).
-		WithArgs(models.DocumentKindAdministrativeOrder, userID, userID, 10, 0).
+		WithArgs(models.DocumentKindAdministrativeOrder, userID, 10, 0).
 		WillReturnRows(rows)
 
 	mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = ANY\(\$1\)`).
@@ -88,9 +87,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		filter := models.DocumentFilter{
 			AccessScope: &models.DocumentAccessScope{
-				Restricted:             true,
-				AccessibleByUserID:     uuid.New().String(),
-				AllowedNomenclatureIDs: []string{uuid.New().String()},
+				UserID: uuid.New().String(),
 			},
 			NomenclatureIDs:           []string{uuid.New().String(), uuid.New().String()},
 			DateFrom:                  "2026-01-01",

@@ -61,7 +61,7 @@ func readDeletion(ctx context.Context, client remoteReader, id string) (RemoteCo
 // deleteRemote and retention use the same global SMB lock and tombstone.
 // The archive goes first; a crash never leaves it appearing as a healthy set.
 func (s *Service) deleteRemote(ctx context.Context, client remoteWriter, copy RemoteCopy, minimum int) error {
-	if !validCopyID(copy.ID) || copy.Format != 3 {
+	if !validCopyID(copy.ID) || copy.Format != ArchiveFormat {
 		return fmt.Errorf("неверный идентификатор или формат резервной копии")
 	}
 	if minimum < 1 {

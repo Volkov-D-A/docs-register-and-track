@@ -45,52 +45,48 @@ type DocumentStatisticsReport struct {
 	Rows  []StatisticsReportRow `json:"rows"`
 }
 
-// AssignmentMonthlyPoint описывает помесячную статистику поручений.
-type AssignmentMonthlyPoint struct {
+// DeadlineMonthlyPoint описывает помесячную статистику контролей.
+type DeadlineMonthlyPoint struct {
 	Month   int    `json:"month"`
 	Period  string `json:"period"`
 	Total   int    `json:"total"`
 	Overdue int    `json:"overdue"`
 }
 
-// AssignmentStatistics описывает обзорную статистику по поручениям.
-type AssignmentStatistics struct {
-	Year              int                      `json:"year"`
-	MonthlyTotals     []AssignmentMonthlyPoint `json:"monthlyTotals"`
-	MonthlyByExecutor []StatisticsSeriesPoint  `json:"monthlyByExecutor"`
-	OverdueRating     []StatisticsReportRow    `json:"overdueRating"`
-	StatusCounts      []StatisticsReportRow    `json:"statusCounts"`
+// DeadlineStatistics описывает обзорную статистику по контролям.
+type DeadlineStatistics struct {
+	Year              int                     `json:"year"`
+	MonthlyTotals     []DeadlineMonthlyPoint  `json:"monthlyTotals"`
+	MonthlyByExecutor []StatisticsSeriesPoint `json:"monthlyByExecutor"`
+	OverdueRating     []StatisticsReportRow   `json:"overdueRating"`
+	StatusCounts      []StatisticsReportRow   `json:"statusCounts"`
 }
 
-// AssignmentStatisticsFilters содержит значения фильтров для статистики поручений.
-type AssignmentStatisticsFilters struct {
+// DeadlineStatisticsFilters содержит значения фильтров для статистики контролей.
+type DeadlineStatisticsFilters struct {
 	Users []StatisticsOption `json:"users"`
 }
 
-// AssignmentStatisticsReport описывает отчет по поручениям за период.
-type AssignmentStatisticsReport struct {
+// DeadlineStatisticsReport описывает отчет по контролям за период.
+type DeadlineStatisticsReport struct {
 	Total int                   `json:"total"`
 	Rows  []StatisticsReportRow `json:"rows"`
 }
 
 // SystemStatistics описывает системную статистику.
 type SystemStatistics struct {
-	ClientBuildVersion string                     `json:"clientBuildVersion"`
-	ClientRevision     string                     `json:"clientRevision"`
-	ClientDirty        bool                       `json:"clientDirty"`
-	UserCount          int                        `json:"userCount"`
-	TotalDocuments     int                        `json:"totalDocuments"`
-	DBSize             string                     `json:"dbSize"`
-	StorageObjects     int                        `json:"storageObjects"`
-	StorageSize        string                     `json:"storageSize"`
-	StorageRefreshedAt *time.Time                 `json:"storageRefreshedAt,omitempty"`
-	GeneratedAt        time.Time                  `json:"generatedAt"`
-	Service            SystemServiceStatistics    `json:"service"`
-	Usage              SystemUsageStatistics      `json:"usage"`
-	API                SystemAPIStatistics        `json:"api"`
-	Database           SystemDatabaseStatistics   `json:"database"`
-	Outbox             SystemOutboxStatistics     `json:"outbox"`
-	Attachments        SystemAttachmentStatistics `json:"attachments"`
+	ClientBuildVersion string                   `json:"clientBuildVersion"`
+	ClientRevision     string                   `json:"clientRevision"`
+	ClientDirty        bool                     `json:"clientDirty"`
+	UserCount          int                      `json:"userCount"`
+	TotalDocuments     int                      `json:"totalDocuments"`
+	DBSize             string                   `json:"dbSize"`
+	GeneratedAt        time.Time                `json:"generatedAt"`
+	Service            SystemServiceStatistics  `json:"service"`
+	Usage              SystemUsageStatistics    `json:"usage"`
+	API                SystemAPIStatistics      `json:"api"`
+	Database           SystemDatabaseStatistics `json:"database"`
+	Outbox             SystemOutboxStatistics   `json:"outbox"`
 }
 
 type SystemServiceStatistics struct {
@@ -140,53 +136,10 @@ type SystemOutboxStatistics struct {
 	RetriesSinceStart   int64 `json:"retriesSinceStart"`
 }
 
-type SystemAttachmentStatistics struct {
-	MissingObjects *int `json:"missingObjects,omitempty"`
-	OrphanObjects  *int `json:"orphanObjects,omitempty"`
-}
-
-// SystemDiagnostics is the server-owned operational part of system statistics.
 type SystemDiagnostics struct {
-	Service     SystemServiceStatistics    `json:"service"`
-	Usage       SystemUsageStatistics      `json:"usage"`
-	API         SystemAPIStatistics        `json:"api"`
-	Database    SystemDatabaseStatistics   `json:"database"`
-	Outbox      SystemOutboxStatistics     `json:"outbox"`
-	Attachments SystemAttachmentStatistics `json:"attachments"`
-}
-
-// StorageStatisticsSnapshot is the persisted result of the last complete
-// object-storage scan. The lease fields are intentionally not exposed to UI.
-type StorageStatisticsSnapshot struct {
-	ObjectCount int
-	TotalBytes  int64
-	RefreshedAt time.Time
-}
-
-type StorageStatisticsRefreshState string
-
-const (
-	StorageStatisticsRefreshIdle    StorageStatisticsRefreshState = "idle"
-	StorageStatisticsRefreshPending StorageStatisticsRefreshState = "pending"
-	StorageStatisticsRefreshRunning StorageStatisticsRefreshState = "running"
-	StorageStatisticsRefreshFailed  StorageStatisticsRefreshState = "failed"
-)
-
-// StorageStatisticsStatus is a lightweight view used while the UI waits for
-// a background object storage scan. It deliberately excludes unrelated system counts.
-type StorageStatisticsStatus struct {
-	StorageObjects int                           `json:"storageObjects"`
-	StorageSize    string                        `json:"storageSize"`
-	RefreshedAt    *time.Time                    `json:"refreshedAt,omitempty"`
-	State          StorageStatisticsRefreshState `json:"state"`
-	LastError      string                        `json:"lastError,omitempty"`
-}
-
-// StorageStatisticsRefreshRecord is the persisted snapshot plus coordination
-// state used by StatisticsService to decide whether a scan should be started.
-type StorageStatisticsRefreshRecord struct {
-	Snapshot       StorageStatisticsSnapshot
-	RefreshActive  bool
-	MutationActive bool
-	LastError      string
+	Service  SystemServiceStatistics  `json:"service"`
+	Usage    SystemUsageStatistics    `json:"usage"`
+	API      SystemAPIStatistics      `json:"api"`
+	Database SystemDatabaseStatistics `json:"database"`
+	Outbox   SystemOutboxStatistics   `json:"outbox"`
 }

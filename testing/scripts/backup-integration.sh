@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Real PostgreSQL, S3, Samba and instrumented administrative API.
+# Real PostgreSQL, Samba and instrumented administrative API.
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 ROOT=$PWD
@@ -7,7 +7,7 @@ ROOT=$PWD
 compose_env=/dev/null
 if [[ -f "$ROOT/.env" ]]; then compose_env="$ROOT/.env"; fi
 # Keep backup integration ports separate from ordinary integration tests.
-export DOCFLOW_TEST_POSTGRES_PORT=${DOCFLOW_TEST_POSTGRES_PORT:-55433} DOCFLOW_TEST_S3_PORT=${DOCFLOW_TEST_S3_PORT:-58334}
+export DOCFLOW_TEST_POSTGRES_PORT=${DOCFLOW_TEST_POSTGRES_PORT:-55433}
 export DOCFLOW_TEST_SERVER_PORT=${DOCFLOW_TEST_SERVER_PORT:-58480}
 # Embed the same local source identity as development desktop builds.
 export DOCFLOW_SMOKE_VERSION
@@ -46,13 +46,13 @@ export DOCFLOW_INTEGRATION_SERVER_URL=http://127.0.0.1:$DOCFLOW_TEST_SERVER_PORT
 export GOCACHE=${GOCACHE:-/tmp/go-build-cache}
 "${compose[@]}" up -d --build --wait
 DOCFLOW_INTEGRATION_SMB_HOST=127.0.0.1 DOCFLOW_INTEGRATION_SMB_PORT=5445 DOCFLOW_INTEGRATION_SMB_SHARE=backups DOCFLOW_INTEGRATION_SMB_USER=docflow DOCFLOW_INTEGRATION_SMB_PASSWORD=integration-password go test ./internal/server/backup/smb -run Integration -count=1 -v | tee "$evidence/smb-lock.log"
-# Fresh server has applied the ordinary embedded migrations and created its bucket.
-go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/api-seed.log"
+# Fresh server has applied the ordinary embedded migrations.
+go test ./internal/server -run '^TestBuiltServerControlsIntegration$' -count=1 -v | tee "$evidence/api-seed.log"
 go test ./internal/server -run '^TestBuiltServerBackupIntegration$' -count=1 -v | tee "$evidence/server-backup.log"
 go test ./internal/server -run '^TestBuiltAdminRestoreIntegration$' -count=1 -v | tee "$evidence/admin-replacement.log"
-DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/admin-restored-api.log"
+DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerControlsIntegration$' -count=1 -v | tee "$evidence/admin-restored-api.log"
 "${compose[@]}" down -v --remove-orphans
 "${compose[@]}" up -d --no-build --wait
-DOCFLOW_SMOKE_RESET=1 go test ./internal/server -run '^TestBuiltAdminRestoreIntegration$' -count=1 -v | tee "$evidence/admin-reset-v3.log"
-DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v | tee "$evidence/admin-reset-v3-api.log"
-printf 'PASS: backup, replacement, reset recovery v3, restored attachments.\n' | tee "$evidence/result.txt"
+DOCFLOW_SMOKE_RESET=1 go test ./internal/server -run '^TestBuiltAdminRestoreIntegration$' -count=1 -v | tee "$evidence/admin-reset-v4.log"
+DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerControlsIntegration$' -count=1 -v | tee "$evidence/admin-reset-v4-api.log"
+printf 'PASS: backup, replacement, reset recovery v4, restored deadline controls.\n' | tee "$evidence/result.txt"

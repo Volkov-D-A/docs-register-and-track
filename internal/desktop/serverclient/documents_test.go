@@ -46,7 +46,7 @@ func TestDocumentQueryClientUsesTypedEndpoints(t *testing.T) {
 	assert.Equal(t, id, card.ID)
 	result, err := client.ListDocuments(context.Background(), "incoming_letter", models.DocumentFilter{
 		Search: "needle", Page: 1, PageSize: 20,
-		AccessScope: &models.DocumentAccessScope{Restricted: false},
+		AccessScope: &models.DocumentAccessScope{},
 	})
 	require.NoError(t, err)
 	assert.Empty(t, result.Items)

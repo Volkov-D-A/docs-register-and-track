@@ -34,12 +34,15 @@ func loginResponseBody() string {
 func TestBearerUnauthorizedEndsSessionAcrossAllRequestPaths(t *testing.T) {
 	operations := map[string]func(*Client) error{
 		"me":        func(c *Client) error { _, err := c.Me(context.Background()); return err },
-		"documents": func(c *Client) error { _, err := c.ListDocumentAttachments(context.Background(), "doc"); return err },
+		"documents": func(c *Client) error { _, err := c.GetReportFilters(context.Background()); return err },
 		"upload": func(c *Client) error {
-			_, err := c.UploadAttachment(context.Background(), "doc", "", "a.txt", 1, strings.NewReader("a"))
+			_, err := c.RunReport(context.Background(), models.ReportRequest{})
 			return err
 		},
-		"download": func(c *Client) error { _, _, err := c.GetAttachmentContent(context.Background(), "file"); return err },
+		"download": func(c *Client) error {
+			_, _, err := c.ExportReport(context.Background(), models.ReportRequest{}, "xlsx")
+			return err
+		},
 		"update": func(c *Client) error {
 			_, err := c.UpdateProfile(context.Background(), models.UpdateProfileRequest{})
 			return err
@@ -223,7 +226,7 @@ func TestSessionEndCancelsInFlightRequest(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { _, err := c.Me(context.Background()); done <- err }()
 	<-entered
-	_, err := c.ListDocumentAttachments(context.Background(), "doc")
+	_, err := c.GetReportFilters(context.Background())
 	require.ErrorIs(t, err, models.ErrUnauthorized)
 	require.ErrorIs(t, <-done, models.ErrUnauthorized)
 }
@@ -239,7 +242,7 @@ func TestSessionEndRejectsAnAlreadyOpenedDownload(t *testing.T) {
 		resp.ContentLength = 6
 		return resp, nil
 	})
-	_, body, err := c.GetAttachmentContent(context.Background(), "file")
+	_, body, err := c.ExportReport(context.Background(), models.ReportRequest{}, "xlsx")
 	require.NoError(t, err)
 	defer body.Close()
 	_, err = c.Me(context.Background())

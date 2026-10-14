@@ -34,10 +34,6 @@ export function GetOrganizationShortName() {
   return window['go']['services']['SettingsService']['GetOrganizationShortName']();
 }
 
-export function IsAssignmentCompletionAttachmentsEnabled() {
-  return window['go']['services']['SettingsService']['IsAssignmentCompletionAttachmentsEnabled']();
-}
-
 export function ListBackupCopies() {
   return window['go']['services']['SettingsService']['ListBackupCopies']();
 }

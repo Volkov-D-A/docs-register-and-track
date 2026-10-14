@@ -62,15 +62,6 @@ type fakeExecutorStore struct{ users []models.User }
 func (s fakeExecutorStore) GetExecutors() ([]models.User, error) { return s.users, nil }
 
 func (s *fakeUserManagementStore) GetAll() ([]models.User, error) { return s.users, nil }
-func (s *fakeUserManagementStore) GetActiveUsers() ([]models.User, error) {
-	result := make([]models.User, 0, len(s.users))
-	for _, user := range s.users {
-		if user.IsActive {
-			result = append(result, user)
-		}
-	}
-	return result, nil
-}
 func (s *fakeUserManagementStore) GetByID(id uuid.UUID) (*models.User, error) {
 	for i := range s.users {
 		if s.users[i].ID == id {

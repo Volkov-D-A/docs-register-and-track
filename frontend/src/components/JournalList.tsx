@@ -3,9 +3,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Table, Spin, App, Tooltip, Typography } from 'antd';
 import {
     PlusCircleOutlined, EditOutlined, DeleteOutlined,
-    SyncOutlined, CheckCircleOutlined, UploadOutlined,
-    LinkOutlined, EyeOutlined, ProfileOutlined,
-    QuestionCircleOutlined, FileAddOutlined
+    SyncOutlined, CheckCircleOutlined, ProfileOutlined,
+    LinkOutlined,
+    QuestionCircleOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { formatAppError } from '../utils/appError';
@@ -55,15 +55,17 @@ const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
         'UPDATE': { color: 'blue', icon: <EditOutlined />, tooltip: 'Документ обновлён' },
         'DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Документ удалён' },
         'STATUS_CHANGE': { color: 'orange', icon: <SyncOutlined />, tooltip: 'Статус изменён' },
-        'ASSIGNMENT_CREATE': { color: 'cyan', icon: <ProfileOutlined />, tooltip: 'Поручение выдано' },
-        'ASSIGNMENT_UPDATE': { color: 'blue', icon: <EditOutlined />, tooltip: 'Поручение обновлено' },
-        'ASSIGNMENT_STATUS': { color: 'orange', icon: <SyncOutlined />, tooltip: 'Статус поручения' },
-        'ASSIGNMENT_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Поручение удалено' },
-        'FILE_UPLOAD': { color: 'purple', icon: <UploadOutlined />, tooltip: 'Файл загружен' },
-        'FILE_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Файл удалён' },
+        'DEADLINE_CONTROL_CREATE': { color: 'cyan', icon: <ProfileOutlined />, tooltip: 'Контроль установлен' },
+        'DEADLINE_CONTROL_UPDATE': { color: 'blue', icon: <EditOutlined />, tooltip: 'Контроль изменён' },
+        'DEADLINE_CONTROL_COMPLETE': { color: 'green', icon: <CheckCircleOutlined />, tooltip: 'Контроль окончательно исполнен' },
+        'DEADLINE_CONTROL_CANCEL': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Контроль отменён' },
+        'DEADLINE_SERIES_CREATE': { color: 'cyan', icon: <ProfileOutlined />, tooltip: 'Серия создана' },
+        'DEADLINE_SERIES_UPDATE': { color: 'blue', icon: <EditOutlined />, tooltip: 'Шаблон серии изменён' },
+        'DEADLINE_SERIES_STOP': { color: 'orange', icon: <SyncOutlined />, tooltip: 'Серия остановлена' },
+        'DEADLINE_SERIES_AUTO_STOP': { color: 'orange', icon: <SyncOutlined />, tooltip: 'Серия остановлена автоматически' },
+        'DEADLINE_SERIES_RESUME': { color: 'green', icon: <SyncOutlined />, tooltip: 'Серия возобновлена' },
         'LINK_CREATE': { color: 'geekblue', icon: <LinkOutlined />, tooltip: 'Добавлена связь' },
         'LINK_DELETE': { color: 'red', icon: <DeleteOutlined />, tooltip: 'Связь удалена' },
-        'ASSIGNMENT_ACKNOWLEDGED': { color: 'green', icon: <CheckCircleOutlined />, tooltip: 'Ознакомление подтверждено' },
     };
 
     const columns = [

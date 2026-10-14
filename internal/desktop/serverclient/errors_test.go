@@ -50,10 +50,13 @@ func TestRequestIDSurvivesAllHTTPErrorPaths(t *testing.T) {
 	operations := map[string]func(*Client) error{
 		"bearer": func(c *Client) error { _, err := c.Me(context.Background()); return err },
 		"upload": func(c *Client) error {
-			_, err := c.UploadAttachment(context.Background(), "doc", "", "a.txt", 1, strings.NewReader("a"))
+			_, err := c.RunReport(context.Background(), models.ReportRequest{})
 			return err
 		},
-		"download":  func(c *Client) error { _, _, err := c.GetAttachmentContent(context.Background(), "file"); return err },
+		"download": func(c *Client) error {
+			_, _, err := c.ExportReport(context.Background(), models.ReportRequest{}, "xlsx")
+			return err
+		},
 		"migration": func(c *Client) error { _, err := c.Apply(context.Background(), "admin", "wrong"); return err },
 		"system":    func(c *Client) error { _, err := c.SystemStatus(context.Background()); return err },
 	}

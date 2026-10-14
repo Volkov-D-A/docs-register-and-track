@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -39,13 +38,11 @@ func applyServerEnvironment(cfg *Config) error {
 		target *string
 	}{
 		{"POSTGRES_PASSWORD", &cfg.Database.Password},
-		{"S3_ACCESS_KEY_ID", &cfg.S3.AccessKeyID}, {"S3_SECRET_ACCESS_KEY", &cfg.S3.SecretAccessKey},
 	} {
 		if err := secretValue(secret.name, secret.target); err != nil {
 			return err
 		}
 	}
-	stringValue("S3_BUCKET", &cfg.S3.BucketName)
 	stringValue("SEQ_URL", &cfg.Seq.URL)
 	stringValue("DOCFLOW_SERVER_LISTEN_ADDRESS", &cfg.Server.ListenAddress)
 
@@ -68,42 +65,9 @@ func applyServerEnvironment(cfg *Config) error {
 		}
 	}
 
-	if err := boolValue("S3_USE_SSL", &cfg.S3.UseSSL); err != nil {
-		return err
-	}
-	if err := s3EndpointValue("S3_ENDPOINT", &cfg.S3); err != nil {
-		return err
-	}
 	if err := boolValue("SEQ_ENABLED", &cfg.Seq.Enabled); err != nil {
 		return err
 	}
-	return nil
-}
-
-func s3EndpointValue(name string, target *S3Config) error {
-	value, ok := os.LookupEnv(name)
-	if !ok {
-		return nil
-	}
-	value = strings.TrimSpace(value)
-	if !strings.Contains(value, "://") {
-		target.Endpoint = value
-		return nil
-	}
-
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return fmt.Errorf("%s must be an HTTP(S) URL without a path", name)
-	}
-	switch parsed.Scheme {
-	case "http":
-		target.UseSSL = false
-	case "https":
-		target.UseSSL = true
-	default:
-		return fmt.Errorf("%s must use http or https", name)
-	}
-	target.Endpoint = parsed.Host
 	return nil
 }
 

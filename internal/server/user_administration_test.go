@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +23,7 @@ type fakeUserAccessManagementStore struct {
 
 func (s *fakeUserAccessManagementStore) GetAllowedActions(_, _ string) (map[string]map[string]bool, error) {
 	return map[string]map[string]bool{
-		string(models.DocumentKindIncomingLetter): {string(models.DocumentActionRead): true},
+		string(models.DocumentKindIncomingLetter): {string(models.DocumentActionRegister): true},
 	}, nil
 }
 
@@ -35,32 +34,6 @@ func (s *fakeUserAccessManagementStore) GetUserAccessProfile(userID string) (*mo
 func (s *fakeUserAccessManagementStore) ReplaceUserAccessProfileWithOutbox(userID string, systemRules []models.UserSystemPermissionRule, docRules []models.UserDocumentPermissionRule, effects []models.OutboxEvent) error {
 	s.userID, s.systemRules, s.docRules, s.effects = userID, systemRules, docRules, effects
 	return nil
-}
-
-type fakeUserSubstitutionManagementStore struct {
-	item         *models.UserSubstitution
-	principalID  uuid.UUID
-	substituteID *uuid.UUID
-	startsAt     *time.Time
-	endsAt       *time.Time
-	isActive     bool
-	effects      []models.OutboxEvent
-}
-
-func (s *fakeUserSubstitutionManagementStore) GetByPrincipalID(id uuid.UUID) (*models.UserSubstitution, error) {
-	s.principalID = id
-	return s.item, nil
-}
-func (s *fakeUserSubstitutionManagementStore) GetActivePrincipalIDs(uuid.UUID) ([]uuid.UUID, error) {
-	return nil, nil
-}
-func (s *fakeUserSubstitutionManagementStore) ReplaceForPrincipalWithOutbox(principalID uuid.UUID, substituteID *uuid.UUID, startsAt, endsAt *time.Time, isActive bool, effects []models.OutboxEvent) (*models.UserSubstitution, error) {
-	s.principalID, s.substituteID, s.startsAt, s.endsAt = principalID, substituteID, startsAt, endsAt
-	s.isActive, s.effects = isActive, effects
-	if substituteID == nil {
-		return nil, nil
-	}
-	return &models.UserSubstitution{SubstituteUserID: *substituteID, StartsAt: startsAt, EndsAt: endsAt, IsActive: isActive}, nil
 }
 
 type fakeDepartmentManagementStore struct {
@@ -94,7 +67,7 @@ func TestUserAccessAPIReplacesProfileWithAtomicAudit(t *testing.T) {
 	access := &fakeUserAccessManagementStore{}
 	api.userAccess = access
 	targetID := users.users[0].ID
-	request := httptest.NewRequest(http.MethodPut, "/api/v1/users/"+targetID.String()+"/access-profile", strings.NewReader(`{"userId":"`+uuid.NewString()+`","systemPermissions":[{"permission":"references","isAllowed":true}],"permissions":[{"kindCode":"incoming_letter","action":"read","isAllowed":true}]}`))
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/users/"+targetID.String()+"/access-profile", strings.NewReader(`{"userId":"`+uuid.NewString()+`","systemPermissions":[{"permission":"references","isAllowed":true}],"permissions":[{"kindCode":"incoming_letter","action":"register","isAllowed":true}]}`))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
 
@@ -108,7 +81,7 @@ func TestUserAccessAPIReplacesProfileWithAtomicAudit(t *testing.T) {
 
 func TestUserAccessAPIRejectsInvalidPermissionsBeforePersistence(t *testing.T) {
 	for _, tc := range []struct{ kind, action string }{
-		{"incoming_letter", "delete"}, {"incoming_letter", "acknowledge"}, {"incoming", "read"}, {"outgoing", "read"},
+		{"incoming_letter", "read"}, {"incoming_letter", "create"}, {"incoming_letter", "update"}, {"incoming_letter", "assign"}, {"incoming_letter", "upload"}, {"incoming_letter", "link"}, {"incoming_letter", "view_journal"}, {"incoming_letter", "delete"}, {"incoming_letter", "acknowledge"}, {"incoming", "read"}, {"outgoing", "read"},
 	} {
 		t.Run(tc.kind+"/"+tc.action, func(t *testing.T) {
 			api, users, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
@@ -122,28 +95,6 @@ func TestUserAccessAPIRejectsInvalidPermissionsBeforePersistence(t *testing.T) {
 			assert.Empty(t, access.userID)
 		})
 	}
-}
-
-func TestUserSubstitutionAPIValidatesAndPersistsSameDepartmentSubstitute(t *testing.T) {
-	api, users, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
-	departmentID := uuid.New()
-	users.users[0].IsDocumentParticipant = true
-	users.users[0].DepartmentID = &departmentID
-	substitute := models.User{ID: uuid.New(), Login: "substitute", LastName: "Substitute", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true, DepartmentID: &departmentID}
-	users.users = append(users.users, substitute)
-	substitutions := &fakeUserSubstitutionManagementStore{}
-	api.substitutions = substitutions
-	request := httptest.NewRequest(http.MethodPut, "/api/v1/users/"+users.users[0].ID.String()+"/substitution", strings.NewReader(`{"principalUserId":"`+uuid.NewString()+`","substituteUserId":"`+substitute.ID.String()+`","startsAt":"2026-09-01","endsAt":"2026-09-30","isActive":true}`))
-	request.Header.Set("Authorization", "Bearer "+token)
-	response := httptest.NewRecorder()
-
-	api.Handler().ServeHTTP(response, request)
-
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	require.NotNil(t, substitutions.substituteID)
-	assert.Equal(t, substitute.ID, *substitutions.substituteID)
-	assert.True(t, substitutions.isActive)
-	require.Len(t, substitutions.effects, 1)
 }
 
 func TestDepartmentLookupAPIRequiresSessionAndReturnsTypedItems(t *testing.T) {
@@ -221,7 +172,6 @@ func TestDepartmentMutationAPIRejectsNonAdmin(t *testing.T) {
 func TestCurrentAccessSummaryUsesBearerPrincipalOnServer(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
 	api.userAccess = &fakeUserAccessManagementStore{}
-	api.substitutions = &fakeUserSubstitutionManagementStore{}
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/access/current", nil)
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
@@ -232,4 +182,18 @@ func TestCurrentAccessSummaryUsesBearerPrincipalOnServer(t *testing.T) {
 	assert.Contains(t, response.Body.String(), `"settings":true`)
 	assert.Contains(t, response.Body.String(), `"incoming":true`)
 	assert.Contains(t, response.Body.String(), `"systemPermissions":["admin"]`)
+}
+
+func TestUserAccessRejectsRemovedSystemPermissions(t *testing.T) {
+	for _, permission := range []string{"reports", "stats_documents", "stats_assignments", "stats_system"} {
+		api, users, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
+		access := &fakeUserAccessManagementStore{}
+		api.userAccess = access
+		request := httptest.NewRequest(http.MethodPut, "/api/v1/users/"+users.users[0].ID.String()+"/access-profile", strings.NewReader(`{"systemPermissions":[{"permission":"`+permission+`","isAllowed":true}]}`))
+		request.Header.Set("Authorization", "Bearer "+token)
+		response := httptest.NewRecorder()
+		api.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusBadRequest, response.Code)
+		require.Empty(t, access.userID)
+	}
 }

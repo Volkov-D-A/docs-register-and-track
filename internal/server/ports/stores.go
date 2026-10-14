@@ -2,7 +2,6 @@ package ports
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,18 +17,9 @@ type UserStore interface {
 	GetSessionPrincipal(id uuid.UUID) (*models.SessionPrincipal, error)
 	GetAll() ([]models.User, error)
 	GetExecutors() ([]models.User, error)
-	GetEligibleRecipientIDs(candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
-	GetActiveUsers() ([]models.User, error)
 	UpdatePassword(userID uuid.UUID, newPasswordHash string) error
 	ResetFailedLoginAttempts(userID uuid.UUID) error
 	CountUsers() (int, error)
-}
-
-// UserSubstitutionStore — интерфейс для работы с замещениями пользователей.
-type UserSubstitutionStore interface {
-	GetByPrincipalID(principalUserID uuid.UUID) (*models.UserSubstitution, error)
-	GetActivePrincipalIDs(substituteUserID uuid.UUID) ([]uuid.UUID, error)
-	IsActiveSubstitute(substituteUserID, principalUserID uuid.UUID) (bool, error)
 }
 
 // IncomingDocStore — интерфейс для работы с входящими документами в хранилище.
@@ -101,43 +91,10 @@ type ReferenceStore interface {
 	SearchResolutionExecutors(query string) ([]models.ResolutionExecutor, error)
 }
 
-// AssignmentReader provides assignment queries and access checks.
-type AssignmentReader interface {
-	GetByID(id uuid.UUID) (*models.Assignment, error)
-	GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error)
-	HasDocumentAccess(userID, documentID uuid.UUID) (bool, error)
-	GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error)
-}
-
-// DepartmentStore — интерфейс для работы с подразделениями в хранилище.
-type DepartmentStore interface {
-	GetAll() ([]models.Department, error)
-	GetNomenclatureIDs(departmentID uuid.UUID) ([]string, error)
-}
-
 // SettingsStore — интерфейс для работы с системными настройками в хранилище.
 type SettingsStore interface {
 	Get(key string) (*models.SystemSetting, error)
 	GetAll() ([]models.SystemSetting, error)
-}
-
-// AttachmentStore — интерфейс для работы с вложениями (файлами) в хранилище.
-type AttachmentStore interface {
-	CreateWithOutbox(a *models.Attachment, effects []models.OutboxEvent) error
-	MarkDeletingWithEffects(attachment models.Attachment, effects []models.OutboxEvent) error
-	MarkDeletingMultipleWithOutbox(attachments []models.Attachment, effects []models.OutboxEvent) error
-	GetByID(id uuid.UUID) (*models.Attachment, error)
-	GetByDocumentID(docID uuid.UUID) ([]models.Attachment, error)
-	GetOlderThan(date time.Time) ([]models.Attachment, error)
-}
-
-// FileStorage — интерфейс для работы с внешним файловым хранилищем через S3.
-type FileStorage interface {
-	// UploadFile загружает файл в хранилище.
-	UploadFile(ctx context.Context, objectName string, data io.Reader, size int64, contentType string) error
-	DownloadFileToWriter(ctx context.Context, objectName string, writer io.Writer, maxSize int64) error
-	// DeleteFile удаляет файл из хранилища.
-	DeleteFile(ctx context.Context, objectName string) error
 }
 
 // LinkStore — интерфейс для работы со связями между документами в хранилище.
@@ -172,30 +129,21 @@ type StatisticsStore interface {
 	GetDocumentReport(startDate, endDate time.Time, groupBy, kindCode, nomenclatureID, userID string) ([]models.StatisticsReportRow, error)
 	GetNomenclatureOptions() ([]models.StatisticsOption, error)
 	GetUserOptions() ([]models.StatisticsOption, error)
-	GetAssignmentMonthlyOverview(yearStart, yearEnd time.Time) ([]models.AssignmentMonthlyPoint, error)
-	GetAssignmentMonthlyByExecutor(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error)
-	GetAssignmentOverdueRating(yearStart, yearEnd time.Time) ([]models.StatisticsReportRow, error)
-	GetAssignmentStatusCounts() ([]models.StatisticsReportRow, error)
-	GetAssignmentReport(startDate, endDate time.Time, onlyOverdue bool, userID string) ([]models.StatisticsReportRow, error)
+	GetExecutorOptions() ([]models.StatisticsOption, error)
+	GetDeadlineMonthlyOverview(yearStart, yearEnd time.Time) ([]models.DeadlineMonthlyPoint, error)
+	GetDeadlineMonthlyByExecutor(yearStart, yearEnd time.Time) ([]models.StatisticsSeriesPoint, error)
+	GetDeadlineOverdueRating(yearStart, yearEnd time.Time) ([]models.StatisticsReportRow, error)
+	GetDeadlineStatusCounts() ([]models.StatisticsReportRow, error)
+	GetDeadlineReport(startDate, endDate time.Time, onlyOverdue bool, userID string) ([]models.StatisticsReportRow, error)
 	GetSystemUserCount() (int, error)
 	GetSystemDocumentCount() (int, error)
 	GetDBSize() string
-	GetStorageStatisticsRefreshRecord() (models.StorageStatisticsRefreshRecord, error)
-	TryStartStorageStatisticsRefresh(token uuid.UUID, leaseUntil time.Time) (bool, error)
-	SaveStorageStatisticsSnapshot(token uuid.UUID, snapshot models.StorageStatisticsSnapshot) error
-	FailStorageStatisticsRefresh(token uuid.UUID, message string) error
-	ClearStorageStatisticsRefreshError() error
 }
 
 // SystemDiagnosticsProvider supplies process and service metrics that do not
 // belong to the business statistics repository.
 type SystemDiagnosticsProvider interface {
 	GetSystemDiagnostics() (*models.SystemDiagnostics, error)
-}
-
-// StorageInfoProvider — интерфейс для получения информации о файловом хранилище.
-type StorageInfoProvider interface {
-	RefreshStorageUsage(ctx context.Context) (objectCount int, totalBytes int64, err error)
 }
 
 // JournalStore — интерфейс для работы с журналом действий.

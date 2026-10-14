@@ -1,6 +1,6 @@
 # Техническая документация проекта
 
-Дата обновления: 2026-09-30
+Дата обновления: 2026-10-14
 Статус: основной справочник для дальнейшей разработки
 
 ## Назначение
@@ -11,12 +11,11 @@
 
 - регистрация входящих писем, исходящих писем, обращений граждан и приказов;
 - номенклатура дел, подразделения, организации-корреспонденты, исполнители резолюций;
-- поручения, соисполнители, статусы исполнения и контроль сроков;
-- ознакомления пользователей с документами и приказами;
+- контроли сроков, соисполнители и регулярные серии;
+- внешнее ознакомление с приказами;
 - связи между документами и граф связей;
-- вложения документов в SeaweedFS;
 - журнал действий по документам и административный аудит;
-- статистика по документам, поручениям и системе;
+- статистика по документам, контролям и системе;
 - отчёты за период, экспорт XLSX/PDF на компьютер пользователя.
 
 Этот документ фиксирует правила, которые нужно учитывать при будущих изменениях. Источником фактического поведения остаются код, миграции и manifest-файлы; при расхождении техническая документация обновляется вместе с кодом. Операционные заметки намеренно консолидированы в небольшом наборе файлов в `docs/`, отдельный каталог audit/runbook в репозитории не поддерживается.
@@ -33,7 +32,6 @@ Backend:
 - Wails v2;
 - PostgreSQL через `database/sql`, `lib/pq`;
 - миграции через `golang-migrate`;
-- SeaweedFS через AWS SDK for Go v2;
 - structured logging через `slog` и Seq;
 - тесты: Go `testing`, `testify`, `go-sqlmock`.
 
@@ -54,29 +52,27 @@ Frontend:
 
 - Wails CLI v2;
 - Makefile как основной entrypoint для dev/build/release checks;
-- Docker Compose для локальных PostgreSQL, SeaweedFS, Seq, `docflow-server` и Caddy;
+- Docker Compose для локальных PostgreSQL, Seq, `docflow-server` и Caddy;
 - Linux `amd64` и Windows `amd64` являются production target. macOS не входит в текущий release target.
 
 ## Высокоуровневая Архитектура
 
 Разделение desktop и сервера завершено 14 сентября 2026 года. Desktop отвечает
 за Wails API, локальные пользовательские файлы, интерфейс ОС и HTTP-клиент;
-сервер — за аутентификацию, права, бизнес-операции, БД, object storage и outbox.
+сервер — за аутентификацию, права, бизнес-операции, БД и outbox.
 Desktop не импортирует server, server не импортирует desktop и Wails, общие
 пакеты не зависят от обеих сторон.
 
-Wails публикует 25 desktop-сервисов и 122 пользовательских методов без служебных
-setters, Startup и LogAction. Виды документов используют только системные коды `incoming_letter`,
+Wails публикует desktop-сервисы без служебных setters, Startup и LogAction. Виды документов используют только системные коды `incoming_letter`,
 `outgoing_letter`, `citizen_appeal`, `administrative_order`; сокращённые коды
 `incoming`/`outgoing` остаются только ключами страниц интерфейса. Актуальный контракт хранится в
 `internal/desktop/app/testdata/wails-api.json`; тесты проверяют Go/JS/TS и
 совпадение регистраций runtime и генератора.
 
-Приёмка включает успешные Go-тесты, vet, race, PostgreSQL/SeaweedFS integration,
-frontend lint/test/build, генерацию bindings, сборки server без CGO и desktop
-Linux/Windows, а также storage smoke с SMB, restart/recreate SeaweedFS и
-backup/restore v3. Пользователь подтвердил успешные ручные проверки
-Linux/Windows: выбор, скачивание и открытие файлов, login/logout и maintenance.
+Приёмка включает Go-тесты, vet, race, PostgreSQL integration, frontend lint/test/build,
+генерацию bindings, сборки server без CGO и desktop Linux/Windows, а также SMB smoke
+и database-only backup/restore v4. Фактически выполненные проверки новой модели
+и оставшиеся ограничения записываются в [журнал изменений](document-deadline-control-changes.md).
 
 ```text
 Wails desktop app
@@ -87,7 +83,7 @@ Wails desktop app
 │   └── запускает Wails с options из internal/desktop/app
 │
 ├── cmd/docflow-server/
-│   └── HTTP API, migrations, storage access и outbox worker
+│   └── HTTP API, migrations, backup и outbox worker
 │
 ├── internal/
 │   ├── desktop/
@@ -99,20 +95,19 @@ Wails desktop app
 │   │   └── services/  Wails API и HTTP-адаптеры
 │   ├── server/
 │   │   ├── background/ lifecycle фоновых задач и проверка схемы
-│   │   ├── config/    PostgreSQL, S3, backup, Seq и outbox из окружения
+│   │   ├── config/    PostgreSQL, backup, Seq и outbox из окружения
 │   │   ├── logging/   серверная настройка slog и доставка в Seq
 │   │   ├── observability/ метрики серверных операций
 │   │   ├── services/  права и бизнес-операции
 │   │   ├── database/  PostgreSQL connection и embedded migrations
 │   │   ├── repository/ SQL persistence и транзакции
-│   │   ├── storage/   SeaweedFS object storage
 │   │   ├── backup/    архивы, восстановление и SMB
 │   │   ├── liveevents/ SSE-уведомления
 │   │   ├── mocks/     тестовые реализации серверных портов
-│   │   ├── outbox/    доставка событий и удаление файлов
-│   │   ├── coordination/ блокировки storage
+│   │   ├── outbox/    доставка событий
+│   │   ├── coordination/ блокировки миграций и резервирования
 │   │   ├── security/  пароли и токены
-│   │   └── testutil/  PostgreSQL и S3 для интеграционных тестов
+│   │   └── testutil/  PostgreSQL для интеграционных тестов
 │   ├── models/        domain entities, requests, app errors
 │   ├── dto/           frontend-facing mapping
 │   └── shared/        общие attachmentname, buildinfo, logger, releaseassets и startupdiag
@@ -146,9 +141,9 @@ Frontend отвечает за:
 
 Frontend не должен:
 
-- обращаться к PostgreSQL или SeaweedFS напрямую;
+- обращаться к PostgreSQL напрямую;
 - принимать решения авторизации вместо backend;
-- зависеть от raw Go/PostgreSQL/SeaweedFS error text;
+- зависеть от raw Go/PostgreSQL error text;
 - показывать технические детали ошибок пользователю;
 - отправлять регистрацию документа без `idempotencyKey`.
 
@@ -245,29 +240,20 @@ Bindings автоматически генерируются Wails при `make 
 - после успешного apply сервер повторно проверяет `UpToDate`/compatibility и
   запускает worker без рестарта процесса или контейнера;
 - rollback считается destructive operation;
-- rollback требует fresh PostgreSQL+SeaweedFS backup, backup reference, data-loss acknowledgment, control phrase and audit entries;
+- rollback требует fresh PostgreSQL backup, backup reference, data-loss acknowledgment, control phrase and audit entries;
 - после успешного rollback сервер остаётся в maintenance, а desktop maintenance
   gate блокирует обычные защищённые операции до повторного apply;
 - в режиме обслуживания администратору остаются доступны аутентификация, статус миграций и их применение для восстановления;
 - older binary against newer DB schema must be blocked;
 - dirty schema means stop using app and follow recovery procedure.
 
-## Слой Storage
+## Пользовательские файлы
 
-SeaweedFS хранит physical attachment objects. PostgreSQL хранит attachment metadata.
-
-Правила:
-
-- upload сначала пишет объект, затем metadata и journal-outbox; ошибка БД запускает compensating delete объекта;
-- delete сначала атомарно скрывает metadata и ставит `attachment_delete` в outbox, worker повторяет удаление SeaweedFS и финализацию строки;
-- при рассинхронизации восстанавливать PostgreSQL и SeaweedFS только из согласованного backup-набора;
-- размер и расширения задаются системными настройками; fallback: 15 MB и `.pdf,.doc,.docx,.odt,.xls,.xlsx,.ods`;
-- attachment downloads to local disk must not overwrite existing files;
-- SeaweedFS startup bucket check has timeout;
-- системная статистика читает persisted storage snapshot из PostgreSQL; точная
-  сверка SeaweedFS выполняется только через `RefreshStorageUsage`, координируется с
-  attachment mutations и сохраняет новый snapshot после полного scan;
-- file operations must participate in operation lifecycle cancellation.
+Документные вложения, маршруты загрузки/скачивания, их настройки и объектное
+хранилище удалены. Сохраняется бумажный реквизит количества листов приложений.
+Отчёты XLSX/PDF сохраняются desktop на выбранный пользователем путь; существующий
+файл не перезаписывается, незавершённая загрузка удаляется. SMB хранит серверные
+резервные копии PostgreSQL, а не вложения документов.
 
 ## Operation Lifecycle И Shutdown
 
@@ -290,7 +276,7 @@ Lifecycle реализован в `internal/server/background` и использ
 `SystemBootstrapGate`; доступ к операциям во время обслуживания контролирует сервер.
 Локальной копии schema maintenance gate в desktop нет.
 Desktop composition root не создаёт PostgreSQL repositories,
-SeaweedFS client или outbox consumer. Команды и transactional events фиксируются
+outbox consumer. Команды и transactional events фиксируются
 сервером, а единственный consumer читает `event_outbox` внутри server process.
 
 На время работы consumer удерживает отдельный PostgreSQL advisory lease на
@@ -300,10 +286,10 @@ SeaweedFS client или outbox consumer. Команды и transactional events 
 
 `docflow-server` предоставляет команды `run`, `check-config`, `healthcheck` и
 `version`, а также liveness/readiness и административный API миграций. Он проверяет актуальность embedded migrations,
-подключение к PostgreSQL и SeaweedFS, использует graceful shutdown и отправляет
+подключение к PostgreSQL, использует graceful shutdown и отправляет
 в Seq только значимые operational events, warnings и errors. Периодические
 metric snapshots в operational log не отправляются. Desktop выполняет все
-business, attachment и migration operations через HTTP API сервиса.
+business и migration operations через HTTP API сервиса.
 
 Container image собирается через `build/server/Dockerfile` на runtime PostgreSQL 18 Alpine
 под непривилегированным пользователем, со штатными `pg_dump` и `pg_restore`. В image не копируются production config
@@ -313,14 +299,14 @@ Container image собирается через `build/server/Dockerfile` на r
 Команды автоматически передают версию и идентичность сборки, не меняя `.env`.
 `make dev-client` отдельно запускает клиент после обновления стека. Production-пример загружает
 `hehelf/docflow-service:${DOCFLOW_SERVER_IMAGE_TAG}` (по умолчанию: `latest`)
-из Docker Hub. Оба запускают сервер рядом с PostgreSQL, SeaweedFS, Seq и Caddy
-после готовности PostgreSQL и S3 probe.
-Оба хранят настройки и логины в `.env`, а пароли PostgreSQL/Seq, секретный ключ S3
+из Docker Hub. Оба запускают сервер рядом с PostgreSQL, Seq и Caddy
+после готовности PostgreSQL.
+Оба хранят настройки и логины в `.env`, а пароли PostgreSQL/Seq
 и ключ шифрования настроек — в файловых secrets. Оба используют постоянный том
 резервных копий. Отличие dev от production — HTTP вместо HTTPS в Caddy,
 включая порт, Caddyfile и хранилище сертификатов. Локальные изменения исходников
 требуют повторного `make dev-server`; тег локального образа выбирается автоматически.
-`testing/compose/integration.yaml` содержит тестовые PostgreSQL/SeaweedFS и
+`testing/compose/integration.yaml` содержит тестовые PostgreSQL и
 сервер под профилем `smoke`. Пустая схема bootstrap-ится
 сервером автоматически; при обновлении существующей схемы процесс остаётся
 живым в maintenance и ждёт команды администратора. Docker healthcheck проверяет
@@ -338,7 +324,7 @@ Docker Hub token.
 Management endpoints:
 
 - `GET /health/live` — процесс и HTTP listener работают;
-- `GET /health/ready` — схема, PostgreSQL и SeaweedFS готовы к обычной работе;
+- `GET /health/ready` — схема, PostgreSQL готовы к обычной работе;
 - `GET /api/v1/admin/migrations` — status embedded/schema versions;
 - `POST /api/v1/admin/migrations/apply` — apply всех ожидающих миграций;
 - `POST /api/v1/admin/migrations/rollback` — rollback одной миграции с backup
@@ -357,13 +343,13 @@ trust store.
 
 Покрытые зоны:
 
-- attachment upload/download/delete/bulk delete;
+- контроль сроков и регулярные серии;
 - link create/delete/list/graph;
 - journal read/write;
-- storage statistics;
+- предметная и техническая статистика;
 - document registration command wrapper.
 
-Правило: новые потенциально долгие DB/SeaweedFS/file/statistics operations должны использовать lifecycle-aware context или явно объяснять, почему это не нужно.
+Правило: новые потенциально долгие DB/file/statistics operations должны использовать lifecycle-aware context или явно объяснять, почему это не нужно.
 
 ## Логирование И Audit Trail
 
@@ -397,7 +383,7 @@ trust store.
 ## Конфигурация И Секреты
 
 `docflow-server` читает подключения, Seq и параметры outbox исключительно из
-runtime environment. PostgreSQL и SeaweedFS используют те же credentials, которыми
+runtime environment. PostgreSQL используют те же credentials, которыми
 инициализируются контейнеры; отдельные service accounts на текущем этапе не
 создаются. Полный перечень и локальные примеры приведены в `docs/examples/.envExample`.
 JSON-файл серверу не требуется.
@@ -424,8 +410,8 @@ development.
 Secrets:
 
 - production secrets never committed;
-- PostgreSQL/SeaweedFS credentials передаются только серверу через runtime environment;
-- desktop `config.json` не содержит PostgreSQL/SeaweedFS credentials;
+- PostgreSQL credentials передаются только серверу через runtime environment;
+- desktop `config.json` не содержит PostgreSQL credentials;
 - `.env`, `/etc/docflow/backup.env` и CIFS credentials file должны иметь `0600` или эквивалентный строгий ACL;
 - generated release evidence and logs must not contain passwords or tokens.
 
@@ -524,21 +510,12 @@ Document kinds are fixed in code and DB. Перевод в справочник 
 
 Справочник `deadline_executors` объединяет связанные пользовательские записи и внешних людей с ФИО, учреждением и должностью. Допустимость назначения пользователя определяется отдельным признаком «Можно назначать исполнителем» и активностью. Она не ограничивает право регистрации и чтение номенклатуры подразделения.
 
-### Attachments
-
-- Физический файл в SeaweedFS.
-- Metadata row in PostgreSQL.
-- Upload validates size and extension.
-- Delete should remove object and metadata consistently.
-- Download-to-disk is collision-safe.
-
 ### Journals
 
 Журналируются:
 
 - изменения документов;
-- файлы;
-- поручения;
+- контроли сроков;
 - ознакомления;
 - административные настройки;
 - миграции;
@@ -550,7 +527,7 @@ Document kinds are fixed in code and DB. Перевод в справочник 
 
 Прежние HTTP-команды поручений, Wails `AssignmentService` и внутреннее ознакомление удалены из пользовательского процесса. Внешнее ознакомление с приказами (`administrative_order_acknowledgment_people`) остаётся отдельным реквизитом приказа; отметка требует `register` для приказов. Приказные реквизиты не создают и не завершают новые контроли автоматически.
 
-В переходной схеме старые таблицы и внутренние классы пока нужны прежней статистике, отчётам и вложениям. Они подлежат удалению при переключении этих цепочек; новый baseline ещё не завершён. Конвертации пользовательских данных не предусмотрено.
+Старые таблицы поручений и вложений удалены вместе с потребителями. Замещение удалено из API, UI и БД; новый baseline 001 создаёт только актуальную модель. Конвертации пользовательских данных не предусмотрено.
 
 ## Рабочий стол
 
@@ -614,56 +591,45 @@ Desktop получает последние документы через HTTP/W
 
 ### System Permissions
 
-- `admin` - управление пользователями, подразделениями, номенклатурой, системными настройками, миграциями, правами доступа;
-- `references` - редактирование организаций и исполнителей резолюций;
-- `stats_documents` - статистика по документам;
-- `stats_assignments` - статистика по поручениям;
-- `stats_system` - системная статистика;
-- `reports` - построение и экспорт отчётов по запросу пользователя.
+Поддерживаются `admin` и `references`. Предметная статистика и отчёты доступны всем авторизованным пользователям в общей области чтения документов. Техническая статистика находится в настройках администратора и требует `admin`; это право само по себе не предоставляет чтение всех документов. Системные права `reports/stats_*` удалены из API и исходной схемы.
 
-### Отчёты
+### Статистика и отчёты
 
-Отчёты доступны только при системном праве `reports`; права статистики его не заменяют. Проверка права выполняется на каждом HTTP-запросе, включая экспорт. Раздел работает через `POST /api/v1/reports/run`, `POST /api/v1/reports/export/{format}`. Desktop получает данные и файлы через HTTP-клиент, без прямого доступа к PostgreSQL и SeaweedFS.
+Статистика документов и контролей использует scope проверенной сессии до подсчётов и группировок. Методы `GetDeadlineStatistics/GetDeadlineReport/GetDeadlineFilterOptions` и HTTP `/api/v1/statistics/controls` заменили статистику поручений. Фильтры ограничены читаемыми документами, основными исполнителями из справочника, регистраторами и номенклатурой; внешние исполнители учитываются без фиктивных пользователей. Статистический отчёт по контролям отбирается по срокам; распределение состояний включает историю и отмены.
 
-Доступны четыре серверных шаблона: входящие/исходящие письма по организациям, созданные поручения по месяцам и текущим подразделениям основных исполнителей, среднее календарное время до последней сдачи поручения и доля сданных после срока среди поручений со сроком. Период документов определяется датой регистрации; для двух показателей исполнения — `completed_at`. В отчёте о просрочке отдельно указывается число открытых просроченных поручений на дату формирования. Входящее письмо с несколькими корреспондентами учитывается по одному разу у каждой организации, а уникальное число документов указано отдельно. Пустой знаменатель означает отсутствие данных.
+Конструктор работает через `POST /api/v1/reports/run`, `POST /api/v1/reports/export/{format}` и scoped `GET /api/v1/reports/filters`. Четыре шаблона: входящие/исходящие по организациям, нагрузка основных исполнителей по подразделениям/месяцам создания, среднее календарное время от создания контроля до фактической даты исполнения, доля исполненных позже срока. Завершённая просрочка определяется `executed_on > due_date`; отмены не участвуют в показателях исполнения. Открытая просрочка рассчитывается на текущую дату организации отдельно от выбранного периода.
 
-Конструктор принимает период до трёх лет и фильтры по виду документа, номенклатуре и пользователю. Отчёт по организациям дополнительно фильтруется по организации; отчёты по поручениям — по подразделению, текущему статусу и наличию срока. Для организаций пользователь означает регистратора документа, для поручений — основного исполнителя. В выгрузке сохраняются применённые фильтры, часовой пояс и версия определения показателя.
+Период до трёх лет выбирается по дате регистрации документа, сроку контроля или фактической дате исполнения. Группировки и фильтры ограничиваются общей областью чтения, включая всю цепочку связей. Повторные контроли и несколько корреспондентов не размножают уникальные документы. Основные исполнители учитываются один раз; внешние люди без пользовательского подразделения показываются в «Без подразделения». Часовая зона фиксирована — `Asia/Yekaterinburg`; версия определения показателей — 2.
 
-Отчёт формируется по запросу пользователя; XLSX/PDF сохраняется на его ПК. Сервер не формирует отчёты по расписанию и не хранит готовые результаты в SeaweedFS. PDF является читаемой выгрузкой без подписи и утверждённого бланка.
+При изменении/отзыве доступа интерфейс очищает результаты и игнорирует поздние ответы. Статистика обновляется; отчёт пользователь формирует повторно самостоятельно. XLSX/PDF сохраняются на его ПК, сервер не формирует их по расписанию и не хранит готовые результаты. Экспорт заново проверяет текущую область чтения. PDF — читаемая выгрузка без подписи и утверждённого бланка.
 
 ### Новая модель контроля: выполняемый переход
 
-Сервер предоставляет новую модель через `/api/v1/deadline-controls`, `/api/v1/deadline-series` и `/api/v1/deadline-executors`. Desktop использует отдельный HTTP/Wails-сервис `DeadlineControlService`. Карточки, рабочий стол и общая область чтения переключены. Статистика, отчёты, вложения и окончательная очистка ещё не завершены; ход перехода и ограничения описаны в [журнале изменений](document-deadline-control-changes.md).
+Сервер предоставляет новую модель через `/api/v1/deadline-controls`, `/api/v1/deadline-series` и `/api/v1/deadline-executors`. Desktop использует отдельный HTTP/Wails-сервис `DeadlineControlService`. Карточки, рабочий стол и общая область чтения переключены. Статистика и отчёты переключены. Вложения, backup/restore и окончательная очистка ещё не завершены; ход перехода и ограничения описаны в [журнале изменений](document-deadline-control-changes.md).
 
 В новых маршрутах управление требует `control_deadlines` по виду документа, независимо от автора. Контроль имеет одного исполнителя, необязательных соисполнителей и состояния `active`, `completed`, `cancelled`; конечные состояния не открываются повторно. Просрочка вычисляется по календарной дате организации `Asia/Yekaterinburg`. Фактическая дата исполнения отдельна от времени отметки и по умолчанию равна текущему дню; будущая запрещена. Редактирование передаёт версию, перенос срока — также причину.
 
 Серия создаёт следующую итерацию после завершения предыдущей, от её планового срока. Отмена текущей останавливает серию; остановка сама по себе не закрывает текущий контроль. Возобновление требует актуальную версию и подтверждённый рассчитанный срок. Ошибка допустимости исполнителя или соисполнителя при продолжении останавливает серию с причиной. Состояние и outbox сохраняются одной транзакцией.
 
-Область чтения новых маршрутов объединяет права `register`/`control_deadlines` по виду, номенклатуру подразделения, назначения и всю цепочку связей. Пустая область даёт пустой список. Старые общие document-domain проверки пока используют прежнюю матрицу из следующего раздела.
+Область чтения новых маршрутов объединяет права `register`/`control_deadlines` по виду, номенклатуру подразделения, назначения и всю цепочку связей. Пустая область даёт пустой список. Все document-domain проверки используют ту же область чтения.
 
 Справочник контроля показывает пользователей с отдельным признаком допустимости назначения и внешних людей без учётной записи. Связанные ФИО читаются из пользователя; внешние записи имеют ФИО, учреждение, должность и активность. Управление внешними записями требует `references` либо `admin`. Изменения версионируются и аудируются; используемые записи не удаляются. Бумажный справочник исполнителей резолюций остаётся отдельным.
 
 ### Document Domain Actions
 
-По видам документов:
+По видам документов независимо выдаются `register` (регистрация и редактирование)
+и `control_deadlines`. Любое право открывает все документы вида. Дополнительные
+источники чтения — номенклатура подразделения, назначение основным/соисполнителем
+активного или завершённого контроля и вся неориентированная цепочка связей.
+Чтение связанных документов не добавляет права изменения.
 
-- `create`;
-- `read`;
-- `update`;
-- `assign`;
-- `upload`;
-- `link`;
-- `view_journal`.
+### Допустимость назначения
 
-### Participant Access
-
-`is_document_participant` включает ограниченный participant model. Участник может получать доступ через:
-
-- подразделение/номенклатуру;
-- поручение;
-- ознакомление.
-
-Правило: backend authorization must be based on system permissions, document permissions and participant scope. Frontend profile labels must not grant access.
+`is_document_participant` означает «Можно назначать исполнителем». Он влияет
+на выбор исполнителя и продолжение серии, а доступ по подразделению сохраняется
+независимо от него. Внешний исполнитель хранится в справочнике без учётной записи.
+Замещение и внутреннее ознакомление удалены; внешнее ознакомление с приказами
+остаётся отдельным реквизитом. Профиль показывает права, которые проверяет сервер.
 
 ### Реквизиты пользователя
 
@@ -704,11 +670,9 @@ Desktop получает последние документы через HTTP/W
 - nomenclature and `next_number`;
 - `documents` and all document detail tables;
 - correspondent registrations and resolutions;
-- assignments, co-executors, status, reports and deadlines;
-- acknowledgment assignments, recipients, confirmation dates and actors;
+- deadline controls, external executors, co-executors, series and actual execution dates;
 - administrative orders and acknowledgment people;
 - document links;
-- attachment metadata and SeaweedFS objects;
 - system settings;
 - `document_journal`;
 - `admin_audit_log`;
@@ -721,14 +685,12 @@ Desktop получает последние документы через HTTP/W
 - first-run setup после применения миграций: admin user и `admin` permission;
 - document registration: idempotency check, number allocation, `next_number`, `documents`, detail table, children, journal;
 - document update with child data;
-- assignment create/update with co-executors;
-- recurring assignment create, template update, cancellation and iteration advance;
-- acknowledgment assignment creation with recipients and confirmation with outbox;
+- control create/update with co-executors;
+- deadline series create, template update, cancellation and iteration advance;
 - full replacement of user access profile;
-- attachment metadata и journal event после успешной загрузки объекта;
-- attachment delete intent и outbox event.
+- переходы контроля, журнал и outbox.
 
-Операции между PostgreSQL, SeaweedFS и SMB не могут быть общей SQL-транзакцией. Для них используются compensation, outbox/saga и атомарная публикация backup archive + manifest.
+Операции между PostgreSQL и SMB не могут быть общей SQL-транзакцией. Для них используются compensation, outbox/saga и атомарная публикация backup archive + manifest.
 
 ## Идемпотентность
 
@@ -738,7 +700,6 @@ Desktop получает последние документы через HTTP/W
 - отдельные повторяемые бизнес-переходы получают разные outbox keys;
 
 - migrations `Up()` when no change;
-- SeaweedFS bucket creation/check on startup;
 - organization/resolution executor find-or-create;
 - document registration by `idempotency_key`;
 - saving existing system setting value;
@@ -833,24 +794,24 @@ make go-vet
 
 ## Backup, Restore И Recovery
 
-Сервер отвечает за согласованный снимок PostgreSQL/SeaweedFS, прямую SMB-передачу,
-расписание и retention. Временный режим обслуживания дожидается запросов, outbox,
-очистки сессий и сверки статистики; передача начинается после снятия барьера.
+Сервер создаёт снимок PostgreSQL, передаёт его напрямую по SMB и поддерживает
+расписание резервирования и retention. Барьер обслуживания дожидается запросов,
+outbox и очистки сессий; передача архива начинается после снятия барьера.
 
 Настройки SMB и AES-GCM ciphertext пароля хранятся в `backup_settings`. Ключ
 передаётся через Compose secret и не включается в архив. Постоянный staging volume
-хранит задания и неотправленные архивы. Копии используют только v3 с checksum dump
-и каждого объекта, внешним manifest-маркером публикации и проверкой чтением с NAS.
+хранит задания и неотправленные архивы. Формат 4 содержит ровно `manifest.json`
+и `database.dump`; размер и SHA-256 проверяются при подготовке. Manifest с полями
+объектов, архивы прежнего формата, дополнительные/небезопасные члены отклоняются.
+Каталог показывает старые копии как несовместимые, без восстановления и удаления.
 
-Обычная админпанель читает каталог SMB независимо от истории заданий, проверяет,
-восстанавливает и удаляет v3-копии. Восстановление заменяет текущие данные
-в выделенных БД и bucket при полном обслуживании, после проверки источника и
-локальной страховочной копии. Фазы и инициатор сохраняются вне БД; при ошибке
-сервер пытается выполнить откат. Маркер незавершённой замены блокирует бизнес-API
-после перезапуска. Статус доступен только по временному токену конкретного задания.
-После успеха сессии отзываются, расписание и SMB-пароль очищаются. При потере БД
-оператор сбрасывает БД и файлы, инициализирует приложение и восстанавливает копию
-из обычной панели. Отдельный recovery-интерфейс и CLI восстановления удалены.
+Восстановление заменяет данные только выделенной PostgreSQL при полном обслуживании,
+после проверки источника и локальной страховочной копии. Фазы и инициатор сохраняются
+вне БД; при ошибке сервер пытается выполнить откат. Проверяются версия схемы и
+существование основного/соисполнителей. Маркер незавершённой замены блокирует бизнес-API
+после перезапуска. После успеха сессии отзываются, расписание резервирования и
+SMB-пароль очищаются. При потере БД оператор создаёт пустую БД, инициализирует
+приложение и восстанавливает новую копию через обычную админпанель.
 Seq и ключи не входят в backup; шифрование архивов не реализовано.
 Production RPO/RTO подтверждаются пробным восстановлением.
 
@@ -910,21 +871,21 @@ smoke или backup restore: это отдельные автоматическ�
 и `clean`. Служебные prerequisite-цели имеют префикс `_`.
 
 `make integration-test` проверяет prerequisites, запускает изолированные
-PostgreSQL и SeaweedFS из `testing/compose/integration.yaml`, передаёт безопасный
+PostgreSQL из `testing/compose/integration.yaml`, передаёт безопасный
 `DOCFLOW_INTEGRATION_DSN` для `docflow_test_outbox`, затем запускает отдельный
 стек с Samba и инструментированным сервером для backup/verify/restore/delete.
 Go-профили покрытия сохраняются в `build/release-evidence/`, а тестовые контейнеры
 и тома удаляются после завершения. Этот target входит в обязательный `release-gate`.
 `make storage-smoke-test` проверяет production Compose пример, доступ через Caddy
-и сохранность вложений после пересоздания SeaweedFS и перезапуска сервера.
+и сохранность контролей после перезапуска сервера.
 Для ручной отладки доступны `make integration-db-up` и
 `make integration-db-down`.
 
 Integration coverage composition root собирает Wails options только с server
-URL и локальным theme service, без PostgreSQL и SeaweedFS. Тест проверяет состав
+URL и локальным theme service, без PostgreSQL. Тест проверяет состав
 bindings, startup/shutdown и logger callback. Отдельные server integration tests
-проверяют обработку outbox и полный lifecycle вложения на реальной PostgreSQL с
-поддельным object storage. Production `NewWailsOptions` создаёт API adapters и
+проверяют обработку outbox, контроли, scope статистики и database-only восстановление
+на реальной PostgreSQL. Production `NewWailsOptions` создаёт API adapters и
 локальные UI services, но не infrastructure clients.
 
 ## Performance Budgets
@@ -943,10 +904,8 @@ bindings, startup/shutdown и logger callback. Отдельные server integra
 
 - up to 1000 documents/year;
 - up to 20 users;
-- attachments proportional to documents;
-- average file around 3 MB;
-- storage around 1 TB;
-- storage warning 80%, critical 90%.
+- контроли и связи пропорционально числу документов;
+- размер БД и резервных копий измеряется на целевом контуре.
 
 Performance evidence:
 
@@ -984,7 +943,7 @@ Rule: a change is not production-ready just because local unit tests pass. Relea
 - Keep `npm audit --audit-level=critical` in release gate.
 - Dependency inventories и license review при необходимости выполняются отдельным production-процессом; текущий `release-gate` их не генерирует.
 - Do not commit secrets.
-- Supply PostgreSQL and SeaweedFS credentials to `docflow-server` through the approved runtime secret-delivery mechanism.
+- Supply PostgreSQL credentials to `docflow-server` through the approved runtime secret-delivery mechanism.
 - Keep technical logs free of passwords and tokens.
 
 ## Install And Runtime Targets
@@ -1010,7 +969,7 @@ Target OS smoke must include:
 - default shortcut/cwd;
 - path with spaces and Cyrillic characters;
 - missing/invalid config diagnostics;
-- DB/SeaweedFS/Seq unavailable diagnostics.
+- DB/Seq unavailable diagnostics.
 
 ## Known Release State
 
@@ -1041,94 +1000,11 @@ High-risk changes requiring extra care:
 - permissions/access scope;
 - migrations and rollback;
 - backup/restore;
-- attachment upload/delete/download;
+- формирование и экспорт отчётов;
 - structured error contract;
 - release gates;
 - config/secrets;
 - technical logging and audit trail.
 
-Актуальные параметры SeaweedFS 4.46, runtime secrets, сброс dev-стека и проверка
-backup/restore v3 описаны в [инструкции хранилища](instructions.md#эксплуатация-seaweedfs).
-
-
-## Уведомления сервера (SSE)
-
-Desktop Go-клиент открывает `GET /api/v1/events` после входа и передаёт события
-в React через Wails `server:event`. Обычный поток привязан к ревизии сессии;
-выход, смена пароля и завершение приложения отменяют соединение. Bearer-токен
-передаётся только заголовком Authorization, не в URL и не в событии Wails.
-
-Поток сообщает об изменениях пользовательских уведомлений, документов и истории
-резервирования. После успешной доставки journal outbox сервер публикует
-`document-changed` с `documentId`, `documentKind` (если доступ сохраняется),
-`resource` (`document`, `assignments`, `files`, `links`) и
-`visibilityChanged`. Перед отправкой он проверяет доступ к документу по той же
-политике, что HTTP API, включая активные замещения. Получателями являются только
-живые соединения пользователей с доступом к документу. При переназначении или
-удалении поручения любого типа прежние получатели также получают
-последнее уведомление: их UUID сохраняются в transactional outbox, но не попадают
-в SSE и журнал документа. Содержимое документов через SSE не передаётся.
-
-Персональные изменения прав и профиля адресуются затронутому
-пользователю и его активным заместителям через `access-changed`. Изменения участия
-пользователя в документообороте, общие изменения справочников и замещений,
-а также старые audit payload без адресатов требуют
-консервативного обновления возможностей всех активных сессий. Массовое удаление
-файлов вызывает `resync`. Уведомления пользователя адресуются его соединениям,
-история бэкапов — администраторам. Права и сессия проверяются перед отправкой
-и на heartbeat. Ошибка проверки доступа разрывает поток: после переподключения
-клиент повторно синхронизируется, а не теряет уведомление молча.
-
-Компоненты документа подписываются на свой `documentId` и область данных;
-реестры — на вид документа и изменения его видимости. Журнал реагирует на все
-изменения своего документа. События объединяются перед фоновой загрузкой.
-Рабочий стол отдельно обновляет обзор задач, последние документы и персональные
-уведомления. Загрузка карточки и прав не размонтирует вкладки и формы;
-временная ошибка загрузки сохраняет открытое окно. Подтверждённая потеря доступа
-или удаление документа закрывает его карточку. Подписки удаляются при
-размонтировании компонентов. Постоянные опросы через 30 и 5 секунд отсутствуют.
-Desktop сохраняет поддержку старого сигнала `documents` для совместимости
-с прежним сервером; новые события требуют обновления desktop вместе с сервером.
-
-Для проверки, удаления и восстановления копии используется отдельный поток
-`GET /api/v1/admin/backups/operations/{id}/events` с ограниченным `statusToken`.
-Он передаёт состояние конкретной операции, не обращается к БД и продолжает
-работать при обслуживании и замене данных. Начальный снимок, переподключение и
-проверка срока токена сохраняют корректность наблюдения после разрыва связи.
-Токен операции не завершает обычную сессию при отказе в доступе.
-
-Потоки не удерживают блокировки схемы и замены БД на всё время соединения.
-Heartbeat отправляется каждые 15 секунд; desktop восстанавливает зависшее
-соединение после 45 секунд без событий. Повторные подключения используют задержку
-от 1 до 30 секунд. На подключении обычный поток отправляет `resync`, после которого
-UI загружает актуальное состояние. Шина событий находится в памяти одного
-серверного процесса (соответствует существующей блокировке единственного экземпляра);
-события объединяются по документу и области данных; очередь каждого соединения
-ограничена 256 изменениями, при переполнении клиент получает `resync`.
-Долговременного журнала SSE и replay по Last-Event-ID нет.
-Источником истины остаются БД и журналы резервирования.
-
-Прокси должен пропускать streaming-ответы `text/event-stream`. Оба варианта Caddy
-передают их через существующий reverse_proxy; отдельные порты не нужны.
-Изменения SMB-файлов вне Docflow этим каналом не обнаруживаются. Пересчёт статистики
-хранилища пока использует существующий ограниченный опрос и не переведён на SSE.
-
-### Внутренняя идентификация сборок
-
-`internal/shared/buildinfo` хранит встроенные номер коммита (`git rev-list --count HEAD`),
-полный SHA и опциональный отпечаток локальных исходников. Публичная версия релиза
-не меняет формат. `tools/buildmeta` служит Go compiler wrapper для Wails и пересчитывает
-метаданные перед каждым `go build`, объединяя свои `-ldflags` с флагами Wails.
-
-Compatibility API принимает `buildProtocol=2` и `clientBuild=number:revision:fingerprint`.
-Ответ содержит `buildProtocol` и `serverBuild`. При одинаковом релизе требуется точное
-совпадение идентичностей. Неизвестные сборки не совпадают даже между собой.
-`build_mismatch` и `build_identity_required` блокируют вход; новый desktop отвергает
-ответы старого сервера без нового контракта. Проверка выполняется перед входом,
-не заменяет авторизацию HTTP API и не контролирует уже открытую сессию после
-обновления сервера.
-
-Системная статистика дополняется сборкой сервера из бинарника сервера и сборкой
-клиента из desktop-адаптера. Номер и SHA не выводятся на экран подключения или
-в окно «О программе». Разные исходники даже с совместимым API требуют пересборки
-и согласованного обновления обеих сторон; изменения схемы БД не требуются.
+Runtime secrets и backup/restore v4 описаны в
+[инструкции резервирования](instructions.md#серверное-резервирование-и-восстановление).

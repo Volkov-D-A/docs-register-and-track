@@ -2,23 +2,26 @@ package models
 
 // ReportRequest describes one of the fixed, server-owned report templates.
 type ReportRequest struct {
-	Template         string `json:"template"`
-	StartDate        string `json:"startDate"`
-	EndDate          string `json:"endDate"`
-	OrganizationID   string `json:"organizationId,omitempty"`
-	DepartmentID     string `json:"departmentId,omitempty"`
-	KindCode         string `json:"kindCode,omitempty"`
-	NomenclatureID   string `json:"nomenclatureId,omitempty"`
-	UserID           string `json:"userId,omitempty"`
-	Status           string `json:"status,omitempty"`
-	OnlyWithDeadline bool   `json:"onlyWithDeadline,omitempty"`
-	Timezone         string `json:"timezone,omitempty"`
+	PeriodBasis    string `json:"periodBasis,omitempty"`
+	Template       string `json:"template"`
+	StartDate      string `json:"startDate"`
+	EndDate        string `json:"endDate"`
+	OrganizationID string `json:"organizationId,omitempty"`
+	DepartmentID   string `json:"departmentId,omitempty"`
+	KindCode       string `json:"kindCode,omitempty"`
+	NomenclatureID string `json:"nomenclatureId,omitempty"`
+	UserID         string `json:"userId,omitempty"`
+	Status         string `json:"status,omitempty"`
+	Timezone       string `json:"timezone,omitempty"`
 }
 
 type ReportFilters struct {
-	Kinds        []StatisticsOption `json:"kinds"`
-	Nomenclature []StatisticsOption `json:"nomenclature"`
-	Users        []StatisticsOption `json:"users"`
+	Executors     []StatisticsOption `json:"executors"`
+	Organizations []StatisticsOption `json:"organizations"`
+	Departments   []StatisticsOption `json:"departments"`
+	Kinds         []StatisticsOption `json:"kinds"`
+	Nomenclature  []StatisticsOption `json:"nomenclature"`
+	Users         []StatisticsOption `json:"users"`
 }
 
 type ReportRow struct {

@@ -30,25 +30,18 @@ func (f *fakeStatisticsAPI) GetDocumentReport(a, b, c, d, e, g string) (*models.
 func (*fakeStatisticsAPI) GetDocumentFilterOptions() (*models.DocumentStatisticsFilters, error) {
 	return &models.DocumentStatisticsFilters{}, nil
 }
-func (*fakeStatisticsAPI) GetAssignmentStatistics() (*models.AssignmentStatistics, error) {
-	return &models.AssignmentStatistics{}, nil
+func (*fakeStatisticsAPI) GetDeadlineStatistics() (*models.DeadlineStatistics, error) {
+	return &models.DeadlineStatistics{}, nil
 }
-func (*fakeStatisticsAPI) GetAssignmentReport(string, string, bool, string) (*models.AssignmentStatisticsReport, error) {
-	return &models.AssignmentStatisticsReport{}, nil
+func (*fakeStatisticsAPI) GetDeadlineReport(string, string, bool, string) (*models.DeadlineStatisticsReport, error) {
+	return &models.DeadlineStatisticsReport{}, nil
 }
-func (*fakeStatisticsAPI) GetAssignmentFilterOptions() (*models.AssignmentStatisticsFilters, error) {
-	return &models.AssignmentStatisticsFilters{}, nil
+func (*fakeStatisticsAPI) GetDeadlineFilterOptions() (*models.DeadlineStatisticsFilters, error) {
+	return &models.DeadlineStatisticsFilters{}, nil
 }
 func (*fakeStatisticsAPI) GetSystemStatistics() (*models.SystemStatistics, error) {
 	return &models.SystemStatistics{}, nil
 }
-func (*fakeStatisticsAPI) GetStorageStatisticsStatus() (*models.StorageStatisticsStatus, error) {
-	return &models.StorageStatisticsStatus{}, nil
-}
-func (*fakeStatisticsAPI) RetryStorageStatisticsRefresh() (*models.StorageStatisticsStatus, error) {
-	return &models.StorageStatisticsStatus{}, nil
-}
-
 func TestWorkspaceAndStatisticsAPIsRequireSessionAndUsePrincipal(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, nil)
 	statistics := &fakeStatisticsAPI{}
@@ -75,9 +68,9 @@ func TestWorkspaceAndStatisticsAPIsRequireSessionAndUsePrincipal(t *testing.T) {
 }
 
 func TestRequestPrincipalChecksSessionPermissions(t *testing.T) {
-	principal := requestDocumentPrincipal{user: &models.User{ID: uuid.New(), IsActive: true, SystemPermissions: []string{models.SystemPermissionStatsDocuments}}}
-	assert.True(t, principal.HasSystemPermission(models.SystemPermissionStatsDocuments))
-	assert.False(t, principal.HasSystemPermission(models.SystemPermissionStatsSystem))
+	principal := requestDocumentPrincipal{user: &models.User{ID: uuid.New(), IsActive: true, SystemPermissions: []string{models.SystemPermissionReferences}}}
+	assert.True(t, principal.HasSystemPermission(models.SystemPermissionReferences))
+	assert.False(t, principal.HasSystemPermission(models.SystemPermissionAdmin))
 }
 
 func (f *fakeWorkspaceAPI) GetRecentDocuments() (*dto.WorkspaceDocuments, error) {

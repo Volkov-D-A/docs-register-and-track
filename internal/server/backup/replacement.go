@@ -7,14 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 )
 
 // replaceOperation keeps the downloaded source and safety archive even on
-// failure. PostgreSQL and S3 are restored sequentially, not atomically.
+// failure. A verified PostgreSQL safety snapshot supports rollback.
 func (s *Service) replaceOperation(ctx context.Context, op *operation) error {
 	if s.Replace == nil || s.Reload == nil {
 		return fmt.Errorf("replacement coordinator unavailable")
@@ -61,7 +58,7 @@ func (s *Service) safetySnapshot(ctx context.Context, work string) (PreparedRest
 	if err := os.Mkdir(stage, 0700); err != nil {
 		return PreparedRestore{}, err
 	}
-	m := Manifest{Format: 3, ID: uuid.NewString(), CreatedAt: time.Now().UTC(), Version: s.Version, Objects: []Object{}}
+	m := Manifest{Format: ArchiveFormat, ID: uuid.NewString(), CreatedAt: time.Now().UTC(), Version: s.Version}
 	var dirty bool
 	if err := s.DB.QueryRowContext(ctx, "SELECT version,dirty FROM schema_migrations").Scan(&m.Schema, &dirty); err != nil {
 		return PreparedRestore{}, err
@@ -78,13 +75,13 @@ func (s *Service) safetySnapshot(ctx context.Context, work string) (PreparedRest
 	if err != nil {
 		return PreparedRestore{}, err
 	}
-	if err = SnapshotObjects(ctx, s.S3, stage, &m, s.MaxBytes/8); err != nil {
+	if err = writeJSONFile(filepath.Join(stage, "manifest.json"), m); err != nil {
 		return PreparedRestore{}, err
 	}
-	if err = ValidateReferences(ctx, s.DB, m); err != nil {
+	if err = ValidateControlReferences(ctx, s.DB); err != nil {
 		return PreparedRestore{}, err
 	}
-	if err = s.requireDedicatedTarget(ctx, m); err != nil {
+	if err = s.requireDedicatedTarget(ctx); err != nil {
 		return PreparedRestore{}, err
 	}
 	archive := filepath.Join(work, "safety.tar.gz")
@@ -104,36 +101,14 @@ func (s *Service) installReplacement(ctx context.Context, op *operation, prepare
 	if err := phase("clearing_database"); err != nil {
 		return err
 	}
-	// Only dedicated Docflow databases and buckets are supported. The database
-	// itself, roles, other databases, and other buckets are never removed.
+	// Only the public schema of a dedicated Docflow database is replaced.
 	if _, err := s.DB.ExecContext(ctx, `DROP SCHEMA public CASCADE; CREATE SCHEMA public`); err != nil {
 		return err
 	}
-	if err := phase("clearing_objects"); err != nil {
+	if err := phase("restoring"); err != nil {
 		return err
 	}
-	client, err := storage.NewS3Client(s.S3)
-	if err != nil {
-		return err
-	}
-	for {
-		page, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{Bucket: aws.String(s.S3.BucketName), MaxKeys: aws.Int32(1000)})
-		if err != nil {
-			return err
-		}
-		if len(page.Contents) == 0 {
-			break
-		}
-		for _, object := range page.Contents {
-			if _, err = client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.S3.BucketName), Key: object.Key}); err != nil {
-				return err
-			}
-		}
-	}
-	if err = phase("restoring"); err != nil {
-		return err
-	}
-	if err = RestorePrepared(ctx, s.PostgreSQL, s.S3, prepared, s.Directory, s.Schema, false); err != nil {
+	if err := RestorePrepared(ctx, s.PostgreSQL, prepared, s.Directory, s.Schema, false); err != nil {
 		return err
 	}
 	if !rollback {
@@ -142,7 +117,7 @@ func (s *Service) installReplacement(ctx context.Context, op *operation, prepare
 			return openErr
 		}
 		defer db.Close()
-		if _, err = db.ExecContext(ctx, `UPDATE server_sessions SET revoked_at=now() WHERE revoked_at IS NULL; UPDATE backup_settings SET settings=jsonb_set(jsonb_set(jsonb_set(settings,'{settings,enabled}','false'),'{settings,passwordSet}','false'),'{secret}','{}')`); err != nil {
+		if _, err := db.ExecContext(ctx, `UPDATE server_sessions SET revoked_at=now() WHERE revoked_at IS NULL; UPDATE backup_settings SET settings=jsonb_set(jsonb_set(jsonb_set(settings,'{settings,enabled}','false'),'{settings,passwordSet}','false'),'{secret}','{}')`); err != nil {
 			return err
 		}
 	}

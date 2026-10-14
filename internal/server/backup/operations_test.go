@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -110,7 +110,7 @@ func TestRestoreConfirmationBindsCopyAndDate(t *testing.T) {
 	s, verified, _ := testOperation(t)
 	verified.Kind = "verify"
 	verified.State = "completed"
-	verified.Copy = RemoteCopy{ID: verified.CopyID, Format: 3, CreatedAt: time.Now().UTC()}
+	verified.Copy = RemoteCopy{ID: verified.CopyID, Format: ArchiveFormat, CreatedAt: time.Now().UTC()}
 	require.NoError(t, s.persistOperation(verified))
 	box, err := NewSecretBox(make([]byte, 32))
 	require.NoError(t, err)

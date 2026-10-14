@@ -132,10 +132,18 @@ func main() {
 	printSummary(current, previous)
 }
 
+func benchmarkUserID(db *sql.DB) string {
+	var id string
+	if err := db.QueryRow(`SELECT id FROM users WHERE login='dbperf'`).Scan(&id); err != nil {
+		fail("benchmark principal: %v", err)
+	}
+	return id
+}
+
 func measureOutgoingList(name string, db *sql.DB, repo *repository.OutgoingDocumentRepository, nomenclatureID uuid.UUID, search string, page, pageSize int) metric {
 	filter := models.OutgoingDocumentFilter{
-		AccessScope: &models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{nomenclatureID.String()}},
-		Search:      search, Page: page, PageSize: pageSize,
+		AccessScope:     &models.DocumentAccessScope{UserID: benchmarkUserID(db)},
+		NomenclatureIDs: []string{nomenclatureID.String()}, Search: search, Page: page, PageSize: pageSize,
 	}
 	if name == "outgoing_number_contains" {
 		filter.OutgoingNumber = "PF/"
@@ -189,7 +197,7 @@ func measureOutgoingCursor(name string, db *sql.DB, repo *repository.OutgoingDoc
 		fail("encode cursor: %v", err)
 	}
 	filter := models.OutgoingDocumentFilter{
-		AccessScope: &models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{nomenclatureID.String()}}, Search: search,
+		AccessScope: &models.DocumentAccessScope{UserID: benchmarkUserID(db)}, NomenclatureIDs: []string{nomenclatureID.String()}, Search: search,
 		PageSize: pageSize, CursorPagination: true, Cursor: cursor,
 	}
 	args := []any{models.DocumentKindOutgoingLetter, nomenclatureID, "%" + search + "%", createdAt, id, pageSize + 1}
@@ -237,6 +245,7 @@ func explain(db *sql.DB, query string, args ...any) explainDocument {
 func seed(db *sql.DB, count int) uuid.UUID {
 	userID, nomID, orgID := uuid.New(), uuid.New(), uuid.New()
 	mustExec(db, `INSERT INTO users (id, login, password_hash, last_name, first_name, no_patronymic) VALUES ($1, 'dbperf', 'hash', 'DB', 'Perf', TRUE)`, userID)
+	mustExec(db, `INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES('outgoing_letter','user',$1,'register')`, userID.String())
 	mustExec(db, `INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode) VALUES ($1, 'Performance', 'PF', 2026, 'outgoing_letter', '/', 'index_and_number')`, nomID)
 	mustExec(db, `INSERT INTO organizations (id, name) VALUES ($1, 'Performance Org')`, orgID)
 	tx, err := db.Begin()

@@ -31,9 +31,6 @@ func (c *userAdapterClient) ListUsers(ctx context.Context) ([]dto.User, error) {
 func (c *userAdapterClient) ListExecutors(ctx context.Context) ([]dto.User, error) {
 	return []dto.User{{ID: "server-user"}}, c.record(ctx, "executors", nil)
 }
-func (c *userAdapterClient) ListSubstitutionCandidates(ctx context.Context) ([]dto.User, error) {
-	return []dto.User{{ID: "server-user"}}, c.record(ctx, "candidates", nil)
-}
 func (c *userAdapterClient) CreateUser(ctx context.Context, req models.CreateUserRequest) (*dto.User, error) {
 	return &dto.User{ID: "server-user", TemporaryPassword: "server-password"}, c.record(ctx, "create", req)
 }
@@ -49,18 +46,6 @@ func (c *userAdapterClient) GetUserAccessProfile(ctx context.Context, id string)
 func (c *userAdapterClient) UpdateUserAccessProfile(ctx context.Context, req models.UpdateUserDocumentAccessRequest) error {
 	return c.record(ctx, "update-access", req)
 }
-func (c *userAdapterClient) GetMySubstitution(ctx context.Context) (*dto.UserSubstitution, error) {
-	return &dto.UserSubstitution{}, c.record(ctx, "my-substitution", nil)
-}
-func (c *userAdapterClient) UpdateMySubstitution(ctx context.Context, req models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error) {
-	return &dto.UserSubstitution{}, c.record(ctx, "update-my-substitution", req)
-}
-func (c *userAdapterClient) GetUserSubstitution(ctx context.Context, id string) (*dto.UserSubstitution, error) {
-	return &dto.UserSubstitution{}, c.record(ctx, "substitution", id)
-}
-func (c *userAdapterClient) UpdateUserSubstitution(ctx context.Context, req models.UpdateUserSubstitutionRequest) (*dto.UserSubstitution, error) {
-	return &dto.UserSubstitution{}, c.record(ctx, "update-substitution", req)
-}
 func (c *userAdapterClient) GetCurrentAccessSummary(ctx context.Context) (*dto.CurrentAccessSummary, error) {
 	return &dto.CurrentAccessSummary{}, c.record(ctx, "summary", nil)
 }
@@ -70,7 +55,6 @@ func TestUserAdaptersDelegateWithoutLocalBusinessRules(t *testing.T) {
 	create := models.CreateUserRequest{Login: "new-user"}
 	update := models.UpdateUserRequest{ID: "target", Login: "renamed"}
 	access := models.UpdateUserDocumentAccessRequest{UserID: "target"}
-	substitution := models.UpdateUserSubstitutionRequest{PrincipalUserID: "target", SubstituteUserID: "substitute", IsActive: true}
 	for _, tc := range []struct {
 		name        string
 		input, want any
@@ -78,7 +62,6 @@ func TestUserAdaptersDelegateWithoutLocalBusinessRules(t *testing.T) {
 	}{
 		{"users", nil, []dto.User{{ID: "server-user"}}, func(c *userAdapterClient) (any, error) { return NewUserService(c).GetAllUsers() }},
 		{"executors", nil, []dto.User{{ID: "server-user"}}, func(c *userAdapterClient) (any, error) { return NewUserService(c).GetExecutors() }},
-		{"candidates", nil, []dto.User{{ID: "server-user"}}, func(c *userAdapterClient) (any, error) { return NewUserService(c).GetSubstitutionCandidates() }},
 		{"create", create, &dto.User{ID: "server-user", TemporaryPassword: "server-password"}, func(c *userAdapterClient) (any, error) { return NewUserService(c).CreateUser(create) }},
 		{"update", update, &dto.User{ID: "server-user"}, func(c *userAdapterClient) (any, error) { return NewUserService(c).UpdateUser(update) }},
 		{"reset", "target", "server-password", func(c *userAdapterClient) (any, error) { return NewUserService(c).ResetPassword("target") }},
@@ -87,16 +70,6 @@ func TestUserAdaptersDelegateWithoutLocalBusinessRules(t *testing.T) {
 		}},
 		{"update-access", access, nil, func(c *userAdapterClient) (any, error) {
 			return nil, NewDocumentAccessAdminService(c).UpdateUserAccessProfile(access)
-		}},
-		{"my-substitution", nil, &dto.UserSubstitution{}, func(c *userAdapterClient) (any, error) { return NewUserSubstitutionService(c).GetMySubstitution() }},
-		{"update-my-substitution", substitution, &dto.UserSubstitution{}, func(c *userAdapterClient) (any, error) {
-			return NewUserSubstitutionService(c).UpdateMySubstitution(substitution)
-		}},
-		{"substitution", "target", &dto.UserSubstitution{}, func(c *userAdapterClient) (any, error) {
-			return NewUserSubstitutionService(c).GetUserSubstitution("target")
-		}},
-		{"update-substitution", substitution, &dto.UserSubstitution{}, func(c *userAdapterClient) (any, error) {
-			return NewUserSubstitutionService(c).UpdateUserSubstitution(substitution)
 		}},
 		{"summary", nil, &dto.CurrentAccessSummary{}, func(c *userAdapterClient) (any, error) { return NewDocumentKindService(c).GetCurrentAccessSummary() }},
 	} {

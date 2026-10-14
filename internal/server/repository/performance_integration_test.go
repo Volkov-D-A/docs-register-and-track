@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
@@ -20,9 +20,12 @@ func BenchmarkIntegrationDocumentList(b *testing.B) {
 	sqlDB := integrationdb.Open(b)
 	db := database.Wrap(sqlDB)
 	nomID, owner, orgID := seedPerformanceDocuments(b, sqlDB, 250)
+	if _, err := sqlDB.Exec(`INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES('outgoing_letter','user',$1,'register')`, owner.String()); err != nil {
+		b.Fatal(err)
+	}
 	repo := NewOutgoingDocumentRepository(db)
 	filter := models.OutgoingDocumentFilter{
-		AccessScope: &models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{nomID.String()}},
+		AccessScope: &models.DocumentAccessScope{UserID: owner.String()},
 		Search:      "performance", Page: 1, PageSize: 50,
 	}
 	logExplain(b, sqlDB, `SELECT id FROM documents WHERE nomenclature_id = $1 AND content ILIKE $2 ORDER BY created_at DESC LIMIT 50`, nomID, "%performance%")

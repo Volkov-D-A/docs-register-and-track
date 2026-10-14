@@ -19,14 +19,6 @@ type User struct {
 	Department            *Department `json:"department,omitempty"`
 }
 
-// UserSubstitution описывает DTO замещения пользователя.
-type UserSubstitution struct {
-	SubstituteUserID string     `json:"substituteUserId"`
-	StartsAt         *time.Time `json:"startsAt,omitempty"`
-	EndsAt           *time.Time `json:"endsAt,omitempty"`
-	IsActive         bool       `json:"isActive"`
-}
-
 // Department описывает DTO подразделения.
 type Department struct {
 	ID              string   `json:"id"`
@@ -62,16 +54,16 @@ type CurrentAccessSummary struct {
 
 // AccessSections описывает доступность основных разделов приложения.
 type AccessSections struct {
-	Dashboard   bool `json:"dashboard"`
-	Incoming    bool `json:"incoming"`
-	Outgoing    bool `json:"outgoing"`
-	Appeals     bool `json:"appeals"`
-	Orders      bool `json:"orders"`
-	Assignments bool `json:"assignments"`
-	References  bool `json:"references"`
-	Statistics  bool `json:"statistics"`
-	Reports     bool `json:"reports"`
-	Settings    bool `json:"settings"`
+	Dashboard  bool `json:"dashboard"`
+	Incoming   bool `json:"incoming"`
+	Outgoing   bool `json:"outgoing"`
+	Appeals    bool `json:"appeals"`
+	Orders     bool `json:"orders"`
+	Controls   bool `json:"controls"`
+	References bool `json:"references"`
+	Statistics bool `json:"statistics"`
+	Reports    bool `json:"reports"`
+	Settings   bool `json:"settings"`
 }
 
 // DocumentKindAccessSummary описывает доступность действий для конкретного вида документа.
@@ -116,8 +108,6 @@ type IncomingDocument struct {
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
-
-	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
 // DocumentCorrespondentRegistration описывает DTO регистрационных реквизитов корреспондента.
@@ -169,8 +159,6 @@ type CitizenAppealDocument struct {
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
-
-	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
 // OutgoingDocument описывает DTO исходящего документа.
@@ -199,8 +187,6 @@ type OutgoingDocument struct {
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
-
-	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
 // AdministrativeOrderDocument описывает DTO приказа.
@@ -229,8 +215,6 @@ type AdministrativeOrderDocument struct {
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
-
-	AttachmentsCount int `json:"attachmentsCount,omitempty"`
 }
 
 // AdministrativeOrderAcknowledgmentPerson описывает DTO строки листа ознакомления приказа.
@@ -332,78 +316,6 @@ type DocumentLink struct {
 }
 
 // Attachment описывает DTO прикрепленного файла.
-type Attachment struct {
-	ID             string    `json:"id"`
-	Filename       string    `json:"filename"`
-	FileSize       int64     `json:"fileSize"`
-	UploadedByName string    `json:"uploadedByName,omitempty"`
-	UploadedAt     time.Time `json:"uploadedAt"`
-}
-
-// Assignment описывает DTO поручения.
-type Assignment struct {
-	Type         string                `json:"type"`
-	CreatorID    string                `json:"creatorId,omitempty"`
-	CreatorName  string                `json:"creatorName,omitempty"`
-	Users        []AssignmentRecipient `json:"users,omitempty"`
-	ID           string                `json:"id"`
-	DocumentID   string                `json:"documentId"`
-	DocumentKind string                `json:"documentKind"`
-
-	ExecutorID   string `json:"executorId"`
-	ExecutorName string `json:"executorName,omitempty"`
-
-	Content         string     `json:"content"`
-	Deadline        *time.Time `json:"deadline,omitempty"`
-	Status          string     `json:"status"`
-	Report          string     `json:"report,omitempty"`
-	CompletedAt     *time.Time `json:"completedAt,omitempty"`
-	CanAct          bool       `json:"canAct"`
-	SeriesID        string     `json:"seriesId,omitempty"`
-	IterationNumber int        `json:"iterationNumber,omitempty"`
-	PlannedDeadline *time.Time `json:"plannedDeadline,omitempty"`
-
-	DocumentNumber  string `json:"documentNumber,omitempty"`
-	DocumentSubject string `json:"documentSubject,omitempty"`
-
-	CoExecutors   []User   `json:"coExecutors,omitempty"`
-	CoExecutorIDs []string `json:"coExecutorIds,omitempty"`
-
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-}
-
-// AssignmentSeries is returned only from manager-only series operations.
-type AssignmentSeries struct {
-	ID                  string     `json:"id"`
-	DocumentID          string     `json:"documentId"`
-	DocumentKind        string     `json:"documentKind"`
-	DocumentNumber      string     `json:"documentNumber,omitempty"`
-	ExecutorID          string     `json:"executorId"`
-	ExecutorName        string     `json:"executorName,omitempty"`
-	Content             string     `json:"content"`
-	IntervalUnit        string     `json:"intervalUnit"`
-	IntervalValue       int        `json:"intervalValue"`
-	DayRule             string     `json:"dayRule"`
-	DayOfMonth          int        `json:"dayOfMonth,omitempty"`
-	CurrentAssignmentID string     `json:"currentAssignmentId,omitempty"`
-	CurrentIteration    int        `json:"currentIteration"`
-	Active              bool       `json:"active"`
-	CancelledAt         *time.Time `json:"cancelledAt,omitempty"`
-	CoExecutors         []User     `json:"coExecutors,omitempty"`
-	CoExecutorIDs       []string   `json:"coExecutorIds,omitempty"`
-	CreatedAt           time.Time  `json:"createdAt"`
-	UpdatedAt           time.Time  `json:"updatedAt"`
-}
-
-// AssignmentRecipient описывает DTO связи пользователя с задачей на ознакомление.
-type AssignmentRecipient struct {
-	ConfirmedBy string     `json:"confirmedBy,omitempty"`
-	UserID      string     `json:"userId"`
-	UserName    string     `json:"userName,omitempty"`
-	ConfirmedAt *time.Time `json:"confirmedAt,omitempty"`
-}
-
 // PagedResult описывает DTO постраничного результата.
 type PagedResult[T any] struct {
 	Items      []T    `json:"items"`

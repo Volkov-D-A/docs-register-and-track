@@ -133,57 +133,12 @@ func (_m *UserStore) GetByLogin(login string) (*models.User, error) {
 	return r0, r1
 }
 
-// GetEligibleRecipientIDs provides a mock function with given fields: candidateIDs.
-func (_m *UserStore) GetEligibleRecipientIDs(candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
-	ret := _m.Called(candidateIDs)
-	if len(ret) == 0 {
-		panic("no return value specified for GetEligibleRecipientIDs")
-	}
-	var result map[uuid.UUID]struct{}
-	if rf, ok := ret.Get(0).(func([]uuid.UUID) map[uuid.UUID]struct{}); ok {
-		result = rf(candidateIDs)
-	} else if ret.Get(0) != nil {
-		result = ret.Get(0).(map[uuid.UUID]struct{})
-	}
-	return result, ret.Error(1)
-}
-
 // GetExecutors provides a mock function with no fields
 func (_m *UserStore) GetExecutors() ([]models.User, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetExecutors")
-	}
-
-	var r0 []models.User
-	var r1 error
-	if rf, ok := ret.Get(0).(func() ([]models.User, error)); ok {
-		return rf()
-	}
-	if rf, ok := ret.Get(0).(func() []models.User); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]models.User)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetActiveUsers provides a mock function with no fields
-func (_m *UserStore) GetActiveUsers() ([]models.User, error) {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetActiveUsers")
 	}
 
 	var r0 []models.User

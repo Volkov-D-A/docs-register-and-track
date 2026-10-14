@@ -1,9 +1,10 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { App, Button, Card, Checkbox, DatePicker, Select, Space, Spin, Table, Typography } from 'antd';
+import { App, Button, Card, DatePicker, Select, Space, Spin, Table, Typography } from 'antd';
 import { DownloadOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { formatAppError } from '../utils/appError';
 import { models } from '../../wailsjs/go/models';
+import { onServerEvent } from '../events/serverEvents';
 
 type Template = 'organizations' | 'department_load' | 'execution_time' | 'overdue_rate';
 const templates = [
@@ -27,26 +28,35 @@ const ReportsPage: React.FC = () => {
   const [nomenclatureId, setNomenclatureId] = useState<string>();
   const [userId, setUserId] = useState<string>();
   const [status, setStatus] = useState<string>();
-  const [onlyWithDeadline, setOnlyWithDeadline] = useState(false);
+  const [periodBasis, setPeriodBasis] = useState('registration_date');
   const [result, setResult] = useState<models.ReportResult>();
   const [loading, setLoading] = useState(false);
+  const [accessRevision, setAccessRevision] = useState(0);
 	const generation = useRef(0);
+  const filtersGeneration = useRef(0);
 	const invalidateResult = () => { generation.current += 1; setResult(undefined); };
 
   useEffect(() => {
-    let active = true;
-    void Promise.all([
-      import('../../wailsjs/go/services/ReferenceService').then((service) => service.GetOrganizations()),
-      import('../../wailsjs/go/services/DepartmentService').then((service) => service.GetAllDepartments()),
-      import('../../wailsjs/go/services/ReportingService').then((service) => service.GetFilters()),
-    ]).then(([orgs, depts, options]) => {
-      if (!active) return;
-      setOrganizations(orgs.map((item) => ({ value: item.id, label: item.name })));
-      setDepartments(depts.map((item) => ({ value: item.id, label: item.name })));
+    const filterVersion = ++filtersGeneration.current;
+    void import('../../wailsjs/go/services/ReportingService').then((service) => service.GetFilters()).then((options) => {
+      if (filtersGeneration.current !== filterVersion) return;
+      setOrganizations(options.organizations);
+      setDepartments(options.departments);
       setFilterOptions(options);
     }).catch((error) => message.error(formatAppError(error)));
-    return () => { active = false; };
-  }, [message]);
+    return () => { filtersGeneration.current += 1; };
+  }, [message, accessRevision]);
+
+  useEffect(() => {
+    const stop = onServerEvent((event) => {
+      if (!['resync', 'access-changed', 'documents', 'document-changed'].includes(event.topic)) return;
+      generation.current += 1; filtersGeneration.current += 1; setResult(undefined); setFilterOptions(undefined);
+      setOrganizations([]); setDepartments([]);
+      setOrganizationId(undefined); setDepartmentId(undefined); setNomenclatureId(undefined); setUserId(undefined);
+      setAccessRevision((version) => version + 1);
+    });
+    return () => { stop(); generation.current += 1; };
+  }, []);
 
   const request = useMemo(() => models.ReportRequest.createFrom({
     template, startDate: dates[0].format('YYYY-MM-DD'), endDate: dates[1].format('YYYY-MM-DD'),
@@ -54,9 +64,9 @@ const ReportsPage: React.FC = () => {
     departmentId: template !== 'organizations' ? departmentId || '' : '',
     kindCode: kindCode || '', nomenclatureId: nomenclatureId || '', userId: userId || '',
     status: template === 'organizations' ? '' : status || '',
-    onlyWithDeadline: template !== 'organizations' && template !== 'overdue_rate' && onlyWithDeadline,
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-  }), [template, dates, organizationId, departmentId, kindCode, nomenclatureId, userId, status, onlyWithDeadline]);
+    periodBasis,
+    timezone: 'Asia/Yekaterinburg',
+  }), [template, dates, organizationId, departmentId, kindCode, nomenclatureId, userId, status, periodBasis]);
 
   const run = async () => {
     const currentGeneration = ++generation.current;
@@ -86,12 +96,12 @@ const ReportsPage: React.FC = () => {
       { title: 'Исходящие', dataIndex: 'outgoing', key: 'outgoing' }];
     if (template === 'department_load') return [
       { title: 'Месяц', dataIndex: 'period', key: 'period' }, name,
-      { title: 'Поручений', dataIndex: 'count', key: 'count' }];
+      { title: 'Контролей', dataIndex: 'count', key: 'count' }];
     if (template === 'execution_time') return [name,
-      { title: 'Поручений', dataIndex: 'count', key: 'count' },
+      { title: 'Контролей', dataIndex: 'count', key: 'count' },
       { title: 'Среднее, суток', dataIndex: 'metric', key: 'metric' }];
     return [name,
-      { title: 'Поручений со сроком', dataIndex: 'count', key: 'count' },
+      { title: 'Контролей со сроком', dataIndex: 'count', key: 'count' },
       { title: 'С просрочкой', dataIndex: 'overdue', key: 'overdue' },
       { title: 'Доля, %', dataIndex: 'metric', key: 'metric' }];
   }, [template]);
@@ -105,6 +115,7 @@ const ReportsPage: React.FC = () => {
           if (value === 'organizations' && kindCode && kindCode !== 'incoming_letter' && kindCode !== 'outgoing_letter') setKindCode(undefined);
           invalidateResult();
         }} />
+        <Select aria-label="Основание периода" value={periodBasis} onChange={(value) => { setPeriodBasis(value); invalidateResult(); }} options={[{value:'registration_date',label:'Дата регистрации документа'},{value:'due_date',label:'Срок контроля'},{value:'executed_on',label:'Фактическая дата исполнения'}]} style={{width:260}} />
         <DatePicker.RangePicker value={dates} allowClear={false} onChange={(value) => { if (value?.[0] && value?.[1]) { setDates([value[0], value[1]]); invalidateResult(); } }} />
         {template === 'organizations'
           ? <Select allowClear showSearch optionFilterProp="label" placeholder="Все организации" options={organizations} value={organizationId} onChange={(value) => { setOrganizationId(value); invalidateResult(); }} style={{ width: 230 }} />
@@ -118,10 +129,10 @@ const ReportsPage: React.FC = () => {
         <Select allowClear showSearch optionFilterProp="label" placeholder="Все дела" value={nomenclatureId} onChange={(value) => { setNomenclatureId(value); invalidateResult(); }}
           options={filterOptions?.nomenclature || []} style={{ width: 250 }} />
         <Select allowClear showSearch optionFilterProp="label" placeholder={template === 'organizations' ? 'Все регистраторы' : 'Все исполнители'} value={userId} onChange={(value) => { setUserId(value); invalidateResult(); }}
-          options={filterOptions?.users || []} style={{ width: 240 }} />
+          options={(template === 'organizations' ? filterOptions?.users : filterOptions?.executors) || []} style={{ width: 240 }} />
         {template !== 'organizations' && <Select allowClear placeholder="Все статусы" value={status} onChange={(value) => { setStatus(value); invalidateResult(); }} style={{ width: 170 }}
-          options={[{ value: 'new', label: 'Новое' }, { value: 'in_progress', label: 'В работе' }, { value: 'completed', label: 'На приёмке' }, { value: 'finished', label: 'Завершено' }, { value: 'returned', label: 'Возвращено' }, { value: 'cancelled', label: 'Отменено' }]} />}
-        {template !== 'organizations' && template !== 'overdue_rate' && <Checkbox checked={onlyWithDeadline} onChange={(event) => { setOnlyWithDeadline(event.target.checked); invalidateResult(); }}>Только со сроком</Checkbox>}
+          options={[{ value: 'active', label: 'Активен' }, { value: 'completed', label: 'Исполнен' }, { value: 'cancelled', label: 'Отменён' }]} />}
+
       </Space>
       {result && <>
         <Typography.Paragraph type="secondary">{result.definition}</Typography.Paragraph>
@@ -129,8 +140,8 @@ const ReportsPage: React.FC = () => {
         <Typography.Paragraph type="secondary">Период: {result.startDate} — {result.endDate}. Сформировано: {dayjs(result.generatedAt).format('DD.MM.YYYY HH:mm')}. Часовой пояс: {result.timezone}.</Typography.Paragraph>
         <Typography.Paragraph strong>{template === 'organizations'
           ? `По организациям: входящих ${result.summary.incoming}, исходящих ${result.summary.outgoing}; уникальных документов ${result.summary.uniqueDocuments}`
-          : template === 'department_load' ? `Всего поручений: ${result.summary.count}`
-          : template === 'execution_time' ? `Всего поручений: ${result.summary.count}; среднее: ${result.summary.count ? `${result.summary.metric.toFixed(1)} суток` : 'нет данных'}`
+          : template === 'department_load' ? `Всего контролей: ${result.summary.count}`
+          : template === 'execution_time' ? `Всего контролей: ${result.summary.count}; среднее: ${result.summary.count ? `${result.summary.metric.toFixed(1)} суток` : 'нет данных'}`
           : `Со сроком: ${result.summary.count}; просрочено: ${result.summary.overdue}; доля: ${result.summary.count ? `${result.summary.metric.toFixed(1)} %` : 'нет данных'}; открытая просрочка: ${result.summary.openOverdue}`}</Typography.Paragraph>
         <Table size="small" rowKey={(row) => `${row.key}:${row.period || ''}`} columns={columns} dataSource={result.rows || []} loading={loading} pagination={{ pageSize: 20 }} />
         {template === 'department_load' && result.rows.length > 0 && <Suspense fallback={<Spin />}><DepartmentLoadChart rows={result.rows} /></Suspense>}

@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/buildinfo"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
 	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
@@ -51,31 +51,31 @@ func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisti
 	return s.server.GetDocumentFilterOptions(ctx)
 }
 
-func (s *StatisticsService) GetAssignmentStatistics() (*models.AssignmentStatistics, error) {
+func (s *StatisticsService) GetDeadlineStatistics() (*models.DeadlineStatistics, error) {
 	if s.server == nil {
 		return nil, errStatisticsClientNotConfigured
 	}
 	ctx, cancel := statisticsClientContext()
 	defer cancel()
-	return s.server.GetAssignmentStatistics(ctx)
+	return s.server.GetDeadlineStatistics(ctx)
 }
 
-func (s *StatisticsService) GetAssignmentReport(startDateStr, endDateStr string, onlyOverdue bool, userID string) (*models.AssignmentStatisticsReport, error) {
+func (s *StatisticsService) GetDeadlineReport(startDateStr, endDateStr string, onlyOverdue bool, userID string) (*models.DeadlineStatisticsReport, error) {
 	if s.server == nil {
 		return nil, errStatisticsClientNotConfigured
 	}
 	ctx, cancel := statisticsClientContext()
 	defer cancel()
-	return s.server.GetAssignmentReport(ctx, startDateStr, endDateStr, onlyOverdue, userID)
+	return s.server.GetDeadlineReport(ctx, startDateStr, endDateStr, onlyOverdue, userID)
 }
 
-func (s *StatisticsService) GetAssignmentFilterOptions() (*models.AssignmentStatisticsFilters, error) {
+func (s *StatisticsService) GetDeadlineFilterOptions() (*models.DeadlineStatisticsFilters, error) {
 	if s.server == nil {
 		return nil, errStatisticsClientNotConfigured
 	}
 	ctx, cancel := statisticsClientContext()
 	defer cancel()
-	return s.server.GetAssignmentFilterOptions(ctx)
+	return s.server.GetDeadlineFilterOptions(ctx)
 }
 
 func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, error) {
@@ -97,22 +97,4 @@ func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, err
 	stats.ClientRevision = identity.Revision
 	stats.ClientDirty = identity.Fingerprint != ""
 	return stats, nil
-}
-
-func (s *StatisticsService) GetStorageStatisticsStatus() (*models.StorageStatisticsStatus, error) {
-	if s.server == nil {
-		return nil, errStatisticsClientNotConfigured
-	}
-	ctx, cancel := statisticsClientContext()
-	defer cancel()
-	return s.server.GetStorageStatisticsStatus(ctx)
-}
-
-func (s *StatisticsService) RetryStorageStatisticsRefresh() (*models.StorageStatisticsStatus, error) {
-	if s.server == nil {
-		return nil, errStatisticsClientNotConfigured
-	}
-	ctx, cancel := statisticsClientContext()
-	defer cancel()
-	return s.server.RetryStorageStatisticsRefresh(ctx)
 }

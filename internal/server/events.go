@@ -167,7 +167,7 @@ func operationTerminal(state string) bool {
 // Use the same current-user read policy as HTTP queries.
 type eventDocumentAccess interface {
 	ResolveReadableDocuments([]uuid.UUID) (map[uuid.UUID]*models.Document, error)
-	GetCurrentReadSubjectIDs() ([]uuid.UUID, error)
+	GetCurrentReadUserID() (uuid.UUID, error)
 }
 
 func (api *managementAPI) eventChanges(user *models.User, changes []liveevents.Change) ([]liveevents.Change, error) {
@@ -210,7 +210,7 @@ func (api *managementAPI) readableChanges(user *models.User, changes []liveevent
 	if err != nil && !errors.Is(err, models.ErrForbidden) {
 		return nil, err
 	}
-	subjects, err := access.GetCurrentReadSubjectIDs()
+	userID, err := access.GetCurrentReadUserID()
 	if err != nil {
 		return nil, err
 	}
@@ -218,10 +218,8 @@ func (api *managementAPI) readableChanges(user *models.User, changes []liveevent
 		if change.Resource == "access" {
 			allowed := len(change.Audience) == 0
 			for _, recipient := range change.Audience {
-				for _, subject := range subjects {
-					if recipient == subject {
-						allowed = true
-					}
+				if recipient == userID {
+					allowed = true
 				}
 			}
 			if allowed {
@@ -235,10 +233,8 @@ func (api *managementAPI) readableChanges(user *models.User, changes []liveevent
 		}
 		_, allowed := readable[id]
 		for _, previous := range change.PreviousReaders {
-			for _, subject := range subjects {
-				if previous == subject {
-					allowed = true
-				}
+			if previous == userID {
+				allowed = true
 			}
 		}
 		if allowed {

@@ -30,7 +30,7 @@ func TestDocumentAccessRepository_HasPermission(t *testing.T) {
 		mock.ExpectQuery(`SELECT EXISTS`).
 			WithArgs(
 				string(models.DocumentKindIncomingLetter),
-				string(models.DocumentActionRead),
+				string(models.DocumentActionRegister),
 				"department-1",
 				"user-1",
 			).
@@ -38,7 +38,7 @@ func TestDocumentAccessRepository_HasPermission(t *testing.T) {
 
 		allowed, err := repo.HasPermission(
 			string(models.DocumentKindIncomingLetter),
-			string(models.DocumentActionRead),
+			string(models.DocumentActionRegister),
 			"department-1",
 			"user-1",
 		)
@@ -52,7 +52,7 @@ func TestDocumentAccessRepository_HasPermission(t *testing.T) {
 		mock.ExpectQuery(`SELECT EXISTS`).
 			WithArgs(
 				string(models.DocumentKindIncomingLetter),
-				string(models.DocumentActionRead),
+				string(models.DocumentActionRegister),
 				"",
 				"user-1",
 			).
@@ -60,7 +60,7 @@ func TestDocumentAccessRepository_HasPermission(t *testing.T) {
 
 		allowed, err := repo.HasPermission(
 			string(models.DocumentKindIncomingLetter),
-			string(models.DocumentActionRead),
+			string(models.DocumentActionRegister),
 			"",
 			"user-1",
 		)
@@ -119,8 +119,8 @@ func TestDocumentAccessRepository_GetUserAccessProfile(t *testing.T) {
 		mock.ExpectQuery(`SELECT kind_code, action, is_allowed\s+FROM document_permissions`).
 			WithArgs("user-1").
 			WillReturnRows(sqlmock.NewRows([]string{"kind_code", "action", "is_allowed"}).
-				AddRow(string(models.DocumentKindIncomingLetter), string(models.DocumentActionRead), true).
-				AddRow(string(models.DocumentKindOutgoingLetter), string(models.DocumentActionUpdate), false))
+				AddRow(string(models.DocumentKindIncomingLetter), string(models.DocumentActionRegister), true).
+				AddRow(string(models.DocumentKindOutgoingLetter), string(models.DocumentActionRegister), false))
 
 		profile, err := repo.GetUserAccessProfile("user-1")
 
@@ -131,8 +131,8 @@ func TestDocumentAccessRepository_GetUserAccessProfile(t *testing.T) {
 			{Permission: models.SystemPermissionReferences, IsAllowed: false},
 		}, profile.SystemPermissions)
 		assert.Equal(t, []models.UserDocumentPermissionRule{
-			{KindCode: string(models.DocumentKindIncomingLetter), Action: string(models.DocumentActionRead), IsAllowed: true},
-			{KindCode: string(models.DocumentKindOutgoingLetter), Action: string(models.DocumentActionUpdate), IsAllowed: false},
+			{KindCode: string(models.DocumentKindIncomingLetter), Action: string(models.DocumentActionRegister), IsAllowed: true},
+			{KindCode: string(models.DocumentKindOutgoingLetter), Action: string(models.DocumentActionRegister), IsAllowed: false},
 		}, profile.Permissions)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -174,11 +174,11 @@ func TestDocumentAccessRepository_ReplaceUserAccessProfileSQL(t *testing.T) {
 	t.Run("replaces rules in transaction", func(t *testing.T) {
 		systemPermissions := []models.UserSystemPermissionRule{
 			{Permission: models.SystemPermissionAdmin, IsAllowed: true},
-			{Permission: models.SystemPermissionStatsDocuments, IsAllowed: false},
+			{Permission: models.SystemPermissionReferences, IsAllowed: false},
 		}
 		permissions := []models.UserDocumentPermissionRule{
-			{KindCode: string(models.DocumentKindIncomingLetter), Action: string(models.DocumentActionRead), IsAllowed: true},
-			{KindCode: string(models.DocumentKindOutgoingLetter), Action: string(models.DocumentActionUpdate), IsAllowed: false},
+			{KindCode: string(models.DocumentKindIncomingLetter), Action: string(models.DocumentActionRegister), IsAllowed: true},
+			{KindCode: string(models.DocumentKindOutgoingLetter), Action: string(models.DocumentActionRegister), IsAllowed: false},
 		}
 
 		mock.ExpectBegin()
@@ -189,16 +189,16 @@ func TestDocumentAccessRepository_ReplaceUserAccessProfileSQL(t *testing.T) {
 			WithArgs("user-1", models.SystemPermissionAdmin, true).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`INSERT INTO user_system_permissions`).
-			WithArgs("user-1", models.SystemPermissionStatsDocuments, false).
+			WithArgs("user-1", models.SystemPermissionReferences, false).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`DELETE FROM document_permissions WHERE subject_type = 'user' AND subject_key = \$1`).
 			WithArgs("user-1").
 			WillReturnResult(sqlmock.NewResult(0, 2))
 		mock.ExpectExec(`INSERT INTO document_permissions`).
-			WithArgs(string(models.DocumentKindIncomingLetter), "user-1", string(models.DocumentActionRead), true).
+			WithArgs(string(models.DocumentKindIncomingLetter), "user-1", string(models.DocumentActionRegister), true).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`INSERT INTO document_permissions`).
-			WithArgs(string(models.DocumentKindOutgoingLetter), "user-1", string(models.DocumentActionUpdate), false).
+			WithArgs(string(models.DocumentKindOutgoingLetter), "user-1", string(models.DocumentActionRegister), false).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 

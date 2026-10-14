@@ -1,17 +1,14 @@
 package repository
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
@@ -71,150 +68,6 @@ func TestActiveAdministratorInvariantIntegration(t *testing.T) {
 		t.Fatalf("concurrent administrator deactivation failures=%d, want 1", failures)
 	}
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM users u JOIN user_system_permissions p ON p.user_id = u.id WHERE u.is_active AND p.permission = 'admin' AND p.is_allowed`, nil, 1)
-}
-
-func TestAtomicOutboxWorkflowsIntegration(t *testing.T) {
-	sqlDB := integrationdb.Open(t)
-	db := database.Wrap(sqlDB)
-	userID, documentID := seedIntegrationDocument(t, sqlDB)
-	outbox := NewOutboxRepository(db)
-	assignments := NewAssignmentRepository(db)
-	assignments.SetOutbox(outbox)
-
-	deadline := time.Now().UTC().Add(24 * time.Hour)
-	assignmentID := uuid.New()
-	event := models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "assignment-ok", Payload: `{}`}
-	if _, err := assignments.CreateWithOutbox(assignmentID, documentID, userID, "integration", &deadline, nil, []models.OutboxEvent{event}); err != nil {
-		t.Fatalf("create assignment with outbox: %v", err)
-	}
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM assignments WHERE id = $1`, []any{assignmentID}, 1)
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE deduplication_key = 'assignment-ok'`, nil, 1)
-
-	_, err := assignments.CreateWithOutbox(uuid.New(), documentID, userID, "rollback", &deadline, nil, []models.OutboxEvent{{EventType: models.OutboxEventJournal, DeduplicationKey: "assignment-bad", Payload: "{"}})
-	if err == nil {
-		t.Fatal("invalid JSON outbox payload unexpectedly committed")
-	}
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM assignments WHERE content = 'rollback'`, nil, 0)
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE deduplication_key = 'assignment-bad'`, nil, 0)
-
-	acks := NewAssignmentRepository(db)
-	acks.SetOutbox(outbox)
-	ack := &models.Assignment{ID: uuid.New(), DocumentID: documentID, CreatorID: userID, Content: "read", Users: []models.AssignmentRecipient{{ID: uuid.New(), UserID: userID}}}
-	if err := acks.CreateRecipientTaskWithOutbox(ack, []models.OutboxEvent{{EventType: models.OutboxEventJournal, DeduplicationKey: "ack-ok", Payload: `{}`}}); err != nil {
-		t.Fatalf("create acknowledgment with outbox: %v", err)
-	}
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM assignments WHERE id = $1`, []any{ack.ID}, 1)
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE deduplication_key = 'ack-ok'`, nil, 1)
-}
-
-func TestStorageStatisticsRejectsSnapshotsOverlappingMutationsIntegration(t *testing.T) {
-	sqlDB := integrationdb.Open(t)
-	db := database.Wrap(sqlDB)
-	statistics := NewStatisticsRepository(db)
-	attachments := NewAttachmentRepository(db)
-
-	for _, tc := range []struct {
-		name       string
-		deltaCount int
-		deltaBytes int64
-		wantCount  int
-		wantBytes  int64
-	}{
-		{name: "upload", deltaCount: 1, deltaBytes: 10, wantCount: 11, wantBytes: 110},
-		{name: "delete", deltaCount: -1, deltaBytes: -10, wantCount: 9, wantBytes: 90},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			execSQL(t, sqlDB, `DELETE FROM storage_statistics_mutations`)
-			execSQL(t, sqlDB, `UPDATE storage_statistics SET object_count = 10, total_bytes = 100, refreshed_at = NULL, refresh_token = NULL, refresh_lease_until = NULL, refresh_revision = NULL WHERE id = true`)
-
-			refreshToken := uuid.New()
-			started, err := statistics.TryStartStorageStatisticsRefresh(refreshToken, time.Now().Add(time.Minute))
-			if err != nil || !started {
-				t.Fatalf("start refresh: started=%v err=%v", started, err)
-			}
-
-			mutation, err := attachments.BeginStorageMutation(context.Background())
-			if err != nil {
-				t.Fatalf("begin mutation: %v", err)
-			}
-			execSQL(t, sqlDB, `UPDATE storage_statistics SET object_count = object_count + $1, total_bytes = total_bytes + $2 WHERE id = true`, tc.deltaCount, tc.deltaBytes)
-
-			err = statistics.SaveStorageStatisticsSnapshot(refreshToken, models.StorageStatisticsSnapshot{ObjectCount: 10, TotalBytes: 100, RefreshedAt: time.Now()})
-			if err == nil {
-				t.Fatal("overlapping snapshot was accepted")
-			}
-			if err := mutation.Finish(); err != nil {
-				t.Fatalf("finish mutation: %v", err)
-			}
-
-			assertScalar(t, sqlDB, `SELECT object_count FROM storage_statistics WHERE id = true`, nil, tc.wantCount)
-			assertScalar(t, sqlDB, `SELECT total_bytes FROM storage_statistics WHERE id = true`, nil, int(tc.wantBytes))
-		})
-	}
-}
-
-func TestStorageStatisticsRefreshFailureLifecycleIntegration(t *testing.T) {
-	sqlDB := integrationdb.Open(t)
-	statistics := NewStatisticsRepository(database.Wrap(sqlDB))
-	token := uuid.New()
-
-	started, err := statistics.TryStartStorageStatisticsRefresh(token, time.Now().Add(time.Minute))
-	if err != nil || !started {
-		t.Fatalf("start refresh: started=%v err=%v", started, err)
-	}
-	if err := statistics.FailStorageStatisticsRefresh(token, "storage unavailable"); err != nil {
-		t.Fatalf("record refresh failure: %v", err)
-	}
-	record, err := statistics.GetStorageStatisticsRefreshRecord()
-	if err != nil {
-		t.Fatalf("get failed refresh state: %v", err)
-	}
-	if record.RefreshActive || record.LastError != "storage unavailable" {
-		t.Fatalf("unexpected failed refresh state: %+v", record)
-	}
-	if err := statistics.ClearStorageStatisticsRefreshError(); err != nil {
-		t.Fatalf("clear refresh failure: %v", err)
-	}
-	record, err = statistics.GetStorageStatisticsRefreshRecord()
-	if err != nil || record.LastError != "" {
-		t.Fatalf("unexpected cleared refresh state: record=%+v err=%v", record, err)
-	}
-
-}
-
-func TestAttachmentDeletionSagaIntegration(t *testing.T) {
-	sqlDB := integrationdb.Open(t)
-	db := database.Wrap(sqlDB)
-	userID, documentID := seedIntegrationDocument(t, sqlDB)
-	outbox := NewOutboxRepository(db)
-	attachments := NewAttachmentRepository(db)
-	attachments.SetOutbox(outbox)
-	attachment := &models.Attachment{DocumentID: documentID, Filename: "report.pdf", StoragePath: "integration/report.pdf", FileSize: 4, ContentType: "application/pdf", UploadedBy: userID}
-	if err := attachments.CreateWithOutbox(attachment, []models.OutboxEvent{{EventType: models.OutboxEventJournal, DeduplicationKey: "attachment-create", Payload: `{}`}}); err != nil {
-		t.Fatalf("create attachment: %v", err)
-	}
-	if visible, err := attachments.GetByID(attachment.ID); err != nil || visible == nil {
-		t.Fatalf("created attachment is unavailable: attachment=%+v, err=%v", visible, err)
-	}
-	if err := attachments.MarkDeletingWithEffects(*attachment, nil); err != nil {
-		t.Fatalf("mark deleting: %v", err)
-	}
-	// GetByID represents an absent (including deleting) attachment as nil, nil.
-	if visible, err := attachments.GetByID(attachment.ID); err != nil || visible != nil {
-		t.Fatalf("tombstone lookup: attachment=%+v, err=%v", visible, err)
-	}
-	if visible, err := attachments.GetByDocumentID(documentID); err != nil || len(visible) != 0 {
-		t.Fatalf("tombstone in document list: attachments=%+v, err=%v", visible, err)
-	}
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM attachments WHERE id = $1 AND deletion_requested_at IS NOT NULL`, []any{attachment.ID}, 1)
-	if err := attachments.MarkDeletingWithEffects(*attachment, nil); err != nil {
-		t.Fatalf("retry marking deletion: %v", err)
-	}
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM event_outbox WHERE deduplication_key = $1`, []any{"attachment:" + attachment.ID.String() + ":delete"}, 1)
-	if err := attachments.DeleteMarkedAndDecrementStorageStatistics(attachment.ID); err != nil {
-		t.Fatalf("delete marked metadata: %v", err)
-	}
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM attachments WHERE id = $1`, []any{attachment.ID}, 0)
 }
 
 func seedIntegrationDocument(t *testing.T, db *sql.DB) (uuid.UUID, uuid.UUID) {

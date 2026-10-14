@@ -18,9 +18,12 @@ const (
 )
 
 // Calendar dates use ISO strings, independently of the client or database zone.
-func OrganizationToday(now time.Time) string {
+func OrganizationLocation() *time.Location {
 	location, _ := time.LoadLocation(OrganizationTimezone)
-	return now.In(location).Format(time.DateOnly)
+	return location
+}
+func OrganizationToday(now time.Time) string {
+	return now.In(OrganizationLocation()).Format(time.DateOnly)
 }
 
 func ParseDeadlineDate(value string) (time.Time, error) {

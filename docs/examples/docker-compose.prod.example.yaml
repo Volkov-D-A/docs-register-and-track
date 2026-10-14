@@ -20,25 +20,6 @@ services:
       retries: 12
       start_period: 10s
     restart: unless-stopped
-  seaweedfs:
-    image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION:-4.46}
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "3", "http://127.0.0.1:8333/healthz"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    environment:
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_key
-    volumes:
-      # mini stores both filer/master metadata and volume data below /data.
-      - seaweedfs_data:/data
-      - ./scripts/seaweedfs-entrypoint.sh:/usr/local/bin/docflow-entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/usr/local/bin/docflow-entrypoint.sh"]
-    command: ["mini", "-dir=/data", "-s3.port=8333"]
-    secrets: [s3_secret_key]
-    restart: unless-stopped
   seq:
     image: datalust/seq:${SEQ_VERSION}
     container_name: ${DOCFLOW_SEQ_CONTAINER_NAME:-docflow_seq}
@@ -55,7 +36,7 @@ services:
     image: hehelf/docflow-service:${DOCFLOW_SERVER_IMAGE_TAG:-latest}
     pull_policy: always
     container_name: ${DOCFLOW_SERVER_CONTAINER_NAME:-docflow_server}
-    secrets: [postgres_password, s3_secret_key, settings_key]
+    secrets: [postgres_password, settings_key]
     volumes:
       - backup_staging:/var/lib/docflow/backups
     environment:
@@ -65,11 +46,6 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
-      S3_ENDPOINT: http://seaweedfs:8333
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_key
-      S3_USE_SSL: ${S3_USE_SSL:-false}
-      S3_BUCKET: ${S3_BUCKET}
       SEQ_URL: http://seq:80
       SEQ_ENABLED: ${SEQ_ENABLED:-true}
       DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS: ${DOCFLOW_OUTBOX_POLLING_INTERVAL_SECONDS:-5}
@@ -85,8 +61,6 @@ services:
       DOCFLOW_AUTH_SESSION_TTL_HOURS: ${DOCFLOW_AUTH_SESSION_TTL_HOURS:-12}
     depends_on:
       postgres:
-        condition: service_healthy
-      seaweedfs:
         condition: service_healthy
       seq:
         condition: service_started
@@ -109,7 +83,6 @@ services:
     restart: unless-stopped
 volumes:
   pgdata:
-  seaweedfs_data:
   seq_data:
   backup_staging:
 
@@ -124,7 +97,5 @@ secrets:
     file: ${POSTGRES_PASSWORD_FILE_PATH:?Set POSTGRES_PASSWORD_FILE_PATH}
   seq_admin_password:
     file: ${SEQ_ADMIN_PASSWORD_FILE_PATH:?Set SEQ_ADMIN_PASSWORD_FILE_PATH}
-  s3_secret_key:
-    file: ${S3_SECRET_KEY_FILE_PATH:?Set S3_SECRET_KEY_FILE_PATH}
   settings_key:
     file: ${DOCFLOW_SETTINGS_KEY_PATH:?Set DOCFLOW_SETTINGS_KEY_PATH}

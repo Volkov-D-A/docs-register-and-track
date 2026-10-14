@@ -18,7 +18,7 @@ func TestDocumentSearchIntegration(t *testing.T) {
 	repo := NewDocumentRepository(database.Wrap(db))
 	scopes := map[models.DocumentKind]models.DocumentAccessScope{}
 	for _, spec := range models.AllDocumentKindSpecs() {
-		scopes[spec.Code] = models.DocumentAccessScope{Restricted: true, UserID: user.String()}
+		scopes[spec.Code] = models.DocumentAccessScope{UserID: user.String()}
 		execSQL(t, db, `INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES($1,'user',$2,'register')`, spec.Code, user.String())
 	}
 	noms := map[uuid.UUID]uuid.UUID{}
@@ -85,7 +85,7 @@ func TestDocumentSearchIntegration(t *testing.T) {
 	execSQL(t, db, `INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES('citizen_appeal','user',$1,'control_deadlines')`, reader.String())
 	restricted := map[models.DocumentKind]models.DocumentAccessScope{}
 	for _, spec := range models.AllDocumentKindSpecs() {
-		restricted[spec.Code] = models.DocumentAccessScope{Restricted: true, UserID: reader.String()}
+		restricted[spec.Code] = models.DocumentAccessScope{UserID: reader.String()}
 	}
 	result = search("ремонт", 1, 1, restricted)
 	require.Equal(t, []string{appeal.String()}, ids(result))

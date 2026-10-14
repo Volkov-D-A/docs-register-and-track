@@ -138,7 +138,7 @@ func TestServerRepeatedLockoutsAuditIntegration(t *testing.T) {
 		require.Equal(t, 6, attempts)
 		require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM event_outbox WHERE event_type=$1 AND payload->>'UserID'=$2 AND payload->>'Action'='USER_LOCKED'`, models.OutboxEventAudit, id.String()).Scan(&count))
 		require.Equal(t, cycle+1, count, "only one event per lock, including after reactivation")
-		worker := outbox.NewWorker(repository.NewOutboxRepository(db), nil, nil, repository.NewAdminAuditLogRepository(db), nil, nil)
+		worker := outbox.NewWorker(repository.NewOutboxRepository(db), nil, nil, repository.NewAdminAuditLogRepository(db))
 		require.NoError(t, worker.ProcessOnce())
 		require.NoError(t, db.QueryRow(`SELECT COUNT(DISTINCT id) FROM admin_audit_log WHERE user_id=$1 AND action='USER_LOCKED'`, id).Scan(&count))
 		require.Equal(t, cycle+1, count)

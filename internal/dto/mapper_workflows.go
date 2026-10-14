@@ -12,69 +12,6 @@ func MapDocumentLink(m *models.DocumentLink) *DocumentLink {
 	return &DocumentLink{ID: m.ID.String(), SourceKind: string(m.SourceKind), SourceID: m.SourceID.String(), TargetKind: string(m.TargetKind), LinkType: m.LinkType, SourceNumber: m.SourceNumber, TargetNumber: m.TargetNumber, SourceSubject: m.SourceSubject, TargetSubject: m.TargetSubject}
 }
 
-func MapAttachment(m *models.Attachment) *Attachment {
-	if m == nil {
-		return nil
-	}
-	return &Attachment{ID: m.ID.String(), Filename: m.Filename, FileSize: m.FileSize, UploadedByName: m.UploadedByName, UploadedAt: m.UploadedAt}
-}
-
-func MapAssignment(m *models.Assignment) *Assignment {
-	if m == nil {
-		return nil
-	}
-	var coExecutors []User
-	if m.CoExecutors != nil {
-		coExecutors = make([]User, len(m.CoExecutors))
-		for i, executor := range m.CoExecutors {
-			if mapped := MapUser(&executor); mapped != nil {
-				coExecutors[i] = *mapped
-			}
-		}
-	}
-	seriesID := ""
-	if m.SeriesID != nil {
-		seriesID = m.SeriesID.String()
-	}
-	users := make([]AssignmentRecipient, len(m.Users))
-	for i := range m.Users {
-		users[i] = *MapAssignmentRecipient(&m.Users[i])
-	}
-	content := m.Content
-	if m.Type == models.AssignmentTypeAcknowledgment {
-		content = ""
-	}
-	return &Assignment{Type: m.Type, CreatorID: uuidString(m.CreatorID), CreatorName: m.CreatorName, Users: users, ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, ExecutorID: uuidString(m.ExecutorID), ExecutorName: m.ExecutorName, Content: content, Deadline: m.Deadline, Status: m.Status, Report: m.Report, CompletedAt: m.CompletedAt, SeriesID: seriesID, IterationNumber: m.IterationNumber, PlannedDeadline: m.PlannedDeadline, DocumentNumber: m.DocumentNumber, DocumentSubject: m.DocumentSubject, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
-}
-
-func MapAssignmentSeries(m *models.AssignmentSeries) *AssignmentSeries {
-	if m == nil {
-		return nil
-	}
-	coExecutors := make([]User, 0, len(m.CoExecutors))
-	for i := range m.CoExecutors {
-		if mapped := MapUser(&m.CoExecutors[i]); mapped != nil {
-			coExecutors = append(coExecutors, *mapped)
-		}
-	}
-	currentID := ""
-	if m.CurrentAssignmentID != nil {
-		currentID = m.CurrentAssignmentID.String()
-	}
-	return &AssignmentSeries{ID: m.ID.String(), DocumentID: m.DocumentID.String(), DocumentKind: m.DocumentKind, DocumentNumber: m.DocumentNumber, ExecutorID: m.ExecutorID.String(), ExecutorName: m.ExecutorName, Content: m.Content, IntervalUnit: m.IntervalUnit, IntervalValue: m.IntervalValue, DayRule: m.DayRule, DayOfMonth: m.DayOfMonth, CurrentAssignmentID: currentID, CurrentIteration: m.CurrentIteration, Active: m.Active, CancelledAt: m.CancelledAt, CoExecutors: coExecutors, CoExecutorIDs: m.CoExecutorIDs, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
-}
-
-func MapAssignmentRecipient(m *models.AssignmentRecipient) *AssignmentRecipient {
-	if m == nil {
-		return nil
-	}
-	confirmedBy := ""
-	if m.ConfirmedBy != nil {
-		confirmedBy = m.ConfirmedBy.String()
-	}
-	return &AssignmentRecipient{ConfirmedBy: confirmedBy, UserID: m.UserID.String(), UserName: m.UserName, ConfirmedAt: m.ConfirmedAt}
-}
-
 func MapDocumentLinks(m []models.DocumentLink) []DocumentLink {
 	if m == nil {
 		return nil
@@ -82,30 +19,6 @@ func MapDocumentLinks(m []models.DocumentLink) []DocumentLink {
 	res := make([]DocumentLink, len(m))
 	for i, item := range m {
 		if mapped := MapDocumentLink(&item); mapped != nil {
-			res[i] = *mapped
-		}
-	}
-	return res
-}
-func MapAttachments(m []models.Attachment) []Attachment {
-	if m == nil {
-		return nil
-	}
-	res := make([]Attachment, len(m))
-	for i, item := range m {
-		if mapped := MapAttachment(&item); mapped != nil {
-			res[i] = *mapped
-		}
-	}
-	return res
-}
-func MapAssignments(m []models.Assignment) []Assignment {
-	if m == nil {
-		return nil
-	}
-	res := make([]Assignment, len(m))
-	for i, item := range m {
-		if mapped := MapAssignment(&item); mapped != nil {
 			res[i] = *mapped
 		}
 	}

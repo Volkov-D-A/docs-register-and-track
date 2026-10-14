@@ -14,13 +14,10 @@ mkdir -p "$evidence"
 export POSTGRES_VERSION=${POSTGRES_VERSION:-18.3}
 export SEQ_VERSION=${SEQ_VERSION:-2025.2.16020-x64}
 export CADDY_VERSION=${CADDY_VERSION:-2.11.4-alpine}
-export SEAWEEDFS_VERSION=${SEAWEEDFS_VERSION:-4.46}
 export POSTGRES_USER=docflow_integration POSTGRES_DB=docflow_test_prod_smoke
-export S3_ACCESS_KEY_ID=docflow_integration S3_BUCKET=docflow-test-prod-smoke
 export SEQ_ENABLED=false
 export POSTGRES_PASSWORD_FILE_PATH="$stage/postgres-password"
 export SEQ_ADMIN_PASSWORD_FILE_PATH="$stage/seq-password"
-export S3_SECRET_KEY_FILE_PATH="$stage/s3-secret"
 export DOCFLOW_SETTINGS_KEY_PATH="$stage/settings-key"
 export DOCFLOW_CADDYFILE_PATH="$stage/Caddyfile"
 export DOCFLOW_HTTPS_BIND=127.0.0.1:58443
@@ -36,7 +33,6 @@ DOCFLOW_SMOKE_BUILD_IDENTITY=$(DOCFLOW_LOCAL_BUILD=1 GOCACHE="${GOCACHE:-/tmp/go
 
 printf '%s\n' docflow_integration > "$POSTGRES_PASSWORD_FILE_PATH"
 printf '%s\n' integration-seq-password > "$SEQ_ADMIN_PASSWORD_FILE_PATH"
-printf '%s\n' docflow_integration_secret > "$S3_SECRET_KEY_FILE_PATH"
 python3 -c 'import base64; print(base64.b64encode(bytes(range(32))).decode())' > "$DOCFLOW_SETTINGS_KEY_PATH"
 cat > "$DOCFLOW_CADDYFILE_PATH" <<'CADDY'
 https://localhost {
@@ -66,13 +62,8 @@ export GOCACHE=${GOCACHE:-/tmp/go-build-cache}
 
 curl --fail --silent --show-error --insecure --resolve localhost:58443:127.0.0.1 \
   https://localhost:58443/api/v1/system/status > "$evidence/caddy-status.json"
-go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v > "$evidence/seed.log"
-"${compose[@]}" restart seaweedfs
-"${compose[@]}" up -d --no-deps --wait --wait-timeout 120 seaweedfs
-"${compose[@]}" up -d --no-deps --force-recreate seaweedfs
-"${compose[@]}" up -d --no-deps --wait --wait-timeout 120 seaweedfs
-DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v > "$evidence/storage-recreate.log"
+go test ./internal/server -run '^TestBuiltServerControlsIntegration$' -count=1 -v > "$evidence/seed.log"
 "${compose[@]}" restart docflow-server
 "${compose[@]}" up -d --no-deps --wait --wait-timeout 120 docflow-server
-DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerAttachmentsIntegration$' -count=1 -v > "$evidence/server-restart.log"
-printf 'PASS: production Compose starts and preserves attachments across storage and server restarts.\n'
+DOCFLOW_SMOKE_VERIFY=1 go test ./internal/server -run '^TestBuiltServerControlsIntegration$' -count=1 -v > "$evidence/server-restart.log"
+printf 'PASS: production Compose starts and preserves deadline controls across server restarts.\n'

@@ -39,7 +39,7 @@ func TestCatalogIndependentOfHistoryAndHonestAboutVerification(t *testing.T) {
 	dir := t.TempDir()
 	id, missing, orphan, mismatch := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
 	for _, key := range []string{id, missing, mismatch} {
-		raw, err := json.Marshal(RemoteCopy{ID: key, Format: 3, Size: 3, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()})
+		raw, err := json.Marshal(RemoteCopy{ID: key, Format: ArchiveFormat, Size: 3, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()})
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(dir, markerName(key)), raw, 0600))
 	}
@@ -67,7 +67,7 @@ func TestCopyIdentifiersAndManifest(t *testing.T) {
 		require.False(t, validCopyID(id), id)
 	}
 	id := uuid.NewString()
-	marker := RemoteCopy{ID: id, Format: 3, Size: 42, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()}
+	marker := RemoteCopy{ID: id, Format: ArchiveFormat, Size: 42, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()}
 	raw, err := json.Marshal(marker)
 	require.NoError(t, err)
 	parsed, err := parseCopyMarker(id, raw)
@@ -103,4 +103,28 @@ func TestCatalogUnavailableAndCancelled(t *testing.T) {
 	cancel()
 	_, err = Catalog(ctx, catalogFiles(dir))
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestCatalogKeepsLegacyCopiesIncompatibleIncludingPendingDeletion(t *testing.T) {
+	for _, pendingDeletion := range []bool{false, true} {
+		dir := t.TempDir()
+		id := uuid.NewString()
+		marker := RemoteCopy{ID: id, Format: 3, Size: 3, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()}
+		raw, err := json.Marshal(marker)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, markerName(id)), raw, 0600))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, id+".tar.gz"), []byte("old"), 0600))
+		if pendingDeletion {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, id+".delete.json"), raw, 0600))
+		}
+		copies, err := Catalog(context.Background(), catalogFiles(dir))
+		require.NoError(t, err)
+		require.Len(t, copies, 1)
+		require.Equal(t, 3, copies[0].Format)
+		require.Equal(t, "incompatible", copies[0].Verification)
+		require.False(t, copies[0].CanDelete)
+		require.Empty(t, copies[0].RestoreConfirmation)
+		require.Empty(t, copies[0].DeleteConfirmation)
+		require.FileExists(t, filepath.Join(dir, id+".tar.gz"))
+	}
 }

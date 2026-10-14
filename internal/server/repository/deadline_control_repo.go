@@ -27,7 +27,7 @@ func NewDeadlineControlRepository(db *database.DB, outbox *OutboxRepository) *De
 }
 
 // Every seed must refer to the authenticated, active user. UNION terminates cycles
-// and deduplicates multiple assignment and link paths before any aggregate/limit.
+// and deduplicates multiple executor and link paths before any aggregate/limit.
 func visibleDocumentClosure(user string) string {
 	return `WITH RECURSIVE visible(id) AS (
  SELECT d.id FROM documents d JOIN users u ON u.id=` + user + ` AND u.is_active

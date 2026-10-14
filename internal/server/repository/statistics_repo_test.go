@@ -11,7 +11,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
-	"github.com/google/uuid"
 )
 
 func setupStatisticsRepository(t *testing.T) (*StatisticsRepository, sqlmock.Sqlmock, func()) {
@@ -202,7 +201,7 @@ func TestStatisticsRepository_Options(t *testing.T) {
 	})
 }
 
-func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
+func TestStatisticsRepository_DeadlineStatistics(t *testing.T) {
 	repo, mock, cleanup := setupStatisticsRepository(t)
 	defer cleanup()
 
@@ -216,10 +215,10 @@ func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
 				AddRow(1, 10, 2).
 				AddRow(2, 4, 1))
 
-		points, err := repo.GetAssignmentMonthlyOverview(start, end)
+		points, err := repo.GetDeadlineMonthlyOverview(start, end)
 
 		require.NoError(t, err)
-		assert.Equal(t, []models.AssignmentMonthlyPoint{
+		assert.Equal(t, []models.DeadlineMonthlyPoint{
 			{Month: 1, Total: 10, Overdue: 2},
 			{Month: 2, Total: 4, Overdue: 1},
 		}, points)
@@ -227,12 +226,12 @@ func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
 	})
 
 	t.Run("monthly by executor", func(t *testing.T) {
-		mock.ExpectQuery(`EXTRACT\(MONTH FROM a\.created_at\)::int AS month`).
+		mock.ExpectQuery(`EXTRACT\(MONTH FROM a\.created_at AT TIME ZONE 'Asia/Yekaterinburg'\)::int AS month`).
 			WithArgs(start, end).
 			WillReturnRows(sqlmock.NewRows([]string{"month", "executor_id", "user_name", "count"}).
 				AddRow(3, "user-1", "Исполнитель", 8))
 
-		points, err := repo.GetAssignmentMonthlyByExecutor(start, end)
+		points, err := repo.GetDeadlineMonthlyByExecutor(start, end)
 
 		require.NoError(t, err)
 		assert.Equal(t, []models.StatisticsSeriesPoint{{
@@ -247,7 +246,7 @@ func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"key", "name", "count"}).
 				AddRow("user-1", "Исполнитель", 2))
 
-		rows, err := repo.GetAssignmentOverdueRating(start, end)
+		rows, err := repo.GetDeadlineOverdueRating(start, end)
 
 		require.NoError(t, err)
 		assert.Equal(t, []models.StatisticsReportRow{{Key: "user-1", Name: "Исполнитель", Count: 2}}, rows)
@@ -255,11 +254,11 @@ func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
 	})
 
 	t.Run("status counts", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT status AS key, status AS name, COUNT\(\*\) AS count\s+FROM assignments`).
+		mock.ExpectQuery(`SELECT status AS key, status AS name, COUNT\(\*\) AS count\s+FROM document_deadline_controls`).
 			WillReturnRows(sqlmock.NewRows([]string{"key", "name", "count"}).
 				AddRow("completed", "completed", 5))
 
-		rows, err := repo.GetAssignmentStatusCounts()
+		rows, err := repo.GetDeadlineStatusCounts()
 
 		require.NoError(t, err)
 		assert.Equal(t, []models.StatisticsReportRow{{Key: "completed", Name: "completed", Count: 5}}, rows)
@@ -268,12 +267,12 @@ func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
 
 	t.Run("report only overdue with user filter", func(t *testing.T) {
 		userID := "34d2412c-3784-4e6a-9279-5b8bccf4a7e0"
-		mock.ExpectQuery(`WHERE\s+.*a\.deadline IS NOT NULL.*a\.executor_id = \$3::uuid`).
+		mock.ExpectQuery(`WHERE\s+.*a\.executed_on > a\.due_date.*a\.executor_id = \$3::uuid`).
 			WithArgs(start, end, userID).
 			WillReturnRows(sqlmock.NewRows([]string{"key", "name", "count"}).
 				AddRow(userID, "Исполнитель", 3))
 
-		rows, err := repo.GetAssignmentReport(start, end, true, userID)
+		rows, err := repo.GetDeadlineReport(start, end, true, userID)
 
 		require.NoError(t, err)
 		assert.Equal(t, []models.StatisticsReportRow{{Key: userID, Name: "Исполнитель", Count: 3}}, rows)
@@ -281,12 +280,12 @@ func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
 	})
 
 	t.Run("report non-overdue", func(t *testing.T) {
-		mock.ExpectQuery(`a\.created_at::date >= \$1::date`).
+		mock.ExpectQuery(`a\.due_date >= \$1::date`).
 			WithArgs(start, end).
 			WillReturnRows(sqlmock.NewRows([]string{"key", "name", "count"}).
 				AddRow("user-2", "Исполнитель 2", 4))
 
-		rows, err := repo.GetAssignmentReport(start, end, false, "")
+		rows, err := repo.GetDeadlineReport(start, end, false, "")
 
 		require.NoError(t, err)
 		assert.Equal(t, []models.StatisticsReportRow{{Key: "user-2", Name: "Исполнитель 2", Count: 4}}, rows)
@@ -294,11 +293,11 @@ func TestStatisticsRepository_AssignmentStatistics(t *testing.T) {
 	})
 
 	t.Run("status scan error", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT status AS key, status AS name, COUNT\(\*\) AS count\s+FROM assignments`).
+		mock.ExpectQuery(`SELECT status AS key, status AS name, COUNT\(\*\) AS count\s+FROM document_deadline_controls`).
 			WillReturnRows(sqlmock.NewRows([]string{"key", "name", "count"}).
 				AddRow("completed", "completed", "not-a-count"))
 
-		rows, err := repo.GetAssignmentStatusCounts()
+		rows, err := repo.GetDeadlineStatusCounts()
 
 		require.Error(t, err)
 		assert.Nil(t, rows)
@@ -330,93 +329,5 @@ func TestStatisticsRepository_SystemCountsAndDBSize(t *testing.T) {
 		WillReturnError(sql.ErrConnDone)
 	assert.Equal(t, "Нет данных", repo.GetDBSize())
 
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestStatisticsRepositoryStorageRefreshUsesMutationRevision(t *testing.T) {
-	repo, mock, cleanup := setupStatisticsRepository(t)
-	defer cleanup()
-
-	token := uuid.New()
-	leaseUntil := time.Now().Add(time.Minute)
-	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT mutation_revision`).
-		WillReturnRows(sqlmock.NewRows([]string{"mutation_revision", "refresh_active"}).AddRow(int64(7), false))
-	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE lease_until < CURRENT_TIMESTAMP`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery(`SELECT EXISTS \(SELECT 1 FROM storage_statistics_mutations\)`).
-		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
-	mock.ExpectExec(`UPDATE storage_statistics`).
-		WithArgs(token, leaseUntil, int64(7)).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectCommit()
-
-	started, err := repo.TryStartStorageStatisticsRefresh(token, leaseUntil)
-	require.NoError(t, err)
-	require.True(t, started)
-
-	snapshot := models.StorageStatisticsSnapshot{ObjectCount: 4, TotalBytes: 40, RefreshedAt: time.Now()}
-	mock.ExpectExec(`refresh_revision = mutation_revision`).
-		WithArgs(snapshot.ObjectCount, snapshot.TotalBytes, snapshot.RefreshedAt, token).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-
-	err = repo.SaveStorageStatisticsSnapshot(token, snapshot)
-	require.ErrorContains(t, err, "refresh lease was lost")
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestStatisticsRepositoryStorageRefreshWaitsForActiveMutation(t *testing.T) {
-	repo, mock, cleanup := setupStatisticsRepository(t)
-	defer cleanup()
-
-	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT mutation_revision`).
-		WillReturnRows(sqlmock.NewRows([]string{"mutation_revision", "refresh_active"}).AddRow(int64(8), false))
-	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE lease_until < CURRENT_TIMESTAMP`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery(`SELECT EXISTS \(SELECT 1 FROM storage_statistics_mutations\)`).
-		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
-	mock.ExpectCommit()
-
-	started, err := repo.TryStartStorageStatisticsRefresh(uuid.New(), time.Now().Add(time.Minute))
-	require.NoError(t, err)
-	require.False(t, started)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestStatisticsRepositoryStorageRefreshRecord(t *testing.T) {
-	repo, mock, cleanup := setupStatisticsRepository(t)
-	defer cleanup()
-
-	refreshedAt := time.Now().Add(-time.Hour)
-	mock.ExpectQuery(`SELECT s.object_count, s.total_bytes, s.refreshed_at`).
-		WillReturnRows(sqlmock.NewRows([]string{
-			"object_count", "total_bytes", "refreshed_at", "refresh_active", "mutation_active", "last_error",
-		}).AddRow(4, int64(4096), refreshedAt, false, true, "refresh failed"))
-
-	record, err := repo.GetStorageStatisticsRefreshRecord()
-	require.NoError(t, err)
-	assert.Equal(t, 4, record.Snapshot.ObjectCount)
-	assert.Equal(t, int64(4096), record.Snapshot.TotalBytes)
-	assert.Equal(t, refreshedAt, record.Snapshot.RefreshedAt)
-	assert.False(t, record.RefreshActive)
-	assert.True(t, record.MutationActive)
-	assert.Equal(t, "refresh failed", record.LastError)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestStatisticsRepositoryRecordsAndClearsRefreshFailure(t *testing.T) {
-	repo, mock, cleanup := setupStatisticsRepository(t)
-	defer cleanup()
-
-	token := uuid.New()
-	mock.ExpectExec(`refresh_last_error = \$2`).
-		WithArgs(token, "failed").
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	require.NoError(t, repo.FailStorageStatisticsRefresh(token, "failed"))
-
-	mock.ExpectExec(`SET refresh_last_error = NULL`).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	require.NoError(t, repo.ClearStorageStatisticsRefreshError())
 	require.NoError(t, mock.ExpectationsWereMet())
 }

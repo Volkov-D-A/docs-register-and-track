@@ -3,16 +3,6 @@ package models
 // DocumentKindAction описывает системное действие над документом.
 type DocumentKindAction string
 
-const (
-	DocumentActionCreate      DocumentKindAction = "create"
-	DocumentActionRead        DocumentKindAction = "read"
-	DocumentActionUpdate      DocumentKindAction = "update"
-	DocumentActionAssign      DocumentKindAction = "assign"
-	DocumentActionUpload      DocumentKindAction = "upload"
-	DocumentActionLink        DocumentKindAction = "link"
-	DocumentActionViewJournal DocumentKindAction = "view_journal"
-)
-
 // DocumentKindSpec описывает системный вид документа и его метаданные.
 type DocumentKindSpec struct {
 	Code             DocumentKind         `json:"code"`

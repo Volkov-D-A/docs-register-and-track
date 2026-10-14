@@ -10,24 +10,17 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-func TestRegistrationLinkRequiresAccessToBothDocuments(t *testing.T) {
-	for _, missing := range []string{"none", "existing read", "existing link", "new read", "new link"} {
+func TestRegistrationLinkRequiresExistingReadAndNewRegistration(t *testing.T) {
+	for _, missing := range []string{"none", "existing read", "new registration"} {
 		t.Run(missing, func(t *testing.T) {
-			allowed := allowDocumentActions(models.DocumentKindIncomingLetter, "read", "link")
-			addDocumentActions(allowed, models.DocumentKindOutgoingLetter, "create", "read", "link")
-			switch missing {
-			case "existing read":
-				delete(allowed[models.DocumentKindIncomingLetter], "read")
-			case "existing link":
-				delete(allowed[models.DocumentKindIncomingLetter], "link")
-			case "new read":
-				delete(allowed[models.DocumentKindOutgoingLetter], "read")
-			case "new link":
-				delete(allowed[models.DocumentKindOutgoingLetter], "link")
+			allowed := allowDocumentActions(models.DocumentKindOutgoingLetter, "register")
+			if missing == "new registration" {
+				delete(allowed[models.DocumentKindOutgoingLetter], "register")
 			}
 			deps := setupDocumentAccessService(t, documentAccessUser(false, nil), allowed)
 			id := uuid.New()
 			deps.docRepo.docs[id] = documentAccessDoc(id, uuid.New(), models.DocumentKindIncomingLetter)
+			deps.accessRepo.readable[id] = missing != "existing read"
 			link, err := buildRegistrationLink(deps.service, models.DocumentKindOutgoingLetter, uuid.New(), &dto.DocumentRegistrationLinkRequest{DocumentID: id.String(), LinkType: "reply"})
 			if missing == "none" {
 				require.NoError(t, err)
@@ -41,10 +34,11 @@ func TestRegistrationLinkRequiresAccessToBothDocuments(t *testing.T) {
 }
 
 func TestRegistrationLinkRejectsInvalidTypeAndOrderEndpoints(t *testing.T) {
-	allowed := allowDocumentActions(models.DocumentKindIncomingLetter, "read", "link")
-	addDocumentActions(allowed, models.DocumentKindAdministrativeOrder, "create", "read", "link")
+	allowed := allowDocumentActions(models.DocumentKindIncomingLetter, "register")
+	addDocumentActions(allowed, models.DocumentKindAdministrativeOrder, "register")
 	deps := setupDocumentAccessService(t, documentAccessUser(false, nil), allowed)
 	id := uuid.New()
+	deps.accessRepo.readable[id] = true
 	deps.docRepo.docs[id] = documentAccessDoc(id, uuid.New(), models.DocumentKindIncomingLetter)
 	for _, linkType := range []string{"", "unknown", "order_amends", "order_cancels"} {
 		_, err := buildRegistrationLink(deps.service, models.DocumentKindAdministrativeOrder, uuid.New(), &dto.DocumentRegistrationLinkRequest{DocumentID: id.String(), LinkType: linkType})

@@ -80,11 +80,11 @@ export default function BackupCatalog({ copies, loading, onChanged }: { copies: 
         { title: 'Формат', dataIndex: 'format', render: value => `v${value}` },
         { title: 'Дата копии', dataIndex: 'createdAt', render: value => new Date(value).toLocaleString() },
         { title: 'Размер архива', dataIndex: 'size', render: value => `${(value / 1024 / 1024).toFixed(1)} МБ` },
-        { title: 'Проверка', dataIndex: 'verification', render: value => ({ incomplete: 'Неполный комплект', deleting: 'Удаление не завершено', verified: 'Проверен' }[String(value)] ?? 'Архив не проверен') },
+        { title: 'Проверка', dataIndex: 'verification', render: value => ({ incompatible: 'Несовместимый формат', incomplete: 'Неполный комплект', deleting: 'Удаление не завершено', verified: 'Проверен' }[String(value)] ?? 'Архив не проверен') },
         { title: 'Примечание', dataIndex: 'issue' },
         { title: 'Действия', render: (_, copy: models.BackupCopy) => <Space size={4} wrap>
-          <Button disabled={running || ['incomplete', 'deleting'].includes(copy.verification)} onClick={() => select(copy, 'verify')}>Проверить</Button>
-          <Button disabled={running || ['incomplete', 'deleting'].includes(copy.verification)} onClick={() => select(copy, 'restore')}>Восстановить</Button>
+          <Button disabled={running || ['incomplete', 'deleting', 'incompatible'].includes(copy.verification)} onClick={() => select(copy, 'verify')}>Проверить</Button>
+          <Button disabled={running || ['incomplete', 'deleting', 'incompatible'].includes(copy.verification)} onClick={() => select(copy, 'restore')}>Восстановить</Button>
           <Button danger disabled={running || !copy.canDelete} onClick={() => select(copy, 'delete')}>Удалить</Button>
         </Space> },
       ]} />

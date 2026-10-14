@@ -379,49 +379,7 @@ func TestDatabaseConstraintsIntegration(t *testing.T) {
 		) VALUES ('outgoing_letter', $1, '04-04/2', DATE '2026-05-28', $2, 'missing idempotency', 1, $3)
 	`, nomID, models.DocumentTypeLetter, userID)
 	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM documents WHERE created_by = $1 AND idempotency_key IS NOT NULL`, []any{userID}, 2)
-	expectExecError(t, sqlDB, `
-		INSERT INTO assignments (document_id, executor_id, content)
-		VALUES ($1, $2, 'invalid document')
-	`, uuid.New(), userID)
-	expectExecError(t, sqlDB, `
-		INSERT INTO assignments (document_id, executor_id, content)
-		VALUES ($1, $2, 'invalid executor')
-	`, docID, uuid.New())
-	expectExecError(t, sqlDB, `
-		INSERT INTO assignments (id, document_id, creator_id, content, type)
-		VALUES ($1, $2, $3, 'invalid document', 'acknowledgment')
-	`, uuid.New(), uuid.New(), userID)
-	expectExecError(t, sqlDB, `
-		INSERT INTO attachments (document_id, filename, file_size, storage_path, uploaded_by)
-		VALUES ($1, 'invalid.pdf', 1, 'invalid.pdf', $2)
-	`, docID, uuid.New())
 
-	ackID := uuid.New()
-	execSQL(t, sqlDB, `
-		INSERT INTO assignments (id, document_id, creator_id, content, type)
-		VALUES ($1, $2, $3, 'ack', 'acknowledgment')
-	`, ackID, docID, userID)
-	execSQL(t, sqlDB, `
-		INSERT INTO assignment_recipients (id, assignment_id, user_id)
-		VALUES ($1, $2, $3)
-	`, uuid.New(), ackID, userID)
-	expectExecError(t, sqlDB, `
-		INSERT INTO assignment_recipients (id, assignment_id, user_id)
-		VALUES ($1, $2, $3)
-	`, uuid.New(), ackID, userID)
-
-	execSQL(t, sqlDB, `
-		CREATE TABLE IF NOT EXISTS schema_migrations (
-			version BIGINT NOT NULL PRIMARY KEY,
-			dirty BOOLEAN NOT NULL
-		)
-	`)
-	execSQL(t, sqlDB, `DELETE FROM schema_migrations`)
-	execSQL(t, sqlDB, `INSERT INTO schema_migrations (version, dirty) VALUES (10, true)`)
-	db := database.Wrap(sqlDB)
-	if err := db.CheckMigrationCompatibility(database.DefaultMigrationsPath); err == nil {
-		t.Fatalf("expected dirty migration state to be rejected")
-	}
 }
 
 func TestValidateIntegrationDSNRequiresSafeDatabaseName(t *testing.T) {

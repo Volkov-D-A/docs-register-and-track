@@ -15,74 +15,9 @@ import (
 type documentAccessTestDeps struct {
 	auth       *accessPrincipalStub
 	accessRepo *kindActionDocumentAccessStore
-	depRepo    *documentAccessDepartmentStore
-	assignRepo *documentAccessAssignmentStore
 	docRepo    *documentAccessDocumentStore
-	subRepo    *userSubstitutionStoreStub
 	service    *DocumentAccessService
 	user       *models.User
-}
-
-type documentAccessDepartmentStore struct {
-	nomenclatureIDs []string
-	err             error
-}
-
-func (s *documentAccessDepartmentStore) GetAll() ([]models.Department, error) {
-	return nil, nil
-}
-
-func (s *documentAccessDepartmentStore) GetNomenclatureIDs(departmentID uuid.UUID) ([]string, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	return s.nomenclatureIDs, nil
-}
-
-func (s *documentAccessDepartmentStore) Create(name string, nomenclatureIDs []string) (*models.Department, error) {
-	return nil, nil
-}
-
-func (s *documentAccessDepartmentStore) Update(id uuid.UUID, name string, nomenclatureIDs []string) (*models.Department, error) {
-	return nil, nil
-}
-
-func (s *documentAccessDepartmentStore) Delete(id uuid.UUID) error {
-	return nil
-}
-
-type documentAccessAssignmentStore struct {
-	accessible map[uuid.UUID]struct{}
-	err        error
-}
-
-func (s *documentAccessAssignmentStore) GetByID(id uuid.UUID) (*models.Assignment, error) {
-	return nil, nil
-}
-
-func (s *documentAccessAssignmentStore) GetList(filter models.AssignmentFilter) (*models.PagedResult[models.Assignment], error) {
-	return nil, nil
-}
-
-func (s *documentAccessAssignmentStore) HasDocumentAccess(userID, documentID uuid.UUID) (bool, error) {
-	if s.err != nil {
-		return false, s.err
-	}
-	_, ok := s.accessible[documentID]
-	return ok, nil
-}
-
-func (s *documentAccessAssignmentStore) GetAccessibleDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	result := make(map[uuid.UUID]struct{})
-	for _, documentID := range documentIDs {
-		if _, ok := s.accessible[documentID]; ok {
-			result[documentID] = struct{}{}
-		}
-	}
-	return result, nil
 }
 
 type documentAccessDocumentStore struct {
@@ -120,19 +55,13 @@ func setupDocumentAccessService(t *testing.T, user *models.User, allowed map[mod
 	auth := &accessPrincipalStub{user: user}
 
 	accessRepo := &kindActionDocumentAccessStore{allowed: allowed, readable: map[uuid.UUID]bool{}}
-	depRepo := &documentAccessDepartmentStore{}
-	assignRepo := &documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}}
 	docRepo := &documentAccessDocumentStore{docs: map[uuid.UUID]models.Document{}}
-	subRepo := &userSubstitutionStoreStub{}
 	service := NewDocumentAccessService(auth, accessRepo, docRepo)
 
 	return &documentAccessTestDeps{
 		auth:       auth,
 		accessRepo: accessRepo,
-		depRepo:    depRepo,
-		assignRepo: assignRepo,
 		docRepo:    docRepo,
-		subRepo:    subRepo,
 		service:    service,
 		user:       user,
 	}
@@ -216,20 +145,6 @@ func (s *kindActionDocumentAccessStore) HasPermission(kind, action, departmentID
 	return s.allowed[models.DocumentKind(kind)][action], nil
 }
 
-type userSubstitutionStoreStub struct {
-	isActive map[[2]uuid.UUID]bool
-	ports.UserSubstitutionStore
-	activePrincipals []uuid.UUID
-}
-
-func (s *userSubstitutionStoreStub) GetActivePrincipalIDs(uuid.UUID) ([]uuid.UUID, error) {
-	return s.activePrincipals, nil
-}
-
-func (s *userSubstitutionStoreStub) IsActiveSubstitute(substituteID, principalID uuid.UUID) (bool, error) {
-	return s.isActive[[2]uuid.UUID{substituteID, principalID}], nil
-}
-
 func (s *kindActionDocumentAccessStore) CanReadDocument(_ uuid.UUID, id uuid.UUID) (bool, error) {
 	return s.readable[id] || (s.visible != nil && s.visible(id)), s.visibilityErr
 }
@@ -248,7 +163,6 @@ func TestDocumentAccessUnifiedPolicy(t *testing.T) {
 	scope, err := deps.service.ResolveReadScope(models.DocumentKindIncomingLetter)
 	require.NoError(t, err)
 	require.Equal(t, deps.user.ID.String(), scope.UserID)
-	require.True(t, scope.Restricted)
 	id := uuid.New()
 	deps.docRepo.docs[id] = documentAccessDoc(id, uuid.New(), models.DocumentKindIncomingLetter)
 	require.ErrorIs(t, deps.service.RequireReadAnyType(id), models.ErrForbidden)

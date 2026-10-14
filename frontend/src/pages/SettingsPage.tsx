@@ -1,17 +1,17 @@
-import React from 'react';
-import { Tabs, Typography } from 'antd';
-import { DatabaseOutlined, FileSearchOutlined, BookOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, CloudServerOutlined, InboxOutlined } from '@ant-design/icons';
+import React, { lazy, Suspense } from 'react';
+import { Spin, Tabs, Typography } from 'antd';
+import { DatabaseOutlined, FileSearchOutlined, BookOutlined, ApartmentOutlined, TeamOutlined, SettingOutlined, InboxOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../store/useAuthStore';
 import NomenclatureTab from '../features/settings/NomenclatureTab';
 import DepartmentsTab from '../features/settings/DepartmentsTab';
 import UsersTab from '../features/settings/UsersTab';
 import SystemSettingsTab from '../features/settings/SystemSettingsTab';
 import BackupTab from '../features/settings/BackupTab';
-import StorageTab from '../features/settings/StorageTab';
 import MigrationsTab from '../features/settings/MigrationsTab';
 import AuditLogTab from '../features/settings/AuditLogTab';
 import OutboxTab from '../features/settings/OutboxTab';
 
+const SystemStatisticsTab = lazy(() => import('../features/statistics/SystemStatisticsTab'));
 const { Title } = Typography;
 
 // === Основная страница ===
@@ -31,7 +31,7 @@ const SettingsPage: React.FC = () => {
       { key: 'users', label: 'Пользователи', icon: <TeamOutlined />, children: <UsersTab /> },
       { key: 'system', label: 'Настройки', icon: <SettingOutlined />, children: <SystemSettingsTab /> },
       { key: 'backups', label: 'Резервные копии', icon: <DatabaseOutlined />, children: <BackupTab /> },
-      { key: 'storage', label: 'Хранилище', icon: <CloudServerOutlined />, children: <StorageTab /> },
+      { key: 'diagnostics', label: 'Техническая диагностика', icon: <DatabaseOutlined />, children: <Suspense fallback={<Spin />}><SystemStatisticsTab /></Suspense> },
       { key: 'migrations', label: 'Миграции', icon: <DatabaseOutlined />, children: <MigrationsTab /> },
       { key: 'auditLog', label: 'Журнал', icon: <FileSearchOutlined />, children: <AuditLogTab /> },
       { key: 'outbox', label: 'Очередь событий', icon: <InboxOutlined />, children: <OutboxTab /> },

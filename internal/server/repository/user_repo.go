@@ -311,34 +311,7 @@ func (r *UserRepository) GetUserSystemPermissions(userID uuid.UUID) ([]string, e
 	return permissions, nil
 }
 
-// GetEligibleRecipientIDs applies the same recipient conditions as the user picker.
-func (r *UserRepository) GetEligibleRecipientIDs(candidateIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
-	result := make(map[uuid.UUID]struct{})
-	if len(candidateIDs) == 0 {
-		return result, nil
-	}
-	rows, err := r.db.Query(`
-		SELECT id FROM users
-		WHERE id = ANY($1) AND is_active = true AND is_document_participant = true
-	`, pq.Array(candidateIDs))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var userID uuid.UUID
-		if err := rows.Scan(&userID); err != nil {
-			return nil, err
-		}
-		result[userID] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-// GetExecutors возвращает список активных пользователей, доступных для назначения и ознакомления.
+// GetExecutors возвращает список активных пользователей, доступных для назначения.
 func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	rows, err := r.db.Query(`
 		SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active,
@@ -400,73 +373,6 @@ func (r *UserRepository) GetExecutors() ([]models.User, error) {
 	}
 
 	// Batch-загрузка номенклатур подразделений одним запросом
-	if err := r.batchLoadDepartmentNomenclatures(users, departmentIDs, departmentIndexes); err != nil {
-		return nil, err
-	}
-
-	return users, nil
-}
-
-// GetActiveUsers возвращает всех активных пользователей.
-func (r *UserRepository) GetActiveUsers() ([]models.User, error) {
-	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active,
-		       d.id, d.name
-		FROM users u
-		LEFT JOIN departments d ON u.department_id = d.id
-		WHERE u.is_active = true
-		ORDER BY u.full_name
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get active users: %w", err)
-	}
-	defer rows.Close()
-
-	users := make([]models.User, 0)
-	userIDs := make([]uuid.UUID, 0)
-	departmentIDs := make([]uuid.UUID, 0)
-	departmentIndexes := make(map[uuid.UUID][]int)
-
-	for rows.Next() {
-		var user models.User
-		var departmentID sql.NullString
-		var departmentName sql.NullString
-
-		if err := rows.Scan(
-			&user.ID, &user.Login, &user.LastName, &user.FirstName, &user.Patronymic, &user.NoPatronymic,
-			&user.IsDocumentParticipant, &user.IsActive,
-			&departmentID, &departmentName,
-		); err != nil {
-			return nil, err
-		}
-
-		if departmentID.Valid {
-			uid, _ := uuid.Parse(departmentID.String)
-			user.DepartmentID = &uid
-			user.Department = &models.Department{
-				ID:   uid,
-				Name: departmentName.String,
-			}
-			if _, exists := departmentIndexes[uid]; !exists {
-				departmentIDs = append(departmentIDs, uid)
-			}
-			departmentIndexes[uid] = append(departmentIndexes[uid], len(users))
-		}
-
-		userIDs = append(userIDs, user.ID)
-		users = append(users, user)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	if len(users) == 0 {
-		return users, nil
-	}
-
-	if err := r.batchLoadUserSystemPermissions(users, userIDs); err != nil {
-		return nil, err
-	}
 	if err := r.batchLoadDepartmentNomenclatures(users, departmentIDs, departmentIndexes); err != nil {
 		return nil, err
 	}

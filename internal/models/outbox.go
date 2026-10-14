@@ -7,10 +7,9 @@ import (
 )
 
 const (
-	OutboxEventUserEvent  = "user_event"
-	OutboxEventJournal    = "journal_entry"
-	OutboxEventAudit      = "admin_audit"
-	OutboxEventFileDelete = "attachment_delete"
+	OutboxEventUserEvent = "user_event"
+	OutboxEventJournal   = "journal_entry"
+	OutboxEventAudit     = "admin_audit"
 )
 
 // OutboxEvent is a durable request to perform a side effect after commit.
@@ -51,14 +50,4 @@ type FailedOutboxEvent struct {
 	Attempts  int       `json:"attempts"`
 	LastError string    `json:"lastError"`
 	FailedAt  time.Time `json:"failedAt"`
-}
-
-type AssignmentConfirmationEffects struct {
-	ActorID    uuid.UUID
-	UserEvents []CreateUserEventRequest
-}
-
-type AttachmentDeletePayload struct {
-	AttachmentID uuid.UUID `json:"attachmentId"`
-	StoragePath  string    `json:"storagePath"`
 }

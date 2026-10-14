@@ -51,7 +51,7 @@ func TestBuiltAdminRestoreIntegration(t *testing.T) {
 		request("POST", "/api/v1/auth/setup", models.InitialSetupRequest{Password: "NewAdminPassw0rd!", LastName: "Иванов", FirstName: "Иван", NoPatronymic: true}, "", 204)
 		token = login("admin", "NewAdminPassw0rd!")
 	} else {
-		token = login("attachment-user", "AttachmentPassw0rd!")
+		token = login("control-user", "ControlPassw0rd!")
 	}
 	settings := backup.DefaultSettings()
 	settings.KeepCopies = 1
@@ -98,7 +98,7 @@ func TestBuiltAdminRestoreIntegration(t *testing.T) {
 	op = wait(restore)
 	require.Equal(t, "completed", op.State, op.Error)
 	request("GET", "/api/v1/auth/me", nil, token, 401)
-	token = login("attachment-user", "AttachmentPassw0rd!")
+	token = login("control-user", "ControlPassw0rd!")
 	var count int
 	require.NoError(t, db.QueryRow("SELECT count(*) FROM users WHERE login='replace-extra'").Scan(&count))
 	require.Zero(t, count)
@@ -141,7 +141,7 @@ func TestBuiltAdminRestoreIntegration(t *testing.T) {
 		require.NoError(t, json.Unmarshal(request("GET", "/api/v1/admin/backups/catalog", nil, token, 200), &remote))
 		require.Len(t, remote, 1)
 		require.Equal(t, job.ID, remote[0].ID)
-		require.Equal(t, 3, remote[0].Format)
+		require.Equal(t, backup.ArchiveFormat, remote[0].Format)
 	} else {
 		// The only existing backup is protected by the configured minimum.
 		var deletion models.BackupOperationStarted

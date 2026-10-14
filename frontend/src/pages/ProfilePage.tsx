@@ -1,8 +1,7 @@
 import { UserNameFields, type UserNameValues } from '../components/UserNameFields';
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Typography, Space, Descriptions, Tag, Row, Col, App, Segmented, Select, DatePicker, Switch } from 'antd';
+import { Card, Form, Input, Button, Typography, Space, Descriptions, Tag, Row, Col, App, Segmented } from 'antd';
 import { UserOutlined, LockOutlined, BgColorsOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { useAuthStore } from '../store/useAuthStore';
 import type { AppTheme } from '../theme/AppThemeContext';
 import { useAppTheme } from '../theme/useAppTheme';
@@ -20,13 +19,9 @@ const ProfilePage: React.FC = () => {
     const { theme, setTheme, isThemeLoading } = useAppTheme();
     const [profileForm] = Form.useForm();
     const [passwordForm] = Form.useForm();
-    const [substitutionForm] = Form.useForm();
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
     const [isSavingTheme, setIsSavingTheme] = useState(false);
-    const [executors, setExecutors] = useState<any[]>([]);
-    const [isSavingSubstitution, setIsSavingSubstitution] = useState(false);
-    const userDepartmentId = user?.department?.id;
 
     useEffect(() => {
         if (isEditingProfile && user) {
@@ -43,35 +38,6 @@ const ProfilePage: React.FC = () => {
             clearError();
         }
     }, [clearError, error, message]);
-
-    useEffect(() => {
-        let mounted = true;
-        const loadSubstitution = async () => {
-            if (!user?.isDocumentParticipant) {
-                return;
-            }
-            try {
-                const { GetSubstitutionCandidates } = await import('../../wailsjs/go/services/UserService');
-                const { GetMySubstitution } = await import('../../wailsjs/go/services/UserSubstitutionService');
-                const [users, substitution] = await Promise.all([GetSubstitutionCandidates(), GetMySubstitution()]);
-                if (!mounted) {
-                    return;
-                }
-                setExecutors((users || []).filter((item: any) => item.id !== user.id && item.department?.id === userDepartmentId));
-                substitutionForm.setFieldsValue({
-                    substituteUserId: substitution?.substituteUserId || undefined,
-                    isActive: substitution?.isActive ?? true,
-                    period: substitution?.startsAt || substitution?.endsAt
-                        ? [substitution?.startsAt ? dayjs(substitution.startsAt) : null, substitution?.endsAt ? dayjs(substitution.endsAt) : null]
-                        : null,
-                });
-            } catch (err: any) {
-                message.error(formatAppError(err, 'Ошибка загрузки замещения'));
-            }
-        };
-        void loadSubstitution();
-        return () => { mounted = false; };
-    }, [message, substitutionForm, user?.id, user?.isDocumentParticipant, userDepartmentId]);
 
     if (!user) {
         return <div style={{ padding: 24 }}><Text>Загрузка профиля...</Text></div>;
@@ -110,30 +76,9 @@ const ProfilePage: React.FC = () => {
         }
     };
 
-    const handleUpdateSubstitution = async (values: any) => {
-        setIsSavingSubstitution(true);
-        try {
-            const { UpdateMySubstitution } = await import('../../wailsjs/go/services/UserSubstitutionService');
-            await UpdateMySubstitution({
-                substituteUserId: values.substituteUserId || '',
-                startsAt: values.period?.[0] ? values.period[0].format('YYYY-MM-DD') : '',
-                endsAt: values.period?.[1] ? values.period[1].format('YYYY-MM-DD') : '',
-                isActive: values.isActive ?? true,
-            });
-            message.success('Замещение сохранено');
-        } catch (err: any) {
-            message.error(formatAppError(err, 'Ошибка сохранения замещения'));
-        } finally {
-            setIsSavingSubstitution(false);
-        }
-    };
-
     const roleNameMap: Record<string, string> = {
         'admin': 'Администратор',
         'references': 'Справочники',
-        'stats_documents': 'Статистика: документы',
-        'stats_assignments': 'Статистика: поручения',
-        'stats_system': 'Статистика: системная',
     };
     return (
         <div style={{ padding: '0 24px 24px' }}>
@@ -287,35 +232,6 @@ const ProfilePage: React.FC = () => {
                             </Space>
                         </Card>
 
-                        {user.isDocumentParticipant && (
-                            <Card title={<Space><UserOutlined /> Замещение</Space>} variant="borderless">
-                                <Form
-                                    form={substitutionForm}
-                                    layout="vertical"
-                                    onFinish={handleUpdateSubstitution}
-                                    initialValues={{ isActive: true }}
-                                >
-                                    <Form.Item name="substituteUserId" label="Замещающий">
-                                        <Select
-                                            allowClear
-                                            showSearch
-                                            optionFilterProp="label"
-                                            placeholder="Выберите сотрудника"
-                                            options={executors.map((executor) => ({ value: executor.id, label: executor.fullName }))}
-                                        />
-                                    </Form.Item>
-                                    <Form.Item name="period" label="Период">
-                                        <DatePicker.RangePicker style={{ width: '100%' }} format="DD.MM.YYYY" allowEmpty={[true, true]} />
-                                    </Form.Item>
-                                    <Form.Item name="isActive" label="Активно" valuePropName="checked">
-                                        <Switch />
-                                    </Form.Item>
-                                    <Button type="primary" htmlType="submit" loading={isSavingSubstitution}>
-                                        Сохранить замещение
-                                    </Button>
-                                </Form>
-                            </Card>
-                        )}
                     </Space>
                 </Col>
             </Row>

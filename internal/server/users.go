@@ -19,7 +19,6 @@ const activeAdministratorInvariantMessage = "at least one active administrator m
 
 type userManagementStore interface {
 	GetAll() ([]models.User, error)
-	GetActiveUsers() ([]models.User, error)
 	GetByID(uuid.UUID) (*models.User, error)
 	CreateWithOutbox(models.CreateUserRequest, []models.OutboxEvent) (*models.User, error)
 	UpdateWithOutbox(models.UpdateUserRequest, []models.OutboxEvent) (*models.User, error)
@@ -125,8 +124,7 @@ func (api *managementAPI) updateUser(w http.ResponseWriter, r *http.Request) {
 	req.Login = strings.TrimSpace(req.Login)
 	req.ID = id.String()
 	auth := authenticatedFromContext(r.Context())
-	// Participation/department changes can revoke substitution access; the former
-	// substitutes cannot be resolved from the post-update principal alone.
+	// Eligibility and department changes may affect control continuation and read roots.
 	effect, err := userAuditEffect(auth.User, "user:"+req.ID+":update:"+uuid.NewString(), "USER_UPDATE", fmt.Sprintf("Обновлен пользователь «%s»", req.FullName()))
 	if err != nil {
 		writeUserError(w, err)

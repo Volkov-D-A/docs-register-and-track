@@ -12,13 +12,14 @@ func TestUserEventOutboxInsertIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	userID, documentID := seedIntegrationDocument(t, sqlDB)
 	execSQL(t, sqlDB, `UPDATE documents SET registration_date = '2026-09-24' WHERE id = $1`, documentID)
+	execSQL(t, sqlDB, `INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES('outgoing_letter','user',$1,'register')`, userID.String())
 	repo := NewUserEventRepository(database.Wrap(sqlDB))
 	request := models.CreateUserEventRequest{
 		RecipientUserID: userID,
 		DocumentID:      documentID,
 		DocumentKind:    string(models.DocumentKindIncomingLetter),
-		EntityType:      models.UserEventEntityAssignment,
-		EventType:       models.UserEventAssignmentCreated,
+		EntityType:      "deadline_control",
+		EventType:       "deadline_control_create",
 		Title:           "Новое поручение",
 		Message:         "Назначено поручение",
 	}

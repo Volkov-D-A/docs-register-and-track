@@ -73,12 +73,8 @@ func (s *DocumentAccessService) hasPermission(kind models.DocumentKind, action s
 }
 
 // Read and event delivery use only the current identity.
-func (s *DocumentAccessService) GetCurrentReadSubjectIDs() ([]uuid.UUID, error) {
-	id, err := s.auth.GetCurrentUserUUID()
-	if err != nil {
-		return nil, err
-	}
-	return []uuid.UUID{id}, nil
+func (s *DocumentAccessService) GetCurrentReadUserID() (uuid.UUID, error) {
+	return s.auth.GetCurrentUserUUID()
 }
 func (s *DocumentAccessService) GetDocumentKindsWithAction(action string) ([]models.DocumentKind, error) {
 	kinds := []models.DocumentKind{}
@@ -111,7 +107,7 @@ func (s *DocumentAccessService) ResolveReadScope(_ models.DocumentKind) (*models
 	if err != nil {
 		return nil, err
 	}
-	return &models.DocumentAccessScope{Restricted: true, UserID: id.String()}, nil
+	return &models.DocumentAccessScope{UserID: id.String()}, nil
 }
 func (s *DocumentAccessService) RequireReadResolved(doc *models.Document) error {
 	if err := s.RequireDomainRead(); err != nil {
@@ -233,40 +229,4 @@ func (s *DocumentAccessService) ResolveLink(source, target uuid.UUID) (*models.D
 }
 func (s *DocumentAccessService) RequireViewJournal(id uuid.UUID) error {
 	return s.RequireReadAnyType(id)
-}
-
-// The removed execution workflow must not be inferred from ordinary read.
-// This temporary dependency is removed with the legacy attachment endpoints.
-func (s *DocumentAccessService) HasAssignmentAccess(_ uuid.UUID) (bool, error) {
-	return false, s.RequireDomainRead()
-}
-func (s *DocumentAccessService) CollectUserIDsWithDocumentAction(users ports.UserStore, kind, action string, excluded map[uuid.UUID]struct{}) ([]uuid.UUID, error) {
-	if users == nil || s.accessRepo == nil || !models.DocumentKind(kind).SupportsAction(action) {
-		return nil, nil
-	}
-	all, err := users.GetAll()
-	if err != nil {
-		return nil, err
-	}
-	result := []uuid.UUID{}
-	for _, user := range all {
-		if !user.IsActive {
-			continue
-		}
-		if _, skip := excluded[user.ID]; skip {
-			continue
-		}
-		department := ""
-		if user.DepartmentID != nil {
-			department = user.DepartmentID.String()
-		}
-		allowed, err := s.accessRepo.HasPermission(kind, action, department, user.ID.String())
-		if err != nil {
-			return nil, err
-		}
-		if allowed {
-			result = AppendUniqueUserID(result, user.ID)
-		}
-	}
-	return result, nil
 }

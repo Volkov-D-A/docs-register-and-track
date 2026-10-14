@@ -5,7 +5,7 @@ const assetsDir = new URL('../dist/assets/', import.meta.url);
 const budgets = [
   ['StatisticsPage-', 10_000],
   ['DocumentStatisticsTab-', 15_000],
-  ['AssignmentStatisticsTab-', 15_000],
+  ['DeadlineStatisticsTab-', 15_000],
   ['SystemStatisticsTab-', 12_000],
   // @ant-design/plots currently emits this shared chart runtime chunk.
   ['line-', 1_600_000],

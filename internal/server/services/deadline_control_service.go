@@ -581,8 +581,8 @@ func emitDeadlineChange(tx ports.DeadlineTransaction, actor uuid.UUID, action st
 	if err != nil {
 		return err
 	}
-	// Cancellation and removed assignments no longer grant read. Notify controllers;
-	// recipient notifications for other states use only the current assignment set.
+	// Cancellation and removed executors no longer grant read. Notify controllers;
+	// recipient notifications for other states use only the current executor set.
 	if after.Status == models.DeadlineCancelled {
 		ids = nil
 	}

@@ -39,23 +39,6 @@ func ValidateConfig(cfg *config.Config) error {
 		return fmt.Errorf("database.sslmode is required")
 	}
 
-	s3 := cfg.S3
-	if strings.TrimSpace(s3.Endpoint) == "" {
-		return fmt.Errorf("s3.endpoint is required")
-	}
-	if strings.TrimSpace(s3.AccessKeyID) == "" {
-		return fmt.Errorf("s3.accessKeyId is required")
-	}
-	if strings.TrimSpace(s3.SecretAccessKey) == "" {
-		return fmt.Errorf("s3.secretAccessKey is required")
-	}
-	if strings.HasPrefix(s3.SecretAccessKey, "ENC:") {
-		return fmt.Errorf("s3.secretAccessKey must be provided as a runtime secret; ENC values are not supported")
-	}
-	if strings.TrimSpace(s3.BucketName) == "" {
-		return fmt.Errorf("s3.bucketName is required")
-	}
-
 	if cfg.Seq.Enabled {
 		parsed, err := url.ParseRequestURI(strings.TrimSpace(cfg.Seq.URL))
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {

@@ -15,7 +15,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup/smb"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/liveevents"
 	"github.com/google/uuid"
 )
@@ -44,7 +43,6 @@ type Service struct {
 	Events     *liveevents.Bus
 	DB         *sql.DB
 	PostgreSQL PostgreSQL
-	S3         config.S3Config
 	Directory  string
 	MaxBytes   int64
 	Version    string
@@ -407,7 +405,7 @@ func (s *Service) execute(ctx context.Context, job *Job) error {
 		if err := os.Mkdir(stage, 0700); err != nil {
 			return err
 		}
-		m := Manifest{Format: 3, ID: job.ID, CreatedAt: time.Now().UTC(), Version: s.Version, Objects: []Object{}}
+		m := Manifest{Format: ArchiveFormat, ID: job.ID, CreatedAt: time.Now().UTC(), Version: s.Version}
 		if s.Snapshot == nil {
 			return fmt.Errorf("snapshot coordinator unavailable")
 		}
@@ -428,10 +426,10 @@ func (s *Service) execute(ctx context.Context, job *Job) error {
 			if err != nil {
 				return err
 			}
-			if err = SnapshotObjects(ctx, s.S3, stage, &m, s.MaxBytes/2); err != nil {
+			if err = writeJSONFile(filepath.Join(stage, "manifest.json"), m); err != nil {
 				return err
 			}
-			return ValidateReferences(ctx, s.DB, m)
+			return ValidateControlReferences(ctx, s.DB)
 		})
 		if err != nil {
 			return err
@@ -487,7 +485,7 @@ func (s *Service) execute(ctx context.Context, job *Job) error {
 		return err
 	}
 	// A small final marker is the only indication that the archive is complete.
-	marker, _ := json.Marshal(RemoteCopy{Format: 3, ID: job.ID, Size: job.ArchiveSize, SHA256: job.ArchiveSHA256, CreatedAt: job.CreatedAt})
+	marker, _ := json.Marshal(RemoteCopy{Format: ArchiveFormat, ID: job.ID, Size: job.ArchiveSize, SHA256: job.ArchiveSHA256, CreatedAt: job.CreatedAt})
 	markerTmp := partial + ".manifest"
 	if err = client.Write(ctx, markerTmp, strings.NewReader(string(marker))); err != nil {
 		return err

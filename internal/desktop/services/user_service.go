@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 )
 
 var errServerUserAdministrationNotConfigured = errors.New("docflow-server user administration client is not configured")
@@ -86,15 +86,4 @@ func (s *UserService) GetExecutors() ([]dto.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	return s.server.ListExecutors(ctx)
-}
-
-// GetSubstitutionCandidates возвращает активных пользователей, которых можно выбрать замещающими.
-func (s *UserService) GetSubstitutionCandidates() ([]dto.User, error) {
-	client, err := s.serverClient()
-	if err != nil {
-		return nil, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	return client.ListSubstitutionCandidates(ctx)
 }
