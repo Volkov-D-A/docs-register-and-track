@@ -103,6 +103,17 @@
     "GetCurrent",
     "MarkCurrentViewed"
   ],
+  "ReportingService": [
+    "CreateSchedule",
+    "DisableSchedule",
+    "DownloadRun",
+    "Export",
+    "GetFilters",
+    "ListRuns",
+    "ListSchedules",
+    "RetryRun",
+    "Run"
+  ],
   "SettingsService": [
     "CancelBackup",
     "CancelBackupOperation",

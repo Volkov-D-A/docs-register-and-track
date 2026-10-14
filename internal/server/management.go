@@ -70,6 +70,8 @@ type managementAPI struct {
 	journal                            func(*models.User) journalAPI
 	workspace                          func(*models.User) workspaceAPI
 	statistics                         func(*models.User) statisticsAPI
+	reporting                          *serverservices.ReportingService
+	reportSchedules                    *reportScheduleStore
 	attachments                        func(*models.User) attachmentAPI
 	adminAudit                         func(*models.User) adminAuditAPI
 	outboxAdmin                        func(*models.User) outboxAdminAPI
@@ -140,6 +142,11 @@ func newManagementAPI(app *App) *managementAPI {
 	journal := repository.NewJournalRepository(app.db)
 	workspace := repository.NewWorkspaceRepository(app.db)
 	statistics := repository.NewStatisticsRepository(app.db)
+	reporting := serverservices.NewReportingService(repository.NewReportingRepository(app.db))
+	reportSchedules := app.reportScheduler
+	if reportSchedules == nil {
+		reportSchedules = &reportScheduleStore{db: app.db, files: app.storage, reports: reporting}
+	}
 	adminAudit := repository.NewAdminAuditLogRepository(app.db)
 	attachmentRepo := repository.NewAttachmentRepository(app.db)
 	attachmentRepo.SetOutbox(outboxRepo)
@@ -250,6 +257,8 @@ func newManagementAPI(app *App) *managementAPI {
 				},
 			)
 		},
+		reporting:       reporting,
+		reportSchedules: reportSchedules,
 		attachments: func(user *models.User) attachmentAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, access, documents, substitutions)
@@ -366,6 +375,15 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/statistics/system", api.requireSession(http.HandlerFunc(api.getSystemStatistics)))
 	mux.Handle("GET /api/v1/statistics/system/storage", api.requireSession(http.HandlerFunc(api.getStorageStatisticsStatus)))
 	mux.Handle("POST /api/v1/statistics/system/storage/retry", api.requireSession(http.HandlerFunc(api.retryStorageStatisticsRefresh)))
+	mux.Handle("POST /api/v1/reports/run", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.runReport)))
+	mux.Handle("GET /api/v1/reports/filters", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.reportFilterOptions)))
+	mux.Handle("POST /api/v1/reports/export/{format}", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.exportReport)))
+	mux.Handle("GET /api/v1/reports/schedules", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.listReportSchedules)))
+	mux.Handle("POST /api/v1/reports/schedules", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.createReportSchedule)))
+	mux.Handle("DELETE /api/v1/reports/schedules/{id}", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.disableReportSchedule)))
+	mux.Handle("GET /api/v1/reports/schedules/{id}/runs", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.listReportRuns)))
+	mux.Handle("GET /api/v1/reports/runs/{id}/file", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.downloadReportRun)))
+	mux.Handle("POST /api/v1/reports/runs/{id}/retry", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.retryReportRun)))
 	mux.Handle("GET /api/v1/admin/audit", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getAdminAuditLog)))
 	mux.Handle("GET /api/v1/admin/outbox/stats", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getOutboxStats)))
 	mux.Handle("GET /api/v1/admin/outbox/failed", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getFailedOutboxEvents)))

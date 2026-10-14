@@ -13,6 +13,12 @@ database migrations, authentication and all business operations. The desktop
 uses the versioned HTTP API and does not create database or object-storage
 connections.
 
+The separate **Reports** section builds period reports for correspondence by
+organization, department workload, average assignment execution time and overdue
+rate. It exports XLSX/PDF and can generate weekly or monthly reports on the server.
+Access requires the `reports` system permission; scheduled files remain available
+in the owner's report history for 90 days. See [technical documentation](docs/tech_docs.md#отчёты).
+
 The repository keeps application code and a compact maintained documentation set. Production readiness is determined by the release gate plus environment-specific smoke and recovery checks.
 
 ## Local Development

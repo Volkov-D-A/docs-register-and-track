@@ -6,6 +6,7 @@ const (
 	SystemPermissionStatsDocuments   = "stats_documents"
 	SystemPermissionStatsAssignments = "stats_assignments"
 	SystemPermissionStatsSystem      = "stats_system"
+	SystemPermissionReports          = "reports"
 )
 
 // UserDocumentPermissionRule описывает прямое назначение действия пользователю.

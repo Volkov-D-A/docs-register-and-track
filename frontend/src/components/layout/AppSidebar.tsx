@@ -8,6 +8,7 @@ import {
     FileTextOutlined,
     InboxOutlined,
     MessageOutlined,
+    FileExcelOutlined,
     SendOutlined,
     SettingOutlined,
 } from '@ant-design/icons';
@@ -77,6 +78,11 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
             key: 'statistics',
             icon: <BarChartOutlined />,
             label: 'Статистика',
+        }] : []),
+        ...(sections.reports ? [{
+            key: 'reports',
+            icon: <FileExcelOutlined />,
+            label: 'Отчёты',
         }] : []),
         ...(sections.settings ? [{
             key: 'settings',

@@ -24,6 +24,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/outbox"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/repository"
+	serverservices "github.com/Volkov-D-A/docs-register-and-track/internal/server/services"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/shared/releaseassets"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/storage"
@@ -32,18 +33,19 @@ import (
 const shutdownTimeout = 30 * time.Second
 
 type App struct {
-	events    *liveevents.Bus
-	detached  sync.WaitGroup
-	backups   *backup.Service
-	db        *database.DB
-	cfg       *config.Config
-	metrics   *observability.Registry
-	lifecycle *background.Lifecycle
-	http      *http.Server
-	storage   serverStorage
-	version   string
-	startedAt time.Time
-	closeOnce sync.Once
+	events          *liveevents.Bus
+	detached        sync.WaitGroup
+	backups         *backup.Service
+	reportScheduler *reportScheduleStore
+	db              *database.DB
+	cfg             *config.Config
+	metrics         *observability.Registry
+	lifecycle       *background.Lifecycle
+	http            *http.Server
+	storage         serverStorage
+	version         string
+	startedAt       time.Time
+	closeOnce       sync.Once
 }
 
 type dependencies struct {
@@ -142,12 +144,14 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		storage:   objectStorage,
 		version:   version,
 		startedAt: time.Now().UTC(),
-		lifecycle: background.NewLifecycle(
-			func() (*dto.MigrationStatus, error) { return db.GetMigrationStatus(database.DefaultMigrationsPath) },
-			&leasedWorker{db: db, worker: worker},
-			(&sessionCleaner{store: repository.NewServerSessionRepository(db)}).Run,
-		),
 	}
+	app.reportScheduler = &reportScheduleStore{db: db, files: objectStorage,
+		reports: serverservices.NewReportingService(repository.NewReportingRepository(db))}
+	app.lifecycle = background.NewLifecycle(
+		func() (*dto.MigrationStatus, error) { return db.GetMigrationStatus(database.DefaultMigrationsPath) },
+		&leasedWorker{db: db, worker: &parallelBackgroundWorker{first: worker, second: &scheduledReportWorker{store: app.reportScheduler}}},
+		(&sessionCleaner{store: repository.NewServerSessionRepository(db)}).Run,
+	)
 	api := newManagementAPI(app)
 	app.backups = &backup.Service{DB: db.SQLDB(), PostgreSQL: backup.PostgreSQL{Config: cfg.Database}, S3: cfg.S3, Directory: cfg.Backup.Directory, MaxBytes: cfg.Backup.MaxBytes, Version: version, Snapshot: func(ctx context.Context, fn func(context.Context) error) error {
 		return api.backupSnapshot(ctx, func(ctx context.Context) error {

@@ -99,6 +99,7 @@ func newWailsOptionsWithDependencies(
 
 	workspaceService := desktopservices.NewWorkspaceService(serverClient)
 	statisticsService := desktopservices.NewStatisticsService(serverClient)
+	reportingService := desktopservices.NewReportingService(serverClient, operationLifecycle)
 	linkService := desktopservices.NewLinkService(serverClient)
 	clientVersion, err := releaseassets.CurrentVersion()
 	if err != nil {
@@ -178,6 +179,7 @@ func newWailsOptionsWithDependencies(
 			assignmentService,
 			workspaceService,
 			statisticsService,
+			reportingService,
 			departmentService,
 			settingsService,
 			attachmentService,
