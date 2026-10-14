@@ -39,6 +39,7 @@ type rollbackRequest struct {
 }
 
 type managementAPI struct {
+	deadlines                          func(*models.User) deadlineControlAPI
 	events                             *liveevents.Bus
 	replacementRequests                sync.RWMutex
 	replacementPending                 atomic.Bool
@@ -63,7 +64,6 @@ type managementAPI struct {
 	documentQueries                    func(*models.User) documentQueryAPI
 	eventAccess                        func(*models.User) eventDocumentAccess
 	documentCommands                   func(*models.User) documentCommandAPI
-	assignments                        func(*models.User) assignmentAPI
 	userEvents                         func(*models.User) userEventAPI
 	administrativeOrderAcknowledgments func(*models.User) administrativeOrderAcknowledgmentAPI
 	links                              func(*models.User) linkAPI
@@ -71,7 +71,6 @@ type managementAPI struct {
 	workspace                          func(*models.User) workspaceAPI
 	statistics                         func(*models.User) statisticsAPI
 	reporting                          *serverservices.ReportingService
-	reportSchedules                    *reportScheduleStore
 	attachments                        func(*models.User) attachmentAPI
 	adminAudit                         func(*models.User) adminAuditAPI
 	outboxAdmin                        func(*models.User) outboxAdminAPI
@@ -134,6 +133,7 @@ func newManagementAPI(app *App) *managementAPI {
 	nomenclature.SetOutbox(outboxRepo)
 	settings := repository.NewSettingsRepository(app.db)
 	settings.SetOutbox(outboxRepo)
+	deadlineControls := repository.NewDeadlineControlRepository(app.db, outboxRepo)
 	assignments := repository.NewAssignmentRepository(app.db)
 	assignments.SetOutbox(outboxRepo)
 	userEvents := repository.NewUserEventRepository(app.db)
@@ -143,10 +143,6 @@ func newManagementAPI(app *App) *managementAPI {
 	workspace := repository.NewWorkspaceRepository(app.db)
 	statistics := repository.NewStatisticsRepository(app.db)
 	reporting := serverservices.NewReportingService(repository.NewReportingRepository(app.db))
-	reportSchedules := app.reportScheduler
-	if reportSchedules == nil {
-		reportSchedules = &reportScheduleStore{db: app.db, files: app.storage, reports: reporting}
-	}
 	adminAudit := repository.NewAdminAuditLogRepository(app.db)
 	attachmentRepo := repository.NewAttachmentRepository(app.db)
 	attachmentRepo.SetOutbox(outboxRepo)
@@ -184,21 +180,16 @@ func newManagementAPI(app *App) *managementAPI {
 		nomenclature:   nomenclature,
 		settings:       settings,
 		eventAccess: func(user *models.User) eventDocumentAccess {
-			return serverservices.NewDocumentAccessService(requestDocumentPrincipal{user: user}, departments, assignments, access, documents, substitutions)
+			return serverservices.NewDocumentAccessService(requestDocumentPrincipal{user: user}, access, documents)
 		},
 		documentQueries: func(user *models.User) documentQueryAPI {
-			documentAccess := serverservices.NewDocumentAccessService(
-				requestDocumentPrincipal{user: user}, departments, assignments,
-				access, documents, substitutions,
-			)
+			documentAccess := serverservices.NewDocumentAccessService(requestDocumentPrincipal{user: user}, access, documents)
 			query := serverservices.NewDocumentQueryEngine(queryRegistry, documentAccess, app.metrics, documents)
 			return query
 		},
 		documentCommands: func(user *models.User) documentCommandAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, access, documents, substitutions,
-			)
+			documentAccess := serverservices.NewDocumentAccessService(principal, access, documents)
 			registry := serverservices.NewDocumentKindCommandRegistry(
 				serverservices.NewIncomingLetterCommandHandler(incomingCommands, nomenclature, references, principal, documentAccess),
 				serverservices.NewOutgoingLetterCommandHandler(outgoingCommands, references, nomenclature, principal, documentAccess),
@@ -208,40 +199,27 @@ func newManagementAPI(app *App) *managementAPI {
 			commands := serverservices.NewDocumentCommandEngine(registry, app.metrics)
 			return commands
 		},
-		assignments: func(user *models.User) assignmentAPI {
-			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, access, documents, substitutions,
-			)
-			return serverservices.NewAssignmentService(assignments, users, principal, documentAccess, substitutions, true)
-		},
 		userEvents: func(user *models.User) userEventAPI {
 			return serverservices.NewUserEventService(userEvents, requestDocumentPrincipal{user: user})
 		},
 		administrativeOrderAcknowledgments: func(user *models.User) administrativeOrderAcknowledgmentAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, access, documents, substitutions,
-			)
+			documentAccess := serverservices.NewDocumentAccessService(principal, access, documents)
 			return serverservices.NewAdministrativeOrderService(administrativeOrderCommands, principal, documentAccess)
 		},
 		links: func(user *models.User) linkAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, access, documents, substitutions,
-			)
+			documentAccess := serverservices.NewDocumentAccessService(principal, access, documents)
 			return serverservices.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal, app.metrics)
 		},
 		journal: func(user *models.User) journalAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(
-				principal, departments, assignments, access, documents, substitutions,
-			)
+			documentAccess := serverservices.NewDocumentAccessService(principal, access, documents)
 			return serverservices.NewJournalService(journal, documentAccess)
 		},
 		workspace: func(user *models.User) workspaceAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, access, documents, substitutions)
+			documentAccess := serverservices.NewDocumentAccessService(principal, access, documents)
 			return serverservices.NewWorkspaceService(workspace, principal, documentAccess, app.metrics)
 		},
 		statistics: func(user *models.User) statisticsAPI {
@@ -257,11 +235,13 @@ func newManagementAPI(app *App) *managementAPI {
 				},
 			)
 		},
-		reporting:       reporting,
-		reportSchedules: reportSchedules,
+		deadlines: func(user *models.User) deadlineControlAPI {
+			return serverservices.NewDeadlineControlService(deadlineControls, requestDocumentPrincipal{user: user})
+		},
+		reporting: reporting,
 		attachments: func(user *models.User) attachmentAPI {
 			principal := requestDocumentPrincipal{user: user}
-			documentAccess := serverservices.NewDocumentAccessService(principal, departments, assignments, access, documents, substitutions)
+			documentAccess := serverservices.NewDocumentAccessService(principal, access, documents)
 			service := serverservices.NewServerAttachmentService(attachmentRepo, serverservices.NewSettingsService(settings), principal, app.storage, documentAccess, serverservices.ServerAttachmentOptions{Assignments: assignments, Substitutions: substitutions, Metrics: app.metrics})
 			return service
 		},
@@ -343,16 +323,22 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/documents/{kind}", api.requireSession(http.HandlerFunc(api.registerDocument)))
 	mux.Handle("PATCH /api/v1/documents/{kind}/{id}", api.requireSession(http.HandlerFunc(api.updateDocument)))
 	mux.Handle("POST /api/v1/documents/{kind}/admin-drafts", api.requireSession(http.HandlerFunc(api.createAdminDocumentDraft)))
-	mux.Handle("POST /api/v1/assignments", api.requireSession(http.HandlerFunc(api.createAssignment)))
-	mux.Handle("POST /api/v1/assignments/query", api.requireSession(http.HandlerFunc(api.listAssignments)))
-	mux.Handle("PATCH /api/v1/assignments/{id}", api.requireSession(http.HandlerFunc(api.updateAssignment)))
-	mux.Handle("PATCH /api/v1/assignments/{id}/status", api.requireSession(http.HandlerFunc(api.updateAssignmentStatus)))
-	mux.Handle("DELETE /api/v1/assignments/{id}", api.requireSession(http.HandlerFunc(api.deleteAssignment)))
-	mux.Handle("POST /api/v1/assignment-series", api.requireSession(http.HandlerFunc(api.createAssignmentSeries)))
-	mux.Handle("GET /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.getAssignmentSeries)))
-	mux.Handle("GET /api/v1/assignment-series/{id}/history", api.requireSession(http.HandlerFunc(api.getAssignmentSeriesHistory)))
-	mux.Handle("PATCH /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.updateAssignmentSeries)))
-	mux.Handle("DELETE /api/v1/assignment-series/{id}", api.requireSession(http.HandlerFunc(api.cancelAssignmentSeries)))
+
+	mux.Handle("GET /api/v1/deadline-executors", api.requireSession(http.HandlerFunc(api.listDeadlineExecutors)))
+	mux.Handle("POST /api/v1/deadline-executors", api.requireSession(http.HandlerFunc(api.createDeadlineExecutor)))
+	mux.Handle("PATCH /api/v1/deadline-executors/{id}", api.requireSession(http.HandlerFunc(api.updateDeadlineExecutor)))
+	mux.Handle("POST /api/v1/deadline-controls/query", api.requireSession(http.HandlerFunc(api.queryDeadlineControls)))
+	mux.Handle("GET /api/v1/deadline-controls/{id}", api.requireSession(http.HandlerFunc(api.getDeadlineControl)))
+	mux.Handle("POST /api/v1/deadline-controls", api.requireSession(http.HandlerFunc(api.createDeadlineControl)))
+	mux.Handle("PATCH /api/v1/deadline-controls/{id}", api.requireSession(http.HandlerFunc(api.updateDeadlineControl)))
+	mux.Handle("POST /api/v1/deadline-controls/{id}/complete", api.requireSession(http.HandlerFunc(api.completeDeadlineControl)))
+	mux.Handle("POST /api/v1/deadline-controls/{id}/cancel", api.requireSession(http.HandlerFunc(api.cancelDeadlineControl)))
+	mux.Handle("POST /api/v1/deadline-series", api.requireSession(http.HandlerFunc(api.createDeadlineSeries)))
+	mux.Handle("GET /api/v1/deadline-series/{id}", api.requireSession(http.HandlerFunc(api.getDeadlineSeries)))
+	mux.Handle("PATCH /api/v1/deadline-series/{id}", api.requireSession(http.HandlerFunc(api.updateDeadlineSeries)))
+	mux.Handle("POST /api/v1/deadline-series/{id}/stop", api.requireSession(http.HandlerFunc(api.stopDeadlineSeries)))
+	mux.Handle("GET /api/v1/deadline-series/{id}/resume-preview", api.requireSession(http.HandlerFunc(api.previewDeadlineSeriesResume)))
+	mux.Handle("POST /api/v1/deadline-series/{id}/resume", api.requireSession(http.HandlerFunc(api.resumeDeadlineSeries)))
 	mux.Handle("POST /api/v1/user-events/query", api.requireSession(http.HandlerFunc(api.listUserEvents)))
 	mux.Handle("GET /api/v1/user-events/unread-count", api.requireSession(http.HandlerFunc(api.getUnreadUserEventCount)))
 	mux.Handle("POST /api/v1/user-events/{id}/read", api.requireSession(http.HandlerFunc(api.markUserEventRead)))
@@ -365,7 +351,6 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/documents/{id}/link-graph", api.requireSession(http.HandlerFunc(api.getDocumentLinkGraph)))
 	mux.Handle("GET /api/v1/documents/{id}/journal", api.requireSession(http.HandlerFunc(api.getDocumentJournal)))
 	mux.Handle("GET /api/v1/workspace/documents", api.requireSession(http.HandlerFunc(api.getWorkspaceDocuments)))
-	mux.Handle("GET /api/v1/workspace/overview", api.requireSession(http.HandlerFunc(api.getWorkspaceOverview)))
 	mux.Handle("GET /api/v1/statistics/documents", api.requireSession(http.HandlerFunc(api.getDocumentStatistics)))
 	mux.Handle("POST /api/v1/statistics/documents/report", api.requireSession(http.HandlerFunc(api.getDocumentStatisticsReport)))
 	mux.Handle("GET /api/v1/statistics/documents/filters", api.requireSession(http.HandlerFunc(api.getDocumentStatisticsFilters)))
@@ -378,12 +363,6 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/reports/run", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.runReport)))
 	mux.Handle("GET /api/v1/reports/filters", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.reportFilterOptions)))
 	mux.Handle("POST /api/v1/reports/export/{format}", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.exportReport)))
-	mux.Handle("GET /api/v1/reports/schedules", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.listReportSchedules)))
-	mux.Handle("POST /api/v1/reports/schedules", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.createReportSchedule)))
-	mux.Handle("DELETE /api/v1/reports/schedules/{id}", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.disableReportSchedule)))
-	mux.Handle("GET /api/v1/reports/schedules/{id}/runs", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.listReportRuns)))
-	mux.Handle("GET /api/v1/reports/runs/{id}/file", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.downloadReportRun)))
-	mux.Handle("POST /api/v1/reports/runs/{id}/retry", api.requirePermission(models.SystemPermissionReports, http.HandlerFunc(api.retryReportRun)))
 	mux.Handle("GET /api/v1/admin/audit", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getAdminAuditLog)))
 	mux.Handle("GET /api/v1/admin/outbox/stats", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getOutboxStats)))
 	mux.Handle("GET /api/v1/admin/outbox/failed", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.getFailedOutboxEvents)))

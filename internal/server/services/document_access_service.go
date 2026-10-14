@@ -1,113 +1,41 @@
 package services
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
+	"github.com/google/uuid"
 )
 
-// DocumentAccessService инкапсулирует политику доступа к документному домену.
-// Нужен как единая точка переиспользования для сервисов документов, файлов, журнала и связанных сущностей.
+// DocumentAccessService uses the same database visibility closure as controls.
+// Executor eligibility and authorship never grant or restrict departmental read.
 type DocumentAccessService struct {
-	auth             ports.DocumentAccessPrincipal
-	depRepo          ports.DepartmentStore
-	assignmentRepo   ports.AssignmentReader
-	substitutionRepo ports.UserSubstitutionStore
-	accessRepo       ports.DocumentAccessStore
-	documentRepo     ports.DocumentStore
+	auth         ports.DocumentAccessPrincipal
+	accessRepo   ports.DocumentAccessStore
+	documentRepo ports.DocumentStore
+	visibility   ports.DocumentVisibilityStore
 }
 
-// NewDocumentAccessService создает сервис проверки доступа к документам.
-func NewDocumentAccessService(
-	auth ports.DocumentAccessPrincipal,
-	depRepo ports.DepartmentStore,
-	assignmentRepo ports.AssignmentReader,
-	accessRepo ports.DocumentAccessStore,
-	documentRepo ports.DocumentStore,
-	substitutionRepos ...ports.UserSubstitutionStore,
-) *DocumentAccessService {
-	svc := &DocumentAccessService{
-		auth:           auth,
-		depRepo:        depRepo,
-		assignmentRepo: assignmentRepo,
-		accessRepo:     accessRepo,
-		documentRepo:   documentRepo,
-	}
-	if len(substitutionRepos) > 0 {
-		svc.substitutionRepo = substitutionRepos[0]
-	}
-	return svc
+func NewDocumentAccessService(auth ports.DocumentAccessPrincipal, access ports.DocumentAccessStore, documents ports.DocumentStore) *DocumentAccessService {
+	visibility, _ := access.(ports.DocumentVisibilityStore)
+	return &DocumentAccessService{auth: auth, accessRepo: access, documentRepo: documents, visibility: visibility}
 }
-
-// RequireDomainRead проверяет базовый доступ к document-domain.
-func (s *DocumentAccessService) RequireDomainRead() error {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return err
-	}
-	if s.accessRepo == nil {
-		return models.ErrForbidden
-	}
-
-	user, err := s.auth.GetCurrentUser()
-	if err != nil {
-		return err
-	}
-	if user != nil && user.IsDocumentParticipant {
-		return nil
-	}
-
-	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
-	if err != nil {
-		return err
-	}
-	if len(subjectIDs) > 1 {
-		return nil
-	}
-
-	hasDocumentPermissions, err := s.hasAnyDocumentPermission()
-	if err != nil {
-		return err
-	}
-	if !hasDocumentPermissions {
-		return models.ErrForbidden
-	}
-	return nil
+func (s *DocumentAccessService) RequireDomainRead() error { return s.auth.RequireAuthenticated() }
+func (s *DocumentAccessService) GetDocument(id uuid.UUID) (*models.Document, error) {
+	return s.documentRepo.GetByID(id)
 }
-
-// GetDocument возвращает корневой документ по ID.
-func (s *DocumentAccessService) GetDocument(documentID uuid.UUID) (*models.Document, error) {
-	return s.documentRepo.GetByID(documentID)
-}
-
-func (s *DocumentAccessService) getDocumentsByIDs(documentIDs []uuid.UUID) ([]models.Document, error) {
-	uniqueIDs := uniqueDocumentIDs(documentIDs)
-	if len(uniqueIDs) == 0 {
-		return []models.Document{}, nil
-	}
-
-	return s.documentRepo.GetByIDs(uniqueIDs)
-}
-
-func uniqueDocumentIDs(documentIDs []uuid.UUID) []uuid.UUID {
-	seen := make(map[uuid.UUID]struct{}, len(documentIDs))
-	result := make([]uuid.UUID, 0, len(documentIDs))
-	for _, documentID := range documentIDs {
-		if documentID == uuid.Nil {
-			continue
+func uniqueDocumentIDs(ids []uuid.UUID) []uuid.UUID {
+	result := []uuid.UUID{}
+	seen := map[uuid.UUID]bool{}
+	for _, id := range ids {
+		if id != uuid.Nil && !seen[id] {
+			seen[id] = true
+			result = append(result, id)
 		}
-		if _, ok := seen[documentID]; ok {
-			continue
-		}
-		seen[documentID] = struct{}{}
-		result = append(result, documentID)
 	}
 	return result
 }
-
-// RequireExists проверяет существование документа.
-func (s *DocumentAccessService) RequireExists(documentID uuid.UUID) (*models.Document, error) {
-	doc, err := s.GetDocument(documentID)
+func (s *DocumentAccessService) RequireExists(id uuid.UUID) (*models.Document, error) {
+	doc, err := s.GetDocument(id)
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +44,7 @@ func (s *DocumentAccessService) RequireExists(documentID uuid.UUID) (*models.Doc
 	}
 	return doc, nil
 }
-
-func (s *DocumentAccessService) getCurrentSubjects() (departmentID, userID string, err error) {
+func (s *DocumentAccessService) getCurrentSubjects() (string, string, error) {
 	user, err := s.auth.GetCurrentUser()
 	if err != nil {
 		return "", "", err
@@ -125,86 +52,36 @@ func (s *DocumentAccessService) getCurrentSubjects() (departmentID, userID strin
 	if user == nil {
 		return "", "", models.ErrUnauthorized
 	}
-
-	departmentID = ""
+	department := ""
 	if user.Department != nil {
-		departmentID = user.Department.ID
+		department = user.Department.ID
 	}
-
-	return departmentID, user.ID, nil
+	return department, user.ID, nil
 }
-
-func (s *DocumentAccessService) isCurrentUserDocumentParticipant() (bool, error) {
-	user, err := s.auth.GetCurrentUser()
-	if err != nil {
-		return false, err
-	}
-	if user == nil {
-		return false, models.ErrUnauthorized
-	}
-	return user.IsDocumentParticipant, nil
-}
-
-func (s *DocumentAccessService) hasAnyDocumentPermission() (bool, error) {
-	for _, spec := range models.AllDocumentKindSpecs() {
-		for _, action := range spec.SupportedActions {
-			allowed, err := s.hasPermission(spec.Code, string(action))
-			if err != nil {
-				return false, err
-			}
-			if allowed {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
-}
-
 func (s *DocumentAccessService) hasPermission(kind models.DocumentKind, action string) (bool, error) {
-	if s.accessRepo == nil {
-		return false, models.ErrForbidden
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return false, err
 	}
-
-	departmentID, userID, err := s.getCurrentSubjects()
+	if s.accessRepo == nil || !kind.SupportsAction(action) {
+		return false, nil
+	}
+	department, user, err := s.getCurrentSubjects()
 	if err != nil {
 		return false, err
 	}
-
-	return s.accessRepo.HasPermission(string(kind), action, departmentID, userID)
+	return s.accessRepo.HasPermission(string(kind), action, department, user)
 }
 
-// GetCurrentUserAndSubstitutionSubjectIDs returns the current user and active substitution principals.
-func (s *DocumentAccessService) GetCurrentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error) {
-	currentUserID, err := s.auth.GetCurrentUserUUID()
+// Read and event delivery use only the current identity.
+func (s *DocumentAccessService) GetCurrentReadSubjectIDs() ([]uuid.UUID, error) {
+	id, err := s.auth.GetCurrentUserUUID()
 	if err != nil {
 		return nil, err
 	}
-
-	ids := []uuid.UUID{currentUserID}
-	if s.substitutionRepo == nil {
-		return ids, nil
-	}
-
-	principalIDs, err := s.substitutionRepo.GetActivePrincipalIDs(currentUserID)
-	if err != nil {
-		return nil, err
-	}
-	seen := map[uuid.UUID]struct{}{currentUserID: {}}
-	for _, principalID := range principalIDs {
-		if principalID == uuid.Nil {
-			continue
-		}
-		if _, ok := seen[principalID]; ok {
-			continue
-		}
-		seen[principalID] = struct{}{}
-		ids = append(ids, principalID)
-	}
-	return ids, nil
+	return []uuid.UUID{id}, nil
 }
-
 func (s *DocumentAccessService) GetDocumentKindsWithAction(action string) ([]models.DocumentKind, error) {
-	kinds := make([]models.DocumentKind, 0)
+	kinds := []models.DocumentKind{}
 	for _, spec := range models.AllDocumentKindSpecs() {
 		allowed, err := s.hasPermission(spec.Code, action)
 		if err != nil {
@@ -216,101 +93,8 @@ func (s *DocumentAccessService) GetDocumentKindsWithAction(action string) ([]mod
 	}
 	return kinds, nil
 }
-
-func (s *DocumentAccessService) getDepartmentNomenclatureIDs() ([]string, error) {
-	user, err := s.auth.GetCurrentUser()
-	if err != nil {
-		return nil, err
-	}
-	if user == nil || user.Department == nil || user.Department.ID == "" {
-		return nil, nil
-	}
-
-	departmentID, err := uuid.Parse(user.Department.ID)
-	if err != nil {
-		return nil, nil
-	}
-
-	return s.depRepo.GetNomenclatureIDs(departmentID)
-}
-
-func (s *DocumentAccessService) hasDepartmentNomenclatureAccess(nomenclatureID uuid.UUID) (bool, error) {
-	allowedNomenclatures, err := s.getDepartmentNomenclatureIDs()
-	if err != nil {
-		return false, err
-	}
-
-	nomenclatureIDStr := nomenclatureID.String()
-	for _, allowedID := range allowedNomenclatures {
-		if allowedID == nomenclatureIDStr {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func (s *DocumentAccessService) hasImplicitReadAccess(doc *models.Document) (bool, error) {
-	if doc == nil {
-		return false, models.NewNotFound("документ не найден")
-	}
-
-	isParticipant, err := s.isCurrentUserDocumentParticipant()
-	if err != nil {
-		return false, err
-	}
-
-	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
-	if err != nil {
-		return false, err
-	}
-
-	if isParticipant {
-		ok, err := s.hasDepartmentNomenclatureAccess(doc.NomenclatureID)
-		if err == nil && ok {
-			return true, nil
-		}
-	} else if len(subjectIDs) <= 1 {
-		return false, nil
-	}
-
-	if s.assignmentRepo != nil {
-		for _, subjectID := range subjectIDs {
-			ok, err := s.assignmentRepo.HasDocumentAccess(subjectID, doc.ID)
-			if err != nil {
-				return false, err
-			}
-			if ok {
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
-}
-
-func (s *DocumentAccessService) canReadResolved(doc *models.Document) (bool, error) {
-	if doc == nil {
-		return false, models.NewNotFound("документ не найден")
-	}
-
-	allowed, err := s.hasPermission(doc.Kind, "read")
-	if err != nil {
-		return false, err
-	}
-	if allowed {
-		return true, nil
-	}
-
-	return s.hasImplicitReadAccess(doc)
-}
-
 func (s *DocumentAccessService) RequireCreate(kind models.DocumentKind) error {
-	if err := s.auth.RequireAuthenticated(); err != nil {
-		return err
-	}
-
-	allowed, err := s.hasPermission(kind, "create")
+	allowed, err := s.hasPermission(kind, string(models.DocumentActionRegister))
 	if err != nil {
 		return err
 	}
@@ -319,61 +103,31 @@ func (s *DocumentAccessService) RequireCreate(kind models.DocumentKind) error {
 	}
 	return nil
 }
-
-func (s *DocumentAccessService) ResolveReadScope(kind models.DocumentKind) (*models.DocumentAccessScope, error) {
+func (s *DocumentAccessService) ResolveReadScope(_ models.DocumentKind) (*models.DocumentAccessScope, error) {
 	if err := s.RequireDomainRead(); err != nil {
 		return nil, err
 	}
-
-	allowed, err := s.hasPermission(kind, "read")
+	id, err := s.auth.GetCurrentUserUUID()
 	if err != nil {
 		return nil, err
 	}
-	if allowed {
-		return &models.DocumentAccessScope{}, nil
-	}
-
-	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
-	if err != nil {
-		return nil, err
-	}
-	subjectIDStrings := UUIDStrings(subjectIDs)
-	accessibleByUserID := ""
-	if len(subjectIDStrings) > 0 {
-		accessibleByUserID = subjectIDStrings[0]
-	}
-
-	allowedNomenclatureIDs, err := s.getDepartmentNomenclatureIDs()
-	if err != nil {
-		return nil, err
-	}
-
-	isParticipant, err := s.isCurrentUserDocumentParticipant()
-	if err != nil {
-		return nil, err
-	}
-	if !isParticipant {
-		if len(subjectIDs) <= 1 {
-			// Participant edges do not grant document read to a non-participant.
-			return &models.DocumentAccessScope{Restricted: true}, nil
-		}
-		return &models.DocumentAccessScope{Restricted: true, AccessibleByUserID: accessibleByUserID, AccessibleByUserIDs: subjectIDStrings}, nil
-	}
-
-	return &models.DocumentAccessScope{
-		Restricted:             true,
-		AccessibleByUserID:     accessibleByUserID,
-		AccessibleByUserIDs:    subjectIDStrings,
-		AllowedNomenclatureIDs: allowedNomenclatureIDs,
-	}, nil
+	return &models.DocumentAccessScope{Restricted: true, UserID: id.String()}, nil
 }
-
 func (s *DocumentAccessService) RequireReadResolved(doc *models.Document) error {
 	if err := s.RequireDomainRead(); err != nil {
 		return err
 	}
-
-	allowed, err := s.canReadResolved(doc)
+	if doc == nil {
+		return models.NewNotFound("документ не найден")
+	}
+	if s.visibility == nil {
+		return models.ErrForbidden
+	}
+	id, err := s.auth.GetCurrentUserUUID()
+	if err != nil {
+		return err
+	}
+	allowed, err := s.visibility.CanReadDocument(id, doc.ID)
 	if err != nil {
 		return err
 	}
@@ -382,133 +136,62 @@ func (s *DocumentAccessService) RequireReadResolved(doc *models.Document) error 
 	}
 	return nil
 }
-
-// ResolveReadableDocuments возвращает документы из переданного набора, доступные текущему пользователю на чтение.
-func (s *DocumentAccessService) ResolveReadableDocuments(documentIDs []uuid.UUID) (map[uuid.UUID]*models.Document, error) {
-	readable := make(map[uuid.UUID]*models.Document)
-	uniqueIDs := uniqueDocumentIDs(documentIDs)
-	if len(uniqueIDs) == 0 {
-		return readable, nil
+func (s *DocumentAccessService) ResolveReadableDocuments(ids []uuid.UUID) (map[uuid.UUID]*models.Document, error) {
+	result := map[uuid.UUID]*models.Document{}
+	ids = uniqueDocumentIDs(ids)
+	if len(ids) == 0 {
+		return result, nil
 	}
-
 	if err := s.RequireDomainRead(); err != nil {
 		return nil, err
 	}
-
-	docs, err := s.getDocumentsByIDs(uniqueIDs)
+	if s.visibility == nil {
+		return result, nil
+	}
+	user, err := s.auth.GetCurrentUserUUID()
 	if err != nil {
 		return nil, err
 	}
-	if len(docs) == 0 {
-		return readable, nil
-	}
-
-	user, err := s.auth.GetCurrentUser()
+	allowed, err := s.visibility.GetReadableDocumentIDs(user, ids)
 	if err != nil {
 		return nil, err
 	}
-	if user == nil {
-		return nil, models.ErrUnauthorized
+	selected := []uuid.UUID{}
+	for _, id := range ids {
+		if allowed[id] {
+			selected = append(selected, id)
+		}
 	}
-
-	userID := user.ID
-	departmentID := ""
-	if user.Department != nil {
-		departmentID = user.Department.ID
+	if len(selected) == 0 {
+		return result, nil
 	}
-	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
+	documents, err := s.documentRepo.GetByIDs(selected)
 	if err != nil {
 		return nil, err
 	}
-
-	allowedNomenclatures := make(map[uuid.UUID]struct{})
-	if user.IsDocumentParticipant && s.depRepo != nil && user.Department != nil && user.Department.ID != "" {
-		departmentUUID, err := uuid.Parse(user.Department.ID)
-		if err == nil {
-			nomenclatureIDs, err := s.depRepo.GetNomenclatureIDs(departmentUUID)
-			if err != nil {
-				return nil, err
-			}
-			for _, nomenclatureID := range nomenclatureIDs {
-				parsedID, err := uuid.Parse(nomenclatureID)
-				if err == nil {
-					allowedNomenclatures[parsedID] = struct{}{}
-				}
-			}
-		}
+	for i := range documents {
+		result[documents[i].ID] = &documents[i]
 	}
-
-	assignmentAccessibleDocuments := make(map[uuid.UUID]struct{})
-	if user.IsDocumentParticipant || len(subjectIDs) > 1 {
-		for _, subjectID := range subjectIDs {
-			if s.assignmentRepo != nil {
-				ids, err := s.assignmentRepo.GetAccessibleDocumentIDs(subjectID, uniqueIDs)
-				if err != nil {
-					return nil, err
-				}
-				for documentID := range ids {
-					assignmentAccessibleDocuments[documentID] = struct{}{}
-				}
-			}
-
-		}
-	}
-
-	readPermissionByKind := make(map[models.DocumentKind]bool)
-	for i := range docs {
-		doc := &docs[i]
-
-		allowed, ok := readPermissionByKind[doc.Kind]
-		if !ok {
-			allowed, err = s.accessRepo.HasPermission(string(doc.Kind), "read", departmentID, userID)
-			if err != nil {
-				return nil, err
-			}
-			readPermissionByKind[doc.Kind] = allowed
-		}
-		if allowed {
-			readable[doc.ID] = doc
-			continue
-		}
-
-		if !user.IsDocumentParticipant && len(subjectIDs) <= 1 {
-			continue
-		}
-
-		if user.IsDocumentParticipant {
-			if _, ok := allowedNomenclatures[doc.NomenclatureID]; ok {
-				readable[doc.ID] = doc
-				continue
-			}
-		}
-
-		if s.assignmentRepo != nil {
-			if _, ok := assignmentAccessibleDocuments[doc.ID]; ok {
-				readable[doc.ID] = doc
-				continue
-			}
-		}
-
-	}
-
-	return readable, nil
+	return result, nil
 }
-
-// RequireRead проверяет доступ к конкретному документу по его виду и ID.
-func (s *DocumentAccessService) RequireRead(documentKind string, documentID uuid.UUID) error {
-	doc, err := s.RequireExists(documentID)
+func (s *DocumentAccessService) RequireRead(_ string, id uuid.UUID) error {
+	return s.RequireReadAnyType(id)
+}
+func (s *DocumentAccessService) RequireReadAnyType(id uuid.UUID) error {
+	doc, err := s.RequireExists(id)
 	if err != nil {
 		return err
 	}
 	return s.RequireReadResolved(doc)
 }
-
-func (s *DocumentAccessService) RequireDocumentAction(documentID uuid.UUID, action string) error {
-	doc, err := s.RequireExists(documentID)
+func (s *DocumentAccessService) RequireDocumentAction(id uuid.UUID, action string) error {
+	doc, err := s.RequireExists(id)
 	if err != nil {
 		return err
 	}
-
+	if err = s.RequireReadResolved(doc); err != nil {
+		return err
+	}
 	allowed, err := s.hasPermission(doc.Kind, action)
 	if err != nil {
 		return err
@@ -516,140 +199,74 @@ func (s *DocumentAccessService) RequireDocumentAction(documentID uuid.UUID, acti
 	if !allowed {
 		return models.ErrForbidden
 	}
-
-	return s.RequireReadResolved(doc)
+	return nil
 }
-
-func (s *DocumentAccessService) RequireLink(sourceID, targetID uuid.UUID) error {
-	_, _, err := s.ResolveLink(sourceID, targetID)
+func (s *DocumentAccessService) RequireLink(source, target uuid.UUID) error {
+	_, _, err := s.ResolveLink(source, target)
 	return err
 }
-
-func (s *DocumentAccessService) HasAssignmentAccess(documentID uuid.UUID) (bool, error) {
-	if err := s.RequireDomainRead(); err != nil {
-		return false, err
-	}
-	if s.assignmentRepo == nil {
-		return false, nil
-	}
-
-	subjectIDs, err := s.GetCurrentUserAndSubstitutionSubjectIDs()
-	if err != nil {
-		return false, err
-	}
-
-	for _, subjectID := range subjectIDs {
-		ok, err := s.assignmentRepo.HasDocumentAccess(subjectID, documentID)
-		if err != nil {
-			return false, err
-		}
-		if ok {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (s *DocumentAccessService) ResolveLink(sourceID, targetID uuid.UUID) (*models.Document, *models.Document, error) {
-	sourceDoc, err := s.RequireExists(sourceID)
+func (s *DocumentAccessService) ResolveLink(source, target uuid.UUID) (*models.Document, *models.Document, error) {
+	a, err := s.RequireExists(source)
 	if err != nil {
 		return nil, nil, err
 	}
-	targetDoc, err := s.RequireExists(targetID)
+	b, err := s.RequireExists(target)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	if err := s.RequireReadResolved(sourceDoc); err != nil {
+	if err = s.RequireReadResolved(a); err != nil {
 		return nil, nil, err
 	}
-	if err := s.RequireReadResolved(targetDoc); err != nil {
+	if err = s.RequireReadResolved(b); err != nil {
 		return nil, nil, err
 	}
-
-	for _, doc := range []*models.Document{sourceDoc, targetDoc} {
-		allowed, err := s.hasPermission(doc.Kind, "link")
+	for _, doc := range []*models.Document{a, b} {
+		allowed, err := s.hasPermission(doc.Kind, string(models.DocumentActionRegister))
 		if err != nil {
 			return nil, nil, err
 		}
-		if !allowed {
-			return nil, nil, models.ErrForbidden
+		if allowed {
+			return a, b, nil
 		}
 	}
-
-	return sourceDoc, targetDoc, nil
+	return nil, nil, models.ErrForbidden
+}
+func (s *DocumentAccessService) RequireViewJournal(id uuid.UUID) error {
+	return s.RequireReadAnyType(id)
 }
 
-func (s *DocumentAccessService) RequireViewJournal(documentID uuid.UUID) error {
-	if s.accessRepo == nil {
-		return s.RequireDomainRead()
-	}
-
-	doc, err := s.RequireExists(documentID)
-	if err != nil {
-		return err
-	}
-
-	allowed, err := s.hasPermission(doc.Kind, "view_journal")
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return models.ErrForbidden
-	}
-
-	return s.RequireReadResolved(doc)
+// The removed execution workflow must not be inferred from ordinary read.
+// This temporary dependency is removed with the legacy attachment endpoints.
+func (s *DocumentAccessService) HasAssignmentAccess(_ uuid.UUID) (bool, error) {
+	return false, s.RequireDomainRead()
 }
-
-// RequireReadAnyType проверяет доступ к документу, определяя тип по ID.
-func (s *DocumentAccessService) RequireReadAnyType(documentID uuid.UUID) error {
-	doc, err := s.RequireExists(documentID)
-	if err != nil {
-		return err
-	}
-	return s.RequireReadResolved(doc)
-}
-
-// CollectUserIDsWithDocumentAction selects active notification recipients by explicit permission.
-func (access *DocumentAccessService) CollectUserIDsWithDocumentAction(
-	userRepo ports.UserStore,
-	kind string,
-	action string,
-	excluded map[uuid.UUID]struct{},
-) ([]uuid.UUID, error) {
-	if userRepo == nil || access == nil || access.accessRepo == nil {
+func (s *DocumentAccessService) CollectUserIDsWithDocumentAction(users ports.UserStore, kind, action string, excluded map[uuid.UUID]struct{}) ([]uuid.UUID, error) {
+	if users == nil || s.accessRepo == nil || !models.DocumentKind(kind).SupportsAction(action) {
 		return nil, nil
 	}
-
-	users, err := userRepo.GetAll()
+	all, err := users.GetAll()
 	if err != nil {
 		return nil, err
 	}
-
-	recipients := make([]uuid.UUID, 0)
-	for _, user := range users {
+	result := []uuid.UUID{}
+	for _, user := range all {
 		if !user.IsActive {
 			continue
 		}
 		if _, skip := excluded[user.ID]; skip {
 			continue
 		}
-
-		departmentID := ""
+		department := ""
 		if user.DepartmentID != nil {
-			departmentID = user.DepartmentID.String()
-		} else if user.Department != nil {
-			departmentID = user.Department.ID.String()
+			department = user.DepartmentID.String()
 		}
-
-		allowed, err := access.accessRepo.HasPermission(kind, action, departmentID, user.ID.String())
+		allowed, err := s.accessRepo.HasPermission(kind, action, department, user.ID.String())
 		if err != nil {
 			return nil, err
 		}
 		if allowed {
-			recipients = AppendUniqueUserID(recipients, user.ID)
+			result = AppendUniqueUserID(result, user.ID)
 		}
 	}
-
-	return recipients, nil
+	return result, nil
 }

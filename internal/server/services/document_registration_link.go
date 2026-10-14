@@ -20,19 +20,12 @@ func buildRegistrationLink(access *DocumentAccessService, kind models.DocumentKi
 	default:
 		return nil, models.NewBadRequest("неверный тип связи документов")
 	}
-	if err := access.RequireDocumentAction(id, "link"); err != nil {
+	if err := access.RequireReadAnyType(id); err != nil {
 		return nil, err
 	}
-	allowed, err := access.hasPermission(kind, "link")
-	if err != nil {
-		return nil, err
-	}
-	if !allowed {
-		return nil, models.ErrForbidden
-	}
-	// A new document has no assignments or acknowledgments yet. Resolve read
-	// access from its kind/nomenclature before allocating its database ID.
-	if err := access.RequireReadResolved(&models.Document{Kind: kind, NomenclatureID: nomenclatureID}); err != nil {
+	// Registration of the new endpoint supplies the right for the pair; only
+	// read is required on the existing endpoint.
+	if err := access.RequireCreate(kind); err != nil {
 		return nil, err
 	}
 	if req.LinkType == "order_amends" || req.LinkType == "order_cancels" {

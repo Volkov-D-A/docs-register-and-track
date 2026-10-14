@@ -30,7 +30,6 @@ func setupAttachmentService(t *testing.T, role string) (
 	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
-	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
@@ -49,10 +48,10 @@ func setupAttachmentService(t *testing.T, role string) (
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	settingsSvc := NewSettingsService(settingsRepo)
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	accessSvc := NewDocumentAccessService(auth, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewServerAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc, ServerAttachmentOptions{Assignments: assignmentRepo})
-	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, depRepo, assignmentRepo, userRepo, auth
+	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, mocks.NewDepartmentStore(t), assignmentRepo, userRepo, auth
 }
 
 type storageMutationStub struct {
@@ -101,7 +100,6 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
-	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
@@ -120,10 +118,10 @@ func setupAttachmentServiceWithRoles(t *testing.T, roles []string) (
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	settingsSvc := NewSettingsService(settingsRepo)
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, newRoleMappedDocumentAccessStore(roles...), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	accessSvc := NewDocumentAccessService(auth, newRoleMappedDocumentAccessStore(roles...), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 
 	svc := NewServerAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc, ServerAttachmentOptions{Assignments: assignmentRepo})
-	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, depRepo, assignmentRepo, userRepo, auth
+	return svc, attachRepo, settingsRepo, fileStorage, incomingRepo, outgoingRepo, mocks.NewDepartmentStore(t), assignmentRepo, userRepo, auth
 }
 
 func setupAttachmentServiceNotAuth(t *testing.T) *ServerAttachmentService {
@@ -139,13 +137,12 @@ func setupAttachmentServiceNotAuth(t *testing.T) *ServerAttachmentService {
 	outgoingRepo.On("GetByID", mock.Anything).Return(func(id uuid.UUID) *models.OutgoingDocument {
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
-	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	assignmentRepo.On("HasDocumentAccess", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	userRepo := mocks.NewUserStore(t)
 	auth := newAttachmentPrincipalStub(userRepo)
 	settingsSvc := NewSettingsService(settingsRepo)
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	accessSvc := NewDocumentAccessService(auth, newRoleMappedDocumentAccessStore(), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 	return NewServerAttachmentService(attachRepo, settingsSvc, auth, fileStorage, accessSvc, ServerAttachmentOptions{Assignments: assignmentRepo})
 }
 

@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { App, Button, Modal, Spin, Tabs } from 'antd';
-import AssignmentList from './AssignmentList';
+import DeadlineControls from '../features/deadlines/DeadlineControls';
 import FileListComponent from './FileListComponent';
-import DocumentAssignmentWorkflowPanel from './DocumentAssignmentWorkflowPanel';
+
 import { LinksTab } from './DocumentLinks/LinksTab';
 import JournalList from './JournalList';
 import RelatedDocumentModal from './RelatedDocumentModal';
@@ -102,12 +102,12 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
 
     const viewConfig = getDocumentViewConfig(resolvedKindCode);
     const accessPending = !accessReady;
-    const canManageAssignments = accessReady && hasAction(resolvedKindCode, 'assign');
-    const canManageLinks = accessReady && hasAction(resolvedKindCode, 'link');
-    const canUpdateDocument = accessReady && hasAction(resolvedKindCode, 'update');
-    const canViewJournal = accessReady && hasAction(resolvedKindCode, 'view_journal');
+
+    const canManageLinks = accessReady && kinds.some((kind) => hasAction(kind.code, 'register'));
+    const canUpdateDocument = accessReady && hasAction(resolvedKindCode, 'register');
+    const canViewJournal = accessReady && !!data;
     const canViewFiles = !!data;
-    const creatableKinds = accessReady ? kinds.filter((kind) => hasAction(kind.code, 'create')) : [];
+    const creatableKinds = accessReady ? kinds.filter((kind) => hasAction(kind.code, 'register')) : [];
 
     const getNumber = () => data?.registrationNumber || '';
 
@@ -155,10 +155,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
         return (
             <>
                 {content}
-                <DocumentAssignmentWorkflowPanel
-                    documentId={data?.id || documentId}
-                    documentKind={resolvedKindCode}
-                />
+
 
             </>
         );
@@ -177,9 +174,9 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
             },
             {
                 key: 'assignments',
-                label: 'Поручения',
+                label: 'Контроль сроков',
                 children: (
-                    <AssignmentList
+                    <DeadlineControls
                         documentId={data.id}
                         documentKind={resolvedKindCode}
                     />
@@ -205,9 +202,9 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
         const allowedKeys = new Set(viewConfig.tabs.filter((key) => {
             switch (key) {
                 case 'assignments':
-                    return canManageAssignments;
+                    return true;
                 case 'links':
-                    return canManageLinks;
+                    return true;
                 case 'journal':
                     return canViewJournal;
                 case 'files':

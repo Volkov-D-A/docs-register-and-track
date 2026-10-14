@@ -1,3 +1,4 @@
+import DeadlineExecutorsTab from './DeadlineExecutorsTab';
 import React, { useState } from 'react';
 import { Alert, App, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tabs, Typography } from 'antd';
 import { BankOutlined, DeleteOutlined, EditOutlined, SolutionOutlined, SwapOutlined } from '@ant-design/icons';
@@ -275,7 +276,8 @@ export const ReferenceDirectoriesTab: React.FC = () => (
     destroyOnHidden
     items={[
       { key: 'organizations', label: 'Организации', icon: <BankOutlined />, children: <OrganizationsTab /> },
-      { key: 'resolutionExecutors', label: 'Исполнители', icon: <SolutionOutlined />, children: <ResolutionExecutorsTab /> },
+      { key: 'deadlineExecutors', label: 'Исполнители контроля', icon: <SolutionOutlined />, children: <DeadlineExecutorsTab /> },
+      { key: 'resolutionExecutors', label: 'Исполнители резолюций', icon: <SolutionOutlined />, children: <ResolutionExecutorsTab /> },
     ]}
   />
 );

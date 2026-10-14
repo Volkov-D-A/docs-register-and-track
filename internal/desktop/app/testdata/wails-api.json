@@ -5,18 +5,6 @@
   "AdministrativeOrderService": [
     "MarkAcknowledged"
   ],
-  "AssignmentService": [
-    "CancelSeries",
-    "CreateSeries",
-    "CreateTask",
-    "Delete",
-    "GetList",
-    "GetSeries",
-    "GetSeriesHistory",
-    "Update",
-    "UpdateSeries",
-    "UpdateStatus"
-  ],
   "AttachmentService": [
     "BulkDeleteOlderThan",
     "Delete",
@@ -39,9 +27,21 @@
     "NeedsInitialSetup",
     "UpdateProfile"
   ],
-  "WorkspaceService": [
-    "GetOverview",
-    "GetRecentDocuments"
+  "DeadlineControlService": [
+    "Cancel",
+    "Complete",
+    "Create",
+    "CreateSeries",
+    "Get",
+    "GetSeries",
+    "List",
+    "ListExecutors",
+    "PreviewResume",
+    "ResumeSeries",
+    "SaveExternalExecutor",
+    "StopSeries",
+    "Update",
+    "UpdateSeries"
   ],
   "DepartmentService": [
     "CreateDepartment",
@@ -104,14 +104,8 @@
     "MarkCurrentViewed"
   ],
   "ReportingService": [
-    "CreateSchedule",
-    "DisableSchedule",
-    "DownloadRun",
     "Export",
     "GetFilters",
-    "ListRuns",
-    "ListSchedules",
-    "RetryRun",
     "Run"
   ],
   "SettingsService": [
@@ -172,5 +166,8 @@
     "GetUserSubstitution",
     "UpdateMySubstitution",
     "UpdateUserSubstitution"
+  ],
+  "WorkspaceService": [
+    "GetRecentDocuments"
   ]
 }

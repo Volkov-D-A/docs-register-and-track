@@ -162,7 +162,6 @@ type UserEventStore interface {
 // WorkspaceStore reads counts and bounded previews under server-resolved scopes.
 type WorkspaceStore interface {
 	RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope) ([]models.WorkspaceDocument, error)
-	AssignmentSummary(models.WorkspaceQuery) (models.WorkspaceAssignmentCounts, []models.WorkspaceAssignment, error)
 }
 
 // StatisticsStore — интерфейс для получения аналитических данных раздела статистики.

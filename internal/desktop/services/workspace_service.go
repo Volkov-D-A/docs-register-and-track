@@ -18,15 +18,6 @@ func NewWorkspaceService(client serverclient.WorkspaceClient) *WorkspaceService 
 
 var errWorkspaceServiceClientNotConfigured = errors.New("docflow-server workspace client is not configured")
 
-func (s *WorkspaceService) GetOverview(assignmentMode string) (*dto.WorkspaceOverview, error) {
-	if s.server == nil {
-		return nil, errWorkspaceServiceClientNotConfigured
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	return s.server.GetWorkspaceOverview(ctx, assignmentMode)
-}
-
 func (s *WorkspaceService) GetRecentDocuments() (*dto.WorkspaceDocuments, error) {
 	if s.server == nil {
 		return nil, errWorkspaceServiceClientNotConfigured

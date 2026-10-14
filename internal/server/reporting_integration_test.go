@@ -1,24 +1,21 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/security"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 )
 
-func TestReportsPermissionAndScheduleUniquenessIntegration(t *testing.T) {
+func TestReportsPermissionIntegration(t *testing.T) {
 	sqlDB := integrationdb.Open(t)
 	db := database.Wrap(sqlDB)
 	admin, reporter, viewer := uuid.New(), uuid.New(), uuid.New()
@@ -56,32 +53,4 @@ func TestReportsPermissionAndScheduleUniquenessIntegration(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, request(login("reports-viewer"), "/api/v1/reports/run").Code)
 	require.Equal(t, http.StatusForbidden, request(login("reports-viewer"), "/api/v1/reports/export/pdf").Code)
 
-	store := &reportScheduleStore{db: db}
-	item, err := store.Create(context.Background(), reporter, models.ReportScheduleRequest{
-		Report: models.ReportRequest{Template: "organizations"}, Frequency: "weekly", Timezone: "Asia/Yekaterinburg", Format: "xlsx"})
-	require.NoError(t, err)
-	id, err := uuid.Parse(item.ID)
-	require.NoError(t, err)
-	_, err = db.Exec(`UPDATE report_schedules SET next_run_at=now()-interval '1 minute' WHERE id=$1`, id)
-	require.NoError(t, err)
-	var wg sync.WaitGroup
-	errors := make(chan error, 2)
-	for range 2 {
-		wg.Add(1)
-		go func() { defer wg.Done(); errors <- store.enqueueDue(context.Background()) }()
-	}
-	wg.Wait()
-	close(errors)
-	for err := range errors {
-		require.NoError(t, err)
-	}
-	var count int
-	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM report_runs WHERE schedule_id=$1`, id).Scan(&count))
-	require.Equal(t, 1, count)
-	runs, err := store.Runs(context.Background(), reporter, id)
-	require.NoError(t, err)
-	require.Len(t, runs, 1)
-	require.Equal(t, "pending", runs[0].Status)
-	_, _, _, err = store.DownloadInfo(context.Background(), viewer, uuid.MustParse(runs[0].ID))
-	require.Error(t, err)
 }

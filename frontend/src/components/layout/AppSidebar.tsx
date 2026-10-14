@@ -67,7 +67,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
         ...(sections.assignments ? [{
             key: 'assignments',
             icon: <CheckSquareOutlined />,
-            label: 'Поручения',
+            label: 'Контроль сроков',
         }] : []),
         ...(sections.references ? [{
             key: 'references',

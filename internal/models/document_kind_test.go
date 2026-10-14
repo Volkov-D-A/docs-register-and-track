@@ -24,8 +24,8 @@ func TestDocumentKindSpecs(t *testing.T) {
 }
 
 func TestDocumentKindSupportsAction(t *testing.T) {
-	assert.True(t, DocumentKindIncomingLetter.SupportsAction(string(DocumentActionRead)))
-	assert.True(t, DocumentKindAdministrativeOrder.SupportsAction(string(DocumentActionViewJournal)))
+	assert.True(t, DocumentKindIncomingLetter.SupportsAction(string(DocumentActionRegister)))
+	assert.True(t, DocumentKindAdministrativeOrder.SupportsAction(string(DocumentActionControlDeadlines)))
 	assert.False(t, DocumentKindIncomingLetter.SupportsAction("delete"))
 	assert.False(t, DocumentKind("unknown").SupportsAction(string(DocumentActionRead)))
 }

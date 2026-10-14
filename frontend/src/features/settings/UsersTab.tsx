@@ -35,13 +35,8 @@ const UsersTab: React.FC = () => {
   const { kinds: allDocumentKinds } = useCurrentAccessSummary();
 
   const documentActionOptions = [
-    { value: 'create', label: 'Регистрация' },
-    { value: 'read', label: 'Просмотр всех' },
-    { value: 'update', label: 'Редактирование' },
-    { value: 'assign', label: 'Поручения' },
-    { value: 'upload', label: 'Управление файлами' },
-    { value: 'link', label: 'Связи' },
-    { value: 'view_journal', label: 'Журнал' },
+    { value: 'register', label: 'Регистрация и редактирование' },
+    { value: 'control_deadlines', label: 'Контроль сроков' },
   ];
 
   const buildEmptyDocumentAccess = () => (
@@ -377,7 +372,7 @@ const UsersTab: React.FC = () => {
                   ))}
                 </Select>
               </Form.Item>
-              <Form.Item name="isDocumentParticipant" label="Участник документооборота" valuePropName="checked" style={compactUserFormItemStyle}>
+              <Form.Item name="isDocumentParticipant" label="Можно назначать исполнителем" valuePropName="checked" style={compactUserFormItemStyle}>
                 <Switch />
               </Form.Item>
               <Form.Item shouldUpdate={(prev, next) => prev.isDocumentParticipant !== next.isDocumentParticipant} noStyle>

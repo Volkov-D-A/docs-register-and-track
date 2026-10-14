@@ -21,58 +21,10 @@ type DocumentKindSpec struct {
 }
 
 var documentKindSpecs = []DocumentKindSpec{
-	{
-		Code: DocumentKindIncomingLetter,
-		Name: "Входящее письмо",
-		SupportedActions: []DocumentKindAction{
-			DocumentActionCreate,
-			DocumentActionRead,
-			DocumentActionUpdate,
-			DocumentActionAssign,
-			DocumentActionUpload,
-			DocumentActionLink,
-			DocumentActionViewJournal,
-		},
-	},
-	{
-		Code: DocumentKindOutgoingLetter,
-		Name: "Исходящее письмо",
-		SupportedActions: []DocumentKindAction{
-			DocumentActionCreate,
-			DocumentActionRead,
-			DocumentActionUpdate,
-			DocumentActionAssign,
-			DocumentActionUpload,
-			DocumentActionLink,
-			DocumentActionViewJournal,
-		},
-	},
-	{
-		Code: DocumentKindCitizenAppeal,
-		Name: "Обращения граждан",
-		SupportedActions: []DocumentKindAction{
-			DocumentActionCreate,
-			DocumentActionRead,
-			DocumentActionUpdate,
-			DocumentActionAssign,
-			DocumentActionUpload,
-			DocumentActionLink,
-			DocumentActionViewJournal,
-		},
-	},
-	{
-		Code: DocumentKindAdministrativeOrder,
-		Name: "Приказы",
-		SupportedActions: []DocumentKindAction{
-			DocumentActionCreate,
-			DocumentActionRead,
-			DocumentActionUpdate,
-			DocumentActionAssign,
-			DocumentActionUpload,
-			DocumentActionLink,
-			DocumentActionViewJournal,
-		},
-	},
+	{Code: DocumentKindIncomingLetter, Name: "Входящее письмо", SupportedActions: []DocumentKindAction{DocumentActionRegister, DocumentActionControlDeadlines}},
+	{Code: DocumentKindOutgoingLetter, Name: "Исходящее письмо", SupportedActions: []DocumentKindAction{DocumentActionRegister, DocumentActionControlDeadlines}},
+	{Code: DocumentKindCitizenAppeal, Name: "Обращения граждан", SupportedActions: []DocumentKindAction{DocumentActionRegister, DocumentActionControlDeadlines}},
+	{Code: DocumentKindAdministrativeOrder, Name: "Приказы", SupportedActions: []DocumentKindAction{DocumentActionRegister, DocumentActionControlDeadlines}},
 }
 
 // AllDocumentKindSpecs возвращает все системные виды документов.

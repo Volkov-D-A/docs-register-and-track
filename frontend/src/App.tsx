@@ -14,15 +14,15 @@ import { useCurrentAccessSummary } from './hooks/useCurrentAccessSummary';
 import { useOrganizationSetup } from './hooks/useOrganizationSetup';
 import { useSessionEvents } from './hooks/useSessionEvents';
 import SystemBootstrapGate from './components/SystemBootstrapGate';
-import type { AssignmentNavigation, AssignmentMode, AssignmentMetric, AssignmentType } from './components/assignmentNavigation';
-import { useAssignmentModeStore } from './store/useAssignmentModeStore';
+import type { DeadlineView } from './features/deadlines/deadlineEvents';
+type DeadlineNavigation = { requestId: number; view: DeadlineView };
 
 function AppContent() {
     const { message } = AntdApp.useApp();
     const { isAuthenticated, user } = useAuthStore();
     const [currentPage, setCurrentPage] = useState('dashboard');
-    const [assignmentNavigation, setAssignmentNavigation] = useState<AssignmentNavigation | null>(null);
-    const nextAssignmentRequest = useRef(0);
+    const [deadlineNavigation, setDeadlineNavigation] = useState<DeadlineNavigation | null>(null);
+    const nextDeadlineRequest = useRef(0);
     const initializedForUserRef = useRef<string | null>(null);
     const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
     const [release, setRelease] = useState<models.ReleaseNote | null>(null);
@@ -160,10 +160,9 @@ function AppContent() {
             });
     };
 
-    const openAssignments = (mode: AssignmentMode, metric?: AssignmentMetric, type?: AssignmentType) => {
-        useAssignmentModeStore.getState().setMode(mode);
-        nextAssignmentRequest.current += 1;
-        setAssignmentNavigation({ requestId: nextAssignmentRequest.current, mode, metric, type });
+    const openControls = (view: DeadlineView) => {
+        nextDeadlineRequest.current += 1;
+        setDeadlineNavigation({ requestId: nextDeadlineRequest.current, view });
         setCurrentPage('assignments');
     };
 
@@ -180,7 +179,7 @@ function AppContent() {
             <MainLayout
                 currentPage={currentPage}
                 onPageChange={(page) => {
-                    if (page === 'assignments') setAssignmentNavigation(null);
+                    if (page === 'assignments') setDeadlineNavigation(null);
                     setCurrentPage(page);
                 }}
                 isAboutModalOpen={isAboutModalOpen}
@@ -194,8 +193,8 @@ function AppContent() {
                     accessReady={accessReady}
                     accessLoading={accessLoading}
                     canAccessPage={canAccessPage}
-                    assignmentNavigation={assignmentNavigation}
-                    onOpenAssignments={openAssignments}
+                    deadlineNavigation={deadlineNavigation}
+                    onOpenControls={openControls}
                     onOpenRegister={openRegister}
                 />
             </MainLayout>

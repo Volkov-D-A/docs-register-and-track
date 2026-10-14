@@ -54,29 +54,3 @@ type ReportSummary struct {
 	Metric          float64 `json:"metric"`
 	UniqueDocuments int     `json:"uniqueDocuments"`
 }
-
-type ReportScheduleRequest struct {
-	Report    ReportRequest `json:"report"`
-	Frequency string        `json:"frequency"`
-	Timezone  string        `json:"timezone"`
-	Format    string        `json:"format"`
-}
-
-type ReportSchedule struct {
-	ID        string                `json:"id"`
-	Request   ReportScheduleRequest `json:"request"`
-	Enabled   bool                  `json:"enabled"`
-	NextRunAt string                `json:"nextRunAt"`
-}
-
-type ReportRun struct {
-	ID         string `json:"id"`
-	ScheduleID string `json:"scheduleId"`
-	PlannedAt  string `json:"plannedAt"`
-	Status     string `json:"status"`
-	Format     string `json:"format"`
-	Version    int    `json:"version"`
-	StartDate  string `json:"startDate"`
-	EndDate    string `json:"endDate"`
-	Error      string `json:"error,omitempty"`
-}

@@ -1,8 +1,9 @@
 import React, { lazy, Suspense } from 'react';
 import { Spin } from 'antd';
-import type { AssignmentNavigation, AssignmentMode, AssignmentMetric, AssignmentType } from './assignmentNavigation';
+import type { DeadlineView } from '../features/deadlines/deadlineEvents';
+type DeadlineNavigation = { requestId: number; view: DeadlineView };
 
-const DashboardPage = lazy(() => import('../pages/DashboardPage'));
+const DashboardPage = lazy(() => import('../pages/DeadlineDashboardPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
 const ReferencesPage = lazy(() => import('../pages/ReferencesPage'));
 const StatisticsPage = lazy(() => import('../pages/StatisticsPage'));
@@ -11,7 +12,7 @@ const IncomingPage = lazy(() => import('../pages/IncomingPage'));
 const OutgoingPage = lazy(() => import('../pages/OutgoingPage'));
 const CitizenAppealsPage = lazy(() => import('../pages/CitizenAppealsPage'));
 const OrdersPage = lazy(() => import('../pages/OrdersPage'));
-const AssignmentsPage = lazy(() => import('../pages/AssignmentsPage'));
+const DeadlineControlsPage = lazy(() => import('../pages/DeadlineControlsPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 
 const documentPageFallback = (
@@ -26,17 +27,17 @@ type AppRouterProps = {
     accessReady: boolean;
     accessLoading: boolean;
     canAccessPage: (page: string) => boolean;
-    assignmentNavigation: AssignmentNavigation | null;
-    onOpenAssignments: (mode: AssignmentMode, metric?: AssignmentMetric, type?: AssignmentType) => void;
+    deadlineNavigation: DeadlineNavigation | null;
+    onOpenControls: (view: DeadlineView) => void;
     onOpenRegister: (kindCode: string, page: string) => void;
 };
 
 const documentSectionPages = new Set(['dashboard', 'incoming', 'outgoing', 'appeals', 'orders', 'assignments']);
 
-const resolvePage = (pageKey: string, props: Pick<AppRouterProps, 'assignmentNavigation' | 'onOpenAssignments' | 'onOpenRegister'>) => {
+const resolvePage = (pageKey: string, props: Pick<AppRouterProps, 'deadlineNavigation' | 'onOpenControls' | 'onOpenRegister'>) => {
     switch (pageKey) {
         case 'dashboard':
-            return <DashboardPage onOpenAssignments={props.onOpenAssignments} onOpenRegister={props.onOpenRegister} />;
+            return <DashboardPage onOpenControls={props.onOpenControls} onOpenRegister={props.onOpenRegister} />;
         case 'incoming':
             return <IncomingPage />;
         case 'outgoing':
@@ -46,7 +47,7 @@ const resolvePage = (pageKey: string, props: Pick<AppRouterProps, 'assignmentNav
         case 'orders':
             return <OrdersPage />;
         case 'assignments':
-            return <AssignmentsPage key={props.assignmentNavigation?.requestId || 0} initialView={props.assignmentNavigation} />;
+            return <DeadlineControlsPage key={props.deadlineNavigation?.requestId || 0} initialView={props.deadlineNavigation?.view} />;
         case 'settings':
             return <SettingsPage />;
         case 'references':
@@ -58,7 +59,7 @@ const resolvePage = (pageKey: string, props: Pick<AppRouterProps, 'assignmentNav
         case 'profile':
             return <ProfilePage />;
         default:
-            return <DashboardPage onOpenAssignments={props.onOpenAssignments} onOpenRegister={props.onOpenRegister} />;
+            return <DashboardPage onOpenControls={props.onOpenControls} onOpenRegister={props.onOpenRegister} />;
     }
 };
 
@@ -68,8 +69,8 @@ const AppRouter: React.FC<AppRouterProps> = ({
     accessReady,
     accessLoading,
     canAccessPage,
-    assignmentNavigation,
-    onOpenAssignments,
+    deadlineNavigation,
+    onOpenControls,
     onOpenRegister,
 }) => {
     const isDocumentPage = documentSectionPages.has(currentPage);
@@ -82,7 +83,7 @@ const AppRouter: React.FC<AppRouterProps> = ({
 
     return (
         <Suspense fallback={documentPageFallback}>
-            {resolvePage(pageToRender, { assignmentNavigation, onOpenAssignments, onOpenRegister })}
+            {resolvePage(pageToRender, { deadlineNavigation, onOpenControls, onOpenRegister })}
         </Suspense>
     );
 };

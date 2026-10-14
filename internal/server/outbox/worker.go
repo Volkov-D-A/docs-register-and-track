@@ -338,6 +338,9 @@ func journalChange(request models.CreateJournalEntryRequest) liveevents.Change {
 	resource := "document"
 	visibility := false
 	switch {
+	case strings.HasPrefix(request.Action, "DEADLINE_"):
+		resource = "controls"
+		visibility = request.Action == "DEADLINE_CONTROL_CREATE" || request.Action == "DEADLINE_CONTROL_UPDATE" || request.Action == "DEADLINE_CONTROL_CANCEL"
 	case strings.HasPrefix(request.Action, "ASSIGNMENT_"):
 		resource = "assignments"
 		visibility = request.Action == "ASSIGNMENT_CREATE" || request.Action == "ASSIGNMENT_DELETE" || request.Action == "ASSIGNMENT_UPDATE" || request.Action == "ASSIGNMENT_SERIES_CREATE" || request.Action == "ASSIGNMENT_SERIES_ITERATION_CREATE"
@@ -345,6 +348,7 @@ func journalChange(request models.CreateJournalEntryRequest) liveevents.Change {
 		resource = "files"
 	case strings.HasPrefix(request.Action, "LINK_"):
 		resource = "links"
+		visibility = true
 	}
 	return liveevents.Change{DocumentID: request.DocumentID.String(), Resource: resource, VisibilityChanged: visibility, PreviousReaders: request.PreviousReaderIDs}
 }

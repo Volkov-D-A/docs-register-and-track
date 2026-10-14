@@ -20,8 +20,6 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 	journalRepo := mocks.NewJournalStore(t)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
-	depRepo := mocks.NewDepartmentStore(t)
-	assignmentRepo := mocks.NewAssignmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 
 	auth := newAttachmentPrincipalStub(userRepo)
@@ -44,7 +42,7 @@ func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.Jou
 		return &models.OutgoingDocument{ID: id, NomenclatureID: uuid.New()}
 	}, nil).Maybe()
 
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
+	accessSvc := NewDocumentAccessService(auth, newRoleMappedDocumentAccessStore(role), &kindBackedDocumentStore{incoming: incomingRepo, outgoing: outgoingRepo})
 	svc := NewJournalService(journalRepo, accessSvc)
 	return svc, journalRepo, incomingRepo, outgoingRepo, auth
 }

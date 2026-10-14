@@ -14,14 +14,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-type fakeWorkspaceAPI struct {
-	assignmentMode string
-}
-
-func (f *fakeWorkspaceAPI) GetOverview(assignmentMode string) (*dto.WorkspaceOverview, error) {
-	f.assignmentMode = assignmentMode
-	return &dto.WorkspaceOverview{}, nil
-}
+type fakeWorkspaceAPI struct{}
 
 type fakeStatisticsAPI struct {
 	documentReport documentStatisticsReportRequest
@@ -59,22 +52,11 @@ func (*fakeStatisticsAPI) RetryStorageStatisticsRefresh() (*models.StorageStatis
 func TestWorkspaceAndStatisticsAPIsRequireSessionAndUsePrincipal(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, nil)
 	statistics := &fakeStatisticsAPI{}
-	workspace := &fakeWorkspaceAPI{}
-	var workspacePrincipal, statisticsPrincipal uuid.UUID
-	api.workspace = func(user *models.User) workspaceAPI { workspacePrincipal = user.ID; return workspace }
+	var statisticsPrincipal uuid.UUID
 	api.statistics = func(user *models.User) statisticsAPI { statisticsPrincipal = user.ID; return statistics }
-
 	unauthorized := httptest.NewRecorder()
-	api.Handler().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/workspace/overview", nil))
+	api.Handler().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/statistics/documents", nil))
 	assert.Equal(t, http.StatusUnauthorized, unauthorized.Code)
-
-	workspaceRequest := httptest.NewRequest(http.MethodGet, "/api/v1/workspace/overview?assignmentMode=control", nil)
-	workspaceRequest.Header.Set("Authorization", "Bearer "+token)
-	workspaceResponse := httptest.NewRecorder()
-	api.Handler().ServeHTTP(workspaceResponse, workspaceRequest)
-	require.Equal(t, http.StatusOK, workspaceResponse.Code, workspaceResponse.Body.String())
-	assert.NotEqual(t, uuid.Nil, workspacePrincipal)
-	assert.Equal(t, "control", workspace.assignmentMode)
 
 	reportRequest := httptest.NewRequest(http.MethodPost, "/api/v1/statistics/documents/report", strings.NewReader(`{"startDate":"2026-01-01","endDate":"2026-09-01","groupBy":"kind","accessScope":{"restricted":false}}`))
 	reportRequest.Header.Set("Authorization", "Bearer "+token)

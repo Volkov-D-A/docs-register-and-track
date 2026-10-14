@@ -37,14 +37,10 @@ func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	refRepo := mocks.NewReferenceStore(t)
 	nomRepo := mocks.NewNomenclatureStore(t)
 	docRepo := &documentAccessDocumentStore{}
-	access := NewDocumentAccessService(
-		auth,
-		&documentAccessDepartmentStore{},
-		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
-
-		&kindActionDocumentAccessStore{allowed: allowed},
-		docRepo,
-	)
+	access := NewDocumentAccessService(auth, &kindActionDocumentAccessStore{allowed: allowed, visible: func(id uuid.UUID) bool {
+		doc := docRepo.docs[id]
+		return allowed[doc.Kind]["register"] || allowed[doc.Kind]["control_deadlines"]
+	}}, docRepo)
 	handler := NewOutgoingLetterCommandHandler(repo, refRepo, nomRepo, auth, access)
 
 	return &outgoingLetterHandlerDeps{
@@ -82,7 +78,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "register"),
 		)
 		req := validOutgoingLetterRegisterRequest(nomenclatureID, idempotencyKey)
 
@@ -135,7 +131,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 	t.Run("rejects invalid idempotency key", func(t *testing.T) {
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "register"),
 		)
 		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
 		req.IdempotencyKey = uuid.Nil.String()
@@ -150,7 +146,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 	t.Run("rejects invalid nomenclature ID", func(t *testing.T) {
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "register"),
 		)
 		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
 		req.NomenclatureID = "bad-id"
@@ -165,7 +161,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 	t.Run("rejects invalid document type", func(t *testing.T) {
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "register"),
 		)
 		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
 		req.DocumentTypeID = "unknown"
@@ -180,7 +176,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 	t.Run("rejects invalid outgoing date", func(t *testing.T) {
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "register"),
 		)
 		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
 		req.OutgoingDate = "03.06.2026"
@@ -197,7 +193,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		expectedErr := errors.New("reference unavailable")
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "register"),
 		)
 		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
 		deps.refRepo.On("FindOrCreateOrganization", "ООО Получатель").Return((*models.Organization)(nil), expectedErr).Once()
@@ -214,7 +210,7 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 		recipientOrgID := uuid.New()
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "create"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "register"),
 		)
 		req := validOutgoingLetterRegisterRequest(uuid.New(), uuid.New())
 		deps.refRepo.On("FindOrCreateOrganization", "ООО Получатель").Return(&models.Organization{ID: recipientOrgID, Name: "ООО Получатель"}, nil).Once()
@@ -233,7 +229,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		recipientOrgID := uuid.New()
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -288,7 +284,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 	t.Run("rejects invalid document ID", func(t *testing.T) {
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "control_deadlines", "register"),
 		)
 
 		result, err := deps.handler.Update(dto.OutgoingLetterUpdateRequest{ID: "bad-id"})
@@ -302,7 +298,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "read"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "control_deadlines"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -325,7 +321,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -348,7 +344,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		expectedErr := errors.New("reference unavailable")
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -373,7 +369,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -400,7 +396,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		expectedErr := errors.New("update failed")
 		deps := setupOutgoingLetterCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindOutgoingLetter, "read", "update"),
+			allowDocumentActions(models.DocumentKindOutgoingLetter, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -426,7 +422,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 func TestOutgoingLetterCommandHandler_CommandInterface(t *testing.T) {
 	deps := setupOutgoingLetterCommandHandler(
 		t,
-		allowDocumentActions(models.DocumentKindOutgoingLetter, "create", "read", "update"),
+		allowDocumentActions(models.DocumentKindOutgoingLetter, "register", "control_deadlines", "register"),
 	)
 
 	registered, err := deps.handler.RegisterDocument(struct{}{})

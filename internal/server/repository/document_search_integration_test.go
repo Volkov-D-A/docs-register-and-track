@@ -18,7 +18,8 @@ func TestDocumentSearchIntegration(t *testing.T) {
 	repo := NewDocumentRepository(database.Wrap(db))
 	scopes := map[models.DocumentKind]models.DocumentAccessScope{}
 	for _, spec := range models.AllDocumentKindSpecs() {
-		scopes[spec.Code] = models.DocumentAccessScope{}
+		scopes[spec.Code] = models.DocumentAccessScope{Restricted: true, UserID: user.String()}
+		execSQL(t, db, `INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES($1,'user',$2,'register')`, spec.Code, user.String())
 	}
 	noms := map[uuid.UUID]uuid.UUID{}
 	insert := func(kind models.DocumentKind, content string) uuid.UUID {
@@ -80,21 +81,25 @@ func TestDocumentSearchIntegration(t *testing.T) {
 	beyond := search("ремонт", 10, 1, scopes)
 	require.Empty(t, beyond.Items)
 	require.Equal(t, 3, beyond.TotalCount)
-	restricted := map[models.DocumentKind]models.DocumentAccessScope{
-		models.DocumentKindCitizenAppeal:       {}, // This lower ranked document is the only readable one.
-		models.DocumentKindIncomingLetter:      {Restricted: true},
-		models.DocumentKindAdministrativeOrder: {Restricted: true},
+	reader := insertIntegrationUser(t, db, "search-scoped-reader")
+	execSQL(t, db, `INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES('citizen_appeal','user',$1,'control_deadlines')`, reader.String())
+	restricted := map[models.DocumentKind]models.DocumentAccessScope{}
+	for _, spec := range models.AllDocumentKindSpecs() {
+		restricted[spec.Code] = models.DocumentAccessScope{Restricted: true, UserID: reader.String()}
 	}
 	result = search("ремонт", 1, 1, restricted)
 	require.Equal(t, []string{appeal.String()}, ids(result))
 	require.Equal(t, 1, result.TotalCount)
-	restricted[models.DocumentKindIncomingLetter] = models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{noms[incoming].String()}}
+	department := uuid.New()
+	execSQL(t, db, `INSERT INTO departments(id,name) VALUES($1,'Search department')`, department)
+	execSQL(t, db, `UPDATE users SET department_id=$1 WHERE id=$2`, department, reader)
+	execSQL(t, db, `INSERT INTO department_nomenclature(department_id,nomenclature_id) VALUES($1,$2)`, department, noms[incoming])
 	require.Equal(t, 2, search("ремонт", 1, 20, restricted).TotalCount)
-	// User/substitution assignment edges use the same scope policy as journals.
-	delegate := insertIntegrationUser(t, db, "search-delegate")
-	execSQL(t, db, `INSERT INTO assignments (document_id, executor_id, content, status) VALUES ($1, $2, 'Read', 'new')`, order, delegate)
-	restricted[models.DocumentKindAdministrativeOrder] = models.DocumentAccessScope{Restricted: true, AccessibleByUserIDs: []string{user.String(), delegate.String()}}
+	// Reading an incoming document makes the entire linked chain searchable.
+	execSQL(t, db, `INSERT INTO document_links(source_document_id,target_document_id,link_type,created_by) VALUES($1,$2,'related',$3)`, incoming, order, user)
 	require.Equal(t, 3, search("ремонт", 1, 20, restricted).TotalCount)
+	execSQL(t, db, `DELETE FROM document_links WHERE source_document_id=$1 AND target_document_id=$2`, incoming, order)
+	require.Equal(t, 2, search("ремонт", 1, 20, restricted).TotalCount)
 	require.Empty(t, search("ремонт", 1, 20, nil).Items)
 	require.Empty(t, search("отсутствующий термин", 1, 20, scopes).Items)
 	// Updates and organization renames are visible without asynchronous rebuilding.

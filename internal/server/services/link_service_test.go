@@ -25,7 +25,6 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore port
 	linkRepo := mocks.NewLinkStore(t)
 	incRepo := mocks.NewIncomingDocStore(t)
 	outRepo := mocks.NewOutgoingDocStore(t)
-	depRepo := mocks.NewDepartmentStore(t)
 	assignmentRepo := mocks.NewAssignmentStore(t)
 	userRepo := mocks.NewUserStore(t)
 
@@ -70,14 +69,15 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore port
 		return result, nil
 	}).Maybe()
 
-	accessSvc := NewDocumentAccessService(auth, depRepo, assignmentRepo, accessStore, &kindBackedDocumentStore{incoming: incRepo, outgoing: outRepo})
+	accessSvc := NewDocumentAccessService(auth, accessStore, &kindBackedDocumentStore{incoming: incRepo, outgoing: outRepo})
 
 	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, nil, accessSvc, auth, nil)
 	return svc, linkRepo, incRepo, outRepo, auth
 }
 
 type linkActionDocumentAccessStore struct {
-	allowed map[models.DocumentKind]map[string]bool
+	readable map[uuid.UUID]bool
+	allowed  map[models.DocumentKind]map[string]bool
 }
 
 type mapDocumentStore struct {
@@ -411,17 +411,18 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 		assert.Equal(t, "ответ", result[0].LinkType)
 	})
 
-	t.Run("скрывает связи с недоступным документом", func(t *testing.T) {
+	t.Run("показывает связанный документ другого вида", func(t *testing.T) {
 		accessStore := &linkActionDocumentAccessStore{
 			allowed: map[models.DocumentKind]map[string]bool{
 				models.DocumentKindIncomingLetter: map[string]bool{
-					"link": true,
-					"read": true,
+					"register":          true,
+					"control_deadlines": true,
 				},
 			},
 		}
 		svc, repo, incRepo, outRepo, _ := setupLinkServiceWithAccessStore(t, "clerk", accessStore)
 		targetID := uuid.New()
+		accessStore.readable = map[uuid.UUID]bool{docID: true, targetID: true}
 		incRepo.On("GetByID", docID).Return(&models.IncomingDocument{ID: docID}, nil).Maybe()
 		incRepo.On("GetByID", targetID).Return((*models.IncomingDocument)(nil), nil).Maybe()
 		outRepo.On("GetByID", targetID).Return(&models.OutgoingDocument{ID: targetID}, nil).Maybe()
@@ -439,7 +440,7 @@ func TestLinkService_GetDocumentLinks(t *testing.T) {
 
 		result, err := svc.GetDocumentLinks(docID.String())
 		require.NoError(t, err)
-		assert.Empty(t, result)
+		assert.Len(t, result, 1)
 	})
 
 	t.Run("невалидный ID", func(t *testing.T) {
@@ -516,7 +517,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		appealID := uuid.New()
 		registrationDate := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
 
-		svc.access = NewDocumentAccessService(svc.authService, nil, nil, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
+		svc.access = NewDocumentAccessService(svc.authService, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
 			docs: map[uuid.UUID]*models.Document{
 				rootID: {
 					ID:                 rootID,
@@ -572,7 +573,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		cancelledOrderID := uuid.New()
 		registrationDate := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
 
-		svc.access = NewDocumentAccessService(svc.authService, nil, nil, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
+		svc.access = NewDocumentAccessService(svc.authService, newRoleMappedDocumentAccessStore("clerk"), &mapDocumentStore{
 			docs: map[uuid.UUID]*models.Document{
 				rootID: {
 					ID:                 rootID,
@@ -628,12 +629,12 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		assert.False(t, *cancelledOrderNode.IsActive)
 	})
 
-	t.Run("скрывает доступные узлы за недоступным мостом", func(t *testing.T) {
+	t.Run("показывает всю цепочку через документ другого вида", func(t *testing.T) {
 		accessStore := &linkActionDocumentAccessStore{
 			allowed: map[models.DocumentKind]map[string]bool{
 				models.DocumentKindIncomingLetter: map[string]bool{
-					"link": true,
-					"read": true,
+					"register":          true,
+					"control_deadlines": true,
 				},
 			},
 		}
@@ -641,6 +642,7 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		blockedID := uuid.New()
 		visibleID := uuid.New()
 		visibleChildID := uuid.New()
+		accessStore.readable = map[uuid.UUID]bool{rootID: true, blockedID: true, visibleID: true, visibleChildID: true}
 
 		mockLinks := []models.DocumentLink{
 			{ID: uuid.New(), SourceID: rootID, SourceKind: models.DocumentKindIncomingLetter, TargetID: blockedID, TargetKind: models.DocumentKindOutgoingLetter, LinkType: "ответ"},
@@ -658,8 +660,8 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		result, err := svc.GetDocumentFlow(rootID.String())
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Empty(t, result.Nodes)
-		assert.Empty(t, result.Edges)
+		assert.Len(t, result.Nodes, 4)
+		assert.Len(t, result.Edges, 3)
 	})
 
 	t.Run("пустой граф", func(t *testing.T) {
@@ -702,4 +704,17 @@ func TestLinkService_GetDocumentFlow(t *testing.T) {
 		assert.ErrorIs(t, err, models.ErrForbidden)
 		assert.Nil(t, result)
 	})
+}
+
+func (s *linkActionDocumentAccessStore) CanReadDocument(_ uuid.UUID, id uuid.UUID) (bool, error) {
+	return s.readable[id], nil
+}
+func (s *linkActionDocumentAccessStore) GetReadableDocumentIDs(_ uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]bool, error) {
+	result := map[uuid.UUID]bool{}
+	for _, id := range ids {
+		if s.readable[id] {
+			result[id] = true
+		}
+	}
+	return result, nil
 }

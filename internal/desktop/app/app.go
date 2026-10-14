@@ -89,7 +89,7 @@ func newWailsOptionsWithDependencies(
 	documentRegistrationService := desktopservices.NewDocumentRegistrationService(serverClient, operationLifecycle)
 	userEventService := desktopservices.NewUserEventService(serverClient)
 	administrativeOrderService := desktopservices.NewAdministrativeOrderService(serverClient)
-	assignmentService := desktopservices.NewAssignmentService(serverClient)
+	deadlineControlService := desktopservices.NewDeadlineControlService(serverClient, operationLifecycle)
 	departmentService := desktopservices.NewDepartmentService(serverClient)
 
 	attachmentService, startAttachments, err := desktopservices.NewDesktopAttachmentService(serverClient, desktopservices.DesktopAttachmentOptions{Lifecycle: operationLifecycle})
@@ -176,7 +176,7 @@ func newWailsOptionsWithDependencies(
 			documentQueryService,
 			documentRegistrationService,
 			administrativeOrderService,
-			assignmentService,
+			deadlineControlService,
 			workspaceService,
 			statisticsService,
 			reportingService,

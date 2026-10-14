@@ -203,7 +203,7 @@ func (h *AdministrativeOrderCommandHandler) Update(req dto.AdministrativeOrderUp
 	if err != nil {
 		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 	}
-	if err := h.access.RequireDocumentAction(uid, "update"); err != nil {
+	if err := h.access.RequireDocumentAction(uid, "register"); err != nil {
 		return nil, err
 	}
 	idempotencyKey, err := uuid.Parse(req.IdempotencyKey)

@@ -30,7 +30,6 @@ func MapIncomingDocument(m *models.IncomingDocument) *IncomingDocument {
 		CreatedAt:            m.CreatedAt,
 		UpdatedAt:            m.UpdatedAt,
 		AttachmentsCount:     m.AttachmentsCount,
-		AssignmentsCount:     m.AssignmentsCount,
 	}
 }
 
@@ -101,7 +100,6 @@ func MapCitizenAppealDocument(m *models.CitizenAppealDocument) *CitizenAppealDoc
 		CreatedAt:            m.CreatedAt,
 		UpdatedAt:            m.UpdatedAt,
 		AttachmentsCount:     m.AttachmentsCount,
-		AssignmentsCount:     m.AssignmentsCount,
 	}
 }
 
@@ -184,7 +182,6 @@ func MapAdministrativeOrderDocument(m *models.AdministrativeOrderDocument) *Admi
 		CreatedAt:            m.CreatedAt,
 		UpdatedAt:            m.UpdatedAt,
 		AttachmentsCount:     m.AttachmentsCount,
-		AssignmentsCount:     m.AssignmentsCount,
 	}
 }
 

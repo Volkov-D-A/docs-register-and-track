@@ -31,6 +31,8 @@ CREATE TABLE document_permissions (
     subject_key VARCHAR(100) NOT NULL,
     action VARCHAR(30) NOT NULL CHECK (
         action IN (
+            'register',
+            'control_deadlines',
             'create',
             'read',
             'update',
@@ -66,3 +68,24 @@ CREATE TABLE resolution_executors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(500) NOT NULL UNIQUE
 );
+
+-- Executors of deadline controls. Linked users are represented without copying names.
+CREATE TABLE deadline_executors (
+ id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ user_id UUID UNIQUE REFERENCES users(id) ON DELETE RESTRICT,
+ name VARCHAR(500),
+ institution VARCHAR(500) NOT NULL DEFAULT '',
+ position VARCHAR(500) NOT NULL DEFAULT '',
+ is_active BOOLEAN NOT NULL DEFAULT true,
+ version BIGINT NOT NULL DEFAULT 1 CHECK (version > 0),
+ CHECK ((user_id IS NOT NULL AND name IS NULL AND institution='' AND position='')
+     OR (user_id IS NULL AND name IS NOT NULL AND length(btrim(name))>0))
+);
+CREATE FUNCTION create_user_deadline_executor() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+ INSERT INTO deadline_executors(id,user_id) VALUES(NEW.id,NEW.id);
+ RETURN NEW;
+END;
+$$;
+CREATE TRIGGER user_deadline_executor AFTER INSERT ON users
+ FOR EACH ROW EXECUTE FUNCTION create_user_deadline_executor();

@@ -60,7 +60,7 @@ func (s *roleMappedDocumentAccessStore) HasPermission(kindCode, action string, d
 	for _, role := range s.roles {
 		if role == "clerk" {
 			switch action {
-			case "create", "read", "update", "assign", "upload", "link", "view_journal":
+			case "register", "control_deadlines":
 				return true, nil
 			}
 		}
@@ -87,4 +87,25 @@ func (s *roleMappedDocumentAccessStore) HasSystemPermission(permission, userID s
 
 func (s *roleMappedDocumentAccessStore) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
 	return &models.UserDocumentAccessProfile{}, nil
+}
+
+// This fixture supplies visibility independently from management permissions.
+// Clerk cases represent an explicit document-kind registration grant.
+func (s *roleMappedDocumentAccessStore) CanReadDocument(_ uuid.UUID, _ uuid.UUID) (bool, error) {
+	for _, role := range s.roles {
+		if role == "clerk" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (s *roleMappedDocumentAccessStore) GetReadableDocumentIDs(user uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]bool, error) {
+	result := map[uuid.UUID]bool{}
+	for _, id := range ids {
+		allowed, _ := s.CanReadDocument(user, id)
+		if allowed {
+			result[id] = true
+		}
+	}
+	return result, nil
 }

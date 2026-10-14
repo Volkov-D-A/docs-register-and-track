@@ -86,7 +86,10 @@ func (api *managementAPI) sessionEvents(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 			for _, change := range visible {
-				if change.Resource == "resync" {
+				if change.Resource == "resync" || change.VisibilityChanged {
+					// Changed seeds and edges may affect any kind, including revoked
+					// cards. A global resync carries no document metadata.
+					change = liveevents.Change{Resource: "resync"}
 					if writeEvent(w, "resync", nil) != nil {
 						return
 					}
@@ -161,10 +164,10 @@ func operationTerminal(state string) bool {
 	return false
 }
 
-// Use the same read policy as HTTP queries, including active substitutions.
+// Use the same current-user read policy as HTTP queries.
 type eventDocumentAccess interface {
 	ResolveReadableDocuments([]uuid.UUID) (map[uuid.UUID]*models.Document, error)
-	GetCurrentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error)
+	GetCurrentReadSubjectIDs() ([]uuid.UUID, error)
 }
 
 func (api *managementAPI) eventChanges(user *models.User, changes []liveevents.Change) ([]liveevents.Change, error) {
@@ -183,8 +186,8 @@ func (api *managementAPI) readableChanges(user *models.User, changes []liveevent
 	result := make([]liveevents.Change, 0, len(changes))
 	ids := make([]uuid.UUID, 0, len(changes))
 	for _, change := range changes {
-		if change.Resource == "resync" {
-			return []liveevents.Change{change}, nil
+		if change.Resource == "resync" || change.VisibilityChanged {
+			return []liveevents.Change{{Resource: "resync"}}, nil
 		}
 		if id, err := uuid.Parse(change.DocumentID); err == nil {
 			ids = append(ids, id)
@@ -207,7 +210,7 @@ func (api *managementAPI) readableChanges(user *models.User, changes []liveevent
 	if err != nil && !errors.Is(err, models.ErrForbidden) {
 		return nil, err
 	}
-	subjects, err := access.GetCurrentUserAndSubstitutionSubjectIDs()
+	subjects, err := access.GetCurrentReadSubjectIDs()
 	if err != nil {
 		return nil, err
 	}

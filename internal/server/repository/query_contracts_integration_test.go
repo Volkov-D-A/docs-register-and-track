@@ -109,13 +109,17 @@ func TestDocumentListAccessScopeIntegration(t *testing.T) {
 	}{{allowedNom, "AL"}, {deniedNom, "DN"}} {
 		execSQL(t, sqlDB, `INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode) VALUES ($1, $2, $3, 2026, 'outgoing_letter', '/', 'index_and_number')`, item.id, item.index, item.index)
 	}
+	department := uuid.New()
+	execSQL(t, sqlDB, `INSERT INTO departments(id,name) VALUES($1,'Scope department')`, department)
+	execSQL(t, sqlDB, `UPDATE users SET department_id=$1 WHERE id=$2`, department, owner)
+	execSQL(t, sqlDB, `INSERT INTO department_nomenclature(department_id,nomenclature_id) VALUES($1,$2)`, department, allowedNom)
 	org := uuid.New()
 	execSQL(t, sqlDB, `INSERT INTO organizations (id, name) VALUES ($1, 'Scope organization')`, org)
 	insertScopedOutgoing(t, sqlDB, allowedNom, owner, org, "AL/1", "allowed searchable")
 	insertScopedOutgoing(t, sqlDB, deniedNom, other, org, "DN/1", "denied searchable")
 
 	items, err := NewOutgoingDocumentRepository(db).GetList(models.OutgoingDocumentFilter{
-		AccessScope: &models.DocumentAccessScope{Restricted: true, AllowedNomenclatureIDs: []string{allowedNom.String()}},
+		AccessScope: &models.DocumentAccessScope{Restricted: true, UserID: owner.String()},
 		Search:      "searchable", Page: 1, PageSize: 50,
 	})
 	if err != nil {
@@ -123,22 +127,6 @@ func TestDocumentListAccessScopeIntegration(t *testing.T) {
 	}
 	if items.TotalCount != 1 || len(items.Items) != 1 || items.Items[0].OutgoingNumber != "AL/1" {
 		t.Fatalf("scope leaked or hid data: %+v", items)
-	}
-
-	// The same assignment is visible only to its executor in the workspace.
-	var documentID uuid.UUID
-	if err := sqlDB.QueryRow(`SELECT id FROM documents WHERE registration_number = 'AL/1'`).Scan(&documentID); err != nil {
-		t.Fatal(err)
-	}
-	execSQL(t, sqlDB, `INSERT INTO assignments (document_id, executor_id, content, deadline, status) VALUES ($1, $2, 'scope', CURRENT_DATE + 1, 'new')`, documentID, owner)
-	workspace := NewWorkspaceRepository(db)
-	visible, _, err := workspace.AssignmentSummary(models.WorkspaceQuery{Mode: models.WorkspaceModeExecution, SubjectIDs: []string{owner.String()}})
-	if err != nil || visible.New != 1 {
-		t.Fatalf("owner workspace visibility=%d err=%v", visible.New, err)
-	}
-	hidden, _, err := workspace.AssignmentSummary(models.WorkspaceQuery{Mode: models.WorkspaceModeExecution, SubjectIDs: []string{other.String()}})
-	if err != nil || hidden.New != 0 {
-		t.Fatalf("unrelated workspace visibility=%d err=%v", hidden.New, err)
 	}
 
 }

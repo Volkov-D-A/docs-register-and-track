@@ -12,12 +12,7 @@ import (
 )
 
 type workspaceClientStub struct {
-	read      func(context.Context, string) (*dto.WorkspaceOverview, error)
 	documents func(context.Context) (*dto.WorkspaceDocuments, error)
-}
-
-func (c workspaceClientStub) GetWorkspaceOverview(ctx context.Context, assignmentMode string) (*dto.WorkspaceOverview, error) {
-	return c.read(ctx, assignmentMode)
 }
 
 type outboxAdminClientStub struct {
@@ -27,24 +22,6 @@ type outboxAdminClientStub struct {
 
 func (c outboxAdminClientStub) RequeueOutboxEvent(ctx context.Context, id string) error {
 	return c.requeue(ctx, id)
-}
-
-func TestWorkspaceAdapterReturnsServerScopeAndCancelsRequest(t *testing.T) {
-	var requestContext context.Context
-	want := &dto.WorkspaceOverview{Assignments: []dto.WorkspaceAssignment{{ID: "substituted-assignment"}}}
-	service := NewWorkspaceService(workspaceClientStub{read: func(ctx context.Context, assignmentMode string) (*dto.WorkspaceOverview, error) {
-		requestContext = ctx
-		require.Equal(t, "execution", assignmentMode)
-		deadline, ok := ctx.Deadline()
-		require.True(t, ok)
-		require.WithinDuration(t, time.Now().Add(30*time.Second), deadline, time.Second)
-		require.NoError(t, ctx.Err())
-		return want, nil
-	}})
-	result, err := service.GetOverview("execution")
-	require.NoError(t, err)
-	require.Same(t, want, result)
-	require.ErrorIs(t, requestContext.Err(), context.Canceled)
 }
 
 func TestOutboxAdapterLeavesValidationAndPermissionsToServer(t *testing.T) {
@@ -63,7 +40,7 @@ func TestOutboxAdapterLeavesValidationAndPermissionsToServer(t *testing.T) {
 }
 
 func TestWorkspaceOutboxAdaptersRejectMissingClients(t *testing.T) {
-	_, err := NewWorkspaceService(nil).GetOverview("")
+	_, err := NewWorkspaceService(nil).GetRecentDocuments()
 	require.ErrorIs(t, err, errWorkspaceServiceClientNotConfigured)
 	service := NewOutboxAdminService(nil)
 	stats, err := service.GetStats()

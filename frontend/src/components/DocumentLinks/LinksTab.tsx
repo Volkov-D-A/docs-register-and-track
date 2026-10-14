@@ -52,14 +52,10 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
     const activeDocumentRef = useRef(documentId);
     activeSearchRef.current = `${targetKind}\u0000${searchTerm}`;
     activeDocumentRef.current = documentId;
-    const canManageLinks = accessReady && hasAction(documentKind, 'link');
-    const creatableKinds = useMemo(
-        () => accessReady ? kinds.filter((kind) => hasAction(kind.code, 'create')) : [],
-        [accessReady, hasAction, kinds],
-    );
+    const canManageLinks = accessReady && kinds.some((kind) => hasAction(kind.code, 'register'));
     const selectableTargetKinds = useMemo(
-        () => accessReady ? (creatableKinds.length > 0 ? creatableKinds : kinds) : [],
-        [accessReady, creatableKinds, kinds],
+        () => accessReady ? kinds : [],
+        [accessReady, kinds],
     );
     const availableLinkTypes = useMemo(() => {
         if (isAdministrativeOrderKind(documentKind) && targetKind === DOCUMENT_KIND_ADMINISTRATIVE_ORDER) {
@@ -203,7 +199,7 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
     };
 
     const fetchLinks = useCallback(async () => {
-        if (!documentId || !canManageLinks || activeDocumentRef.current !== documentId) {
+        if (!documentId || !accessReady || activeDocumentRef.current !== documentId) {
             return;
         }
         setLoading(true);
@@ -219,11 +215,11 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
                 onSettled: () => setLoading(false),
             },
         );
-    }, [canManageLinks, documentId, message]);
+    }, [accessReady, documentId, message]);
 
     useEffect(() => {
         const latestLinksRequest = latestLinksRequestRef.current;
-        if (documentId && canManageLinks) {
+        if (documentId && accessReady) {
             setLinks([]);
             void fetchLinks();
         } else {
@@ -233,7 +229,7 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
         }
 
         return () => latestLinksRequest.invalidate();
-    }, [canManageLinks, documentId, fetchLinks]);
+    }, [accessReady, documentId, fetchLinks]);
 
     useDocumentRefresh(documentId, 'links', fetchLinks);
 
@@ -296,7 +292,7 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
                     </div>
                 </div>
                 <div style={{ flexShrink: 0, marginLeft: 16 }}>
-                    {canManageLinks && (
+                    {accessReady && (hasAction(documentKind, 'register') || hasAction(otherType, 'register')) && (
                         <Popconfirm
                             title={`Удалить связь с документом № ${otherNumber || 'без номера'}?`}
                             description="Это действие нельзя отменить. Документы останутся в системе, но связь между ними будет удалена."

@@ -45,7 +45,7 @@ func (s *AdministrativeOrderService) MarkAcknowledged(personIDStr string) (*dto.
 	if person == nil {
 		return nil, models.NewNotFound("строка ознакомления не найдена")
 	}
-	if err := s.access.RequireDocumentAction(person.DocumentID, "update"); err != nil {
+	if err := s.access.RequireDocumentAction(person.DocumentID, "register"); err != nil {
 		return nil, err
 	}
 

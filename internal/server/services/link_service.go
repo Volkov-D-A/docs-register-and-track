@@ -159,7 +159,7 @@ func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, err
 		if err != nil {
 			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 		}
-		if err := s.access.RequireDocumentAction(docID, "link"); err != nil {
+		if err := s.access.RequireReadAnyType(docID); err != nil {
 			return nil, err
 		}
 		res, err := s.repo.GetByDocumentID(ctx, docID)
@@ -200,7 +200,7 @@ func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, erro
 		if err != nil {
 			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
 		}
-		if err := s.access.RequireDocumentAction(rootID, "link"); err != nil {
+		if err := s.access.RequireReadAnyType(rootID); err != nil {
 			return nil, err
 		}
 

@@ -48,7 +48,8 @@ func TestWorkspaceRecentDocumentsIntegration(t *testing.T) {
 	repo := NewWorkspaceRepository(database.Wrap(db))
 	all := map[models.DocumentKind]models.DocumentAccessScope{}
 	for _, spec := range models.AllDocumentKindSpecs() {
-		all[spec.Code] = models.DocumentAccessScope{}
+		all[spec.Code] = models.DocumentAccessScope{Restricted: true, UserID: user.String()}
+		execSQL(t, db, `INSERT INTO document_permissions(kind_code,subject_type,subject_key,action) VALUES($1,'user',$2,'register')`, spec.Code, user.String())
 	}
 	items, err := repo.RecentDocuments(all)
 	require.NoError(t, err)
@@ -69,31 +70,32 @@ func TestWorkspaceRecentDocumentsIntegration(t *testing.T) {
 	require.Equal(t, "Alpha", items[0].Description)
 	require.Equal(t, "О назначении", items[2].Description)
 	require.Equal(t, "Петров А.В.", items[3].Description)
-	// Read edges, substitution subjects and nomenclature access are combined before LIMIT.
+	// Department, co-executor and full link-chain roots combine before LIMIT.
 	other := insertIntegrationUser(t, db, "recent-other")
-	assn := uuid.New()
-	execSQL(t, db, `INSERT INTO assignments (id, document_id, executor_id, content, status) VALUES ($1, $2, $3, 'Read edge', 'new')`, assn, order, other)
-	execSQL(t, db, `INSERT INTO assignment_co_executors (assignment_id, user_id) VALUES ($1, $2)`, assn, user)
-	execSQL(t, db, `INSERT INTO assignments (document_id, executor_id, content, status) VALUES ($1, $2, 'Substitution edge', 'new')`, appeal, other)
-	ack := uuid.New()
-	execSQL(t, db, `INSERT INTO assignments (id, document_id, creator_id, content, type) VALUES ($1, $2, $3, 'Read', 'acknowledgment')`, ack, incoming, user)
-	execSQL(t, db, `INSERT INTO assignment_recipients (id, assignment_id, user_id) VALUES ($1, $2, $3)`, uuid.New(), ack, user)
+	department := uuid.New()
+	execSQL(t, db, `INSERT INTO departments(id,name) VALUES($1,'Recent department')`, department)
+	execSQL(t, db, `UPDATE users SET department_id=$1 WHERE id=$2`, department, other)
+	for _, doc := range []uuid.UUID{incoming, outgoing} {
+		execSQL(t, db, `INSERT INTO department_nomenclature(department_id,nomenclature_id) VALUES($1,$2)`, department, nomenclatures[doc])
+	}
+	execSQL(t, db, `INSERT INTO document_deadline_controls(id,document_id,executor_id,co_executor_ids,subject,due_date,created_by) VALUES($4,$1,$2,ARRAY[$3]::uuid[],'Read edge','2026-10-10',$2)`, order, user, other, uuid.New())
+	execSQL(t, db, `INSERT INTO document_links(source_document_id,target_document_id,link_type,created_by) VALUES($1,$2,'related',$3)`, order, appeal, user)
 	unrelated := uuid.New()
 	insert(unrelated, "outgoing_letter", "85", "2026-09-25", "2026-09-25T12:00:00Z")
 	scopes := map[models.DocumentKind]models.DocumentAccessScope{}
 	for _, spec := range models.AllDocumentKindSpecs() {
-		scopes[spec.Code] = models.DocumentAccessScope{Restricted: true, AccessibleByUserIDs: []string{user.String(), other.String()}, AllowedNomenclatureIDs: []string{nomenclatures[incoming].String(), nomenclatures[outgoing].String()}}
+		scopes[spec.Code] = models.DocumentAccessScope{Restricted: true, UserID: other.String()}
 	}
 	items, err = repo.RecentDocuments(scopes)
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{outgoing, incoming, order, appeal}, ids(items))
 	require.NotContains(t, ids(items), unrelated)
-	// Same document has both a nomenclature grant and acknowledgment; it remains one row.
+	// Combined roots and links never duplicate the bounded preview.
 	require.Len(t, items, 4)
 	items, err = repo.RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope{models.DocumentKindOutgoingLetter: {Restricted: true}})
 	require.NoError(t, err)
 	require.Empty(t, items)
-	items, err = repo.RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope{models.DocumentKindIncomingLetter: {}})
+	items, err = repo.RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope{models.DocumentKindIncomingLetter: {Restricted: true, UserID: user.String()}})
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{incoming, older}, ids(items))
 	require.Equal(t, "Content fallback", items[1].Description)

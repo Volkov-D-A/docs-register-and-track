@@ -103,3 +103,102 @@ CREATE TABLE assignment_recipients (
 CREATE INDEX idx_assignment_recipients_user_assignment ON assignment_recipients(user_id, assignment_id);
 CREATE INDEX idx_assignment_recipients_pending_user ON assignment_recipients(user_id, assignment_id)
     WHERE confirmed_at IS NULL;
+
+-- New deadline model; legacy consumers are removed in the subsequent UI stage.
+CREATE TABLE document_deadline_series (
+ id UUID PRIMARY KEY,
+ document_id UUID NOT NULL REFERENCES documents(id) ON DELETE RESTRICT,
+ created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+ executor_id UUID NOT NULL REFERENCES deadline_executors(id) ON DELETE RESTRICT,
+ co_executor_ids UUID[] NOT NULL DEFAULT '{}',
+ subject TEXT NOT NULL CHECK (length(btrim(subject)) <= 2000),
+ interval_unit TEXT NOT NULL CHECK (interval_unit IN ('day','week','month','year')),
+ interval_value INTEGER NOT NULL CHECK (interval_value BETWEEN 1 AND 3650),
+ day_rule TEXT NOT NULL,
+ day_of_month INTEGER NOT NULL DEFAULT 0,
+ first_due_date DATE NOT NULL,
+ active BOOLEAN NOT NULL DEFAULT true,
+ stop_reason TEXT NOT NULL DEFAULT '',
+ current_control_id UUID NOT NULL,
+ current_iteration INTEGER NOT NULL CHECK (current_iteration > 0),
+ version BIGINT NOT NULL DEFAULT 1 CHECK (version > 0),
+ CHECK ((interval_unit IN ('day','week') AND day_rule='same_day' AND day_of_month=0)
+    OR (interval_unit IN ('month','year') AND day_rule='fixed' AND day_of_month BETWEEN 1 AND 31)
+    OR (interval_unit IN ('month','year') AND day_rule='last_day' AND day_of_month=0))
+);
+CREATE TABLE document_deadline_controls (
+ id UUID PRIMARY KEY,
+ document_id UUID NOT NULL REFERENCES documents(id) ON DELETE RESTRICT,
+ created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+ executor_id UUID NOT NULL REFERENCES deadline_executors(id) ON DELETE RESTRICT,
+ co_executor_ids UUID[] NOT NULL DEFAULT '{}',
+ subject TEXT NOT NULL CHECK (length(btrim(subject)) <= 2000),
+ due_date DATE NOT NULL,
+ status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','completed','cancelled')),
+ executed_on DATE,
+ completed_at TIMESTAMPTZ,
+ completed_by UUID REFERENCES users(id) ON DELETE RESTRICT,
+ comment TEXT NOT NULL DEFAULT '',
+ cancellation_reason TEXT NOT NULL DEFAULT '',
+ series_id UUID REFERENCES document_deadline_series(id) ON DELETE RESTRICT,
+ iteration INTEGER NOT NULL DEFAULT 0,
+ planned_due_date DATE,
+ version BIGINT NOT NULL DEFAULT 1 CHECK (version > 0),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ CHECK ((status='completed' AND executed_on IS NOT NULL AND completed_at IS NOT NULL AND completed_by IS NOT NULL AND cancellation_reason='')
+     OR (status='active' AND executed_on IS NULL AND completed_at IS NULL AND completed_by IS NULL AND cancellation_reason='')
+     OR (status='cancelled' AND executed_on IS NULL AND completed_at IS NULL AND completed_by IS NULL AND length(btrim(cancellation_reason))>0)),
+ CHECK ((series_id IS NULL AND iteration=0 AND planned_due_date IS NULL)
+     OR (series_id IS NOT NULL AND iteration>0 AND planned_due_date IS NOT NULL)),
+ UNIQUE(series_id,iteration),
+ UNIQUE(id,series_id,document_id,iteration)
+);
+ALTER TABLE document_deadline_series ADD CONSTRAINT deadline_series_current_control
+ FOREIGN KEY(current_control_id,id,document_id,current_iteration)
+ REFERENCES document_deadline_controls(id,series_id,document_id,iteration) DEFERRABLE INITIALLY DEFERRED;
+CREATE UNIQUE INDEX deadline_series_one_active_iteration ON document_deadline_controls(series_id) WHERE status='active';
+CREATE INDEX deadline_controls_document ON document_deadline_controls(document_id);
+CREATE INDEX deadline_controls_author ON document_deadline_controls(created_by);
+CREATE INDEX deadline_controls_executor ON document_deadline_controls(executor_id);
+CREATE INDEX deadline_controls_co_executors ON document_deadline_controls USING gin(co_executor_ids);
+CREATE INDEX deadline_controls_active_due ON document_deadline_controls(due_date) WHERE status='active';
+CREATE INDEX deadline_series_document ON document_deadline_series(document_id);
+CREATE INDEX deadline_series_author ON document_deadline_series(created_by);
+
+CREATE INDEX deadline_series_executor ON document_deadline_series(executor_id);
+CREATE INDEX deadline_series_co_executors ON document_deadline_series USING gin(co_executor_ids);
+CREATE FUNCTION deadline_executor_set_valid(main UUID, co UUID[]) RETURNS BOOLEAN
+LANGUAGE SQL IMMUTABLE AS $$
+ SELECT NOT main=ANY(co) AND array_position(co,NULL) IS NULL
+    AND cardinality(co)=(SELECT count(DISTINCT id) FROM unnest(co) AS id);
+$$;
+ALTER TABLE document_deadline_controls ADD CHECK(deadline_executor_set_valid(executor_id,co_executor_ids));
+ALTER TABLE document_deadline_series ADD CHECK(deadline_executor_set_valid(executor_id,co_executor_ids));
+ALTER TABLE document_deadline_controls ADD CHECK(executed_on IS NULL OR executed_on <= (completed_at AT TIME ZONE 'Asia/Yekaterinburg')::date);
+
+-- Preserve referential integrity for co-executor arrays as well as the primary FK.
+CREATE FUNCTION verify_deadline_co_executors() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+ PERFORM id FROM deadline_executors WHERE id=ANY(NEW.co_executor_ids) FOR KEY SHARE;
+ IF EXISTS(SELECT 1 FROM unnest(NEW.co_executor_ids) AS co(executor_id) WHERE NOT EXISTS(SELECT 1 FROM deadline_executors e WHERE e.id=co.executor_id)) THEN
+  RAISE EXCEPTION 'co-executor does not exist' USING ERRCODE='23503';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+CREATE CONSTRAINT TRIGGER deadline_control_co_executor_refs AFTER INSERT OR UPDATE OF co_executor_ids ON document_deadline_controls
+ DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION verify_deadline_co_executors();
+CREATE CONSTRAINT TRIGGER deadline_series_co_executor_refs AFTER INSERT OR UPDATE OF co_executor_ids ON document_deadline_series
+ DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION verify_deadline_co_executors();
+CREATE FUNCTION restrict_deadline_co_executor_deletion() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+ IF EXISTS(SELECT 1 FROM document_deadline_controls WHERE OLD.id=ANY(co_executor_ids))
+    OR EXISTS(SELECT 1 FROM document_deadline_series WHERE OLD.id=ANY(co_executor_ids)) THEN
+  RAISE EXCEPTION 'executor is referenced by deadline controls' USING ERRCODE='23503';
+ END IF;
+ RETURN OLD;
+END;
+$$;
+CREATE TRIGGER deadline_co_executor_deletion BEFORE DELETE ON deadline_executors
+ FOR EACH ROW EXECUTE FUNCTION restrict_deadline_co_executor_deletion();

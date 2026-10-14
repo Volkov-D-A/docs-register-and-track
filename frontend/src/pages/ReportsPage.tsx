@@ -1,5 +1,5 @@
-import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { App, Button, Card, Checkbox, DatePicker, Popconfirm, Select, Space, Spin, Table, Typography } from 'antd';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { App, Button, Card, Checkbox, DatePicker, Select, Space, Spin, Table, Typography } from 'antd';
 import { DownloadOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { formatAppError } from '../utils/appError';
@@ -30,28 +30,8 @@ const ReportsPage: React.FC = () => {
   const [onlyWithDeadline, setOnlyWithDeadline] = useState(false);
   const [result, setResult] = useState<models.ReportResult>();
   const [loading, setLoading] = useState(false);
-  const [schedules, setSchedules] = useState<models.ReportSchedule[]>([]);
-  const [frequency, setFrequency] = useState<'weekly' | 'monthly'>('monthly');
-  const [scheduleFormat, setScheduleFormat] = useState<'xlsx' | 'pdf'>('xlsx');
-  const [selectedSchedule, setSelectedSchedule] = useState<string>();
-  const [runs, setRuns] = useState<models.ReportRun[]>([]);
 	const generation = useRef(0);
 	const invalidateResult = () => { generation.current += 1; setResult(undefined); };
-
-  const loadSchedules = useCallback(async () => {
-    try {
-      const service = await import('../../wailsjs/go/services/ReportingService');
-      setSchedules(await service.ListSchedules());
-    } catch (error) { message.error(formatAppError(error)); }
-  }, [message]);
-  useEffect(() => { void loadSchedules(); }, [loadSchedules]);
-
-  const loadRuns = async (scheduleId: string) => {
-    try {
-      const service = await import('../../wailsjs/go/services/ReportingService');
-      setRuns(await service.ListRuns(scheduleId));
-    } catch (error) { message.error(formatAppError(error)); }
-  };
 
   useEffect(() => {
     let active = true;
@@ -97,43 +77,6 @@ const ReportsPage: React.FC = () => {
       message.success(`Отчёт сохранён: ${path}`);
     } catch (error) { message.error(formatAppError(error)); }
     finally { setLoading(false); }
-  };
-
-  const createSchedule = async () => {
-    setLoading(true);
-    try {
-      const service = await import('../../wailsjs/go/services/ReportingService');
-      await service.CreateSchedule(models.ReportScheduleRequest.createFrom({
-        report: request, frequency, format: scheduleFormat,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Yekaterinburg',
-      }));
-      message.success('Расписание создано');
-      await loadSchedules();
-    } catch (error) { message.error(formatAppError(error)); }
-    finally { setLoading(false); }
-  };
-
-  const disableSchedule = async (id: string) => {
-    try {
-      const service = await import('../../wailsjs/go/services/ReportingService');
-      await service.DisableSchedule(id);
-      await loadSchedules();
-    } catch (error) { message.error(formatAppError(error)); }
-  };
-
-  const downloadRun = async (id: string) => {
-    try {
-      const service = await import('../../wailsjs/go/services/ReportingService');
-      const path = await service.DownloadRun(id);
-      message.success(`Отчёт сохранён: ${path}`);
-    } catch (error) { message.error(formatAppError(error)); }
-  };
-  const retryRun = async (id: string) => {
-    try {
-      const service = await import('../../wailsjs/go/services/ReportingService');
-      await service.RetryRun(id);
-      if (selectedSchedule) await loadRuns(selectedSchedule);
-    } catch (error) { message.error(formatAppError(error)); }
   };
 
   const columns = useMemo(() => {
@@ -196,34 +139,6 @@ const ReportsPage: React.FC = () => {
           <Button icon={<DownloadOutlined />} disabled={loading} onClick={() => void exportFile('pdf')}>PDF</Button>
         </Space>
       </>}
-    </Card>
-    <Card title="Регулярные отчёты" style={{ marginTop: 24 }}>
-      <Typography.Paragraph type="secondary">Используются выбранный вид отчёта и фильтр. Недельный отчёт охватывает прошлую неделю, месячный — прошлый месяц. Запуск в 08:00 по часовому поясу компьютера.</Typography.Paragraph>
-      <Space wrap style={{ marginBottom: 16 }}>
-        <Select value={frequency} onChange={setFrequency} options={[{ value: 'weekly', label: 'Каждый понедельник' }, { value: 'monthly', label: 'Первого числа месяца' }]} style={{ width: 220 }} />
-        <Select value={scheduleFormat} onChange={setScheduleFormat} options={[{ value: 'xlsx', label: 'Excel' }, { value: 'pdf', label: 'PDF' }]} style={{ width: 110 }} />
-        <Button onClick={() => void createSchedule()} loading={loading}>Создать расписание</Button>
-      </Space>
-      <Table rowKey="id" size="small" dataSource={schedules} pagination={false} columns={[
-        { title: 'Отчёт', render: (_value, row) => templates.find((item) => item.value === row.request.report.template)?.label || row.request.report.template },
-        { title: 'Периодичность', render: (_value, row) => row.request.frequency === 'weekly' ? 'Еженедельно' : 'Ежемесячно' },
-        { title: 'Следующий запуск', render: (_value, row) => row.enabled ? dayjs(row.nextRunAt).format('DD.MM.YYYY HH:mm') : 'Отключено' },
-        { title: 'Действия', render: (_value, row) => <Space>
-          <Button size="small" onClick={() => { setSelectedSchedule(row.id); void loadRuns(row.id); }}>История</Button>
-          {row.enabled && <Popconfirm title="Отключить расписание?" onConfirm={() => void disableSchedule(row.id)}><Button size="small" danger>Отключить</Button></Popconfirm>}
-        </Space> },
-      ]} />
-      {selectedSchedule && <Card size="small" title="История запусков" extra={<Button size="small" onClick={() => void loadRuns(selectedSchedule)}>Обновить</Button>} style={{ marginTop: 16 }}>
-        <Table rowKey="id" size="small" dataSource={runs} pagination={{ pageSize: 10 }} columns={[
-          { title: 'Запуск', render: (_value, row) => dayjs(row.plannedAt).format('DD.MM.YYYY HH:mm') },
-          { title: 'Период', render: (_value, row) => `${row.startDate} — ${row.endDate}` },
-          { title: 'Статус', dataIndex: 'status' },
-          { title: 'Ошибка', dataIndex: 'error' },
-          { title: 'Действие', render: (_value, row) => row.status === 'ready'
-            ? <Button size="small" onClick={() => void downloadRun(row.id)}>Скачать</Button>
-            : row.status === 'failed' ? <Button size="small" onClick={() => void retryRun(row.id)}>Повторить</Button> : null },
-        ]} />
-      </Card>}
     </Card>
   </div>;
 };

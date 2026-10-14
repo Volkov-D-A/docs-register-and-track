@@ -89,14 +89,10 @@ func setupAdministrativeOrderCommandHandler(t *testing.T, allowed map[models.Doc
 	repo := &administrativeOrderCommandStore{}
 	nomRepo := mocks.NewNomenclatureStore(t)
 	docRepo := &documentAccessDocumentStore{}
-	access := NewDocumentAccessService(
-		auth,
-		&documentAccessDepartmentStore{},
-		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
-
-		&kindActionDocumentAccessStore{allowed: allowed},
-		docRepo,
-	)
+	access := NewDocumentAccessService(auth, &kindActionDocumentAccessStore{allowed: allowed, visible: func(id uuid.UUID) bool {
+		doc := docRepo.docs[id]
+		return allowed[doc.Kind]["register"] || allowed[doc.Kind]["control_deadlines"]
+	}}, docRepo)
 	handler := NewAdministrativeOrderCommandHandler(repo, nomRepo, auth, access)
 
 	return &administrativeOrderHandlerDeps{
@@ -130,7 +126,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "register"),
 		)
 		req := validAdministrativeOrderRegisterRequest(nomenclatureID, idempotencyKey)
 		deps.repo.createResult = &models.AdministrativeOrderDocument{
@@ -178,7 +174,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 	t.Run("rejects invalid nomenclature ID", func(t *testing.T) {
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "register"),
 		)
 		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
 		req.NomenclatureID = "bad-id"
@@ -194,7 +190,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 	t.Run("rejects invalid idempotency key", func(t *testing.T) {
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "register"),
 		)
 		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
 		req.IdempotencyKey = uuid.Nil.String()
@@ -210,7 +206,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 	t.Run("rejects invalid order date", func(t *testing.T) {
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "register"),
 		)
 		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
 		req.OrderDate = "03.06.2026"
@@ -226,7 +222,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 	t.Run("rejects active order with cancellation date", func(t *testing.T) {
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "register"),
 		)
 		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
 		req.CancelledAt = "2026-07-01"
@@ -242,7 +238,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 	t.Run("rejects inactive order without cancellation date", func(t *testing.T) {
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "register"),
 		)
 		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
 		req.IsActive = false
@@ -258,7 +254,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 	t.Run("rejects empty execution controller", func(t *testing.T) {
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "register"),
 		)
 		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
 		req.ExecutionController = "  "
@@ -274,7 +270,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 	t.Run("rejects invalid deadline date", func(t *testing.T) {
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "register"),
 		)
 		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
 		req.ExecutionDeadline = "30.06.2026"
@@ -291,7 +287,7 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 		expectedErr := errors.New("create failed")
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "create"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "register"),
 		)
 		deps.repo.createErr = expectedErr
 		req := validAdministrativeOrderRegisterRequest(uuid.New(), uuid.New())
@@ -310,7 +306,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		cancelledAt := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -357,7 +353,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 	t.Run("rejects invalid document ID", func(t *testing.T) {
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
 
 		result, err := deps.handler.Update(dto.AdministrativeOrderUpdateRequest{ID: "bad-id"})
@@ -372,7 +368,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -391,7 +387,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -417,7 +413,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -442,7 +438,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -468,7 +464,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		documentID := uuid.New()
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -494,7 +490,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		expectedErr := errors.New("update failed")
 		deps := setupAdministrativeOrderCommandHandler(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
@@ -521,7 +517,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 func TestAdministrativeOrderCommandHandler_CommandInterface(t *testing.T) {
 	deps := setupAdministrativeOrderCommandHandler(
 		t,
-		allowDocumentActions(models.DocumentKindAdministrativeOrder, "create", "read", "update"),
+		allowDocumentActions(models.DocumentKindAdministrativeOrder, "register", "control_deadlines", "register"),
 	)
 
 	registered, err := deps.handler.RegisterDocument(struct{}{})

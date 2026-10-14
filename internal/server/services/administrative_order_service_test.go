@@ -70,14 +70,10 @@ func setupAdministrativeOrderService(t *testing.T, allowed map[models.DocumentKi
 
 	store := &administrativeOrderServiceStore{}
 	docRepo := &documentAccessDocumentStore{docs: map[uuid.UUID]models.Document{}}
-	access := NewDocumentAccessService(
-		auth,
-		&documentAccessDepartmentStore{},
-		&documentAccessAssignmentStore{accessible: map[uuid.UUID]struct{}{}},
-
-		&kindActionDocumentAccessStore{allowed: allowed},
-		docRepo,
-	)
+	access := NewDocumentAccessService(auth, &kindActionDocumentAccessStore{allowed: allowed, visible: func(id uuid.UUID) bool {
+		doc := docRepo.docs[id]
+		return allowed[doc.Kind]["register"] || allowed[doc.Kind]["control_deadlines"]
+	}}, docRepo)
 	return NewAdministrativeOrderService(store, auth, access), store, docRepo, nil, user
 }
 
@@ -88,7 +84,7 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 		now := time.Now()
 		svc, store, docRepo, _, user := setupAdministrativeOrderService(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
 		docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder)
 		store.person = &models.AdministrativeOrderAcknowledgmentPerson{
@@ -160,7 +156,7 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 		documentID := uuid.New()
 		svc, store, docRepo, _, _ := setupAdministrativeOrderService(
 			t,
-			allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
 		docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder)
 		store.person = &models.AdministrativeOrderAcknowledgmentPerson{
@@ -180,7 +176,7 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 func TestAdministrativeOrderService_MarkAcknowledged_JournalContext(t *testing.T) {
 	svc, store, docRepo, _, _ := setupAdministrativeOrderService(
 		t,
-		allowDocumentActions(models.DocumentKindAdministrativeOrder, "read", "update"),
+		allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 	)
 	personID := uuid.New()
 	documentID := uuid.New()

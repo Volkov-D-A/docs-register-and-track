@@ -14,3 +14,10 @@ type DocumentAccessPrincipal interface {
 	GetCurrentUser() (*dto.User, error)
 	GetCurrentUserUUID() (uuid.UUID, error)
 }
+
+// DocumentVisibilityStore resolves read from permissions, nomenclature,
+// controls and the complete undirected graph of document links.
+type DocumentVisibilityStore interface {
+	CanReadDocument(userID, documentID uuid.UUID) (bool, error)
+	GetReadableDocumentIDs(userID uuid.UUID, documentIDs []uuid.UUID) (map[uuid.UUID]bool, error)
+}

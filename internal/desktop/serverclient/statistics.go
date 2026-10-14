@@ -3,7 +3,6 @@ package serverclient
 import (
 	"context"
 	"net/http"
-	"net/url"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -11,7 +10,6 @@ import (
 
 type WorkspaceClient interface {
 	GetWorkspaceDocuments(context.Context) (*dto.WorkspaceDocuments, error)
-	GetWorkspaceOverview(context.Context, string) (*dto.WorkspaceOverview, error)
 }
 
 type StatisticsClient interface {
@@ -50,11 +48,6 @@ func getStatistics[T any](ctx context.Context, c *Client, path string) (*T, erro
 	return &result, nil
 }
 
-func (c *Client) GetWorkspaceOverview(ctx context.Context, assignmentMode string) (*dto.WorkspaceOverview, error) {
-	query := url.Values{}
-	query.Set("assignmentMode", assignmentMode)
-	return getStatistics[dto.WorkspaceOverview](ctx, c, "/api/v1/workspace/overview?"+query.Encode())
-}
 func (c *Client) GetDocumentStatistics(ctx context.Context) (*models.DocumentStatistics, error) {
 	return getStatistics[models.DocumentStatistics](ctx, c, "/api/v1/statistics/documents")
 }

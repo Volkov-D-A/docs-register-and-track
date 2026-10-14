@@ -661,7 +661,6 @@ func TestMapCitizenAppealDocument(t *testing.T) {
 			CreatedAt:        regDate,
 			UpdatedAt:        appealDate,
 			AttachmentsCount: 1,
-			AssignmentsCount: 2,
 		})
 
 		require.NotNil(t, dto)
@@ -680,7 +679,6 @@ func TestMapCitizenAppealDocument(t *testing.T) {
 		assert.Equal(t, resolutionText, *dto.Resolutions[0].Resolution)
 		assert.Equal(t, createdBy.String(), dto.CreatedBy)
 		assert.Equal(t, 1, dto.AttachmentsCount)
-		assert.Equal(t, 2, dto.AssignmentsCount)
 	})
 }
 
@@ -775,7 +773,6 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 			CreatedAt:        orderDate,
 			UpdatedAt:        ackTime,
 			AttachmentsCount: 1,
-			AssignmentsCount: 2,
 		})
 
 		require.NotNil(t, dto)
@@ -794,7 +791,6 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 		assert.Equal(t, ackBy.String(), dto.AcknowledgmentPeople[0].AcknowledgedBy)
 		assert.Equal(t, createdBy.String(), dto.CreatedBy)
 		assert.Equal(t, 1, dto.AttachmentsCount)
-		assert.Equal(t, 2, dto.AssignmentsCount)
 	})
 }
 

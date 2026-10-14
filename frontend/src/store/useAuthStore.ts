@@ -4,7 +4,6 @@ import { Login, Logout, ChangePassword, ChangeRequiredPassword, UpdateProfile, G
 import { models, serverclient } from '../../wailsjs/go/models';
 import { useDraftLinkStore } from './useDraftLinkStore';
 import { useRegisterDocumentStore } from './useRegisterDocumentStore';
-import { useAssignmentModeStore } from './useAssignmentModeStore';
 import { resetCurrentAccessSummaryCache } from './accessSummaryCache';
 import { formatAppError, getAppErrorCode } from '../utils/appError';
 
@@ -202,6 +201,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 useAuthStore.subscribe((state, previous) => {
     if (state.user?.id !== previous.user?.id) {
-        useAssignmentModeStore.getState().setMode('');
     }
 });

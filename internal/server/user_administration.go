@@ -274,12 +274,6 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	principalIDs, err := api.substitutions.GetActivePrincipalIDs(user.ID)
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	hasActiveSubstitution := len(principalIDs) > 0
 	departmentID := ""
 	if user.DepartmentID != nil {
 		departmentID = user.DepartmentID.String()
@@ -293,7 +287,6 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 	specs := models.AllDocumentKindSpecs()
 	documentKinds := make([]dto.DocumentKindAccessSummary, 0, len(specs))
 	pageAccess := make(map[string]bool, len(specs))
-	hasAnyAction, hasAnyTaskControl := false, false
 	for _, spec := range specs {
 		actions := make([]string, 0, len(spec.SupportedActions))
 		for _, action := range spec.SupportedActions {
@@ -301,17 +294,7 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 				actions = append(actions, string(action))
 			}
 		}
-		canRegister := contains(actions, string(models.DocumentActionCreate))
-		canReadFull := contains(actions, string(models.DocumentActionRead))
-		canManageTasks := contains(actions, string(models.DocumentActionAssign))
-		canOpenPage := user.IsDocumentParticipant || hasActiveSubstitution || canReadFull || canRegister
-		pageAccess[string(spec.Code)] = canOpenPage
-		if len(actions) > 0 {
-			hasAnyAction = true
-		}
-		if canManageTasks {
-			hasAnyTaskControl = true
-		}
+		pageAccess[string(spec.Code)] = true
 		documentKinds = append(documentKinds, dto.DocumentKindAccessSummary{
 			Code: string(spec.Code), Name: spec.Name, AvailableActions: actions,
 		})
@@ -323,7 +306,7 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 			systemPermissions = append(systemPermissions, permission)
 		}
 	}
-	documentDomainAccess := user.IsDocumentParticipant || hasActiveSubstitution || hasAnyAction
+	documentDomainAccess := true
 	writeJSON(w, http.StatusOK, &dto.CurrentAccessSummary{
 		Sections: dto.AccessSections{
 			Dashboard:   documentDomainAccess,
@@ -331,7 +314,7 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 			Outgoing:    pageAccess[string(models.DocumentKindOutgoingLetter)],
 			Appeals:     pageAccess[string(models.DocumentKindCitizenAppeal)],
 			Orders:      pageAccess[string(models.DocumentKindAdministrativeOrder)],
-			Assignments: user.IsDocumentParticipant || hasActiveSubstitution || hasAnyTaskControl,
+			Assignments: true,
 			References:  contains(systemPermissions, models.SystemPermissionReferences),
 			Statistics:  containsAny(systemPermissions, models.SystemPermissionStatsDocuments, models.SystemPermissionStatsAssignments, models.SystemPermissionStatsSystem),
 			Reports:     contains(systemPermissions, models.SystemPermissionReports),

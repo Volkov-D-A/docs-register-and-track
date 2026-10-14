@@ -10,26 +10,20 @@ import (
 )
 
 func TestApplyDocumentListAccess(t *testing.T) {
-	t.Run("adds one shared predicate for nomenclature and substituted users", func(t *testing.T) {
-		where := []string{"d.kind = $1"}
+	t.Run("uses one current-user closure before filtering and pagination", func(t *testing.T) {
+		where := []string{"d.kind=$1"}
 		args := []interface{}{models.DocumentKindIncomingLetter}
-		argIdx := 2
-
-		applyDocumentListAccess(&where, &args, &argIdx, models.DocumentAccessScope{
-			Restricted:             true,
-			AllowedNomenclatureIDs: []string{"nom-1"},
-			AccessibleByUserID:     "user-1",
-			AccessibleByUserIDs:    []string{"user-1", "user-2"},
-		})
-
+		index := 2
+		applyDocumentListAccess(&where, &args, &index, models.DocumentAccessScope{UserID: "user-id", Restricted: true})
 		predicate := strings.Join(where, " AND ")
-		assert.Contains(t, predicate, "d.nomenclature_id = ANY($2)")
-		assert.Contains(t, predicate, "a.executor_id = ANY($3::uuid[])")
-		assert.Contains(t, predicate, "ce.user_id = ANY($3::uuid[])")
-		assert.Contains(t, predicate, "au.user_id = ANY($4::uuid[])")
-		assert.Contains(t, predicate, "assignment_recipients au")
-		assert.Len(t, args, 4)
-		assert.Equal(t, 5, argIdx)
+		assert.Contains(t, predicate, "WITH RECURSIVE visible")
+		assert.Contains(t, predicate, "u.id=$2")
+		assert.Contains(t, predicate, "document_deadline_controls")
+		assert.Contains(t, predicate, "document_links")
+		assert.NotContains(t, predicate, "assignment_recipients")
+		assert.NotContains(t, predicate, "user_substitutions")
+		assert.Equal(t, []interface{}{models.DocumentKindIncomingLetter, "user-id"}, args)
+		assert.Equal(t, 3, index)
 	})
 
 	t.Run("fails closed for an empty restricted scope", func(t *testing.T) {
@@ -44,14 +38,14 @@ func TestApplyDocumentListAccess(t *testing.T) {
 		assert.Equal(t, 2, argIdx)
 	})
 
-	t.Run("leaves an explicit full-access scope unchanged", func(t *testing.T) {
+	t.Run("fails closed even for an empty formerly unrestricted scope", func(t *testing.T) {
 		where := []string{"d.kind = $1"}
 		args := []interface{}{models.DocumentKindIncomingLetter}
 		argIdx := 2
 
 		applyDocumentListAccess(&where, &args, &argIdx, models.DocumentAccessScope{})
 
-		assert.Equal(t, []string{"d.kind = $1"}, where)
+		assert.Equal(t, []string{"d.kind = $1", "1=0"}, where)
 		assert.Len(t, args, 1)
 		assert.Equal(t, 2, argIdx)
 	})

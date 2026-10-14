@@ -9,7 +9,6 @@ import (
 
 type workspaceAPI interface {
 	GetRecentDocuments() (*dto.WorkspaceDocuments, error)
-	GetOverview(string) (*dto.WorkspaceOverview, error)
 }
 
 type statisticsAPI interface {
@@ -54,10 +53,6 @@ func writeStatisticsResult(w http.ResponseWriter, result any, err error) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (api *managementAPI) getWorkspaceOverview(w http.ResponseWriter, r *http.Request) {
-	result, err := api.workspaceService(r).GetOverview(r.URL.Query().Get("assignmentMode"))
-	writeStatisticsResult(w, result, err)
-}
 func (api *managementAPI) getDocumentStatistics(w http.ResponseWriter, r *http.Request) {
 	result, err := api.statisticsService(r).GetDocumentStatistics()
 	writeStatisticsResult(w, result, err)

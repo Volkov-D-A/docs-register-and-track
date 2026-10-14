@@ -51,12 +51,12 @@ func (r *UserEventRepository) GetList(userID uuid.UUID, filter models.UserEventF
 		filter.PageSize = 100
 	}
 
-	where := "WHERE e.recipient_user_id = $1"
+	where := "WHERE e.recipient_user_id = $1 AND " + documentReadPredicate("$1", "d")
 	if filter.UnreadOnly {
 		where += " AND e.read_at IS NULL"
 	}
 
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM user_events e %s", where)
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM user_events e JOIN documents d ON d.id=e.document_id %s", where)
 	var total int
 	if err := r.db.QueryRow(countQuery, userID).Scan(&total); err != nil {
 		return nil, fmt.Errorf("failed to count user events: %w", err)
@@ -107,7 +107,7 @@ func (r *UserEventRepository) GetList(userID uuid.UUID, filter models.UserEventF
 func (r *UserEventRepository) CountUnread(userID uuid.UUID) (int, error) {
 	var count int
 	err := r.db.QueryRow(
-		"SELECT COUNT(*) FROM user_events WHERE recipient_user_id = $1 AND read_at IS NULL",
+		"SELECT COUNT(*) FROM user_events e JOIN documents d ON d.id=e.document_id WHERE e.recipient_user_id = $1 AND e.read_at IS NULL AND "+documentReadPredicate("$1", "d"),
 		userID,
 	).Scan(&count)
 	return count, err

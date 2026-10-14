@@ -176,7 +176,7 @@ type eventAccessStub struct {
 func (s eventAccessStub) ResolveReadableDocuments([]uuid.UUID) (map[uuid.UUID]*models.Document, error) {
 	return s.readable, s.err
 }
-func (s eventAccessStub) GetCurrentUserAndSubstitutionSubjectIDs() ([]uuid.UUID, error) {
+func (s eventAccessStub) GetCurrentReadSubjectIDs() ([]uuid.UUID, error) {
 	return s.subjects, nil
 }
 
@@ -211,4 +211,15 @@ func TestCapabilityChangesAreScopedToAffectedUsersAndTheirSubstitutes(t *testing
 	result, err := api.readableChanges(&models.User{}, changes)
 	require.NoError(t, err)
 	require.Equal(t, changes[1:], result)
+}
+
+func TestVisibilityChangesInvalidateWholeGraphWithoutDocumentMetadata(t *testing.T) {
+	api := &managementAPI{eventAccess: func(*models.User) eventDocumentAccess {
+		t.Fatal("visibility resync must not query or publish card data")
+		return nil
+	}}
+	changes := []liveevents.Change{{DocumentID: uuid.NewString(), DocumentKind: "incoming_letter", Resource: "links", VisibilityChanged: true}, {DocumentID: uuid.NewString(), Resource: "controls"}}
+	result, err := api.readableChanges(&models.User{}, changes)
+	require.NoError(t, err)
+	require.Equal(t, []liveevents.Change{{Resource: "resync"}}, result)
 }

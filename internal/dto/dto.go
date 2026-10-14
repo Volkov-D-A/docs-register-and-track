@@ -118,7 +118,6 @@ type IncomingDocument struct {
 	UpdatedAt     time.Time `json:"updatedAt"`
 
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
-	AssignmentsCount int `json:"assignmentsCount,omitempty"`
 }
 
 // DocumentCorrespondentRegistration описывает DTO регистрационных реквизитов корреспондента.
@@ -172,7 +171,6 @@ type CitizenAppealDocument struct {
 	UpdatedAt     time.Time `json:"updatedAt"`
 
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
-	AssignmentsCount int `json:"assignmentsCount,omitempty"`
 }
 
 // OutgoingDocument описывает DTO исходящего документа.
@@ -233,7 +231,6 @@ type AdministrativeOrderDocument struct {
 	UpdatedAt     time.Time `json:"updatedAt"`
 
 	AttachmentsCount int `json:"attachmentsCount,omitempty"`
-	AssignmentsCount int `json:"assignmentsCount,omitempty"`
 }
 
 // AdministrativeOrderAcknowledgmentPerson описывает DTO строки листа ознакомления приказа.
@@ -397,36 +394,6 @@ type AssignmentSeries struct {
 	CoExecutorIDs       []string   `json:"coExecutorIds,omitempty"`
 	CreatedAt           time.Time  `json:"createdAt"`
 	UpdatedAt           time.Time  `json:"updatedAt"`
-}
-
-// WorkspaceOverview contains server-scoped work for the selected mode.
-type WorkspaceOverview struct {
-	AssignmentModes  []string                  `json:"assignmentModes"`
-	AssignmentMode   string                    `json:"assignmentMode"`
-	AssignmentCounts WorkspaceAssignmentCounts `json:"assignmentCounts"`
-	Assignments      []WorkspaceAssignment     `json:"assignments"`
-}
-
-type WorkspaceAssignmentCounts struct {
-	New                int `json:"new"`
-	InProgress         int `json:"inProgress"`
-	Returned           int `json:"returned"`
-	Overdue            int `json:"overdue"`
-	DueSoon            int `json:"dueSoon"`
-	AwaitingAcceptance int `json:"awaitingAcceptance"`
-}
-
-type WorkspaceAssignment struct {
-	Type            string     `json:"type"`
-	DocumentContent string     `json:"documentContent"`
-	ID              string     `json:"id"`
-	DocumentID      string     `json:"documentId"`
-	DocumentKind    string     `json:"documentKind"`
-	DocumentNumber  string     `json:"documentNumber"`
-	DocumentDate    time.Time  `json:"documentDate"`
-	Content         string     `json:"content"`
-	Deadline        *time.Time `json:"deadline,omitempty"`
-	Status          string     `json:"status"`
 }
 
 // AssignmentRecipient описывает DTO связи пользователя с задачей на ознакомление.

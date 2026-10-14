@@ -108,7 +108,7 @@ export const useCurrentAccessSummary = () => {
     ), [currentSummary]);
 
     const registrationKinds = useMemo(() => (
-        kinds.filter((kind) => kind.availableActions?.includes('create'))
+        kinds.filter((kind) => kind.availableActions?.includes('register'))
     ), [kinds]);
 
     const getKindAccess = useCallback((kindCode?: string) => (

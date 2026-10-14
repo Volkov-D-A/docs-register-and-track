@@ -17,12 +17,9 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 		assert.Equal(t, "Bearer session-token", r.Header.Get("Authorization"))
 		switch requestNumber {
 		case 1:
-			assert.Equal(t, "/api/v1/workspace/overview", r.URL.Path)
-			return response(http.StatusOK, `{"assignments":[]}`), nil
-		case 2:
 			assert.Equal(t, "/api/v1/statistics/documents", r.URL.Path)
 			return response(http.StatusOK, `{"year":2026,"totalYear":0,"documentsByKindMonthly":[],"documentsByRegistrarMonthly":[]}`), nil
-		case 3:
+		case 2:
 			assert.Equal(t, http.MethodPost, r.Method)
 			assert.Equal(t, "/api/v1/statistics/documents/report", r.URL.Path)
 			var body map[string]any
@@ -30,10 +27,10 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 			assert.Equal(t, "kind", body["groupBy"])
 			assert.NotContains(t, body, "accessScope")
 			return response(http.StatusOK, `{"rows":[],"total":0}`), nil
-		case 4:
+		case 3:
 			assert.Equal(t, "/api/v1/statistics/system/storage", r.URL.Path)
 			return response(http.StatusOK, `{"state":"idle","storageSize":"0 B"}`), nil
-		case 5:
+		case 4:
 			assert.Equal(t, http.MethodPost, r.Method)
 			assert.Equal(t, "/api/v1/statistics/system/storage/retry", r.URL.Path)
 			return response(http.StatusOK, `{"state":"pending","storageSize":"0 B"}`), nil
@@ -43,9 +40,7 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 		}
 	})
 
-	_, err := client.GetWorkspaceOverview(context.Background(), "execution")
-	require.NoError(t, err)
-	_, err = client.GetDocumentStatistics(context.Background())
+	_, err := client.GetDocumentStatistics(context.Background())
 	require.NoError(t, err)
 	_, err = client.GetDocumentReport(context.Background(), "2026-01-01", "2026-09-01", "kind", "", "", "")
 	require.NoError(t, err)
@@ -54,23 +49,7 @@ func TestStatisticsClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 	status, err := client.RetryStorageStatisticsRefresh(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "pending", string(status.State))
-	assert.Equal(t, 5, requestNumber)
-}
-
-func TestWorkspaceClientPassesModes(t *testing.T) {
-	client := userClientWithToken(t, func(r *http.Request) (*http.Response, error) {
-		assert.Equal(t, "Bearer session-token", r.Header.Get("Authorization"))
-		switch r.URL.Path {
-		case "/api/v1/workspace/overview":
-			assert.Equal(t, "execution", r.URL.Query().Get("assignmentMode"))
-			return response(http.StatusOK, `{"assignmentModes":[],"assignments":[]}`), nil
-		default:
-			t.Fatalf("unexpected path %s", r.URL.Path)
-			return nil, nil
-		}
-	})
-	_, err := client.GetWorkspaceOverview(context.Background(), "execution")
-	require.NoError(t, err)
+	assert.Equal(t, 4, requestNumber)
 }
 
 func TestWorkspaceRecentDocumentsClientUsesFixedAuthenticatedPreview(t *testing.T) {

@@ -269,9 +269,10 @@ func TestJournalChangesIdentifyOnlyAffectedResources(t *testing.T) {
 		visibility       bool
 	}{
 		{"CREATE", "document", false}, {"UPDATE", "document", false},
+		{"DEADLINE_CONTROL_CREATE", "controls", true}, {"DEADLINE_CONTROL_UPDATE", "controls", true}, {"DEADLINE_CONTROL_CANCEL", "controls", true}, {"DEADLINE_CONTROL_COMPLETE", "controls", false},
 		{"ASSIGNMENT_CREATE", "assignments", true}, {"ASSIGNMENT_STATUS", "assignments", false},
 		{"ASSIGNMENT_DELETE", "assignments", true}, {"ASSIGNMENT_ACKNOWLEDGED", "assignments", false},
-		{"ASSIGNMENT_DELETE", "assignments", true}, {"FILE_UPLOAD", "files", false}, {"LINK_DELETE", "links", false},
+		{"ASSIGNMENT_DELETE", "assignments", true}, {"FILE_UPLOAD", "files", false}, {"LINK_DELETE", "links", true},
 	} {
 		t.Run(tc.action, func(t *testing.T) {
 			change := journalChange(models.CreateJournalEntryRequest{DocumentID: documentID, Action: tc.action, PreviousReaderIDs: []uuid.UUID{readerID}})
