@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Layout, Menu, Typography } from 'antd';
+import { Badge, Button, Layout, Menu, Typography } from 'antd';
 import {
     BarChartOutlined,
     CheckSquareOutlined,
@@ -12,6 +12,7 @@ import {
     SendOutlined,
     SettingOutlined,
 } from '@ant-design/icons';
+import { useUserEventsStore } from '../../store/useUserEventsStore';
 import { dto } from '../../../wailsjs/go/models';
 
 const { Sider } = Layout;
@@ -38,10 +39,11 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     onExpandedChange,
     onPageChange,
 }) => {
+    const unreadCount = useUserEventsStore((state) => state.unreadCount);
     const menuItems = [
         ...(sections.dashboard ? [{
             key: 'dashboard',
-            icon: <DashboardOutlined />,
+            icon: <Badge dot={unreadCount > 0} title={`Непрочитанных событий: ${unreadCount}`}><DashboardOutlined /></Badge>,
             label: 'Рабочий стол',
         }] : []),
         ...(sections.incoming ? [{

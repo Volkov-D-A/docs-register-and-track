@@ -107,6 +107,9 @@ type DeadlineControlRequest struct {
 func (r *DeadlineControlRequest) Validate() error {
 	r.Subject = strings.TrimSpace(r.Subject)
 	r.ChangeReason = strings.TrimSpace(r.ChangeReason)
+	if r.Subject == "" {
+		return NewBadRequest("укажите предмет контроля")
+	}
 	if len([]rune(r.Subject)) > 2000 || len([]rune(r.ChangeReason)) > 2000 {
 		return NewBadRequest("предмет контроля и причина изменения должны быть не длиннее 2000 символов")
 	}

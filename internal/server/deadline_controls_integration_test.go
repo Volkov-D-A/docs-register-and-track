@@ -366,17 +366,17 @@ func TestDeadlineExecutorDirectoryEligibilityAndDefaultDateIntegration(t *testin
 	require.Equal(t, models.OrganizationToday(*completed.CompletedAt), completed.ExecutedOn)
 }
 
-func TestDeadlineOptionalSubjectIntegration(t *testing.T) {
+func TestDeadlineRequiredSubjectIntegration(t *testing.T) {
 	f := newDeadlineFixture(t)
 	ctx := context.Background()
 	req := f.request()
 	req.Subject = ""
 	control, err := f.service(0).Create(ctx, req)
-	require.NoError(t, err)
-	require.Empty(t, control.Subject)
+	require.ErrorContains(t, err, "укажите предмет контроля")
+	require.Nil(t, control)
 	series, err := f.service(1).CreateSeries(ctx, models.DeadlineSeriesRequest{Control: req, Recurrence: models.DeadlineRecurrence{IntervalUnit: "week", IntervalValue: 1, DayRule: "same_day"}})
-	require.NoError(t, err)
-	require.Empty(t, series.Subject)
+	require.ErrorContains(t, err, "укажите предмет контроля")
+	require.Nil(t, series)
 }
 
 func TestDeadlineGlobalReadScopeAndNotificationRevocationIntegration(t *testing.T) {

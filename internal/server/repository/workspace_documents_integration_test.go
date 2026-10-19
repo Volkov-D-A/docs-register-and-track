@@ -100,4 +100,31 @@ func TestWorkspaceRecentDocumentsIntegration(t *testing.T) {
 	require.Equal(t, []uuid.UUID{incoming, older}, ids(items))
 	require.Equal(t, "Content fallback", items[1].Description)
 	require.Empty(t, items[1].Correspondents)
+	// An executor without registration permissions or department roots still sees
+	// their control's document and its linked documents.
+	execSQL(t, db, `DELETE FROM department_nomenclature WHERE department_id=$1`, department)
+	items, err = repo.RecentDocuments(scopes)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{order, appeal}, ids(items))
+	execSQL(t, db, `UPDATE document_deadline_controls SET executor_id=$1, co_executor_ids='{}', status='completed', executed_on='2026-10-10', completed_at=now(), completed_by=$1 WHERE document_id=$2`, other, order)
+	items, err = repo.RecentDocuments(scopes)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{order, appeal}, ids(items))
+	execSQL(t, db, `UPDATE document_deadline_controls SET status='cancelled', executed_on=NULL, completed_at=NULL, completed_by=NULL, cancellation_reason='Отменён' WHERE document_id=$1`, order)
+	items, err = repo.RecentDocuments(scopes)
+	require.NoError(t, err)
+	require.Empty(t, items)
+
+	// Grouping visibility by principal must not lend one scope's permissions to
+	// another principal or include kinds absent from the requested scopes.
+	items, err = repo.RecentDocuments(map[models.DocumentKind]models.DocumentAccessScope{
+		models.DocumentKindIncomingLetter: {UserID: user.String()},
+		models.DocumentKindOutgoingLetter: {UserID: other.String()},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{incoming, older}, ids(items))
+	items, err = repo.RecentDocuments(nil)
+	require.NoError(t, err)
+	require.Empty(t, items)
+
 }

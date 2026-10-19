@@ -1,10 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Card } from 'antd';
-import { dto, models } from '../../wailsjs/go/models';
-import { GetCurrentUserEvents } from '../../wailsjs/go/services/UserEventService';
-import { onServerEvent } from '../events/serverEvents';
-import { CoalescedRequest } from '../utils/coalescedRequest';
+import React, { useEffect, useState } from 'react';
+import { Alert, Badge, Button, Card } from 'antd';
+import { useUserEventsStore } from '../store/useUserEventsStore';
 import WorkspaceEventTimeline from './WorkspaceEventTimeline';
+import UserEventsModal from './UserEventsModal';
 
 type Props = {
     currentTime: Date;
@@ -13,21 +11,18 @@ type Props = {
 };
 
 const WorkspaceUserEventsPanel = ({ currentTime, refreshVersion, onOpenDocument }: Props) => {
-    const [events, setEvents] = useState<dto.UserEvent[]>([]);
-    const request = useRef(new CoalescedRequest<dto.PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_UserEvent_>());
-    const load = useCallback(() => request.current.refresh(
-        () => GetCurrentUserEvents(models.UserEventFilter.createFrom({ page: 1, pageSize: 5 })), {
-            onSuccess: (result) => setEvents(result?.items || []),
-            onError: (error) => console.error('Workspace events:', error),
-        },
-    ), []);
-    useEffect(() => { void load(); }, [load, refreshVersion]);
-    useEffect(() => onServerEvent((event) => {
-        if (event.topic === 'user-events' || event.topic === 'resync' || event.topic === 'access-changed') void load();
-    }), [load]);
-    useEffect(() => () => request.current.invalidate(), []);
-    return <Card title="Новое для меня" className="workspace-events-panel">
-        <WorkspaceEventTimeline events={events} currentTime={currentTime} onOpenDocument={onOpenDocument} />
+    const { events, unreadCount, error, refresh } = useUserEventsStore();
+    const [open, setOpen] = useState(false);
+    const preview = events.slice(0, 5);
+    const hiddenUnread = Math.max(0, unreadCount - preview.filter((event) => !event.readAt).length);
+    useEffect(() => { if (refreshVersion > 0) void refresh(); }, [refresh, refreshVersion]);
+    return <Card title="Новое для меня" className="workspace-events-panel" extra={
+        <Badge count={hiddenUnread} size="small" title={`Непрочитанных вне списка: ${hiddenUnread}`}>
+            <Button type="link" size="small" onClick={() => setOpen(true)}>Все события</Button>
+        </Badge>
+    }>
+        {error ? <Alert type="error" title={error} action={<Button onClick={() => void refresh()}>Повторить</Button>} /> : <WorkspaceEventTimeline events={preview} currentTime={currentTime} onOpenDocument={onOpenDocument} />}
+        {open && <UserEventsModal onClose={() => setOpen(false)} onOpenDocument={onOpenDocument} />}
     </Card>;
 };
 

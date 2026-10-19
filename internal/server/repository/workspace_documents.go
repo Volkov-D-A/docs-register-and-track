@@ -12,24 +12,35 @@ import (
 // RecentDocuments applies each kind's read scope before taking the global top four.
 func (r *WorkspaceRepository) RecentDocuments(scopes map[models.DocumentKind]models.DocumentAccessScope) ([]models.WorkspaceDocument, error) {
 	items := []models.WorkspaceDocument{}
-	args := []interface{}{}
-	allowed := []string{}
-	argIdx := 1
+	// Kinds resolved for the same principal share one recursive visibility CTE.
+	// Repeating the closure in each kind's predicate inflates the parameterized
+	// query's cost and triggers expensive JIT compilation even on tiny databases.
+	users := []string{}
+	kindsByUser := map[string][]string{}
 	for _, spec := range models.AllDocumentKindSpecs() {
-		scope, ok := scopes[spec.Code]
-		if !ok {
+		scope := scopes[spec.Code]
+		if scope.UserID == "" {
 			continue
 		}
-		where := []string{fmt.Sprintf("d.kind = $%d", argIdx)}
-		args = append(args, string(spec.Code))
-		argIdx++
-		applyDocumentListAccess(&where, &args, &argIdx, scope)
-		allowed = append(allowed, "("+strings.Join(where, " AND ")+")")
+		if _, exists := kindsByUser[scope.UserID]; !exists {
+			users = append(users, scope.UserID)
+		}
+		kindsByUser[scope.UserID] = append(kindsByUser[scope.UserID], string(spec.Code))
 	}
-	if len(allowed) == 0 {
+	if len(users) == 0 {
 		return items, nil
 	}
-	rows, err := r.db.Query(`WITH latest AS (
+	args := []interface{}{}
+	closures := []string{}
+	allowed := []string{}
+	for index, userID := range users {
+		name := fmt.Sprintf("visible_%d", index)
+		closure := visibleDocumentClosure(fmt.Sprintf("$%d", len(args)+1))
+		closures = append(closures, strings.ReplaceAll(strings.TrimPrefix(closure, "WITH RECURSIVE "), "visible", name))
+		args = append(args, userID, pq.Array(kindsByUser[userID]))
+		allowed = append(allowed, fmt.Sprintf("(d.kind = ANY($%d::text[]) AND d.id IN (SELECT id FROM %s))", len(args), name))
+	}
+	rows, err := r.db.Query(`WITH RECURSIVE `+strings.Join(closures, ", ")+`, latest AS (
         SELECT d.* FROM documents d WHERE `+strings.Join(allowed, " OR ")+`
         ORDER BY d.created_at DESC, d.id DESC LIMIT 4
     )

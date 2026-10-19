@@ -1,9 +1,10 @@
 import React from 'react';
 import { fireEvent, waitFor } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
-import UserEventsButton from '../../src/components/layout/UserEventsButton';
+import { useUserEventsSync } from '../../src/hooks/useUserEventsSync';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { installWailsMock, renderWithApp } from '../componentTestUtils';
+const SyncEvents = () => { useUserEventsSync(); return null; };
 
 test('notifications refresh on live events and reject an old session revision', async () => {
   const previous = useAuthStore.getState();
@@ -12,7 +13,7 @@ test('notifications refresh on live events and reject an old session revision', 
   installWailsMock({ UserEventService: {
     GetCurrentUserEvents: events, GetUnreadCount: vi.fn().mockResolvedValue(0),
   } });
-  const view = renderWithApp(<UserEventsButton onOpenEvent={vi.fn()} />);
+  const view = renderWithApp(<SyncEvents />);
   try {
     await waitFor(() => expect(events).toHaveBeenCalledTimes(1));
     fireEvent(window, new CustomEvent('server:event', { detail: { topic: 'user-events', revision: 4 } }));

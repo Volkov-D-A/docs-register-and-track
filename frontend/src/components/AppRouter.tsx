@@ -25,7 +25,6 @@ type AppRouterProps = {
     currentPage: string;
     fallbackPage: string;
     accessReady: boolean;
-    accessLoading: boolean;
     canAccessPage: (page: string) => boolean;
     deadlineNavigation: DeadlineNavigation | null;
     onOpenControls: (view: DeadlineView) => void;
@@ -67,7 +66,6 @@ const AppRouter: React.FC<AppRouterProps> = ({
     currentPage,
     fallbackPage,
     accessReady,
-    accessLoading,
     canAccessPage,
     deadlineNavigation,
     onOpenControls,
@@ -75,7 +73,9 @@ const AppRouter: React.FC<AppRouterProps> = ({
 }) => {
     const isDocumentPage = documentSectionPages.has(currentPage);
 
-    if ((!accessReady || accessLoading) && isDocumentPage) {
+    // A background access refresh keeps the previous summary ready. Replacing
+    // the page here would discard open document cards and other local state.
+    if (!accessReady && isDocumentPage) {
         return documentPageFallback;
     }
 

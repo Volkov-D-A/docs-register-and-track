@@ -27,7 +27,6 @@ function AppContent() {
     const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
     const [release, setRelease] = useState<models.ReleaseNote | null>(null);
     const {
-        loading: accessLoading,
         ready: accessReady,
         sections,
         canAccessPage,
@@ -191,7 +190,6 @@ function AppContent() {
                     currentPage={currentPage}
                     fallbackPage={getDefaultPage()}
                     accessReady={accessReady}
-                    accessLoading={accessLoading}
                     canAccessPage={canAccessPage}
                     deadlineNavigation={deadlineNavigation}
                     onOpenControls={openControls}

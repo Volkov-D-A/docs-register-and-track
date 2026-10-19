@@ -2,15 +2,14 @@ import React, { useState } from 'react';
 import { Layout, theme as antdTheme } from 'antd';
 import { useAuthStore } from '../store/useAuthStore';
 import AboutProgramModal from './AboutProgramModal';
-import { dto, models } from '../../wailsjs/go/models';
+import { models } from '../../wailsjs/go/models';
 import { useCurrentAccessSummary } from '../hooks/useCurrentAccessSummary';
 import { useAppTheme } from '../theme/useAppTheme';
 import { useBrandName } from '../hooks/useBrandName';
-import { getDocumentPageKey } from '../constants/documentKinds';
+import { useUserEventsSync } from '../hooks/useUserEventsSync';
 import AppHeader from './layout/AppHeader';
 import AppSidebar from './layout/AppSidebar';
 import RegisterDocumentAction from './layout/RegisterDocumentAction';
-import DocumentViewModal from './DocumentViewModal';
 import { shortUserName } from '../utils/shortUserName';
 
 const { Content } = Layout;
@@ -34,13 +33,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     onAboutModalClose,
     release,
 }) => {
+    useUserEventsSync();
     const { user, logout } = useAuthStore();
     const { theme: appTheme } = useAppTheme();
     const { token } = antdTheme.useToken();
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
-    const [eventDocumentModalOpen, setEventDocumentModalOpen] = useState(false);
-    const [eventDocumentId, setEventDocumentId] = useState('');
-    const [eventDocumentKind, setEventDocumentKind] = useState('');
     const brandName = useBrandName(!!user);
     const {
         sections,
@@ -56,16 +53,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         } else if (key === 'profile') {
             onPageChange('profile');
         }
-    };
-
-    const handleOpenEvent = (event: dto.UserEvent) => {
-        if (!event.documentId || !event.documentKind) {
-            onPageChange(getDocumentPageKey(event.documentKind));
-            return;
-        }
-        setEventDocumentId(event.documentId);
-        setEventDocumentKind(event.documentKind);
-        setEventDocumentModalOpen(true);
     };
 
     return (
@@ -87,7 +74,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                     userName={user ? shortUserName(user) : undefined}
                     onAboutModalOpen={onAboutModalOpen}
                     onUserMenu={handleUserMenu}
-                    onOpenEvent={handleOpenEvent}
                 />
 
                 <Content style={{ overflowY: 'auto', padding: 24, height: 'calc(100vh - 64px)' }}>
@@ -105,12 +91,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
                 />
             )}
             <AboutProgramModal open={isAboutModalOpen} onClose={onAboutModalClose} release={release} />
-            <DocumentViewModal
-                open={eventDocumentModalOpen}
-                onCancel={() => setEventDocumentModalOpen(false)}
-                documentId={eventDocumentId}
-                documentKind={eventDocumentKind}
-            />
         </Layout>
     );
 };

@@ -70,3 +70,14 @@ func TestDeadlineRejectsInvalidRecurrenceAndDuplicateExecutors(t *testing.T) {
 	req := DeadlineControlRequest{DocumentID: uuid.NewString(), ExecutorID: id, CoExecutorIDs: []string{id}, Subject: "Контроль", DueDate: "2026-10-14"}
 	require.Error(t, req.Validate())
 }
+
+func TestDeadlineControlRequiresSubject(t *testing.T) {
+	for _, subject := range []string{"", "   ", "\t\n"} {
+		req := DeadlineControlRequest{DocumentID: uuid.NewString(), ExecutorID: uuid.NewString(), Subject: subject, DueDate: "2026-10-20"}
+		err := req.Validate()
+		require.ErrorContains(t, err, "укажите предмет контроля")
+	}
+	req := DeadlineControlRequest{DocumentID: uuid.NewString(), ExecutorID: uuid.NewString(), Subject: "  Ответ на письмо  ", DueDate: "2026-10-20"}
+	require.NoError(t, req.Validate())
+	require.Equal(t, "Ответ на письмо", req.Subject)
+}

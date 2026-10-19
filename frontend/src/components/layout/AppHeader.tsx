@@ -1,8 +1,6 @@
 import React from 'react';
-import { Avatar, Button, Dropdown, Layout, Space, Typography } from 'antd';
+import { Avatar, Dropdown, Layout, Space, Typography } from 'antd';
 import { InfoCircleOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
-import { dto } from '../../../wailsjs/go/models';
-import UserEventsButton from './UserEventsButton';
 
 const { Header } = Layout;
 const { Text } = Typography;
@@ -12,7 +10,6 @@ type AppHeaderProps = {
     userName?: string;
     onAboutModalOpen: () => void;
     onUserMenu: (key: string) => void;
-    onOpenEvent: (event: dto.UserEvent) => void;
 };
 
 const userMenuItems = [
@@ -20,6 +17,11 @@ const userMenuItems = [
         key: 'profile',
         icon: <UserOutlined />,
         label: 'Профиль',
+    },
+    {
+        key: 'about',
+        icon: <InfoCircleOutlined />,
+        label: 'О программе',
     },
     {
         type: 'divider' as const,
@@ -37,7 +39,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     userName,
     onAboutModalOpen,
     onUserMenu,
-    onOpenEvent,
 }) => (
     <Header style={{
         background: token.colorBgContainer,
@@ -48,12 +49,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         borderBottom: `1px solid ${token.colorBorderSecondary}`,
     }}>
         <Space size="middle">
-            <Button icon={<InfoCircleOutlined />} onClick={onAboutModalOpen}>
-                О программе
-            </Button>
-            <UserEventsButton onOpenEvent={onOpenEvent} />
-
-            <Dropdown menu={{ items: userMenuItems, onClick: ({ key }) => onUserMenu(key) }} placement="bottomRight">
+            <Dropdown menu={{ items: userMenuItems, onClick: ({ key }) => key === 'about' ? onAboutModalOpen() : onUserMenu(key) }} placement="bottomRight">
                 <Space style={{ cursor: 'pointer' }}>
                     <Avatar icon={<UserOutlined />} style={{ backgroundColor: token.colorPrimary }} />
                     <Text>{userName}</Text>

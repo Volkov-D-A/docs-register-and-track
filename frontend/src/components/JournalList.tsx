@@ -8,6 +8,7 @@ import {
     QuestionCircleOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { formatDeadlineJournal } from '../utils/deadlineJournal';
 import { formatAppError } from '../utils/appError';
 
 const { Text } = Typography;
@@ -35,6 +36,7 @@ const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
             const { GetByDocumentID } = await import('../../wailsjs/go/services/JournalService');
             const res = await GetByDocumentID(documentId);
             setEntries(res || []);
+
         } catch (err: unknown) {
             message.error(formatAppError(err, 'Ошибка загрузки журнала'));
         } finally {
@@ -94,7 +96,7 @@ const JournalList: React.FC<JournalListProps> = ({ documentId }) => {
                                 {config.icon}
                             </div>
                         </Tooltip>
-                        <Text>{record.details}</Text>
+                        <Text style={{ whiteSpace: 'pre-line' }}>{formatDeadlineJournal(record.action, record.details)}</Text>
                     </div>
                 );
             },

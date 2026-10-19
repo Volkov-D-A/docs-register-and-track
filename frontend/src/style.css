@@ -362,6 +362,21 @@ body {
   gap: 8px;
 }
 
+.workspace-metric-content .ant-statistic {
+  min-width: 0;
+}
+
+.workspace-dashboard .workspace-metric-card .ant-statistic-title {
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.workspace-metric-icon {
+  flex-shrink: 0;
+}
+
 .workspace-metric-card .ant-statistic-title,
 .workspace-metric-card .ant-statistic-content {
   color: var(--app-text-muted);
@@ -701,3 +716,156 @@ body {
 :root[data-app-theme='dark'] .workspace-document-row--blue { --document-accent: #69b1ff; }
 :root[data-app-theme='dark'] .workspace-document-row--green { --document-accent: #73d89a; }
 :root[data-app-theme='dark'] .workspace-document-row--purple { --document-accent: #b995ff; }
+
+.deadline-controls-page { min-width: 0; }
+.deadline-overdue > td { background: color-mix(in srgb, #ff4d4f 6%, var(--app-surface)); }
+
+/* Оформление раздела контроля сроков по прежнему разделу поручений. */
+.deadline-filter-button--new {
+  --metric-bg: #eaf4ff;
+  --metric-border: #b9dcff;
+  --metric-accent: #0958d9;
+}
+.deadline-filter-button--in_progress {
+  --metric-bg: #e8f8f2;
+  --metric-border: #b4e4d0;
+  --metric-accent: #137a55;
+}
+
+.deadline-filter-button--returned {
+  --metric-bg: #fff0f6;
+  --metric-border: #ffd6e7;
+  --metric-accent: #c41d7f;
+}
+
+:root[data-app-theme='dark'] .deadline-filter-button--new {
+  --metric-bg: #19354f;
+  --metric-border: #30618a;
+  --metric-accent: #91caff;
+}
+
+:root[data-app-theme='dark'] .deadline-filter-button--in_progress {
+  --metric-bg: #1c4038;
+  --metric-border: #367962;
+  --metric-accent: #7de2bd;
+}
+
+:root[data-app-theme='dark'] .deadline-filter-button--returned {
+  --metric-bg: #452337;
+  --metric-border: #823957;
+  --metric-accent: #ff85c0;
+}
+
+.deadline-page-heading {
+  margin-bottom: 16px;
+}
+
+.deadline-filters {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: var(--app-surface);
+}
+
+.deadline-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.deadline-filter-label {
+  width: 54px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--app-text-muted);
+}
+
+.deadline-filter-button--neutral {
+  --metric-bg: var(--app-subtle-surface);
+  --metric-border: var(--app-border);
+  --metric-accent: var(--app-text-secondary);
+}
+
+.deadline-filter-button.ant-btn {
+  height: 42px;
+  min-width: 112px;
+  padding-inline: 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--metric-bg);
+  border-color: var(--metric-border);
+  color: var(--metric-accent);
+}
+
+.deadline-filter-button.ant-btn:is(:hover, :focus-visible),
+.deadline-filter-button.ant-btn[aria-pressed='true'] {
+  background: var(--metric-bg);
+  border-color: var(--metric-accent);
+  color: var(--metric-accent);
+}
+
+.deadline-filter-button[aria-pressed='true'] {
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--metric-accent);
+}
+
+.deadline-filters-toggles {
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.deadline-filters-reset {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+
+:root[data-app-theme='dark'] .deadline-date-link {
+  --deadline-link-color: #91caff;
+}
+
+.deadline-date-link.ant-btn {
+  height: 30px;
+  padding-inline: 4px;
+  font-size: 13px;
+  color: var(--app-text-muted);
+}
+
+.deadline-date-link.ant-btn:is(:hover, :focus-visible),
+.deadline-date-link.ant-btn[aria-pressed='true'] {
+  color: var(--deadline-link-color, #0958d9);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.deadline-date-link[aria-pressed='true'] {
+  font-weight: 600;
+}
+
+.deadline-period-button.ant-btn {
+  margin-left: 6px;
+  font-size: 13px;
+}
+
+.deadline-period-picker {
+  width: 260px;
+  max-width: 100%;
+}
+
+.deadline-controls-table .ant-table-tbody > tr > td {
+  font-size: 15px;
+}
+
+.deadline-controls-table .ant-table-thead > tr > th {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .deadline-filters { padding: 12px; }
+  .deadline-filter-label { width: 100%; }
+}
