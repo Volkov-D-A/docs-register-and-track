@@ -14,35 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestJournalRepository_Create(t *testing.T) {
-	// Создание новой записи в журнале
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewJournalRepository(database.Wrap(db))
-	ctx := context.Background()
-
-	req := models.CreateJournalEntryRequest{
-		DocumentID: uuid.New(),
-		UserID:     uuid.New(),
-		Action:     "TEST_ACTION",
-		Details:    "Тестовое описание действия",
-	}
-
-	query := `INSERT INTO document_journal .*outbox_deduplication_key.*RETURNING id`
-
-	newID := uuid.New()
-	mock.ExpectQuery(query).
-		WithArgs(req.DocumentID, req.UserID, req.Action, req.Details, "").
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(newID))
-
-	id, err := repo.Create(ctx, req)
-	require.NoError(t, err)
-	assert.Equal(t, newID, id)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestJournalRepository_CreateFromOutboxTreatsDuplicateAsDelivered(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)

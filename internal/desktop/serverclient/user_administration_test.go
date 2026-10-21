@@ -47,9 +47,10 @@ func TestUserAdministrationClientUsesTypedEndpoints(t *testing.T) {
 			assert.Equal(t, http.MethodDelete, r.Method)
 			assert.Equal(t, "/api/v1/departments/"+userID, r.URL.Path)
 			return response(http.StatusNoContent, ""), nil
-		case 8:
+		case 7:
+			assert.Equal(t, http.MethodGet, r.Method)
 			assert.Equal(t, "/api/v1/access/current", r.URL.Path)
-			return response(http.StatusOK, `{"sections":{"settings":true},"documentKinds":[],"registrationKinds":[],"systemPermissions":["admin"]}`), nil
+			return response(http.StatusOK, `{"sections":{"settings":true},"documentKinds":[],"systemPermissions":["admin"]}`), nil
 		default:
 			t.Fatalf("unexpected request %d", requestNumber)
 			return nil, nil

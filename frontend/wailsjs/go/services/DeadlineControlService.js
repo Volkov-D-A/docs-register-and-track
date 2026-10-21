@@ -18,10 +18,6 @@ export function CreateSeries(arg1) {
   return window['go']['services']['DeadlineControlService']['CreateSeries'](arg1);
 }
 
-export function Get(arg1) {
-  return window['go']['services']['DeadlineControlService']['Get'](arg1);
-}
-
 export function GetSeries(arg1) {
   return window['go']['services']['DeadlineControlService']['GetSeries'](arg1);
 }

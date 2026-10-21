@@ -1,5 +1,4 @@
 import { cachedUserId, cachedSummary, loadAccessSummary, resetCurrentAccessSummaryCache, onAccessSummaryInvalidated } from '../store/accessSummaryCache';
-export { resetCurrentAccessSummaryCache } from '../store/accessSummaryCache';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { dto } from '../../wailsjs/go/models';
 import { documentKinds, DocumentKindMeta, toDocumentKindMeta } from '../constants/documentKinds';
@@ -175,7 +174,6 @@ export const useCurrentAccessSummary = () => {
         summary: currentSummary,
         sections,
         kinds: kinds.length > 0 ? kinds : documentKinds,
-        documentKindAccess,
         registrationKinds,
         loading: state.loading,
         ready,

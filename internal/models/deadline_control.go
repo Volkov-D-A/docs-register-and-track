@@ -87,13 +87,6 @@ type DocumentDeadlineControl struct {
 	CanManage          bool       `json:"canManage"`
 }
 
-func (c DocumentDeadlineControl) IsOverdue(now time.Time) bool {
-	return c.Status == DeadlineActive && c.DueDate < OrganizationToday(now)
-}
-func (c DocumentDeadlineControl) WasExecutedLate() bool {
-	return c.Status == DeadlineCompleted && c.ExecutedOn > c.DueDate
-}
-
 type DeadlineControlRequest struct {
 	DocumentID    string   `json:"documentId"`
 	ExecutorID    string   `json:"executorId"`

@@ -21,23 +21,23 @@ func citizenAppealRows(docID uuid.UUID, now time.Time) *sqlmock.Rows {
 		"id", "nomenclature_id", "nomenclature_name",
 		"registration_number", "registration_date",
 		"appeal_date",
-		"document_type", "document_type_name",
+		"document_type",
 		"content", "pages_count", "attachment_pages_count",
 		"applicant_full_name", "registration_address",
 		"appeal_type", "applicant_category",
 		"has_envelope", "received_from_pos",
-		"created_by", "created_by_name",
+		"created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "03-01 - Обращения",
 		"ОГ-123", now,
 		now.Add(-24*time.Hour),
-		models.DocumentTypeCitizenAppeal, models.DocumentTypeCitizenAppeal,
+		models.DocumentTypeCitizenAppeal,
 		"Содержание обращения", 2, 1,
 		"Иван Иванов", "ул. Ленина, 1",
 		"жалоба", "гражданин",
 		true, false,
-		uuid.New(), "Регистратор",
+		"Регистратор",
 		now, now,
 	)
 }
@@ -125,24 +125,6 @@ func TestCitizenAppealRepository_GetByID(t *testing.T) {
 	})
 }
 
-func TestCitizenAppealRepository_GetCount(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewCitizenAppealRepository(database.Wrap(db))
-
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).
-		WithArgs(models.DocumentKindCitizenAppeal).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(17))
-
-	count, err := repo.GetCount()
-
-	require.NoError(t, err)
-	assert.Equal(t, 17, count)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestCitizenAppealRepository_GetList(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -170,12 +152,12 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 				docID2, uuid.New(), "03-02 - Обращения",
 				"ОГ-124", now,
 				now.Add(-48*time.Hour),
-				models.DocumentTypeCitizenAppeal, models.DocumentTypeCitizenAppeal,
+				models.DocumentTypeCitizenAppeal,
 				"Содержание обращения 2", 3, 1,
 				"Петр Петров", "ул. Мира, 2",
 				"заявление", "гражданин",
 				false, true,
-				uuid.New(), "Регистратор",
+				"Регистратор",
 				now, now,
 			))
 		expectCitizenAppealBatchHydrateEmpty(mock)
@@ -246,7 +228,7 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 				"appeal_date", "content", "pages_count", "attachment_pages_count",
 				"applicant_full_name", "registration_address", "appeal_type", "applicant_category",
 				"has_envelope", "received_from_pos",
-				"created_by", "created_by_name",
+				"created_by_name",
 				"created_at", "updated_at",
 			}))
 
@@ -278,7 +260,7 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 				"appeal_date", "content", "pages_count", "attachment_pages_count",
 				"applicant_full_name", "registration_address", "appeal_type", "applicant_category",
 				"has_envelope", "received_from_pos",
-				"created_by", "created_by_name",
+				"created_by_name",
 				"created_at", "updated_at",
 			}))
 

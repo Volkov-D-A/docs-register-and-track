@@ -69,12 +69,11 @@ func TestOutboxRepositoryClaimPending(t *testing.T) {
 	defer db.Close()
 	repo := NewOutboxRepository(database.Wrap(db))
 	id := uuid.New()
-	now := time.Now()
 	mock.ExpectBegin()
 	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).
 		WithArgs(10).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
-			AddRow(id, models.OutboxEventUserEvent, "key", `{"request":{}}`, now, now, nil, nil, 1, nil, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "attempts"}).
+			AddRow(id, models.OutboxEventUserEvent, "key", `{"request":{}}`, 1))
 	mock.ExpectCommit()
 
 	events, err := repo.ClaimPending(10)

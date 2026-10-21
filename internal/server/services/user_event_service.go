@@ -55,19 +55,6 @@ func (s *UserEventService) GetUnreadCount() (int, error) {
 	return s.repo.CountUnread(userID)
 }
 
-// MarkRead отмечает событие текущего пользователя прочитанным.
-func (s *UserEventService) MarkRead(id string) error {
-	eventID, err := uuid.Parse(id)
-	if err != nil {
-		return models.NewBadRequestWrapped("неверный ID события", err)
-	}
-	userID, err := s.currentUserUUID()
-	if err != nil {
-		return err
-	}
-	return s.repo.MarkRead(eventID, userID, time.Now())
-}
-
 // MarkDocumentRead отмечает все события текущего пользователя по документу прочитанными.
 func (s *UserEventService) MarkDocumentRead(documentID string) error {
 	docID, err := uuid.Parse(documentID)

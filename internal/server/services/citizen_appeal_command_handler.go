@@ -28,7 +28,6 @@ var allowedAppealTypes = map[string]struct{}{
 // CitizenAppealCommandHandler инкапсулирует write-операции по обращениям граждан.
 type CitizenAppealCommandHandler struct {
 	repo    ports.CitizenAppealDocStore
-	nomRepo ports.NomenclatureStore
 	refRepo ports.ReferenceStore
 	auth    ports.DocumentCommandPrincipal
 	access  *DocumentAccessService
@@ -37,14 +36,12 @@ type CitizenAppealCommandHandler struct {
 // NewCitizenAppealCommandHandler создает handler команд обращений граждан.
 func NewCitizenAppealCommandHandler(
 	repo ports.CitizenAppealDocStore,
-	nomRepo ports.NomenclatureStore,
 	refRepo ports.ReferenceStore,
 	auth ports.DocumentCommandPrincipal,
 	access *DocumentAccessService,
 ) *CitizenAppealCommandHandler {
 	return &CitizenAppealCommandHandler{
 		repo:    repo,
-		nomRepo: nomRepo,
 		refRepo: refRepo,
 		auth:    auth,
 		access:  access,
@@ -80,7 +77,7 @@ func (h *CitizenAppealCommandHandler) Register(req dto.CitizenAppealRegisterRequ
 	if err != nil || idempotencyKey == uuid.Nil {
 		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
-	link, err := buildRegistrationLink(h.access, h.Kind(), nomID, req.Link)
+	link, err := buildRegistrationLink(h.access, h.Kind(), req.Link)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
@@ -43,6 +44,17 @@ func TestUserEventOutboxInsertIntegration(t *testing.T) {
 
 	if listed.Items[0].DocumentDate == nil || listed.Items[0].DocumentDate.Format("2006-01-02") != "2026-09-24" {
 		t.Fatalf("document date=%v, want 2026-09-24", listed.Items[0].DocumentDate)
+	}
+	if err := repo.MarkAllRead(userID, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	listed, err = repo.GetList(userID, models.UserEventFilter{Page: 1, PageSize: 20})
+	if err != nil || len(listed.Items) != 1 || listed.Items[0].ReadAt == nil {
+		t.Fatalf("read event disappeared from the list: events=%+v err=%v", listed, err)
+	}
+	unread, err := repo.CountUnread(userID)
+	if err != nil || unread != 0 {
+		t.Fatalf("unread count=%d err=%v, want 0", unread, err)
 	}
 
 	var unusedColumns int

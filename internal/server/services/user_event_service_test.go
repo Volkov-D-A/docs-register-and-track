@@ -15,7 +15,6 @@ import (
 type fakeUserEventStore struct {
 	items        []models.UserEvent
 	unreadCount  int
-	markedRead   []uuid.UUID
 	markedDocFor []uuid.UUID
 	markedAllFor []uuid.UUID
 }
@@ -24,9 +23,6 @@ func (s *fakeUserEventStore) GetList(userID uuid.UUID, filter models.UserEventFi
 	items := make([]models.UserEvent, 0)
 	for _, item := range s.items {
 		if item.RecipientUserID != userID {
-			continue
-		}
-		if filter.UnreadOnly && item.ReadAt != nil {
 			continue
 		}
 		items = append(items, item)
@@ -50,17 +46,6 @@ func (s *fakeUserEventStore) CountUnread(userID uuid.UUID) (int, error) {
 		}
 	}
 	return count, nil
-}
-
-func (s *fakeUserEventStore) MarkRead(id, userID uuid.UUID, readAt time.Time) error {
-	s.markedRead = append(s.markedRead, id)
-	for i := range s.items {
-		if s.items[i].ID == id && s.items[i].RecipientUserID == userID {
-			s.items[i].ReadAt = &readAt
-			return nil
-		}
-	}
-	return models.NewNotFound("событие не найдено")
 }
 
 func (s *fakeUserEventStore) MarkAllRead(userID uuid.UUID, readAt time.Time) error {
@@ -87,7 +72,7 @@ func setupUserEventService(t *testing.T) (*UserEventService, *fakeUserEventStore
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newAttachmentPrincipalStub(userRepo)
+	auth := newDocumentPrincipalStub(userRepo)
 
 	user := &models.User{
 		ID:    uuid.New(),
@@ -161,10 +146,6 @@ func TestUserEventService_ReadMarkers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
-	err = svc.MarkRead(eventID.String())
-	require.NoError(t, err)
-	assert.Equal(t, []uuid.UUID{eventID}, store.markedRead)
-
 	err = svc.MarkDocumentRead(documentID.String())
 	require.NoError(t, err)
 	assert.Equal(t, []uuid.UUID{documentID}, store.markedDocFor)
@@ -182,7 +163,6 @@ func TestUserEventServiceReadMarkersRejectOtherRecipient(t *testing.T) {
 		{ID: uuid.New(), RecipientUserID: user.ID, DocumentID: documentID},
 		{ID: foreignID, RecipientUserID: uuid.New(), DocumentID: documentID},
 	}
-	require.Error(t, svc.MarkRead(foreignID.String()))
 	require.NoError(t, svc.MarkDocumentRead(documentID.String()))
 	require.NotNil(t, store.items[0].ReadAt)
 	require.Nil(t, store.items[1].ReadAt)
@@ -196,7 +176,6 @@ func TestUserEventServiceRequiresPrincipal(t *testing.T) {
 	require.ErrorIs(t, err, models.ErrUnauthorized)
 	_, err = svc.GetUnreadCount()
 	require.ErrorIs(t, err, models.ErrUnauthorized)
-	require.ErrorIs(t, svc.MarkRead(uuid.NewString()), models.ErrUnauthorized)
 	require.ErrorIs(t, svc.MarkDocumentRead(uuid.NewString()), models.ErrUnauthorized)
 	require.ErrorIs(t, svc.MarkAllRead(), models.ErrUnauthorized)
 }

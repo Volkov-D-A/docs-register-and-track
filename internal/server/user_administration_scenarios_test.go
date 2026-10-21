@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"github.com/lib/pq"
 	"net/http"
@@ -74,28 +73,6 @@ func TestUserAccessProfileReadUsesTarget(t *testing.T) {
 	api.Handler().ServeHTTP(response, request)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Contains(t, response.Body.String(), models.SystemPermissionReferences)
-}
-
-type failingExecutorStore struct{}
-
-func (failingExecutorStore) GetExecutors() ([]models.User, error) {
-	return nil, errors.New("executors unavailable")
-}
-func TestExecutorLookupRejectsDeactivatedSessionAndReportsStoreError(t *testing.T) {
-	api, _, token := authenticatedUserAPI(t, nil)
-	api.executors = failingExecutorStore{}
-	for _, active := range []bool{true, false} {
-		api.authUsers.(*fakeAuthUsers).user.IsActive = active
-		request := httptest.NewRequest(http.MethodGet, "/api/v1/users/executors", nil)
-		request.Header.Set("Authorization", "Bearer "+token)
-		response := httptest.NewRecorder()
-		api.Handler().ServeHTTP(response, request)
-		status := http.StatusUnauthorized
-		if active {
-			status = http.StatusInternalServerError
-		}
-		require.Equal(t, status, response.Code, response.Body.String())
-	}
 }
 
 type failedAdminUpdateStore struct {

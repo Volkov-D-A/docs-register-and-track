@@ -91,7 +91,6 @@ type IncomingDocument struct {
 	IncomingDate   time.Time `json:"incomingDate"`
 
 	DocumentTypeID       string `json:"documentTypeId"`
-	DocumentTypeName     string `json:"documentTypeName,omitempty"`
 	Content              string `json:"content"`
 	PagesCount           int    `json:"pagesCount"`
 	AttachmentPagesCount int    `json:"attachmentPagesCount"`
@@ -100,14 +99,12 @@ type IncomingDocument struct {
 
 	SenderSignatory string `json:"senderSignatory"`
 
-	Resolution          *string `json:"resolution,omitempty"`
-	ResolutionAuthor    *string `json:"resolutionAuthor,omitempty"`
-	ResolutionExecutors *string `json:"resolutionExecutors,omitempty"`
-
-	CreatedBy     string    `json:"createdBy"`
-	CreatedByName string    `json:"createdByName,omitempty"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	Resolution          *string   `json:"resolution,omitempty"`
+	ResolutionAuthor    *string   `json:"resolutionAuthor,omitempty"`
+	ResolutionExecutors *string   `json:"resolutionExecutors,omitempty"`
+	CreatedByName       string    `json:"createdByName,omitempty"`
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 // DocumentCorrespondentRegistration описывает DTO регистрационных реквизитов корреспондента.
@@ -115,7 +112,6 @@ type DocumentCorrespondentRegistration struct {
 	ID                 string    `json:"id"`
 	RegistrationNumber string    `json:"registrationNumber"`
 	RegistrationDate   time.Time `json:"registrationDate"`
-	CorrespondentOrgID string    `json:"correspondentOrgId"`
 	CorrespondentName  string    `json:"correspondentName,omitempty"`
 	Position           int       `json:"position"`
 }
@@ -139,10 +135,9 @@ type CitizenAppealDocument struct {
 	RegistrationDate   time.Time `json:"registrationDate"`
 	AppealDate         time.Time `json:"appealDate"`
 
-	DocumentTypeID   string `json:"documentTypeId"`
-	DocumentTypeName string `json:"documentTypeName,omitempty"`
-	Content          string `json:"content"`
-	PagesCount       int    `json:"pagesCount"`
+	DocumentTypeID string `json:"documentTypeId"`
+	Content        string `json:"content"`
+	PagesCount     int    `json:"pagesCount"`
 
 	ApplicantFullName    string `json:"applicantFullName"`
 	RegistrationAddress  string `json:"registrationAddress"`
@@ -154,11 +149,9 @@ type CitizenAppealDocument struct {
 
 	Correspondents []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
 	Resolutions    []DocumentResolution                `json:"resolutions,omitempty"`
-
-	CreatedBy     string    `json:"createdBy"`
-	CreatedByName string    `json:"createdByName,omitempty"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	CreatedByName  string                              `json:"createdByName,omitempty"`
+	CreatedAt      time.Time                           `json:"createdAt"`
+	UpdatedAt      time.Time                           `json:"updatedAt"`
 }
 
 // OutgoingDocument описывает DTO исходящего документа.
@@ -171,22 +164,17 @@ type OutgoingDocument struct {
 	OutgoingDate   time.Time `json:"outgoingDate"`
 
 	DocumentTypeID       string `json:"documentTypeId"`
-	DocumentTypeName     string `json:"documentTypeName,omitempty"`
 	Content              string `json:"content"`
 	PagesCount           int    `json:"pagesCount"`
 	AttachmentPagesCount int    `json:"attachmentPagesCount"`
 
-	SenderSignatory string `json:"senderSignatory"`
-	SenderExecutor  string `json:"senderExecutor"`
-
-	RecipientOrgID   string `json:"recipientOrgId"`
-	RecipientOrgName string `json:"recipientOrgName,omitempty"`
-	Addressee        string `json:"addressee"`
-
-	CreatedBy     string    `json:"createdBy"`
-	CreatedByName string    `json:"createdByName,omitempty"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	SenderSignatory  string    `json:"senderSignatory"`
+	SenderExecutor   string    `json:"senderExecutor"`
+	RecipientOrgName string    `json:"recipientOrgName,omitempty"`
+	Addressee        string    `json:"addressee"`
+	CreatedByName    string    `json:"createdByName,omitempty"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 // AdministrativeOrderDocument описывает DTO приказа.
@@ -199,10 +187,9 @@ type AdministrativeOrderDocument struct {
 	OrderDate   time.Time `json:"orderDate"`
 	Title       string    `json:"title"`
 
-	DocumentTypeID   string `json:"documentTypeId"`
-	DocumentTypeName string `json:"documentTypeName,omitempty"`
-	Content          string `json:"content"`
-	PagesCount       int    `json:"pagesCount"`
+	DocumentTypeID string `json:"documentTypeId"`
+	Content        string `json:"content"`
+	PagesCount     int    `json:"pagesCount"`
 
 	ExecutionController string     `json:"executionController"`
 	ExecutionDeadline   *time.Time `json:"executionDeadline,omitempty"`
@@ -210,11 +197,9 @@ type AdministrativeOrderDocument struct {
 	CancelledAt         *time.Time `json:"cancelledAt,omitempty"`
 
 	AcknowledgmentPeople []AdministrativeOrderAcknowledgmentPerson `json:"acknowledgmentPeople,omitempty"`
-
-	CreatedBy     string    `json:"createdBy"`
-	CreatedByName string    `json:"createdByName,omitempty"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	CreatedByName        string                                    `json:"createdByName,omitempty"`
+	CreatedAt            time.Time                                 `json:"createdAt"`
+	UpdatedAt            time.Time                                 `json:"updatedAt"`
 }
 
 // AdministrativeOrderAcknowledgmentPerson описывает DTO строки листа ознакомления приказа.
@@ -222,7 +207,6 @@ type AdministrativeOrderAcknowledgmentPerson struct {
 	ID                 string     `json:"id"`
 	FullName           string     `json:"fullName"`
 	AcknowledgedAt     *time.Time `json:"acknowledgedAt,omitempty"`
-	AcknowledgedBy     string     `json:"acknowledgedBy,omitempty"`
 	AcknowledgedByName string     `json:"acknowledgedByName,omitempty"`
 	Position           int        `json:"position"`
 	CreatedAt          time.Time  `json:"createdAt"`
@@ -238,9 +222,7 @@ type DocumentCard struct {
 	NomenclatureID     string    `json:"nomenclatureId"`
 	NomenclatureName   string    `json:"nomenclatureName,omitempty"`
 	DocumentTypeID     string    `json:"documentTypeId"`
-	DocumentTypeName   string    `json:"documentTypeName,omitempty"`
 	Content            string    `json:"content"`
-	CreatedBy          string    `json:"createdBy"`
 	CreatedByName      string    `json:"createdByName,omitempty"`
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`
@@ -261,10 +243,8 @@ type DocumentListItem struct {
 	NomenclatureID     string    `json:"nomenclatureId"`
 	NomenclatureName   string    `json:"nomenclatureName,omitempty"`
 	DocumentTypeID     string    `json:"documentTypeId"`
-	DocumentTypeName   string    `json:"documentTypeName,omitempty"`
 	Content            string    `json:"content"`
 	PagesCount         int       `json:"pagesCount"`
-	CreatedBy          string    `json:"createdBy"`
 	CreatedByName      string    `json:"createdByName,omitempty"`
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`

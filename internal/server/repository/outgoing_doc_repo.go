@@ -102,11 +102,11 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		SELECT 
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			out.outgoing_number, out.outgoing_date,
-			d.document_type, d.document_type as document_type_name,
+			d.document_type,
 			d.content, d.pages_count, d.attachment_pages_count,
 			out.sender_signatory, out.sender_executor,
 			out.recipient_org_id, ro.name as recipient_org_name, out.addressee,
-			d.created_by, u.full_name as created_by_name,
+			u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM documents d
 		JOIN outgoing_document_details out ON out.document_id = d.id
@@ -134,11 +134,11 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		err := rows.Scan(
 			&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 			&doc.OutgoingNumber, &doc.OutgoingDate,
-			&doc.DocumentTypeID, &doc.DocumentTypeName,
+			&doc.DocumentTypeID,
 			&doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount,
 			&doc.SenderSignatory, &doc.SenderExecutor,
 			&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
-			&doc.CreatedBy, &doc.CreatedByName,
+			&doc.CreatedByName,
 			&doc.CreatedAt, &doc.UpdatedAt,
 		)
 		if err != nil {
@@ -181,11 +181,11 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 		SELECT 
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			out.outgoing_number, out.outgoing_date,
-			d.document_type, d.document_type as document_type_name,
+			d.document_type,
 			d.content, d.pages_count, d.attachment_pages_count,
 			out.sender_signatory, out.sender_executor,
 			out.recipient_org_id, ro.name as recipient_org_name, out.addressee,
-			d.created_by, u.full_name as created_by_name,
+			u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM documents d
 		JOIN outgoing_document_details out ON out.document_id = d.id
@@ -196,11 +196,11 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 	`, id, models.DocumentKindOutgoingLetter).Scan(
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 		&doc.OutgoingNumber, &doc.OutgoingDate,
-		&doc.DocumentTypeID, &doc.DocumentTypeName,
+		&doc.DocumentTypeID,
 		&doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount,
 		&doc.SenderSignatory, &doc.SenderExecutor,
 		&doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee,
-		&doc.CreatedBy, &doc.CreatedByName,
+		&doc.CreatedByName,
 		&doc.CreatedAt, &doc.UpdatedAt,
 	)
 
@@ -214,29 +214,20 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 	return &doc, nil
 }
 
-// GetByIDs loads graph card data in one query for outgoing documents.
+// GetByIDs returns the partial card fields used by link graph nodes.
+// GetByID and GetList retain the full document projection.
 func (r *OutgoingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocument, error) {
 	if len(ids) == 0 {
 		return []models.OutgoingDocument{}, nil
 	}
 	rows, err := r.db.Query(`
-		SELECT
-			d.id, d.nomenclature_id, n.index || ' — ' || n.name AS nomenclature_name,
-			out.outgoing_number, out.outgoing_date,
-			d.document_type, d.document_type AS document_type_name,
-			d.content, d.pages_count, d.attachment_pages_count,
-			out.sender_signatory, out.sender_executor,
-			out.recipient_org_id, ro.name AS recipient_org_name, out.addressee,
-			d.created_by, u.full_name AS created_by_name,
-			d.created_at, d.updated_at
-		FROM documents d
-		JOIN outgoing_document_details out ON out.document_id = d.id
-		JOIN nomenclature n ON d.nomenclature_id = n.id
-		JOIN organizations ro ON out.recipient_org_id = ro.id
-		JOIN users u ON d.created_by = u.id
-		WHERE d.id = ANY($1) AND d.kind = $2
-		ORDER BY d.id
-	`, pq.Array(ids), models.DocumentKindOutgoingLetter)
+        SELECT d.id, out.outgoing_number, out.outgoing_date, d.content, ro.name
+        FROM documents d
+        JOIN outgoing_document_details out ON out.document_id = d.id
+        JOIN organizations ro ON out.recipient_org_id = ro.id
+        WHERE d.id = ANY($1) AND d.kind = $2
+        ORDER BY d.id
+    `, pq.Array(ids), models.DocumentKindOutgoingLetter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get outgoing documents by IDs: %w", err)
 	}
@@ -244,7 +235,7 @@ func (r *OutgoingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Outgoin
 	items := make([]models.OutgoingDocument, 0, len(ids))
 	for rows.Next() {
 		var doc models.OutgoingDocument
-		if err := rows.Scan(&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName, &doc.OutgoingNumber, &doc.OutgoingDate, &doc.DocumentTypeID, &doc.DocumentTypeName, &doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount, &doc.SenderSignatory, &doc.SenderExecutor, &doc.RecipientOrgID, &doc.RecipientOrgName, &doc.Addressee, &doc.CreatedBy, &doc.CreatedByName, &doc.CreatedAt, &doc.UpdatedAt); err != nil {
+		if err := rows.Scan(&doc.ID, &doc.OutgoingNumber, &doc.OutgoingDate, &doc.Content, &doc.RecipientOrgName); err != nil {
 			return nil, err
 		}
 		items = append(items, doc)
@@ -438,13 +429,4 @@ func (r *OutgoingDocumentRepository) update(req models.UpdateOutgoingDocRequest,
 	}
 
 	return r.GetByID(req.ID)
-}
-
-// GetCount возвращает общее количество исходящих документов (для дашборда).
-func (r *OutgoingDocumentRepository) GetCount() (int, error) {
-	var count int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM documents WHERE kind = $1`, models.DocumentKindOutgoingLetter).Scan(&count); err != nil {
-		return 0, err
-	}
-	return count, nil
 }

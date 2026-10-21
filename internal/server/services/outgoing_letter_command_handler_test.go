@@ -20,7 +20,7 @@ type outgoingLetterHandlerDeps struct {
 	handler *OutgoingLetterCommandHandler
 	repo    *outgoingAtomicStoreMock
 	refRepo *mocks.ReferenceStore
-	auth    *attachmentPrincipalStub
+	auth    *documentPrincipalStub
 	user    *models.User
 }
 
@@ -28,20 +28,19 @@ func setupOutgoingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newAttachmentPrincipalStub(userRepo)
+	auth := newDocumentPrincipalStub(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	repo := newOutgoingAtomicStoreMock(t)
 	refRepo := mocks.NewReferenceStore(t)
-	nomRepo := mocks.NewNomenclatureStore(t)
 	docRepo := &documentAccessDocumentStore{}
 	access := NewDocumentAccessService(auth, &kindActionDocumentAccessStore{allowed: allowed, visible: func(id uuid.UUID) bool {
 		doc := docRepo.docs[id]
 		return allowed[doc.Kind]["register"] || allowed[doc.Kind]["control_deadlines"]
 	}}, docRepo)
-	handler := NewOutgoingLetterCommandHandler(repo, refRepo, nomRepo, auth, access)
+	handler := NewOutgoingLetterCommandHandler(repo, refRepo, auth, access)
 
 	return &outgoingLetterHandlerDeps{
 		handler: handler,
@@ -107,7 +106,6 @@ func TestOutgoingLetterCommandHandler_Register(t *testing.T) {
 			RecipientOrgName: "ООО Получатель",
 			Content:          req.Content,
 			PagesCount:       req.PagesCount,
-			CreatedBy:        deps.user.ID,
 		}, nil).Once()
 		result, err := deps.handler.Register(req)
 
@@ -233,7 +231,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindOutgoingLetter),
 			},
 		}
 		req := dto.OutgoingLetterUpdateRequest{
@@ -270,7 +268,6 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 			RecipientOrgName: "АО Новый получатель",
 			Content:          req.Content,
 			PagesCount:       req.PagesCount,
-			CreatedBy:        deps.user.ID,
 		}, nil).Once()
 		result, err := deps.handler.Update(req)
 
@@ -302,7 +299,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindOutgoingLetter),
 			},
 		}
 
@@ -325,7 +322,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindOutgoingLetter),
 			},
 		}
 
@@ -348,7 +345,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindOutgoingLetter),
 			},
 		}
 		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return((*models.Organization)(nil), expectedErr).Once()
@@ -373,7 +370,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindOutgoingLetter),
 			},
 		}
 		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return(&models.Organization{ID: uuid.New(), Name: "АО Новый получатель"}, nil).Once()
@@ -400,7 +397,7 @@ func TestOutgoingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindOutgoingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindOutgoingLetter),
 			},
 		}
 		deps.refRepo.On("FindOrCreateOrganization", "АО Новый получатель").Return(&models.Organization{ID: uuid.New(), Name: "АО Новый получатель"}, nil).Once()

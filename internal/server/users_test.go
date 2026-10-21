@@ -40,8 +40,8 @@ type parallelSessions struct {
 	sessions map[string]*models.ServerSession
 }
 
-func (parallelSessions) Create(uuid.UUID, []byte, time.Time) (*models.ServerSession, error) {
-	return nil, nil
+func (parallelSessions) Create(uuid.UUID, []byte, time.Time) error {
+	return nil
 }
 func (s parallelSessions) GetActiveByTokenHash(hash []byte, _ time.Time) (*models.ServerSession, error) {
 	return s.sessions[string(hash)], nil
@@ -56,10 +56,6 @@ type fakeUserManagementStore struct {
 	resetPassword string
 	effects       []models.OutboxEvent
 }
-
-type fakeExecutorStore struct{ users []models.User }
-
-func (s fakeExecutorStore) GetExecutors() ([]models.User, error) { return s.users, nil }
 
 func (s *fakeUserManagementStore) GetAll() ([]models.User, error) { return s.users, nil }
 func (s *fakeUserManagementStore) GetByID(id uuid.UUID) (*models.User, error) {
@@ -132,22 +128,6 @@ func TestUserAPIRequiresAdminPermission(t *testing.T) {
 	assert.Contains(t, response.Body.String(), `"code":"forbidden"`)
 }
 
-func TestExecutorLookupRequiresSessionButNotAdmin(t *testing.T) {
-	api, _, token := authenticatedUserAPI(t, nil)
-	api.executors = fakeExecutorStore{users: []models.User{{ID: uuid.New(), LastName: "Executor", FirstName: "User", Patronymic: "", NoPatronymic: true, IsActive: true}}}
-
-	unauthorized := httptest.NewRecorder()
-	api.Handler().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/users/executors", nil))
-	assert.Equal(t, http.StatusUnauthorized, unauthorized.Code)
-
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/users/executors", nil)
-	request.Header.Set("Authorization", "Bearer "+token)
-	response := httptest.NewRecorder()
-	api.Handler().ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	assert.Contains(t, response.Body.String(), "Executor")
-}
-
 func TestUserAPIKeepsParallelRequestPrincipalsIsolated(t *testing.T) {
 	admin := &models.User{ID: uuid.New(), Login: "admin", IsActive: true, SystemPermissions: []string{models.SystemPermissionAdmin}}
 	regular := &models.User{ID: uuid.New(), Login: "regular", IsActive: true}
@@ -156,8 +136,8 @@ func TestUserAPIKeepsParallelRequestPrincipalsIsolated(t *testing.T) {
 	api := &managementAPI{
 		authUsers: parallelAuthUsers{users: map[uuid.UUID]*models.User{admin.ID: admin, regular.ID: regular}},
 		sessions: parallelSessions{sessions: map[string]*models.ServerSession{
-			string(adminHash[:]):   {ID: uuid.New(), UserID: admin.ID, ExpiresAt: time.Now().Add(time.Hour)},
-			string(regularHash[:]): {ID: uuid.New(), UserID: regular.ID, ExpiresAt: time.Now().Add(time.Hour)},
+			string(adminHash[:]):   {UserID: admin.ID},
+			string(regularHash[:]): {UserID: regular.ID},
 		}},
 		userCommands: &fakeUserManagementStore{},
 	}

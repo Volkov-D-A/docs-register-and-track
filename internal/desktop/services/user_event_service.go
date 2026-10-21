@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 )
 
 // UserEventService exposes the current user's events through the HTTP API.
@@ -41,16 +41,6 @@ func (s *UserEventService) GetUnreadCount() (int, error) {
 	ctx, cancel := userEventClientContext()
 	defer cancel()
 	return s.server.GetUnreadUserEventCount(ctx)
-}
-
-func (s *UserEventService) MarkRead(id string) error {
-	if s.server == nil {
-		return errUserEventClientNotConfigured
-	}
-
-	ctx, cancel := userEventClientContext()
-	defer cancel()
-	return s.server.MarkUserEventRead(ctx, id)
 }
 
 func (s *UserEventService) MarkDocumentRead(documentID string) error {

@@ -23,11 +23,11 @@ func TestWorkerProcessOnceMarksAlreadyDeliveredUserEvent(t *testing.T) {
 	defer db.Close()
 	wrapped := database.Wrap(db)
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
-	id, now := uuid.New(), time.Now()
+	id := uuid.New()
 	mock.ExpectBegin()
 	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
-			AddRow(id, models.OutboxEventUserEvent, "event-key", `{"request":{}}`, now, now, nil, nil, 1, nil, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "attempts"}).
+			AddRow(id, models.OutboxEventUserEvent, "event-key", `{"request":{}}`, 1))
 	mock.ExpectCommit()
 	mock.ExpectExec(`INSERT INTO user_events`).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(`UPDATE event_outbox SET processed_at = CURRENT_TIMESTAMP`).WithArgs(id).WillReturnResult(sqlmock.NewResult(0, 1))
@@ -42,11 +42,11 @@ func TestWorkerProcessOnceSchedulesRetryForUnsupportedEvent(t *testing.T) {
 	defer db.Close()
 	wrapped := database.Wrap(db)
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
-	id, now := uuid.New(), time.Now()
+	id := uuid.New()
 	mock.ExpectBegin()
 	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
-			AddRow(id, "unknown", "event-key", `{}`, now, now, nil, nil, 1, nil, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "attempts"}).
+			AddRow(id, "unknown", "event-key", `{}`, 1))
 	mock.ExpectCommit()
 	mock.ExpectExec(`UPDATE event_outbox.*failed_at = CASE`).WithArgs(id, 1, 10, 1.0, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -60,31 +60,17 @@ func TestWorkerProcessOnceDeliversAdministrativeAudit(t *testing.T) {
 	defer db.Close()
 	wrapped := database.Wrap(db)
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
-	id, userID, now := uuid.New(), uuid.New(), time.Now()
+	id, userID := uuid.New(), uuid.New()
 	mock.ExpectBegin()
 	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}).
-			AddRow(id, models.OutboxEventAudit, "audit-key", `{"UserID":"`+userID.String()+`","UserName":"Admin","Action":"SETTINGS_UPDATE","Details":"changed"}`, now, now, nil, nil, 1, nil, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "attempts"}).
+			AddRow(id, models.OutboxEventAudit, "audit-key", `{"UserID":"`+userID.String()+`","UserName":"Admin","Action":"SETTINGS_UPDATE","Details":"changed"}`, 1))
 	mock.ExpectCommit()
 	mock.ExpectExec(`INSERT INTO admin_audit_log`).WithArgs(userID, "Admin", "SETTINGS_UPDATE", "changed", "audit-key").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE event_outbox SET processed_at = CURRENT_TIMESTAMP`).WithArgs(id).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	require.NoError(t, worker.ProcessOnce())
 	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func expectStorageMutationBegin(mock sqlmock.Sqlmock) {
-	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT id FROM storage_statistics WHERE id = true FOR UPDATE`).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(true))
-	mock.ExpectExec(`DELETE FROM storage_statistics_mutations WHERE lease_until < CURRENT_TIMESTAMP`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`INSERT INTO storage_statistics_mutations`).
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`UPDATE storage_statistics`).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectCommit()
 }
 
 func TestWorkerRunReleasesStaleClaimsAndStopsOnContextCancellation(t *testing.T) {
@@ -95,7 +81,7 @@ func TestWorkerRunReleasesStaleClaimsAndStopsOnContextCancellation(t *testing.T)
 	worker := NewWorker(repository.NewOutboxRepository(wrapped), repository.NewUserEventRepository(wrapped), repository.NewJournalRepository(wrapped), repository.NewAdminAuditLogRepository(wrapped))
 	mock.ExpectExec(`UPDATE event_outbox SET processing_started_at = NULL`).WithArgs(sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
-	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}))
+	mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "attempts"}))
 	mock.ExpectCommit()
 	mock.ExpectQuery(`FROM event_outbox\s+WHERE event_type IN`).WithArgs(models.OutboxEventJournal, models.OutboxEventAudit).
 		WillReturnRows(sqlmock.NewRows([]string{"pending", "processing", "failed"}).AddRow(0, 0, 0))
@@ -134,7 +120,7 @@ func TestTwoWorkersClaimIndependently(t *testing.T) {
 	for range 2 {
 		mock.ExpectBegin()
 		mock.ExpectQuery(`WITH due AS \(.*FOR UPDATE SKIP LOCKED.*UPDATE event_outbox`).WithArgs(50).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "available_at", "processing_started_at", "processed_at", "failed_at", "attempts", "last_error", "created_at"}))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "event_type", "deduplication_key", "payload", "attempts"}))
 		mock.ExpectCommit()
 	}
 

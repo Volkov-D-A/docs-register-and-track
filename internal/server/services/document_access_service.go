@@ -76,19 +76,6 @@ func (s *DocumentAccessService) hasPermission(kind models.DocumentKind, action s
 func (s *DocumentAccessService) GetCurrentReadUserID() (uuid.UUID, error) {
 	return s.auth.GetCurrentUserUUID()
 }
-func (s *DocumentAccessService) GetDocumentKindsWithAction(action string) ([]models.DocumentKind, error) {
-	kinds := []models.DocumentKind{}
-	for _, spec := range models.AllDocumentKindSpecs() {
-		allowed, err := s.hasPermission(spec.Code, action)
-		if err != nil {
-			return nil, err
-		}
-		if allowed {
-			kinds = append(kinds, spec.Code)
-		}
-	}
-	return kinds, nil
-}
 func (s *DocumentAccessService) RequireCreate(kind models.DocumentKind) error {
 	allowed, err := s.hasPermission(kind, string(models.DocumentActionRegister))
 	if err != nil {
@@ -99,7 +86,7 @@ func (s *DocumentAccessService) RequireCreate(kind models.DocumentKind) error {
 	}
 	return nil
 }
-func (s *DocumentAccessService) ResolveReadScope(_ models.DocumentKind) (*models.DocumentAccessScope, error) {
+func (s *DocumentAccessService) ResolveReadScope() (*models.DocumentAccessScope, error) {
 	if err := s.RequireDomainRead(); err != nil {
 		return nil, err
 	}
@@ -169,9 +156,6 @@ func (s *DocumentAccessService) ResolveReadableDocuments(ids []uuid.UUID) (map[u
 		result[documents[i].ID] = &documents[i]
 	}
 	return result, nil
-}
-func (s *DocumentAccessService) RequireRead(_ string, id uuid.UUID) error {
-	return s.RequireReadAnyType(id)
 }
 func (s *DocumentAccessService) RequireReadAnyType(id uuid.UUID) error {
 	doc, err := s.RequireExists(id)

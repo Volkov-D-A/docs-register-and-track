@@ -46,26 +46,6 @@ func TestDepartmentRepository_GetAll(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestDepartmentRepository_GetNomenclatureIDs(t *testing.T) {
-	// Получение массива идентификаторов номенклатур для подразделения
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewDepartmentRepository(database.Wrap(db))
-	depID := uuid.New()
-	nomID := uuid.New()
-
-	mock.ExpectQuery(`SELECT nomenclature_id FROM department_nomenclature WHERE department_id = \$1`).
-		WithArgs(depID).WillReturnRows(sqlmock.NewRows([]string{"nomenclature_id"}).AddRow(nomID))
-
-	ids, err := repo.GetNomenclatureIDs(depID)
-	require.NoError(t, err)
-	require.Len(t, ids, 1)
-	assert.Equal(t, nomID.String(), ids[0])
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestDepartmentRepository_Create(t *testing.T) {
 	// Создание нового подразделения и привязка номенклатуры
 	db, mock, err := sqlmock.New()

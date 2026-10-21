@@ -1,31 +1,18 @@
-import React from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, fireEvent, waitFor, renderHook } from '@testing-library/react';
 import { useDocumentListPage } from '../../src/hooks/useDocumentListPage';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { installWailsMock } from '../componentTestUtils';
 
-vi.mock('../../src/hooks/useDocumentKindAccess', () => ({
-    useDocumentKindAccess: () => ({ ready: true, loading: false, kinds: [], hasAction: (_kind: string, action: string) => action === 'assign' }),
-}));
-vi.mock('../../src/components/documentDetails/IncomingDocumentDetails', () => ({ default: () => <div>Карточка документа</div> }));
-vi.mock('../../src/components/RelatedDocumentModal', () => ({ default: () => null }));
-
-const card = { id: 'doc-1', kindCode: 'incoming_letter', registrationNumber: '1', incomingLetter: {} };
-const api = { get: vi.fn(), list: vi.fn(), executors: vi.fn(), documents: vi.fn() };
+const api = { documents: vi.fn() };
 let previousSession: ReturnType<typeof useAuthStore.getState>;
 
 beforeEach(() => {
     previousSession = useAuthStore.getState();
     useAuthStore.setState({ isAuthenticated: true, sessionRevision: 5 });
-    api.get.mockResolvedValue(card);
-    api.list.mockResolvedValue({ items: [], totalCount: 0 });
-    api.executors.mockResolvedValue([]);
     api.documents.mockResolvedValue({ items: [], hasMore: false });
     installWailsMock({
-        DocumentQueryService: { GetByID: api.get, GetList: api.documents },
-        UserService: { GetExecutors: api.executors },
-        UserEventService: { MarkDocumentRead: vi.fn().mockResolvedValue(undefined) },
+        DocumentQueryService: { GetList: api.documents },
     });
 });
 afterEach(() => {

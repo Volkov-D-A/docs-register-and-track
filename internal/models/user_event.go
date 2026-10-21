@@ -36,7 +36,6 @@ type CreateUserEventRequest struct {
 
 // UserEventFilter описывает параметры списка событий.
 type UserEventFilter struct {
-	UnreadOnly bool `json:"unreadOnly"`
-	Page       int  `json:"page"`
-	PageSize   int  `json:"pageSize"`
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
 }

@@ -30,7 +30,7 @@ func NewUserRepository(db *database.DB) *UserRepository {
 // userSelectBase — базовый SELECT для получения пользователя с department.
 const userSelectBase = `
 	SELECT u.id, u.login, u.password_hash, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active, u.failed_login_attempts,
-	       u.password_changed_at, u.password_change_required, u.created_at, u.updated_at,
+	       u.password_changed_at, u.password_change_required,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id`
@@ -46,7 +46,7 @@ func (r *UserRepository) getUserByCondition(whereClause string, arg interface{})
 	err := r.db.QueryRow(query, arg).Scan(
 		&user.ID, &user.Login, &user.PasswordHash, &user.LastName, &user.FirstName, &user.Patronymic, &user.NoPatronymic,
 		&user.IsDocumentParticipant, &user.IsActive, &user.FailedLoginAttempts,
-		&user.PasswordChangedAt, &user.PasswordChangeRequired, &user.CreatedAt, &user.UpdatedAt,
+		&user.PasswordChangedAt, &user.PasswordChangeRequired,
 		&departmentID, &departmentName,
 	)
 
@@ -63,9 +63,6 @@ func (r *UserRepository) getUserByCondition(whereClause string, arg interface{})
 		user.Department = &models.Department{
 			ID:   uid,
 			Name: departmentName.String,
-		}
-		if noms, err := r.getDepartmentNomenclatureIDs(uid); err == nil {
-			user.Department.NomenclatureIDs = noms
 		}
 	}
 
@@ -88,20 +85,6 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 	return r.getUserByCondition("WHERE u.id = $1", id)
 }
 
-// GetSessionPrincipal reads only the state required to validate a local
-// session. Do not replace GetByID with it where a profile is required.
-func (r *UserRepository) GetSessionPrincipal(id uuid.UUID) (*models.SessionPrincipal, error) {
-	principal := &models.SessionPrincipal{}
-	err := r.db.QueryRow(`SELECT id, is_active FROM users WHERE id = $1`, id).Scan(&principal.ID, &principal.IsActive)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get session principal: %w", err)
-	}
-	return principal, nil
-}
-
 // GetAll возвращает список всех пользователей.
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := r.db.Query(`
@@ -118,8 +101,6 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 
 	users := make([]models.User, 0)
 	userIDs := make([]uuid.UUID, 0)
-	departmentIDs := make([]uuid.UUID, 0)
-	departmentIndexes := make(map[uuid.UUID][]int) // departmentID -> indexes of users with this department
 
 	for rows.Next() {
 		var user models.User
@@ -141,10 +122,6 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 				ID:   uid,
 				Name: departmentName.String,
 			}
-			if _, exists := departmentIndexes[uid]; !exists {
-				departmentIDs = append(departmentIDs, uid)
-			}
-			departmentIndexes[uid] = append(departmentIndexes[uid], len(users))
 		}
 
 		userIDs = append(userIDs, user.ID)
@@ -159,11 +136,6 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 	}
 
 	if err := r.batchLoadUserSystemPermissions(users, userIDs); err != nil {
-		return nil, err
-	}
-
-	// Batch-загрузка номенклатур подразделений одним запросом
-	if err := r.batchLoadDepartmentNomenclatures(users, departmentIDs, departmentIndexes); err != nil {
 		return nil, err
 	}
 
@@ -309,75 +281,6 @@ func (r *UserRepository) GetUserSystemPermissions(userID uuid.UUID) ([]string, e
 	}
 
 	return permissions, nil
-}
-
-// GetExecutors возвращает список активных пользователей, доступных для назначения.
-func (r *UserRepository) GetExecutors() ([]models.User, error) {
-	rows, err := r.db.Query(`
-		SELECT u.id, u.login, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active,
-		       d.id, d.name
-		FROM users u
-		LEFT JOIN departments d ON u.department_id = d.id
-		WHERE u.is_active = true AND u.is_document_participant = true
-		ORDER BY u.full_name
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get assignable users: %w", err)
-	}
-	defer rows.Close()
-
-	users := make([]models.User, 0)
-	userIDs := make([]uuid.UUID, 0)
-	departmentIDs := make([]uuid.UUID, 0)
-	departmentIndexes := make(map[uuid.UUID][]int)
-
-	for rows.Next() {
-		var user models.User
-		var departmentID sql.NullString
-		var departmentName sql.NullString
-
-		if err := rows.Scan(
-			&user.ID, &user.Login, &user.LastName, &user.FirstName, &user.Patronymic, &user.NoPatronymic,
-			&user.IsDocumentParticipant, &user.IsActive,
-			&departmentID, &departmentName,
-		); err != nil {
-			return nil, err
-		}
-
-		if departmentID.Valid {
-			uid, _ := uuid.Parse(departmentID.String)
-			user.DepartmentID = &uid
-			user.Department = &models.Department{
-				ID:   uid,
-				Name: departmentName.String,
-			}
-			if _, exists := departmentIndexes[uid]; !exists {
-				departmentIDs = append(departmentIDs, uid)
-			}
-			departmentIndexes[uid] = append(departmentIndexes[uid], len(users))
-		}
-
-		userIDs = append(userIDs, user.ID)
-		users = append(users, user)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	if len(users) == 0 {
-		return users, nil
-	}
-
-	if err := r.batchLoadUserSystemPermissions(users, userIDs); err != nil {
-		return nil, err
-	}
-
-	// Batch-загрузка номенклатур подразделений одним запросом
-	if err := r.batchLoadDepartmentNomenclatures(users, departmentIDs, departmentIndexes); err != nil {
-		return nil, err
-	}
-
-	return users, nil
 }
 
 // UpdatePassword обновляет хэш пароля пользователя.
@@ -564,75 +467,6 @@ func (r *UserRepository) batchLoadUserSystemPermissions(users []models.User, use
 		}
 	}
 	return rows.Err()
-}
-
-// batchLoadDepartmentNomenclatures загружает номенклатуры подразделений одним SQL-запросом
-// вместо N отдельных запросов (решение проблемы N+1).
-func (r *UserRepository) batchLoadDepartmentNomenclatures(users []models.User, departmentIDs []uuid.UUID, departmentIndexes map[uuid.UUID][]int) error {
-	if len(departmentIDs) == 0 {
-		return nil
-	}
-
-	rows, err := r.db.Query(`
-		SELECT department_id, nomenclature_id
-		FROM department_nomenclature
-		WHERE department_id = ANY($1)
-	`, pq.Array(departmentIDs))
-	if err != nil {
-		return fmt.Errorf("failed to batch load department nomenclatures: %w", err)
-	}
-	defer rows.Close()
-
-	// Собираем номенклатуры по departmentID
-	nomMap := make(map[uuid.UUID][]string)
-	for rows.Next() {
-		var depID uuid.UUID
-		var nomID uuid.UUID
-		if err := rows.Scan(&depID, &nomID); err != nil {
-			return err
-		}
-		nomMap[depID] = append(nomMap[depID], nomID.String())
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	// Присваиваем номенклатуры пользователям
-	for depID, noms := range nomMap {
-		for _, idx := range departmentIndexes[depID] {
-			if users[idx].Department != nil {
-				users[idx].Department.NomenclatureIDs = noms
-			}
-		}
-	}
-
-	return nil
-}
-
-func (r *UserRepository) getDepartmentNomenclatureIDs(departmentID uuid.UUID) ([]string, error) {
-	query := `
-		SELECT nomenclature_id
-		FROM department_nomenclature
-		WHERE department_id = $1
-	`
-	rows, err := r.db.Query(query, departmentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	ids := make([]string, 0)
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id.String())
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return ids, nil
 }
 
 // CountUsers возвращает общее количество пользователей в базе данных.

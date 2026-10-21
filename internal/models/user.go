@@ -23,17 +23,8 @@ type User struct {
 	PasswordChangedAt      *time.Time  `json:"passwordChangedAt,omitempty"`
 	PasswordChangeRequired bool        `json:"passwordChangeRequired"`
 	SystemPermissions      []string    `json:"systemPermissions"`
-	CreatedAt              time.Time   `json:"createdAt"`
-	UpdatedAt              time.Time   `json:"updatedAt"`
 	DepartmentID           *uuid.UUID  `json:"-"`
 	Department             *Department `json:"department,omitempty"`
-}
-
-// SessionPrincipal is the minimum state needed to validate an in-memory
-// session. It deliberately excludes profile, department and permissions.
-type SessionPrincipal struct {
-	ID       uuid.UUID
-	IsActive bool
 }
 
 // CreateUserRequest описывает полезную нагрузку для создания нового пользователя.
@@ -69,25 +60,6 @@ type UpdateProfileRequest struct {
 	FirstName    string `json:"firstName"`
 	Patronymic   string `json:"patronymic"`
 	NoPatronymic bool   `json:"noPatronymic"`
-}
-
-// LoginRequest описывает учетные данные пользователя для входа в систему.
-type LoginRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
-// ChangePasswordRequest описывает запрос пользователя на смену пароля.
-type ChangePasswordRequest struct {
-	OldPassword string `json:"oldPassword"`
-	NewPassword string `json:"newPassword"`
-}
-
-// ChangeRequiredPasswordRequest описывает обязательную смену пароля до полноценного входа.
-type ChangeRequiredPasswordRequest struct {
-	Login       string `json:"login"`
-	OldPassword string `json:"oldPassword"`
-	NewPassword string `json:"newPassword"`
 }
 
 // InitialSetupRequest creates the first administrator with the fixed login admin.

@@ -19,9 +19,9 @@ func TestRegistrationLinkRequiresExistingReadAndNewRegistration(t *testing.T) {
 			}
 			deps := setupDocumentAccessService(t, documentAccessUser(false, nil), allowed)
 			id := uuid.New()
-			deps.docRepo.docs[id] = documentAccessDoc(id, uuid.New(), models.DocumentKindIncomingLetter)
+			deps.docRepo.docs[id] = documentAccessDoc(id, models.DocumentKindIncomingLetter)
 			deps.accessRepo.readable[id] = missing != "existing read"
-			link, err := buildRegistrationLink(deps.service, models.DocumentKindOutgoingLetter, uuid.New(), &dto.DocumentRegistrationLinkRequest{DocumentID: id.String(), LinkType: "reply"})
+			link, err := buildRegistrationLink(deps.service, models.DocumentKindOutgoingLetter, &dto.DocumentRegistrationLinkRequest{DocumentID: id.String(), LinkType: "reply"})
 			if missing == "none" {
 				require.NoError(t, err)
 				require.Equal(t, id, link.DocumentID)
@@ -39,13 +39,13 @@ func TestRegistrationLinkRejectsInvalidTypeAndOrderEndpoints(t *testing.T) {
 	deps := setupDocumentAccessService(t, documentAccessUser(false, nil), allowed)
 	id := uuid.New()
 	deps.accessRepo.readable[id] = true
-	deps.docRepo.docs[id] = documentAccessDoc(id, uuid.New(), models.DocumentKindIncomingLetter)
+	deps.docRepo.docs[id] = documentAccessDoc(id, models.DocumentKindIncomingLetter)
 	for _, linkType := range []string{"", "unknown", "order_amends", "order_cancels"} {
-		_, err := buildRegistrationLink(deps.service, models.DocumentKindAdministrativeOrder, uuid.New(), &dto.DocumentRegistrationLinkRequest{DocumentID: id.String(), LinkType: linkType})
+		_, err := buildRegistrationLink(deps.service, models.DocumentKindAdministrativeOrder, &dto.DocumentRegistrationLinkRequest{DocumentID: id.String(), LinkType: linkType})
 		require.Error(t, err)
 	}
-	deps.docRepo.docs[id] = documentAccessDoc(id, uuid.New(), models.DocumentKindAdministrativeOrder)
-	_, err := buildRegistrationLink(deps.service, models.DocumentKindAdministrativeOrder, uuid.New(), &dto.DocumentRegistrationLinkRequest{DocumentID: id.String(), LinkType: "order_cancels"})
+	deps.docRepo.docs[id] = documentAccessDoc(id, models.DocumentKindAdministrativeOrder)
+	_, err := buildRegistrationLink(deps.service, models.DocumentKindAdministrativeOrder, &dto.DocumentRegistrationLinkRequest{DocumentID: id.String(), LinkType: "order_cancels"})
 	require.NoError(t, err)
 }
 

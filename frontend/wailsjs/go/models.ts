@@ -161,7 +161,6 @@ export namespace dto {
 	    fullName: string;
 	    // Go type: time
 	    acknowledgedAt?: any;
-	    acknowledgedBy?: string;
 	    acknowledgedByName?: string;
 	    position: number;
 	    // Go type: time
@@ -176,7 +175,6 @@ export namespace dto {
 	        this.id = source["id"];
 	        this.fullName = source["fullName"];
 	        this.acknowledgedAt = this.convertValues(source["acknowledgedAt"], null);
-	        this.acknowledgedBy = source["acknowledgedBy"];
 	        this.acknowledgedByName = source["acknowledgedByName"];
 	        this.position = source["position"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
@@ -209,7 +207,6 @@ export namespace dto {
 	    orderDate: any;
 	    title: string;
 	    documentTypeId: string;
-	    documentTypeName?: string;
 	    content: string;
 	    pagesCount: number;
 	    executionController: string;
@@ -219,7 +216,6 @@ export namespace dto {
 	    // Go type: time
 	    cancelledAt?: any;
 	    acknowledgmentPeople?: AdministrativeOrderAcknowledgmentPerson[];
-	    createdBy: string;
 	    createdByName?: string;
 	    // Go type: time
 	    createdAt: any;
@@ -239,7 +235,6 @@ export namespace dto {
 	        this.orderDate = this.convertValues(source["orderDate"], null);
 	        this.title = source["title"];
 	        this.documentTypeId = source["documentTypeId"];
-	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
 	        this.pagesCount = source["pagesCount"];
 	        this.executionController = source["executionController"];
@@ -247,7 +242,6 @@ export namespace dto {
 	        this.isActive = source["isActive"];
 	        this.cancelledAt = this.convertValues(source["cancelledAt"], null);
 	        this.acknowledgmentPeople = this.convertValues(source["acknowledgmentPeople"], AdministrativeOrderAcknowledgmentPerson);
-	        this.createdBy = source["createdBy"];
 	        this.createdByName = source["createdByName"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
@@ -352,8 +346,6 @@ export namespace dto {
 	    code: string;
 	    apiVersion: string;
 	    serverVersion: string;
-	    minimumClientVersion: string;
-	    maximumClientVersion: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CompatibilityResult(source);
@@ -367,8 +359,6 @@ export namespace dto {
 	        this.code = source["code"];
 	        this.apiVersion = source["apiVersion"];
 	        this.serverVersion = source["serverVersion"];
-	        this.minimumClientVersion = source["minimumClientVersion"];
-	        this.maximumClientVersion = source["maximumClientVersion"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -453,7 +443,6 @@ export namespace dto {
 	    registrationNumber: string;
 	    // Go type: time
 	    registrationDate: any;
-	    correspondentOrgId: string;
 	    correspondentName?: string;
 	    position: number;
 	
@@ -466,7 +455,6 @@ export namespace dto {
 	        this.id = source["id"];
 	        this.registrationNumber = source["registrationNumber"];
 	        this.registrationDate = this.convertValues(source["registrationDate"], null);
-	        this.correspondentOrgId = source["correspondentOrgId"];
 	        this.correspondentName = source["correspondentName"];
 	        this.position = source["position"];
 	    }
@@ -499,7 +487,6 @@ export namespace dto {
 	    // Go type: time
 	    appealDate: any;
 	    documentTypeId: string;
-	    documentTypeName?: string;
 	    content: string;
 	    pagesCount: number;
 	    applicantFullName: string;
@@ -511,7 +498,6 @@ export namespace dto {
 	    receivedFromPos: boolean;
 	    correspondents?: DocumentCorrespondentRegistration[];
 	    resolutions?: DocumentResolution[];
-	    createdBy: string;
 	    createdByName?: string;
 	    // Go type: time
 	    createdAt: any;
@@ -531,7 +517,6 @@ export namespace dto {
 	        this.registrationDate = this.convertValues(source["registrationDate"], null);
 	        this.appealDate = this.convertValues(source["appealDate"], null);
 	        this.documentTypeId = source["documentTypeId"];
-	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
 	        this.pagesCount = source["pagesCount"];
 	        this.applicantFullName = source["applicantFullName"];
@@ -543,7 +528,6 @@ export namespace dto {
 	        this.receivedFromPos = source["receivedFromPos"];
 	        this.correspondents = this.convertValues(source["correspondents"], DocumentCorrespondentRegistration);
 	        this.resolutions = this.convertValues(source["resolutions"], DocumentResolution);
-	        this.createdBy = source["createdBy"];
 	        this.createdByName = source["createdByName"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
@@ -642,16 +626,13 @@ export namespace dto {
 	    // Go type: time
 	    outgoingDate: any;
 	    documentTypeId: string;
-	    documentTypeName?: string;
 	    content: string;
 	    pagesCount: number;
 	    attachmentPagesCount: number;
 	    senderSignatory: string;
 	    senderExecutor: string;
-	    recipientOrgId: string;
 	    recipientOrgName?: string;
 	    addressee: string;
-	    createdBy: string;
 	    createdByName?: string;
 	    // Go type: time
 	    createdAt: any;
@@ -670,16 +651,13 @@ export namespace dto {
 	        this.outgoingNumber = source["outgoingNumber"];
 	        this.outgoingDate = this.convertValues(source["outgoingDate"], null);
 	        this.documentTypeId = source["documentTypeId"];
-	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
 	        this.pagesCount = source["pagesCount"];
 	        this.attachmentPagesCount = source["attachmentPagesCount"];
 	        this.senderSignatory = source["senderSignatory"];
 	        this.senderExecutor = source["senderExecutor"];
-	        this.recipientOrgId = source["recipientOrgId"];
 	        this.recipientOrgName = source["recipientOrgName"];
 	        this.addressee = source["addressee"];
-	        this.createdBy = source["createdBy"];
 	        this.createdByName = source["createdByName"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
@@ -711,7 +689,6 @@ export namespace dto {
 	    // Go type: time
 	    incomingDate: any;
 	    documentTypeId: string;
-	    documentTypeName?: string;
 	    content: string;
 	    pagesCount: number;
 	    attachmentPagesCount: number;
@@ -720,7 +697,6 @@ export namespace dto {
 	    resolution?: string;
 	    resolutionAuthor?: string;
 	    resolutionExecutors?: string;
-	    createdBy: string;
 	    createdByName?: string;
 	    // Go type: time
 	    createdAt: any;
@@ -739,7 +715,6 @@ export namespace dto {
 	        this.incomingNumber = source["incomingNumber"];
 	        this.incomingDate = this.convertValues(source["incomingDate"], null);
 	        this.documentTypeId = source["documentTypeId"];
-	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
 	        this.pagesCount = source["pagesCount"];
 	        this.attachmentPagesCount = source["attachmentPagesCount"];
@@ -748,7 +723,6 @@ export namespace dto {
 	        this.resolution = source["resolution"];
 	        this.resolutionAuthor = source["resolutionAuthor"];
 	        this.resolutionExecutors = source["resolutionExecutors"];
-	        this.createdBy = source["createdBy"];
 	        this.createdByName = source["createdByName"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
@@ -782,9 +756,7 @@ export namespace dto {
 	    nomenclatureId: string;
 	    nomenclatureName?: string;
 	    documentTypeId: string;
-	    documentTypeName?: string;
 	    content: string;
-	    createdBy: string;
 	    createdByName?: string;
 	    // Go type: time
 	    createdAt: any;
@@ -809,9 +781,7 @@ export namespace dto {
 	        this.nomenclatureId = source["nomenclatureId"];
 	        this.nomenclatureName = source["nomenclatureName"];
 	        this.documentTypeId = source["documentTypeId"];
-	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
-	        this.createdBy = source["createdBy"];
 	        this.createdByName = source["createdByName"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
@@ -879,10 +849,8 @@ export namespace dto {
 	    nomenclatureId: string;
 	    nomenclatureName?: string;
 	    documentTypeId: string;
-	    documentTypeName?: string;
 	    content: string;
 	    pagesCount: number;
-	    createdBy: string;
 	    createdByName?: string;
 	    // Go type: time
 	    createdAt: any;
@@ -939,10 +907,8 @@ export namespace dto {
 	        this.nomenclatureId = source["nomenclatureId"];
 	        this.nomenclatureName = source["nomenclatureName"];
 	        this.documentTypeId = source["documentTypeId"];
-	        this.documentTypeName = source["documentTypeName"];
 	        this.content = source["content"];
 	        this.pagesCount = source["pagesCount"];
-	        this.createdBy = source["createdBy"];
 	        this.createdByName = source["createdByName"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
@@ -1007,7 +973,6 @@ export namespace dto {
 	    resolution: string;
 	    correspondent: string;
 	    person: string;
-	    relevance: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DocumentSearchItem(source);
@@ -1023,7 +988,6 @@ export namespace dto {
 	        this.resolution = source["resolution"];
 	        this.correspondent = source["correspondent"];
 	        this.person = source["person"];
-	        this.relevance = source["relevance"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2766,9 +2730,6 @@ export namespace models {
 	    }
 	}
 	export class ReleaseNoteChange {
-	    id: number[];
-	    releaseNoteId: number[];
-	    sortOrder: number;
 	    title: string;
 	    description: string;
 	
@@ -2778,21 +2739,14 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.releaseNoteId = source["releaseNoteId"];
-	        this.sortOrder = source["sortOrder"];
 	        this.title = source["title"];
 	        this.description = source["description"];
 	    }
 	}
 	export class ReleaseNote {
-	    id: number[];
 	    version: string;
 	    // Go type: time
 	    releasedAt: any;
-	    isCurrent: boolean;
-	    // Go type: time
-	    createdAt: any;
 	    changes: ReleaseNoteChange[];
 	    isViewed: boolean;
 	
@@ -2802,11 +2756,8 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
 	        this.version = source["version"];
 	        this.releasedAt = this.convertValues(source["releasedAt"], null);
-	        this.isCurrent = source["isCurrent"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.changes = this.convertValues(source["changes"], ReleaseNoteChange);
 	        this.isViewed = source["isViewed"];
 	    }
@@ -3373,7 +3324,6 @@ export namespace models {
 	}
 	
 	export class UserEventFilter {
-	    unreadOnly: boolean;
 	    page: number;
 	    pageSize: number;
 	
@@ -3383,7 +3333,6 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.unreadOnly = source["unreadOnly"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	    }

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Col } from 'antd';
 import { Column, Line } from '@ant-design/plots';
 import { ChartCard } from './statisticsShared';

@@ -1,17 +1,9 @@
 package models
 
-import (
-	"time"
+import "github.com/google/uuid"
 
-	"github.com/google/uuid"
-)
-
+// ServerSession contains the principal of a session validated by the repository.
+// Expiration, revocation and activity are checked and maintained in PostgreSQL.
 type ServerSession struct {
-	ID         uuid.UUID
-	UserID     uuid.UUID
-	TokenHash  []byte
-	CreatedAt  time.Time
-	ExpiresAt  time.Time
-	RevokedAt  *time.Time
-	LastSeenAt time.Time
+	UserID uuid.UUID
 }

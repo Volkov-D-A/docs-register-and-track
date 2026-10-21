@@ -2,7 +2,6 @@ package dto
 
 import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/google/uuid"
 )
 
 func MapDocumentLink(m *models.DocumentLink) *DocumentLink {
@@ -23,10 +22,4 @@ func MapDocumentLinks(m []models.DocumentLink) []DocumentLink {
 		}
 	}
 	return res
-}
-func uuidString(id uuid.UUID) string {
-	if id == uuid.Nil {
-		return ""
-	}
-	return id.String()
 }

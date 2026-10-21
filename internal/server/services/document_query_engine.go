@@ -71,7 +71,7 @@ func (s *DocumentQueryEngine) GetList(kindCode string, filter models.DocumentFil
 		}
 
 		kind := models.DocumentKind(kindCode)
-		scope, err := s.access.ResolveReadScope(kind)
+		scope, err := s.access.ResolveReadScope()
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +117,7 @@ func (s *DocumentQueryEngine) Search(request dto.DocumentSearchRequest) (*dto.Do
 			if _, err := s.registry.Get(spec.Code); err != nil {
 				continue
 			}
-			scope, err := s.access.ResolveReadScope(spec.Code)
+			scope, err := s.access.ResolveReadScope()
 			if err != nil {
 				return nil, err
 			}

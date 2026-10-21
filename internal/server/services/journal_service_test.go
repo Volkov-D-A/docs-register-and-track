@@ -15,14 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.JournalStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *attachmentPrincipalStub) {
+func setupJournalService(t *testing.T, role string) (*JournalService, *mocks.JournalStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *documentPrincipalStub) {
 	t.Helper()
 	journalRepo := mocks.NewJournalStore(t)
 	incomingRepo := mocks.NewIncomingDocStore(t)
 	outgoingRepo := mocks.NewOutgoingDocStore(t)
 	userRepo := mocks.NewUserStore(t)
 
-	auth := newAttachmentPrincipalStub(userRepo)
+	auth := newDocumentPrincipalStub(userRepo)
 
 	if role != "" {
 

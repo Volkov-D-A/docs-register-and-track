@@ -52,9 +52,6 @@ func (r *UserEventRepository) GetList(userID uuid.UUID, filter models.UserEventF
 	}
 
 	where := "WHERE e.recipient_user_id = $1 AND " + documentReadPredicate("$1", "d")
-	if filter.UnreadOnly {
-		where += " AND e.read_at IS NULL"
-	}
 
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM user_events e JOIN documents d ON d.id=e.document_id %s", where)
 	var total int
@@ -111,27 +108,6 @@ func (r *UserEventRepository) CountUnread(userID uuid.UUID) (int, error) {
 		userID,
 	).Scan(&count)
 	return count, err
-}
-
-// MarkRead отмечает одно событие пользователя прочитанным.
-func (r *UserEventRepository) MarkRead(id, userID uuid.UUID, readAt time.Time) error {
-	result, err := r.db.Exec(
-		"UPDATE user_events SET read_at = COALESCE(read_at, $3) WHERE id = $1 AND recipient_user_id = $2",
-		id,
-		userID,
-		readAt,
-	)
-	if err != nil {
-		return err
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return models.NewNotFound("событие не найдено")
-	}
-	return nil
 }
 
 // MarkDocumentRead отмечает все события пользователя по документу прочитанными.

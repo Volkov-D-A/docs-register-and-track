@@ -83,33 +83,6 @@ func (r *DepartmentRepository) GetAll() ([]models.Department, error) {
 	return departments, nil
 }
 
-// GetNomenclatureIDs возвращает список ID номенклатур, привязанных к подразделению.
-func (r *DepartmentRepository) GetNomenclatureIDs(departmentID uuid.UUID) ([]string, error) {
-	query := `
-		SELECT nomenclature_id
-		FROM department_nomenclature
-		WHERE department_id = $1
-	`
-	rows, err := r.db.Query(query, departmentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	ids := make([]string, 0)
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id.String())
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return ids, nil
-}
-
 func (r *DepartmentRepository) CreateWithOutbox(name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
 	return r.create(name, nomenclatureIDs, effects)
 }

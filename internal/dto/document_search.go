@@ -18,7 +18,6 @@ type DocumentSearchItem struct {
 	Resolution         string    `json:"resolution"`
 	Correspondent      string    `json:"correspondent"`
 	Person             string    `json:"person"`
-	Relevance          float64   `json:"relevance"`
 }
 
 type DocumentSearchResult struct {

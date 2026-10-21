@@ -10,5 +10,3 @@ export function GetUnreadCount():Promise<number>;
 export function MarkAllRead():Promise<void>;
 
 export function MarkDocumentRead(arg1:string):Promise<void>;
-
-export function MarkRead(arg1:string):Promise<void>;

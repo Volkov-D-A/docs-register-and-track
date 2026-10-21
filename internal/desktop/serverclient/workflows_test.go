@@ -25,9 +25,6 @@ func TestWorkflowClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 			assert.Equal(t, "/api/v1/user-events/unread-count", r.URL.Path)
 			return response(http.StatusOK, `{"count":4}`), nil
 		case 3:
-			assert.Equal(t, "/api/v1/user-events/"+id+"/read", r.URL.Path)
-			return response(http.StatusNoContent, ``), nil
-		case 4:
 			assert.Equal(t, "/api/v1/administrative-order-acknowledgments/"+id+"/confirm", r.URL.Path)
 			return response(http.StatusOK, `{"id":"`+id+`"}`), nil
 		default:
@@ -41,9 +38,8 @@ func TestWorkflowClientUsesTypedAuthenticatedEndpoints(t *testing.T) {
 	count, err := client.GetUnreadUserEventCount(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 4, count)
-	require.NoError(t, client.MarkUserEventRead(context.Background(), id))
 	person, err := client.MarkAdministrativeOrderAcknowledged(context.Background(), id)
 	require.NoError(t, err)
 	assert.Equal(t, id, person.ID)
-	assert.Equal(t, 4, requestNumber)
+	assert.Equal(t, 3, requestNumber)
 }

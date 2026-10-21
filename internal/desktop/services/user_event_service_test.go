@@ -25,10 +25,6 @@ func (c *userEventClientStub) GetUnreadUserEventCount(ctx context.Context) (int,
 	c.ctx = ctx
 	return 3, c.err
 }
-func (c *userEventClientStub) MarkUserEventRead(ctx context.Context, id string) error {
-	c.ctx, c.id = ctx, id
-	return c.err
-}
 func (c *userEventClientStub) MarkDocumentUserEventsRead(ctx context.Context, id string) error {
 	c.ctx, c.id = ctx, id
 	return c.err
@@ -41,7 +37,7 @@ func (c *userEventClientStub) MarkAllUserEventsRead(ctx context.Context) error {
 func TestUserEventAdapter(t *testing.T) {
 	c := &userEventClientStub{}
 	s := NewUserEventService(c)
-	filter := models.UserEventFilter{Page: 2, PageSize: 7, UnreadOnly: true}
+	filter := models.UserEventFilter{Page: 2, PageSize: 7}
 	result, err := s.GetCurrentUserEvents(filter)
 	require.NoError(t, err)
 	require.Equal(t, 3, result.TotalCount)
@@ -49,8 +45,6 @@ func TestUserEventAdapter(t *testing.T) {
 	count, err := s.GetUnreadCount()
 	require.NoError(t, err)
 	require.Equal(t, 3, count)
-	require.NoError(t, s.MarkRead("event"))
-	require.Equal(t, "event", c.id)
 	require.NoError(t, s.MarkDocumentRead("document"))
 	require.Equal(t, "document", c.id)
 	require.NoError(t, s.MarkAllRead())
@@ -62,7 +56,6 @@ func TestUserEventAdapter(t *testing.T) {
 	require.ErrorIs(t, err, c.err)
 	_, err = s.GetUnreadCount()
 	require.ErrorIs(t, err, c.err)
-	require.ErrorIs(t, s.MarkRead("event"), c.err)
 	require.ErrorIs(t, s.MarkDocumentRead("document"), c.err)
 	require.ErrorIs(t, s.MarkAllRead(), c.err)
 }
@@ -73,7 +66,6 @@ func TestUserEventAdapterMissingClient(t *testing.T) {
 	require.ErrorIs(t, err, errUserEventClientNotConfigured)
 	_, err = s.GetUnreadCount()
 	require.ErrorIs(t, err, errUserEventClientNotConfigured)
-	require.ErrorIs(t, s.MarkRead("event"), errUserEventClientNotConfigured)
 	require.ErrorIs(t, s.MarkDocumentRead("document"), errUserEventClientNotConfigured)
 	require.ErrorIs(t, s.MarkAllRead(), errUserEventClientNotConfigured)
 }

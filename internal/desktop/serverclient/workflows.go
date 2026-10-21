@@ -12,7 +12,6 @@ import (
 type UserEventClient interface {
 	ListUserEvents(context.Context, models.UserEventFilter) (*dto.PagedResult[dto.UserEvent], error)
 	GetUnreadUserEventCount(context.Context) (int, error)
-	MarkUserEventRead(context.Context, string) error
 	MarkDocumentUserEventsRead(context.Context, string) error
 	MarkAllUserEventsRead(context.Context) error
 }
@@ -33,10 +32,6 @@ func (c *Client) GetUnreadUserEventCount(ctx context.Context) (int, error) {
 	}
 	err := c.doUserRequest(ctx, http.MethodGet, "/api/v1/user-events/unread-count", nil, http.StatusOK, &result)
 	return result.Count, err
-}
-
-func (c *Client) MarkUserEventRead(ctx context.Context, id string) error {
-	return c.doUserRequest(ctx, http.MethodPost, "/api/v1/user-events/"+url.PathEscape(id)+"/read", nil, http.StatusNoContent, nil)
 }
 
 func (c *Client) MarkDocumentUserEventsRead(ctx context.Context, documentID string) error {

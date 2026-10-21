@@ -11,7 +11,6 @@ type deadlineControlAPI interface {
 	PreviewResume(context.Context, string) (*models.DeadlineSeriesResumePreview, error)
 	ListExecutors(context.Context, bool) ([]models.DeadlineExecutor, error)
 	SaveExternalExecutor(context.Context, string, models.ExternalDeadlineExecutorRequest) (*models.DeadlineExecutor, error)
-	Get(context.Context, string) (*models.DocumentDeadlineControl, error)
 	List(context.Context, models.DeadlineControlFilter) (*models.DeadlineControlPage, error)
 	Create(context.Context, models.DeadlineControlRequest) (*models.DocumentDeadlineControl, error)
 	Update(context.Context, string, models.DeadlineControlRequest) (*models.DocumentDeadlineControl, error)
@@ -61,10 +60,6 @@ func (api *managementAPI) updateDeadlineExecutor(w http.ResponseWriter, r *http.
 	deadlineRequest(w, r, http.StatusOK, func(req models.ExternalDeadlineExecutorRequest) (*models.DeadlineExecutor, error) {
 		return api.deadlineService(r).SaveExternalExecutor(r.Context(), r.PathValue("id"), req)
 	})
-}
-func (api *managementAPI) getDeadlineControl(w http.ResponseWriter, r *http.Request) {
-	value, err := api.deadlineService(r).Get(r.Context(), r.PathValue("id"))
-	deadlineResponse(w, value, err)
 }
 func (api *managementAPI) queryDeadlineControls(w http.ResponseWriter, r *http.Request) {
 	deadlineRequest(w, r, http.StatusOK, func(req models.DeadlineControlFilter) (*models.DeadlineControlPage, error) {

@@ -14,18 +14,13 @@ const (
 
 // OutboxEvent is a durable request to perform a side effect after commit.
 // Payload is versioned JSON owned by the corresponding event consumer.
+// Only delivery inputs are materialized; scheduling and history stay in event_outbox.
 type OutboxEvent struct {
-	ID                  uuid.UUID
-	EventType           string
-	DeduplicationKey    string
-	Payload             string
-	AvailableAt         time.Time
-	ProcessingStartedAt *time.Time
-	ProcessedAt         *time.Time
-	FailedAt            *time.Time
-	Attempts            int
-	LastError           *string
-	CreatedAt           time.Time
+	ID               uuid.UUID
+	EventType        string
+	DeduplicationKey string
+	Payload          string
+	Attempts         int
 }
 
 // OutboxStats is a compact operational view of delivery state.

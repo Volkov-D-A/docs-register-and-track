@@ -38,7 +38,7 @@ func (s *WorkspaceService) GetRecentDocuments() (*dto.WorkspaceDocuments, error)
 	}
 	scopes := make(map[models.DocumentKind]models.DocumentAccessScope)
 	for _, spec := range models.AllDocumentKindSpecs() {
-		scope, err := s.access.ResolveReadScope(spec.Code)
+		scope, err := s.access.ResolveReadScope()
 		if err != nil {
 			return nil, err
 		}

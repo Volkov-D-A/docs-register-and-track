@@ -176,6 +176,10 @@ func TestLinkGraphAndOutboxLifecycleIntegration(t *testing.T) {
 	if err != nil || len(claimed) != 1 {
 		t.Fatalf("claim pending: count=%d err=%v", len(claimed), err)
 	}
+	firstID := claimed[0].ID
+	if firstID == uuid.Nil || claimed[0].EventType != event.EventType || claimed[0].DeduplicationKey != event.DeduplicationKey || claimed[0].Payload != event.Payload || claimed[0].Attempts != 1 {
+		t.Fatalf("unexpected delivery inputs: %+v", claimed[0])
+	}
 	if err := outbox.MarkFailed(claimed[0].ID, 1, 0, 1, "terminal"); err != nil {
 		t.Fatalf("mark terminal failure: %v", err)
 	}
@@ -189,12 +193,18 @@ func TestLinkGraphAndOutboxLifecycleIntegration(t *testing.T) {
 	if err != nil || len(claimed) != 1 {
 		t.Fatalf("claim requeued: count=%d err=%v", len(claimed), err)
 	}
+	if claimed[0].ID != firstID || claimed[0].Attempts != 1 {
+		t.Fatalf("requeue must reset attempts and preserve event identity: %+v", claimed[0])
+	}
 	if err := outbox.ReleaseStaleClaims(time.Now().UTC().Add(time.Hour)); err != nil {
 		t.Fatalf("release stale claim: %v", err)
 	}
 	claimed, err = outbox.ClaimPending(1)
 	if err != nil || len(claimed) != 1 {
 		t.Fatalf("claim released stale event: count=%d err=%v", len(claimed), err)
+	}
+	if claimed[0].ID != firstID || claimed[0].Attempts != 2 {
+		t.Fatalf("reclaimed event must increment attempts: %+v", claimed[0])
 	}
 }
 

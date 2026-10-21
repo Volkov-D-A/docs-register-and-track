@@ -1,4 +1,3 @@
-import React from 'react';
 import { Button, Space, Tag, Tooltip } from 'antd';
 import { EyeOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';

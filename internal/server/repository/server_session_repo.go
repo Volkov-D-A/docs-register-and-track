@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 type ServerSessionRepository struct {
@@ -19,27 +19,25 @@ func NewServerSessionRepository(db *database.DB) *ServerSessionRepository {
 	return &ServerSessionRepository{db: db}
 }
 
-func (r *ServerSessionRepository) Create(userID uuid.UUID, tokenHash []byte, expiresAt time.Time) (*models.ServerSession, error) {
-	session := &models.ServerSession{UserID: userID, TokenHash: tokenHash, ExpiresAt: expiresAt}
-	err := r.db.QueryRow(`
+func (r *ServerSessionRepository) Create(userID uuid.UUID, tokenHash []byte, expiresAt time.Time) error {
+	_, err := r.db.Exec(`
 		INSERT INTO server_sessions (user_id, token_hash, expires_at)
 		VALUES ($1, $2, $3)
-		RETURNING id, created_at, last_seen_at
-	`, userID, tokenHash, expiresAt).Scan(&session.ID, &session.CreatedAt, &session.LastSeenAt)
+	`, userID, tokenHash, expiresAt)
 	if err != nil {
-		return nil, fmt.Errorf("create server session: %w", err)
+		return fmt.Errorf("create server session: %w", err)
 	}
-	return session, nil
+	return nil
 }
 
 func (r *ServerSessionRepository) GetActiveByTokenHash(tokenHash []byte, now time.Time) (*models.ServerSession, error) {
-	session := &models.ServerSession{TokenHash: tokenHash}
+	session := &models.ServerSession{}
 	err := r.db.QueryRow(`
 		UPDATE server_sessions
 		SET last_seen_at = $2
 		WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > $2
-		RETURNING id, user_id, created_at, expires_at, revoked_at, last_seen_at
-	`, tokenHash, now).Scan(&session.ID, &session.UserID, &session.CreatedAt, &session.ExpiresAt, &session.RevokedAt, &session.LastSeenAt)
+		RETURNING user_id
+	`, tokenHash, now).Scan(&session.UserID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

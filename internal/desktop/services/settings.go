@@ -136,7 +136,7 @@ func (s *SettingsService) GetOrganizationShortName() string {
 
 func validateRollbackMigrationRequest(req models.RollbackMigrationRequest) error {
 	if !req.BackupCompleted {
-		return models.NewBadRequest("Перед откатом миграции подтвердите свежую резервную копию PostgreSQL и хранилища вложений")
+		return models.NewBadRequest("Перед откатом миграции подтвердите свежую резервную копию PostgreSQL")
 	}
 	if strings.TrimSpace(req.BackupReference) == "" {
 		return models.NewBadRequest("Укажите идентификатор или путь к резервной копии перед откатом миграции")

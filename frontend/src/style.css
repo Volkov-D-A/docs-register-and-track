@@ -254,10 +254,6 @@ body {
   margin-bottom: 12px;
 }
 
-.workspace-overview-row--right-only {
-  grid-template-columns: minmax(340px, 420px);
-}
-
 .workspace-work-column,
 .workspace-side-column {
   min-width: 0;
@@ -484,59 +480,13 @@ body {
   opacity: 1;
 }
 
-.document-acknowledgment-workflow {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--app-border);
-}
 
-.document-acknowledgment-workflow__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 24px;
-  margin-bottom: 8px;
-}
 
-.document-acknowledgment-workflow__item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--app-border);
-}
 
-.document-acknowledgment-workflow__item:first-of-type {
-  border-top: none;
-}
 
-.document-acknowledgment-workflow__body {
-  min-width: 0;
-  flex: 1 1 auto;
-}
 
-.document-acknowledgment-workflow__content {
-  margin-bottom: 6px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
 
-.document-acknowledgment-workflow__actions {
-  flex: 0 0 auto;
-  justify-content: flex-end;
-}
 
-@media (max-width: 720px) {
-
-  .document-acknowledgment-workflow__item {
-    flex-direction: column;
-  }
-
-  .document-acknowledgment-workflow__actions {
-    justify-content: flex-start;
-  }
-}
 
 .workspace-events-panel.ant-card .ant-card-body {
   padding: 2px 12px 8px;

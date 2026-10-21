@@ -10,8 +10,6 @@ export function Create(arg1:models.DeadlineControlRequest):Promise<models.Docume
 
 export function CreateSeries(arg1:models.DeadlineSeriesRequest):Promise<models.DocumentDeadlineSeries>;
 
-export function Get(arg1:string):Promise<models.DocumentDeadlineControl>;
-
 export function GetSeries(arg1:string):Promise<models.DocumentDeadlineSeries>;
 
 export function List(arg1:models.DeadlineControlFilter):Promise<models.DeadlineControlPage>;

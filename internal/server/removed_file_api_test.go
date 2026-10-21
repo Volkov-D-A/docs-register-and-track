@@ -11,10 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRemovedFileAndStorageAPIsHaveNoRoutes(t *testing.T) {
+func TestRemovedAPIsHaveNoRoutes(t *testing.T) {
 	api, _, token := authenticatedUserAPI(t, []string{models.SystemPermissionAdmin})
 	id := uuid.NewString()
 	for _, route := range []struct{ method, path string }{
+		{"GET", "/api/v1/users/executors"},
+		{"POST", "/api/v1/user-events/" + id + "/read"},
+		{"GET", "/api/v1/deadline-controls/" + id},
 		{"GET", "/api/v1/documents/" + id + "/attachments"},
 		{"POST", "/api/v1/documents/" + id + "/attachments"},
 		{"GET", "/api/v1/attachments/" + id},

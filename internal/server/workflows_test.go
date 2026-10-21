@@ -14,8 +14,7 @@ import (
 )
 
 type fakeUserEventAPI struct {
-	filter       models.UserEventFilter
-	markedReadID string
+	filter models.UserEventFilter
 }
 
 func (f *fakeUserEventAPI) GetCurrentUserEvents(filter models.UserEventFilter) (*dto.PagedResult[dto.UserEvent], error) {
@@ -23,7 +22,6 @@ func (f *fakeUserEventAPI) GetCurrentUserEvents(filter models.UserEventFilter) (
 	return &dto.PagedResult[dto.UserEvent]{Items: []dto.UserEvent{}}, nil
 }
 func (*fakeUserEventAPI) GetUnreadCount() (int, error)  { return 3, nil }
-func (f *fakeUserEventAPI) MarkRead(id string) error    { f.markedReadID = id; return nil }
 func (*fakeUserEventAPI) MarkDocumentRead(string) error { return nil }
 func (*fakeUserEventAPI) MarkAllRead() error            { return nil }
 
@@ -43,12 +41,11 @@ func TestWorkflowMutationRoutes(t *testing.T) {
 	api.userEvents = func(*models.User) userEventAPI { return events }
 	api.administrativeOrderAcknowledgments = func(*models.User) administrativeOrderAcknowledgmentAPI { return orderAcknowledgments }
 
-	eventID, orderPersonID := uuid.NewString(), uuid.NewString()
+	orderPersonID := uuid.NewString()
 	for _, tc := range []struct {
 		method, path string
 		want         int
 	}{
-		{http.MethodPost, "/api/v1/user-events/" + eventID + "/read", http.StatusNoContent},
 		{http.MethodPost, "/api/v1/user-events/read-all", http.StatusNoContent},
 		{http.MethodPost, "/api/v1/administrative-order-acknowledgments/" + orderPersonID + "/confirm", http.StatusOK},
 	} {
@@ -58,6 +55,5 @@ func TestWorkflowMutationRoutes(t *testing.T) {
 		api.Handler().ServeHTTP(response, req)
 		require.Equal(t, tc.want, response.Code, response.Body.String())
 	}
-	assert.Equal(t, eventID, events.markedReadID)
 	assert.Equal(t, orderPersonID, orderAcknowledgments.markedID)
 }

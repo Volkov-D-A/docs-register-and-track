@@ -9,7 +9,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 type documentAccessTestDeps struct {
@@ -102,11 +101,10 @@ func addDocumentActions(allowed map[models.DocumentKind]map[string]bool, kind mo
 	return allowed
 }
 
-func documentAccessDoc(id, nomenclatureID uuid.UUID, kind models.DocumentKind) models.Document {
+func documentAccessDoc(id uuid.UUID, kind models.DocumentKind) models.Document {
 	return models.Document{
-		ID:             id,
-		Kind:           kind,
-		NomenclatureID: nomenclatureID,
+		ID:   id,
+		Kind: kind,
 	}
 }
 
@@ -134,7 +132,6 @@ func (p *accessPrincipalStub) GetCurrentUserUUID() (uuid.UUID, error) {
 }
 
 type kindActionDocumentAccessStore struct {
-	ports.DocumentAccessStore
 	allowed       map[models.DocumentKind]map[string]bool
 	readable      map[uuid.UUID]bool
 	visibilityErr error
@@ -160,11 +157,11 @@ func (s *kindActionDocumentAccessStore) GetReadableDocumentIDs(_ uuid.UUID, ids 
 func TestDocumentAccessUnifiedPolicy(t *testing.T) {
 	deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
 	require.NoError(t, deps.service.RequireDomainRead())
-	scope, err := deps.service.ResolveReadScope(models.DocumentKindIncomingLetter)
+	scope, err := deps.service.ResolveReadScope()
 	require.NoError(t, err)
 	require.Equal(t, deps.user.ID.String(), scope.UserID)
 	id := uuid.New()
-	deps.docRepo.docs[id] = documentAccessDoc(id, uuid.New(), models.DocumentKindIncomingLetter)
+	deps.docRepo.docs[id] = documentAccessDoc(id, models.DocumentKindIncomingLetter)
 	require.ErrorIs(t, deps.service.RequireReadAnyType(id), models.ErrForbidden)
 	deps.accessRepo.readable[id] = true
 	require.NoError(t, deps.service.RequireReadAnyType(id))
@@ -181,8 +178,8 @@ func TestDocumentAccessUnifiedPolicy(t *testing.T) {
 func TestDocumentLinkNeedsOneRegistrationRightAndBothReaders(t *testing.T) {
 	deps := setupDocumentAccessService(t, documentAccessUser(false, nil), allowDocumentActions(models.DocumentKindIncomingLetter, "register"))
 	a, b := uuid.New(), uuid.New()
-	deps.docRepo.docs[a] = documentAccessDoc(a, uuid.New(), models.DocumentKindIncomingLetter)
-	deps.docRepo.docs[b] = documentAccessDoc(b, uuid.New(), models.DocumentKindOutgoingLetter)
+	deps.docRepo.docs[a] = documentAccessDoc(a, models.DocumentKindIncomingLetter)
+	deps.docRepo.docs[b] = documentAccessDoc(b, models.DocumentKindOutgoingLetter)
 	deps.accessRepo.readable[a] = true
 	deps.accessRepo.readable[b] = true
 	require.NoError(t, deps.service.RequireLink(a, b))
@@ -196,7 +193,7 @@ func TestDocumentLinkNeedsOneRegistrationRightAndBothReaders(t *testing.T) {
 func TestDocumentVisibilityFailuresAreNotIgnored(t *testing.T) {
 	deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
 	id := uuid.New()
-	deps.docRepo.docs[id] = documentAccessDoc(id, uuid.New(), models.DocumentKindIncomingLetter)
+	deps.docRepo.docs[id] = documentAccessDoc(id, models.DocumentKindIncomingLetter)
 	cause := errors.New("visibility failed")
 	deps.accessRepo.visibilityErr = cause
 	require.ErrorIs(t, deps.service.RequireReadAnyType(id), cause)

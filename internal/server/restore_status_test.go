@@ -68,7 +68,7 @@ func TestRestoreStatusRemainsScopedWhileBusinessAPIIsBlocked(t *testing.T) {
 func TestBackupManagementRequiresAdministrator(t *testing.T) {
 	hash := sha256.Sum256([]byte("ordinary-session"))
 	user := &models.User{ID: uuid.New(), IsActive: true}
-	api := &managementAPI{authUsers: &fakeAuthUsers{user: user}, authSettings: fakeAuthSettings{}, sessions: &fakeAuthSessions{hash: hash[:], session: &models.ServerSession{UserID: user.ID, ExpiresAt: time.Now().Add(time.Hour)}}}
+	api := &managementAPI{authUsers: &fakeAuthUsers{user: user}, authSettings: fakeAuthSettings{}, sessions: &fakeAuthSessions{hash: hash[:], session: &models.ServerSession{UserID: user.ID}}}
 	for _, path := range []string{"/api/v1/admin/backups/catalog/verify", "/api/v1/admin/backups/catalog/restore", "/api/v1/admin/backups/catalog/delete", "/api/v1/admin/backups/operations/" + uuid.NewString() + "/cancel"} {
 		for _, token := range []string{"", "ordinary-session", "status-capability"} {
 			req := httptest.NewRequest("POST", path, nil)

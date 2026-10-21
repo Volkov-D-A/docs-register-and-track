@@ -29,10 +29,10 @@ func NewIncomingDocumentRepository(db *database.DB) *IncomingDocumentRepository 
 const incomingDocSelectBase = `
 	SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
 		inc.incoming_number, inc.incoming_date,
-		d.document_type, d.document_type,
+		d.document_type,
 		d.content, d.pages_count, d.attachment_pages_count,
 		inc.sender_signatory,
-		d.created_by, u.full_name,
+		u.full_name,
 		d.created_at, d.updated_at
 	FROM documents d
 	JOIN incoming_document_details inc ON inc.document_id = d.id
@@ -45,10 +45,10 @@ func scanIncomingDoc(scanner interface{ Scan(...interface{}) error }) (*models.I
 	err := scanner.Scan(
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 		&doc.IncomingNumber, &doc.IncomingDate,
-		&doc.DocumentTypeID, &doc.DocumentTypeName,
+		&doc.DocumentTypeID,
 		&doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount,
 		&doc.SenderSignatory,
-		&doc.CreatedBy, &doc.CreatedByName,
+		&doc.CreatedByName,
 		&doc.CreatedAt, &doc.UpdatedAt,
 	)
 	return doc, err
@@ -549,37 +549,44 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 	return doc, nil
 }
 
-// GetByIDs loads graph card data and correspondents in batches.
+// GetByIDs returns the partial card fields used by link graph nodes.
+// GetByID and GetList retain the full document projection.
 func (r *IncomingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.IncomingDocument, error) {
 	if len(ids) == 0 {
 		return []models.IncomingDocument{}, nil
 	}
-	rows, err := r.db.Query(incomingDocSelectBase+` WHERE d.id = ANY($1) ORDER BY d.id`, pq.Array(ids))
+	rows, err := r.db.Query(`
+        SELECT d.id, inc.incoming_number, inc.incoming_date, d.content, COALESCE(correspondent.name, '')
+        FROM documents d
+        JOIN incoming_document_details inc ON inc.document_id = d.id
+        LEFT JOIN LATERAL (
+            SELECT o.name
+            FROM document_correspondent_registrations cr
+            JOIN organizations o ON o.id = cr.correspondent_org_id
+            WHERE cr.document_id = d.id
+            ORDER BY cr.position, cr.created_at, cr.id
+            LIMIT 1
+        ) correspondent ON true
+        WHERE d.id = ANY($1) AND d.kind = $2
+        ORDER BY d.id
+    `, pq.Array(ids), models.DocumentKindIncomingLetter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get incoming documents by IDs: %w", err)
 	}
 	defer rows.Close()
 	items := make([]models.IncomingDocument, 0, len(ids))
-	documentIDs := make([]uuid.UUID, 0, len(ids))
 	for rows.Next() {
-		doc, err := scanIncomingDoc(rows)
-		if err != nil {
+		var doc models.IncomingDocument
+		var sender string
+		if err := rows.Scan(&doc.ID, &doc.IncomingNumber, &doc.IncomingDate, &doc.Content, &sender); err != nil {
 			return nil, err
 		}
-		items = append(items, *doc)
-		documentIDs = append(documentIDs, doc.ID)
+		if sender != "" {
+			doc.Correspondents = []models.DocumentCorrespondentRegistration{{CorrespondentName: sender}}
+		}
+		items = append(items, doc)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	correspondents, err := loadDocumentCorrespondentsByDocumentIDs(r.db, documentIDs)
-	if err != nil {
-		return nil, err
-	}
-	for i := range items {
-		items[i].Correspondents = correspondents[items[i].ID]
-	}
-	return items, nil
+	return items, rows.Err()
 }
 
 func (r *IncomingDocumentRepository) CreateWithJournal(req models.CreateIncomingDocRequest, action, detailsFormat string) (*models.IncomingDocument, error) {
@@ -771,11 +778,4 @@ func (r *IncomingDocumentRepository) update(req models.UpdateIncomingDocRequest,
 	}
 
 	return r.GetByID(req.ID)
-}
-
-// GetCount — общее количество для дашборда
-func (r *IncomingDocumentRepository) GetCount() (int, error) {
-	var count int
-	err := r.db.QueryRow(`SELECT COUNT(*) FROM documents WHERE kind = $1`, models.DocumentKindIncomingLetter).Scan(&count)
-	return count, err
 }

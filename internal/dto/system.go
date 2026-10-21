@@ -27,14 +27,12 @@ type BuildIdentity struct {
 
 // CompatibilityResult describes whether a desktop build can use this server.
 type CompatibilityResult struct {
-	BuildProtocol        int           `json:"buildProtocol"`
-	ServerBuild          BuildIdentity `json:"serverBuild"`
-	Compatible           bool          `json:"compatible"`
-	Code                 string        `json:"code"`
-	APIVersion           string        `json:"apiVersion"`
-	ServerVersion        string        `json:"serverVersion"`
-	MinimumClientVersion string        `json:"minimumClientVersion"`
-	MaximumClientVersion string        `json:"maximumClientVersion"`
+	BuildProtocol int           `json:"buildProtocol"`
+	ServerBuild   BuildIdentity `json:"serverBuild"`
+	Compatible    bool          `json:"compatible"`
+	Code          string        `json:"code"`
+	APIVersion    string        `json:"apiVersion"`
+	ServerVersion string        `json:"serverVersion"`
 }
 
 // BootstrapStatus is returned to the frontend before authentication starts.

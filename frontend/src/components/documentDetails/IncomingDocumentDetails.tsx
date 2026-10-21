@@ -13,7 +13,7 @@ const IncomingDocumentDetails: React.FC<IncomingDocumentDetailsProps> = ({ doc }
     <DetailStack>
         <Row gutter={16}>
             <Col span={12}>
-                <Tag>{doc.documentTypeName}</Tag> <Text type="secondary" style={{ fontSize: 12 }}>Рег. номер:</Text> <Text strong>{doc.incomingNumber}</Text>
+                <Tag>{doc.documentTypeId}</Tag> <Text type="secondary" style={{ fontSize: 12 }}>Рег. номер:</Text> <Text strong>{doc.incomingNumber}</Text>
             </Col>
             <Col span={12}>
                 <Text type="secondary" style={{ fontSize: 12 }}>Дата:</Text> <Text strong>{dayjs(doc.incomingDate).format('DD.MM.YYYY')}</Text>

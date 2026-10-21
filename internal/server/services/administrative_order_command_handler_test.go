@@ -18,7 +18,7 @@ type administrativeOrderHandlerDeps struct {
 	docRepo *documentAccessDocumentStore
 	handler *AdministrativeOrderCommandHandler
 	repo    *administrativeOrderCommandStore
-	auth    *attachmentPrincipalStub
+	auth    *documentPrincipalStub
 	user    *models.User
 }
 
@@ -73,27 +73,22 @@ func (s *administrativeOrderCommandStore) GetAcknowledgmentPeople(documentID uui
 	return nil, nil
 }
 
-func (s *administrativeOrderCommandStore) GetCount() (int, error) {
-	return 0, nil
-}
-
 func setupAdministrativeOrderCommandHandler(t *testing.T, allowed map[models.DocumentKind]map[string]bool) *administrativeOrderHandlerDeps {
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newAttachmentPrincipalStub(userRepo)
+	auth := newDocumentPrincipalStub(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	repo := &administrativeOrderCommandStore{}
-	nomRepo := mocks.NewNomenclatureStore(t)
 	docRepo := &documentAccessDocumentStore{}
 	access := NewDocumentAccessService(auth, &kindActionDocumentAccessStore{allowed: allowed, visible: func(id uuid.UUID) bool {
 		doc := docRepo.docs[id]
 		return allowed[doc.Kind]["register"] || allowed[doc.Kind]["control_deadlines"]
 	}}, docRepo)
-	handler := NewAdministrativeOrderCommandHandler(repo, nomRepo, auth, access)
+	handler := NewAdministrativeOrderCommandHandler(repo, auth, access)
 
 	return &administrativeOrderHandlerDeps{
 		handler: handler,
@@ -137,7 +132,6 @@ func TestAdministrativeOrderCommandHandler_Register(t *testing.T) {
 			Title:               "О назначении ответственного",
 			ExecutionController: "Контрольный отдел",
 			IsActive:            true,
-			CreatedBy:           deps.user.ID,
 		}
 
 		result, err := deps.handler.Register(req)
@@ -310,7 +304,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+				documentID: documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder),
 			},
 		}
 		deps.repo.updateResult = &models.AdministrativeOrderDocument{
@@ -321,7 +315,6 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 			ExecutionController: "Контроль",
 			IsActive:            false,
 			CancelledAt:         &cancelledAt,
-			CreatedBy:           deps.user.ID,
 		}
 		req := dto.AdministrativeOrderUpdateRequest{
 			ID:                      documentID.String(),
@@ -372,7 +365,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+				documentID: documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder),
 			},
 		}
 
@@ -391,7 +384,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+				documentID: documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder),
 			},
 		}
 
@@ -417,7 +410,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+				documentID: documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder),
 			},
 		}
 
@@ -442,7 +435,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+				documentID: documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder),
 			},
 		}
 
@@ -468,7 +461,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+				documentID: documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder),
 			},
 		}
 
@@ -494,7 +487,7 @@ func TestAdministrativeOrderCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder),
+				documentID: documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder),
 			},
 		}
 		deps.repo.updateErr = expectedErr

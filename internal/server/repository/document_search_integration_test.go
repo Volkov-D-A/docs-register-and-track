@@ -73,7 +73,6 @@ func TestDocumentSearchIntegration(t *testing.T) {
 	result = search("ремонт", 1, 20, scopes)
 	require.Equal(t, 3, result.TotalCount)
 	require.Equal(t, appeal.String(), result.Items[2].ID) // Content/title outweigh a resolution.
-	require.Greater(t, result.Items[0].Relevance, result.Items[2].Relevance)
 	first := search("ремонт", 1, 1, scopes)
 	second := search("ремонт", 2, 1, scopes)
 	require.Equal(t, result.Items[0].ID, first.Items[0].ID)

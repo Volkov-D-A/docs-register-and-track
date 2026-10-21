@@ -23,14 +23,6 @@ type RemoteCopy struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-func digestReader(reader io.Reader, limit int64) (string, int64, error) {
-	if limit < 0 || limit >= 1<<60 {
-		return "", 0, fmt.Errorf("invalid file size")
-	}
-	h := sha256.New()
-	n, err := io.Copy(h, io.LimitReader(reader, limit+1))
-	return fmt.Sprintf("%x", h.Sum(nil)), n, err
-}
 func ReadMarker(ctx context.Context, client *smb.Client, id string) (RemoteCopy, error) {
 	if !validCopyID(id) {
 		return RemoteCopy{}, fmt.Errorf("invalid copy identifier")

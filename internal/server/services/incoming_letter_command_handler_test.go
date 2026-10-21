@@ -20,7 +20,7 @@ type incomingLetterHandlerDeps struct {
 	handler *IncomingLetterCommandHandler
 	repo    *incomingAtomicStoreMock
 	refRepo *mocks.ReferenceStore
-	auth    *attachmentPrincipalStub
+	auth    *documentPrincipalStub
 	user    *models.User
 }
 
@@ -28,20 +28,19 @@ func setupIncomingLetterCommandHandler(t *testing.T, allowed map[models.Document
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newAttachmentPrincipalStub(userRepo)
+	auth := newDocumentPrincipalStub(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	repo := newIncomingAtomicStoreMock(t)
-	nomRepo := mocks.NewNomenclatureStore(t)
 	refRepo := mocks.NewReferenceStore(t)
 	docRepo := &documentAccessDocumentStore{}
 	access := NewDocumentAccessService(auth, &kindActionDocumentAccessStore{allowed: allowed, visible: func(id uuid.UUID) bool {
 		doc := docRepo.docs[id]
 		return allowed[doc.Kind]["register"] || allowed[doc.Kind]["control_deadlines"]
 	}}, docRepo)
-	handler := NewIncomingLetterCommandHandler(repo, nomRepo, refRepo, auth, access)
+	handler := NewIncomingLetterCommandHandler(repo, refRepo, auth, access)
 
 	return &incomingLetterHandlerDeps{
 		handler: handler,
@@ -118,7 +117,6 @@ func TestIncomingLetterCommandHandler_Register(t *testing.T) {
 			DocumentTypeID: models.DocumentTypeLetter,
 			Content:        req.Content,
 			PagesCount:     req.PagesCount,
-			CreatedBy:      deps.user.ID,
 		}, nil).Once()
 		result, err := deps.handler.Register(req)
 
@@ -275,7 +273,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindIncomingLetter),
 			},
 		}
 		req := dto.IncomingLetterUpdateRequest{
@@ -312,7 +310,6 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 			DocumentTypeID: models.DocumentTypeLetter,
 			Content:        req.Content,
 			PagesCount:     req.PagesCount,
-			CreatedBy:      deps.user.ID,
 		}, nil).Once()
 		result, err := deps.handler.Update(req)
 
@@ -343,7 +340,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindIncomingLetter),
 			},
 		}
 
@@ -371,7 +368,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindIncomingLetter),
 			},
 		}
 
@@ -395,7 +392,7 @@ func TestIncomingLetterCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter),
+				documentID: documentAccessDoc(documentID, models.DocumentKindIncomingLetter),
 			},
 		}
 

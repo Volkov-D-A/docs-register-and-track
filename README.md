@@ -113,7 +113,7 @@ component allows up to 100 Unicode characters after trimming. Responses include
 the components and a computed `fullName`; profile updates return HTTP 200 with
 the canonical user DTO.
 
-The split name schema is defined in the existing `001_core_users` migration.
+The split name schema is defined in the `001_docflow` baseline migration.
 An already initialized test database must be recreated explicitly: applying
 migrations again does not reapply version 001. Backups made with the former
 user schema are incompatible even if their migration version matches; use new

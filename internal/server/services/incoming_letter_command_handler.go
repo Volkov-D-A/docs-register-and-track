@@ -16,7 +16,6 @@ import (
 // IncomingLetterCommandHandler инкапсулирует write-операции по входящим письмам.
 type IncomingLetterCommandHandler struct {
 	repo    ports.IncomingDocStore
-	nomRepo ports.NomenclatureStore
 	refRepo ports.ReferenceStore
 	auth    ports.DocumentCommandPrincipal
 	access  *DocumentAccessService
@@ -30,14 +29,12 @@ func (h *IncomingLetterCommandHandler) Kind() models.DocumentKind {
 // NewIncomingLetterCommandHandler создает handler команд входящих писем.
 func NewIncomingLetterCommandHandler(
 	repo ports.IncomingDocStore,
-	nomRepo ports.NomenclatureStore,
 	refRepo ports.ReferenceStore,
 	auth ports.DocumentCommandPrincipal,
 	access *DocumentAccessService,
 ) *IncomingLetterCommandHandler {
 	return &IncomingLetterCommandHandler{
 		repo:    repo,
-		nomRepo: nomRepo,
 		refRepo: refRepo,
 		auth:    auth,
 		access:  access,
@@ -68,7 +65,7 @@ func (h *IncomingLetterCommandHandler) Register(req dto.IncomingLetterRegisterRe
 	if err != nil || idempotencyKey == uuid.Nil {
 		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
-	link, err := buildRegistrationLink(h.access, h.Kind(), nomID, req.Link)
+	link, err := buildRegistrationLink(h.access, h.Kind(), req.Link)
 	if err != nil {
 		return nil, err
 	}

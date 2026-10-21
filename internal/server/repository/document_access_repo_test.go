@@ -79,30 +79,15 @@ func TestDocumentAccessRepository_GetAllowedActions(t *testing.T) {
 	mock.ExpectQuery(`SELECT kind_code, action\s+FROM document_permissions\s+WHERE is_allowed = true`).
 		WithArgs("department-1", "user-1").
 		WillReturnRows(sqlmock.NewRows([]string{"kind_code", "action"}).
-			AddRow("incoming_letter", "read").
-			AddRow("incoming_letter", "read").
-			AddRow("outgoing_letter", "link"))
+			AddRow("incoming_letter", "register").
+			AddRow("incoming_letter", "register").
+			AddRow("outgoing_letter", "control_deadlines"))
 	allowed, err := repo.GetAllowedActions("department-1", "user-1")
 	require.NoError(t, err)
 	assert.Equal(t, map[string]map[string]bool{
-		"incoming_letter": {"read": true},
-		"outgoing_letter": {"link": true},
+		"incoming_letter": {"register": true},
+		"outgoing_letter": {"control_deadlines": true},
 	}, allowed)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestDocumentAccessRepository_HasSystemPermission(t *testing.T) {
-	repo, mock, cleanup := setupDocumentAccessRepository(t)
-	defer cleanup()
-
-	mock.ExpectQuery(`SELECT EXISTS`).
-		WithArgs("user-1", models.SystemPermissionAdmin).
-		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
-
-	allowed, err := repo.HasSystemPermission(models.SystemPermissionAdmin, "user-1")
-
-	require.NoError(t, err)
-	assert.True(t, allowed)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

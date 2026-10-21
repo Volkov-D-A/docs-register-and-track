@@ -48,10 +48,11 @@ func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 	require.NoError(t, err)
 	documents := repository.NewOutgoingDocumentRepository(db)
 	documents.SetOutbox(repository.NewOutboxRepository(db))
+	documentDate := time.Now().UTC()
 	createDocument := func(content string) *models.OutgoingDocument {
 		document, createErr := documents.CreateWithJournal(models.CreateOutgoingDocRequest{
 			NomenclatureID: nomenclatureID, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter,
-			RecipientOrgID: organizationID, CreatedBy: managerID, OutgoingDate: time.Now().UTC(), Content: content,
+			RecipientOrgID: organizationID, CreatedBy: managerID, OutgoingDate: documentDate, Content: content,
 			PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee",
 		}, "CREATE", "Created %s")
 		require.NoError(t, createErr)
@@ -109,17 +110,35 @@ func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 	require.NotContains(t, linksResponse.Body.String(), `"createdBy"`)
 	require.NotContains(t, linksResponse.Body.String(), `"createdAt"`)
 	require.NotContains(t, linksResponse.Body.String(), `"targetId"`)
+	graphResponse := requestWithToken(http.MethodGet, "/api/v1/documents/"+source.ID.String()+"/link-graph", "", managerToken)
+	require.Equal(t, http.StatusOK, graphResponse.Code, graphResponse.Body.String())
+	var graph models.GraphData
+	require.NoError(t, json.Unmarshal(graphResponse.Body.Bytes(), &graph))
+	require.Len(t, graph.Nodes, 2)
+	require.Len(t, graph.Edges, 1)
+	subjects := make([]string, 0, len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		require.NotEmpty(t, node.Label)
+		require.Equal(t, string(models.DocumentKindOutgoingLetter), node.KindCode)
+		require.Equal(t, source.OutgoingDate.Format("02.01.2006"), node.Date)
+		require.Equal(t, "Link Organization", node.Recipient)
+		subjects = append(subjects, node.Subject)
+	}
+	require.ElementsMatch(t, []string{"link source", "link target"}, subjects)
 
-	journalID, err := repository.NewJournalRepository(db).Create(context.Background(), models.CreateJournalEntryRequest{
+	err = repository.NewJournalRepository(db).CreateFromOutbox(context.Background(), models.CreateJournalEntryRequest{
 		DocumentID: source.ID, UserID: managerID, Action: "LINK_INTEGRATION", Details: "server-owned journal",
-	})
+	}, "links:integration:journal")
 	require.NoError(t, err)
 	journalResponse := requestWithToken(http.MethodGet, "/api/v1/documents/"+source.ID.String()+"/journal", "", managerToken)
 	require.Equal(t, http.StatusOK, journalResponse.Code, journalResponse.Body.String())
-	require.Contains(t, journalResponse.Body.String(), journalID.String())
+	require.Contains(t, journalResponse.Body.String(), "server-owned journal")
 	require.NotContains(t, journalResponse.Body.String(), `"documentId"`)
 	require.Contains(t, journalResponse.Body.String(), `"userName"`)
 
-	outsiderResponse := requestWithToken(http.MethodGet, "/api/v1/documents/"+source.ID.String()+"/journal", "", login("links-outsider"))
+	outsiderToken := login("links-outsider")
+	outsiderResponse := requestWithToken(http.MethodGet, "/api/v1/documents/"+source.ID.String()+"/journal", "", outsiderToken)
 	require.Equal(t, http.StatusForbidden, outsiderResponse.Code, outsiderResponse.Body.String())
+	outsiderGraph := requestWithToken(http.MethodGet, "/api/v1/documents/"+source.ID.String()+"/link-graph", "", outsiderToken)
+	require.Equal(t, http.StatusForbidden, outsiderGraph.Code, outsiderGraph.Body.String())
 }

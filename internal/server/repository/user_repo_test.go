@@ -30,15 +30,15 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 	t.Run("success without department", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
 			"id", "login", "password_hash", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active", "failed_login_attempts",
-			"password_changed_at", "password_change_required", "created_at", "updated_at",
+			"password_changed_at", "password_change_required",
 			"d.id", "d.name",
 		}).AddRow(
-			id, login, "hash", "Test", "User", "", true, true, true, 0, now, false, now, now,
+			id, login, "hash", "Test", "User", "", true, true, true, 0, now, false,
 			nil, nil, // нет подразделения
 		)
 
 		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active, u.failed_login_attempts,
-	       u.password_changed_at, u.password_change_required, u.created_at, u.updated_at,
+	       u.password_changed_at, u.password_change_required,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id WHERE u.login = \$1`
@@ -62,7 +62,7 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		expectedQuery := `SELECT u.id, u.login, u.password_hash, u.last_name, u.first_name, u.patronymic, u.no_patronymic, u.is_document_participant, u.is_active, u.failed_login_attempts,
-	       u.password_changed_at, u.password_change_required, u.created_at, u.updated_at,
+	       u.password_changed_at, u.password_change_required,
 	       d.id, d.name
 	FROM users u
 	LEFT JOIN departments d ON u.department_id = d.id WHERE u.login = \$1`
@@ -77,31 +77,33 @@ func TestUserRepository_GetByLogin(t *testing.T) {
 	})
 }
 
-func TestUserRepository_GetSessionPrincipal(t *testing.T) {
+// Чтение пользователя для авторизации не должно загружать дела подразделения.
+func TestUserRepository_GetByIDKeepsAuthenticationStateAndDepartment(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	repo := NewUserRepository(database.Wrap(db))
-	userID := uuid.New()
-
-	t.Run("returns only active session state", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT id, is_active FROM users WHERE id = \$1`).WithArgs(userID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "is_active"}).AddRow(userID, true))
-		principal, err := repo.GetSessionPrincipal(userID)
-		require.NoError(t, err)
-		require.NotNil(t, principal)
-		assert.Equal(t, userID, principal.ID)
-		assert.True(t, principal.IsActive)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("returns nil for deleted user", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT id, is_active FROM users WHERE id = \$1`).WithArgs(userID).WillReturnError(sql.ErrNoRows)
-		principal, err := repo.GetSessionPrincipal(userID)
-		require.NoError(t, err)
-		assert.Nil(t, principal)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
+	userID, departmentID := uuid.New(), uuid.New()
+	changedAt := time.Now().UTC()
+	mock.ExpectQuery(`SELECT(.*)FROM users u(.*)`).WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "login", "password_hash", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active", "failed_login_attempts",
+			"password_changed_at", "password_change_required", "d.id", "d.name",
+		}).AddRow(userID, "user", "hash", "Иванов", "Иван", "", true, true, true, 2, changedAt, true, departmentID, "Отдел"))
+	mock.ExpectQuery(`SELECT permission FROM user_system_permissions`).WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"permission"}).AddRow("admin"))
+	user, err := NewUserRepository(database.Wrap(db)).GetByID(userID)
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	require.NotNil(t, user.Department)
+	assert.Equal(t, departmentID, user.Department.ID)
+	assert.Equal(t, "Отдел", user.Department.Name)
+	assert.Equal(t, &departmentID, user.DepartmentID)
+	assert.Equal(t, &changedAt, user.PasswordChangedAt)
+	assert.True(t, user.PasswordChangeRequired)
+	assert.Equal(t, "hash", user.PasswordHash)
+	assert.Equal(t, 2, user.FailedLoginAttempts)
+	assert.Equal(t, []string{"admin"}, user.SystemPermissions)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUserRepositoryIncrementFailedLoginAttemptsWithOutboxRollsBackOnEnqueueFailure(t *testing.T) {
@@ -240,11 +242,6 @@ func TestUserRepository_GetAll(t *testing.T) {
 		WithArgs(pq.Array([]uuid.UUID{uid})).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id", "permission"}).AddRow(uid, "admin"))
 
-	// Expect department nomenclatures
-	mock.ExpectQuery(`SELECT(.*)FROM department_nomenclature(.*)`).
-		WithArgs(pq.Array([]uuid.UUID{depID})).
-		WillReturnRows(sqlmock.NewRows([]string{"department_id", "nomenclature_id"}).AddRow(depID, uuid.New()))
-
 	users, err := repo.GetAll()
 	require.NoError(t, err)
 	require.Len(t, users, 1)
@@ -253,70 +250,9 @@ func TestUserRepository_GetAll(t *testing.T) {
 	assert.Equal(t, []string{"admin"}, users[0].SystemPermissions)
 	require.NotNil(t, users[0].Department)
 	assert.Equal(t, "IT Dept", users[0].Department.Name)
-	assert.Len(t, users[0].Department.NomenclatureIDs, 1)
+	assert.Equal(t, depID, users[0].Department.ID)
 
 	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestUserRepository_GetExecutors(t *testing.T) {
-	t.Run("success with department", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewUserRepository(database.Wrap(db))
-		userID := uuid.New()
-		departmentID := uuid.New()
-		nomenclatureID := uuid.New()
-
-		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.last_name, u\.first_name, u\.patronymic, u\.no_patronymic, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
-			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "login", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active",
-				"d.id", "d.name",
-			}).AddRow(userID, "executor", "Executor", "User", "", true, true, true, departmentID, "Office"))
-
-		mock.ExpectQuery(`SELECT user_id, permission\s+FROM user_system_permissions\s+WHERE user_id = ANY\(\$1\) AND is_allowed = true`).
-			WithArgs(pq.Array([]uuid.UUID{userID})).
-			WillReturnRows(sqlmock.NewRows([]string{"user_id", "permission"}).AddRow(userID, "documents.assign"))
-
-		mock.ExpectQuery(`SELECT department_id, nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = ANY\(\$1\)`).
-			WithArgs(pq.Array([]uuid.UUID{departmentID})).
-			WillReturnRows(sqlmock.NewRows([]string{"department_id", "nomenclature_id"}).AddRow(departmentID, nomenclatureID))
-
-		users, err := repo.GetExecutors()
-		require.NoError(t, err)
-		require.Len(t, users, 1)
-		assert.Equal(t, userID, users[0].ID)
-		assert.Equal(t, "executor", users[0].Login)
-		assert.Equal(t, "Executor User", users[0].FullName())
-		assert.True(t, users[0].IsDocumentParticipant)
-		assert.True(t, users[0].IsActive)
-		assert.Equal(t, []string{"documents.assign"}, users[0].SystemPermissions)
-		require.NotNil(t, users[0].Department)
-		assert.Equal(t, departmentID, users[0].Department.ID)
-		assert.Equal(t, "Office", users[0].Department.Name)
-		assert.Equal(t, []string{nomenclatureID.String()}, users[0].Department.NomenclatureIDs)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("empty result skips batch loads", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewUserRepository(database.Wrap(db))
-
-		mock.ExpectQuery(`SELECT u\.id, u\.login, u\.last_name, u\.first_name, u\.patronymic, u\.no_patronymic, u\.is_document_participant, u\.is_active,\s+d\.id, d\.name\s+FROM users u\s+LEFT JOIN departments d ON u\.department_id = d\.id\s+WHERE u\.is_active = true AND u\.is_document_participant = true\s+ORDER BY u\.full_name`).
-			WillReturnRows(sqlmock.NewRows([]string{
-				"id", "login", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active",
-				"d.id", "d.name",
-			}))
-
-		users, err := repo.GetExecutors()
-		require.NoError(t, err)
-		assert.Empty(t, users)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
 }
 
 func TestUserRepository_Create(t *testing.T) {
@@ -349,9 +285,9 @@ func TestUserRepository_Create(t *testing.T) {
 			WithArgs(uid).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "login", "password_hash", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active", "failed_login_attempts",
-				"password_changed_at", "password_change_required", "created_at", "updated_at",
+				"password_changed_at", "password_change_required",
 				"d.id", "d.name",
-			}).AddRow(uid, req.Login, "hash", req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, true, true, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
+			}).AddRow(uid, req.Login, "hash", req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, true, true, 0, time.Now(), false, nil, nil))
 		mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).
 			WithArgs(uid).
 			WillReturnRows(sqlmock.NewRows([]string{"permission"}))
@@ -418,9 +354,9 @@ func TestUserRepository_Update(t *testing.T) {
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "login", "password_hash", "last_name", "first_name", "patronymic", "no_patronymic", "is_document_participant", "is_active", "failed_login_attempts",
-			"password_changed_at", "password_change_required", "created_at", "updated_at",
+			"password_changed_at", "password_change_required",
 			"d.id", "d.name",
-		}).AddRow(uid, req.Login, "hash", req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, true, req.IsActive, 0, time.Now(), false, time.Now(), time.Now(), nil, nil))
+		}).AddRow(uid, req.Login, "hash", req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, true, req.IsActive, 0, time.Now(), false, nil, nil))
 	mock.ExpectQuery(`SELECT permission FROM user_system_permissions WHERE user_id = \$1 AND is_allowed = true`).
 		WithArgs(uid).
 		WillReturnRows(sqlmock.NewRows([]string{"permission"}))
@@ -508,62 +444,4 @@ func TestUserRepository_OtherMethods(t *testing.T) {
 	})
 
 	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestUserRepository_GetDepartmentNomenclatureIDs(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewUserRepository(database.Wrap(db))
-		departmentID := uuid.New()
-		firstID := uuid.New()
-		secondID := uuid.New()
-
-		mock.ExpectQuery(`SELECT nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = \$1`).
-			WithArgs(departmentID).
-			WillReturnRows(sqlmock.NewRows([]string{"nomenclature_id"}).AddRow(firstID).AddRow(secondID))
-
-		ids, err := repo.getDepartmentNomenclatureIDs(departmentID)
-		require.NoError(t, err)
-		assert.Equal(t, []string{firstID.String(), secondID.String()}, ids)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("query error", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewUserRepository(database.Wrap(db))
-		departmentID := uuid.New()
-
-		mock.ExpectQuery(`SELECT nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = \$1`).
-			WithArgs(departmentID).
-			WillReturnError(sql.ErrConnDone)
-
-		ids, err := repo.getDepartmentNomenclatureIDs(departmentID)
-		require.ErrorIs(t, err, sql.ErrConnDone)
-		assert.Nil(t, ids)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("scan error", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewUserRepository(database.Wrap(db))
-		departmentID := uuid.New()
-
-		mock.ExpectQuery(`SELECT nomenclature_id\s+FROM department_nomenclature\s+WHERE department_id = \$1`).
-			WithArgs(departmentID).
-			WillReturnRows(sqlmock.NewRows([]string{"nomenclature_id"}).AddRow("not-a-uuid"))
-
-		ids, err := repo.getDepartmentNomenclatureIDs(departmentID)
-		require.Error(t, err)
-		assert.Nil(t, ids)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
 }

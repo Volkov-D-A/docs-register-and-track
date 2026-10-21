@@ -16,17 +16,15 @@ type workspaceStoreStub struct {
 	documents      []models.WorkspaceDocument
 }
 
-func workspaceServiceFixture(t *testing.T, participant bool, allowed map[models.DocumentKind]map[string]bool) (*WorkspaceService, *workspaceStoreStub, uuid.UUID) {
+func workspaceServiceFixture(t *testing.T, participant bool) (*WorkspaceService, *workspaceStoreStub, uuid.UUID) {
 	t.Helper()
 	userID := uuid.New()
 	user := &models.User{ID: userID, IsActive: true, IsDocumentParticipant: participant}
 	users := mocks.NewUserStore(t)
 	users.On("GetByID", userID).Return(user, nil).Maybe()
-	principal := newAttachmentPrincipalStub(users)
+	principal := newDocumentPrincipalStub(users)
 	principal.currentUserID = userID
-	permissions := &kindActionDocumentAccessStore{allowed: allowed}
-	principal.SetAccessStore(permissions)
-	access := NewDocumentAccessService(principal, permissions, nil)
+	access := NewDocumentAccessService(principal, nil, nil)
 	store := &workspaceStoreStub{}
 	return NewWorkspaceService(store, principal, access, nil), store, userID
 }
@@ -38,7 +36,7 @@ func (s *workspaceStoreStub) RecentDocuments(scopes map[models.DocumentKind]mode
 
 func TestWorkspaceRecentDocumentsUseReadScopesAndPreserveRegistrationTime(t *testing.T) {
 	kind := models.DocumentKindIncomingLetter
-	svc, store, userID := workspaceServiceFixture(t, true, map[models.DocumentKind]map[string]bool{kind: {"read": true}})
+	svc, store, userID := workspaceServiceFixture(t, true)
 	item := models.WorkspaceDocument{ID: uuid.New(), DocumentKind: string(kind), DocumentNumber: "IT/125",
 		DocumentDate: time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC), RegisteredAt: time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC),
 		Description: "Alpha", Correspondents: []string{"Alpha", "Beta"}}
@@ -58,7 +56,7 @@ func TestWorkspaceRecentDocumentsUseReadScopesAndPreserveRegistrationTime(t *tes
 }
 
 func TestWorkspaceRecentDocumentsWithoutRootsStillQueryScopedStore(t *testing.T) {
-	svc, store, userID := workspaceServiceFixture(t, false, nil)
+	svc, store, userID := workspaceServiceFixture(t, false)
 	result, err := svc.GetRecentDocuments()
 	require.NoError(t, err)
 	require.True(t, result.Available)

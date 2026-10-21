@@ -7,8 +7,6 @@ export function CreateUser(arg1:models.CreateUserRequest):Promise<dto.User>;
 
 export function GetAllUsers():Promise<Array<dto.User>>;
 
-export function GetExecutors():Promise<Array<dto.User>>;
-
 export function ResetPassword(arg1:string):Promise<string>;
 
 export function UpdateUser(arg1:models.UpdateUserRequest):Promise<dto.User>;

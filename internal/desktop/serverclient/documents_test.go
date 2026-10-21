@@ -110,11 +110,10 @@ func TestDocumentSearchClientUsesAuthenticatedTypedEndpoint(t *testing.T) {
 		var request dto.DocumentSearchRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		require.Equal(t, expected, request)
-		return response(http.StatusOK, `{"items":[{"id":"found","kindCode":"incoming_letter","relevance":0.5}],"totalCount":21,"page":2,"pageSize":20}`), nil
+		return response(http.StatusOK, `{"items":[{"id":"found","kindCode":"incoming_letter"}],"totalCount":21,"page":2,"pageSize":20}`), nil
 	})
 	result, err := client.SearchDocuments(context.Background(), expected)
 	require.NoError(t, err)
 	require.Equal(t, "found", result.Items[0].ID)
-	require.Equal(t, 0.5, result.Items[0].Relevance)
 	require.Equal(t, 21, result.TotalCount)
 }

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ type administrativeOrderServiceStore struct {
 	markErr      error
 	lastPersonID uuid.UUID
 	lastMarkerID uuid.UUID
+	effects      []models.OutboxEvent
 }
 
 func (s *administrativeOrderServiceStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error) {
@@ -46,24 +48,21 @@ func (s *administrativeOrderServiceStore) GetAcknowledgmentPeople(documentID uui
 	return nil, nil
 }
 
-func (s *administrativeOrderServiceStore) MarkAcknowledgmentPersonWithOutbox(id uuid.UUID, acknowledgedBy uuid.UUID, _ []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
+func (s *administrativeOrderServiceStore) MarkAcknowledgmentPersonWithOutbox(id uuid.UUID, acknowledgedBy uuid.UUID, effects []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
 	s.lastPersonID = id
 	s.lastMarkerID = acknowledgedBy
+	s.effects = effects
 	if s.markErr != nil {
 		return nil, s.markErr
 	}
 	return s.marked, nil
 }
 
-func (s *administrativeOrderServiceStore) GetCount() (int, error) {
-	return 0, nil
-}
-
-func setupAdministrativeOrderService(t *testing.T, allowed map[models.DocumentKind]map[string]bool) (*AdministrativeOrderService, *administrativeOrderServiceStore, *documentAccessDocumentStore, *mocks.JournalStore, *models.User) {
+func setupAdministrativeOrderService(t *testing.T, allowed map[models.DocumentKind]map[string]bool) (*AdministrativeOrderService, *administrativeOrderServiceStore, *documentAccessDocumentStore, *models.User) {
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newAttachmentPrincipalStub(userRepo)
+	auth := newDocumentPrincipalStub(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
@@ -74,7 +73,7 @@ func setupAdministrativeOrderService(t *testing.T, allowed map[models.DocumentKi
 		doc := docRepo.docs[id]
 		return allowed[doc.Kind]["register"] || allowed[doc.Kind]["control_deadlines"]
 	}}, docRepo)
-	return NewAdministrativeOrderService(store, auth, access), store, docRepo, nil, user
+	return NewAdministrativeOrderService(store, auth, access), store, docRepo, user
 }
 
 func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
@@ -82,11 +81,11 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 		documentID := uuid.New()
 		personID := uuid.New()
 		now := time.Now()
-		svc, store, docRepo, _, user := setupAdministrativeOrderService(
+		svc, store, docRepo, user := setupAdministrativeOrderService(
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
-		docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder)
+		docRepo.docs[documentID] = documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder)
 		store.person = &models.AdministrativeOrderAcknowledgmentPerson{
 			ID:         personID,
 			DocumentID: documentID,
@@ -111,7 +110,7 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 	})
 
 	t.Run("rejects invalid id", func(t *testing.T) {
-		svc, _, _, _, _ := setupAdministrativeOrderService(t, nil)
+		svc, _, _, _ := setupAdministrativeOrderService(t, nil)
 
 		result, err := svc.MarkAcknowledged("bad-id")
 
@@ -122,7 +121,7 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 
 	t.Run("returns not found for missing person", func(t *testing.T) {
 		personID := uuid.New()
-		svc, store, _, _, _ := setupAdministrativeOrderService(t, nil)
+		svc, store, _, _ := setupAdministrativeOrderService(t, nil)
 		store.person = nil
 
 		result, err := svc.MarkAcknowledged(personID.String())
@@ -135,8 +134,8 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 	t.Run("requires update access to order", func(t *testing.T) {
 		personID := uuid.New()
 		documentID := uuid.New()
-		svc, store, docRepo, _, _ := setupAdministrativeOrderService(t, nil)
-		docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder)
+		svc, store, docRepo, _ := setupAdministrativeOrderService(t, nil)
+		docRepo.docs[documentID] = documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder)
 		store.person = &models.AdministrativeOrderAcknowledgmentPerson{
 			ID:         personID,
 			DocumentID: documentID,
@@ -154,11 +153,11 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 		personID := uuid.New()
 		repoErr := errors.New("mark failed")
 		documentID := uuid.New()
-		svc, store, docRepo, _, _ := setupAdministrativeOrderService(
+		svc, store, docRepo, _ := setupAdministrativeOrderService(
 			t,
 			allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 		)
-		docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder)
+		docRepo.docs[documentID] = documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder)
 		store.person = &models.AdministrativeOrderAcknowledgmentPerson{
 			ID:         personID,
 			DocumentID: documentID,
@@ -173,18 +172,26 @@ func TestAdministrativeOrderService_MarkAcknowledged(t *testing.T) {
 	})
 }
 
-func TestAdministrativeOrderService_MarkAcknowledged_JournalContext(t *testing.T) {
-	svc, store, docRepo, _, _ := setupAdministrativeOrderService(
+func TestAdministrativeOrderService_MarkAcknowledged_EnqueuesJournalWithPrincipal(t *testing.T) {
+	svc, store, docRepo, user := setupAdministrativeOrderService(
 		t,
 		allowDocumentActions(models.DocumentKindAdministrativeOrder, "control_deadlines", "register"),
 	)
 	personID := uuid.New()
 	documentID := uuid.New()
-	docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindAdministrativeOrder)
+	docRepo.docs[documentID] = documentAccessDoc(documentID, models.DocumentKindAdministrativeOrder)
 	store.person = &models.AdministrativeOrderAcknowledgmentPerson{ID: personID, DocumentID: documentID, FullName: "Петр Петров"}
 	store.marked = store.person
 	result, err := svc.MarkAcknowledged(personID.String())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
+	require.Len(t, store.effects, 1)
+	assert.Equal(t, models.OutboxEventJournal, store.effects[0].EventType)
+	var journal models.CreateJournalEntryRequest
+	require.NoError(t, json.Unmarshal([]byte(store.effects[0].Payload), &journal))
+	assert.Equal(t, documentID, journal.DocumentID)
+	assert.Equal(t, user.ID, journal.UserID)
+	assert.Equal(t, "ORDER_ACKNOWLEDGE", journal.Action)
+	assert.Contains(t, journal.Details, "Петр Петров")
 }

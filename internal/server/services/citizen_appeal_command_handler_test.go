@@ -19,7 +19,7 @@ type citizenAppealHandlerDeps struct {
 	handler *CitizenAppealCommandHandler
 	repo    *citizenAppealCommandStore
 	refRepo *mocks.ReferenceStore
-	auth    *attachmentPrincipalStub
+	auth    *documentPrincipalStub
 	user    *models.User
 }
 
@@ -66,28 +66,23 @@ func (s *citizenAppealCommandStore) UpdateWithOutbox(req models.UpdateCitizenApp
 	return &models.CitizenAppealDocument{ID: req.ID}, nil
 }
 
-func (s *citizenAppealCommandStore) GetCount() (int, error) {
-	return 0, nil
-}
-
 func setupCitizenAppealCommandHandler(t *testing.T, allowed map[models.DocumentKind]map[string]bool) *citizenAppealHandlerDeps {
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := newAttachmentPrincipalStub(userRepo)
+	auth := newDocumentPrincipalStub(userRepo)
 	user := documentAccessUser(false, nil)
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
 	repo := &citizenAppealCommandStore{}
-	nomRepo := mocks.NewNomenclatureStore(t)
 	refRepo := mocks.NewReferenceStore(t)
 	docRepo := &documentAccessDocumentStore{}
 	access := NewDocumentAccessService(auth, &kindActionDocumentAccessStore{allowed: allowed, visible: func(id uuid.UUID) bool {
 		doc := docRepo.docs[id]
 		return allowed[doc.Kind]["register"] || allowed[doc.Kind]["control_deadlines"]
 	}}, docRepo)
-	handler := NewCitizenAppealCommandHandler(repo, nomRepo, refRepo, auth, access)
+	handler := NewCitizenAppealCommandHandler(repo, refRepo, auth, access)
 
 	return &citizenAppealHandlerDeps{
 		handler: handler,
@@ -158,7 +153,6 @@ func TestCitizenAppealCommandHandler_Register(t *testing.T) {
 			AttachmentPagesCount: 1,
 			HasEnvelope:          true,
 			ReceivedFromPOS:      true,
-			CreatedBy:            deps.user.ID,
 		}
 
 		deps.refRepo.On("FindOrCreateOrganization", "Администрация").Return(&models.Organization{ID: correspondentOrgID, Name: "Администрация"}, nil).Once()
@@ -390,7 +384,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
+				documentID: documentAccessDoc(documentID, models.DocumentKindCitizenAppeal),
 			},
 		}
 		deps.repo.updateResult = &models.CitizenAppealDocument{
@@ -405,7 +399,6 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 			Content:              "Обновленное обращение",
 			PagesCount:           3,
 			AttachmentPagesCount: 0,
-			CreatedBy:            deps.user.ID,
 		}
 		req := dto.CitizenAppealUpdateRequest{
 			ID:                   documentID.String(),
@@ -466,7 +459,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
+				documentID: documentAccessDoc(documentID, models.DocumentKindCitizenAppeal),
 			},
 		}
 
@@ -485,7 +478,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
+				documentID: documentAccessDoc(documentID, models.DocumentKindCitizenAppeal),
 			},
 		}
 
@@ -508,7 +501,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
+				documentID: documentAccessDoc(documentID, models.DocumentKindCitizenAppeal),
 			},
 		}
 
@@ -541,7 +534,7 @@ func TestCitizenAppealCommandHandler_Update(t *testing.T) {
 		)
 		*deps.docRepo = documentAccessDocumentStore{
 			docs: map[uuid.UUID]models.Document{
-				documentID: documentAccessDoc(documentID, uuid.New(), models.DocumentKindCitizenAppeal),
+				documentID: documentAccessDoc(documentID, models.DocumentKindCitizenAppeal),
 			},
 		}
 		deps.repo.updateErr = expectedErr

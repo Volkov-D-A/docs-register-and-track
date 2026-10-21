@@ -13,19 +13,15 @@ import (
 
 type stubAdminAuditLogStore struct{}
 
-func (s *stubAdminAuditLogStore) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
-	return uuid.New(), nil
-}
-
 func (s *stubAdminAuditLogStore) GetAll(limit, offset int) ([]models.AdminAuditLog, int, error) {
 	return nil, 0, nil
 }
 
-func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) (*AdminAuditLogService, *attachmentPrincipalStub) {
+func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) (*AdminAuditLogService, *documentPrincipalStub) {
 	t.Helper()
 	userRepo := mocks.NewUserStore(t)
-	auth := newAttachmentPrincipalStub(userRepo)
-	auth.SetAccessStore(newRoleMappedDocumentAccessStore(roles...))
+	auth := newDocumentPrincipalStub(userRepo)
+	auth.systemPermissions = roles
 
 	user := &models.User{
 		ID:    uuid.New(),

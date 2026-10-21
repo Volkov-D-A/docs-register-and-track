@@ -32,18 +32,18 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
 			"id", "nomenclature_id", "nomenclature_name",
 			"incoming_number", "incoming_date",
-			"document_type", "document_type_name",
+			"document_type",
 			"content", "pages_count", "attachment_pages_count",
 			"sender_signatory",
-			"created_by", "created_by_name",
+			"created_by_name",
 			"created_at", "updated_at",
 		}).AddRow(
 			docID, uuid.New(), "01-01 — Дело 1",
 			"ВХ-123", now,
-			models.DocumentTypeLetter, models.DocumentTypeLetter,
+			models.DocumentTypeLetter,
 			"Содержание документа", 5, 2,
 			"Иванов И.И.",
-			uuid.New(), "Создатель",
+			"Создатель",
 			now, now,
 		)
 
@@ -72,22 +72,6 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 		require.Nil(t, doc)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
-}
-
-func TestIncomingDocumentRepository_GetCount(t *testing.T) {
-	// Подсчет общего количества зарегистрированных входящих документов
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewIncomingDocumentRepository(database.Wrap(db))
-
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).WithArgs(models.DocumentKindIncomingLetter).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(42))
-
-	count, err := repo.GetCount()
-	require.NoError(t, err)
-	assert.Equal(t, 42, count)
-	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestReplaceResolution(t *testing.T) {
@@ -193,15 +177,15 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	rows := sqlmock.NewRows([]string{
 		"id", "nomenclature_id", "nomenclature_name",
 		"incoming_number", "incoming_date",
-		"document_type", "document_type_name",
+		"document_type",
 		"content", "pages_count", "attachment_pages_count",
 		"sender_signatory",
-		"created_by", "created_by_name",
+		"created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01", "ВХ-001", now,
-		models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст", 0, 0, "",
-		uuid.New(), "", now, now,
+		models.DocumentTypeLetter, "Текст", 0, 0, "",
+		"", now, now,
 	)
 
 	mock.ExpectQuery(regexp.QuoteMeta(expectedQuery)).WithArgs(docID).WillReturnRows(rows)
@@ -406,19 +390,19 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
 			"id", "nomenclature_id", "nomenclature_name",
 			"incoming_number", "incoming_date",
-			"document_type", "document_type_name",
+			"document_type",
 			"content", "pages_count", "attachment_pages_count",
 			"sender_signatory",
-			"created_by", "created_by_name",
+			"created_by_name",
 			"created_at", "updated_at",
 		}).AddRow(
 			docID, uuid.New(), "01-01", "ВХ-001", now,
-			models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст", 0, 0, "",
-			uuid.New(), "", now, now,
+			models.DocumentTypeLetter, "Текст", 0, 0, "",
+			"", now, now,
 		).AddRow(
 			docID2, uuid.New(), "01-02", "ВХ-002", now,
-			models.DocumentTypeLetter, models.DocumentTypeLetter, "Текст 2", 1, 0, "",
-			uuid.New(), "", now, now,
+			models.DocumentTypeLetter, "Текст 2", 1, 0, "",
+			"", now, now,
 		)
 		mock.ExpectQuery(regexp.QuoteMeta(incomingDocSelectBase)).WillReturnRows(rows)
 		mock.ExpectQuery(`SELECT cr\.id, cr\.document_id, cr\.registration_number, cr\.registration_date`).WithArgs(sqlmock.AnyArg()).WillReturnRows(sqlmock.NewRows([]string{
@@ -486,10 +470,10 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
 				"incoming_number", "incoming_date",
-				"document_type", "document_type_name",
+				"document_type",
 				"content", "pages_count", "attachment_pages_count",
 				"sender_signatory",
-				"created_by", "created_by_name",
+				"created_by_name",
 				"created_at", "updated_at",
 			}))
 
@@ -515,10 +499,10 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
 				"incoming_number", "incoming_date",
-				"document_type", "document_type_name",
+				"document_type",
 				"content", "pages_count", "attachment_pages_count",
 				"sender_signatory",
-				"created_by", "created_by_name",
+				"created_by_name",
 				"created_at", "updated_at",
 			}))
 
@@ -573,15 +557,15 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 	rows := sqlmock.NewRows([]string{
 		"id", "nomenclature_id", "nomenclature_name",
 		"incoming_number", "incoming_date",
-		"document_type", "document_type_name",
+		"document_type",
 		"content", "pages_count", "attachment_pages_count",
 		"sender_signatory",
-		"created_by", "created_by_name",
+		"created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01", "ВХ-001", now,
-		models.DocumentTypeLetter, models.DocumentTypeLetter, "Обновленное содержание", 0, 0, "",
-		uuid.New(), "", now, now,
+		models.DocumentTypeLetter, "Обновленное содержание", 0, 0, "",
+		"", now, now,
 	)
 
 	mock.ExpectQuery(regexp.QuoteMeta(expectedQuery)).WithArgs(docID).WillReturnRows(rows)

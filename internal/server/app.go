@@ -175,8 +175,8 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 		Addr:              listenAddress,
 		Handler:           api.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
-		// Attachment uploads are streamed and may legitimately outlive ordinary
-		// JSON requests; request-local contexts still cancel abandoned transfers.
+		// Bound request reads, including administrative operations, independently
+		// of the per-operation contexts supplied by the desktop client.
 		ReadTimeout: 3 * time.Minute,
 		// Schema changes can legitimately take longer than ordinary requests.
 		// The desktop client still supplies a bounded per-operation context.

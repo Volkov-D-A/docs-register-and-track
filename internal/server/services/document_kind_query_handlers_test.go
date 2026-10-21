@@ -37,10 +37,6 @@ func (s *queryIncomingDocStore) GetByIDs(ids []uuid.UUID) ([]models.IncomingDocu
 	return []models.IncomingDocument{*s.doc}, nil
 }
 
-func (s *queryIncomingDocStore) GetCount() (int, error) {
-	return 0, nil
-}
-
 type queryOutgoingDocStore struct {
 	doc        *models.OutgoingDocument
 	list       *models.PagedResult[models.OutgoingDocument]
@@ -66,10 +62,6 @@ func (s *queryOutgoingDocStore) GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocu
 	return []models.OutgoingDocument{*s.doc}, nil
 }
 
-func (s *queryOutgoingDocStore) GetCount() (int, error) {
-	return 0, nil
-}
-
 type queryCitizenAppealDocStore struct {
 	doc        *models.CitizenAppealDocument
 	list       *models.PagedResult[models.CitizenAppealDocument]
@@ -93,10 +85,6 @@ func (s *queryCitizenAppealDocStore) GetByIDs(ids []uuid.UUID) ([]models.Citizen
 		return nil, s.err
 	}
 	return []models.CitizenAppealDocument{*s.doc}, nil
-}
-
-func (s *queryCitizenAppealDocStore) GetCount() (int, error) {
-	return 0, nil
 }
 
 type queryAdministrativeOrderDocStore struct {
@@ -130,10 +118,6 @@ func (s *queryAdministrativeOrderDocStore) GetAcknowledgmentPersonByID(id uuid.U
 
 func (s *queryAdministrativeOrderDocStore) GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error) {
 	return nil, nil
-}
-
-func (s *queryAdministrativeOrderDocStore) GetCount() (int, error) {
-	return 0, nil
 }
 
 func TestIncomingLetterQueryHandler(t *testing.T) {

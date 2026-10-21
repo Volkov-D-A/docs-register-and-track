@@ -3,10 +3,6 @@ package repository
 import (
 	"database/sql"
 	"fmt"
-	"net/url"
-	"os"
-	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -401,83 +397,6 @@ func TestValidateIntegrationDSNRequiresSafeDatabaseName(t *testing.T) {
 			t.Fatalf("expected unsafe DSN %q to be rejected", dsn)
 		}
 	}
-}
-
-func openSafeIntegrationDB(t *testing.T) *sql.DB {
-	t.Helper()
-	dsn := os.Getenv("DOCFLOW_INTEGRATION_DSN")
-	if dsn == "" {
-		t.Skip("set DOCFLOW_INTEGRATION_DSN to run PostgreSQL integration test")
-	}
-	if err := validateIntegrationDSN(dsn); err != nil {
-		t.Fatalf("unsafe DOCFLOW_INTEGRATION_DSN: %v", err)
-	}
-
-	sqlDB, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatalf("open integration db: %v", err)
-	}
-
-	if err := applyIntegrationMigrations(sqlDB); err != nil {
-		sqlDB.Close()
-		t.Fatalf("apply migrations: %v", err)
-	}
-	return sqlDB
-}
-
-func validateIntegrationDSN(dsn string) error {
-	dbName, err := integrationDBName(dsn)
-	if err != nil {
-		return err
-	}
-	if isSafeIntegrationDBName(dbName) {
-		return nil
-	}
-	return fmt.Errorf("database name %q must start with docflow_test or docflow_regression", dbName)
-}
-
-func integrationDBName(dsn string) (string, error) {
-	if u, err := url.Parse(dsn); err == nil && u.Scheme != "" {
-		name := strings.TrimPrefix(u.Path, "/")
-		if name == "" {
-			return "", fmt.Errorf("database name is empty")
-		}
-		return name, nil
-	}
-
-	for _, match := range regexp.MustCompile(`(?:^|\s)dbname=('[^']*'|"[^"]*"|[^\s]+)`).FindAllStringSubmatch(dsn, -1) {
-		if len(match) == 2 {
-			return strings.Trim(match[1], `'"`), nil
-		}
-	}
-	return "", fmt.Errorf("database name not found")
-}
-
-func isSafeIntegrationDBName(name string) bool {
-	return strings.HasPrefix(name, "docflow_test") || strings.HasPrefix(name, "docflow_regression")
-}
-
-func applyIntegrationMigrations(db *sql.DB) error {
-	if _, err := db.Exec(`DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;`); err != nil {
-		return err
-	}
-
-	files, err := filepath.Glob("../database/migrations/*.up.sql")
-	if err != nil {
-		return err
-	}
-	sort.Strings(files)
-
-	for _, file := range files {
-		content, err := os.ReadFile(file)
-		if err != nil {
-			return err
-		}
-		if _, err := db.Exec(string(content)); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func execSQL(t testing.TB, db *sql.DB, query string, args ...any) {

@@ -7,7 +7,7 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-func buildRegistrationLink(access *DocumentAccessService, kind models.DocumentKind, nomenclatureID uuid.UUID, req *dto.DocumentRegistrationLinkRequest) (*models.DocumentRegistrationLink, error) {
+func buildRegistrationLink(access *DocumentAccessService, kind models.DocumentKind, req *dto.DocumentRegistrationLinkRequest) (*models.DocumentRegistrationLink, error) {
 	if req == nil {
 		return nil, nil
 	}

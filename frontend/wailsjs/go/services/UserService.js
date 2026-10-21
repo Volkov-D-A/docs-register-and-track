@@ -10,10 +10,6 @@ export function GetAllUsers() {
   return window['go']['services']['UserService']['GetAllUsers']();
 }
 
-export function GetExecutors() {
-  return window['go']['services']['UserService']['GetExecutors']();
-}
-
 export function ResetPassword(arg1) {
   return window['go']['services']['UserService']['ResetPassword'](arg1);
 }

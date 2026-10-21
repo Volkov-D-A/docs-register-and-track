@@ -69,7 +69,7 @@ func TestUserAPIPersistsChangeOutboxAndSessionRevocationIntegration(t *testing.T
 		require.NotContains(t, listResult.Body.String(), field)
 	}
 	targetID := uuid.MustParse(created.ID)
-	_, err = sessions.Create(targetID, []byte("target-session-hash-32-bytes-long!"), time.Now().Add(time.Hour))
+	err = sessions.Create(targetID, []byte("target-session-hash-32-bytes-long!"), time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
 	update := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+created.ID, strings.NewReader(`{"login":"api-target","lastName":"API","firstName":"Target","noPatronymic":true,"isActive":false,"isDocumentParticipant":true}`))

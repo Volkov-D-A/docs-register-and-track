@@ -41,19 +41,19 @@ func TestAdministrativeOrderRepository_GetListUsesVisibilityClosure(t *testing.T
 		"id", "nomenclature_id", "nomenclature_name",
 		"order_number", "order_date", "title", "pages_count",
 		"execution_controller", "execution_deadline", "is_active", "cancelled_at",
-		"created_by", "created_by_name",
+		"created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "01-01 — Приказы",
 		"ПР-001", now, "О внутреннем регламенте", 3,
 		"", nil, true, nil,
-		uuid.New(), "Регистратор",
+		"Регистратор",
 		now, now,
 	).AddRow(
 		docID2, uuid.New(), "01-01 — Приказы",
 		"ПР-002", now, "О втором регламенте", 4,
 		"", nil, true, nil,
-		uuid.New(), "Регистратор",
+		"Регистратор",
 		now, now,
 	)
 
@@ -108,7 +108,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 				"id", "nomenclature_id", "nomenclature_name",
 				"order_number", "order_date", "title", "pages_count",
 				"execution_controller", "execution_deadline", "is_active", "cancelled_at",
-				"created_by", "created_by_name",
+				"created_by_name",
 				"created_at", "updated_at",
 			}))
 
@@ -137,7 +137,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 				"id", "nomenclature_id", "nomenclature_name",
 				"order_number", "order_date", "title", "pages_count",
 				"execution_controller", "execution_deadline", "is_active", "cancelled_at",
-				"created_by", "created_by_name",
+				"created_by_name",
 				"created_at", "updated_at",
 			}))
 
@@ -303,24 +303,6 @@ func TestAdministrativeOrderRepositoryMarkAcknowledgmentPersonWithOutboxRollsBac
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAdministrativeOrderRepository_GetCount(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewAdministrativeOrderRepository(database.Wrap(db))
-
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents WHERE kind = \$1`).
-		WithArgs(models.DocumentKindAdministrativeOrder).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(9))
-
-	count, err := repo.GetCount()
-
-	require.NoError(t, err)
-	assert.Equal(t, 9, count)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func administrativeOrderRows(docID uuid.UUID, now time.Time) *sqlmock.Rows {
 	deadline := now.AddDate(0, 0, 7)
 	cancelledAt := now.AddDate(0, 0, 1)
@@ -328,13 +310,13 @@ func administrativeOrderRows(docID uuid.UUID, now time.Time) *sqlmock.Rows {
 		"id", "nomenclature_id", "nomenclature_name",
 		"order_number", "order_date", "title", "pages_count",
 		"execution_controller", "execution_deadline", "is_active", "cancelled_at",
-		"created_by", "created_by_name",
+		"created_by_name",
 		"created_at", "updated_at",
 	}).AddRow(
 		docID, uuid.New(), "04-01 — Приказы",
 		"ПР-002", now, "О внесении изменений", 5,
 		"Контрольный отдел", deadline, false, cancelledAt,
-		uuid.New(), "Регистратор",
+		"Регистратор",
 		now, now,
 	)
 }

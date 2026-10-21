@@ -6,28 +6,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
-
-// UserStore — интерфейс для работы с пользователями в хранилище (БД).
-type UserStore interface {
-	GetByLogin(login string) (*models.User, error)
-	GetByID(id uuid.UUID) (*models.User, error)
-	GetSessionPrincipal(id uuid.UUID) (*models.SessionPrincipal, error)
-	GetAll() ([]models.User, error)
-	GetExecutors() ([]models.User, error)
-	UpdatePassword(userID uuid.UUID, newPasswordHash string) error
-	ResetFailedLoginAttempts(userID uuid.UUID) error
-	CountUsers() (int, error)
-}
 
 // IncomingDocStore — интерфейс для работы с входящими документами в хранилище.
 type IncomingDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error)
 	GetByID(id uuid.UUID) (*models.IncomingDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.IncomingDocument, error)
-	GetCount() (int, error)
 }
 
 // CitizenAppealDocStore — интерфейс для работы с обращениями граждан в хранилище.
@@ -35,7 +21,6 @@ type CitizenAppealDocStore interface {
 	GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error)
 	GetByID(id uuid.UUID) (*models.CitizenAppealDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.CitizenAppealDocument, error)
-	GetCount() (int, error)
 }
 
 // AdministrativeOrderDocStore — интерфейс для работы с приказами в хранилище.
@@ -45,7 +30,6 @@ type AdministrativeOrderDocStore interface {
 	GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error)
 	GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error)
 	GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error)
-	GetCount() (int, error)
 }
 
 // DocumentStore — интерфейс для общей корневой сущности документа.
@@ -54,16 +38,9 @@ type DocumentStore interface {
 	GetByIDs(ids []uuid.UUID) ([]models.Document, error)
 }
 
-// DocumentQueryReader — минимальный интерфейс для общего query-layer документов.
-type DocumentQueryReader interface {
-	GetByID(id string) (*dto.DocumentCard, error)
-}
-
 // DocumentAccessStore — интерфейс для чтения матрицы доступа document-domain.
 type DocumentAccessStore interface {
 	HasPermission(kindCode, action string, departmentID, userID string) (bool, error)
-	HasSystemPermission(permission, userID string) (bool, error)
-	GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error)
 }
 
 // OutgoingDocStore — интерфейс для работы с исходящими документами в хранилище.
@@ -71,30 +48,12 @@ type OutgoingDocStore interface {
 	GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error)
 	GetByID(id uuid.UUID) (*models.OutgoingDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocument, error)
-	GetCount() (int, error)
-}
-
-// NomenclatureStore — интерфейс для работы с номенклатурой дел в хранилище.
-type NomenclatureStore interface {
-	GetAll(year int, kindCode string) ([]models.Nomenclature, error)
-	GetByID(id uuid.UUID) (*models.Nomenclature, error)
-	GetActiveByKind(kindCode string, year int) ([]models.Nomenclature, error)
 }
 
 // ReferenceStore — интерфейс для работы со справочниками организаций и исполнителей резолюции в хранилище.
 type ReferenceStore interface {
-	GetAllOrganizations() ([]models.Organization, error)
 	FindOrCreateOrganization(name string) (*models.Organization, error)
-	SearchOrganizations(query string) ([]models.Organization, error)
-	GetAllResolutionExecutors() ([]models.ResolutionExecutor, error)
 	FindOrCreateResolutionExecutor(name string) (*models.ResolutionExecutor, error)
-	SearchResolutionExecutors(query string) ([]models.ResolutionExecutor, error)
-}
-
-// SettingsStore — интерфейс для работы с системными настройками в хранилище.
-type SettingsStore interface {
-	Get(key string) (*models.SystemSetting, error)
-	GetAll() ([]models.SystemSetting, error)
 }
 
 // LinkStore — интерфейс для работы со связями между документами в хранилище.
@@ -111,7 +70,6 @@ type LinkStore interface {
 type UserEventStore interface {
 	GetList(userID uuid.UUID, filter models.UserEventFilter) (*models.PagedResult[models.UserEvent], error)
 	CountUnread(userID uuid.UUID) (int, error)
-	MarkRead(id, userID uuid.UUID, readAt time.Time) error
 	MarkDocumentRead(documentID, userID uuid.UUID, readAt time.Time) error
 	MarkAllRead(userID uuid.UUID, readAt time.Time) error
 }
@@ -148,12 +106,10 @@ type SystemDiagnosticsProvider interface {
 
 // JournalStore — интерфейс для работы с журналом действий.
 type JournalStore interface {
-	Create(ctx context.Context, req models.CreateJournalEntryRequest) (uuid.UUID, error)
 	GetByDocumentID(ctx context.Context, documentID uuid.UUID) ([]models.JournalEntry, error)
 }
 
 // AdminAuditLogStore — интерфейс для работы с журналом действий администраторов.
 type AdminAuditLogStore interface {
-	Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error)
 	GetAll(limit, offset int) ([]models.AdminAuditLog, int, error)
 }

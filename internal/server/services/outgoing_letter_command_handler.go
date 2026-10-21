@@ -17,7 +17,6 @@ import (
 type OutgoingLetterCommandHandler struct {
 	repo    ports.OutgoingDocStore
 	refRepo ports.ReferenceStore
-	nomRepo ports.NomenclatureStore
 	auth    ports.DocumentCommandPrincipal
 	access  *DocumentAccessService
 }
@@ -31,14 +30,12 @@ func (h *OutgoingLetterCommandHandler) Kind() models.DocumentKind {
 func NewOutgoingLetterCommandHandler(
 	repo ports.OutgoingDocStore,
 	refRepo ports.ReferenceStore,
-	nomRepo ports.NomenclatureStore,
 	auth ports.DocumentCommandPrincipal,
 	access *DocumentAccessService,
 ) *OutgoingLetterCommandHandler {
 	return &OutgoingLetterCommandHandler{
 		repo:    repo,
 		refRepo: refRepo,
-		nomRepo: nomRepo,
 		auth:    auth,
 		access:  access,
 	}
@@ -68,7 +65,7 @@ func (h *OutgoingLetterCommandHandler) Register(req dto.OutgoingLetterRegisterRe
 	if err != nil || idempotencyKey == uuid.Nil {
 		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
-	link, err := buildRegistrationLink(h.access, h.Kind(), nomID, req.Link)
+	link, err := buildRegistrationLink(h.access, h.Kind(), req.Link)
 	if err != nil {
 		return nil, err
 	}

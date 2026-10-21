@@ -16,18 +16,18 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
-func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *attachmentPrincipalStub) {
+func setupLinkService(t *testing.T, role string) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *documentPrincipalStub) {
 	return setupLinkServiceWithAccessStore(t, role, newRoleMappedDocumentAccessStore(role))
 }
 
-func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore ports.DocumentAccessStore) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *attachmentPrincipalStub) {
+func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore ports.DocumentAccessStore) (*LinkService, *mocks.LinkStore, *mocks.IncomingDocStore, *mocks.OutgoingDocStore, *documentPrincipalStub) {
 	t.Helper()
 	linkRepo := mocks.NewLinkStore(t)
 	incRepo := mocks.NewIncomingDocStore(t)
 	outRepo := mocks.NewOutgoingDocStore(t)
 	userRepo := mocks.NewUserStore(t)
 
-	auth := newAttachmentPrincipalStub(userRepo)
+	auth := newDocumentPrincipalStub(userRepo)
 
 	if role != "" {
 
@@ -122,10 +122,6 @@ func (s *mapCitizenAppealDocStore) GetByIDs(ids []uuid.UUID) ([]models.CitizenAp
 	return result, nil
 }
 
-func (s *mapCitizenAppealDocStore) GetCount() (int, error) {
-	return 0, nil
-}
-
 func (s *mapAdministrativeOrderDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error) {
 	return nil, nil
 }
@@ -152,10 +148,6 @@ func (s *mapAdministrativeOrderDocStore) GetAcknowledgmentPeople(documentID uuid
 	return nil, nil
 }
 
-func (s *mapAdministrativeOrderDocStore) GetCount() (int, error) {
-	return 0, nil
-}
-
 func TestLinkServiceLoadGraphCardsPropagatesBulkError(t *testing.T) {
 	repo := mocks.NewIncomingDocStore(t)
 	expectedErr := errors.New("bulk cards failed")
@@ -173,14 +165,6 @@ func TestLinkServiceLoadGraphCardsPropagatesBulkError(t *testing.T) {
 func (s *linkActionDocumentAccessStore) HasPermission(kindCode, action string, departmentID, userID string) (bool, error) {
 	actions := s.allowed[models.DocumentKind(kindCode)]
 	return actions[action], nil
-}
-
-func (s *linkActionDocumentAccessStore) HasSystemPermission(permission, userID string) (bool, error) {
-	return false, nil
-}
-
-func (s *linkActionDocumentAccessStore) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
-	return &models.UserDocumentAccessProfile{}, nil
 }
 
 func TestLinkService_LinkDocuments(t *testing.T) {

@@ -57,7 +57,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 		deps := setupDocumentAccessService(t, user, allowDocumentActions(models.DocumentKindIncomingLetter, "register"))
 		documentID := uuid.New()
 		deps.accessRepo.readable[documentID] = true
-		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter)
+		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, models.DocumentKindIncomingLetter)
 
 		expected := &dto.DocumentCard{ID: documentID.String(), KindCode: string(models.DocumentKindIncomingLetter)}
 		handler := &stubDocumentKindQueryHandler{
@@ -90,7 +90,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 		deps := setupDocumentAccessService(t, user, allowDocumentActions(models.DocumentKindIncomingLetter, "register"))
 		documentID := uuid.New()
 		deps.accessRepo.readable[documentID] = true
-		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter)
+		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, models.DocumentKindIncomingLetter)
 		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(), deps.service, nil, nil)
 
 		card, err := svc.GetByID(documentID.String())
@@ -104,7 +104,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 		deps := setupDocumentAccessService(t, user, allowDocumentActions(models.DocumentKindIncomingLetter, "register"))
 		documentID := uuid.New()
 		deps.accessRepo.readable[documentID] = true
-		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter)
+		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, models.DocumentKindIncomingLetter)
 		handlerErr := errors.New("card failed")
 		handler := &stubDocumentKindQueryHandler{
 			kind:    models.DocumentKindIncomingLetter,
@@ -122,7 +122,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 		user := documentAccessUser(false, nil)
 		deps := setupDocumentAccessService(t, user, nil)
 		documentID := uuid.New()
-		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, uuid.New(), models.DocumentKindIncomingLetter)
+		deps.docRepo.docs[documentID] = documentAccessDoc(documentID, models.DocumentKindIncomingLetter)
 		handler := &stubDocumentKindQueryHandler{kind: models.DocumentKindIncomingLetter}
 		svc := NewDocumentQueryEngine(NewDocumentKindQueryRegistry(handler), deps.service, nil, nil)
 
@@ -135,7 +135,7 @@ func TestDocumentQueryEngine_GetByID(t *testing.T) {
 }
 
 func TestDocumentQueryEngine_GetList(t *testing.T) {
-	t.Run("passes unrestricted filter when read is allowed", func(t *testing.T) {
+	t.Run("passes search and paging with server read scope", func(t *testing.T) {
 		deps := setupDocumentAccessService(t, documentAccessUser(true, nil), allowDocumentActions(models.DocumentKindIncomingLetter, "register"))
 		expected := &dto.PagedResult[dto.DocumentListItem]{
 			Items:      []dto.DocumentListItem{{KindCode: string(models.DocumentKindIncomingLetter)}},
@@ -157,10 +157,10 @@ func TestDocumentQueryEngine_GetList(t *testing.T) {
 		require.NotNil(t, handler.lastFilter.AccessScope)
 	})
 
-	t.Run("applies restricted scope to filter", func(t *testing.T) {
+	t.Run("replaces client scope with current user identity", func(t *testing.T) {
 		departmentID := uuid.New()
 		user := documentAccessUser(true, &departmentID)
-		deps := setupDocumentAccessService(t, user, allowDocumentActions(models.DocumentKindIncomingLetter, "upload"))
+		deps := setupDocumentAccessService(t, user, nil)
 		handler := &stubDocumentKindQueryHandler{
 			kind: models.DocumentKindIncomingLetter,
 			list: &dto.PagedResult[dto.DocumentListItem]{},

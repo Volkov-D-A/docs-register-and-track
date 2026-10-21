@@ -19,7 +19,7 @@ import (
 )
 
 type authSessionStore interface {
-	Create(uuid.UUID, []byte, time.Time) (*models.ServerSession, error)
+	Create(uuid.UUID, []byte, time.Time) error
 	GetActiveByTokenHash([]byte, time.Time) (*models.ServerSession, error)
 	RevokeByTokenHash([]byte, time.Time) error
 }
@@ -39,7 +39,6 @@ type authSettingsStore interface {
 type authContextKey struct{}
 
 type authenticatedRequest struct {
-	Session   *models.ServerSession
 	User      *models.User
 	TokenHash []byte
 }
@@ -202,7 +201,7 @@ func (api *managementAPI) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expiresAt := time.Now().UTC().Add(time.Duration(api.cfg.Server.SessionTTLHours) * time.Hour)
-	if _, err := api.sessions.Create(user.ID, tokenHash, expiresAt); err != nil {
+	if err := api.sessions.Create(user.ID, tokenHash, expiresAt); err != nil {
 		writeAPIError(w, http.StatusInternalServerError, "session_creation_failed", err)
 		return
 	}
@@ -354,7 +353,7 @@ func (api *managementAPI) requireSession(next http.Handler) http.Handler {
 			writeAPIError(w, http.StatusUnauthorized, "session_invalid", models.ErrUnauthorized)
 			return
 		}
-		auth := &authenticatedRequest{Session: session, User: user, TokenHash: append([]byte(nil), hash[:]...)}
+		auth := &authenticatedRequest{User: user, TokenHash: append([]byte(nil), hash[:]...)}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authContextKey{}, auth)))
 	})
 }

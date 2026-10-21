@@ -223,15 +223,6 @@ func (api *managementAPI) currentAccessSummary(w http.ResponseWriter, r *http.Re
 	})
 }
 
-func containsAny(items []string, values ...string) bool {
-	for _, value := range values {
-		if contains(items, value) {
-			return true
-		}
-	}
-	return false
-}
-
 func (api *managementAPI) targetUser(w http.ResponseWriter, r *http.Request) (uuid.UUID, *models.User, bool) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {

@@ -15,24 +15,21 @@ import (
 
 // AdministrativeOrderCommandHandler инкапсулирует write-операции по приказам.
 type AdministrativeOrderCommandHandler struct {
-	repo    ports.AdministrativeOrderDocStore
-	nomRepo ports.NomenclatureStore
-	auth    ports.DocumentCommandPrincipal
-	access  *DocumentAccessService
+	repo   ports.AdministrativeOrderDocStore
+	auth   ports.DocumentCommandPrincipal
+	access *DocumentAccessService
 }
 
 // NewAdministrativeOrderCommandHandler создает handler команд приказов.
 func NewAdministrativeOrderCommandHandler(
 	repo ports.AdministrativeOrderDocStore,
-	nomRepo ports.NomenclatureStore,
 	auth ports.DocumentCommandPrincipal,
 	access *DocumentAccessService,
 ) *AdministrativeOrderCommandHandler {
 	return &AdministrativeOrderCommandHandler{
-		repo:    repo,
-		nomRepo: nomRepo,
-		auth:    auth,
-		access:  access,
+		repo:   repo,
+		auth:   auth,
+		access: access,
 	}
 }
 
@@ -65,7 +62,7 @@ func (h *AdministrativeOrderCommandHandler) Register(req dto.AdministrativeOrder
 	if err != nil || idempotencyKey == uuid.Nil {
 		return nil, models.NewBadRequest("неверный ключ идемпотентности")
 	}
-	link, err := buildRegistrationLink(h.access, h.Kind(), nomID, req.Link)
+	link, err := buildRegistrationLink(h.access, h.Kind(), req.Link)
 	if err != nil {
 		return nil, err
 	}

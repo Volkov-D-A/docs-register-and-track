@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/mocks"
 )
 
 func validAdminDraftCreateRequest(nomenclatureID uuid.UUID) dto.AdminDraftCreateRequest {
@@ -36,17 +34,6 @@ func assertAdminDraftOverride(t *testing.T, override *models.AdminNumberOverride
 	assert.Equal(t, "А", override.Suffix)
 }
 
-func expectAdminDraftJournal(t *testing.T, repo *mocks.JournalStore, documentID, userID uuid.UUID, number string) {
-	t.Helper()
-
-	repo.On("Create", context.Background(), mock.MatchedBy(func(req models.CreateJournalEntryRequest) bool {
-		return req.DocumentID == documentID &&
-			req.UserID == userID &&
-			req.Action == "ADMIN_DRAFT_CREATE" &&
-			req.Details == "Создан административный черновик. Рег. номер: "+number
-	})).Return(uuid.New(), nil).Once()
-}
-
 func TestIncomingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 	t.Run("creates admin draft with placeholder fields", func(t *testing.T) {
 		nomenclatureID := uuid.New()
@@ -54,7 +41,7 @@ func TestIncomingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 		documentID := uuid.New()
 		registrationDate := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
 		deps := setupIncomingLetterCommandHandler(t, nil)
-		deps.auth.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionAdmin))
+		deps.auth.systemPermissions = []string{models.SystemPermissionAdmin}
 
 		deps.refRepo.On("FindOrCreateOrganization", adminDraftPlaceholder).Return(&models.Organization{ID: orgID, Name: adminDraftPlaceholder}, nil).Once()
 		deps.repo.On("CreateWithJournal", mock.MatchedBy(func(req models.CreateIncomingDocRequest) bool {
@@ -80,7 +67,6 @@ func TestIncomingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 			DocumentTypeID: models.DocumentTypeLetter,
 			Content:        adminDraftPlaceholder,
 			PagesCount:     1,
-			CreatedBy:      deps.user.ID,
 		}, nil).Once()
 		result, err := deps.handler.CreateAdminDraft(validAdminDraftCreateRequest(nomenclatureID))
 
@@ -104,7 +90,7 @@ func TestOutgoingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 	documentID := uuid.New()
 	registrationDate := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
 	deps := setupOutgoingLetterCommandHandler(t, nil)
-	deps.auth.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionAdmin))
+	deps.auth.systemPermissions = []string{models.SystemPermissionAdmin}
 
 	deps.refRepo.On("FindOrCreateOrganization", adminDraftPlaceholder).Return(&models.Organization{ID: orgID, Name: adminDraftPlaceholder}, nil).Once()
 	deps.repo.On("CreateWithJournal", mock.MatchedBy(func(req models.CreateOutgoingDocRequest) bool {
@@ -129,7 +115,6 @@ func TestOutgoingLetterCommandHandler_CreateAdminDraft(t *testing.T) {
 		DocumentTypeID: models.DocumentTypeLetter,
 		Content:        adminDraftPlaceholder,
 		PagesCount:     1,
-		CreatedBy:      deps.user.ID,
 	}, nil).Once()
 	result, err := deps.handler.CreateAdminDraft(validAdminDraftCreateRequest(nomenclatureID))
 
@@ -142,7 +127,7 @@ func TestCitizenAppealCommandHandler_CreateAdminDraft(t *testing.T) {
 	documentID := uuid.New()
 	registrationDate := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
 	deps := setupCitizenAppealCommandHandler(t, nil)
-	deps.auth.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionAdmin))
+	deps.auth.systemPermissions = []string{models.SystemPermissionAdmin}
 	deps.repo.createResult = &models.CitizenAppealDocument{
 		ID:                 documentID,
 		NomenclatureID:     nomenclatureID,
@@ -150,7 +135,6 @@ func TestCitizenAppealCommandHandler_CreateAdminDraft(t *testing.T) {
 		RegistrationDate:   registrationDate,
 		AppealDate:         registrationDate,
 		Content:            adminDraftPlaceholder,
-		CreatedBy:          deps.user.ID,
 	}
 	result, err := deps.handler.CreateAdminDraft(validAdminDraftCreateRequest(nomenclatureID))
 
@@ -178,7 +162,7 @@ func TestAdministrativeOrderCommandHandler_CreateAdminDraft(t *testing.T) {
 	documentID := uuid.New()
 	registrationDate := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
 	deps := setupAdministrativeOrderCommandHandler(t, nil)
-	deps.auth.SetAccessStore(newRoleMappedDocumentAccessStore(models.SystemPermissionAdmin))
+	deps.auth.systemPermissions = []string{models.SystemPermissionAdmin}
 	deps.repo.createResult = &models.AdministrativeOrderDocument{
 		ID:                  documentID,
 		NomenclatureID:      nomenclatureID,
@@ -187,7 +171,6 @@ func TestAdministrativeOrderCommandHandler_CreateAdminDraft(t *testing.T) {
 		Title:               adminDraftPlaceholder,
 		ExecutionController: adminDraftPlaceholder,
 		IsActive:            true,
-		CreatedBy:           deps.user.ID,
 	}
 	result, err := deps.handler.CreateAdminDraft(validAdminDraftCreateRequest(nomenclatureID))
 

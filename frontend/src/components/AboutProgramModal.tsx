@@ -39,7 +39,7 @@ const AboutProgramModal: React.FC<AboutProgramModalProps> = ({ open, onClose, re
                     {release?.changes?.length ? (
                         <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
                             {release.changes.map((item, index) => (
-                                <div key={`${item.id}-${index}`} style={{ paddingInline: 0 }}>
+                                <div key={`${item.title}-${index}`} style={{ paddingInline: 0 }}>
                                     <Space orientation="vertical" size={4}>
                                         <Text strong>{`${index + 1}. ${item.title}`}</Text>
                                         <Paragraph type="secondary" style={{ marginBottom: 0 }}>

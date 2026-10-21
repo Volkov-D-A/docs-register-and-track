@@ -35,11 +35,11 @@ func TestBearerUnauthorizedEndsSessionAcrossAllRequestPaths(t *testing.T) {
 	operations := map[string]func(*Client) error{
 		"me":        func(c *Client) error { _, err := c.Me(context.Background()); return err },
 		"documents": func(c *Client) error { _, err := c.GetReportFilters(context.Background()); return err },
-		"upload": func(c *Client) error {
+		"report-run": func(c *Client) error {
 			_, err := c.RunReport(context.Background(), models.ReportRequest{})
 			return err
 		},
-		"download": func(c *Client) error {
+		"report-export": func(c *Client) error {
 			_, _, err := c.ExportReport(context.Background(), models.ReportRequest{}, "xlsx")
 			return err
 		},

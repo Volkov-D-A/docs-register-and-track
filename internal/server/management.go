@@ -54,7 +54,6 @@ type managementAPI struct {
 	lifecycle                          migrationLifecycle
 	users                              adminUserStore
 	userCommands                       userManagementStore
-	executors                          executorStore
 	userAccess                         userAccessManagementStore
 	departments                        departmentManagementStore
 	references                         referenceManagementStore
@@ -164,7 +163,6 @@ func newManagementAPI(app *App) *managementAPI {
 		lifecycle:      app.lifecycle,
 		users:          users,
 		userCommands:   users,
-		executors:      users,
 		userAccess:     access,
 
 		departments:  departments,
@@ -183,10 +181,10 @@ func newManagementAPI(app *App) *managementAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(principal, access, documents)
 			registry := serverservices.NewDocumentKindCommandRegistry(
-				serverservices.NewIncomingLetterCommandHandler(incomingCommands, nomenclature, references, principal, documentAccess),
-				serverservices.NewOutgoingLetterCommandHandler(outgoingCommands, references, nomenclature, principal, documentAccess),
-				serverservices.NewCitizenAppealCommandHandler(citizenAppealCommands, nomenclature, references, principal, documentAccess),
-				serverservices.NewAdministrativeOrderCommandHandler(administrativeOrderCommands, nomenclature, principal, documentAccess),
+				serverservices.NewIncomingLetterCommandHandler(incomingCommands, references, principal, documentAccess),
+				serverservices.NewOutgoingLetterCommandHandler(outgoingCommands, references, principal, documentAccess),
+				serverservices.NewCitizenAppealCommandHandler(citizenAppealCommands, references, principal, documentAccess),
+				serverservices.NewAdministrativeOrderCommandHandler(administrativeOrderCommands, principal, documentAccess),
 			)
 			commands := serverservices.NewDocumentCommandEngine(registry, app.metrics)
 			return commands
@@ -273,7 +271,6 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("GET /api/v1/auth/me", api.requireSession(http.HandlerFunc(api.me)))
 	mux.Handle("POST /api/v1/auth/change-password", api.requireSession(http.HandlerFunc(api.changePassword)))
 	mux.Handle("GET /api/v1/users", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.listUsers)))
-	mux.Handle("GET /api/v1/users/executors", api.requireSession(http.HandlerFunc(api.listExecutors)))
 	mux.Handle("POST /api/v1/users", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.createUser)))
 	mux.Handle("PATCH /api/v1/users/{id}", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.updateUser)))
 	mux.Handle("POST /api/v1/users/{id}/reset-password", api.requirePermission(models.SystemPermissionAdmin, http.HandlerFunc(api.resetUserPassword)))
@@ -310,7 +307,6 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/deadline-executors", api.requireSession(http.HandlerFunc(api.createDeadlineExecutor)))
 	mux.Handle("PATCH /api/v1/deadline-executors/{id}", api.requireSession(http.HandlerFunc(api.updateDeadlineExecutor)))
 	mux.Handle("POST /api/v1/deadline-controls/query", api.requireSession(http.HandlerFunc(api.queryDeadlineControls)))
-	mux.Handle("GET /api/v1/deadline-controls/{id}", api.requireSession(http.HandlerFunc(api.getDeadlineControl)))
 	mux.Handle("POST /api/v1/deadline-controls", api.requireSession(http.HandlerFunc(api.createDeadlineControl)))
 	mux.Handle("PATCH /api/v1/deadline-controls/{id}", api.requireSession(http.HandlerFunc(api.updateDeadlineControl)))
 	mux.Handle("POST /api/v1/deadline-controls/{id}/complete", api.requireSession(http.HandlerFunc(api.completeDeadlineControl)))
@@ -323,7 +319,6 @@ func (api *managementAPI) Handler() http.Handler {
 	mux.Handle("POST /api/v1/deadline-series/{id}/resume", api.requireSession(http.HandlerFunc(api.resumeDeadlineSeries)))
 	mux.Handle("POST /api/v1/user-events/query", api.requireSession(http.HandlerFunc(api.listUserEvents)))
 	mux.Handle("GET /api/v1/user-events/unread-count", api.requireSession(http.HandlerFunc(api.getUnreadUserEventCount)))
-	mux.Handle("POST /api/v1/user-events/{id}/read", api.requireSession(http.HandlerFunc(api.markUserEventRead)))
 	mux.Handle("POST /api/v1/user-events/documents/{documentId}/read", api.requireSession(http.HandlerFunc(api.markDocumentUserEventsRead)))
 	mux.Handle("POST /api/v1/user-events/read-all", api.requireSession(http.HandlerFunc(api.markAllUserEventsRead)))
 	mux.Handle("POST /api/v1/administrative-order-acknowledgments/{id}/confirm", api.requireSession(http.HandlerFunc(api.markAdministrativeOrderAcknowledged)))

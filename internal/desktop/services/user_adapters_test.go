@@ -28,9 +28,6 @@ func (c *userAdapterClient) record(ctx context.Context, method string, input any
 func (c *userAdapterClient) ListUsers(ctx context.Context) ([]dto.User, error) {
 	return []dto.User{{ID: "server-user"}}, c.record(ctx, "users", nil)
 }
-func (c *userAdapterClient) ListExecutors(ctx context.Context) ([]dto.User, error) {
-	return []dto.User{{ID: "server-user"}}, c.record(ctx, "executors", nil)
-}
 func (c *userAdapterClient) CreateUser(ctx context.Context, req models.CreateUserRequest) (*dto.User, error) {
 	return &dto.User{ID: "server-user", TemporaryPassword: "server-password"}, c.record(ctx, "create", req)
 }
@@ -61,7 +58,6 @@ func TestUserAdaptersDelegateWithoutLocalBusinessRules(t *testing.T) {
 		call        func(*userAdapterClient) (any, error)
 	}{
 		{"users", nil, []dto.User{{ID: "server-user"}}, func(c *userAdapterClient) (any, error) { return NewUserService(c).GetAllUsers() }},
-		{"executors", nil, []dto.User{{ID: "server-user"}}, func(c *userAdapterClient) (any, error) { return NewUserService(c).GetExecutors() }},
 		{"create", create, &dto.User{ID: "server-user", TemporaryPassword: "server-password"}, func(c *userAdapterClient) (any, error) { return NewUserService(c).CreateUser(create) }},
 		{"update", update, &dto.User{ID: "server-user"}, func(c *userAdapterClient) (any, error) { return NewUserService(c).UpdateUser(update) }},
 		{"reset", "target", "server-password", func(c *userAdapterClient) (any, error) { return NewUserService(c).ResetPassword("target") }},

@@ -74,24 +74,6 @@ func (r *DocumentAccessRepository) GetAllowedActions(departmentID, userID string
 	return allowed, nil
 }
 
-// HasSystemPermission проверяет наличие прямого системного права у пользователя.
-func (r *DocumentAccessRepository) HasSystemPermission(permission, userID string) (bool, error) {
-	var allowed bool
-	err := r.db.QueryRow(`
-		SELECT EXISTS (
-			SELECT 1
-			FROM user_system_permissions
-			WHERE user_id = $1
-			  AND permission = $2
-			  AND is_allowed = true
-		)
-	`, userID, permission).Scan(&allowed)
-	if err != nil {
-		return false, fmt.Errorf("failed to check system permission: %w", err)
-	}
-	return allowed, nil
-}
-
 // GetUserAccessProfile возвращает прямые document-domain права пользователя.
 func (r *DocumentAccessRepository) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
 	systemRows, err := r.db.Query(`

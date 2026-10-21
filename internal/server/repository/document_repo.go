@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 )
 
 // DocumentRepository предоставляет доступ к общей корневой сущности документа.
@@ -25,22 +25,15 @@ func NewDocumentRepository(db *database.DB) *DocumentRepository {
 func (r *DocumentRepository) GetByID(id uuid.UUID) (*models.Document, error) {
 	var doc models.Document
 	err := r.db.QueryRow(`
-		SELECT id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by, created_at, updated_at
+		SELECT id, kind, registration_number, registration_date, content
 		FROM documents
 		WHERE id = $1
 	`, id).Scan(
 		&doc.ID,
 		&doc.Kind,
-		&doc.NomenclatureID,
 		&doc.RegistrationNumber,
 		&doc.RegistrationDate,
-		&doc.DocumentTypeID,
 		&doc.Content,
-		&doc.PagesCount,
-		&doc.AttachmentPagesCount,
-		&doc.CreatedBy,
-		&doc.CreatedAt,
-		&doc.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -63,7 +56,7 @@ func (r *DocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Document, error
 	}
 
 	rows, err := r.db.Query(`
-		SELECT id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by, created_at, updated_at
+		SELECT id, kind, registration_number, registration_date, content
 		FROM documents
 		WHERE id = ANY($1::uuid[])
 	`, pq.Array(idStrings))
@@ -78,16 +71,9 @@ func (r *DocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Document, error
 		if err := rows.Scan(
 			&doc.ID,
 			&doc.Kind,
-			&doc.NomenclatureID,
 			&doc.RegistrationNumber,
 			&doc.RegistrationDate,
-			&doc.DocumentTypeID,
 			&doc.Content,
-			&doc.PagesCount,
-			&doc.AttachmentPagesCount,
-			&doc.CreatedBy,
-			&doc.CreatedAt,
-			&doc.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

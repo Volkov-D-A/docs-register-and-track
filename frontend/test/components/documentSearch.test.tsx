@@ -13,7 +13,7 @@ vi.mock('../../src/events/serverEvents', () => ({ onServerEvent: (listener: (eve
 } }));
 afterEach(() => { api.search.mockReset(); api.listeners = []; });
 
-const item = (id: string, number: string) => ({ id, kindCode: 'incoming_letter', registrationNumber: number, registrationDate: '2026-09-28', content: 'Ремонт дороги', resolution: 'Подготовить ответ', correspondent: 'Администрация', person: 'Иванов', relevance: 0.5 });
+const item = (id: string, number: string) => ({ id, kindCode: 'incoming_letter', registrationNumber: number, registrationDate: '2026-09-28', content: 'Ремонт дороги', resolution: 'Подготовить ответ', correspondent: 'Администрация', person: 'Иванов' });
 const result = (items = [item('first', '123')], totalCount = items.length) => ({ items, totalCount, page: 1, pageSize: 20 });
 const renderSearch = (onOpenDocument: (id: string, kind: string) => void = vi.fn()) => renderWithApp(
     <ConfigProvider theme={{ token: { motion: false } }}><DocumentSearchPanel onOpenDocument={onOpenDocument} /></ConfigProvider>,

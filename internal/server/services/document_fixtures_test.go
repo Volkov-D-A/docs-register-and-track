@@ -19,7 +19,7 @@ func (s *kindBackedDocumentStore) GetByID(id uuid.UUID) (*models.Document, error
 			return nil, err
 		}
 		if doc != nil {
-			return &models.Document{ID: doc.ID, Kind: models.DocumentKindIncomingLetter, NomenclatureID: doc.NomenclatureID}, nil
+			return &models.Document{ID: doc.ID, Kind: models.DocumentKindIncomingLetter}, nil
 		}
 	}
 	if s.outgoing != nil {
@@ -28,7 +28,7 @@ func (s *kindBackedDocumentStore) GetByID(id uuid.UUID) (*models.Document, error
 			return nil, err
 		}
 		if doc != nil {
-			return &models.Document{ID: doc.ID, Kind: models.DocumentKindOutgoingLetter, NomenclatureID: doc.NomenclatureID}, nil
+			return &models.Document{ID: doc.ID, Kind: models.DocumentKindOutgoingLetter}, nil
 		}
 	}
 	return nil, nil
@@ -65,28 +65,7 @@ func (s *roleMappedDocumentAccessStore) HasPermission(kindCode, action string, d
 			}
 		}
 	}
-	for _, role := range s.roles {
-		if role == "executor" {
-			switch action {
-			case "upload", "view_journal":
-				return true, nil
-			}
-		}
-	}
 	return false, nil
-}
-
-func (s *roleMappedDocumentAccessStore) HasSystemPermission(permission, userID string) (bool, error) {
-	for _, role := range s.roles {
-		if role == permission {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (s *roleMappedDocumentAccessStore) GetUserAccessProfile(userID string) (*models.UserDocumentAccessProfile, error) {
-	return &models.UserDocumentAccessProfile{}, nil
 }
 
 // This fixture supplies visibility independently from management permissions.

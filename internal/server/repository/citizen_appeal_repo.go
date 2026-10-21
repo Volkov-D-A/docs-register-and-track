@@ -29,12 +29,12 @@ const citizenAppealSelectBase = `
 	SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
 		d.registration_number, d.registration_date,
 		ca.appeal_date,
-		d.document_type, d.document_type,
+		d.document_type,
 		d.content, d.pages_count, d.attachment_pages_count,
 		ca.applicant_full_name, ca.registration_address,
 		ca.appeal_type, ca.applicant_category,
 		ca.has_envelope, ca.received_from_pos,
-		d.created_by, u.full_name,
+		u.full_name,
 		d.created_at, d.updated_at
 	FROM documents d
 	JOIN citizen_appeal_details ca ON ca.document_id = d.id
@@ -47,12 +47,12 @@ func scanCitizenAppealDoc(scanner interface{ Scan(...interface{}) error }) (*mod
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 		&doc.RegistrationNumber, &doc.RegistrationDate,
 		&doc.AppealDate,
-		&doc.DocumentTypeID, &doc.DocumentTypeName,
+		&doc.DocumentTypeID,
 		&doc.Content, &doc.PagesCount, &doc.AttachmentPagesCount,
 		&doc.ApplicantFullName, &doc.RegistrationAddress,
 		&doc.AppealType, &doc.ApplicantCategory,
 		&doc.HasEnvelope, &doc.ReceivedFromPOS,
-		&doc.CreatedBy, &doc.CreatedByName,
+		&doc.CreatedByName,
 		&doc.CreatedAt, &doc.UpdatedAt,
 	)
 	return doc, err
@@ -322,28 +322,32 @@ func (r *CitizenAppealRepository) GetByID(id uuid.UUID) (*models.CitizenAppealDo
 	return doc, nil
 }
 
-// GetByIDs loads appeal fields needed by graph nodes without related records.
+// GetByIDs returns the partial card fields used by link graph nodes.
+// GetByID and GetList retain the full document projection.
 func (r *CitizenAppealRepository) GetByIDs(ids []uuid.UUID) ([]models.CitizenAppealDocument, error) {
 	if len(ids) == 0 {
 		return []models.CitizenAppealDocument{}, nil
 	}
-	rows, err := r.db.Query(citizenAppealSelectBase+` WHERE d.id = ANY($1) AND d.kind = $2 ORDER BY d.id`, pq.Array(ids), models.DocumentKindCitizenAppeal)
+	rows, err := r.db.Query(`
+        SELECT d.id, d.registration_number, d.registration_date, d.content, ca.applicant_full_name
+        FROM documents d
+        JOIN citizen_appeal_details ca ON ca.document_id = d.id
+        WHERE d.id = ANY($1) AND d.kind = $2
+        ORDER BY d.id
+    `, pq.Array(ids), models.DocumentKindCitizenAppeal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get citizen appeals by IDs: %w", err)
 	}
 	defer rows.Close()
 	items := make([]models.CitizenAppealDocument, 0, len(ids))
 	for rows.Next() {
-		doc, err := scanCitizenAppealDoc(rows)
-		if err != nil {
+		var doc models.CitizenAppealDocument
+		if err := rows.Scan(&doc.ID, &doc.RegistrationNumber, &doc.RegistrationDate, &doc.Content, &doc.ApplicantFullName); err != nil {
 			return nil, err
 		}
-		items = append(items, *doc)
+		items = append(items, doc)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return items, rows.Err()
 }
 
 func (r *CitizenAppealRepository) CreateWithJournal(req models.CreateCitizenAppealDocRequest, action, detailsFormat string) (*models.CitizenAppealDocument, error) {
@@ -538,11 +542,4 @@ func (r *CitizenAppealRepository) update(req models.UpdateCitizenAppealDocReques
 	}
 
 	return r.GetByID(req.ID)
-}
-
-// GetCount — общее количество обращений граждан.
-func (r *CitizenAppealRepository) GetCount() (int, error) {
-	var count int
-	err := r.db.QueryRow(`SELECT COUNT(*) FROM documents WHERE kind = $1`, models.DocumentKindCitizenAppeal).Scan(&count)
-	return count, err
 }

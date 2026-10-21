@@ -18,20 +18,19 @@ func TestServerSessionRepositoryLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer sqlDB.Close()
 	repo := NewServerSessionRepository(database.Wrap(sqlDB))
-	userID, sessionID := uuid.New(), uuid.New()
+	userID := uuid.New()
 	now := time.Now().UTC()
 	expiresAt := now.Add(12 * time.Hour)
 	tokenHash := []byte("01234567890123456789012345678901")
 
-	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO server_sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3) RETURNING id, created_at, last_seen_at")).
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO server_sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)")).
 		WithArgs(userID, tokenHash, expiresAt).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "last_seen_at"}).AddRow(sessionID, now, now))
-	session, err := repo.Create(userID, tokenHash, expiresAt)
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	err = repo.Create(userID, tokenHash, expiresAt)
 	require.NoError(t, err)
-	assert.Equal(t, sessionID, session.ID)
 
 	mock.ExpectQuery("UPDATE server_sessions").WithArgs(tokenHash, now).WillReturnRows(
-		sqlmock.NewRows([]string{"id", "user_id", "created_at", "expires_at", "revoked_at", "last_seen_at"}).AddRow(sessionID, userID, now, expiresAt, nil, now),
+		sqlmock.NewRows([]string{"user_id"}).AddRow(userID),
 	)
 	active, err := repo.GetActiveByTokenHash(tokenHash, now)
 	require.NoError(t, err)

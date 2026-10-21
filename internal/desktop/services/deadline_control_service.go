@@ -31,11 +31,6 @@ func (s *DeadlineControlService) SaveExternalExecutor(id string, req models.Exte
 	defer done()
 	return s.client.SaveExternalDeadlineExecutor(ctx, id, req)
 }
-func (s *DeadlineControlService) Get(id string) (*models.DocumentDeadlineControl, error) {
-	ctx, done := s.context()
-	defer done()
-	return s.client.GetDeadlineControl(ctx, id)
-}
 func (s *DeadlineControlService) List(req models.DeadlineControlFilter) (*models.DeadlineControlPage, error) {
 	ctx, done := s.context()
 	defer done()

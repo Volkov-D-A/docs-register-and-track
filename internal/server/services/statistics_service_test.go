@@ -104,21 +104,21 @@ func (s *fakeStatisticsStore) GetDBSize() string {
 	return s.dbSize
 }
 
-func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsService, *fakeStatisticsStore, any, *statisticsPrincipalStub) {
+func setupStatisticsService(t *testing.T, permissions ...string) (*StatisticsService, *fakeStatisticsStore, *statisticsPrincipalStub) {
 	t.Helper()
 
 	userRepo := mocks.NewUserStore(t)
-	auth := &statisticsPrincipalStub{newAttachmentPrincipalStub(userRepo)}
+	auth := &statisticsPrincipalStub{newDocumentPrincipalStub(userRepo)}
 	auth.currentUserID = uuid.New()
 	userRepo.On("GetByID", auth.currentUserID).Return(&models.User{ID: auth.currentUserID, IsActive: true}, nil).Maybe()
-	auth.SetAccessStore(newRoleMappedDocumentAccessStore(permissions...))
+	auth.systemPermissions = permissions
 	store := &fakeStatisticsStore{dbSize: "42 MB"}
 
-	return NewStatisticsService(store, auth, StatisticsOptions{}), store, nil, auth
+	return NewStatisticsService(store, auth, StatisticsOptions{}), store, auth
 }
 
 func TestStatisticsService_GetDocumentStatistics(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
+	svc, store, _ := setupStatisticsService(t, models.SystemPermissionReferences)
 	store.documentTotal = 7
 	store.documentByKind = []models.StatisticsSeriesPoint{{
 		Month:       1,
@@ -185,7 +185,7 @@ func TestRunStatisticsQueries_LimitsConcurrentQueries(t *testing.T) {
 }
 
 func TestStatisticsService_GetDocumentReport(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
+	svc, store, _ := setupStatisticsService(t, models.SystemPermissionReferences)
 	store.documentReport = []models.StatisticsReportRow{
 		{Key: string(models.DocumentKindIncomingLetter), Count: 2},
 		{Key: string(models.DocumentKindOutgoingLetter), Count: 3},
@@ -220,7 +220,7 @@ func TestStatisticsService_GetDocumentReport(t *testing.T) {
 }
 
 func TestStatisticsService_GetDocumentFilterOptions(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
+	svc, store, _ := setupStatisticsService(t, models.SystemPermissionReferences)
 	store.nomenclatureOptions = []models.StatisticsOption{{Value: "nom-1", Label: "01-01"}}
 	store.userOptions = []models.StatisticsOption{{Value: "user-1", Label: "Пользователь"}}
 
@@ -234,7 +234,7 @@ func TestStatisticsService_GetDocumentFilterOptions(t *testing.T) {
 }
 
 func TestStatisticsService_GetDeadlineStatistics(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
+	svc, store, _ := setupStatisticsService(t, models.SystemPermissionReferences)
 	store.assignmentMonthly = []models.DeadlineMonthlyPoint{{Month: 3, Total: 4, Overdue: 1}}
 	store.assignmentExecutor = []models.StatisticsSeriesPoint{{
 		Month:        4,
@@ -257,7 +257,7 @@ func TestStatisticsService_GetDeadlineStatistics(t *testing.T) {
 }
 
 func TestStatisticsService_GetDeadlineReportAndFilters(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionReferences)
+	svc, store, _ := setupStatisticsService(t, models.SystemPermissionReferences)
 	userID := uuid.New().String()
 	store.assignmentReport = []models.StatisticsReportRow{{Key: userID, Name: "Исполнитель", Count: 6}}
 	store.userOptions = []models.StatisticsOption{{Value: userID, Label: "Исполнитель"}}
@@ -287,7 +287,7 @@ func TestStatisticsService_GetDeadlineReportAndFilters(t *testing.T) {
 }
 
 func TestStatisticsService_GetSystemStatistics(t *testing.T) {
-	svc, store, _, _ := setupStatisticsService(t, models.SystemPermissionAdmin)
+	svc, store, _ := setupStatisticsService(t, models.SystemPermissionAdmin)
 	store.systemUserCount = 4
 	store.systemDocumentCount = 11
 	store.dbSize = "128 MB"
@@ -306,7 +306,7 @@ func TestStatisticsService_GetSystemStatistics(t *testing.T) {
 }
 
 func TestStatisticsServiceIncludesServerDiagnostics(t *testing.T) {
-	svc, _, _, _ := setupStatisticsService(t, models.SystemPermissionAdmin)
+	svc, _, _ := setupStatisticsService(t, models.SystemPermissionAdmin)
 	svc.diagnostics = fakeSystemDiagnostics{value: &models.SystemDiagnostics{
 		Service:  models.SystemServiceStatistics{Version: "1.0.6", State: "ready"},
 		Usage:    models.SystemUsageStatistics{ActiveUsers15m: 3, ActiveSessions: 4},
@@ -382,7 +382,7 @@ func TestParseStatisticsDateRange(t *testing.T) {
 }
 
 func TestStatisticsServiceBusinessDataRequiresLoginAndDiagnosticsRequireAdmin(t *testing.T) {
-	svc, _, _, auth := setupStatisticsService(t)
+	svc, _, auth := setupStatisticsService(t)
 	_, err := svc.GetDocumentStatistics()
 	require.NoError(t, err)
 	_, err = svc.GetDeadlineStatistics()
@@ -395,7 +395,7 @@ func TestStatisticsServiceBusinessDataRequiresLoginAndDiagnosticsRequireAdmin(t 
 }
 
 // statisticsPrincipalStub uses the same permission source as the server fixtures.
-type statisticsPrincipalStub struct{ *attachmentPrincipalStub }
+type statisticsPrincipalStub struct{ *documentPrincipalStub }
 
 func (p *statisticsPrincipalStub) HasSystemPermission(permission string) bool {
 	return p.RequireSystemPermission(permission) == nil

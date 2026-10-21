@@ -121,10 +121,10 @@ type fakeAuthSessions struct {
 	hash    []byte
 }
 
-func (f *fakeAuthSessions) Create(userID uuid.UUID, hash []byte, expiresAt time.Time) (*models.ServerSession, error) {
+func (f *fakeAuthSessions) Create(userID uuid.UUID, hash []byte, _ time.Time) error {
 	f.hash = append([]byte(nil), hash...)
-	f.session = &models.ServerSession{ID: uuid.New(), UserID: userID, TokenHash: f.hash, ExpiresAt: expiresAt}
-	return f.session, nil
+	f.session = &models.ServerSession{UserID: userID}
+	return nil
 }
 func (f *fakeAuthSessions) GetActiveByTokenHash(hash []byte, _ time.Time) (*models.ServerSession, error) {
 	if bytes.Equal(hash, f.hash) {

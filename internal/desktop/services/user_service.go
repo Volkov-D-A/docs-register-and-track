@@ -14,16 +14,10 @@ var errServerUserAdministrationNotConfigured = errors.New("docflow-server user a
 
 // UserService передаёт операции управления пользователями серверному API.
 type UserService struct {
-	server UserAdministrationClient
+	server serverclient.UserClient
 }
 
-// UserAdministrationClient requires both user management and executor lookup.
-type UserAdministrationClient interface {
-	serverclient.UserClient
-	serverclient.ExecutorClient
-}
-
-func NewUserService(client UserAdministrationClient) *UserService {
+func NewUserService(client serverclient.UserClient) *UserService {
 	return &UserService{server: client}
 }
 
@@ -76,14 +70,4 @@ func (s *UserService) ResetPassword(userID string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	return client.ResetUserPassword(ctx, userID)
-}
-
-// GetExecutors возвращает список активных сотрудников для назначений и ознакомления.
-func (s *UserService) GetExecutors() ([]dto.User, error) {
-	if s.server == nil {
-		return nil, errServerUserAdministrationNotConfigured
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	return s.server.ListExecutors(ctx)
 }

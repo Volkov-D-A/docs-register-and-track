@@ -29,8 +29,8 @@ type OutboxRepository struct{ db *database.DB }
 func NewOutboxRepository(db *database.DB) *OutboxRepository { return &OutboxRepository{db: db} }
 
 // enqueueOutboxEffects enforces the atomic contract only when the caller has
-// required effects. Plain repository methods pass nil and retain their legacy
-// no-outbox behaviour; *WithOutbox methods must not silently lose effects.
+// required effects. Operations without effects may pass nil; *WithOutbox
+// methods must not silently lose requested effects.
 func enqueueOutboxEffects(outbox *OutboxRepository, tx *sql.Tx, effects []models.OutboxEvent) error {
 	if len(effects) == 0 {
 		return nil
@@ -100,8 +100,7 @@ func (r *OutboxRepository) ClaimPending(limit int) ([]models.OutboxEvent, error)
 	)
 	UPDATE event_outbox e SET processing_started_at = CURRENT_TIMESTAMP, attempts = attempts + 1
 	FROM due WHERE e.id = due.id
-	RETURNING e.id, e.event_type, e.deduplication_key, e.payload::text, e.available_at,
-		e.processing_started_at, e.processed_at, e.failed_at, e.attempts, e.last_error, e.created_at`, limit)
+	RETURNING e.id, e.event_type, e.deduplication_key, e.payload::text, e.attempts`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -109,8 +108,7 @@ func (r *OutboxRepository) ClaimPending(limit int) ([]models.OutboxEvent, error)
 	events := make([]models.OutboxEvent, 0)
 	for rows.Next() {
 		var event models.OutboxEvent
-		if err := rows.Scan(&event.ID, &event.EventType, &event.DeduplicationKey, &event.Payload, &event.AvailableAt,
-			&event.ProcessingStartedAt, &event.ProcessedAt, &event.FailedAt, &event.Attempts, &event.LastError, &event.CreatedAt); err != nil {
+		if err := rows.Scan(&event.ID, &event.EventType, &event.DeduplicationKey, &event.Payload, &event.Attempts); err != nil {
 			return nil, err
 		}
 		events = append(events, event)

@@ -90,14 +90,12 @@ func (api *managementAPI) systemCompatibility(w http.ResponseWriter, r *http.Req
 		code = "client_too_new"
 	}
 	writeJSON(w, http.StatusOK, dto.CompatibilityResult{
-		Compatible:           code == "compatible",
-		BuildProtocol:        buildinfo.Protocol,
-		ServerBuild:          dto.BuildIdentity(api.serverBuild),
-		Code:                 code,
-		APIVersion:           systemAPIVersion,
-		ServerVersion:        api.serverVersion,
-		MinimumClientVersion: api.serverVersion,
-		MaximumClientVersion: api.serverVersion,
+		Compatible:    code == "compatible",
+		BuildProtocol: buildinfo.Protocol,
+		ServerBuild:   dto.BuildIdentity(api.serverBuild),
+		Code:          code,
+		APIVersion:    systemAPIVersion,
+		ServerVersion: api.serverVersion,
 	})
 }
 

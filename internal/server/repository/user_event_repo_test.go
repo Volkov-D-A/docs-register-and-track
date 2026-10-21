@@ -43,7 +43,7 @@ func TestUserEventRepository_GetList(t *testing.T) {
 	documentID := uuid.New()
 	now := time.Now()
 
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM user_events e JOIN documents d ON d.id=e.document_id WHERE e.recipient_user_id = $1 AND " + documentReadPredicate("$1", "d") + " AND e.read_at IS NULL")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM user_events e JOIN documents d ON d.id=e.document_id WHERE e.recipient_user_id = $1 AND " + documentReadPredicate("$1", "d"))).
 		WithArgs(userID).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
@@ -55,7 +55,7 @@ func TestUserEventRepository_GetList(t *testing.T) {
 			e.created_at, e.read_at, d.registration_date
 		FROM user_events e
 		LEFT JOIN documents d ON d.id = e.document_id
-		WHERE e.recipient_user_id = $1 AND ` + documentReadPredicate("$1", "d") + ` AND e.read_at IS NULL
+		WHERE e.recipient_user_id = $1 AND ` + documentReadPredicate("$1", "d") + `
 		ORDER BY e.created_at DESC
 		LIMIT $2 OFFSET $3`
 	mock.ExpectQuery(regexp.QuoteMeta(listQuery)).
@@ -68,40 +68,22 @@ func TestUserEventRepository_GetList(t *testing.T) {
 			"ВХ-1",
 			"deadline_control",
 			"deadline_control_complete",
-			"Поручение ожидает приемки",
-			"Исполнитель отправил поручение",
+			"Контроль исполнен",
+			"Контроль завершён",
 			now,
-			nil,
+			now,
 			now,
 		))
 
-	result, err := repo.GetList(userID, models.UserEventFilter{UnreadOnly: true, Page: 2, PageSize: 10})
+	result, err := repo.GetList(userID, models.UserEventFilter{Page: 2, PageSize: 10})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, 1, result.TotalCount)
 	assert.Equal(t, 2, result.Page)
 	require.Len(t, result.Items, 1)
 	assert.Equal(t, "deadline_control_complete", result.Items[0].EventType)
+	assert.Equal(t, &now, result.Items[0].ReadAt)
 	assert.Equal(t, &now, result.Items[0].DocumentDate)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestUserEventRepository_MarkRead(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	repo := NewUserEventRepository(database.Wrap(db))
-	eventID := uuid.New()
-	userID := uuid.New()
-	readAt := time.Now()
-
-	mock.ExpectExec(regexp.QuoteMeta("UPDATE user_events SET read_at = COALESCE(read_at, $3) WHERE id = $1 AND recipient_user_id = $2")).
-		WithArgs(eventID, userID, readAt).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-
-	err = repo.MarkRead(eventID, userID, readAt)
-	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

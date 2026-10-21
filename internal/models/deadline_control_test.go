@@ -43,15 +43,8 @@ func TestDeadlineCalendarKeepsMonthlyAnchor(t *testing.T) {
 func TestDeadlineDatesUseOrganizationDay(t *testing.T) {
 	before := time.Date(2026, 10, 14, 18, 59, 59, 0, time.UTC)
 	after := before.Add(time.Second)
-	c := DocumentDeadlineControl{Status: DeadlineActive, DueDate: "2026-10-14"}
-	require.False(t, c.IsOverdue(before))
-	require.True(t, c.IsOverdue(after))
-	c.Status = DeadlineCompleted
-	c.ExecutedOn = "2026-10-14"
-	require.False(t, c.IsOverdue(after))
-	require.False(t, c.WasExecutedLate())
-	c.ExecutedOn = "2026-10-15"
-	require.True(t, c.WasExecutedLate())
+	require.Equal(t, "2026-10-14", OrganizationToday(before))
+	require.Equal(t, "2026-10-15", OrganizationToday(after))
 	for _, invalid := range []string{"2026-02-29", "2026-1-01", "0000-01-01", "2026-10-14T00:00:00Z", ""} {
 		_, err := ParseDeadlineDate(invalid)
 		require.Error(t, err)

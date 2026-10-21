@@ -80,28 +80,6 @@ func (s *DeadlineControlService) SaveExternalExecutor(ctx context.Context, id st
 	}
 	return s.store.SaveExternalExecutor(ctx, actor, id, req)
 }
-func (s *DeadlineControlService) Get(ctx context.Context, id string) (*models.DocumentDeadlineControl, error) {
-	actor, err := s.actor()
-	if err != nil {
-		return nil, err
-	}
-	if err = validateDeadlineID(id); err != nil {
-		return nil, err
-	}
-	c, err := s.store.GetControl(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	allowed, err := s.store.CanRead(ctx, actor, c.DocumentID)
-	if err != nil {
-		return nil, err
-	}
-	if !allowed {
-		return nil, models.ErrForbidden
-	}
-	c.CanManage, err = s.store.CanManage(ctx, actor, c.DocumentID)
-	return c, err
-}
 func (s *DeadlineControlService) List(ctx context.Context, f models.DeadlineControlFilter) (*models.DeadlineControlPage, error) {
 	actor, err := s.actor()
 	if err != nil {

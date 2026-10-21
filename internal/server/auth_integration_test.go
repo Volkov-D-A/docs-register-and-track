@@ -2,11 +2,13 @@ package server
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -48,6 +50,23 @@ func TestServerAuthSessionLifecycleIntegration(t *testing.T) {
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM server_sessions WHERE user_id = $1 AND revoked_at IS NULL`, userID).Scan(&activeSessions))
 	assert.Equal(t, 1, activeSessions)
 
+	sessions := repository.NewServerSessionRepository(db)
+	tokenHash := sha256.Sum256([]byte(response.AccessToken))
+	now := time.Now().UTC()
+	active, err := sessions.GetActiveByTokenHash(tokenHash[:], now)
+	require.NoError(t, err)
+	require.NotNil(t, active)
+	assert.Equal(t, userID, active.UserID)
+	var expiresAt, lastSeenAt time.Time
+	require.NoError(t, db.QueryRow(`SELECT expires_at, last_seen_at FROM server_sessions WHERE token_hash=$1`, tokenHash[:]).Scan(&expiresAt, &lastSeenAt))
+	assert.WithinDuration(t, now, lastSeenAt, time.Microsecond)
+	expired, err := sessions.GetActiveByTokenHash(tokenHash[:], expiresAt)
+	require.NoError(t, err)
+	assert.Nil(t, expired, "session is invalid at its expiration boundary")
+	missing, err := sessions.GetActiveByTokenHash([]byte("unknown-token"), now)
+	require.NoError(t, err)
+	assert.Nil(t, missing)
+
 	logout := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
 	logout.Header.Set("Authorization", "Bearer "+response.AccessToken)
 	logoutResult := httptest.NewRecorder()
@@ -55,6 +74,9 @@ func TestServerAuthSessionLifecycleIntegration(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, logoutResult.Code)
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM server_sessions WHERE user_id = $1 AND revoked_at IS NULL`, userID).Scan(&activeSessions))
 	assert.Zero(t, activeSessions)
+	revoked, err := sessions.GetActiveByTokenHash(tokenHash[:], time.Now().UTC())
+	require.NoError(t, err)
+	assert.Nil(t, revoked)
 }
 
 func TestServerPasswordChangeRevokesAllSessionsIntegration(t *testing.T) {

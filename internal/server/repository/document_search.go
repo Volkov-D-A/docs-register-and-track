@@ -82,7 +82,7 @@ func (r *DocumentRepository) SearchDocuments(request dto.DocumentSearchRequest, 
     SELECT totals.count, coalesce(p.id::text, ''), coalesce(p.kind, ''),
         coalesce(p.registration_number, ''), coalesce(p.registration_date, DATE '1970-01-01'),
         coalesce(p.content, ''), coalesce(p.resolution, ''), coalesce(p.correspondent, ''),
-        coalesce(p.person, ''), coalesce(p.relevance, 0)
+        coalesce(p.person, '')
     FROM (SELECT count(*) FROM matched) totals LEFT JOIN page p ON true
     ORDER BY p.relevance DESC, p.created_at DESC, p.id DESC`
 	rows, err := r.db.Query(query, args...)
@@ -93,7 +93,7 @@ func (r *DocumentRepository) SearchDocuments(request dto.DocumentSearchRequest, 
 	for rows.Next() {
 		var item dto.DocumentSearchItem
 		if err := rows.Scan(&result.TotalCount, &item.ID, &item.KindCode, &item.RegistrationNumber,
-			&item.RegistrationDate, &item.Content, &item.Resolution, &item.Correspondent, &item.Person, &item.Relevance); err != nil {
+			&item.RegistrationDate, &item.Content, &item.Resolution, &item.Correspondent, &item.Person); err != nil {
 			return nil, err
 		}
 		if item.ID != "" {

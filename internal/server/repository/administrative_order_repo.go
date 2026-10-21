@@ -102,7 +102,7 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			ord.order_number, ord.order_date, ord.title, d.pages_count,
 			ord.execution_controller, ord.execution_deadline, ord.is_active, ord.cancelled_at,
-			d.created_by, u.full_name as created_by_name,
+			u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM documents d
 		JOIN administrative_order_details ord ON ord.document_id = d.id
@@ -177,7 +177,7 @@ func (r *AdministrativeOrderRepository) GetByID(id uuid.UUID) (*models.Administr
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
 			ord.order_number, ord.order_date, ord.title, d.pages_count,
 			ord.execution_controller, ord.execution_deadline, ord.is_active, ord.cancelled_at,
-			d.created_by, u.full_name as created_by_name,
+			u.full_name as created_by_name,
 			d.created_at, d.updated_at
 		FROM documents d
 		JOIN administrative_order_details ord ON ord.document_id = d.id
@@ -202,41 +202,32 @@ func (r *AdministrativeOrderRepository) GetByID(id uuid.UUID) (*models.Administr
 	return doc, nil
 }
 
-// GetByIDs loads the order fields needed by graph nodes without acknowledgment people.
+// GetByIDs returns the partial card fields used by link graph nodes.
+// GetByID and GetList retain the full document projection.
 func (r *AdministrativeOrderRepository) GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error) {
 	if len(ids) == 0 {
 		return []models.AdministrativeOrderDocument{}, nil
 	}
 	rows, err := r.db.Query(`
-		SELECT
-			d.id, d.nomenclature_id, n.index || ' — ' || n.name AS nomenclature_name,
-			ord.order_number, ord.order_date, ord.title, d.pages_count,
-			ord.execution_controller, ord.execution_deadline, ord.is_active, ord.cancelled_at,
-			d.created_by, u.full_name AS created_by_name,
-			d.created_at, d.updated_at
-		FROM documents d
-		JOIN administrative_order_details ord ON ord.document_id = d.id
-		JOIN nomenclature n ON d.nomenclature_id = n.id
-		JOIN users u ON d.created_by = u.id
-		WHERE d.id = ANY($1) AND d.kind = $2
-		ORDER BY d.id
-	`, pq.Array(ids), models.DocumentKindAdministrativeOrder)
+        SELECT d.id, ord.order_number, ord.order_date, ord.title, ord.execution_controller, ord.is_active
+        FROM documents d
+        JOIN administrative_order_details ord ON ord.document_id = d.id
+        WHERE d.id = ANY($1) AND d.kind = $2
+        ORDER BY d.id
+    `, pq.Array(ids), models.DocumentKindAdministrativeOrder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get administrative orders by IDs: %w", err)
 	}
 	defer rows.Close()
 	items := make([]models.AdministrativeOrderDocument, 0, len(ids))
 	for rows.Next() {
-		doc, err := scanAdministrativeOrder(rows)
-		if err != nil {
+		var doc models.AdministrativeOrderDocument
+		if err := rows.Scan(&doc.ID, &doc.OrderNumber, &doc.OrderDate, &doc.Title, &doc.ExecutionController, &doc.IsActive); err != nil {
 			return nil, err
 		}
-		items = append(items, *doc)
+		items = append(items, doc)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return items, rows.Err()
 }
 
 func (r *AdministrativeOrderRepository) CreateWithJournal(req models.CreateAdministrativeOrderDocRequest, action, detailsFormat string) (*models.AdministrativeOrderDocument, error) {
@@ -545,15 +536,6 @@ func (r *AdministrativeOrderRepository) getAcknowledgmentPeopleByDocumentIDs(doc
 	return result, nil
 }
 
-// GetCount возвращает количество приказов.
-func (r *AdministrativeOrderRepository) GetCount() (int, error) {
-	var count int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM documents WHERE kind = $1`, models.DocumentKindAdministrativeOrder).Scan(&count); err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
 type administrativeOrderScanner interface {
 	Scan(dest ...interface{}) error
 }
@@ -566,7 +548,7 @@ func scanAdministrativeOrder(scanner administrativeOrderScanner) (*models.Admini
 		&doc.ID, &doc.NomenclatureID, &doc.NomenclatureName,
 		&doc.OrderNumber, &doc.OrderDate, &doc.Title, &doc.PagesCount,
 		&doc.ExecutionController, &deadline, &doc.IsActive, &cancelledAt,
-		&doc.CreatedBy, &doc.CreatedByName,
+		&doc.CreatedByName,
 		&doc.CreatedAt, &doc.UpdatedAt,
 	); err != nil {
 		return nil, err

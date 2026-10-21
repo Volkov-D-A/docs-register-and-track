@@ -1,4 +1,3 @@
-import React from 'react';
 import { Button, Space, Tag, Tooltip } from 'antd';
 import { EyeOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -51,7 +50,7 @@ export const outgoingLetterPageConfig = {
             render: (_: any, record: any) => (
                 <div>
                     <div style={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>{record.content}</div>
-                    <div style={{ fontSize: 13, color: 'var(--app-text-muted)' }}>{record.documentTypeName}</div>
+                    <div style={{ fontSize: 13, color: 'var(--app-text-muted)' }}>{record.documentTypeId}</div>
                     <div style={{ fontSize: 12, color: 'var(--app-text-muted)' }}>
                         Листов: {record.pagesCount ?? 0}, приложение: {record.attachmentPagesCount ?? 0}
                     </div>

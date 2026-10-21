@@ -21,9 +21,9 @@ type ReleaseNoteService struct {
 }
 
 type embeddedRelease struct {
-	Version    string                          `yaml:"version"`
-	ReleasedAt string                          `yaml:"releasedAt"`
-	Changes    []models.ReleaseNoteChangeInput `yaml:"changes"`
+	Version    string                     `yaml:"version"`
+	ReleasedAt string                     `yaml:"releasedAt"`
+	Changes    []models.ReleaseNoteChange `yaml:"changes"`
 }
 
 type releaseViewState struct {
@@ -115,7 +115,6 @@ func parseEmbeddedCurrentRelease(source []byte) (models.ReleaseNote, error) {
 		}
 
 		changes = append(changes, models.ReleaseNoteChange{
-			SortOrder:   index + 1,
 			Title:       change.Title,
 			Description: change.Description,
 		})
@@ -124,7 +123,6 @@ func parseEmbeddedCurrentRelease(source []byte) (models.ReleaseNote, error) {
 	return models.ReleaseNote{
 		Version:    release.Version,
 		ReleasedAt: releasedAt,
-		IsCurrent:  true,
 		Changes:    changes,
 	}, nil
 }

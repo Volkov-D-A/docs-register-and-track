@@ -197,15 +197,14 @@ func TestMapDocumentListItemsPagesCount(t *testing.T) {
 		resolutionAuthor := "Руководитель"
 		resolutionExecutors := "Исполнитель"
 		item := MapIncomingDocumentListItem(&models.IncomingDocument{
-			ID:                  uuid.New(),
-			NomenclatureID:      uuid.New(),
-			NomenclatureName:    "01-01",
-			IncomingNumber:      "IN-12",
-			IncomingDate:        incomingDate,
-			DocumentTypeID:      models.DocumentTypeLetter,
-			DocumentTypeName:    "Письмо",
-			Content:             "Входящее",
-			CreatedBy:           uuid.New(),
+			ID:               uuid.New(),
+			NomenclatureID:   uuid.New(),
+			NomenclatureName: "01-01",
+			IncomingNumber:   "IN-12",
+			IncomingDate:     incomingDate,
+			DocumentTypeID:   models.DocumentTypeLetter,
+			Content:          "Входящее",
+
 			CreatedByName:       "Регистратор",
 			PagesCount:          12,
 			Correspondents:      []models.DocumentCorrespondentRegistration{{CorrespondentOrgID: correspondentID, CorrespondentName: "Организация"}},
@@ -221,7 +220,7 @@ func TestMapDocumentListItemsPagesCount(t *testing.T) {
 		require.NotNil(t, item.IncomingDate)
 		assert.Equal(t, incomingDate, *item.IncomingDate)
 		require.Len(t, item.Correspondents, 1)
-		assert.Equal(t, correspondentID.String(), item.Correspondents[0].CorrespondentOrgID)
+		assert.Equal(t, "Организация", item.Correspondents[0].CorrespondentName)
 		assert.Equal(t, "Подписант", item.SenderSignatory)
 		require.NotNil(t, item.Resolution)
 		assert.Equal(t, "Исполнить", *item.Resolution)
@@ -236,13 +235,13 @@ func TestMapDocumentListItemsPagesCount(t *testing.T) {
 
 		outgoingDate := time.Now()
 		item := MapOutgoingDocumentListItem(&models.OutgoingDocument{
-			ID:               uuid.New(),
-			NomenclatureID:   uuid.New(),
-			OutgoingNumber:   "OUT-7",
-			OutgoingDate:     outgoingDate,
-			DocumentTypeID:   models.DocumentTypeLetter,
-			Content:          "Исходящее",
-			CreatedBy:        uuid.New(),
+			ID:             uuid.New(),
+			NomenclatureID: uuid.New(),
+			OutgoingNumber: "OUT-7",
+			OutgoingDate:   outgoingDate,
+			DocumentTypeID: models.DocumentTypeLetter,
+			Content:        "Исходящее",
+
 			PagesCount:       7,
 			RecipientOrgName: "Получатель",
 			Addressee:        "Адресат",
@@ -273,12 +272,11 @@ func TestMapIncomingAndOutgoingDocumentCards(t *testing.T) {
 			IncomingNumber:   "IN-1",
 			IncomingDate:     now,
 			DocumentTypeID:   models.DocumentTypeLetter,
-			DocumentTypeName: models.DocumentTypeLetter,
 			Content:          "Входящее",
-			CreatedBy:        uuid.New(),
-			CreatedByName:    "Регистратор",
-			CreatedAt:        now,
-			UpdatedAt:        now,
+
+			CreatedByName: "Регистратор",
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}
 
 		card := MapIncomingDocumentCard(model)
@@ -299,12 +297,11 @@ func TestMapIncomingAndOutgoingDocumentCards(t *testing.T) {
 			OutgoingNumber:   "OUT-1",
 			OutgoingDate:     now,
 			DocumentTypeID:   models.DocumentTypeLetter,
-			DocumentTypeName: models.DocumentTypeLetter,
 			Content:          "Исходящее",
-			CreatedBy:        uuid.New(),
-			CreatedByName:    "Регистратор",
-			CreatedAt:        now,
-			UpdatedAt:        now,
+
+			CreatedByName: "Регистратор",
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}
 
 		card := MapOutgoingDocumentCard(model)
@@ -328,7 +325,6 @@ func TestMapIncomingAndOutgoingDocumentListSlices(t *testing.T) {
 			NomenclatureID: uuid.New(),
 			IncomingNumber: "IN-1",
 			IncomingDate:   time.Now(),
-			CreatedBy:      uuid.New(),
 		}})
 
 		require.Len(t, items, 1)
@@ -345,7 +341,6 @@ func TestMapIncomingAndOutgoingDocumentListSlices(t *testing.T) {
 			NomenclatureID: uuid.New(),
 			OutgoingNumber: "OUT-1",
 			OutgoingDate:   time.Now(),
-			CreatedBy:      uuid.New(),
 		}})
 
 		require.Len(t, items, 1)
@@ -502,7 +497,6 @@ func TestMapCitizenAppealDocument(t *testing.T) {
 		id := uuid.New()
 		nomID := uuid.New()
 		correspondentID := uuid.New()
-		createdBy := uuid.New()
 		regDate := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
 		appealDate := time.Date(2026, 6, 2, 0, 0, 0, 0, time.UTC)
 		resolutionText := "Подготовить ответ"
@@ -517,7 +511,6 @@ func TestMapCitizenAppealDocument(t *testing.T) {
 			RegistrationDate:     regDate,
 			AppealDate:           appealDate,
 			DocumentTypeID:       models.DocumentTypeCitizenAppeal,
-			DocumentTypeName:     models.DocumentTypeCitizenAppeal,
 			Content:              "Content",
 			ApplicantFullName:    "Иван Иванов",
 			RegistrationAddress:  "Address",
@@ -546,7 +539,7 @@ func TestMapCitizenAppealDocument(t *testing.T) {
 					Position:            1,
 				},
 			},
-			CreatedBy:     createdBy,
+
 			CreatedByName: "Registrar",
 			CreatedAt:     regDate,
 			UpdatedAt:     appealDate,
@@ -563,10 +556,10 @@ func TestMapCitizenAppealDocument(t *testing.T) {
 		assert.True(t, dto.HasEnvelope)
 		assert.True(t, dto.ReceivedFromPOS)
 		assert.Len(t, dto.Correspondents, 1)
-		assert.Equal(t, correspondentID.String(), dto.Correspondents[0].CorrespondentOrgID)
+		assert.Equal(t, "Администрация", dto.Correspondents[0].CorrespondentName)
 		assert.Len(t, dto.Resolutions, 1)
 		assert.Equal(t, resolutionText, *dto.Resolutions[0].Resolution)
-		assert.Equal(t, createdBy.String(), dto.CreatedBy)
+		assert.Equal(t, "Registrar", dto.CreatedByName)
 	})
 }
 
@@ -582,7 +575,6 @@ func TestMapCitizenAppealDocumentCardAndListItem(t *testing.T) {
 		RegistrationDate:   time.Date(2026, 6, 4, 0, 0, 0, 0, time.UTC),
 		AppealDate:         time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
 		DocumentTypeID:     models.DocumentTypeCitizenAppeal,
-		DocumentTypeName:   models.DocumentTypeCitizenAppeal,
 		Content:            "Appeal content",
 		PagesCount:         4,
 		ApplicantFullName:  "Петр Петров",
@@ -594,7 +586,6 @@ func TestMapCitizenAppealDocumentCardAndListItem(t *testing.T) {
 				ResolutionExecutors: &resolutionExecutors,
 			},
 		},
-		CreatedBy: uuid.New(),
 	}
 
 	card := MapCitizenAppealDocumentCard(model)
@@ -627,7 +618,6 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 	t.Run("success with acknowledgment people", func(t *testing.T) {
 		id := uuid.New()
 		nomID := uuid.New()
-		createdBy := uuid.New()
 		ackID := uuid.New()
 		ackBy := uuid.New()
 		orderDate := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
@@ -656,7 +646,7 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 					CreatedAt:          orderDate,
 				},
 			},
-			CreatedBy:     createdBy,
+
 			CreatedByName: "Creator",
 			CreatedAt:     orderDate,
 			UpdatedAt:     ackTime,
@@ -675,8 +665,7 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 		assert.True(t, dto.IsActive)
 		assert.Len(t, dto.AcknowledgmentPeople, 1)
 		assert.Equal(t, ackID.String(), dto.AcknowledgmentPeople[0].ID)
-		assert.Equal(t, ackBy.String(), dto.AcknowledgmentPeople[0].AcknowledgedBy)
-		assert.Equal(t, createdBy.String(), dto.CreatedBy)
+		assert.Equal(t, "Creator", dto.CreatedByName)
 	})
 }
 
@@ -696,7 +685,6 @@ func TestMapAdministrativeOrderDocumentCardAndListItem(t *testing.T) {
 			{ID: uuid.New(), FullName: "Acknowledged", AcknowledgedAt: &cancelledAt},
 			{ID: uuid.New(), FullName: "Pending"},
 		},
-		CreatedBy: uuid.New(),
 	}
 
 	card := MapAdministrativeOrderDocumentCard(model)

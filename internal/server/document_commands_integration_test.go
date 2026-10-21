@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
@@ -90,6 +91,23 @@ func TestDocumentCommandAPIAllKindsIntegration(t *testing.T) {
 			changed := request(http.MethodPatch, path+"/"+document["id"].(string), uuid.NewString(), update)
 			require.Equal(t, http.StatusOK, changed.Code, changed.Body.String())
 			require.Contains(t, changed.Body.String(), "updated")
+			listed := request(http.MethodPost, "/api/v1/documents/query", "", map[string]any{
+				"kindCode": tc.kind,
+				"filter":   map[string]any{"page": 1, "pageSize": 20},
+			})
+			require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
+			var page dto.PagedResult[dto.DocumentListItem]
+			require.NoError(t, json.Unmarshal(listed.Body.Bytes(), &page))
+			require.Len(t, page.Items, 1)
+			require.Equal(t, document["id"], page.Items[0].ID)
+			expectedType := models.DocumentTypeLetter
+			switch models.DocumentKind(tc.kind) {
+			case models.DocumentKindCitizenAppeal:
+				expectedType = models.DocumentTypeCitizenAppeal
+			case models.DocumentKindAdministrativeOrder:
+				expectedType = models.DocumentTypeAdministrativeOrder
+			}
+			require.Equal(t, expectedType, page.Items[0].DocumentTypeID)
 			var effects int
 			require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM event_outbox WHERE COALESCE(payload->>'documentId', payload->>'DocumentID')=$1 AND COALESCE(payload->>'action', payload->>'Action') IN ('CREATE','UPDATE')`, document["id"]).Scan(&effects))
 			require.Equal(t, 2, effects, "registration replay must not duplicate journal effects")

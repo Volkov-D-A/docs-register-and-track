@@ -12,7 +12,6 @@ type DeadlineClient interface {
 	PreviewDeadlineSeriesResume(context.Context, string) (*models.DeadlineSeriesResumePreview, error)
 	ListDeadlineExecutors(context.Context, bool) ([]models.DeadlineExecutor, error)
 	SaveExternalDeadlineExecutor(context.Context, string, models.ExternalDeadlineExecutorRequest) (*models.DeadlineExecutor, error)
-	GetDeadlineControl(context.Context, string) (*models.DocumentDeadlineControl, error)
 	ListDeadlineControls(context.Context, models.DeadlineControlFilter) (*models.DeadlineControlPage, error)
 	CreateDeadlineControl(context.Context, models.DeadlineControlRequest) (*models.DocumentDeadlineControl, error)
 	UpdateDeadlineControl(context.Context, string, models.DeadlineControlRequest) (*models.DocumentDeadlineControl, error)
@@ -47,9 +46,6 @@ func (c *Client) SaveExternalDeadlineExecutor(ctx context.Context, id string, re
 		method, path, status = http.MethodPatch, path+"/"+url.PathEscape(id), http.StatusOK
 	}
 	return deadlineClientRequest[models.DeadlineExecutor](c, ctx, method, path, req, status)
-}
-func (c *Client) GetDeadlineControl(ctx context.Context, id string) (*models.DocumentDeadlineControl, error) {
-	return deadlineClientRequest[models.DocumentDeadlineControl](c, ctx, http.MethodGet, "/api/v1/deadline-controls/"+url.PathEscape(id), nil, http.StatusOK)
 }
 func (c *Client) ListDeadlineControls(ctx context.Context, req models.DeadlineControlFilter) (*models.DeadlineControlPage, error) {
 	return deadlineClientRequest[models.DeadlineControlPage](c, ctx, http.MethodPost, "/api/v1/deadline-controls/query", req, http.StatusOK)

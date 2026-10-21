@@ -10,7 +10,6 @@ import (
 type userEventAPI interface {
 	GetCurrentUserEvents(models.UserEventFilter) (*dto.PagedResult[dto.UserEvent], error)
 	GetUnreadCount() (int, error)
-	MarkRead(string) error
 	MarkDocumentRead(string) error
 	MarkAllRead() error
 }
@@ -48,15 +47,6 @@ func (api *managementAPI) getUnreadUserEventCount(w http.ResponseWriter, r *http
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"count": count})
-}
-
-func (api *managementAPI) markUserEventRead(w http.ResponseWriter, r *http.Request) {
-	if err := api.userEventService(r).MarkRead(r.PathValue("id")); err != nil {
-		writeUserError(w, err)
-		return
-	}
-	api.events.Publish("user:" + authenticatedFromContext(r.Context()).User.ID.String())
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func (api *managementAPI) markDocumentUserEventsRead(w http.ResponseWriter, r *http.Request) {

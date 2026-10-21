@@ -51,18 +51,13 @@ func IsAllowedDocumentType(value string) bool {
 
 // Document — общая корневая сущность документа.
 type Document struct {
-	ID                   uuid.UUID    `json:"-"`
-	Kind                 DocumentKind `json:"kind"`
-	NomenclatureID       uuid.UUID    `json:"-"`
-	RegistrationNumber   string       `json:"registrationNumber"`
-	RegistrationDate     time.Time    `json:"registrationDate"`
-	DocumentTypeID       string       `json:"-"`
-	Content              string       `json:"content"`
-	PagesCount           int          `json:"pagesCount"`           // Листы основного документа.
-	AttachmentPagesCount int          `json:"attachmentPagesCount"` // Листы приложения.
-	CreatedBy            uuid.UUID    `json:"-"`
-	CreatedAt            time.Time    `json:"createdAt"`
-	UpdatedAt            time.Time    `json:"updatedAt"`
+	ID   uuid.UUID    `json:"-"`
+	Kind DocumentKind `json:"kind"`
+
+	RegistrationNumber string    `json:"registrationNumber"`
+	RegistrationDate   time.Time `json:"registrationDate"`
+
+	Content string `json:"content"`
 }
 
 // IncomingDocument — входящий документ
@@ -77,7 +72,6 @@ type IncomingDocument struct {
 
 	// О документе
 	DocumentTypeID       string `json:"-"`
-	DocumentTypeName     string `json:"documentTypeName,omitempty"`
 	Content              string `json:"content"`
 	PagesCount           int    `json:"pagesCount"`
 	AttachmentPagesCount int    `json:"attachmentPagesCount"`
@@ -94,7 +88,7 @@ type IncomingDocument struct {
 	ResolutionExecutors *string `json:"resolutionExecutors,omitempty"`
 
 	// Метаданные
-	CreatedBy     uuid.UUID `json:"-"`
+
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
@@ -133,10 +127,9 @@ type CitizenAppealDocument struct {
 	RegistrationDate   time.Time `json:"registrationDate"`
 	AppealDate         time.Time `json:"appealDate"`
 
-	DocumentTypeID   string `json:"-"`
-	DocumentTypeName string `json:"documentTypeName,omitempty"`
-	Content          string `json:"content"`
-	PagesCount       int    `json:"pagesCount"`
+	DocumentTypeID string `json:"-"`
+	Content        string `json:"content"`
+	PagesCount     int    `json:"pagesCount"`
 
 	ApplicantFullName    string `json:"applicantFullName"`
 	RegistrationAddress  string `json:"registrationAddress"`
@@ -149,7 +142,6 @@ type CitizenAppealDocument struct {
 	Correspondents []DocumentCorrespondentRegistration `json:"correspondents,omitempty"`
 	Resolutions    []DocumentResolution                `json:"resolutions,omitempty"`
 
-	CreatedBy     uuid.UUID `json:"-"`
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
@@ -167,7 +159,6 @@ type OutgoingDocument struct {
 
 	// О документе
 	DocumentTypeID       string `json:"-"`
-	DocumentTypeName     string `json:"documentTypeName,omitempty"`
 	Content              string `json:"content"`
 	PagesCount           int    `json:"pagesCount"`
 	AttachmentPagesCount int    `json:"attachmentPagesCount"`
@@ -182,7 +173,7 @@ type OutgoingDocument struct {
 	Addressee        string    `json:"addressee"`
 
 	// Метаданные
-	CreatedBy     uuid.UUID `json:"-"`
+
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
@@ -208,7 +199,6 @@ type AdministrativeOrderDocument struct {
 
 	AcknowledgmentPeople []AdministrativeOrderAcknowledgmentPerson `json:"acknowledgmentPeople,omitempty"`
 
-	CreatedBy     uuid.UUID `json:"-"`
 	CreatedByName string    `json:"createdByName,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`

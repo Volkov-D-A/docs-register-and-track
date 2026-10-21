@@ -16,7 +16,7 @@ const OutgoingDocumentDetails: React.FC<OutgoingDocumentDetailsProps> = ({ doc }
                 <Text type="secondary" style={{ fontSize: 12 }}>Дата:</Text> <Text strong>{dayjs(doc.outgoingDate).format('DD.MM.YYYY')}</Text>
             </Col>
             <Col span={12}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Тип документа:</Text> <Tag>{doc.documentTypeName}</Tag>
+                <Text type="secondary" style={{ fontSize: 12 }}>Тип документа:</Text> <Tag>{doc.documentTypeId}</Tag>
             </Col>
         </Row>
         <Row><Col span={24}><Text type="secondary" style={{ fontSize: 12 }}>Дело:</Text> {doc.nomenclatureName}</Col></Row>
