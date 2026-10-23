@@ -28,7 +28,7 @@ func newBlockedApp(cfg *config.Config) (*App, error) {
 		}
 		op.State = "recovery_required"
 		op.CanCancel = false
-		op.Error = "Восстановление прервано. Требуется проверка локального журнала и полный сброс целевой БД и файлового хранилища перед новым восстановлением."
+		op.Error = "Восстановление прервано. Требуется проверка локального журнала и полный сброс целевой БД перед новым восстановлением."
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, 200, op)
 	})

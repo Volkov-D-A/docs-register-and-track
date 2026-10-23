@@ -113,7 +113,6 @@ type DocumentCorrespondentRegistration struct {
 	RegistrationNumber string    `json:"registrationNumber"`
 	RegistrationDate   time.Time `json:"registrationDate"`
 	CorrespondentName  string    `json:"correspondentName,omitempty"`
-	Position           int       `json:"position"`
 }
 
 // DocumentResolution описывает DTO набора резолюции документа.
@@ -122,7 +121,6 @@ type DocumentResolution struct {
 	Resolution          *string `json:"resolution,omitempty"`
 	ResolutionAuthor    *string `json:"resolutionAuthor,omitempty"`
 	ResolutionExecutors *string `json:"resolutionExecutors,omitempty"`
-	Position            int     `json:"position"`
 }
 
 // CitizenAppealDocument описывает DTO обращения граждан.
@@ -208,24 +206,14 @@ type AdministrativeOrderAcknowledgmentPerson struct {
 	FullName           string     `json:"fullName"`
 	AcknowledgedAt     *time.Time `json:"acknowledgedAt,omitempty"`
 	AcknowledgedByName string     `json:"acknowledgedByName,omitempty"`
-	Position           int        `json:"position"`
-	CreatedAt          time.Time  `json:"createdAt"`
 }
 
 // DocumentCard описывает общую оболочку документа с привязанными деталями конкретного вида.
 type DocumentCard struct {
-	ID                 string    `json:"id"`
-	KindCode           string    `json:"kindCode"`
-	KindName           string    `json:"kindName"`
-	RegistrationNumber string    `json:"registrationNumber"`
-	RegistrationDate   time.Time `json:"registrationDate"`
-	NomenclatureID     string    `json:"nomenclatureId"`
-	NomenclatureName   string    `json:"nomenclatureName,omitempty"`
-	DocumentTypeID     string    `json:"documentTypeId"`
-	Content            string    `json:"content"`
-	CreatedByName      string    `json:"createdByName,omitempty"`
-	CreatedAt          time.Time `json:"createdAt"`
-	UpdatedAt          time.Time `json:"updatedAt"`
+	ID                 string `json:"id"`
+	KindCode           string `json:"kindCode"`
+	KindName           string `json:"kindName"`
+	RegistrationNumber string `json:"registrationNumber"`
 
 	IncomingLetter      *IncomingDocument            `json:"incomingLetter,omitempty"`
 	OutgoingLetter      *OutgoingDocument            `json:"outgoingLetter,omitempty"`

@@ -116,10 +116,6 @@ func (s *queryAdministrativeOrderDocStore) GetAcknowledgmentPersonByID(id uuid.U
 	return nil, nil
 }
 
-func (s *queryAdministrativeOrderDocStore) GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error) {
-	return nil, nil
-}
-
 func TestIncomingLetterQueryHandler(t *testing.T) {
 	docID := uuid.New()
 	now := time.Now()

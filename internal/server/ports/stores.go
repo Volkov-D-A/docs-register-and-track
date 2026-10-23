@@ -29,7 +29,6 @@ type AdministrativeOrderDocStore interface {
 	GetByID(id uuid.UUID) (*models.AdministrativeOrderDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error)
 	GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error)
-	GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error)
 }
 
 // DocumentStore — интерфейс для общей корневой сущности документа.

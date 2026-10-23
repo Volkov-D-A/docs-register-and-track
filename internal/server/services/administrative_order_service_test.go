@@ -44,10 +44,6 @@ func (s *administrativeOrderServiceStore) GetAcknowledgmentPersonByID(id uuid.UU
 	return s.person, nil
 }
 
-func (s *administrativeOrderServiceStore) GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error) {
-	return nil, nil
-}
-
 func (s *administrativeOrderServiceStore) MarkAcknowledgmentPersonWithOutbox(id uuid.UUID, acknowledgedBy uuid.UUID, effects []models.OutboxEvent) (*models.AdministrativeOrderAcknowledgmentPerson, error) {
 	s.lastPersonID = id
 	s.lastMarkerID = acknowledgedBy

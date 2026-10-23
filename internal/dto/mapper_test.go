@@ -642,8 +642,6 @@ func TestMapAdministrativeOrderDocument(t *testing.T) {
 					AcknowledgedAt:     &ackTime,
 					AcknowledgedBy:     &ackBy,
 					AcknowledgedByName: "Registrar",
-					Position:           1,
-					CreatedAt:          orderDate,
 				},
 			},
 
@@ -691,9 +689,9 @@ func TestMapAdministrativeOrderDocumentCardAndListItem(t *testing.T) {
 	require.NotNil(t, card)
 	assert.Equal(t, string(models.DocumentKindAdministrativeOrder), card.KindCode)
 	assert.Equal(t, "ORD-2", card.RegistrationNumber)
-	assert.Equal(t, models.DocumentTypeAdministrativeOrder, card.DocumentTypeID)
 	require.NotNil(t, card.AdministrativeOrder)
 	assert.Equal(t, model.ID.String(), card.AdministrativeOrder.ID)
+	assert.Equal(t, models.DocumentTypeAdministrativeOrder, card.AdministrativeOrder.DocumentTypeID)
 
 	item := MapAdministrativeOrderDocumentListItem(model)
 	require.NotNil(t, item)

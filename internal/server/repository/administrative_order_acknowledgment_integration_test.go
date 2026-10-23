@@ -44,4 +44,21 @@ func TestAdministrativeOrderAcknowledgmentRepeatedMarkerIntegration(t *testing.T
 	missing, err := repo.MarkAcknowledgmentPersonWithOutbox(uuid.New(), secondMarker, []models.OutboxEvent{secondEvent})
 	require.NoError(t, err)
 	require.Nil(t, missing)
+
+	// The read model omits storage order metadata, but all readers must preserve order.
+	execSQL(t, sqlDB, `INSERT INTO administrative_order_acknowledgment_people (document_id, full_name, position) VALUES ($1, 'Earlier', 0)`, documentID)
+	people, err := repo.GetAcknowledgmentPeople(documentID)
+	require.NoError(t, err)
+	require.Len(t, people, 2)
+	require.Equal(t, "Earlier", people[0].FullName)
+	require.Equal(t, personID, people[1].ID)
+	require.Equal(t, first.AcknowledgedAt, people[1].AcknowledgedAt)
+	card, err := repo.GetByID(documentID)
+	require.NoError(t, err)
+	require.Equal(t, people, card.AcknowledgmentPeople)
+	execSQL(t, sqlDB, `INSERT INTO document_permissions (kind_code,subject_type,subject_key,action,is_allowed) VALUES ('administrative_order','user',$1,'register',true)`, firstMarker.String())
+	page, err := repo.GetList(models.DocumentFilter{AccessScope: &models.DocumentAccessScope{UserID: firstMarker.String()}})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 1)
+	require.Equal(t, people, page.Items[0].AcknowledgmentPeople)
 }

@@ -144,10 +144,6 @@ func (s *mapAdministrativeOrderDocStore) GetAcknowledgmentPersonByID(id uuid.UUI
 	return nil, nil
 }
 
-func (s *mapAdministrativeOrderDocStore) GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error) {
-	return nil, nil
-}
-
 func TestLinkServiceLoadGraphCardsPropagatesBulkError(t *testing.T) {
 	repo := mocks.NewIncomingDocStore(t)
 	expectedErr := errors.New("bulk cards failed")

@@ -17,7 +17,7 @@ func (s *stubAdminAuditLogStore) GetAll(limit, offset int) ([]models.AdminAuditL
 	return nil, 0, nil
 }
 
-func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) (*AdminAuditLogService, *documentPrincipalStub) {
+func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) *AdminAuditLogService {
 	t.Helper()
 	userRepo := mocks.NewUserStore(t)
 	auth := newDocumentPrincipalStub(userRepo)
@@ -32,11 +32,11 @@ func setupAdminAuditLogServiceWithRoles(t *testing.T, roles []string) (*AdminAud
 	auth.currentUserID = user.ID
 	userRepo.On("GetByID", user.ID).Return(user, nil).Maybe()
 
-	return NewAdminAuditLogService(&stubAdminAuditLogStore{}, auth), auth
+	return NewAdminAuditLogService(&stubAdminAuditLogStore{}, auth)
 }
 
 func TestAdminAuditLogService_GetAll_RequiresAdminRole(t *testing.T) {
-	svc, _ := setupAdminAuditLogServiceWithRoles(t, []string{"admin", "clerk"})
+	svc := setupAdminAuditLogServiceWithRoles(t, []string{"admin", "clerk"})
 
 	result, err := svc.GetAll(1, 10)
 	require.NoError(t, err)
@@ -44,7 +44,7 @@ func TestAdminAuditLogService_GetAll_RequiresAdminRole(t *testing.T) {
 }
 
 func TestAdminAuditLogService_GetAll_ForbiddenWithoutAdminRole(t *testing.T) {
-	svc, _ := setupAdminAuditLogServiceWithRoles(t, []string{"clerk"})
+	svc := setupAdminAuditLogServiceWithRoles(t, []string{"clerk"})
 
 	result, err := svc.GetAll(1, 10)
 	require.Error(t, err)

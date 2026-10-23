@@ -19,9 +19,10 @@ import (
 
 func TestBuiltAdminRestoreIntegration(t *testing.T) {
 	base, dir := os.Getenv("DOCFLOW_INTEGRATION_SERVER_URL"), os.Getenv("DOCFLOW_SMOKE_ARCHIVE_DIR")
-	if base == "" || dir == "" {
-		t.Skip("run make storage-smoke-test")
+	if base == "" {
+		t.Skip("run make integration-test for backup/restore checks")
 	}
+	require.NotEmpty(t, dir, "DOCFLOW_SMOKE_ARCHIVE_DIR is required when DOCFLOW_INTEGRATION_SERVER_URL is set")
 	request := func(method, path string, value any, token string, status int) []byte {
 		raw, err := json.Marshal(value)
 		require.NoError(t, err)

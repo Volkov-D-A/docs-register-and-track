@@ -70,7 +70,7 @@ func (c *Client) endSession(session requestSession, reason string) {
 }
 
 // doAuthenticated is the only execution path for bearer requests, including
-// attachment streaming. Login and Basic-auth migration requests use plain HTTP.
+// streamed responses. Login and Basic-auth migration requests use plain HTTP.
 func (c *Client) doAuthenticated(req *http.Request) (*http.Response, error) {
 	session := sessionForRequest(req)
 	c.tokenMu.RLock()

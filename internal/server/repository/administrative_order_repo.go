@@ -454,8 +454,7 @@ func (r *AdministrativeOrderRepository) GetAcknowledgmentPersonByID(id uuid.UUID
 	row := r.db.QueryRow(`
 		SELECT
 			p.id, p.document_id, p.full_name, p.acknowledged_at, p.acknowledged_by,
-			COALESCE(NULLIF(u.full_name, ''), u.login, '') AS acknowledged_by_name,
-			p.position, p.created_at
+			COALESCE(NULLIF(u.full_name, ''), u.login, '') AS acknowledged_by_name
 		FROM administrative_order_acknowledgment_people p
 		LEFT JOIN users u ON u.id = p.acknowledged_by
 		WHERE p.id = $1
@@ -476,8 +475,7 @@ func (r *AdministrativeOrderRepository) GetAcknowledgmentPeople(documentID uuid.
 	rows, err := r.db.Query(`
 		SELECT
 			p.id, p.document_id, p.full_name, p.acknowledged_at, p.acknowledged_by,
-			COALESCE(NULLIF(u.full_name, ''), u.login, '') AS acknowledged_by_name,
-			p.position, p.created_at
+			COALESCE(NULLIF(u.full_name, ''), u.login, '') AS acknowledged_by_name
 		FROM administrative_order_acknowledgment_people p
 		LEFT JOIN users u ON u.id = p.acknowledged_by
 		WHERE p.document_id = $1
@@ -511,8 +509,7 @@ func (r *AdministrativeOrderRepository) getAcknowledgmentPeopleByDocumentIDs(doc
 	rows, err := r.db.Query(`
 		SELECT
 			p.id, p.document_id, p.full_name, p.acknowledged_at, p.acknowledged_by,
-			COALESCE(NULLIF(u.full_name, ''), u.login, '') AS acknowledged_by_name,
-			p.position, p.created_at
+			COALESCE(NULLIF(u.full_name, ''), u.login, '') AS acknowledged_by_name
 		FROM administrative_order_acknowledgment_people p
 		LEFT JOIN users u ON u.id = p.acknowledged_by
 		WHERE p.document_id = ANY($1)
@@ -568,7 +565,7 @@ func scanAdministrativeOrderAcknowledgmentPerson(scanner administrativeOrderScan
 	var acknowledgedBy uuid.NullUUID
 	if err := scanner.Scan(
 		&person.ID, &person.DocumentID, &person.FullName, &acknowledgedAt, &acknowledgedBy,
-		&person.AcknowledgedByName, &person.Position, &person.CreatedAt,
+		&person.AcknowledgedByName,
 	); err != nil {
 		return nil, err
 	}

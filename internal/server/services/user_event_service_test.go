@@ -13,20 +13,14 @@ import (
 )
 
 type fakeUserEventStore struct {
-	items        []models.UserEvent
-	unreadCount  int
+	items        map[uuid.UUID][]models.UserEvent
 	markedDocFor []uuid.UUID
 	markedAllFor []uuid.UUID
 }
 
 func (s *fakeUserEventStore) GetList(userID uuid.UUID, filter models.UserEventFilter) (*models.PagedResult[models.UserEvent], error) {
 	items := make([]models.UserEvent, 0)
-	for _, item := range s.items {
-		if item.RecipientUserID != userID {
-			continue
-		}
-		items = append(items, item)
-	}
+	items = append(items, s.items[userID]...)
 	return &models.PagedResult[models.UserEvent]{
 		Items:      items,
 		TotalCount: len(items),
@@ -36,12 +30,9 @@ func (s *fakeUserEventStore) GetList(userID uuid.UUID, filter models.UserEventFi
 }
 
 func (s *fakeUserEventStore) CountUnread(userID uuid.UUID) (int, error) {
-	if s.unreadCount > 0 {
-		return s.unreadCount, nil
-	}
 	count := 0
-	for _, item := range s.items {
-		if item.RecipientUserID == userID && item.ReadAt == nil {
+	for _, item := range s.items[userID] {
+		if item.ReadAt == nil {
 			count++
 		}
 	}
@@ -50,9 +41,9 @@ func (s *fakeUserEventStore) CountUnread(userID uuid.UUID) (int, error) {
 
 func (s *fakeUserEventStore) MarkAllRead(userID uuid.UUID, readAt time.Time) error {
 	s.markedAllFor = append(s.markedAllFor, userID)
-	for i := range s.items {
-		if s.items[i].RecipientUserID == userID && s.items[i].ReadAt == nil {
-			s.items[i].ReadAt = &readAt
+	for i := range s.items[userID] {
+		if s.items[userID][i].ReadAt == nil {
+			s.items[userID][i].ReadAt = &readAt
 		}
 	}
 	return nil
@@ -60,9 +51,9 @@ func (s *fakeUserEventStore) MarkAllRead(userID uuid.UUID, readAt time.Time) err
 
 func (s *fakeUserEventStore) MarkDocumentRead(documentID, userID uuid.UUID, readAt time.Time) error {
 	s.markedDocFor = append(s.markedDocFor, documentID)
-	for i := range s.items {
-		if s.items[i].DocumentID == documentID && s.items[i].RecipientUserID == userID && s.items[i].ReadAt == nil {
-			s.items[i].ReadAt = &readAt
+	for i := range s.items[userID] {
+		if s.items[userID][i].DocumentID == documentID && s.items[userID][i].ReadAt == nil {
+			s.items[userID][i].ReadAt = &readAt
 		}
 	}
 	return nil
@@ -91,29 +82,27 @@ func TestUserEventService_GetCurrentUserEvents(t *testing.T) {
 	svc, store, user := setupUserEventService(t)
 	otherUserID := uuid.New()
 	eventID := uuid.New()
-	store.items = []models.UserEvent{
-		{
-			ID:              eventID,
-			RecipientUserID: user.ID,
-			DocumentID:      uuid.New(),
-			DocumentKind:    "incoming_letter",
-			EntityType:      "deadline_control",
-			EventType:       "deadline_control_create",
-			Title:           "Новое поручение",
-			Message:         "Текст события",
-			CreatedAt:       time.Now(),
-		},
-		{
-			ID:              uuid.New(),
-			RecipientUserID: otherUserID,
-			DocumentID:      uuid.New(),
-			DocumentKind:    "incoming_letter",
-			EntityType:      "deadline_control",
-			EventType:       "deadline_control_create",
-			Title:           "Чужое событие",
-			Message:         "Не должно попасть в ответ",
-			CreatedAt:       time.Now(),
-		},
+	store.items = map[uuid.UUID][]models.UserEvent{
+		user.ID: {{
+			ID:           eventID,
+			DocumentID:   uuid.New(),
+			DocumentKind: "incoming_letter",
+			EntityType:   "deadline_control",
+			EventType:    "deadline_control_create",
+			Title:        "Новое поручение",
+			Message:      "Текст события",
+			CreatedAt:    time.Now(),
+		}},
+		otherUserID: {{
+			ID:           uuid.New(),
+			DocumentID:   uuid.New(),
+			DocumentKind: "incoming_letter",
+			EntityType:   "deadline_control",
+			EventType:    "deadline_control_create",
+			Title:        "Чужое событие",
+			Message:      "Не должно попасть в ответ",
+			CreatedAt:    time.Now(),
+		}},
 	}
 
 	result, err := svc.GetCurrentUserEvents(models.UserEventFilter{})
@@ -130,16 +119,15 @@ func TestUserEventService_ReadMarkers(t *testing.T) {
 	svc, store, user := setupUserEventService(t)
 	eventID := uuid.New()
 	documentID := uuid.New()
-	store.items = []models.UserEvent{
-		{
-			ID:              eventID,
-			RecipientUserID: user.ID,
-			DocumentID:      documentID,
-			DocumentKind:    "incoming_letter",
-			EntityType:      "deadline_control",
-			EventType:       "deadline_control_create",
-			CreatedAt:       time.Now(),
-		},
+	store.items = map[uuid.UUID][]models.UserEvent{
+		user.ID: {{
+			ID:           eventID,
+			DocumentID:   documentID,
+			DocumentKind: "incoming_letter",
+			EntityType:   "deadline_control",
+			EventType:    "deadline_control_create",
+			CreatedAt:    time.Now(),
+		}},
 	}
 
 	count, err := svc.GetUnreadCount()
@@ -149,6 +137,9 @@ func TestUserEventService_ReadMarkers(t *testing.T) {
 	err = svc.MarkDocumentRead(documentID.String())
 	require.NoError(t, err)
 	assert.Equal(t, []uuid.UUID{documentID}, store.markedDocFor)
+	count, err = svc.GetUnreadCount()
+	require.NoError(t, err)
+	assert.Zero(t, count)
 
 	err = svc.MarkAllRead()
 	require.NoError(t, err)
@@ -159,15 +150,16 @@ func TestUserEventServiceReadMarkersRejectOtherRecipient(t *testing.T) {
 	svc, store, user := setupUserEventService(t)
 	documentID := uuid.New()
 	foreignID := uuid.New()
-	store.items = []models.UserEvent{
-		{ID: uuid.New(), RecipientUserID: user.ID, DocumentID: documentID},
-		{ID: foreignID, RecipientUserID: uuid.New(), DocumentID: documentID},
+	foreignUserID := uuid.New()
+	store.items = map[uuid.UUID][]models.UserEvent{
+		user.ID:       {{ID: uuid.New(), DocumentID: documentID}},
+		foreignUserID: {{ID: foreignID, DocumentID: documentID}},
 	}
 	require.NoError(t, svc.MarkDocumentRead(documentID.String()))
-	require.NotNil(t, store.items[0].ReadAt)
-	require.Nil(t, store.items[1].ReadAt)
+	require.NotNil(t, store.items[user.ID][0].ReadAt)
+	require.Nil(t, store.items[foreignUserID][0].ReadAt)
 	require.NoError(t, svc.MarkAllRead())
-	require.Nil(t, store.items[1].ReadAt)
+	require.Nil(t, store.items[foreignUserID][0].ReadAt)
 }
 
 func TestUserEventServiceRequiresPrincipal(t *testing.T) {

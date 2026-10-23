@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
@@ -72,7 +73,14 @@ func TestDocumentQueryAPIReturnsListAndCardWithServerAccessIntegration(t *testin
 	cardResponse := httptest.NewRecorder()
 	api.Handler().ServeHTTP(cardResponse, card)
 	require.Equal(t, http.StatusOK, cardResponse.Code, cardResponse.Body.String())
-	require.Contains(t, cardResponse.Body.String(), `"content":"server query integration"`)
+	var envelope map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(cardResponse.Body.Bytes(), &envelope))
+	require.NotContains(t, envelope, "content")
+	require.NotContains(t, envelope, "nomenclatureId")
+	var details dto.OutgoingDocument
+	require.NoError(t, json.Unmarshal(envelope["outgoingLetter"], &details))
+	require.Equal(t, "server query integration", details.Content)
+	require.Equal(t, document.NomenclatureID.String(), details.NomenclatureID)
 }
 
 func TestDocumentSearchAPIIntegration(t *testing.T) {

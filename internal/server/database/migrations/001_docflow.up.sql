@@ -27,23 +27,18 @@ CREATE TABLE users (
     is_active BOOLEAN NOT NULL DEFAULT true,
     failed_login_attempts INTEGER NOT NULL DEFAULT 0,
     password_changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    password_change_required BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    password_change_required BOOLEAN NOT NULL DEFAULT true
 );
 
 CREATE TABLE user_system_permissions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     permission VARCHAR(50) NOT NULL CHECK (
         permission IN ('admin', 'references')
     ),
     is_allowed BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (user_id, permission)
+    PRIMARY KEY (user_id, permission)
 );
 
-CREATE INDEX idx_user_system_permissions_user_id ON user_system_permissions (user_id);
 
 -- Система должна сохранять хотя бы одного активного администратора.
 -- Constraint trigger отложен до COMMIT: ReplaceUserAccessProfile временно удаляет
@@ -115,7 +110,7 @@ CREATE TABLE document_permissions (
         kind_code IN ('incoming_letter', 'outgoing_letter', 'citizen_appeal', 'administrative_order')
     ),
     subject_type VARCHAR(20) NOT NULL CHECK (
-        subject_type IN ('role', 'department', 'user')
+        subject_type IN ('department', 'user')
     ),
     subject_key VARCHAR(100) NOT NULL,
     action VARCHAR(30) NOT NULL CHECK (
@@ -198,7 +193,6 @@ CREATE TABLE documents (
     attachment_pages_count INT NOT NULL DEFAULT 0 CHECK (attachment_pages_count >= 0)
 );
 
-CREATE INDEX idx_documents_kind ON documents (kind);
 CREATE INDEX idx_documents_nomenclature ON documents (nomenclature_id);
 CREATE INDEX idx_documents_registration_date ON documents (registration_date);
 CREATE UNIQUE INDEX idx_documents_kind_registration_number_year
@@ -219,12 +213,9 @@ CREATE TABLE document_command_idempotency (
     idempotency_key UUID NOT NULL,
     request_hash TEXT NOT NULL,
     document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     PRIMARY KEY (principal_id, operation, idempotency_key)
 );
 
-CREATE INDEX idx_document_command_idempotency_created_at
-    ON document_command_idempotency(created_at);
 
 -- 9. Document Correspondent Registrations
 CREATE TABLE document_correspondent_registrations (
@@ -238,7 +229,6 @@ CREATE TABLE document_correspondent_registrations (
 );
 
 CREATE INDEX idx_doc_corr_reg_document ON document_correspondent_registrations (document_id);
-CREATE INDEX idx_doc_corr_reg_number ON document_correspondent_registrations (registration_number);
 CREATE INDEX idx_doc_corr_reg_date ON document_correspondent_registrations (registration_date);
 CREATE INDEX idx_doc_corr_reg_org ON document_correspondent_registrations (correspondent_org_id);
 
@@ -250,11 +240,9 @@ CREATE TABLE document_resolutions (
     resolution_author VARCHAR(255),
     resolution_executors TEXT,
     position INT NOT NULL DEFAULT 1,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_document_resolutions_document ON document_resolutions (document_id);
 CREATE INDEX idx_document_resolutions_document_position ON document_resolutions (document_id, position);
 
 -- 11. Incoming Document Details
@@ -265,7 +253,6 @@ CREATE TABLE incoming_document_details (
     sender_signatory VARCHAR(255) NOT NULL
 );
 
-CREATE INDEX idx_incoming_doc_details_number ON incoming_document_details (incoming_number);
 CREATE INDEX idx_incoming_doc_details_date ON incoming_document_details (incoming_date);
 
 -- 12. Outgoing Document Details
@@ -279,7 +266,6 @@ CREATE TABLE outgoing_document_details (
     addressee VARCHAR(255) NOT NULL
 );
 
-CREATE INDEX idx_outgoing_doc_details_number ON outgoing_document_details (outgoing_number);
 CREATE INDEX idx_outgoing_doc_details_date ON outgoing_document_details (outgoing_date);
 CREATE INDEX idx_outgoing_doc_details_recipient ON outgoing_document_details (recipient_org_id);
 
@@ -298,7 +284,6 @@ CREATE TABLE citizen_appeal_details (
 );
 
 CREATE INDEX idx_citizen_appeal_details_appeal_date ON citizen_appeal_details (appeal_date);
-CREATE INDEX idx_citizen_appeal_details_applicant ON citizen_appeal_details (applicant_full_name);
 CREATE INDEX idx_citizen_appeal_details_type ON citizen_appeal_details (appeal_type);
 
 -- 14. Administrative Order Details
@@ -317,9 +302,7 @@ CREATE TABLE administrative_order_details (
     )
 );
 
-CREATE INDEX idx_administrative_order_details_number ON administrative_order_details (order_number);
 CREATE INDEX idx_administrative_order_details_date ON administrative_order_details (order_date);
-CREATE INDEX idx_administrative_order_details_deadline ON administrative_order_details (execution_deadline);
 CREATE INDEX idx_administrative_order_details_active ON administrative_order_details (is_active);
 
 CREATE TABLE administrative_order_acknowledgment_people (
@@ -355,7 +338,6 @@ CREATE TABLE document_links (
     UNIQUE (source_document_id, target_document_id)
 );
 
-CREATE INDEX idx_document_links_source ON document_links (source_document_id);
 CREATE INDEX idx_document_links_target ON document_links (target_document_id);
 
 
@@ -415,13 +397,11 @@ CREATE UNIQUE INDEX deadline_series_one_active_iteration ON document_deadline_co
 CREATE INDEX deadline_controls_document ON document_deadline_controls(document_id);
 CREATE INDEX deadline_controls_author ON document_deadline_controls(created_by);
 CREATE INDEX deadline_controls_executor ON document_deadline_controls(executor_id);
-CREATE INDEX deadline_controls_co_executors ON document_deadline_controls USING gin(co_executor_ids);
 CREATE INDEX deadline_controls_active_due ON document_deadline_controls(due_date) WHERE status='active';
 CREATE INDEX deadline_series_document ON document_deadline_series(document_id);
 CREATE INDEX deadline_series_author ON document_deadline_series(created_by);
 
 CREATE INDEX deadline_series_executor ON document_deadline_series(executor_id);
-CREATE INDEX deadline_series_co_executors ON document_deadline_series USING gin(co_executor_ids);
 CREATE FUNCTION deadline_executor_set_valid(main UUID, co UUID[]) RETURNS BOOLEAN
 LANGUAGE SQL IMMUTABLE AS $$
  SELECT NOT main=ANY(co) AND array_position(co,NULL) IS NULL

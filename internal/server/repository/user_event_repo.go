@@ -62,7 +62,7 @@ func (r *UserEventRepository) GetList(userID uuid.UUID, filter models.UserEventF
 	offset := (filter.Page - 1) * filter.PageSize
 	query := fmt.Sprintf(`
 		SELECT
-			e.id, e.recipient_user_id,
+			e.id,
 			e.document_id, e.document_kind, e.document_number,
 			e.entity_type, e.event_type,
 			e.title, e.message,
@@ -142,7 +142,6 @@ func scanUserEvent(scanner userEventScanner) (*models.UserEvent, error) {
 
 	err := scanner.Scan(
 		&event.ID,
-		&event.RecipientUserID,
 		&event.DocumentID,
 		&event.DocumentKind,
 		&documentNumber,

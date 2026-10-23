@@ -69,10 +69,6 @@ func (s *administrativeOrderCommandStore) GetAcknowledgmentPersonByID(id uuid.UU
 	return nil, nil
 }
 
-func (s *administrativeOrderCommandStore) GetAcknowledgmentPeople(documentID uuid.UUID) ([]models.AdministrativeOrderAcknowledgmentPerson, error) {
-	return nil, nil
-}
-
 func setupAdministrativeOrderCommandHandler(t *testing.T, allowed map[models.DocumentKind]map[string]bool) *administrativeOrderHandlerDeps {
 	t.Helper()
 

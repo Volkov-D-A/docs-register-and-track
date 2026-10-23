@@ -8,18 +8,17 @@ import (
 
 // UserEvent описывает персональное событие пользователя.
 type UserEvent struct {
-	ID              uuid.UUID  `json:"-"`
-	RecipientUserID uuid.UUID  `json:"-"`
-	DocumentID      uuid.UUID  `json:"-"`
-	DocumentKind    string     `json:"documentKind"`
-	DocumentNumber  string     `json:"documentNumber,omitempty"`
-	DocumentDate    *time.Time `json:"documentDate,omitempty"`
-	EntityType      string     `json:"entityType"`
-	EventType       string     `json:"eventType"`
-	Title           string     `json:"title"`
-	Message         string     `json:"message"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	ReadAt          *time.Time `json:"readAt,omitempty"`
+	ID             uuid.UUID  `json:"-"`
+	DocumentID     uuid.UUID  `json:"-"`
+	DocumentKind   string     `json:"documentKind"`
+	DocumentNumber string     `json:"documentNumber,omitempty"`
+	DocumentDate   *time.Time `json:"documentDate,omitempty"`
+	EntityType     string     `json:"entityType"`
+	EventType      string     `json:"eventType"`
+	Title          string     `json:"title"`
+	Message        string     `json:"message"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	ReadAt         *time.Time `json:"readAt,omitempty"`
 }
 
 // CreateUserEventRequest описывает данные для создания события.

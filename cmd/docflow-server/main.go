@@ -121,7 +121,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return &startupdiag.Failure{
 			Component: "server startup",
 			Summary:   "Не удалось создать docflow-server.",
-			NextStep:  "Проверьте PostgreSQL, миграции, объектное хранилище, environment и технический лог.",
+			NextStep:  "Проверьте PostgreSQL, миграции, окружение и технический лог.",
 			Err:       err,
 		}
 	}
@@ -133,7 +133,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return &startupdiag.Failure{
 			Component: "server runtime",
 			Summary:   "docflow-server остановлен из-за ошибки.",
-			NextStep:  "Проверьте состояние схемы, PostgreSQL, объектное хранилище и технический лог.",
+			NextStep:  "Проверьте состояние схемы, PostgreSQL и технический лог.",
 			Err:       err,
 		}
 	}

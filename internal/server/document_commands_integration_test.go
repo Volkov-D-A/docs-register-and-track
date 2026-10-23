@@ -91,9 +91,21 @@ func TestDocumentCommandAPIAllKindsIntegration(t *testing.T) {
 			changed := request(http.MethodPatch, path+"/"+document["id"].(string), uuid.NewString(), update)
 			require.Equal(t, http.StatusOK, changed.Code, changed.Body.String())
 			require.Contains(t, changed.Body.String(), "updated")
+			filter := map[string]any{"page": 1, "pageSize": 20}
+			switch models.DocumentKind(tc.kind) {
+			case models.DocumentKindIncomingLetter:
+				filter["incomingNumber"] = "D/1"
+				filter["registrationNumber"] = "RC-"
+			case models.DocumentKindOutgoingLetter:
+				filter["outgoingNumber"] = "D/1"
+			case models.DocumentKindCitizenAppeal:
+				filter["applicantName"] = "itiz"
+			case models.DocumentKindAdministrativeOrder:
+				filter["orderNumber"] = "D/1"
+			}
 			listed := request(http.MethodPost, "/api/v1/documents/query", "", map[string]any{
 				"kindCode": tc.kind,
-				"filter":   map[string]any{"page": 1, "pageSize": 20},
+				"filter":   filter,
 			})
 			require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
 			var page dto.PagedResult[dto.DocumentListItem]

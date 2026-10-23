@@ -66,3 +66,21 @@ func TestWorkspaceRecentDocumentsWithoutRootsStillQueryScopedStore(t *testing.T)
 		require.Equal(t, userID.String(), scope.UserID)
 	}
 }
+
+func TestWorkspaceRecentDocumentsRejectUnauthenticatedBeforeQuery(t *testing.T) {
+	svc, store, _ := workspaceServiceFixture(t, false)
+	svc.auth.(*documentPrincipalStub).currentUserID = uuid.Nil
+	result, err := svc.GetRecentDocuments()
+	require.ErrorIs(t, err, models.ErrUnauthorized)
+	require.Nil(t, result)
+	require.Nil(t, store.documentScopes)
+}
+
+func TestWorkspaceRecentDocumentsRequireConfiguredAccess(t *testing.T) {
+	svc, store, _ := workspaceServiceFixture(t, true)
+	svc.access = nil
+	result, err := svc.GetRecentDocuments()
+	require.ErrorIs(t, err, models.ErrForbidden)
+	require.Nil(t, result)
+	require.Nil(t, store.documentScopes)
+}

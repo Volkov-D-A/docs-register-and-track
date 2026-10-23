@@ -212,8 +212,6 @@ type AdministrativeOrderAcknowledgmentPerson struct {
 	AcknowledgedAt     *time.Time `json:"acknowledgedAt,omitempty"`
 	AcknowledgedBy     *uuid.UUID `json:"-"`
 	AcknowledgedByName string     `json:"acknowledgedByName,omitempty"`
-	Position           int        `json:"position"`
-	CreatedAt          time.Time  `json:"createdAt"`
 }
 
 // DocumentLink — связь между документами

@@ -42,7 +42,6 @@ func MapDocumentCorrespondentRegistrations(items []models.DocumentCorrespondentR
 			RegistrationNumber: item.RegistrationNumber,
 			RegistrationDate:   item.RegistrationDate,
 			CorrespondentName:  item.CorrespondentName,
-			Position:           item.Position,
 		}
 	}
 	return result
@@ -60,7 +59,6 @@ func MapDocumentResolutions(items []models.DocumentResolution) []DocumentResolut
 			Resolution:          item.Resolution,
 			ResolutionAuthor:    item.ResolutionAuthor,
 			ResolutionExecutors: item.ResolutionExecutors,
-			Position:            item.Position,
 		}
 	}
 	return result
@@ -133,8 +131,6 @@ func MapAdministrativeOrderAcknowledgmentPeople(items []models.AdministrativeOrd
 			FullName:           item.FullName,
 			AcknowledgedAt:     item.AcknowledgedAt,
 			AcknowledgedByName: item.AcknowledgedByName,
-			Position:           item.Position,
-			CreatedAt:          item.CreatedAt,
 		}
 	}
 	return result
@@ -176,14 +172,6 @@ func MapIncomingDocumentCard(m *models.IncomingDocument) *DocumentCard {
 		KindCode:           string(models.DocumentKindIncomingLetter),
 		KindName:           models.DocumentKindIncomingLetter.Label(),
 		RegistrationNumber: m.IncomingNumber,
-		RegistrationDate:   m.IncomingDate,
-		NomenclatureID:     m.NomenclatureID.String(),
-		NomenclatureName:   m.NomenclatureName,
-		DocumentTypeID:     m.DocumentTypeID,
-		Content:            m.Content,
-		CreatedByName:      m.CreatedByName,
-		CreatedAt:          m.CreatedAt,
-		UpdatedAt:          m.UpdatedAt,
 		IncomingLetter:     MapIncomingDocument(m),
 	}
 }
@@ -198,14 +186,6 @@ func MapOutgoingDocumentCard(m *models.OutgoingDocument) *DocumentCard {
 		KindCode:           string(models.DocumentKindOutgoingLetter),
 		KindName:           models.DocumentKindOutgoingLetter.Label(),
 		RegistrationNumber: m.OutgoingNumber,
-		RegistrationDate:   m.OutgoingDate,
-		NomenclatureID:     m.NomenclatureID.String(),
-		NomenclatureName:   m.NomenclatureName,
-		DocumentTypeID:     m.DocumentTypeID,
-		Content:            m.Content,
-		CreatedByName:      m.CreatedByName,
-		CreatedAt:          m.CreatedAt,
-		UpdatedAt:          m.UpdatedAt,
 		OutgoingLetter:     MapOutgoingDocument(m),
 	}
 }
@@ -220,14 +200,6 @@ func MapCitizenAppealDocumentCard(m *models.CitizenAppealDocument) *DocumentCard
 		KindCode:           string(models.DocumentKindCitizenAppeal),
 		KindName:           models.DocumentKindCitizenAppeal.Label(),
 		RegistrationNumber: m.RegistrationNumber,
-		RegistrationDate:   m.RegistrationDate,
-		NomenclatureID:     m.NomenclatureID.String(),
-		NomenclatureName:   m.NomenclatureName,
-		DocumentTypeID:     m.DocumentTypeID,
-		Content:            m.Content,
-		CreatedByName:      m.CreatedByName,
-		CreatedAt:          m.CreatedAt,
-		UpdatedAt:          m.UpdatedAt,
 		CitizenAppeal:      MapCitizenAppealDocument(m),
 	}
 }
@@ -242,14 +214,6 @@ func MapAdministrativeOrderDocumentCard(m *models.AdministrativeOrderDocument) *
 		KindCode:            string(models.DocumentKindAdministrativeOrder),
 		KindName:            models.DocumentKindAdministrativeOrder.Label(),
 		RegistrationNumber:  m.OrderNumber,
-		RegistrationDate:    m.OrderDate,
-		NomenclatureID:      m.NomenclatureID.String(),
-		NomenclatureName:    m.NomenclatureName,
-		DocumentTypeID:      models.DocumentTypeAdministrativeOrder,
-		Content:             m.Title,
-		CreatedByName:       m.CreatedByName,
-		CreatedAt:           m.CreatedAt,
-		UpdatedAt:           m.UpdatedAt,
 		AdministrativeOrder: MapAdministrativeOrderDocument(m),
 	}
 }

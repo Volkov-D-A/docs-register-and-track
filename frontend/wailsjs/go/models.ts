@@ -162,9 +162,6 @@ export namespace dto {
 	    // Go type: time
 	    acknowledgedAt?: any;
 	    acknowledgedByName?: string;
-	    position: number;
-	    // Go type: time
-	    createdAt: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new AdministrativeOrderAcknowledgmentPerson(source);
@@ -176,8 +173,6 @@ export namespace dto {
 	        this.fullName = source["fullName"];
 	        this.acknowledgedAt = this.convertValues(source["acknowledgedAt"], null);
 	        this.acknowledgedByName = source["acknowledgedByName"];
-	        this.position = source["position"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -423,7 +418,6 @@ export namespace dto {
 	    resolution?: string;
 	    resolutionAuthor?: string;
 	    resolutionExecutors?: string;
-	    position: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DocumentResolution(source);
@@ -435,7 +429,6 @@ export namespace dto {
 	        this.resolution = source["resolution"];
 	        this.resolutionAuthor = source["resolutionAuthor"];
 	        this.resolutionExecutors = source["resolutionExecutors"];
-	        this.position = source["position"];
 	    }
 	}
 	export class DocumentCorrespondentRegistration {
@@ -444,7 +437,6 @@ export namespace dto {
 	    // Go type: time
 	    registrationDate: any;
 	    correspondentName?: string;
-	    position: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DocumentCorrespondentRegistration(source);
@@ -456,7 +448,6 @@ export namespace dto {
 	        this.registrationNumber = source["registrationNumber"];
 	        this.registrationDate = this.convertValues(source["registrationDate"], null);
 	        this.correspondentName = source["correspondentName"];
-	        this.position = source["position"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -751,17 +742,6 @@ export namespace dto {
 	    kindCode: string;
 	    kindName: string;
 	    registrationNumber: string;
-	    // Go type: time
-	    registrationDate: any;
-	    nomenclatureId: string;
-	    nomenclatureName?: string;
-	    documentTypeId: string;
-	    content: string;
-	    createdByName?: string;
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
 	    incomingLetter?: IncomingDocument;
 	    outgoingLetter?: OutgoingDocument;
 	    citizenAppeal?: CitizenAppealDocument;
@@ -777,14 +757,6 @@ export namespace dto {
 	        this.kindCode = source["kindCode"];
 	        this.kindName = source["kindName"];
 	        this.registrationNumber = source["registrationNumber"];
-	        this.registrationDate = this.convertValues(source["registrationDate"], null);
-	        this.nomenclatureId = source["nomenclatureId"];
-	        this.nomenclatureName = source["nomenclatureName"];
-	        this.documentTypeId = source["documentTypeId"];
-	        this.content = source["content"];
-	        this.createdByName = source["createdByName"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	        this.incomingLetter = this.convertValues(source["incomingLetter"], IncomingDocument);
 	        this.outgoingLetter = this.convertValues(source["outgoingLetter"], OutgoingDocument);
 	        this.citizenAppeal = this.convertValues(source["citizenAppeal"], CitizenAppealDocument);

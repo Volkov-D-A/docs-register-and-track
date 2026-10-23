@@ -48,7 +48,7 @@ func TestUserEventRepository_GetList(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	listQuery := `SELECT
-			e.id, e.recipient_user_id,
+			e.id,
 			e.document_id, e.document_kind, e.document_number,
 			e.entity_type, e.event_type,
 			e.title, e.message,
@@ -62,7 +62,6 @@ func TestUserEventRepository_GetList(t *testing.T) {
 		WithArgs(userID, 10, 10).
 		WillReturnRows(sqlmock.NewRows(userEventColumns()).AddRow(
 			eventID,
-			userID,
 			documentID,
 			"incoming_letter",
 			"ВХ-1",
@@ -109,7 +108,6 @@ func TestUserEventRepository_MarkDocumentRead(t *testing.T) {
 func userEventColumns() []string {
 	return []string{
 		"id",
-		"recipient_user_id",
 		"document_id",
 		"document_kind",
 		"document_number",

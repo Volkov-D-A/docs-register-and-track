@@ -66,7 +66,7 @@ func TestAdministrativeOrderRepository_GetListUsesVisibilityClosure(t *testing.T
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
-			"acknowledged_by_name", "position", "created_at",
+			"acknowledged_by_name",
 		}))
 
 	res, err := repo.GetList(filter)
@@ -193,13 +193,13 @@ func administrativeOrderAcknowledgmentPeopleRows(documentID uuid.UUID, now time.
 	acknowledgedBy := uuid.New()
 	return sqlmock.NewRows([]string{
 		"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
-		"acknowledged_by_name", "position", "created_at",
+		"acknowledged_by_name",
 	}).AddRow(
 		uuid.New(), documentID, "Иванов И.И.", acknowledgedAt, acknowledgedBy,
-		"Секретарь", 1, now,
+		"Секретарь",
 	).AddRow(
 		uuid.New(), documentID, "Петров П.П.", nil, nil,
-		"", 2, now,
+		"",
 	)
 }
 
@@ -246,8 +246,8 @@ func TestAdministrativeOrderRepository_GetAcknowledgmentPersonByID(t *testing.T)
 			WithArgs(personID).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
-				"acknowledged_by_name", "position", "created_at",
-			}).AddRow(personID, documentID, "Иванов И.И.", acknowledgedAt, acknowledgedBy, "Секретарь", 1, now))
+				"acknowledged_by_name",
+			}).AddRow(personID, documentID, "Иванов И.И.", acknowledgedAt, acknowledgedBy, "Секретарь"))
 
 		person, err := repo.GetAcknowledgmentPersonByID(personID)
 
@@ -544,7 +544,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			WithArgs(docID).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
-				"acknowledged_by_name", "position", "created_at",
+				"acknowledged_by_name",
 			}))
 		mock.ExpectBegin().WillReturnError(sql.ErrConnDone)
 
@@ -573,7 +573,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			WithArgs(req.ID).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
-				"acknowledged_by_name", "position", "created_at",
+				"acknowledged_by_name",
 			}))
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE documents SET`).
@@ -607,7 +607,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			WithArgs(req.ID).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "document_id", "full_name", "acknowledged_at", "acknowledged_by",
-				"acknowledged_by_name", "position", "created_at",
+				"acknowledged_by_name",
 			}))
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE documents SET`).

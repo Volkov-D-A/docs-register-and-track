@@ -1,8 +1,6 @@
 package services
 
 import (
-	"errors"
-
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
@@ -30,23 +28,16 @@ func (s *WorkspaceService) GetRecentDocuments() (*dto.WorkspaceDocuments, error)
 		return nil, models.ErrForbidden
 	}
 	result := &dto.WorkspaceDocuments{Items: []dto.WorkspaceDocument{}}
-	if err := s.access.RequireDomainRead(); err != nil {
-		if errors.Is(err, models.ErrForbidden) {
-			return result, nil
-		}
+	scope, err := s.access.ResolveReadScope()
+	if err != nil {
 		return nil, err
 	}
+	// Visibility depends on the request principal, not the document kind.
 	scopes := make(map[models.DocumentKind]models.DocumentAccessScope)
 	for _, spec := range models.AllDocumentKindSpecs() {
-		scope, err := s.access.ResolveReadScope()
-		if err != nil {
-			return nil, err
-		}
 		scopes[spec.Code] = *scope
-		if scope.UserID != "" {
-			result.Available = true
-		}
 	}
+	result.Available = scope.UserID != ""
 	if !result.Available {
 		return result, nil
 	}

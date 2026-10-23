@@ -1,5 +1,20 @@
 # Поэтапный план аудита избыточного кода Docflow
 
+## Текущий статус — 23 октября 2026
+
+**Аудит завершён.** Подтверждённые обратимые очистки A01–A55 выполнены и
+проверены в указанном для каждой группы объёме. После подтверждения пользователя,
+что важных данных нет и БД будет сброшена,
+D01–D03 также закрыты: baseline очищен от шести колонок, role grants и
+13 лишних явных индексов. Существующая рабочая БД этой задачей не сбрасывалась.
+Непроверенные runtime-платформы и эксплуатационные сценарии явно
+перечислены в итоговом разделе. Это заключение аудита исходников, а не гарантия
+отсутствия любого возможного неиспользуемого кода и не релизная приёмка.
+
+Фразы «аудит открыт» ниже относятся к промежуточным проходам и сохранены как
+журнал работ. Итоговая матрица и решения в конце документа заменяют их текущий
+статус. A01–A43 входят в ebba888; последующие изменения пока без нового коммита.
+
 ## Цель и границы
 
 Выявить и последовательно устранить устаревшие реализации, недостижимый код,
@@ -7,7 +22,8 @@
 устаревшие тесты и инфраструктуру. Аудит охватывает production-код, контракты,
 схему БД, фоновые процессы, сборку, тесты и эксплуатационные документы.
 
-Этот документ — план работ, а не заключение об уже найденных дефектах.
+Документ содержит исходный план, журнал выполнения и итоговое заключение.
+Текущий статус и ограничения приведены в начале и в заключительном разделе.
 Названия файлов и механизмов ниже задают области проверки; сами по себе они
 не являются основанием для удаления. Текущий функционал сохраняется, если
 отказ от него не согласован отдельно. Перепроектирование ради сокращения строк
@@ -760,3 +776,492 @@ auditAction → Create. Удаление всей цепочки не выпол
 
 Комментарий после проверок: `make integration-db-down` успешно удалил тестовый
 container, network и volume. Рабочее окружение и его данные не затрагивались.
+
+## Продолжение аудита — 23 октября 2026: тестовые зависимости и инфраструктура
+
+Исходное состояние: чистое рабочее дерево на ebba888; предыдущие результаты
+A01–A43 сохранены. Этот проход продолжает этапы 4, 7–9 без изменения поведения
+production-сервисов и схемы данных.
+
+| ID | Проверенная находка | Выполнено |
+| --- | --- | --- |
+| A44 | AdministrativeOrderDocStore требовал GetAcknowledgmentPeople, хотя ни один сервис не вызывает метод через этот порт | Удалена декларация и четыре тестовые заглушки. Repository.GetAcknowledgmentPeople сохранён: его вызывают GetByID и update; он нужен для карточки и сохранения отметок ознакомления |
+| A45 | setupJournalService создавал два видовых мока с Maybe-ожиданиями, случайными номенклатурами и тремя всегда игнорируемыми результатами. Роль admin задавала только login, без реального системного права | Заменено явным документом и настройкой видимости; удалены два мока и лишние результаты helper. Теперь отказ проверяется с настоящим SystemPermissionAdmin; добавлен успешный случай admin с видимостью документа. Read scope независим от системного admin |
+| A46 | setupAdminAuditLogServiceWithRoles возвращал principal, игнорируемый всеми callers | Удалён лишний результат helper, обновлены два вызова |
+| A47 | make help-checks описывал storage-smoke-test как проверку сохранности вложений, хотя актуальные script и testing/README описывают сохранность контролей | Исправлен текст справки; команды smoke-теста не менялись |
+
+### Кандидаты, проверенные без удаления
+
+- WorkspaceDocument.RegisteredAt действительно отображается RecentDocumentsPanel
+  (дата регистрации и подсказка со временем); DocumentDate используется в заголовке.
+  Список корреспондентов нужен первому имени, счётчику остальных и полной подсказке.
+  DTO, SQL и проверки этих полей сохранены.
+- System statistics sampleWindow, inFlight, operationP95Milliseconds, generatedAt
+  и сведения сборки используются SystemCharts; их отсутствие в других экранах
+  не является признаком бесполезной загрузки.
+- merge-go-coverage.py вызывается build/make/checks.mk для объединения реального
+  покрытия. tools/dbperf вызывается db-performance-check. Samba и backup Compose
+  вызываются backup-integration.sh. Корневой Makefile недостаточен для проверки
+  всех потребителей: учтены включённые build/make/*.mk.
+- Текстовый fallback formatDeadlineJournal сохранён: он отображает сохранённые
+  audit details, включая строки и значения вне текущей формы JSON snapshots.
+  Решения о переписывании старых audit-данных не принималось; отсутствие старого
+  producer не позволяет удалить чтение сохранённых записей.
+- Эвристический поиск не обнаружил полностью изолированных frontend/src модулей
+  или Go-типов с единственным упоминанием. Это не заменяет проверку экспортов,
+  интерфейсов, generated-контрактов и транзитивных зависимостей.
+
+### Проверки и комментарии
+
+`go test ./internal/server/services -short -count=1` прошёл после изменений:
+проверены все consumers сокращённого порта и обновлённые fixtures. Первый запуск
+выявил, что два ранних отказа (неверный UUID и отсутствие access service) вообще
+не читают пользователя. Исправлена конфигурация этих случаев: они теперь не
+создают лишнего ожидания GetByID. Ослаблять его до Maybe не понадобилось.
+
+`git diff --check` прошёл. Интеграционная БД, frontend build, Wails generation,
+Windows runtime и release-gate не запускались: рабочие SQL, UI, DTO и экспортируемые
+Wails-сигнатуры не менялись. Для текстовой правки справки достаточно просмотра diff.
+Полный аудит остаётся открытым; этот проход не объявляет остальные поля, индексы,
+зависимости или редкие тестовые пути проверенными.
+
+## Продолжение аудита — рабочий стол и проверки контрактов
+
+### Выполнено
+
+| ID | Доказательство | Изменение |
+| --- | --- | --- |
+| A48 | WorkspaceService.GetRecentDocuments вычислял ResolveReadScope отдельно для четырёх видов, хотя после прежнего перехода scope зависит только от request principal. Дополнительный RequireDomainRead повторял проверку авторизации и сохранял старую ветвь обработки Forbidden | Scope вычисляется один раз до цикла и копируется для каждого вида. Удалены повторные вызовы и старая ветвь. Начальная авторизация, отсутствие access/repository, Available, mapping и SQL-фильтрация сохранены |
+| A49 | Комментарий doAuthenticated всё ещё упоминал attachment streaming после удаления вложений | Описание исправлено на streamed responses. Сам код обработки ответов, отмены и завершения сессии не менялся |
+
+Для A48 проверена цепочка HTTP → requestDocumentPrincipal → WorkspaceService →
+DocumentAccessService.ResolveReadScope → WorkspaceRepository.RecentDocuments.
+Production principal неизменяем в пределах запроса; RequireDomainRead теперь
+просто вызывает RequireAuthenticated, а не проверку старой роли/document-kind.
+Успешная начальная авторизация не требует четырёх повторных разрешений вида.
+Repository по-прежнему получает отдельную запись scope для каждого вида и строит
+visibility predicate до LIMIT. Availability в DTO не удалена: frontend использует
+её для скрытия панели, в том числе при обработке отказа доступа.
+
+### Проверено и сохранено
+
+- ReportRequest/ReportFilters: frontend действительно отправляет periodBasis и
+  timezone, переключает users/executors в зависимости от шаблона. ReportRow.Period
+  нужен таблице/диаграмме подразделений и ключу строки; Metric нужен показателям
+  исполнения/просрочки. ReportResult.Version/Definition, UniqueDocuments и
+  OpenOverdue показываются в отчёте. Удаление не доказано.
+- DeadlineControlStore.GetControl/GetSeries нужны update/complete/cancel и
+  операциям серий; удалённый ранее endpoint одиночного контроля не сделал методы
+  хранилища неиспользуемыми. Транзакционные аналоги также нужны под блокировкой.
+- Поиск Go test helpers без вызовов и тестовых полей без selector-чтений не нашёл
+  новых подтверждённых кандидатов. Встраиваемые fake-клиенты и интерфейсы не
+  удалялись: их методы используются через embedding. Эвристика не подменяет
+  проверку типов и всех путей исполнения.
+
+### Проверки
+
+Адресные `TestWorkspaceRecentDocuments*` прошли. Существующие проверки подтверждают
+scope всех четырёх видов, чтение без собственных корневых документов и сохранение
+дат/корреспондентов. Добавлены случаи неавторизованного пользователя и отсутствия
+access service: оба завершаются до запроса repository. `git diff --check` прошёл.
+SQL, DTO и экспортируемый Wails API не менялись; интеграционная БД, генерация
+bindings, frontend build и полный regression/release-gate повторно не запускались.
+
+Оставшиеся области исходного плана пока не объявлены закрытыми. Изменения этого
+и предыдущего прохода находятся в рабочем дереве; новый коммит не создавался.
+
+## Продолжение аудита — сценарии сборки и backup smoke
+
+### Найдено и исправлено
+
+| ID | Наблюдение | Выполнено |
+| --- | --- | --- |
+| A50 | BuiltServerBackup/BuiltAdminRestore пропускались не только без built-server окружения, но и при частично настроенном окружении: URL задан, а DOCFLOW_SMOKE_ARCHIVE_DIR отсутствует. Admin restore также предлагал устаревшую команду storage-smoke-test, которая теперь проверяет только сохранность контролей | Без URL сохранён обычный Skip; при заданном URL отсутствие каталога теперь явно завершает тест ошибкой конфигурации до HTTP-запросов. Подсказки обоих сценариев указывают make integration-test |
+
+### Отклонённый кандидат: stage/remote
+
+Изначальная гипотеза о неиспользуемом stage/remote опровергнута полной трассировкой:
+backup-integration.sh экспортирует каталог → TestBuiltServerBackupIntegration
+скачивает архив через backup.DownloadCopy → TestBuiltAdminRestoreIntegration
+находит архив в каталоге и выбирает его ID для verify/restore. tmpfs Samba и
+volume серверного staging имеют другое назначение и не заменяют локальную копию.
+Пробная правка подготовки каталога полностью отменена; у скрипта нет diff.
+Сохраняются и каталог, и переменная, и права, и cleanup. Это также подтверждает
+причину сохранения DownloadCopy при прежних проходах аудита.
+
+### Проверка инфраструктуры
+
+Прослежены root Makefile → build/make/checks.mk → release-gate.sh, а также
+integration.yaml + backup-integration.yaml + backup-test.yaml и соответствующий
+shell-сценарий. Инструментированная сборка, GOCOVERDIR, преобразование covdata и
+merge-go-coverage.py имеют действующих потребителей. Release-gate tests проверяют
+существование целей и порядок обязательной интеграции; publication/dev-server
+fixtures проверяют отказ после сбоя/изменения исходников и не публикуют реальные
+образы. Эти фейки не удалялись как устаревшие.
+
+Дополнительный эвристический поиск экспортов frontend/src без других упоминаний
+не дал подтверждённых кандидатов; он не доказывает использование каждого поля
+DTO или каждого экспорта и не заменяет трассировку вызовов.
+
+### Проверки и ограничения
+
+- `bash -n` для backup-integration, prod-compose-smoke, release-gate и dev-server
+  прошёл.
+- TestBackupIntegrationCleanupPreservesFailureAndOnlyRemovesTestState прошёл:
+  сохранение кода сбоя и ограниченная очистка тестового состояния остаются рабочими.
+- Адресный запуск двух smoke-тестов без URL: оба ожидаемо SKIP, пакет компилируется.
+  Это проверка режима запуска, а не утверждение о проверенном восстановлении.
+- Отрицательный запуск с URL и без каталога: оба ожидаемо FAIL с сообщением
+  DOCFLOW_SMOKE_ARCHIVE_DIR is required, до сетевых запросов. Код выхода 1 здесь
+  является проверенным результатом ошибочной конфигурации, а не регрессией.
+- `git diff --check` прошёл. Docker/PostgreSQL/Samba в этом проходе не запускались:
+  рабочие backup/restore операции и скрипт в итоге не менялись. Полный smoke,
+  release-gate и Windows runtime не проверялись.
+
+Аудит ещё открыт. Кандидаты, опровергнутые чтением реальных потребителей,
+сохраняются вместе с причиной; отсутствие упоминания в Compose не доказывает
+ненужность переменной, передаваемой Go-тестам.
+
+## Продолжение аудита — read-model персональных событий
+
+| ID | Доказательство | Выполнено |
+| --- | --- | --- |
+| A51 | UserEvent.RecipientUserID заполнялся только SQL Scan; DTO mapping и рабочий сервис его не читают. Получатель уже является параметром GetList и частью WHERE. Остальные чтения поля были только в fakeUserEventStore | Удалено поле модели результата, лишний столбец SELECT/Scan и позиция sqlmock row. Тестовый store теперь хранит map получатель → события, отделяя состояние хранилища от модели ответа |
+| A52 | fakeUserEventStore.unreadCount никогда не задавался, но поддерживал отдельную ветвь подмены CountUnread | Удалены поле и ветвь. Подсчёт выполняется по событиям текущего пользователя; добавлена проверка нулевого счётчика после MarkDocumentRead |
+
+Комментарий по границе удаления: RecipientUserID в CreateUserEventRequest,
+INSERT, outbox payload и recipient_user_id в таблице сохранены. Фильтрация GetList,
+CountUnread, MarkDocumentRead и MarkAllRead остаётся по текущему пользователю;
+удаление не превращает персональный список в общий. В тестах сохранены чужое
+событие и проверки, что его read_at не меняется после действий другого получателя.
+Сохраняется также проверка, что чужое событие не попадает в выдачу.
+
+Прослежена цепочка repository.GetList → UserEventService → dto.MapUserEvents →
+HTTP/desktop → WorkspaceEventTimeline/UserEventsModal. EntityType/EventType нужны
+иконкам и виду события, Title/Message — отображению; Date/Number — подписи
+документа, ReadAt — статусу. Их удаление не подтверждено. RecipientUserID ранее
+имел json:"-", поэтому внешний DTO и Wails-контракт не изменились.
+
+### Проверки
+
+Адресные TestUserEvent/TestMap в repository/services/dto прошли. После удаления
+подмены счётчика повторены только изменённые TestUserEventService*, также успешно.
+Sqlmock проверяет актуальный SELECT, порядок Scan, параметры получателя и пагинацию.
+`git diff --check` прошёл. Реальная БД в этом проходе не запускалась: изменена
+проекция результата, SQL-предикаты, запись, миграции и транзакции не менялись.
+Bindings/build/release-gate повторно не запускались; публичные сигнатуры не менялись.
+
+Аудит остаётся открытым; накопленные после ebba888 изменения пока без коммита.
+
+## Заключительный проход и закрытие аудита — 23 октября 2026
+
+### Последние подтверждённые находки
+
+| ID | Доказательство и решение | Проверка |
+| --- | --- | --- |
+| A53 | Position в DTO корреспондента/резолюции и Position/CreatedAt в строке ознакомления не имеют frontend-потребителей. Порядок задаётся массивом. Удалены поля DTO и мапперов; для ознакомления также поля модели и лишние SELECT/Scan трёх readers. Position в моделях запросов корреспондентов/резолюций сохранён: он используется при записи | DTO/repository/services short tests; реальная БД: одиночная отметка, повторная отметка, упорядоченные GetAcknowledgmentPeople, полная карточка и batch-reader списка. Сортировка SQL по position/created_at сохранена |
+| A54 | Остались сообщения о необходимости объектного/файлового хранилища в server startup/run failure и blocked recovery | Исправлены только подсказки в cmd/docflow-server/main.go и blocked_restore.go. Проверки архивного формата 4 с упоминанием прежнего storage сохранены: они объясняют реальный отказ |
+| A55 | DocumentCard дублировал восемь полей видовых деталей без чтений в общей оболочке: RegistrationDate, NomenclatureID, NomenclatureName, DocumentTypeID, Content, CreatedByName, CreatedAt, UpdatedAt | Удалены поля и присваивания четырёх мапперов; сведения сохранены в видовых DTO. Map tests, компиляция server/desktop consumers, PostgreSQL HTTP query/card scenario и Linux Wails build. HTTP-тест проверяет отсутствие дубля и наличие нужных полей в outgoingLetter |
+
+Для A55 проверены все вызовы DocumentQueryService.GetByID через useDocumentDetails
+и DocumentViewModal. Общая оболочка использует ID, KindCode, KindName,
+RegistrationNumber и один из четырёх detail-объектов. Редактирование, просмотр,
+создание связанного документа, links/journal и контроли сохраняют свои входы.
+Нет внешних HTTP-потребителей — это подтверждено пользователем ранее. Сам SQL
+карточки не сокращался по полям, нужным видовым формам или курсорам списков.
+
+### Закрытие оставшейся матрицы полей
+
+Поля проверялись по назначению и конечному потребителю, а не только по наличию
+selector. В таблице ниже перечислены семейства текущих контрактов и решение по
+остальным полям; детали удалений находятся в A01–A55.
+
+| Семейство | Производитель → конечный потребитель | Решение по оставшимся группам полей |
+| --- | --- | --- |
+| Incoming register/update/card/list | IncomingPage/formBlocks/editFormValues → command decoder/handler → incoming_doc_repo → mapper → details/list | Реквизиты регистрации, тип, содержание, листы/листы приложений, подписант, корреспонденты, резолюция/автор/исполнители нужны вводу, сохранению и карточке. Листы приложений описывают бумажный документ, а не удалённый upload |
+| Outgoing register/update/card/list | OutgoingPage/form → handler → outgoing_doc_repo → mapper → details/list | Получатель, адресат, дата, тип, листы, содержание, подписант и исполнитель имеют отдельный смысл и чтения; ID/request hash/idempotency key нужны записи и повтору команды |
+| Citizen appeal register/update/card/list | CitizenAppealsPage/form → handler → citizen_appeal_repo → details/list | Даты обращения/регистрации, заявитель/адрес/тип/категория, конверт/ПОС, листы, корреспонденты и множественные резолюции используются формами и карточкой; первая резолюция в list DTO нужна колонкам |
+| Order register/update/card/list | OrdersPage/form → handler → administrative_order_repo → details/list | Номер/дата, заголовок, контролирующий и бумажный deadline, active/cancelledAt нужны карточке/таблице/связи отмены. Лист ознакомления, pending count, отметивший и acknowledgedAt имеют действующие UI/SQL-потребители |
+| Корреспонденты/резолюции | ordered SQL readers → MapDocumentCorrespondentRegistrations/MapDocumentResolutions → details/edit values | ID нужен ключам React; name/number/date и текстовые группы нужны отображению и повторному редактированию. Position убран только из транспорта; порядок записи/чтения сохранён |
+| DocumentCard / list / graph / search | repository → query handlers/mapper → DocumentViewModal/list hooks/LinksTab/LinkGraph/DocumentSearchPanel | Card envelope сокращён в A55. List сохраняет данные для таблиц и edit values; CreatedAt/ID нужны курсору. Graph readers сокращены в A31. Search rank остаётся SQL-сортировкой, не передаётся в DTO |
+| PagedResult / cursor | Encode/DecodeDocumentCursor + SQL → useDocumentListPage | Page/PageSize/TotalCount, NextCursor/HasMore и исходные CreatedAt/ID нужны двум режимам навигации; это не лишние поля разных поколений |
+| Users/profile/auth/access | user_repo + request principal → HTTP/desktop → auth store, UsersTab, accessSummaryCache | Имена/отчество/NoPatronymic нужны нормализации; active/participant/department/permissions нужны правам и форме; временный пароль нужен сбросу. PasswordHash/ChangedAt/ChangeRequired остаются серверу |
+| Nomenclature/departments/reference directories | management endpoints + repositories → registration pickers/settings | Номер/индекс/год/вид/разделитель/режим/NextNumber нужны нумерации и admin; NomenclatureIDs отдела нужны видимым делам. Organizations и resolution executors не заменяют deadline executors |
+| Deadline controls | request validation → WithDocument/transaction → repository/service → DeadlineControls | ID/document/author/executors нужны доступу; subject/due/status/executedOn/comment/reason — операциям и журналу; completedAt/by — сохранённому аудиту; version — конкуренции; series/iteration/plannedDueDate — продолжению серии; CanManage — кнопкам |
+| Deadline series/recurrence/external executors | series commands + SQL → recurrence.Next/Matches → dialog/settings | Периодичность/первый срок/текущая итерация/active/stopReason/version обслуживают возобновление и календарь; UserID отличает внутренних от внешних исполнителей, Institution/Position нужны справочнику |
+| User events/journals/outbox | transaction effects → durable outbox → worker → DTO/SSE → timeline/modal/journal | Получатель сохраняется в записи и WHERE, не в read-model. ReadAt/даты/номер/тип/title/message нужны UI; предыдущие читатели и affected users нужны финальной инвалидации после удаления доступа |
+| Workspace | one read scope → RecentDocuments → WorkspaceService → RecentDocumentsPanel | Все оставшиеся preview-поля читаются; RegisteredAt отличается от DocumentDate; correspondents нужны подписи, счётчику и подсказке. Available используется при скрытии панели |
+| Statistics | statistics/repository + diagnostics registry → chart tabs | Month/Period/category keys/names/value — серии; count/name/key — рейтинги; filters — выборки. Build/schema/pool/API/outbox/session метрики используются SystemStatisticsTab |
+| Reports/exports | fixed templates + scope/filters → reporting_repo/service/export → ReportsPage, PDF/XLSX | Шаблон, basis, dates, filters, timezone, definition/version, period и summary нужны расчёту, отображению и экспортам. Нулевые значения не означают неиспользуемость шаблонного поля |
+| Settings/migrations/bootstrap | config/settings repo + migration APIs → settings/admin gate | Description настройки читается settingAuditLabel для аудита. Backup acknowledgments, confirmation/password, build protocol/identity, dirty/newer schema нужны защите операций; это не устаревшая совместимость |
+| Backup settings/catalog/jobs/operations | persisted local journals + SMB/PostgreSQL → backup service → admin UI/status capability | SMB credentials/secret flags/retention/calendar — подключение и планировщик; checksum/size/format — проверка источника; confirmation/verification ID — привязка restore/delete; stages/time/cancel/token/expiry — прогресс и доступ после замены БД |
+| Telemetry/errors/release notes | logging/error adapters/releaseassets → server ingest/Seq/UI/about | Technical attributes и requestId нужны диагностике; публичные сообщения отделены от internal causes; версия/дата/изменения/isViewed остаются about modal и локальному viewed-state |
+
+### Frontend state, события и платформенные корни
+
+Проверены все пять stores: auth/session revisions защищают от запоздавших ответов;
+accessSummaryCache имеет refresh/invalidation; user events refresh регистрируется
+синхронизацией; draft link переносит source/target/linkType между модальным окном
+и формой регистрации; register store requestId повторно открывает тот же вид и
+передаёт initialValues. Это действующие состояния, а не остатки старых страниц.
+Latest/coalesced requests нужны отмене устаревших загрузок; обновления по SSE и
+resync после соединения имеют разные причины и не удалялись как дубли.
+
+Типы событий сопоставлены с outbox worker → liveevents.Bus → events.go → desktop
+streams → router/access/user-events refresh. Topic backups/operation используется
+административным прогрессом; Change audience сохраняет адресность, а пустая
+аудитория старого durable payload требует консервативного resync.
+
+Повторный анализ: 135/135 frontend source modules достижимы от main.tsx;
+не найдено изолированных циклов imports. Все generated Wails service methods
+имеют вызовы в frontend/src. Граф Go проверен для Linux и Windows: по 32 project
+packages, нарушений desktop/server/shared границ нет. Direct Go dependencies
+имеют source/test/platform imports; manifest/lock и инструментальные зависимости
+сохраняются. Ненужные зависимости не подтверждены, go.mod/go.sum не менялись.
+
+Операционные корни проверены отдельно: cmd version/build-info/check-config/
+healthcheck/run, App.New/Run/Close, blocked recovery, instance lease, leased worker,
+schema reconciliation, session cleaner, backup scheduler, safety snapshot,
+replacement/rollback и Reload pool. Рабочие операции держат lease, прекращают
+приём запросов, ожидают завершение задач и сохраняют recovery marker; редкость
+вызовов не основание для удаления. Desktop operations lifecycle и платформенные
+freeBytes Linux/Windows оставлены для cancellation/shutdown и проверки диска.
+
+### Инвентаризация схемы и решения по данным
+
+Сопоставлены 28 таблиц baseline, их поля, исходные 58 явно объявленных индексов, 5 функций
+и 6 triggers. Наличие имени колонки в исходниках использовалось только для поиска
+кандидатов; решение ниже учитывает SQL-предикаты, порядок, ограничения и архивы.
+Первоначально миграции не переписывались; после решения пользователя о сбросе
+изменён development baseline (см. последний раздел). Краткая матрица назначений:
+
+| Таблица | Запись / чтение и роль сохранённых данных |
+| --- | --- |
+| departments | Admin CRUD → users/visibility/filter options; ID/name и связи дел |
+| users | Setup/user/profile/password commands → auth/principal/filters, actor names; lifecycle timestamps см. D01 |
+| user_system_permissions | Replace profile → admin/auth/access summary; active admin triggers |
+| nomenclature | CRUD и locked counter → registration/filter options/admin |
+| document_permissions | Direct user/department grants → access predicates и summary; прежний role см. D02 |
+| department_nomenclature | Departments CRUD → document visibility; cascade/unique связи |
+| organizations | Find/create/update/merge → correspondents, recipients, reports/search |
+| resolution_executors | Резолюции документов → справочник/поиск; не исполнители контроля |
+| deadline_executors | User trigger/external commands → controls/series/access/reports; FK/array guards |
+| documents | Atomic registration/update → root access/query/search, number/date/year/cursor/idempotency; видовые реквизиты сохраняют свои правила |
+| document_command_idempotency | Reserve/complete/find → command retry/hash conflict; created_at см. D01/D03 |
+| document_correspondent_registrations | Replace lists → details/list/search/graphs; position/created_at/id задают порядок |
+| document_resolutions | Replace lists → first-resolution/full list/details/search; порядок и метаданные см. D01 |
+| incoming_document_details | Registration/update → card/list/graph; номера/даты и подписант |
+| outgoing_document_details | Registration/update → card/list/graph/reports; recipient FK и реквизиты |
+| citizen_appeal_details | Registration/update → appeal card/list/search; бумажные атрибуты обращения |
+| administrative_order_details | Registration/update/cancel link → order card/list/graph; paper deadline/active |
+| administrative_order_acknowledgment_people | Replace/mark → ordered list/card; acknowledgment state и first marker сохраняются |
+| document_links | Create/delete/cancel → recursive visibility/graph and card links; creator FK |
+| document_deadline_series | Create/update/stop/resume → calendar expansion/current iteration; deferred FK |
+| document_deadline_controls | Create/update/complete/cancel → list/visibility/reports/next iteration; completion and series constraints |
+| system_settings | Settings API → auth password lifetime, organization, audit descriptions |
+| document_journal | Atomic/outbox delivery → user-visible history; dedup index и persisted snapshots |
+| admin_audit_log | Auth/migration direct audit + outbox + backup replay → admin audit page; dedup и actor history |
+| user_events | Outbox delivery → recipient-scoped list/unread/mark; document visibility |
+| event_outbox | Atomic enqueue → claim/retry/requeue/cleanup/diagnostics; timestamps остаются SQL-state |
+| server_sessions | Login/create → active hash lookup/revoke/activity/cleanup; удалены только лишние результаты чтения |
+| backup_settings | Admin settings/secrets → scheduler, SMB, restore settings; включается в database-only backup |
+
+Пять функций/шесть triggers защищают активного администратора, создают внутреннего
+executor при INSERT users и проверяют ссылки массивов соисполнителей/удаление
+executor. Их вызывают SQL-триггеры, поэтому отсутствие Go-вызовов не мёртвый код.
+PK/unique/FK/check constraints и partial indexes участвуют в целостности,
+дедупликации, активной итерации, visibility, выборе due/failed и cleanup.
+
+### Окончательные решения о сохранении и отложенной очистке
+
+| ID | Решение и причина | Условие пересмотра / конкретный следующий шаг |
+| --- | --- | --- |
+| D01 | Выполнено после решения пользователя о сбросе БД: удалены users.created_at/updated_at, document_command_idempotency.created_at, document_resolutions.updated_at, user_system_permissions.id/created_at; обновлены записи users | Изменён development baseline 001; у user_system_permissions составной PK(user_id,permission). ID document_permissions сохранён для row locking |
+| D02 | Выполнено: CHECK допускает только department/user; role grants не поддерживаются | Проверен реальный отказ БД с SQLSTATE 23514 и успешные department/user grants |
+| D03 | Выполнено: удалены 13 явных индексов, остальные 45 имеют действующий запрос/constraint или не являются доказанным дублем | Перечень и EXPLAIN-анализ приведены в последнем разделе; удаление необходимых индексов целостности не выполнялось |
+
+Остальные сохранённые части имеют конечное решение «сохранить», а не остаются
+неразобранными кандидатами: build/schema/archive guards защищают текущий контракт;
+текстовый journal fallback читает сохранённую историю; backup dedup keys защищают
+replay после restore; NewWorker/ProcessOnce/Enqueue/DownloadCopy поддерживают
+действующие integration/smoke-инструменты. Условия пересмотра — удаление такого
+сценария или согласованное прекращение чтения соответствующих сохранённых данных.
+
+### Итоговая матрица этапов
+
+| Этап | Итог |
+| --- | --- |
+| 0 | Закрыт: исходная база, worktree, платформа/режимы, единственный desktop-потребитель HTTP, инструменты и ограничения зафиксированы |
+| 1 | Закрыт: Go Linux/Windows dependency graphs, frontend reachability, CLI/Wails/HTTP/event/operational roots; platform runtime остаётся ограничением приёмки |
+| 2 | Закрыт: старые API/helpers/порты и переходные поля удалены; каждый найденный persistent-format guard имеет причину сохранения |
+| 3 | Закрыт: contracts/Wails callers, семейства DTO/commands/mappers и сквозные удаления; штатная генерация bindings выполнена |
+| 4 | Закрыт: поля документов/справочников/событий/контролей/отчётов/backup, graph projection, scope, stores/refresh/export проверены; подтверждённые потери/дубли отражены в реестре |
+| 5 | Закрыт: routes/ports/commands/queries, outbox/delivery/SSE, администрирование и lifecycle сопоставлены |
+| 6 | Закрыт как аудит: 28 таблиц и schema mechanisms сопоставлены; после подтверждения сброса D01–D03 закрыты правкой development baseline, новая переходная migration не требуется |
+| 7 | Закрыт как source audit: frontend/desktop modules, styles/assets/platform files и error/cancellation paths; ручной UI/Windows runtime не выполнялся |
+| 8 | Закрыт: инвентарь 206 internal Go test files и 36 frontend test files; obsolete symbols/mocks/fixtures/skips/assertion candidates проверены поиском и адресной трассировкой затронутых сценариев. Это не формальное доказательство силы каждого assertion и не замена тестирования |
+| 9 | Закрыт: Make includes, manifests/dependencies, scripts/Compose/Dockerfile, coverage/performance/smoke, embed/assets и активные docs согласованы |
+| 10 | Закрыт: все подтверждённые обратимые очистки A01–A55 выполнены по цепочке, DB/history не удалялись. D01–D03 имеют отдельное конечное решение |
+| 11 | Закрыт: результаты адресных проверок, локальной сборки и PostgreSQL описаны ниже; ограничения не скрываются за статусом аудита |
+
+### Финальная проверка и границы заключения
+
+- После A53 прошли short tests dto/repository/services. После A55 повторены
+  dto/services, скомпилированы server/desktop client/service consumers; обновлён
+  assertion, который обращался к удалённому дублю card.DocumentTypeID.
+- На PostgreSQL прошли TestAdministrativeOrderAcknowledgmentRepeatedMarkerIntegration
+  (расширен проверкой порядка, GetByID и GetList), TestUserEventOutboxInsertIntegration
+  (проекция A51) и TestDocumentQueryAPIReturnsListAndCardWithServerAccessIntegration
+  (nested card contract A55). Ранее успешные unrelated suites не повторялись.
+- Linux Wails build выполнен в DOCFLOW_LOCAL_BUILD=1: TypeScript/Vite compilation,
+  упаковка и штатная генерация frontend/wailsjs/go/models.ts. Первая попытка
+  упёрлась в sandbox cache, следующая — в защиту незакоммиченного release tree;
+  локальный режим решил эту ожидаемую проверку без коммита. Bindings не правились
+  вручную. После A55 повторная сборка также прошла.
+- Wails API contract test и docs-links-check прошли до последней карточки;
+  после последней генерации contract проверяется повторно, финальный статус
+  дописан ниже. Все изменения diff проверяются на whitespace.
+- Guards smoke-тестов A50 проверены обычным skip-режимом и ожидаемым отказом
+  при частичной конфигурации. Полный SMB/restore smoke, Windows build/runtime,
+  ручная UI-приёмка, длительная нагрузка/race и полный release-gate в этом аудите
+  не выполнялись: задачи runtime-приёмки и workload не подменяются source audit.
+- Логи последнего прохода находятся в /tmp/docflow-audit-final-*.log и
+  /tmp/docflow-audit-card-*.log; временные графы в /tmp, в проект не добавлены.
+
+**Заключение:** запланированный аудит исходников завершён. Подтверждённые
+обратимые удаления выполнены; после решения пользователя о сбросе БД
+D01–D03 также реализованы в development baseline. Из этого не следует обещание нулевого
+технического долга. Продолжение работы требуется при новой находке, изменении
+сценария/контракта или выполнении условий D01–D03; для закрытия текущего source
+аудита не требуется разрушать данные либо запускать неподтверждённый релиз.
+
+Финальная отметка: после последней генерации TestWailsAPIContract прошёл;
+`make docs-links-check` проверил ссылки в 12 Markdown-файлах, `git diff --check`
+прошёл. `make integration-db-down`, повторённый отдельно с доступом к Docker,
+успешно удалил только тестовые container, network и volume. Активных процессов
+сборки и поднятого этим аудитом тестового стека не осталось. Рабочие данные не
+изменялись. Дополнительный коммит после ebba888 не создавался.
+
+## Реализация D01–D03 после решения о сбросе БД
+
+Пользователь уточнил: приложение в разработке, важных данных нет, БД будет
+сброшена; разрешено удалить D01/D02 и доказанно лишнее из D03. Это снимает
+прежнее ограничение сохранения старого состояния. Изменён существующий baseline
+001 для новой установки, без фиктивной миграции совместимости. Самостоятельный
+сброс рабочей БД не выполнялся. Прежние формулировки об отложенной очистке выше
+отражают решение до этого уточнения; текущие D01–D03 имеют статус «выполнено».
+
+### D01: поля и ключи
+
+Удалены шесть физических колонок:
+
+- users.created_at и users.updated_at;
+- document_command_idempotency.created_at;
+- document_resolutions.updated_at;
+- user_system_permissions.id и user_system_permissions.created_at.
+
+Во всех шести операциях UserRepository удалены присваивания users.updated_at:
+admin update, password update, reset password, profile update, failed-login
+increment и reset attempts. Дата смены пароля сохранена для срока действия пароля.
+У document_resolutions сохранён created_at: он участвует в стабильном порядке.
+
+Отдельный UUID системного назначения не имеет читателя/FK; уникальная пара
+(user_id,permission) стала primary key. Не все служебные ID одинаковы:
+document_permissions.id реально выбирается и сортируется в Deadline WithDocument
+с FOR SHARE OF p; он сохранён для блокировки права на время бизнес-транзакции.
+
+### D02: актуальная модель назначений
+
+CHECK document_permissions.subject_type теперь допускает только department и
+user. Внешние API, DTO и запросы доступа уже использовали эту модель; изменения
+совместимости в desktop не нужны. Интеграционный тест проверяет оба допустимых
+типа, отказ для role (23514) и отсутствие дубликатов системного назначения по
+новому primary key (23505). Защита последнего администратора сохраняется.
+
+### D03: удалённые индексы
+
+| Индекс | Основание |
+| --- | --- |
+| idx_document_command_idempotency_created_at | Дата и её единственный индекс удалены в D01; range/cleanup по этой дате отсутствует |
+| idx_user_system_permissions_user_id | Тот же leading key обслуживает новый PK(user_id,permission) |
+| idx_documents_kind | Для запроса kind + порядок есть idx_documents_kind_created_at; остальные kind-leading unique/composite indexes также сохранены |
+| idx_document_resolutions_document | Префикс сохранённого (document_id,position), который дополнительно обслуживает порядок |
+| idx_document_links_source | Префикс сохранённого UNIQUE(source_document_id,target_document_id); обратный target index сохранён |
+| idx_incoming_doc_details_number | Отбор по номеру использует ILIKE '%строка%', отсутствует equality/range/order по этому полю |
+| idx_outgoing_doc_details_number | Аналогичный substring ILIKE; обычный B-tree не даёт index condition |
+| idx_administrative_order_details_number | Аналогичный substring ILIKE |
+| idx_doc_corr_reg_number | Аналогичный substring ILIKE; поиск по документу использует document_id |
+| idx_citizen_appeal_details_applicant | ФИО ищется через substring ILIKE; equality/range/order по ФИО нет |
+| idx_administrative_order_details_deadline | Бумажный execution_deadline только записывается/показывается; фильтрация сроков работает с document_deadline_controls.due_date |
+| deadline_controls_co_executors | Все текущие SQL-потребители используют id=ANY(co_executor_ids)/unnest, а не GIN array operators |
+| deadline_series_co_executors | То же для series; FK/trigger/check массива сохранены |
+
+EXPLAIN-эксперимент выполнен внутри BEGIN/ROLLBACK на временной таблице с
+200 строками и двумя реальными индексами. При enable_seqscan=off:
+
+- number='DOC/20' использует B-tree Index Scan;
+- number ILIKE '%20%' остаётся Seq Scan (Disabled: true), без index condition;
+- executors @> ARRAY[id] использует GIN Bitmap Index Scan;
+- id=ANY(executors) остаётся Seq Scan (Disabled: true).
+
+Это подтверждает несовпадение текущих операторов с удалёнными индексами;
+не утверждается ускорение чтения или численный выигрыш на production workload.
+Новые trigram/GIN-compatible запросы не вводились: это отдельная оптимизация,
+а не обязательная часть удаления неиспользуемых индексов.
+
+Для четырёх удалённых prefix-only индексов постоянный regression-тест проверяет
+EXPLAIN реальных форм запросов: системные права пользователя, kind + created_at,
+упорядоченные резолюции и исходящие рёбра графа. Используются оставшиеся PK и
+composite indexes. enable_seqscan=off проверяет доступность пути, а не обещает
+его выбор оптимизатором на любой статистике.
+
+### Почему сохранены остальные 45 явных индексов
+
+| Группа | Действующие потребители / причина |
+| --- | --- |
+| Nomenclature year/kind | Фильтры GetAll/GetActiveByKind; UNIQUE(index,year,kind) не имеет нужного leading key |
+| Documents nomenclature/date, created_at, kind-created_at, kind-nomenclature-created_at | FK/фильтры/статистика, глобальный workspace и два разных режима document lists; nomenclature между kind и датой не заменяет kind-date для общего списка |
+| Documents unique number/year и creator-kind-idempotency | Целостность регистрации и replay; это не кандидаты на удаление |
+| Correspondents document/date/org | Загрузка дочерних строк, реальные диапазоны registration_date в incoming filters, связь организации/merge |
+| Resolutions document-position | Загрузка и порядок списка резолюций |
+| Incoming/outgoing/order dates, outgoing recipient | Реальные диапазоны дат и FK/recipient joins |
+| Citizen appeal date/type | Диапазоны appeal_date и equality по appeal_type |
+| Order active, acknowledgment document/pending | Active/cancelled filter, чтение всего листа и EXISTS pending; partial index не заменяет полный document index |
+| Links target | Обратное направление графа и FK; source-target unique имеет другой leading key |
+| Controls active series iteration/document/author/executor/due | Constraints единственной активной итерации, доступ и списки/сроки; служебные ID/FK сохранены |
+| Series document/author/executor | Доступ/привязка и поиск связанных серий |
+| Journals/audit document/date/dedup | Фильтрация и реальная ORDER BY created_at, идемпотентная доставка; отсутствие глобального UI-фильтра не доказывает ненужность индекса сортировки |
+| User events recipient-created, recipient-unread, document-recipient-unread, dedup | Список, count/mark-all, mark-document и outbox delivery имеют разные predicate/leading key |
+| Outbox pending/failed/processed-cleanup | Claim, admin failures и ограниченная очистка обработанных |
+| Sessions user-active/expiry | Activity, отзыв по пользователю и очистка истёкших сессий |
+
+58 → 45 явно объявленных индексов. Дополнительно исчез отдельный неиспользуемый
+UUID primary-key index user_system_permissions: прежний UNIQUE пары заменён PK
+той же пары. PK/UNIQUE, необходимые бизнес-целостности, не ослаблялись.
+
+### Проверки
+
+- Адресные TestUserRepository* прошли после удаления timestamp assignments.
+- Первый PostgreSQL запуск внутри песочницы был заблокирован доступом к socket;
+  разрешённый повтор на том же изолированном стеке прошёл.
+- Прошли 11 адресных integration tests: rollback/reapply embedded migrations,
+  отсутствие старых колонок/индексов, новые CHECK/PK, EXPLAIN paths, invariant
+  последнего администратора, registration idempotency, команды четырёх видов,
+  пароль/отзыв сессий, повторные блокировки входа, имя/профиль и user update/outbox.
+- DocumentCommandAPIAllKindsIntegration теперь использует реальные substring
+  фильтры номеров/корреспондента/заявителя для всех четырёх видов, проверяя выдачу
+  после удаления text B-tree indexes.
+- После дополнительного удаления GIN повторены только fresh-schema check и два
+  сценария контролей/серий: авторизация/журнал, конкурентность/календарь/resume.
+  Все три прошли. Общий успешный набор без новых рисков не повторялся.
+- Логи: /tmp/docflow-audit-d01-d03-integration.log и
+  /tmp/docflow-audit-d03-coexecutors.log. Тесты выполнялись последовательно по
+  пакетам (-p=1) в отдельной PostgreSQL; рабочая БД не затрагивалась.
+- Frontend/Wails contracts не менялись; bindings/build/release-gate и полный
+  SMB/restore smoke повторно не запускались. Новый baseline требует предусмотренного
+  пользователем сброса старой development-БД; автоматического upgrade старой
+  структуры нет. Старые архивы с прежним baseline не проверялись на восстановление.
+
+Финальная отметка D01–D03: `git diff --check` прошёл; тестовый container, network
+и volume успешно удалены через `make integration-db-down`. Рабочий стек не
+сбрасывался. Все три пункта закрыты; изменения остаются без нового коммита.

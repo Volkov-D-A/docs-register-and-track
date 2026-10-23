@@ -20,9 +20,10 @@ import (
 func TestBuiltServerBackupIntegration(t *testing.T) {
 	base := os.Getenv("DOCFLOW_INTEGRATION_SERVER_URL")
 	directory := os.Getenv("DOCFLOW_SMOKE_ARCHIVE_DIR")
-	if base == "" || directory == "" {
-		t.Skip("run backup smoke test")
+	if base == "" {
+		t.Skip("run make integration-test for backup/restore checks")
 	}
+	require.NotEmpty(t, directory, "DOCFLOW_SMOKE_ARCHIVE_DIR is required when DOCFLOW_INTEGRATION_SERVER_URL is set")
 	request := func(method, path string, value any, token string, status int) []byte {
 		var body io.Reader
 		if value != nil {

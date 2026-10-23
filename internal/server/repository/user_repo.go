@@ -233,7 +233,7 @@ func (r *UserRepository) UpdateWithOutbox(req models.UpdateUserRequest, effects 
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`UPDATE users SET login=$1, last_name=$2, first_name=$3, patronymic=$4, no_patronymic=$5, is_active=$6, department_id=$7, is_document_participant=$8, failed_login_attempts=CASE WHEN is_active=false AND $6=true THEN 0 ELSE failed_login_attempts END, updated_at=CURRENT_TIMESTAMP WHERE id=$9`, req.Login, req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, req.IsActive, depID, req.IsDocumentParticipant, uid)
+	result, err := tx.Exec(`UPDATE users SET login=$1, last_name=$2, first_name=$3, patronymic=$4, no_patronymic=$5, is_active=$6, department_id=$7, is_document_participant=$8, failed_login_attempts=CASE WHEN is_active=false AND $6=true THEN 0 ELSE failed_login_attempts END WHERE id=$9`, req.Login, req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, req.IsActive, depID, req.IsDocumentParticipant, uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
@@ -299,8 +299,7 @@ func (r *UserRepository) updatePassword(userID uuid.UUID, newPasswordHash string
 		SET password_hash = $1,
 		    failed_login_attempts = 0,
 		    password_changed_at = CURRENT_TIMESTAMP,
-		    password_change_required = $2,
-		    updated_at = CURRENT_TIMESTAMP
+		    password_change_required = $2
 		WHERE id = $3
 	`, newPasswordHash, changeRequired, userID)
 
@@ -336,7 +335,7 @@ func (r *UserRepository) ResetPasswordWithOutbox(userID uuid.UUID, newPassword s
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`UPDATE users SET password_hash=$1, failed_login_attempts=0, password_changed_at=CURRENT_TIMESTAMP, password_change_required=true, updated_at=CURRENT_TIMESTAMP WHERE id=$2`, hash, userID)
+	result, err := tx.Exec(`UPDATE users SET password_hash=$1, failed_login_attempts=0, password_changed_at=CURRENT_TIMESTAMP, password_change_required=true WHERE id=$2`, hash, userID)
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
@@ -367,7 +366,7 @@ func (r *UserRepository) updateProfile(userID uuid.UUID, req models.UpdateProfil
 	}
 	defer tx.Rollback()
 	result, err := tx.Exec(`
-		UPDATE users SET login = $1, last_name = $2, first_name = $3, patronymic = $4, no_patronymic = $5, updated_at = CURRENT_TIMESTAMP
+		UPDATE users SET login = $1, last_name = $2, first_name = $3, patronymic = $4, no_patronymic = $5
 		WHERE id = $6
 	`, req.Login, req.LastName, req.FirstName, req.Patronymic, req.NoPatronymic, userID)
 	if err != nil {
@@ -401,7 +400,7 @@ func (r *UserRepository) IncrementFailedLoginAttemptsWithOutbox(userID uuid.UUID
 	defer tx.Rollback()
 	var attempts int
 	var isActive bool
-	if err := tx.QueryRow(`UPDATE users SET failed_login_attempts = failed_login_attempts + 1, is_active = CASE WHEN failed_login_attempts + 1 >= 5 THEN false ELSE is_active END, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING failed_login_attempts, is_active`, userID).Scan(&attempts, &isActive); err != nil {
+	if err := tx.QueryRow(`UPDATE users SET failed_login_attempts = failed_login_attempts + 1, is_active = CASE WHEN failed_login_attempts + 1 >= 5 THEN false ELSE is_active END WHERE id = $1 RETURNING failed_login_attempts, is_active`, userID).Scan(&attempts, &isActive); err != nil {
 		return 0, false, fmt.Errorf("failed to increment failed login attempts: %w", err)
 	}
 	if !isActive {
@@ -424,8 +423,7 @@ func (r *UserRepository) IncrementFailedLoginAttemptsWithOutbox(userID uuid.UUID
 func (r *UserRepository) ResetFailedLoginAttempts(userID uuid.UUID) error {
 	_, err := r.db.Exec(`
 		UPDATE users
-		SET failed_login_attempts = 0,
-		    updated_at = CURRENT_TIMESTAMP
+		SET failed_login_attempts = 0
 		WHERE id = $1
 	`, userID)
 	if err != nil {
