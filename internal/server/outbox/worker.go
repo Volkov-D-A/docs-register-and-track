@@ -194,11 +194,7 @@ func (w *Worker) observeQueue() {
 	if stats.Pending >= queueAlertSize {
 		slog.Warn("outbox queue exceeds alert threshold", "pending", stats.Pending, "threshold", queueAlertSize)
 	}
-	if w.metrics != nil {
-		w.metrics.SetGauge("outbox.pending", float64(stats.Pending))
-		w.metrics.SetGauge("outbox.processing", float64(stats.Processing))
-		w.metrics.SetGauge("outbox.failed", float64(stats.Failed))
-	}
+
 }
 
 // observeRequiredAudit emits a state-change alert for effects that represent

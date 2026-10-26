@@ -26,19 +26,15 @@ export const defaultIncomingLetterFilters: IncomingLetterFiltersState = {
 
 export const buildIncomingLetterQueryFilter = ({
     search,
-    page,
     pageSize,
     filters,
 }: {
     search: string;
-    page: number;
     pageSize: number;
     filters: IncomingLetterFiltersState;
 }) => ({
     search,
-    page,
     pageSize,
-    nomenclatureId: '',
     documentTypeId: '',
     orgId: '',
     dateFrom: filters.filterDateFrom,

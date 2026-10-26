@@ -7,7 +7,7 @@ INTEGRATION_DSN = postgres://docflow_integration:docflow_integration@127.0.0.1:5
 PERFORMANCE_DIR = build/performance
 PERFORMANCE_DOCUMENTS ?= 10000
 PERFORMANCE_PAGE_SIZE ?= 50
-PERFORMANCE_DEEP_PAGE ?= 0
+PERFORMANCE_CURSOR_DEPTH ?= 0
 GOVULNCHECK ?= $(shell command -v govulncheck 2>/dev/null || echo "go run golang.org/x/vuln/cmd/govulncheck@latest")
 
 release-assets-check:
@@ -53,7 +53,7 @@ db-performance-check: _check-integration-env
 		mkdir -p $(PERFORMANCE_DIR); \
 		$(INTEGRATION_COMPOSE) up -d --build --wait; \
 		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/server/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
-		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -deep-page $(PERFORMANCE_DEEP_PAGE) | tee $(PERFORMANCE_DIR)/summary.txt
+		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -cursor-depth $(PERFORMANCE_CURSOR_DEPTH) | tee $(PERFORMANCE_DIR)/summary.txt
 
 # Эти цели полезны при ручной отладке интеграционных тестов. Данные не
 # предназначены для сохранения: integration-db-down удаляет volume.

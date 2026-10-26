@@ -240,10 +240,8 @@ type DocumentAccessScope struct {
 
 // DocumentFilter — фильтры для журналов
 type DocumentFilter struct {
-	NomenclatureID            string               `json:"nomenclatureId,omitempty"`
 	NomenclatureIDs           []string             `json:"nomenclatureIds,omitempty"`
 	AccessScope               *DocumentAccessScope `json:"-"`
-	KindCode                  string               `json:"kindCode,omitempty"`
 	DocumentTypeID            string               `json:"documentTypeId,omitempty"`
 	OrgID                     string               `json:"orgId,omitempty"`
 	DateFrom                  string               `json:"dateFrom,omitempty"`
@@ -266,38 +264,31 @@ type DocumentFilter struct {
 	ExecutionController       string               `json:"executionController,omitempty"`
 	OnlyPendingAcknowledgment bool                 `json:"onlyPendingAcknowledgment,omitempty"`
 	OrderActiveStatus         string               `json:"orderActiveStatus,omitempty"`
-	Page                      int                  `json:"page"`
 	PageSize                  int                  `json:"pageSize"`
 	Cursor                    string               `json:"cursor,omitempty"`
-	CursorPagination          bool                 `json:"cursorPagination,omitempty"`
 }
 
 // OutgoingDocumentFilter описывает параметры фильтрации исходящих документов.
 type OutgoingDocumentFilter struct {
-	NomenclatureIDs  []string             `json:"nomenclatureIds,omitempty"`
-	AccessScope      *DocumentAccessScope `json:"-"`
-	KindCode         string               `json:"kindCode,omitempty"`
-	DocumentTypeID   string               `json:"documentTypeId,omitempty"`
-	OrgID            string               `json:"orgId,omitempty"` // Организация-получатель
-	DateFrom         string               `json:"dateFrom,omitempty"`
-	DateTo           string               `json:"dateTo,omitempty"`
-	Search           string               `json:"search,omitempty"`
-	OutgoingNumber   string               `json:"outgoingNumber,omitempty"`
-	RecipientName    string               `json:"recipientName,omitempty"`
-	Page             int                  `json:"page"`
-	PageSize         int                  `json:"pageSize"`
-	Cursor           string               `json:"cursor,omitempty"`
-	CursorPagination bool                 `json:"cursorPagination,omitempty"`
+	NomenclatureIDs []string             `json:"nomenclatureIds,omitempty"`
+	AccessScope     *DocumentAccessScope `json:"-"`
+	DocumentTypeID  string               `json:"documentTypeId,omitempty"`
+	OrgID           string               `json:"orgId,omitempty"` // Организация-получатель
+	DateFrom        string               `json:"dateFrom,omitempty"`
+	DateTo          string               `json:"dateTo,omitempty"`
+	Search          string               `json:"search,omitempty"`
+	OutgoingNumber  string               `json:"outgoingNumber,omitempty"`
+	RecipientName   string               `json:"recipientName,omitempty"`
+	PageSize        int                  `json:"pageSize"`
+	Cursor          string               `json:"cursor,omitempty"`
 }
 
 // PagedResult — постраничный результат
 type PagedResult[T any] struct {
-	Items      []T    `json:"items"`
-	TotalCount int    `json:"totalCount"`
-	Page       int    `json:"page"`
-	PageSize   int    `json:"pageSize"`
-	NextCursor string `json:"nextCursor,omitempty"`
-	HasMore    bool   `json:"hasMore"`
+	Items      []T `json:"items"`
+	TotalCount int `json:"totalCount"`
+	Page       int `json:"page"`
+	PageSize   int `json:"pageSize"`
 }
 
 // GraphNode — узел графа визуализации связей
@@ -498,4 +489,12 @@ type UpdateAdministrativeOrderDocRequest struct {
 type DocumentRegistrationLink struct {
 	DocumentID uuid.UUID
 	LinkType   string
+}
+
+// CursorResult contains a document window and an opaque continuation token.
+type CursorResult[T any] struct {
+	Items      []T    `json:"items"`
+	PageSize   int    `json:"pageSize"`
+	NextCursor string `json:"nextCursor,omitempty"`
+	HasMore    bool   `json:"hasMore"`
 }

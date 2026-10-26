@@ -12,7 +12,7 @@ import (
 type documentQueryAPI interface {
 	Search(dto.DocumentSearchRequest) (*dto.DocumentSearchResult, error)
 	GetByID(string) (*dto.DocumentCard, error)
-	GetList(string, models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error)
+	GetList(string, models.DocumentFilter) (*dto.CursorResult[dto.DocumentListItem], error)
 }
 
 type documentListRequest struct {

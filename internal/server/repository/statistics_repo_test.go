@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,7 +20,7 @@ func setupStatisticsRepository(t *testing.T) (*StatisticsRepository, sqlmock.Sql
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	return NewStatisticsRepository(database.Wrap(db)), mock, func() { db.Close() }
+	return NewStatisticsRepository(database.Wrap(db)).ForUser(uuid.New()), mock, func() { db.Close() }
 }
 
 func TestStatisticsRepository_GetDocumentTotalByYear(t *testing.T) {

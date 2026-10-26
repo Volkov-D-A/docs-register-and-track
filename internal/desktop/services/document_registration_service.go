@@ -1,27 +1,21 @@
 package services
 
 import (
-	"context"
 	"errors"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/operations"
+	"github.com/Volkov-D-A/docs-register-and-track/internal/desktop/serverclient"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 )
 
-type DocumentCommandClient interface {
-	RegisterDocument(context.Context, string, any) (any, error)
-	UpdateDocument(context.Context, string, any) (any, error)
-	CreateAdminDocumentDraft(context.Context, string, dto.AdminDraftCreateRequest) (any, error)
-}
-
 // DocumentRegistrationService exposes document commands through the HTTP API.
 type DocumentRegistrationService struct {
-	client    DocumentCommandClient
+	client    serverclient.DocumentCommandClient
 	lifecycle *operations.Lifecycle
 }
 
-func NewDocumentRegistrationService(client DocumentCommandClient, lifecycle *operations.Lifecycle) *DocumentRegistrationService {
+func NewDocumentRegistrationService(client serverclient.DocumentCommandClient, lifecycle *operations.Lifecycle) *DocumentRegistrationService {
 	return &DocumentRegistrationService{client: client, lifecycle: lifecycle}
 }
 

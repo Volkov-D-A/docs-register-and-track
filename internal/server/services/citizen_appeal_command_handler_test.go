@@ -32,7 +32,7 @@ type citizenAppealCommandStore struct {
 	updateErr    error
 }
 
-func (s *citizenAppealCommandStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error) {
+func (s *citizenAppealCommandStore) GetList(filter models.DocumentFilter) (*models.CursorResult[models.CitizenAppealDocument], error) {
 	return nil, nil
 }
 

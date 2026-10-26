@@ -84,10 +84,6 @@ func (r *DepartmentRepository) GetAll() ([]models.Department, error) {
 }
 
 func (r *DepartmentRepository) CreateWithOutbox(name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
-	return r.create(name, nomenclatureIDs, effects)
-}
-
-func (r *DepartmentRepository) create(name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
 	id := uuid.New()
 
 	tx, err := r.db.Begin()
@@ -137,10 +133,6 @@ func (r *DepartmentRepository) create(name string, nomenclatureIDs []string, eff
 }
 
 func (r *DepartmentRepository) UpdateWithOutbox(id uuid.UUID, name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
-	return r.update(id, name, nomenclatureIDs, effects)
-}
-
-func (r *DepartmentRepository) update(id uuid.UUID, name string, nomenclatureIDs []string, effects []models.OutboxEvent) (*models.Department, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err

@@ -105,11 +105,11 @@ func TestCatalogUnavailableAndCancelled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestCatalogKeepsLegacyCopiesIncompatibleIncludingPendingDeletion(t *testing.T) {
+func TestCatalogBlocksInvalidManifestIncludingPendingDeletion(t *testing.T) {
 	for _, pendingDeletion := range []bool{false, true} {
 		dir := t.TempDir()
 		id := uuid.NewString()
-		marker := RemoteCopy{ID: id, Format: 3, Size: 3, SHA256: strings.Repeat("a", 64), CreatedAt: time.Now().UTC()}
+		marker := RemoteCopy{ID: id, Format: ArchiveFormat, Size: 3, SHA256: "invalid-checksum", CreatedAt: time.Now().UTC()}
 		raw, err := json.Marshal(marker)
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(dir, markerName(id)), raw, 0600))
@@ -120,8 +120,8 @@ func TestCatalogKeepsLegacyCopiesIncompatibleIncludingPendingDeletion(t *testing
 		copies, err := Catalog(context.Background(), catalogFiles(dir))
 		require.NoError(t, err)
 		require.Len(t, copies, 1)
-		require.Equal(t, 3, copies[0].Format)
-		require.Equal(t, "incompatible", copies[0].Verification)
+		require.Equal(t, ArchiveFormat, copies[0].Format)
+		require.Equal(t, "incomplete", copies[0].Verification)
 		require.False(t, copies[0].CanDelete)
 		require.Empty(t, copies[0].RestoreConfirmation)
 		require.Empty(t, copies[0].DeleteConfirmation)

@@ -132,7 +132,7 @@ func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {
 		VALUES ($1, 'Concurrent Org')
 	`, orgID)
 
-	baseReq := models.CreateOutgoingDocRequest{
+	baseReq := models.CreateOutgoingDocRequest{CommandHash: "repository-fixture-hash",
 		NomenclatureID:  nomID,
 		DocumentTypeID:  models.DocumentTypeLetter,
 		RecipientOrgID:  orgID,
@@ -301,17 +301,11 @@ func TestJournalRetentionFKIntegration(t *testing.T) {
 		VALUES ($1, 'Retention outgoing', '03-03', 2026, 'outgoing_letter', '/', 'index_and_number', 1)
 	`, nomID)
 	execSQL(t, sqlDB, `
-		INSERT INTO documents (
-			id, kind, nomenclature_id, idempotency_key, registration_number, registration_date,
-			document_type, content, pages_count, created_by
-		) VALUES ($1, 'outgoing_letter', $2, $3, '03-03/1', DATE '2026-05-28', $4, 'retention', 1, $5)
-	`, docID, nomID, uuid.New(), models.DocumentTypeLetter, userID)
+		INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, 'outgoing_letter', $2, '03-03/1', DATE '2026-05-28', $3, 'retention', 1, $4)`,
+		docID, nomID, models.DocumentTypeLetter, userID)
 	execSQL(t, sqlDB, `
-		INSERT INTO outgoing_document_details (
-			document_id, outgoing_number, outgoing_date, sender_signatory,
-			sender_executor, recipient_org_id, addressee
-		) VALUES ($1, '03-03/1', DATE '2026-05-28', 'Signer', 'Executor', $2, 'Addressee')
-	`, docID, insertOrganization(t, sqlDB, "Retention Org"))
+		INSERT INTO outgoing_document_details (document_id, sender_signatory, sender_executor, recipient_org_id, addressee) VALUES ($1, 'Signer', 'Executor', $2, 'Addressee')`,
+		docID, insertOrganization(t, sqlDB, "Retention Org"))
 	execSQL(t, sqlDB, `
 		INSERT INTO document_journal (document_id, user_id, action, details)
 		VALUES ($1, $2, 'CREATE', 'retention check')
@@ -354,27 +348,17 @@ func TestDatabaseConstraintsIntegration(t *testing.T) {
 		VALUES ($1, 'Constraint outgoing', '04-04', 2026, 'outgoing_letter', '/', 'index_and_number', 1)
 	`, nomID)
 	execSQL(t, sqlDB, `
-		INSERT INTO documents (
-			id, kind, nomenclature_id, idempotency_key, registration_number, registration_date,
-			document_type, content, pages_count, created_by
-		) VALUES ($1, 'outgoing_letter', $2, $3, '04-04/1', DATE '2026-05-28', $4, 'constraint', 1, $5)
-	`, docID, nomID, uuid.New(), models.DocumentTypeLetter, userID)
+		INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, 'outgoing_letter', $2, '04-04/1', DATE '2026-05-28', $3, 'constraint', 1, $4)`,
+		docID, nomID, models.DocumentTypeLetter, userID)
 
 	expectExecError(t, sqlDB, `
-		INSERT INTO documents (
-			kind, nomenclature_id, idempotency_key, registration_number, registration_date,
-			document_type, content, pages_count, created_by
-		) VALUES ('outgoing_letter', $1, $2, '04-04/1', DATE '2026-12-31', $3, 'duplicate number', 1, $4)
-	`, nomID, uuid.New(), models.DocumentTypeLetter, userID)
-	// idempotency_key has a database default, so direct writes remain safe even
-	// if an older client omits the column.
+		INSERT INTO documents (kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ('outgoing_letter', $1, '04-04/1', DATE '2026-12-31', $2, 'duplicate number', 1, $3)`,
+		nomID, models.DocumentTypeLetter, userID)
+	// Registration numbers are unique within a kind and year, not across years.
 	execSQL(t, sqlDB, `
-		INSERT INTO documents (
-			kind, nomenclature_id, registration_number, registration_date,
-			document_type, content, pages_count, created_by
-		) VALUES ('outgoing_letter', $1, '04-04/2', DATE '2026-05-28', $2, 'missing idempotency', 1, $3)
-	`, nomID, models.DocumentTypeLetter, userID)
-	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM documents WHERE created_by = $1 AND idempotency_key IS NOT NULL`, []any{userID}, 2)
+		INSERT INTO documents (kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ('outgoing_letter', $1, '04-04/1', DATE '2027-05-28', $2, 'another year', 1, $3)`,
+		nomID, models.DocumentTypeLetter, userID)
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM documents WHERE created_by = $1`, []any{userID}, 2)
 
 }
 

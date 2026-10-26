@@ -33,15 +33,13 @@ func (h *AdministrativeOrderQueryHandler) GetCard(id uuid.UUID) (*dto.DocumentCa
 }
 
 // GetList возвращает список приказов.
-func (h *AdministrativeOrderQueryHandler) GetList(filter models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error) {
+func (h *AdministrativeOrderQueryHandler) GetList(filter models.DocumentFilter) (*dto.CursorResult[dto.DocumentListItem], error) {
 	result, err := h.repo.GetList(filter)
 	if err != nil {
 		return nil, err
 	}
-	return &dto.PagedResult[dto.DocumentListItem]{
+	return &dto.CursorResult[dto.DocumentListItem]{
 		Items:      dto.MapDocumentListItemsFromAdministrativeOrders(result.Items),
-		TotalCount: result.TotalCount,
-		Page:       result.Page,
 		PageSize:   result.PageSize,
 		NextCursor: result.NextCursor,
 		HasMore:    result.HasMore,

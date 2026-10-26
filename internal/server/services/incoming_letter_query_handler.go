@@ -34,16 +34,14 @@ func (h *IncomingLetterQueryHandler) GetCard(id uuid.UUID) (*dto.DocumentCard, e
 }
 
 // GetList возвращает общий список входящих писем.
-func (h *IncomingLetterQueryHandler) GetList(filter models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error) {
+func (h *IncomingLetterQueryHandler) GetList(filter models.DocumentFilter) (*dto.CursorResult[dto.DocumentListItem], error) {
 	res, err := h.repo.GetList(filter)
 	if err != nil {
 		return nil, err
 	}
 
-	return &dto.PagedResult[dto.DocumentListItem]{
+	return &dto.CursorResult[dto.DocumentListItem]{
 		Items:      dto.MapDocumentListItemsFromIncoming(res.Items),
-		TotalCount: res.TotalCount,
-		Page:       res.Page,
 		PageSize:   res.PageSize,
 		NextCursor: res.NextCursor,
 		HasMore:    res.HasMore,

@@ -51,7 +51,7 @@ func newDeadlineFixture(t *testing.T) *deadlineFixture {
 		if i > 0 {
 			kind = "outgoing_letter"
 		}
-		_, err = db.Exec(`INSERT INTO documents(id,kind,nomenclature_id,registration_number,registration_date,document_type,content,created_by) VALUES($1,$2,$3,$4,'2026-10-01','Письмо','Test',$5)`, f.docs[i], kind, n, fmt.Sprint(i), f.users[0])
+		_, err = db.Exec(`INSERT INTO documents(id, kind, nomenclature_id, registration_number, registration_date, document_type, content, created_by) VALUES($1, $2, $3, $4, '2026-10-01', 'Письмо', 'Test', $5)`, f.docs[i], kind, n, fmt.Sprint(i), f.users[0])
 		require.NoError(t, err)
 	}
 	external, err := f.service(0).SaveExternalExecutor(context.Background(), "", models.ExternalDeadlineExecutorRequest{Name: "Внешний исполнитель", Institution: "Учреждение", IsActive: true})

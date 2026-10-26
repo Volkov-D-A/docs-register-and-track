@@ -31,7 +31,7 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
 			"id", "nomenclature_id", "nomenclature_name",
-			"incoming_number", "incoming_date",
+			"registration_number", "registration_date",
 			"document_type",
 			"content", "pages_count", "attachment_pages_count",
 			"sender_signatory",
@@ -51,9 +51,9 @@ func TestIncomingDocumentRepository_GetByID(t *testing.T) {
 		mock.ExpectQuery(`SELECT cr\.id, cr\.document_id, cr\.registration_number, cr\.registration_date`).WithArgs(docID).WillReturnRows(sqlmock.NewRows([]string{
 			"id", "document_id", "registration_number", "registration_date", "correspondent_org_id", "name", "position",
 		}).AddRow(uuid.New(), docID, "ИСХ-123", now, uuid.New(), "Орг 1", 1))
-		mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnRows(sqlmock.NewRows([]string{
-			"id", "document_id", "resolution", "resolution_author", "resolution_executors", "position",
-		}).AddRow(uuid.New(), docID, "В работу", "Директор", "Петров П.П.", 1))
+		mock.ExpectQuery(`SELECT resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnRows(sqlmock.NewRows([]string{
+			"resolution", "resolution_author", "resolution_executors",
+		}).AddRow("В работу", "Директор", "Петров П.П."))
 
 		doc, err := repo.GetByID(docID)
 		require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	docID := uuid.New()
 	now := time.Now()
 
-	req := models.CreateIncomingDocRequest{
+	req := models.CreateIncomingDocRequest{CommandHash: "repository-fixture-hash",
 		NomenclatureID: uuid.New(),
 		IdempotencyKey: uuid.New(),
 		CreatedBy:      uuid.New(),
@@ -150,18 +150,16 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-		WithArgs(req.CreatedBy, models.DocumentKindIncomingLetter, req.IdempotencyKey).
-		WillReturnError(sql.ErrNoRows)
+	expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash)
 	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 		WithArgs(req.NomenclatureID).
 		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
 			AddRow("01-01", "/", "manual_only", 1, string(models.DocumentKindIncomingLetter)))
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
-		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
+		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 	mock.ExpectExec(`INSERT INTO incoming_document_details`).WithArgs(
-		docID, req.IncomingNumber, req.IncomingDate,
+		docID,
 		req.SenderSignatory,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`DELETE FROM document_correspondent_registrations`).WithArgs(docID).WillReturnResult(sqlmock.NewResult(0, 1))
@@ -170,13 +168,14 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`DELETE FROM document_resolutions`).WithArgs(docID).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventJournal, "incoming:"+docID.String()+":create:journal", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectDocumentCommandCompletion(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash, docID)
 	mock.ExpectCommit()
 
 	// После Create идет вызов GetByID
 	expectedQuery := incomingDocSelectBase + " WHERE d.id = $1"
 	rows := sqlmock.NewRows([]string{
 		"id", "nomenclature_id", "nomenclature_name",
-		"incoming_number", "incoming_date",
+		"registration_number", "registration_date",
 		"document_type",
 		"content", "pages_count", "attachment_pages_count",
 		"sender_signatory",
@@ -192,7 +191,7 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 	mock.ExpectQuery(`SELECT cr\.id, cr\.document_id, cr\.registration_number, cr\.registration_date`).WithArgs(docID).WillReturnRows(sqlmock.NewRows([]string{
 		"id", "document_id", "registration_number", "registration_date", "correspondent_org_id", "name", "position",
 	}).AddRow(uuid.New(), docID, "ИСХ-001", now, req.Correspondents[0].CorrespondentOrgID, "Орг 1", 1))
-	mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`SELECT resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnError(sql.ErrNoRows)
 
 	doc, err := repo.CreateWithJournal(req, "CREATE", "Created %s")
 	require.NoError(t, err)
@@ -210,7 +209,7 @@ func TestIncomingDocumentRepository_CreateValidationErrors(t *testing.T) {
 
 		repo := NewIncomingDocumentRepository(database.Wrap(db))
 
-		doc, err := repo.CreateWithJournal(models.CreateIncomingDocRequest{DocumentTypeID: "unknown"}, "CREATE", "Created %s")
+		doc, err := repo.CreateWithJournal(models.CreateIncomingDocRequest{CommandHash: "repository-fixture-hash", DocumentTypeID: "unknown"}, "CREATE", "Created %s")
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "неверный тип документа")
@@ -225,7 +224,7 @@ func TestIncomingDocumentRepository_CreateValidationErrors(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectRollback()
 
-		doc, err := repo.CreateWithJournal(models.CreateIncomingDocRequest{
+		doc, err := repo.CreateWithJournal(models.CreateIncomingDocRequest{CommandHash: "repository-fixture-hash",
 			NomenclatureID: uuid.New(),
 			CreatedBy:      uuid.New(),
 			DocumentTypeID: models.DocumentTypeLetter,
@@ -265,7 +264,7 @@ func TestIncomingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
 			defer db.Close()
 
 			repo := NewIncomingDocumentRepository(database.Wrap(db))
-			req := models.CreateIncomingDocRequest{
+			req := models.CreateIncomingDocRequest{CommandHash: "repository-fixture-hash",
 				NomenclatureID: uuid.New(),
 				IdempotencyKey: uuid.New(),
 				CreatedBy:      uuid.New(),
@@ -276,9 +275,7 @@ func TestIncomingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
 			}
 
 			mock.ExpectBegin()
-			mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-				WithArgs(req.CreatedBy, models.DocumentKindIncomingLetter, req.IdempotencyKey).
-				WillReturnError(sql.ErrNoRows)
+			expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash)
 			mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 				WithArgs(req.NomenclatureID).
 				WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -286,7 +283,7 @@ func TestIncomingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
 			mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 				models.DocumentKindIncomingLetter,
 				req.NomenclatureID,
-				req.IdempotencyKey,
+
 				req.IncomingNumber,
 				req.IncomingDate,
 				req.DocumentTypeID,
@@ -319,7 +316,7 @@ func TestIncomingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 
 	repo := NewIncomingDocumentRepository(database.Wrap(db))
 	docID := uuid.New()
-	req := models.CreateIncomingDocRequest{
+	req := models.CreateIncomingDocRequest{CommandHash: "repository-fixture-hash",
 		NomenclatureID: uuid.New(),
 		IdempotencyKey: uuid.New(),
 		CreatedBy:      uuid.New(),
@@ -330,9 +327,7 @@ func TestIncomingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-		WithArgs(req.CreatedBy, models.DocumentKindIncomingLetter, req.IdempotencyKey).
-		WillReturnError(sql.ErrNoRows)
+	expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash)
 	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 		WithArgs(req.NomenclatureID).
 		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -340,7 +335,7 @@ func TestIncomingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 		models.DocumentKindIncomingLetter,
 		req.NomenclatureID,
-		req.IdempotencyKey,
+
 		req.IncomingNumber,
 		req.IncomingDate,
 		req.DocumentTypeID,
@@ -351,8 +346,7 @@ func TestIncomingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 	mock.ExpectExec(`INSERT INTO incoming_document_details`).WithArgs(
 		docID,
-		req.IncomingNumber,
-		req.IncomingDate,
+
 		req.SenderSignatory,
 	).WillReturnError(sql.ErrConnDone)
 	mock.ExpectRollback()
@@ -378,18 +372,15 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 		docID := uuid.New()
 		docID2 := uuid.New()
 		filter := models.DocumentFilter{
-			NomenclatureID: uuid.New().String(),
-			Page:           1,
-			PageSize:       10,
-		}
+			NomenclatureIDs: []string{uuid.New().String()},
 
-		// Count query
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+			PageSize: 10,
+		}
 
 		// Data query
 		rows := sqlmock.NewRows([]string{
 			"id", "nomenclature_id", "nomenclature_name",
-			"incoming_number", "incoming_date",
+			"registration_number", "registration_date",
 			"document_type",
 			"content", "pages_count", "attachment_pages_count",
 			"sender_signatory",
@@ -408,32 +399,21 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 		mock.ExpectQuery(`SELECT cr\.id, cr\.document_id, cr\.registration_number, cr\.registration_date`).WithArgs(sqlmock.AnyArg()).WillReturnRows(sqlmock.NewRows([]string{
 			"id", "document_id", "registration_number", "registration_date", "correspondent_org_id", "name", "position",
 		}).AddRow(uuid.New(), docID, "ИСХ-001", now, uuid.New(), "Орг 1", 1))
-		mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).WithArgs(sqlmock.AnyArg()).WillReturnRows(sqlmock.NewRows([]string{
-			"id", "document_id", "resolution", "resolution_author", "resolution_executors", "position",
+		mock.ExpectQuery(`SELECT document_id, resolution, resolution_author, resolution_executors`).WithArgs(sqlmock.AnyArg()).WillReturnRows(sqlmock.NewRows([]string{
+			"document_id", "resolution", "resolution_author", "resolution_executors",
 		}))
 
 		res, err := repo.GetList(filter)
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		assert.Equal(t, 2, res.TotalCount)
+
 		assert.Len(t, res.Items, 2)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("count database error", func(t *testing.T) {
-		filter := models.DocumentFilter{Search: "test"}
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).WillReturnError(sql.ErrConnDone)
-
-		res, err := repo.GetList(filter)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to count documents")
-		assert.Nil(t, res)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("data database error", func(t *testing.T) {
 		filter := models.DocumentFilter{}
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
 		mock.ExpectQuery(regexp.QuoteMeta(incomingDocSelectBase)).WillReturnError(sql.ErrConnDone)
 
 		res, err := repo.GetList(filter)
@@ -460,16 +440,14 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 			OutgoingDateFrom: "2025-01-01",
 			OutgoingDateTo:   "2025-12-31",
 			NoResolution:     true,
-			Page:             -1,
-			PageSize:         500,
+
+			PageSize: 500,
 		}
 
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery(regexp.QuoteMeta(incomingDocSelectBase)).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
-				"incoming_number", "incoming_date",
+				"registration_number", "registration_date",
 				"document_type",
 				"content", "pages_count", "attachment_pages_count",
 				"sender_signatory",
@@ -481,24 +459,21 @@ func TestIncomingDocumentRepository_GetList(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		assert.Empty(t, res.Items)
-		assert.Equal(t, 0, res.TotalCount)
-		assert.Equal(t, 1, res.Page)
+
 		assert.Equal(t, 100, res.PageSize)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("success with single nomenclature and resolution filter", func(t *testing.T) {
 		filter := models.DocumentFilter{
-			NomenclatureID: uuid.New().String(),
-			Resolution:     "исполнить",
+			NomenclatureIDs: []string{uuid.New().String()},
+			Resolution:      "исполнить",
 		}
 
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM documents d JOIN incoming_document_details inc ON inc.document_id = d.id(.*)`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery(regexp.QuoteMeta(incomingDocSelectBase)).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
-				"incoming_number", "incoming_date",
+				"registration_number", "registration_date",
 				"document_type",
 				"content", "pages_count", "attachment_pages_count",
 				"sender_signatory",
@@ -525,7 +500,7 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 	docID := uuid.New()
 	now := time.Now()
 
-	req := models.UpdateIncomingDocRequest{
+	req := models.UpdateIncomingDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(),
 		ID:             docID,
 		DocumentTypeID: models.DocumentTypeLetter,
 		Content:        "Обновленное содержание",
@@ -538,6 +513,7 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
+	expectDocumentCommandReservation(mock, req.ActorID, "documents.update:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash)
 	mock.ExpectExec(`UPDATE documents SET`).WithArgs(
 		req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.ID, models.DocumentKindIncomingLetter,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -550,13 +526,14 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 		docID, req.Correspondents[0].RegistrationNumber, req.Correspondents[0].RegistrationDate, req.Correspondents[0].CorrespondentOrgID, req.Correspondents[0].Position,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`DELETE FROM document_resolutions`).WithArgs(docID).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectDocumentCommandCompletion(mock, req.ActorID, "documents.update:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash, docID)
 	mock.ExpectCommit()
 
 	// После Update идет вызов GetByID
 	expectedQuery := incomingDocSelectBase + " WHERE d.id = $1"
 	rows := sqlmock.NewRows([]string{
 		"id", "nomenclature_id", "nomenclature_name",
-		"incoming_number", "incoming_date",
+		"registration_number", "registration_date",
 		"document_type",
 		"content", "pages_count", "attachment_pages_count",
 		"sender_signatory",
@@ -572,7 +549,7 @@ func TestIncomingDocumentRepository_Update(t *testing.T) {
 	mock.ExpectQuery(`SELECT cr\.id, cr\.document_id, cr\.registration_number, cr\.registration_date`).WithArgs(docID).WillReturnRows(sqlmock.NewRows([]string{
 		"id", "document_id", "registration_number", "registration_date", "correspondent_org_id", "name", "position",
 	}).AddRow(uuid.New(), docID, "ИСХ-001", now, req.Correspondents[0].CorrespondentOrgID, "Орг 1", 1))
-	mock.ExpectQuery(`SELECT id, document_id, resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`SELECT resolution, resolution_author, resolution_executors`).WithArgs(docID).WillReturnError(sql.ErrNoRows)
 
 	doc, err := repo.UpdateWithOutbox(req, nil)
 	require.NoError(t, err)
@@ -590,7 +567,7 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 
 		repo := NewIncomingDocumentRepository(database.Wrap(db))
 
-		doc, err := repo.UpdateWithOutbox(models.UpdateIncomingDocRequest{DocumentTypeID: "unknown"}, nil)
+		doc, err := repo.UpdateWithOutbox(models.UpdateIncomingDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(), DocumentTypeID: "unknown"}, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "неверный тип документа")
@@ -604,7 +581,7 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 		repo := NewIncomingDocumentRepository(database.Wrap(db))
 		mock.ExpectBegin().WillReturnError(sql.ErrConnDone)
 
-		doc, err := repo.UpdateWithOutbox(models.UpdateIncomingDocRequest{DocumentTypeID: models.DocumentTypeLetter}, nil)
+		doc, err := repo.UpdateWithOutbox(models.UpdateIncomingDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter}, nil)
 		require.Error(t, err)
 		assert.Nil(t, doc)
 		assert.Contains(t, err.Error(), "failed to begin transaction")
@@ -617,13 +594,14 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 		defer db.Close()
 
 		repo := NewIncomingDocumentRepository(database.Wrap(db))
-		req := models.UpdateIncomingDocRequest{
+		req := models.UpdateIncomingDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(),
 			ID:             uuid.New(),
 			DocumentTypeID: models.DocumentTypeLetter,
 			Content:        "Текст",
 		}
 
 		mock.ExpectBegin()
+		expectDocumentCommandReservation(mock, req.ActorID, "documents.update:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectExec(`UPDATE documents SET`).
 			WithArgs(req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.ID, models.DocumentKindIncomingLetter).
 			WillReturnError(sql.ErrConnDone)
@@ -642,13 +620,14 @@ func TestIncomingDocumentRepository_UpdateErrors(t *testing.T) {
 		defer db.Close()
 
 		repo := NewIncomingDocumentRepository(database.Wrap(db))
-		req := models.UpdateIncomingDocRequest{
+		req := models.UpdateIncomingDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(),
 			ID:             uuid.New(),
 			DocumentTypeID: models.DocumentTypeLetter,
 			Content:        "Текст",
 		}
 
 		mock.ExpectBegin()
+		expectDocumentCommandReservation(mock, req.ActorID, "documents.update:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectExec(`UPDATE documents SET`).
 			WithArgs(req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.ID, models.DocumentKindIncomingLetter).
 			WillReturnResult(sqlmock.NewResult(0, 1))

@@ -19,7 +19,7 @@ func TestAdministrativeOrderAcknowledgmentRepeatedMarkerIntegration(t *testing.T
 	nomenclatureID, documentID, personID := uuid.New(), uuid.New(), uuid.New()
 	execSQL(t, sqlDB, `INSERT INTO nomenclature (id, name, index, year, kind_code) VALUES ($1, 'Orders', 'ACK', 2026, 'administrative_order')`, nomenclatureID)
 	execSQL(t, sqlDB, `INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date, document_type, content, created_by) VALUES ($1, 'administrative_order', $2, 'ACK/1', '2026-09-01', 'Приказ', 'Order', $3)`, documentID, nomenclatureID, firstMarker)
-	execSQL(t, sqlDB, `INSERT INTO administrative_order_details (document_id, order_number, order_date, title) VALUES ($1, 'ACK/1', '2026-09-01', 'Order')`, documentID)
+	execSQL(t, sqlDB, `INSERT INTO administrative_order_details (document_id, title) VALUES ($1, 'Order')`, documentID)
 	execSQL(t, sqlDB, `INSERT INTO administrative_order_acknowledgment_people (id, document_id, full_name) VALUES ($1, $2, 'Person')`, personID, documentID)
 
 	repo := NewAdministrativeOrderRepository(db)

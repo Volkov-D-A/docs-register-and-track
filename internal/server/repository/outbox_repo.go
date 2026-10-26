@@ -46,6 +46,15 @@ func enqueueOutboxEffects(outbox *OutboxRepository, tx *sql.Tx, effects []models
 	return nil
 }
 
+// enqueueDocumentCreationJournalTx writes the journal request inside registration's transaction.
+func enqueueDocumentCreationJournalTx(outbox *OutboxRepository, tx *sql.Tx, documentID, actorID uuid.UUID, key, action, detailsFormat, number string) error {
+	if action == "" {
+		return nil
+	}
+	payload := fmt.Sprintf(`{"documentId":"%s","userId":"%s","action":%q,"details":%q}`, documentID, actorID, action, fmt.Sprintf(detailsFormat, number))
+	return enqueueOutboxEffects(outbox, tx, []models.OutboxEvent{{EventType: models.OutboxEventJournal, DeduplicationKey: key, Payload: payload}})
+}
+
 func (r *OutboxRepository) EnqueueTx(tx *sql.Tx, event models.OutboxEvent) error {
 	if event.EventType == "" || event.DeduplicationKey == "" || event.Payload == "" {
 		return fmt.Errorf("outbox event type, deduplication key and payload are required")

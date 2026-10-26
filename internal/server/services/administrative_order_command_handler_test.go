@@ -31,7 +31,7 @@ type administrativeOrderCommandStore struct {
 	updateErr    error
 }
 
-func (s *administrativeOrderCommandStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error) {
+func (s *administrativeOrderCommandStore) GetList(filter models.DocumentFilter) (*models.CursorResult[models.AdministrativeOrderDocument], error) {
 	return nil, nil
 }
 

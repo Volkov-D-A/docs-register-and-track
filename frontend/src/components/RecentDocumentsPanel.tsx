@@ -1,3 +1,4 @@
+import { isDocumentResyncEvent } from '../events/documentEvents';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Empty, Spin } from 'antd';
 import { FileTextOutlined } from '@ant-design/icons';
@@ -44,7 +45,7 @@ const RecentDocumentsPanel: React.FC<RecentDocumentsPanelProps> = ({ refreshVers
 
     useEffect(() => { void load(); }, [load, refreshVersion]);
     useEffect(() => onServerEvent((event) => {
-        if (event.topic === 'documents' || event.topic === 'resync' || event.topic === 'access-changed'
+        if (isDocumentResyncEvent(event)
             || (event.topic === 'document-changed' && (event.resource === 'document' || event.visibilityChanged))) void load();
     }), [load]);
     useEffect(() => () => request.current.invalidate(), []);

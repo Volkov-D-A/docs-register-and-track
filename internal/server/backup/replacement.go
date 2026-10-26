@@ -108,7 +108,7 @@ func (s *Service) installReplacement(ctx context.Context, op *operation, prepare
 	if err := phase("restoring"); err != nil {
 		return err
 	}
-	if err := RestorePrepared(ctx, s.PostgreSQL, prepared, s.Directory, s.Schema, false); err != nil {
+	if err := restorePrepared(ctx, s.PostgreSQL, prepared, s.Directory, s.Schema); err != nil {
 		return err
 	}
 	if !rollback {

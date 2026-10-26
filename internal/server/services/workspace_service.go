@@ -3,20 +3,18 @@ package services
 import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
 // WorkspaceService resolves capabilities and work from the same server principal.
 type WorkspaceService struct {
-	repo    ports.WorkspaceStore
-	auth    ports.DocumentAccessPrincipal
-	access  *DocumentAccessService
-	metrics *observability.Registry
+	repo   ports.WorkspaceStore
+	auth   ports.DocumentAccessPrincipal
+	access *DocumentAccessService
 }
 
-func NewWorkspaceService(repo ports.WorkspaceStore, auth ports.DocumentAccessPrincipal, access *DocumentAccessService, metrics *observability.Registry) *WorkspaceService {
-	return &WorkspaceService{repo: repo, auth: auth, access: access, metrics: metrics}
+func NewWorkspaceService(repo ports.WorkspaceStore, auth ports.DocumentAccessPrincipal, access *DocumentAccessService) *WorkspaceService {
+	return &WorkspaceService{repo: repo, auth: auth, access: access}
 }
 
 // GetRecentDocuments is scoped to the current document visibility.

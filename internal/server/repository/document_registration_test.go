@@ -33,108 +33,15 @@ func TestIsUniqueViolation(t *testing.T) {
 	assert.False(t, isUniqueViolation(nil, "documents_number_key"))
 }
 
-func TestFindExistingDocumentIDByIdempotency(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
-		docID := uuid.New()
-
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
-
-		result, err := findExistingDocumentIDByIdempotency(db, createdBy, models.DocumentKindIncomingLetter, idempotencyKey)
-		require.NoError(t, err)
-		assert.Equal(t, docID, result)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("not found", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
-
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindOutgoingLetter, idempotencyKey).
-			WillReturnError(sql.ErrNoRows)
-
-		result, err := findExistingDocumentIDByIdempotency(db, createdBy, models.DocumentKindOutgoingLetter, idempotencyKey)
-		require.ErrorIs(t, err, sql.ErrNoRows)
-		assert.Equal(t, uuid.Nil, result)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-}
-
 func TestResolveRegistrationNumberTx(t *testing.T) {
-	t.Run("returns existing document for idempotency key", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
-		existingID := uuid.New()
-
-		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(existingID))
-
-		mock.ExpectRollback()
-		tx, err := db.Begin()
-		require.NoError(t, err)
-		result, err := resolveRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, uuid.New(), idempotencyKey, "")
-		require.NoError(t, err)
-		assert.Equal(t, existingID, result.Existing)
-		assert.Empty(t, result.Number)
-		require.NoError(t, tx.Rollback())
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("idempotency check database error", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
-
-		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnError(sql.ErrConnDone)
-
-		mock.ExpectRollback()
-		tx, err := db.Begin()
-		require.NoError(t, err)
-		result, err := resolveRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, uuid.New(), idempotencyKey, "")
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "failed to check document idempotency")
-		require.NoError(t, tx.Rollback())
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
 	t.Run("nomenclature not found", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
 		require.NoError(t, err)
 		defer db.Close()
 
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
 			WillReturnError(sql.ErrNoRows)
@@ -142,9 +49,9 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		mock.ExpectRollback()
 		tx, err := db.Begin()
 		require.NoError(t, err)
-		result, err := resolveRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, "")
+		result, err := resolveRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, nomenclatureID, "")
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Empty(t, result)
 		assert.Contains(t, err.Error(), "номенклатура не найдена")
 		require.NoError(t, tx.Rollback())
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -155,14 +62,9 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -171,9 +73,9 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		mock.ExpectRollback()
 		tx, err := db.Begin()
 		require.NoError(t, err)
-		result, err := resolveRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, "ВХ-1")
+		result, err := resolveRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, nomenclatureID, "ВХ-1")
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Empty(t, result)
 		assert.Contains(t, err.Error(), "выберите номенклатуру")
 		require.NoError(t, tx.Rollback())
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -184,14 +86,9 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -200,9 +97,9 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		mock.ExpectRollback()
 		tx, err := db.Begin()
 		require.NoError(t, err)
-		result, err := resolveRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, "   ")
+		result, err := resolveRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, nomenclatureID, "   ")
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Empty(t, result)
 		assert.Contains(t, err.Error(), "укажите регистрационный номер")
 		require.NoError(t, tx.Rollback())
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -213,14 +110,9 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -232,10 +124,10 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		mock.ExpectRollback()
 		tx, err := db.Begin()
 		require.NoError(t, err)
-		result, err := resolveRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, "")
+		result, err := resolveRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, nomenclatureID, "")
 		require.NoError(t, err)
-		assert.Equal(t, "01-01/7", result.Number)
-		assert.Equal(t, uuid.Nil, result.Existing)
+		assert.Equal(t, "01-01/7", result)
+
 		require.NoError(t, tx.Rollback())
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -245,14 +137,9 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -264,9 +151,9 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		mock.ExpectRollback()
 		tx, err := db.Begin()
 		require.NoError(t, err)
-		result, err := resolveRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, "")
+		result, err := resolveRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, nomenclatureID, "")
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Empty(t, result)
 		assert.Contains(t, err.Error(), "failed to increment nomenclature number")
 		require.NoError(t, tx.Rollback())
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -279,16 +166,11 @@ func TestResolveAdminRegistrationNumberTx(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
 		nomenclatureID := uuid.New()
 		doc15 := uuid.New()
 		doc30 := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
@@ -303,13 +185,7 @@ func TestResolveAdminRegistrationNumberTx(t *testing.T) {
 		mock.ExpectExec(`UPDATE documents\s+SET registration_number = \$1, updated_at = CURRENT_TIMESTAMP\s+WHERE id = \$2`).
 			WithArgs("26-01-27/31", doc30).
 			WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectExec(`UPDATE incoming_document_details SET incoming_number = \$1 WHERE document_id = \$2`).
-			WithArgs("26-01-27/31", doc30).
-			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`UPDATE documents\s+SET registration_number = \$1, updated_at = CURRENT_TIMESTAMP\s+WHERE id = \$2`).
-			WithArgs("26-01-27/16", doc15).
-			WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectExec(`UPDATE incoming_document_details SET incoming_number = \$1 WHERE document_id = \$2`).
 			WithArgs("26-01-27/16", doc15).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = \$2\s+WHERE id = \$1`).
@@ -319,13 +195,13 @@ func TestResolveAdminRegistrationNumberTx(t *testing.T) {
 		mock.ExpectRollback()
 		tx, err := db.Begin()
 		require.NoError(t, err)
-		result, err := resolveAdminRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, &models.AdminNumberOverride{
+		result, err := resolveAdminRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, nomenclatureID, &models.AdminNumberOverride{
 			Mode:   models.AdminNumberModeInsertShift,
 			Number: 15,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "26-01-27/15", result.Number)
-		assert.Equal(t, uuid.Nil, result.Existing)
+		assert.Equal(t, "26-01-27/15", result)
+
 		require.NoError(t, tx.Rollback())
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -335,14 +211,9 @@ func TestResolveAdminRegistrationNumberTx(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
@@ -351,14 +222,14 @@ func TestResolveAdminRegistrationNumberTx(t *testing.T) {
 		mock.ExpectRollback()
 		tx, err := db.Begin()
 		require.NoError(t, err)
-		result, err := resolveAdminRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, &models.AdminNumberOverride{
+		result, err := resolveAdminRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, nomenclatureID, &models.AdminNumberOverride{
 			Mode:   models.AdminNumberModeLiteral,
 			Number: 15,
 			Suffix: "А",
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "26-01-27/15А", result.Number)
-		assert.Equal(t, uuid.Nil, result.Existing)
+		assert.Equal(t, "26-01-27/15А", result)
+
 		require.NoError(t, tx.Rollback())
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -368,14 +239,9 @@ func TestResolveAdminRegistrationNumberTx(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		createdBy := uuid.New()
-		idempotencyKey := uuid.New()
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(createdBy, models.DocumentKindIncomingLetter, idempotencyKey).
-			WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
@@ -384,13 +250,13 @@ func TestResolveAdminRegistrationNumberTx(t *testing.T) {
 		mock.ExpectRollback()
 		tx, err := db.Begin()
 		require.NoError(t, err)
-		result, err := resolveAdminRegistrationNumberTx(tx, createdBy, models.DocumentKindIncomingLetter, nomenclatureID, idempotencyKey, &models.AdminNumberOverride{
+		result, err := resolveAdminRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, nomenclatureID, &models.AdminNumberOverride{
 			Mode:   models.AdminNumberModeLiteral,
 			Number: 15,
 			Suffix: "А",
 		})
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Empty(t, result)
 		assert.Contains(t, err.Error(), "действующее дело номенклатуры")
 		require.NoError(t, tx.Rollback())
 		require.NoError(t, mock.ExpectationsWereMet())

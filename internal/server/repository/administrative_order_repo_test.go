@@ -16,7 +16,7 @@ import (
 )
 
 func TestAdministrativeOrderRepository_GetListUsesVisibilityClosure(t *testing.T) {
-	// The same visibility closure scopes both the count and the returned cards.
+	// The visibility closure scopes the returned cursor window.
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -28,18 +28,13 @@ func TestAdministrativeOrderRepository_GetListUsesVisibilityClosure(t *testing.T
 	now := time.Now()
 	filter := models.DocumentFilter{
 		AccessScope: &models.DocumentAccessScope{UserID: userID},
-		Page:        1,
-		PageSize:    10,
-	}
 
-	expectedCountQuery := `SELECT COUNT\(\*\)(.*)WITH RECURSIVE(.*)document_deadline_controls(.*)document_links`
-	mock.ExpectQuery(expectedCountQuery).
-		WithArgs(models.DocumentKindAdministrativeOrder, userID).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+		PageSize: 10,
+	}
 
 	rows := sqlmock.NewRows([]string{
 		"id", "nomenclature_id", "nomenclature_name",
-		"order_number", "order_date", "title", "pages_count",
+		"registration_number", "registration_date", "title", "pages_count",
 		"execution_controller", "execution_deadline", "is_active", "cancelled_at",
 		"created_by_name",
 		"created_at", "updated_at",
@@ -57,9 +52,9 @@ func TestAdministrativeOrderRepository_GetListUsesVisibilityClosure(t *testing.T
 		now, now,
 	)
 
-	expectedListQuery := `SELECT(.*)ord\.order_number(.*)WITH RECURSIVE(.*)document_deadline_controls(.*)document_links(.*)ORDER BY d.created_at DESC`
+	expectedListQuery := `SELECT(.*)d\.registration_number(.*)WITH RECURSIVE(.*)document_deadline_controls(.*)document_links(.*)ORDER BY d.created_at DESC`
 	mock.ExpectQuery(expectedListQuery).
-		WithArgs(models.DocumentKindAdministrativeOrder, userID, 10, 0).
+		WithArgs(models.DocumentKindAdministrativeOrder, userID, 11).
 		WillReturnRows(rows)
 
 	mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = ANY\(\$1\)`).
@@ -72,7 +67,7 @@ func TestAdministrativeOrderRepository_GetListUsesVisibilityClosure(t *testing.T
 	res, err := repo.GetList(filter)
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	assert.Equal(t, 2, res.TotalCount)
+
 	require.Len(t, res.Items, 2)
 	assert.Equal(t, docID, res.Items[0].ID)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -97,16 +92,14 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 			ExecutionController:       "Контроль",
 			OnlyPendingAcknowledgment: true,
 			OrderActiveStatus:         "active",
-			Page:                      -1,
-			PageSize:                  500,
+
+			PageSize: 500,
 		}
 
-		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+		mock.ExpectQuery(`SELECT(.*)d\.registration_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
-				"order_number", "order_date", "title", "pages_count",
+				"registration_number", "registration_date", "title", "pages_count",
 				"execution_controller", "execution_deadline", "is_active", "cancelled_at",
 				"created_by_name",
 				"created_at", "updated_at",
@@ -117,8 +110,7 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		assert.Empty(t, res.Items)
-		assert.Equal(t, 0, res.TotalCount)
-		assert.Equal(t, 1, res.Page)
+
 		assert.Equal(t, 100, res.PageSize)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -130,12 +122,10 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 
 		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 
-		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+		mock.ExpectQuery(`SELECT(.*)d\.registration_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
-				"order_number", "order_date", "title", "pages_count",
+				"registration_number", "registration_date", "title", "pages_count",
 				"execution_controller", "execution_deadline", "is_active", "cancelled_at",
 				"created_by_name",
 				"created_at", "updated_at",
@@ -146,25 +136,8 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		assert.Empty(t, res.Items)
-		assert.Equal(t, 1, res.Page)
+
 		assert.Equal(t, 20, res.PageSize)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("count database error", func(t *testing.T) {
-		db, mock, err := sqlmock.New()
-		require.NoError(t, err)
-		defer db.Close()
-
-		repo := NewAdministrativeOrderRepository(database.Wrap(db))
-		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
-			WillReturnError(sql.ErrConnDone)
-
-		res, err := repo.GetList(models.DocumentFilter{Search: "test"})
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to count administrative orders")
-		assert.Nil(t, res)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -174,9 +147,8 @@ func TestAdministrativeOrderRepository_GetListFiltersAndErrors(t *testing.T) {
 		defer db.Close()
 
 		repo := NewAdministrativeOrderRepository(database.Wrap(db))
-		mock.ExpectQuery(`SELECT COUNT\(\*\)(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
+
+		mock.ExpectQuery(`SELECT(.*)d\.registration_number(.*)FROM documents d(.*)JOIN administrative_order_details ord ON ord.document_id = d.id`).
 			WillReturnError(sql.ErrConnDone)
 
 		res, err := repo.GetList(models.DocumentFilter{})
@@ -308,7 +280,7 @@ func administrativeOrderRows(docID uuid.UUID, now time.Time) *sqlmock.Rows {
 	cancelledAt := now.AddDate(0, 0, 1)
 	return sqlmock.NewRows([]string{
 		"id", "nomenclature_id", "nomenclature_name",
-		"order_number", "order_date", "title", "pages_count",
+		"registration_number", "registration_date", "title", "pages_count",
 		"execution_controller", "execution_deadline", "is_active", "cancelled_at",
 		"created_by_name",
 		"created_at", "updated_at",
@@ -331,7 +303,7 @@ func TestAdministrativeOrderRepository_GetByID(t *testing.T) {
 		docID := uuid.New()
 		now := time.Now()
 
-		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
+		mock.ExpectQuery(`SELECT(.*)d\.registration_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
 			WithArgs(docID, models.DocumentKindAdministrativeOrder).
 			WillReturnRows(administrativeOrderRows(docID, now))
 		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
@@ -359,7 +331,7 @@ func TestAdministrativeOrderRepository_GetByID(t *testing.T) {
 		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 
-		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
+		mock.ExpectQuery(`SELECT(.*)d\.registration_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
 			WithArgs(docID, models.DocumentKindAdministrativeOrder).
 			WillReturnError(sql.ErrNoRows)
 
@@ -379,7 +351,7 @@ func TestAdministrativeOrderRepository_GetByID(t *testing.T) {
 		docID := uuid.New()
 		now := time.Now()
 
-		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
+		mock.ExpectQuery(`SELECT(.*)d\.registration_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
 			WithArgs(docID, models.DocumentKindAdministrativeOrder).
 			WillReturnRows(administrativeOrderRows(docID, now))
 		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
@@ -406,7 +378,7 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 		now := time.Now()
 		deadline := now.AddDate(0, 0, 10)
 		cancelledAt := now.AddDate(0, 0, 1)
-		req := models.UpdateAdministrativeOrderDocRequest{
+		req := models.UpdateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(),
 			ID:                  docID,
 			OrderDate:           now,
 			Title:               "Обновленный приказ",
@@ -425,12 +397,13 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 			WithArgs(docID).
 			WillReturnRows(administrativeOrderAcknowledgmentPeopleRows(docID, now))
 		mock.ExpectBegin()
+		expectDocumentCommandReservation(mock, req.ActorID, "documents.update:"+string(models.DocumentKindAdministrativeOrder), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectExec(`UPDATE documents SET`).
 			WithArgs(req.OrderDate, req.Title, req.PagesCount, req.ID, models.DocumentKindAdministrativeOrder).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`UPDATE administrative_order_details SET`).
 			WithArgs(
-				req.OrderDate,
+
 				req.Title,
 				req.ExecutionController,
 				req.ExecutionDeadline,
@@ -448,8 +421,9 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 		mock.ExpectExec(`INSERT INTO administrative_order_acknowledgment_people`).
 			WithArgs(docID, "Сидоров С.С.", nil, nil, 2).
 			WillReturnResult(sqlmock.NewResult(2, 1))
+		expectDocumentCommandCompletion(mock, req.ActorID, "documents.update:"+string(models.DocumentKindAdministrativeOrder), req.IdempotencyKey, req.CommandHash, docID)
 		mock.ExpectCommit()
-		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
+		mock.ExpectQuery(`SELECT(.*)d\.registration_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
 			WithArgs(docID, models.DocumentKindAdministrativeOrder).
 			WillReturnRows(administrativeOrderRows(docID, now))
 		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
@@ -472,7 +446,7 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 		now := time.Now()
-		req := models.UpdateAdministrativeOrderDocRequest{
+		req := models.UpdateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(),
 			ID:                      docID,
 			OrderDate:               now,
 			Title:                   "Обновленный приказ",
@@ -485,12 +459,13 @@ func TestAdministrativeOrderRepository_Update(t *testing.T) {
 			WithArgs(docID).
 			WillReturnRows(administrativeOrderAcknowledgmentPeopleRows(docID, now))
 		mock.ExpectBegin()
+		expectDocumentCommandReservation(mock, req.ActorID, "documents.update:"+string(models.DocumentKindAdministrativeOrder), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectExec(`UPDATE documents SET`).
 			WithArgs(req.OrderDate, req.Title, req.PagesCount, req.ID, models.DocumentKindAdministrativeOrder).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`UPDATE administrative_order_details SET`).
 			WithArgs(
-				req.OrderDate,
+
 				req.Title,
 				req.ExecutionController,
 				req.ExecutionDeadline,
@@ -525,7 +500,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			WithArgs(docID).
 			WillReturnError(sql.ErrConnDone)
 
-		doc, err := repo.UpdateWithOutbox(models.UpdateAdministrativeOrderDocRequest{ID: docID}, nil)
+		doc, err := repo.UpdateWithOutbox(models.UpdateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(), ID: docID}, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -548,7 +523,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 			}))
 		mock.ExpectBegin().WillReturnError(sql.ErrConnDone)
 
-		doc, err := repo.UpdateWithOutbox(models.UpdateAdministrativeOrderDocRequest{ID: docID}, nil)
+		doc, err := repo.UpdateWithOutbox(models.UpdateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(), ID: docID}, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, doc)
@@ -562,7 +537,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 		defer db.Close()
 
 		repo := NewAdministrativeOrderRepository(database.Wrap(db))
-		req := models.UpdateAdministrativeOrderDocRequest{
+		req := models.UpdateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(),
 			ID:        uuid.New(),
 			OrderDate: time.Now(),
 			Title:     "Приказ",
@@ -576,6 +551,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 				"acknowledged_by_name",
 			}))
 		mock.ExpectBegin()
+		expectDocumentCommandReservation(mock, req.ActorID, "documents.update:"+string(models.DocumentKindAdministrativeOrder), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectExec(`UPDATE documents SET`).
 			WithArgs(req.OrderDate, req.Title, req.PagesCount, req.ID, models.DocumentKindAdministrativeOrder).
 			WillReturnError(sql.ErrConnDone)
@@ -595,7 +571,7 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 		defer db.Close()
 
 		repo := NewAdministrativeOrderRepository(database.Wrap(db))
-		req := models.UpdateAdministrativeOrderDocRequest{
+		req := models.UpdateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(),
 			ID:                  uuid.New(),
 			OrderDate:           time.Now(),
 			Title:               "Приказ",
@@ -610,12 +586,13 @@ func TestAdministrativeOrderRepository_UpdateErrors(t *testing.T) {
 				"acknowledged_by_name",
 			}))
 		mock.ExpectBegin()
+		expectDocumentCommandReservation(mock, req.ActorID, "documents.update:"+string(models.DocumentKindAdministrativeOrder), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectExec(`UPDATE documents SET`).
 			WithArgs(req.OrderDate, req.Title, req.PagesCount, req.ID, models.DocumentKindAdministrativeOrder).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectExec(`UPDATE administrative_order_details SET`).
 			WithArgs(
-				req.OrderDate,
+
 				req.Title,
 				req.ExecutionController,
 				req.ExecutionDeadline,
@@ -646,7 +623,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		docID := uuid.New()
 		now := time.Now()
 		deadline := now.AddDate(0, 0, 14)
-		req := models.CreateAdministrativeOrderDocRequest{
+		req := models.CreateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash",
 			NomenclatureID:          uuid.New(),
 			IdempotencyKey:          uuid.New(),
 			CreatedBy:               uuid.New(),
@@ -660,9 +637,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(req.CreatedBy, models.DocumentKindAdministrativeOrder, req.IdempotencyKey).
-			WillReturnError(sql.ErrNoRows)
+		expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindAdministrativeOrder), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(req.NomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -670,7 +645,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 			models.DocumentKindAdministrativeOrder,
 			req.NomenclatureID,
-			req.IdempotencyKey,
+
 			req.OrderNumber,
 			req.OrderDate,
 			models.DocumentTypeAdministrativeOrder,
@@ -680,8 +655,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 		mock.ExpectExec(`INSERT INTO administrative_order_details`).WithArgs(
 			docID,
-			req.OrderNumber,
-			req.OrderDate,
+
 			req.Title,
 			req.ExecutionController,
 			req.ExecutionDeadline,
@@ -698,8 +672,9 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 			WithArgs(docID, "Петров П.П.", nil, nil, 2).
 			WillReturnResult(sqlmock.NewResult(2, 1))
 		mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventJournal, "administrative-order:"+docID.String()+":create:journal", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
+		expectDocumentCommandCompletion(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindAdministrativeOrder), req.IdempotencyKey, req.CommandHash, docID)
 		mock.ExpectCommit()
-		mock.ExpectQuery(`SELECT(.*)ord\.order_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
+		mock.ExpectQuery(`SELECT(.*)d\.registration_number(.*)WHERE d.id = \$1 AND d.kind = \$2`).
 			WithArgs(docID, models.DocumentKindAdministrativeOrder).
 			WillReturnRows(administrativeOrderRows(docID, now))
 		mock.ExpectQuery(`SELECT(.*)FROM administrative_order_acknowledgment_people p(.*)WHERE p.document_id = \$1`).
@@ -722,7 +697,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		repo := NewAdministrativeOrderRepository(database.Wrap(db))
 		docID := uuid.New()
 		now := time.Now()
-		req := models.CreateAdministrativeOrderDocRequest{
+		req := models.CreateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash",
 			NomenclatureID: uuid.New(),
 			IdempotencyKey: uuid.New(),
 			CreatedBy:      uuid.New(),
@@ -733,9 +708,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-			WithArgs(req.CreatedBy, models.DocumentKindAdministrativeOrder, req.IdempotencyKey).
-			WillReturnError(sql.ErrNoRows)
+		expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindAdministrativeOrder), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(req.NomenclatureID).
 			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -743,7 +716,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 			models.DocumentKindAdministrativeOrder,
 			req.NomenclatureID,
-			req.IdempotencyKey,
+
 			req.OrderNumber,
 			req.OrderDate,
 			models.DocumentTypeAdministrativeOrder,
@@ -753,8 +726,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
 		mock.ExpectExec(`INSERT INTO administrative_order_details`).WithArgs(
 			docID,
-			req.OrderNumber,
-			req.OrderDate,
+
 			req.Title,
 			req.ExecutionController,
 			req.ExecutionDeadline,
@@ -780,7 +752,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectRollback()
 
-		doc, err := repo.CreateWithJournal(models.CreateAdministrativeOrderDocRequest{
+		doc, err := repo.CreateWithJournal(models.CreateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash",
 			NomenclatureID: uuid.New(),
 			CreatedBy:      uuid.New(),
 		}, "CREATE", "Created %s")
@@ -818,7 +790,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 				defer db.Close()
 
 				repo := NewAdministrativeOrderRepository(database.Wrap(db))
-				req := models.CreateAdministrativeOrderDocRequest{
+				req := models.CreateAdministrativeOrderDocRequest{CommandHash: "repository-fixture-hash",
 					NomenclatureID: uuid.New(),
 					IdempotencyKey: uuid.New(),
 					CreatedBy:      uuid.New(),
@@ -828,9 +800,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 				}
 
 				mock.ExpectBegin()
-				mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-					WithArgs(req.CreatedBy, models.DocumentKindAdministrativeOrder, req.IdempotencyKey).
-					WillReturnError(sql.ErrNoRows)
+				expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindAdministrativeOrder), req.IdempotencyKey, req.CommandHash)
 				mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 					WithArgs(req.NomenclatureID).
 					WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -838,7 +808,7 @@ func TestAdministrativeOrderRepository_Create(t *testing.T) {
 				mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 					models.DocumentKindAdministrativeOrder,
 					req.NomenclatureID,
-					req.IdempotencyKey,
+
 					req.OrderNumber,
 					req.OrderDate,
 					models.DocumentTypeAdministrativeOrder,

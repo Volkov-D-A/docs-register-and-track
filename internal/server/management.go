@@ -174,7 +174,7 @@ func newManagementAPI(app *App) *managementAPI {
 		},
 		documentQueries: func(user *models.User) documentQueryAPI {
 			documentAccess := serverservices.NewDocumentAccessService(requestDocumentPrincipal{user: user}, access, documents)
-			query := serverservices.NewDocumentQueryEngine(queryRegistry, documentAccess, app.metrics, documents)
+			query := serverservices.NewDocumentQueryEngine(queryRegistry, documentAccess, documents)
 			return query
 		},
 		documentCommands: func(user *models.User) documentCommandAPI {
@@ -186,7 +186,7 @@ func newManagementAPI(app *App) *managementAPI {
 				serverservices.NewCitizenAppealCommandHandler(citizenAppealCommands, references, principal, documentAccess),
 				serverservices.NewAdministrativeOrderCommandHandler(administrativeOrderCommands, principal, documentAccess),
 			)
-			commands := serverservices.NewDocumentCommandEngine(registry, app.metrics)
+			commands := serverservices.NewDocumentCommandEngine(registry)
 			return commands
 		},
 		userEvents: func(user *models.User) userEventAPI {
@@ -200,7 +200,7 @@ func newManagementAPI(app *App) *managementAPI {
 		links: func(user *models.User) linkAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(principal, access, documents)
-			return serverservices.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal, app.metrics)
+			return serverservices.NewLinkService(links, incomingCommands, outgoingCommands, citizenAppealCommands, administrativeOrderCommands, documentAccess, principal)
 		},
 		journal: func(user *models.User) journalAPI {
 			principal := requestDocumentPrincipal{user: user}
@@ -210,14 +210,13 @@ func newManagementAPI(app *App) *managementAPI {
 		workspace: func(user *models.User) workspaceAPI {
 			principal := requestDocumentPrincipal{user: user}
 			documentAccess := serverservices.NewDocumentAccessService(principal, access, documents)
-			return serverservices.NewWorkspaceService(workspace, principal, documentAccess, app.metrics)
+			return serverservices.NewWorkspaceService(workspace, principal, documentAccess)
 		},
 		statistics: func(user *models.User) statisticsAPI {
 			return serverservices.NewStatisticsService(
 				statistics.ForUser(user.ID), requestDocumentPrincipal{user: user},
 				serverservices.StatisticsOptions{
 					Diagnostics: newServerDiagnostics(app, outboxRepo, repository.NewServerSessionRepository(app.db)),
-					Metrics:     app.metrics,
 				})
 		},
 		deadlines: func(user *models.User) deadlineControlAPI {
@@ -740,9 +739,6 @@ func requestLogging(next http.Handler, metrics *observability.Registry) http.Han
 				}
 				duration := time.Since(started)
 				metrics.Observe("http.request", duration, requestErr)
-				if r.Pattern != "" {
-					metrics.Observe("http."+r.Pattern, duration, requestErr)
-				}
 				if status >= 400 && status < 500 {
 					metrics.AddCounter("http.responses.4xx", 1)
 				} else if status >= 500 {

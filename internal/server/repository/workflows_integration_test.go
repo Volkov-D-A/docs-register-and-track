@@ -77,8 +77,8 @@ func seedIntegrationDocument(t *testing.T, db *sql.DB) (uuid.UUID, uuid.UUID) {
 	orgID := uuid.New()
 	execSQL(t, db, `INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode, next_number) VALUES ($1, 'Integration', 'IT', 2026, 'outgoing_letter', '/', 'index_and_number', 2)`, nomID)
 	execSQL(t, db, `INSERT INTO organizations (id, name) VALUES ($1, 'Workflow Recipient')`, orgID)
-	execSQL(t, db, `INSERT INTO documents (id, kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, 'outgoing_letter', $2, $3, 'IT/1', CURRENT_DATE, $4, 'integration document', 1, $5)`, docID, nomID, uuid.New(), models.DocumentTypeLetter, userID)
-	execSQL(t, db, `INSERT INTO outgoing_document_details (document_id, outgoing_number, outgoing_date, sender_signatory, sender_executor, recipient_org_id, addressee) VALUES ($1, 'IT/1', CURRENT_DATE, 'Signer', 'Executor', $2, 'Addressee')`, docID, orgID)
+	execSQL(t, db, `INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, 'outgoing_letter', $2, 'IT/1', CURRENT_DATE, $3, 'integration document', 1, $4)`, docID, nomID, models.DocumentTypeLetter, userID)
+	execSQL(t, db, `INSERT INTO outgoing_document_details (document_id, sender_signatory, sender_executor, recipient_org_id, addressee) VALUES ($1, 'Signer', 'Executor', $2, 'Addressee')`, docID, orgID)
 	return userID, docID
 }
 

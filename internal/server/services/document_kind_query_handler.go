@@ -11,7 +11,7 @@ import (
 type DocumentKindQueryHandler interface {
 	Kind() models.DocumentKind
 	GetCard(id uuid.UUID) (*dto.DocumentCard, error)
-	GetList(filter models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error)
+	GetList(filter models.DocumentFilter) (*dto.CursorResult[dto.DocumentListItem], error)
 }
 
 // DocumentKindQueryRegistry хранит обработчики query-операций по видам документов.

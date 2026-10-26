@@ -1,3 +1,4 @@
+import { isDocumentResyncEvent } from './documentEvents';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { models } from '../../wailsjs/go/models';
 import { useAuthStore } from '../store/useAuthStore';
@@ -27,7 +28,7 @@ export const onServerEvent = (listener: (event: ServerEvent) => void) => {
                 const session = useAuthStore.getState();
                 if (!session.isAuthenticated || event.revision !== session.sessionRevision) return;
             }
-            if (event.topic === 'resync' || event.topic === 'access-changed') invalidateCurrentAccessSummary();
+            if (isDocumentResyncEvent(event)) invalidateCurrentAccessSummary();
             for (const subscriber of [...listeners]) subscriber(event);
         });
     }

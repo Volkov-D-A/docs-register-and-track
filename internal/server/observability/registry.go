@@ -27,25 +27,21 @@ type operation struct {
 	count            int64
 	errors           int64
 	deadlineExceeded int64
-	totalDuration    time.Duration
 	samples          []time.Duration
 	nextSample       int
 }
 
-// OperationSnapshot is a stable, serializable view of one operation's metrics.
+// OperationSnapshot contains the counters and P95 used by server diagnostics.
 type OperationSnapshot struct {
 	Name             string        `json:"name"`
 	Count            int64         `json:"count"`
 	Errors           int64         `json:"errors"`
 	DeadlineExceeded int64         `json:"deadlineExceeded"`
-	TotalDuration    time.Duration `json:"totalDuration"`
-	P50              time.Duration `json:"p50"`
 	P95              time.Duration `json:"p95"`
-	P99              time.Duration `json:"p99"`
 }
 
 // GaugeSnapshot contains the latest value of a low-cardinality instantaneous
-// measurement, such as a database pool's number of in-use connections.
+// measurement, such as the number of in-flight HTTP requests.
 type GaugeSnapshot struct {
 	Name  string  `json:"name"`
 	Value float64 `json:"value"`
@@ -110,7 +106,6 @@ func (r *Registry) Observe(name string, duration time.Duration, err error) {
 		r.operations[name] = op
 	}
 	op.count++
-	op.totalDuration += duration
 	if err != nil {
 		op.errors++
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -121,7 +116,7 @@ func (r *Registry) Observe(name string, duration time.Duration, err error) {
 	op.nextSample = (op.nextSample + 1) % len(op.samples)
 }
 
-// Snapshot returns metrics ordered by operation name. Percentiles use the
+// Snapshot returns metrics ordered by operation name. P95 uses the
 // nearest-rank method over the retained latency window.
 func (r *Registry) Snapshot() []OperationSnapshot {
 	if r == nil {
@@ -144,10 +139,7 @@ func (r *Registry) Snapshot() []OperationSnapshot {
 			Count:            op.count,
 			Errors:           op.errors,
 			DeadlineExceeded: op.deadlineExceeded,
-			TotalDuration:    op.totalDuration,
-			P50:              percentile(samples, 0.50),
 			P95:              percentile(samples, 0.95),
-			P99:              percentile(samples, 0.99),
 		})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })

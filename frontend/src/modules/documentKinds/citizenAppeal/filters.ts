@@ -26,19 +26,15 @@ export const defaultCitizenAppealFilters: CitizenAppealFiltersState = {
 
 export const buildCitizenAppealQueryFilter = ({
     search,
-    page,
     pageSize,
     filters,
 }: {
     search: string;
-    page: number;
     pageSize: number;
     filters: CitizenAppealFiltersState;
 }) => ({
     search,
-    page,
     pageSize,
-    nomenclatureId: '',
     documentTypeId: '',
     orgId: '',
     dateFrom: filters.filterRegistrationDateFrom,

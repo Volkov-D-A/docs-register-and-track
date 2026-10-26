@@ -108,11 +108,7 @@ func Catalog(ctx context.Context, remote remoteReader) ([]models.BackupCopy, err
 		switch {
 		case err != nil:
 			copy.Issue = "Manifest отсутствует или повреждён"
-			if m.Format != 0 && m.Format != ArchiveFormat {
-				copy.Format = m.Format
-				copy.Verification = "incompatible"
-				copy.Issue = "Несовместимый формат: требуется копия без объектного хранилища (формат 4)"
-			}
+
 		case !exists:
 			copy.CreatedAt = m.CreatedAt
 			copy.Size = m.Size

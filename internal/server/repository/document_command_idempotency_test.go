@@ -54,3 +54,39 @@ func TestReserveAndCompleteDocumentCommand(t *testing.T) {
 	require.NoError(t, tx.Rollback())
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+// Repository scenarios reserve and complete the same command as HTTP handlers.
+func expectDocumentCommandReservation(mock sqlmock.Sqlmock, principal uuid.UUID, operation string, key uuid.UUID, hash string) {
+	mock.ExpectQuery("SELECT request_hash, document_id").WithArgs(principal, operation, key).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("INSERT INTO document_command_idempotency").WithArgs(principal, operation, key, hash).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+}
+
+func expectDocumentCommandCompletion(mock sqlmock.Sqlmock, principal uuid.UUID, operation string, key uuid.UUID, hash string, document uuid.UUID) {
+	mock.ExpectExec("UPDATE document_command_idempotency").WithArgs(principal, operation, key, hash, document).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+}
+
+func TestReserveDocumentCommandRejectsMissingIdentityBeforeSQL(t *testing.T) {
+	for _, missing := range []string{"principal", "operation", "key", "hash"} {
+		t.Run(missing, func(t *testing.T) {
+			principal, key, operation, hash := uuid.New(), uuid.New(), "documents.register:incoming_letter", "hash"
+			switch missing {
+			case "principal":
+				principal = uuid.Nil
+			case "operation":
+				operation = ""
+			case "key":
+				key = uuid.Nil
+			case "hash":
+				hash = ""
+			}
+			_, err := reserveDocumentCommandTx(nil, principal, operation, key, hash)
+			require.Error(t, err)
+			appErr, ok := models.AsAppError(err)
+			require.True(t, ok)
+			require.Equal(t, 400, appErr.StatusCode())
+		})
+	}
+}

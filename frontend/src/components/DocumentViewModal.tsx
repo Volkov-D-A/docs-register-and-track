@@ -11,7 +11,6 @@ import CitizenAppealDetails from './documentDetails/CitizenAppealDetails';
 import AdministrativeOrderDetails from './documentDetails/AdministrativeOrderDetails';
 import { useDraftLinkStore } from '../store/useDraftLinkStore';
 import { getDocumentKindLabel, isAdministrativeOrderKind, isCitizenAppealKind, isIncomingKind } from '../constants/documentKinds';
-import { getDocumentViewConfig } from '../config/documentViewConfig';
 import { useDocumentKindAccess } from '../hooks/useDocumentKindAccess';
 import { useDocumentDetails } from '../hooks/useDocumentDetails';
 import { formatAppError, normalizeAppError } from '../utils/appError';
@@ -99,12 +98,10 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                 ? data?.administrativeOrder
                 : data?.outgoingLetter;
 
-    const viewConfig = getDocumentViewConfig(resolvedKindCode);
     const accessPending = !accessReady;
 
     const canManageLinks = accessReady && kinds.some((kind) => hasAction(kind.code, 'register'));
     const canUpdateDocument = accessReady && hasAction(resolvedKindCode, 'register');
-    const canViewJournal = accessReady && !!data;
     const creatableKinds = accessReady ? kinds.filter((kind) => hasAction(kind.code, 'register')) : [];
 
     const getNumber = () => data?.registrationNumber || '';
@@ -160,11 +157,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
     };
 
     const getTabs = () => {
-        if (!data || !details) {
-            return [];
-        }
-
-        const items = [
+        return [
             {
                 key: 'info',
                 label: 'Информация',
@@ -192,21 +185,6 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                 children: <JournalList documentId={data.id} />,
             },
         ];
-
-        const allowedKeys = new Set(viewConfig.tabs.filter((key) => {
-            switch (key) {
-                case 'controls':
-                    return true;
-                case 'links':
-                    return true;
-                case 'journal':
-                    return canViewJournal;
-                default:
-                    return true;
-            }
-        }));
-
-        return items.filter((item) => allowedKeys.has(item.key as any));
     };
 
     return (
@@ -222,7 +200,7 @@ const DocumentViewModal: React.FC<DocumentViewModalProps> = ({
                         <div>
                             {canManageLinks && data && creatableKinds.length > 0 && (
                                 <Button onClick={() => setCreateRelatedModalOpen(true)}>
-                                    {viewConfig.createRelatedLabel}
+                                    Создать связанный документ
                                 </Button>
                             )}
                         </div>

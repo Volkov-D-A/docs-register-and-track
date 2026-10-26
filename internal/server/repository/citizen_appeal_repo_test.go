@@ -137,16 +137,14 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 	t.Run("success with filters", func(t *testing.T) {
 		docID2 := uuid.New()
 		filter := models.DocumentFilter{
-			NomenclatureID:     uuid.New().String(),
+			NomenclatureIDs:    []string{uuid.New().String()},
 			RegistrationNumber: "ОГ",
 			ApplicantName:      "Иван",
 			AppealType:         "жалоба",
-			Page:               1,
-			PageSize:           10,
+
+			PageSize: 10,
 		}
 
-		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents d\s+JOIN citizen_appeal_details ca ON ca.document_id = d.id`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 		mock.ExpectQuery(regexp.QuoteMeta(citizenAppealSelectBase)).
 			WillReturnRows(citizenAppealRows(docID, now).AddRow(
 				docID2, uuid.New(), "03-02 - Обращения",
@@ -166,29 +164,15 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		assert.Equal(t, 2, res.TotalCount)
-		assert.Equal(t, 1, res.Page)
+
 		assert.Equal(t, 10, res.PageSize)
 		require.Len(t, res.Items, 2)
 		assert.Equal(t, docID, res.Items[0].ID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("count database error", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents d\s+JOIN citizen_appeal_details ca ON ca.document_id = d.id`).
-			WillReturnError(sql.ErrConnDone)
-
-		res, err := repo.GetList(models.DocumentFilter{Search: "test"})
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to count citizen appeals")
-		assert.Nil(t, res)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
 	t.Run("data database error", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents d\s+JOIN citizen_appeal_details ca ON ca.document_id = d.id`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
 		mock.ExpectQuery(`SELECT`).WillReturnError(sql.ErrConnDone)
 
 		res, err := repo.GetList(models.DocumentFilter{})
@@ -215,12 +199,10 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 			OrgID:              uuid.New().String(),
 			Search:             "важно",
 			NoResolution:       true,
-			Page:               -1,
-			PageSize:           500,
+
+			PageSize: 500,
 		}
 
-		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents d\s+JOIN citizen_appeal_details ca ON ca.document_id = d.id`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery(regexp.QuoteMeta(citizenAppealSelectBase)).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
@@ -237,22 +219,19 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		assert.Empty(t, res.Items)
-		assert.Equal(t, 0, res.TotalCount)
-		assert.Equal(t, 1, res.Page)
+
 		assert.Equal(t, 100, res.PageSize)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("success with alternate aliases and resolution filter", func(t *testing.T) {
 		filter := models.DocumentFilter{
-			NomenclatureID: uuid.New().String(),
-			IncomingNumber: "ОГ",
-			SenderName:     "Петров",
-			Resolution:     "исполнить",
+			NomenclatureIDs: []string{uuid.New().String()},
+			IncomingNumber:  "ОГ",
+			SenderName:      "Петров",
+			Resolution:      "исполнить",
 		}
 
-		mock.ExpectQuery(`SELECT COUNT\(\*\)\s+FROM documents d\s+JOIN citizen_appeal_details ca ON ca.document_id = d.id`).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectQuery(regexp.QuoteMeta(citizenAppealSelectBase)).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "nomenclature_id", "nomenclature_name",
@@ -269,7 +248,7 @@ func TestCitizenAppealRepository_GetList(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		assert.Empty(t, res.Items)
-		assert.Equal(t, 1, res.Page)
+
 		assert.Equal(t, 20, res.PageSize)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -287,7 +266,7 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 	resolution := "Подготовить ответ"
 	author := "Руководитель"
 	executors := "Исполнитель"
-	req := models.CreateCitizenAppealDocRequest{
+	req := models.CreateCitizenAppealDocRequest{CommandHash: "repository-fixture-hash",
 		NomenclatureID:       uuid.New(),
 		IdempotencyKey:       uuid.New(),
 		CreatedBy:            uuid.New(),
@@ -318,9 +297,7 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-		WithArgs(req.CreatedBy, models.DocumentKindCitizenAppeal, req.IdempotencyKey).
-		WillReturnError(sql.ErrNoRows)
+	expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash)
 	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 		WithArgs(req.NomenclatureID).
 		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -328,7 +305,7 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 		models.DocumentKindCitizenAppeal,
 		req.NomenclatureID,
-		req.IdempotencyKey,
+
 		req.RegistrationNumber,
 		req.RegistrationDate,
 		models.DocumentTypeCitizenAppeal,
@@ -364,6 +341,7 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 		req.Resolutions[0].Position,
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`INSERT INTO event_outbox`).WithArgs(models.OutboxEventJournal, "citizen-appeal:"+docID.String()+":create:journal", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectDocumentCommandCompletion(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash, docID)
 	mock.ExpectCommit()
 
 	expectedQuery := citizenAppealSelectBase + " WHERE d.id = $1 AND d.kind = $2"
@@ -390,7 +368,7 @@ func TestCitizenAppealRepository_CreateMissingIdempotencyKey(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectRollback()
 
-	doc, err := repo.CreateWithJournal(models.CreateCitizenAppealDocRequest{
+	doc, err := repo.CreateWithJournal(models.CreateCitizenAppealDocRequest{CommandHash: "repository-fixture-hash",
 		NomenclatureID: uuid.New(),
 		CreatedBy:      uuid.New(),
 	}, "CREATE", "Created %s")
@@ -428,7 +406,7 @@ func TestCitizenAppealRepository_CreateRootInsertErrors(t *testing.T) {
 			defer db.Close()
 
 			repo := NewCitizenAppealRepository(database.Wrap(db))
-			req := models.CreateCitizenAppealDocRequest{
+			req := models.CreateCitizenAppealDocRequest{CommandHash: "repository-fixture-hash",
 				NomenclatureID:     uuid.New(),
 				IdempotencyKey:     uuid.New(),
 				CreatedBy:          uuid.New(),
@@ -439,9 +417,7 @@ func TestCitizenAppealRepository_CreateRootInsertErrors(t *testing.T) {
 			}
 
 			mock.ExpectBegin()
-			mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-				WithArgs(req.CreatedBy, models.DocumentKindCitizenAppeal, req.IdempotencyKey).
-				WillReturnError(sql.ErrNoRows)
+			expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash)
 			mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 				WithArgs(req.NomenclatureID).
 				WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -449,7 +425,7 @@ func TestCitizenAppealRepository_CreateRootInsertErrors(t *testing.T) {
 			mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 				models.DocumentKindCitizenAppeal,
 				req.NomenclatureID,
-				req.IdempotencyKey,
+
 				req.RegistrationNumber,
 				req.RegistrationDate,
 				models.DocumentTypeCitizenAppeal,
@@ -482,7 +458,7 @@ func TestCitizenAppealRepository_CreateDetailsInsertError(t *testing.T) {
 
 	repo := NewCitizenAppealRepository(database.Wrap(db))
 	docID := uuid.New()
-	req := models.CreateCitizenAppealDocRequest{
+	req := models.CreateCitizenAppealDocRequest{CommandHash: "repository-fixture-hash",
 		NomenclatureID:     uuid.New(),
 		IdempotencyKey:     uuid.New(),
 		CreatedBy:          uuid.New(),
@@ -495,9 +471,7 @@ func TestCitizenAppealRepository_CreateDetailsInsertError(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT id\s+FROM documents\s+WHERE created_by = \$1 AND kind = \$2 AND idempotency_key = \$3`).
-		WithArgs(req.CreatedBy, models.DocumentKindCitizenAppeal, req.IdempotencyKey).
-		WillReturnError(sql.ErrNoRows)
+	expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash)
 	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 		WithArgs(req.NomenclatureID).
 		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
@@ -505,7 +479,7 @@ func TestCitizenAppealRepository_CreateDetailsInsertError(t *testing.T) {
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 		models.DocumentKindCitizenAppeal,
 		req.NomenclatureID,
-		req.IdempotencyKey,
+
 		req.RegistrationNumber,
 		req.RegistrationDate,
 		models.DocumentTypeCitizenAppeal,
@@ -546,7 +520,7 @@ func TestCitizenAppealRepository_Update(t *testing.T) {
 		resolution := "Повторно рассмотреть"
 		author := "Руководитель"
 		executors := "Исполнитель"
-		req := models.UpdateCitizenAppealDocRequest{
+		req := models.UpdateCitizenAppealDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(),
 			ID:                   docID,
 			RegistrationNumber:   "ОГ-002",
 			RegistrationDate:     now,
@@ -573,6 +547,7 @@ func TestCitizenAppealRepository_Update(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
+		expectDocumentCommandReservation(mock, req.ActorID, "documents.update:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectExec(`UPDATE documents SET`).WithArgs(
 			req.RegistrationNumber,
 			req.RegistrationDate,
@@ -608,6 +583,7 @@ func TestCitizenAppealRepository_Update(t *testing.T) {
 			req.Resolutions[0].ResolutionExecutors,
 			1,
 		).WillReturnResult(sqlmock.NewResult(1, 1))
+		expectDocumentCommandCompletion(mock, req.ActorID, "documents.update:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash, docID)
 		mock.ExpectCommit()
 
 		expectedQuery := citizenAppealSelectBase + " WHERE d.id = $1 AND d.kind = $2"
@@ -630,7 +606,7 @@ func TestCitizenAppealRepository_Update(t *testing.T) {
 		defer db.Close()
 
 		repo := NewCitizenAppealRepository(database.Wrap(db))
-		req := models.UpdateCitizenAppealDocRequest{
+		req := models.UpdateCitizenAppealDocRequest{CommandHash: "repository-fixture-hash", ActorID: uuid.New(), IdempotencyKey: uuid.New(),
 			ID:                 uuid.New(),
 			RegistrationNumber: "ОГ-003",
 			RegistrationDate:   time.Now(),
@@ -638,6 +614,7 @@ func TestCitizenAppealRepository_Update(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
+		expectDocumentCommandReservation(mock, req.ActorID, "documents.update:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash)
 		mock.ExpectExec(`UPDATE documents SET`).WithArgs(
 			req.RegistrationNumber,
 			req.RegistrationDate,

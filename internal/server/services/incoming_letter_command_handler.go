@@ -314,56 +314,22 @@ func (h *IncomingLetterCommandHandler) Update(req dto.IncomingLetterUpdateReques
 }
 
 func (h *IncomingLetterCommandHandler) buildCorrespondents(reqs []dto.IncomingLetterCorrespondentRequest) ([]models.DocumentCorrespondentRegistration, error) {
-	if len(reqs) == 0 {
-		return nil, models.NewBadRequest("укажите реквизиты корреспондента")
-	}
-
 	result := make([]models.DocumentCorrespondentRegistration, 0, len(reqs))
 	for i, req := range reqs {
-		number := strings.TrimSpace(req.RegistrationNumber)
-		dateStr := strings.TrimSpace(req.RegistrationDate)
-		name := strings.TrimSpace(req.CorrespondentName)
-
-		if number == "" && dateStr == "" && name == "" {
-			continue
-		}
-		if number == "" {
-			return nil, models.NewBadRequest("укажите регистрационный номер корреспондента")
-		}
-		if dateStr == "" {
-			return nil, models.NewBadRequest("укажите дату регистрации корреспондента")
-		}
-		if name == "" {
-			return nil, models.NewBadRequest("укажите корреспондента")
-		}
-
-		regDate, err := time.Parse("2006-01-02", dateStr)
+		item, err := buildDocumentCorrespondent(h.refRepo, req.RegistrationNumber, req.RegistrationDate, req.CorrespondentName, i+1)
 		if err != nil {
-			return nil, models.NewBadRequest("неверный формат даты регистрации корреспондента")
+			return nil, err
 		}
-
-		org, err := h.refRepo.FindOrCreateOrganization(name)
-		if err != nil {
-			return nil, fmt.Errorf("ошибка корреспондента: %w", err)
+		if item != nil {
+			result = append(result, *item)
 		}
-
-		result = append(result, models.DocumentCorrespondentRegistration{
-			RegistrationNumber: number,
-			RegistrationDate:   regDate,
-			CorrespondentOrgID: org.ID,
-			CorrespondentName:  org.Name,
-			Position:           i + 1,
-		})
 	}
-
 	if len(result) == 0 {
 		return nil, models.NewBadRequest("укажите реквизиты корреспондента")
 	}
-
 	return result, nil
 }
 
-// UpdateDocument реализует общий command-интерфейс по виду документа.
 func (h *IncomingLetterCommandHandler) UpdateDocument(req any) (any, error) {
 	typedReq, ok := req.(dto.IncomingLetterUpdateRequest)
 	if !ok {

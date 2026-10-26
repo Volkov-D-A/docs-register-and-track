@@ -4,13 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/backup"
 	"time"
 )
 
-// All ordinary servers and recovery commands use this lifetime lease. A second
-// process must not accept writes while another process is taking a snapshot.
-const instanceLeaseID int64 = backup.InstanceLeaseID
+// All servers hold this lifetime lease, including during coordinated recovery.
+// A second process must not accept writes while a snapshot or replacement runs.
+const instanceLeaseID int64 = 0x444f43464c4f5702
 
 func acquireInstance(ctx context.Context, db *sql.DB) (*sql.Conn, error) {
 	conn, err := db.Conn(ctx)

@@ -16,17 +16,14 @@ export const defaultOutgoingLetterFilters: OutgoingLetterFiltersState = {
 
 export const buildOutgoingLetterQueryFilter = ({
     search,
-    page,
     pageSize,
     filters,
 }: {
     search: string;
-    page: number;
     pageSize: number;
     filters: OutgoingLetterFiltersState;
 }) => ({
     search,
-    page,
     pageSize,
     nomenclatureIds: filters.filterNomenclatureIds,
     documentTypeId: '',

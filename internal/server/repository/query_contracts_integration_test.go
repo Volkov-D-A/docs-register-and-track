@@ -120,12 +120,12 @@ func TestDocumentListAccessScopeIntegration(t *testing.T) {
 
 	items, err := NewOutgoingDocumentRepository(db).GetList(models.OutgoingDocumentFilter{
 		AccessScope: &models.DocumentAccessScope{UserID: owner.String()},
-		Search:      "searchable", Page: 1, PageSize: 50,
+		Search:      "searchable", PageSize: 50,
 	})
 	if err != nil {
 		t.Fatalf("get scoped outgoing list: %v", err)
 	}
-	if items.TotalCount != 1 || len(items.Items) != 1 || items.Items[0].OutgoingNumber != "AL/1" {
+	if items.HasMore || len(items.Items) != 1 || items.Items[0].OutgoingNumber != "AL/1" {
 		t.Fatalf("scope leaked or hid data: %+v", items)
 	}
 
@@ -139,7 +139,7 @@ func TestLinkGraphAndOutboxLifecycleIntegration(t *testing.T) {
 	execSQL(t, sqlDB, `INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode) VALUES ($1, 'Graph', 'GR', 2026, 'outgoing_letter', '/', 'index_and_number')`, nom)
 	ids := []uuid.UUID{root, uuid.New(), uuid.New(), uuid.New()}
 	for i := 1; i < len(ids); i++ {
-		execSQL(t, sqlDB, `INSERT INTO documents (id, kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, 'outgoing_letter', $2, $3, $4, CURRENT_DATE, $5, 'graph', 1, $6)`, ids[i], nom, uuid.New(), "GR/"+string(rune('0'+i)), models.DocumentTypeLetter, user)
+		execSQL(t, sqlDB, `INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, 'outgoing_letter', $2, $3, CURRENT_DATE, $4, 'graph', 1, $5)`, ids[i], nom, "GR/"+string(rune('0'+i)), models.DocumentTypeLetter, user)
 	}
 	links := NewLinkRepository(db)
 	links.SetOutbox(NewOutboxRepository(db))
@@ -231,6 +231,42 @@ func TestReferenceMergeIntegration(t *testing.T) {
 func insertScopedOutgoing(t *testing.T, db *sql.DB, nom, creator, org uuid.UUID, number, content string) {
 	t.Helper()
 	id := uuid.New()
-	execSQL(t, db, `INSERT INTO documents (id, kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, 'outgoing_letter', $2, $3, $4, CURRENT_DATE, $5, $6, 1, $7)`, id, nom, uuid.New(), number, models.DocumentTypeLetter, content, creator)
-	execSQL(t, db, `INSERT INTO outgoing_document_details (document_id, outgoing_number, outgoing_date, sender_signatory, sender_executor, recipient_org_id, addressee) VALUES ($1, $2, CURRENT_DATE, 'Signer', 'Executor', $3, 'Addressee')`, id, number, org)
+	execSQL(t, db, `INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, 'outgoing_letter', $2, $3, CURRENT_DATE, $4, $5, 1, $6)`, id, nom, number, models.DocumentTypeLetter, content, creator)
+	execSQL(t, db, `INSERT INTO outgoing_document_details (document_id, sender_signatory, sender_executor, recipient_org_id, addressee) VALUES ($1, 'Signer', 'Executor', $2, 'Addressee')`, id, org)
+}
+
+func TestDocumentCursorTraversalWithEqualTimestampsIntegration(t *testing.T) {
+	sqlDB := integrationdb.Open(t)
+	owner := insertIntegrationUser(t, sqlDB, "cursor_owner")
+	nom, org := uuid.New(), uuid.New()
+	execSQL(t, sqlDB, `INSERT INTO nomenclature (id,name,index,year,kind_code,separator,numbering_mode) VALUES ($1,'Cursor','CU',2026,'outgoing_letter','/','index_and_number')`, nom)
+	execSQL(t, sqlDB, `INSERT INTO organizations(id,name) VALUES($1,'Cursor organization')`, org)
+	for _, number := range []string{"CU/1", "CU/2", "CU/3"} {
+		insertScopedOutgoing(t, sqlDB, nom, owner, org, number, "cursor traversal")
+	}
+	execSQL(t, sqlDB, `UPDATE documents SET created_at='2026-01-01T00:00:00Z' WHERE nomenclature_id=$1`, nom)
+	repo := NewOutgoingDocumentRepository(database.Wrap(sqlDB))
+	department := uuid.New()
+	execSQL(t, sqlDB, `INSERT INTO departments(id,name) VALUES($1,'Cursor department')`, department)
+	execSQL(t, sqlDB, `UPDATE users SET department_id=$1 WHERE id=$2`, department, owner)
+	execSQL(t, sqlDB, `INSERT INTO department_nomenclature(department_id,nomenclature_id) VALUES($1,$2)`, department, nom)
+	filter := models.OutgoingDocumentFilter{PageSize: 1, AccessScope: &models.DocumentAccessScope{UserID: owner.String()}}
+	seen := map[uuid.UUID]bool{}
+	for page := 0; page < 3; page++ {
+		result, err := repo.GetList(filter)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Items) != 1 || seen[result.Items[0].ID] {
+			t.Fatalf("missing or repeated item: %+v", result)
+		}
+		seen[result.Items[0].ID] = true
+		if result.HasMore != (page < 2) {
+			t.Fatalf("wrong hasMore on page %d: %+v", page, result)
+		}
+		if result.HasMore && (result.NextCursor == "" || result.NextCursor == filter.Cursor) {
+			t.Fatal("cursor did not advance")
+		}
+		filter.Cursor = result.NextCursor
+	}
 }

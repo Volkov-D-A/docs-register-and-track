@@ -7,7 +7,6 @@ import (
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 )
 
 func documentCommandHash(req any) (string, error) {
@@ -60,74 +59,67 @@ func (r *DocumentKindCommandRegistry) Get(kind models.DocumentKind) (DocumentKin
 // DocumentCommandEngine предоставляет общий command API для регистрации и обновления документов.
 type DocumentCommandEngine struct {
 	registry *DocumentKindCommandRegistry
-	metrics  *observability.Registry
 }
 
-func NewDocumentCommandEngine(registry *DocumentKindCommandRegistry, metrics *observability.Registry) *DocumentCommandEngine {
-	return &DocumentCommandEngine{registry: registry, metrics: metrics}
+func NewDocumentCommandEngine(registry *DocumentKindCommandRegistry) *DocumentCommandEngine {
+	return &DocumentCommandEngine{registry: registry}
 }
 
 // Register делегирует регистрацию документа обработчику по kindCode.
 func (s *DocumentCommandEngine) Register(kindCode string, req any) (any, error) {
-	return observability.Measure(s.metrics, "documents.register", func() (any, error) {
-		kind := models.DocumentKind(kindCode)
-		handler, err := s.registry.Get(kind)
-		if err != nil {
-			return nil, models.ErrForbidden
-		}
+	kind := models.DocumentKind(kindCode)
+	handler, err := s.registry.Get(kind)
+	if err != nil {
+		return nil, models.ErrForbidden
+	}
 
-		normalizedReq, err := dto.NormalizeDocumentRegisterRequest(kind, req)
-		if err != nil {
-			return nil, err
-		}
+	normalizedReq, err := dto.NormalizeDocumentRegisterRequest(kind, req)
+	if err != nil {
+		return nil, err
+	}
 
-		result, err := handler.RegisterDocument(normalizedReq)
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
-	})
+	result, err := handler.RegisterDocument(normalizedReq)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // Update делегирует обновление документа обработчику по kindCode.
 func (s *DocumentCommandEngine) Update(kindCode string, req any) (any, error) {
-	return observability.Measure(s.metrics, "documents.update", func() (any, error) {
-		kind := models.DocumentKind(kindCode)
-		handler, err := s.registry.Get(kind)
-		if err != nil {
-			return nil, models.ErrForbidden
-		}
+	kind := models.DocumentKind(kindCode)
+	handler, err := s.registry.Get(kind)
+	if err != nil {
+		return nil, models.ErrForbidden
+	}
 
-		normalizedReq, err := dto.NormalizeDocumentUpdateRequest(kind, req)
-		if err != nil {
-			return nil, err
-		}
+	normalizedReq, err := dto.NormalizeDocumentUpdateRequest(kind, req)
+	if err != nil {
+		return nil, err
+	}
 
-		result, err := handler.UpdateDocument(normalizedReq)
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
-	})
+	result, err := handler.UpdateDocument(normalizedReq)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // CreateAdminDraft создает административный черновик с зарезервированным номером.
 func (s *DocumentCommandEngine) CreateAdminDraft(kindCode string, req dto.AdminDraftCreateRequest) (any, error) {
-	return observability.Measure(s.metrics, "documents.create_admin_draft", func() (any, error) {
-		kind := models.DocumentKind(kindCode)
-		handler, err := s.registry.Get(kind)
-		if err != nil {
-			return nil, models.ErrForbidden
-		}
-		draftHandler, ok := handler.(AdminDraftCommandHandler)
-		if !ok {
-			return nil, models.ErrForbidden
-		}
+	kind := models.DocumentKind(kindCode)
+	handler, err := s.registry.Get(kind)
+	if err != nil {
+		return nil, models.ErrForbidden
+	}
+	draftHandler, ok := handler.(AdminDraftCommandHandler)
+	if !ok {
+		return nil, models.ErrForbidden
+	}
 
-		result, err := draftHandler.CreateAdminDraft(req)
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
-	})
+	result, err := draftHandler.CreateAdminDraft(req)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }

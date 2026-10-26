@@ -35,16 +35,17 @@ func TestGraphCardReadersLoadOnlyUsedAssociationsIntegration(t *testing.T) {
 	outgoingID := ids[models.DocumentKindOutgoingLetter]
 	appealID := ids[models.DocumentKindCitizenAppeal]
 	orderID := ids[models.DocumentKindAdministrativeOrder]
-	execSQL(t, sqlDB, `INSERT INTO incoming_document_details (document_id, incoming_number, incoming_date, sender_signatory) VALUES ($1, 'GI/1', '2026-09-01', 'Signer')`, incomingID)
+	execSQL(t, sqlDB, `INSERT INTO incoming_document_details (document_id, sender_signatory) VALUES ($1, 'Signer')`, incomingID)
 	execSQL(t, sqlDB, `INSERT INTO citizen_appeal_details (document_id, appeal_date, applicant_full_name, registration_address, appeal_type, applicant_category) VALUES ($1, '2026-09-01', 'Applicant', 'Address', 'заявление', 'person')`, appealID)
-	execSQL(t, sqlDB, `INSERT INTO administrative_order_details (document_id, order_number, order_date, title, execution_controller) VALUES ($1, 'GO/1', '2026-09-01', 'Order title', 'Controller')`, orderID)
+	execSQL(t, sqlDB, `INSERT INTO administrative_order_details (document_id, title, execution_controller) VALUES ($1, 'Order title', 'Controller')`, orderID)
 	orgID := uuid.New()
 	execSQL(t, sqlDB, `INSERT INTO organizations (id, name) VALUES ($1, 'First correspondent')`, orgID)
-	execSQL(t, sqlDB, `INSERT INTO outgoing_document_details (document_id, outgoing_number, outgoing_date, recipient_org_id, sender_signatory, sender_executor, addressee) VALUES ($1, 'GX/1', '2026-09-01', $2, 'Signer', 'Executor', 'Addressee')`, outgoingID, orgID)
+	execSQL(t, sqlDB, `INSERT INTO outgoing_document_details (document_id, recipient_org_id, sender_signatory, sender_executor, addressee) VALUES ($1, $2, 'Signer', 'Executor', 'Addressee')`, outgoingID, orgID)
 	for _, docID := range []uuid.UUID{incomingID, appealID} {
 		execSQL(t, sqlDB, `INSERT INTO document_correspondent_registrations (document_id, registration_number, registration_date, correspondent_org_id) VALUES ($1, 'CORR/1', '2026-09-01', $2)`, docID, orgID)
 		execSQL(t, sqlDB, `INSERT INTO document_resolutions (document_id, resolution) VALUES ($1, 'Unused resolution')`, docID)
 	}
+	execSQL(t, sqlDB, `INSERT INTO document_resolutions (document_id, resolution, position) VALUES ($1, 'Later resolution', 2)`, incomingID)
 	secondOrgID := uuid.New()
 	execSQL(t, sqlDB, `INSERT INTO organizations (id, name) VALUES ($1, 'Second correspondent')`, secondOrgID)
 	execSQL(t, sqlDB, `INSERT INTO document_correspondent_registrations (document_id, registration_number, registration_date, correspondent_org_id, position) VALUES ($1, 'CORR/2', '2026-09-01', $2, 2)`, incomingID, secondOrgID)
@@ -62,6 +63,12 @@ func TestGraphCardReadersLoadOnlyUsedAssociationsIntegration(t *testing.T) {
 	require.Len(t, fullIncoming.Correspondents, 2, "the full card must retain all correspondents")
 	require.Equal(t, "First correspondent", fullIncoming.Correspondents[0].CorrespondentName)
 	require.Equal(t, "Second correspondent", fullIncoming.Correspondents[1].CorrespondentName)
+	require.NotNil(t, fullIncoming.Resolution)
+	require.Equal(t, "Unused resolution", *fullIncoming.Resolution)
+	firstResolutions, err := loadFirstDocumentResolutionsByDocumentIDs(db, []uuid.UUID{incomingID})
+	require.NoError(t, err)
+	require.NotNil(t, firstResolutions[incomingID])
+	require.Equal(t, fullIncoming.Resolution, firstResolutions[incomingID].Resolution, "card and list must select the same first resolution")
 
 	outgoing, err := NewOutgoingDocumentRepository(db).GetByIDs([]uuid.UUID{outgoingID})
 	require.NoError(t, err)

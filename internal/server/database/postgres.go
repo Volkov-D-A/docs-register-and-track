@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -38,8 +37,6 @@ type DB struct {
 	pool             *sql.DB
 	operationTimeout time.Duration
 	metrics          *observability.Registry
-	poolMu           sync.Mutex
-	lastPoolStats    sql.DBStats
 }
 
 // Connect устанавливает подключение к базе данных PostgreSQL и возвращает обертку DB.
@@ -94,7 +91,7 @@ func (db *DB) QueryContext(ctx context.Context, query string, args ...any) (*sql
 	ctx, cancel := db.withOperationTimeout(ctx)
 	stopCancel := context.AfterFunc(ctx, cancel)
 	rows, err := db.pool.QueryContext(ctx, query, args...)
-	db.observe("database.query", started, err)
+	db.observe(started, err)
 	if err != nil {
 		stopCancel()
 		cancel()
@@ -114,9 +111,8 @@ func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) *s
 	context.AfterFunc(ctx, cancel)
 	row := db.pool.QueryRowContext(ctx, query, args...)
 	// database/sql defers the actual row error until Scan. This duration still
-	// captures dispatch and connection-pool wait; Scan failures are observed by
-	// repository-level operation metrics.
-	db.observe("database.query_row", started, nil)
+	// captures dispatch and connection-pool wait, not deferred Scan failures.
+	db.observe(started, nil)
 	return row
 }
 
@@ -129,7 +125,7 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.R
 	ctx, cancel := db.withOperationTimeout(ctx)
 	defer cancel()
 	result, err := db.pool.ExecContext(ctx, query, args...)
-	db.observe("database.exec", started, err)
+	db.observe(started, err)
 	return result, err
 }
 
@@ -142,7 +138,7 @@ func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	ctx, cancel := db.withOperationTimeout(ctx)
 	stopCancel := context.AfterFunc(ctx, cancel)
 	tx, err := db.pool.BeginTx(ctx, opts)
-	db.observe("database.begin", started, err)
+	db.observe(started, err)
 	if err != nil {
 		stopCancel()
 		cancel()
@@ -161,29 +157,12 @@ func (db *DB) SetMetrics(metrics *observability.Registry) {
 	db.metrics = metrics
 }
 
-func (db *DB) observe(name string, started time.Time, err error) {
+func (db *DB) observe(started time.Time, err error) {
 	if db == nil || db.metrics == nil {
 		return
 	}
 	duration := time.Since(started)
-	db.metrics.Observe(name, duration, err)
 	db.metrics.Observe("database.operation", duration, err)
-	db.observePoolStats()
-}
-
-func (db *DB) observePoolStats() {
-	stats := db.pool.Stats()
-	db.poolMu.Lock()
-	previous := db.lastPoolStats
-	db.lastPoolStats = stats
-	db.poolMu.Unlock()
-
-	db.metrics.SetGauge("database.pool.max_open", float64(stats.MaxOpenConnections))
-	db.metrics.SetGauge("database.pool.open", float64(stats.OpenConnections))
-	db.metrics.SetGauge("database.pool.in_use", float64(stats.InUse))
-	db.metrics.SetGauge("database.pool.idle", float64(stats.Idle))
-	db.metrics.SetGauge("database.pool.wait_count_delta", float64(stats.WaitCount-previous.WaitCount))
-	db.metrics.SetGauge("database.pool.wait_milliseconds_delta", float64((stats.WaitDuration-previous.WaitDuration).Microseconds())/1000)
 }
 
 func (db *DB) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

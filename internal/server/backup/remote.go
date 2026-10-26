@@ -2,11 +2,6 @@ package backup
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -23,12 +18,6 @@ type RemoteCopy struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-func ReadMarker(ctx context.Context, client *smb.Client, id string) (RemoteCopy, error) {
-	if !validCopyID(id) {
-		return RemoteCopy{}, fmt.Errorf("invalid copy identifier")
-	}
-	return readCopyMarker(ctx, client, id)
-}
 func RemoteCopies(ctx context.Context, client *smb.Client) ([]RemoteCopy, error) {
 	entries, err := client.List(ctx)
 	if err != nil {
@@ -43,7 +32,7 @@ func RemoteCopies(ctx context.Context, client *smb.Client) ([]RemoteCopy, error)
 		if _, err := uuid.Parse(id); err != nil {
 			continue
 		}
-		m, err := ReadMarker(ctx, client, id)
+		m, err := readCopyMarker(ctx, client, id)
 		if err != nil {
 			continue
 		}
@@ -58,46 +47,9 @@ func DownloadCopy(ctx context.Context, client *smb.Client, id, directory string,
 		return "", err
 	}
 	defer release()
-	lock := "." + id + ".restore-lock"
-	if _, err := uuid.Parse(id); err != nil {
-		return "", err
-	}
-	if err := client.Write(ctx, lock, strings.NewReader("download")); err != nil {
-		return "", fmt.Errorf("backup is busy: %w", err)
-	}
-	defer client.Remove(context.WithoutCancel(ctx), lock)
-	marker, err := ReadMarker(ctx, client, id)
+	marker, err := readCopyMarker(ctx, client, id)
 	if err != nil {
 		return "", err
 	}
-	if marker.Size > maxBytes {
-		return "", fmt.Errorf("archive exceeds staging limit")
-	}
-	input, err := client.Open(ctx, id+".tar.gz")
-	if err != nil {
-		return "", err
-	}
-	defer input.Close()
-	name := filepath.Join(directory, id+".tar.gz")
-	file, err := os.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err != nil {
-		return "", err
-	}
-	h := sha256.New()
-	n, copyErr := io.Copy(io.MultiWriter(file, h), io.LimitReader(input, marker.Size+1))
-	syncErr := file.Sync()
-	closeErr := file.Close()
-	if copyErr != nil {
-		return "", copyErr
-	}
-	if syncErr != nil {
-		return "", syncErr
-	}
-	if closeErr != nil {
-		return "", closeErr
-	}
-	if n != marker.Size || fmt.Sprintf("%x", h.Sum(nil)) != marker.SHA256 {
-		return "", fmt.Errorf("remote archive checksum mismatch")
-	}
-	return name, nil
+	return downloadSelected(ctx, client, marker, directory, maxBytes)
 }

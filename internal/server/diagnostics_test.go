@@ -35,6 +35,8 @@ func TestServerDiagnosticsAggregatesRuntimeMetrics(t *testing.T) {
 	result := &models.SystemDiagnostics{}
 	diagnostics.addRuntimeMetrics(result)
 
+	assert.EqualValues(t, 75, result.API.P95Milliseconds)
+	assert.EqualValues(t, 10, result.Database.OperationP95Milliseconds)
 	assert.EqualValues(t, 3, result.API.RequestsSinceStart)
 	assert.EqualValues(t, 2, result.API.ServerErrorsSinceStart)
 	assert.EqualValues(t, 1, result.API.DeadlineExceededSinceStart)

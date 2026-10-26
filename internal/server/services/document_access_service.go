@@ -20,9 +20,6 @@ func NewDocumentAccessService(auth ports.DocumentAccessPrincipal, access ports.D
 	return &DocumentAccessService{auth: auth, accessRepo: access, documentRepo: documents, visibility: visibility}
 }
 func (s *DocumentAccessService) RequireDomainRead() error { return s.auth.RequireAuthenticated() }
-func (s *DocumentAccessService) GetDocument(id uuid.UUID) (*models.Document, error) {
-	return s.documentRepo.GetByID(id)
-}
 func uniqueDocumentIDs(ids []uuid.UUID) []uuid.UUID {
 	result := []uuid.UUID{}
 	seen := map[uuid.UUID]bool{}
@@ -35,7 +32,7 @@ func uniqueDocumentIDs(ids []uuid.UUID) []uuid.UUID {
 	return result
 }
 func (s *DocumentAccessService) RequireExists(id uuid.UUID) (*models.Document, error) {
-	doc, err := s.GetDocument(id)
+	doc, err := s.documentRepo.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +116,10 @@ func (s *DocumentAccessService) RequireReadResolved(doc *models.Document) error 
 	}
 	return nil
 }
-func (s *DocumentAccessService) ResolveReadableDocuments(ids []uuid.UUID) (map[uuid.UUID]*models.Document, error) {
-	result := map[uuid.UUID]*models.Document{}
+
+// ResolveReadableDocumentIDs applies visibility without loading document contents.
+func (s *DocumentAccessService) ResolveReadableDocumentIDs(ids []uuid.UUID) (map[uuid.UUID]bool, error) {
+	result := map[uuid.UUID]bool{}
 	ids = uniqueDocumentIDs(ids)
 	if len(ids) == 0 {
 		return result, nil
@@ -139,8 +138,23 @@ func (s *DocumentAccessService) ResolveReadableDocuments(ids []uuid.UUID) (map[u
 	if err != nil {
 		return nil, err
 	}
-	selected := []uuid.UUID{}
 	for _, id := range ids {
+		if allowed[id] {
+			result[id] = true
+		}
+	}
+	return result, nil
+}
+
+// ResolveReadableDocuments additionally loads root data for graph nodes and event routing.
+func (s *DocumentAccessService) ResolveReadableDocuments(ids []uuid.UUID) (map[uuid.UUID]*models.Document, error) {
+	result := map[uuid.UUID]*models.Document{}
+	allowed, err := s.ResolveReadableDocumentIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+	selected := make([]uuid.UUID, 0, len(allowed))
+	for _, id := range uniqueDocumentIDs(ids) {
 		if allowed[id] {
 			selected = append(selected, id)
 		}

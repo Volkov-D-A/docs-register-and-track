@@ -62,13 +62,13 @@ func (r *CitizenAppealRepository) hydrateCommonDetails(doc *models.CitizenAppeal
 	if doc == nil {
 		return nil
 	}
-	correspondents, err := r.loadCorrespondents(doc.ID)
+	correspondents, err := loadDocumentCorrespondents(r.db, doc.ID)
 	if err != nil {
 		return err
 	}
 	doc.Correspondents = correspondents
 
-	resolutions, err := r.loadResolutions(doc.ID)
+	resolutions, err := loadDocumentResolutions(r.db, doc.ID)
 	if err != nil {
 		return err
 	}
@@ -76,44 +76,8 @@ func (r *CitizenAppealRepository) hydrateCommonDetails(doc *models.CitizenAppeal
 	return nil
 }
 
-func (r *CitizenAppealRepository) loadCorrespondents(documentID uuid.UUID) ([]models.DocumentCorrespondentRegistration, error) {
-	rows, err := r.db.Query(`
-		SELECT cr.id, cr.document_id, cr.registration_number, cr.registration_date,
-			cr.correspondent_org_id, o.name, cr.position
-		FROM document_correspondent_registrations cr
-		JOIN organizations o ON o.id = cr.correspondent_org_id
-		WHERE cr.document_id = $1
-		ORDER BY cr.position, cr.created_at, cr.id
-	`, documentID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get document correspondents: %w", err)
-	}
-	defer rows.Close()
-
-	items := make([]models.DocumentCorrespondentRegistration, 0)
-	for rows.Next() {
-		var item models.DocumentCorrespondentRegistration
-		if err := rows.Scan(
-			&item.ID, &item.DocumentID, &item.RegistrationNumber, &item.RegistrationDate,
-			&item.CorrespondentOrgID, &item.CorrespondentName, &item.Position,
-		); err != nil {
-			return nil, fmt.Errorf("scan document correspondent error: %w", err)
-		}
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("document correspondents rows error: %w", err)
-	}
-
-	return items, nil
-}
-
-func (r *CitizenAppealRepository) loadResolutions(documentID uuid.UUID) ([]models.DocumentResolution, error) {
-	return loadDocumentResolutions(r.db, documentID)
-}
-
 // GetList возвращает список обращений граждан с учетом фильтрации и пагинации.
-func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error) {
+func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models.CursorResult[models.CitizenAppealDocument], error) {
 	where := []string{"1=1", "d.kind = 'citizen_appeal'"}
 	args := []interface{}{}
 	argIdx := 1
@@ -124,10 +88,6 @@ func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models
 	if len(filter.NomenclatureIDs) > 0 {
 		where = append(where, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
 		args = append(args, pq.Array(filter.NomenclatureIDs))
-		argIdx++
-	} else if filter.NomenclatureID != "" {
-		where = append(where, fmt.Sprintf("d.nomenclature_id = $%d", argIdx))
-		args = append(args, filter.NomenclatureID)
 		argIdx++
 	}
 	if filter.DateFrom != "" {
@@ -218,33 +178,19 @@ func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models
 		argIdx++
 	}
 
-	var totalCount int
-	if err := applyDocumentCursor(&where, &args, &argIdx, filter.CursorPagination, filter.Cursor); err != nil {
+	if err := applyDocumentCursor(&where, &args, &argIdx, filter.Cursor); err != nil {
 		return nil, err
 	}
-	filter.Page, filter.PageSize = normalizePagination(filter.Page, filter.PageSize)
+	_, filter.PageSize = normalizePagination(1, filter.PageSize)
 	whereClause := strings.Join(where, " AND ")
-	if !filter.CursorPagination {
-		countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM documents d
-			JOIN citizen_appeal_details ca ON ca.document_id = d.id WHERE %s`, whereClause)
-		if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
-			return nil, fmt.Errorf("failed to count citizen appeals: %w", err)
-		}
-	}
-	limit := filter.PageSize
-	if filter.CursorPagination {
-		limit++
-	}
+	limit := filter.PageSize + 1
 
 	dataQuery := fmt.Sprintf(`%s
 		WHERE %s
 		ORDER BY d.created_at DESC, d.id DESC
-		LIMIT $%d%s
-	`, citizenAppealSelectBase, whereClause, argIdx, map[bool]string{true: "", false: fmt.Sprintf(" OFFSET $%d", argIdx+1)}[filter.CursorPagination])
+		LIMIT $%d
+	`, citizenAppealSelectBase, whereClause, argIdx)
 	args = append(args, limit)
-	if !filter.CursorPagination {
-		args = append(args, (filter.Page-1)*filter.PageSize)
-	}
 
 	rows, err := r.db.Query(dataQuery, args...)
 	if err != nil {
@@ -265,7 +211,7 @@ func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("citizen appeals rows error: %w", err)
 	}
-	hasMore := filter.CursorPagination && len(items) > filter.PageSize
+	hasMore := len(items) > filter.PageSize
 	if hasMore {
 		items = items[:filter.PageSize]
 		documentIDs = documentIDs[:filter.PageSize]
@@ -294,10 +240,8 @@ func (r *CitizenAppealRepository) GetList(filter models.DocumentFilter) (*models
 			return nil, err
 		}
 	}
-	return &models.PagedResult[models.CitizenAppealDocument]{
+	return &models.CursorResult[models.CitizenAppealDocument]{
 		Items:      items,
-		TotalCount: totalCount,
-		Page:       filter.Page,
 		PageSize:   filter.PageSize,
 		NextCursor: nextCursor,
 		HasMore:    hasMore,
@@ -350,13 +294,7 @@ func (r *CitizenAppealRepository) GetByIDs(ids []uuid.UUID) ([]models.CitizenApp
 	return items, rows.Err()
 }
 
-func (r *CitizenAppealRepository) CreateWithJournal(req models.CreateCitizenAppealDocRequest, action, detailsFormat string) (*models.CitizenAppealDocument, error) {
-	return r.create(req, action, detailsFormat)
-}
-func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocRequest, journalAction, journalDetailsFormat string) (*models.CitizenAppealDocument, error) {
-	if req.Link != nil && req.CommandHash == "" {
-		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
-	}
+func (r *CitizenAppealRepository) CreateWithJournal(req models.CreateCitizenAppealDocRequest, journalAction, journalDetailsFormat string) (*models.CitizenAppealDocument, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -374,51 +312,27 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 		return r.GetByID(existingCommandID)
 	}
 
-	var registration *registrationNumberResult
+	var registration string
 	if req.AdminNumberOverride != nil {
-		registration, err = resolveAdminRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindCitizenAppeal, req.NomenclatureID, req.IdempotencyKey, req.AdminNumberOverride)
+		registration, err = resolveAdminRegistrationNumberTx(tx, models.DocumentKindCitizenAppeal, req.NomenclatureID, req.AdminNumberOverride)
 	} else {
-		registration, err = resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindCitizenAppeal, req.NomenclatureID, req.IdempotencyKey, req.RegistrationNumber)
+		registration, err = resolveRegistrationNumberTx(tx, models.DocumentKindCitizenAppeal, req.NomenclatureID, req.RegistrationNumber)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if registration.Existing != uuid.Nil {
-		if req.Link != nil {
-			return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
-		}
-		if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, registration.Existing); err != nil {
-			return nil, err
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
-		}
-		return r.GetByID(registration.Existing)
-	}
-	req.RegistrationNumber = registration.Number
+
+	req.RegistrationNumber = registration
 
 	var id uuid.UUID
 	err = tx.QueryRow(`
-		INSERT INTO documents (
-			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		RETURNING id
+		INSERT INTO documents (kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)RETURNING id
 	`,
-		models.DocumentKindCitizenAppeal, req.NomenclatureID, req.IdempotencyKey, req.RegistrationNumber, req.RegistrationDate,
+		models.DocumentKindCitizenAppeal, req.NomenclatureID, req.RegistrationNumber, req.RegistrationDate,
 		models.DocumentTypeCitizenAppeal, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
-		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
-			if req.Link != nil {
-				return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
-			}
-			_ = tx.Rollback()
-			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindCitizenAppeal, req.IdempotencyKey)
-			if lookupErr != nil {
-				return nil, fmt.Errorf("failed to resolve idempotent document: %w", lookupErr)
-			}
-			return r.GetByID(existingID)
-		}
+
 		if isUniqueViolation(err, "idx_documents_kind_registration_number_year") {
 			return nil, models.NewConflict("документ с таким регистрационным номером уже существует")
 		}
@@ -445,14 +359,8 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 	if err := replaceResolutions(tx, id, req.Resolutions); err != nil {
 		return nil, err
 	}
-	if journalAction != "" {
-		if r.outbox == nil {
-			return nil, fmt.Errorf("outbox repository is required for document journal")
-		}
-		payload := fmt.Sprintf(`{"documentId":"%s","userId":"%s","action":%q,"details":%q}`, id, req.CreatedBy, journalAction, fmt.Sprintf(journalDetailsFormat, req.RegistrationNumber))
-		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "citizen-appeal:" + id.String() + ":create:journal", Payload: payload}); err != nil {
-			return nil, err
-		}
+	if err := enqueueDocumentCreationJournalTx(r.outbox, tx, id, req.CreatedBy, "citizen-appeal:"+id.String()+":create:journal", journalAction, journalDetailsFormat, req.RegistrationNumber); err != nil {
+		return nil, err
 	}
 	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
 		return nil, err
@@ -469,9 +377,6 @@ func (r *CitizenAppealRepository) create(req models.CreateCitizenAppealDocReques
 }
 
 func (r *CitizenAppealRepository) UpdateWithOutbox(req models.UpdateCitizenAppealDocRequest, effects []models.OutboxEvent) (*models.CitizenAppealDocument, error) {
-	return r.update(req, effects)
-}
-func (r *CitizenAppealRepository) update(req models.UpdateCitizenAppealDocRequest, effects []models.OutboxEvent) (*models.CitizenAppealDocument, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)

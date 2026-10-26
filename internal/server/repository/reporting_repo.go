@@ -63,7 +63,7 @@ func (r *ReportingRepository) Run(ctx context.Context, req models.ReportRequest,
 		FROM letters l JOIN organizations o ON o.id = l.organization_id
 		WHERE ($3::uuid IS NULL OR o.id = $3::uuid)
 		GROUP BY o.id, o.name ORDER BY o.name`
-		args = []any{start, end, nullableID(req.OrganizationID), nullableStringValue(req.KindCode), nullableID(req.NomenclatureID), nullableID(req.UserID)}
+		args = []any{start, end, nullableSQLValue(req.OrganizationID), nullableSQLValue(req.KindCode), nullableSQLValue(req.NomenclatureID), nullableSQLValue(req.UserID)}
 	case "department_load":
 		query = `SELECT COALESCE(dep.id::text, ''), COALESCE(dep.name, 'Без подразделения'),
 			to_char(date_trunc('month', a.created_at AT TIME ZONE $4), 'YYYY-MM'), COUNT(*)::int
@@ -141,17 +141,8 @@ func (r *ReportingRepository) Run(ctx context.Context, req models.ReportRequest,
 	return result, nil
 }
 
-func nullableID(value string) any {
-	if value == "" {
-		return nil
-	}
-	return value
-}
-
-func nullableStringValue(value string) any { return nullableID(value) }
-
 func deadlineReportArgs(req models.ReportRequest, start, end time.Time, zone string) []any {
-	return []any{start, end, nullableID(req.DepartmentID), zone, nullableStringValue(req.KindCode), nullableID(req.NomenclatureID), nullableID(req.UserID), nullableStringValue(req.Status)}
+	return []any{start, end, nullableSQLValue(req.DepartmentID), zone, nullableSQLValue(req.KindCode), nullableSQLValue(req.NomenclatureID), nullableSQLValue(req.UserID), nullableSQLValue(req.Status)}
 }
 
 func (r *ReportingRepository) UniqueDocumentCount(ctx context.Context, start, end time.Time, req models.ReportRequest) (int, error) {
@@ -163,7 +154,7 @@ func (r *ReportingRepository) UniqueDocumentCount(ctx context.Context, start, en
 		AND (cr.correspondent_org_id IS NOT NULL OR od.recipient_org_id IS NOT NULL)
 		AND ($3::uuid IS NULL OR cr.correspondent_org_id=$3::uuid OR od.recipient_org_id=$3::uuid)
 		AND ($4::text IS NULL OR d.kind=$4) AND ($5::uuid IS NULL OR d.nomenclature_id=$5::uuid)
-		AND ($6::uuid IS NULL OR d.created_by=$6::uuid)`, start, end, nullableID(req.OrganizationID), nullableStringValue(req.KindCode), nullableID(req.NomenclatureID), nullableID(req.UserID)).Scan(&count)
+		AND ($6::uuid IS NULL OR d.created_by=$6::uuid)`, start, end, nullableSQLValue(req.OrganizationID), nullableSQLValue(req.KindCode), nullableSQLValue(req.NomenclatureID), nullableSQLValue(req.UserID)).Scan(&count)
 	return count, err
 }
 
@@ -213,7 +204,7 @@ func (r *ReportingRepository) FilterDescription(ctx context.Context, req models.
 
 func (r *ReportingRepository) OpenOverdueCount(ctx context.Context, asOf time.Time, req models.ReportRequest) (int, error) {
 	var count int
-	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM document_deadline_controls a JOIN documents d ON d.id=a.document_id JOIN deadline_executors e ON e.id=a.executor_id LEFT JOIN users u ON u.id=e.user_id WHERE a.status='active' AND a.due_date < $1::date AND `+r.readPredicate("d")+` AND ($2::uuid IS NULL OR u.department_id=$2::uuid) AND ($3::text IS NULL OR d.kind=$3) AND ($4::uuid IS NULL OR d.nomenclature_id=$4::uuid) AND ($5::uuid IS NULL OR a.executor_id=$5::uuid) AND ($6::text IS NULL OR a.status=$6)`, asOf.Format(time.DateOnly), nullableID(req.DepartmentID), nullableStringValue(req.KindCode), nullableID(req.NomenclatureID), nullableID(req.UserID), nullableStringValue(req.Status)).Scan(&count)
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM document_deadline_controls a JOIN documents d ON d.id=a.document_id JOIN deadline_executors e ON e.id=a.executor_id LEFT JOIN users u ON u.id=e.user_id WHERE a.status='active' AND a.due_date < $1::date AND `+r.readPredicate("d")+` AND ($2::uuid IS NULL OR u.department_id=$2::uuid) AND ($3::text IS NULL OR d.kind=$3) AND ($4::uuid IS NULL OR d.nomenclature_id=$4::uuid) AND ($5::uuid IS NULL OR a.executor_id=$5::uuid) AND ($6::text IS NULL OR a.status=$6)`, asOf.Format(time.DateOnly), nullableSQLValue(req.DepartmentID), nullableSQLValue(req.KindCode), nullableSQLValue(req.NomenclatureID), nullableSQLValue(req.UserID), nullableSQLValue(req.Status)).Scan(&count)
 	return count, err
 }
 

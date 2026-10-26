@@ -55,7 +55,7 @@ test('failed invalidation clears stale rows and retry reloads independently', as
         .mockResolvedValueOnce({ available: true, items: [items[2]] });
     renderWithApp(<RecentDocumentsPanel refreshVersion={0} onOpenDocument={vi.fn()} />);
     await screen.findByText('Вх. № 125 от 20.09.2026');
-    await act(async () => { api.listeners.forEach((listener) => listener({ topic: 'documents' })); });
+    await act(async () => { api.listeners.forEach((listener) => listener({ topic: 'document-changed', resource: 'document' })); });
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByText('Вх. № 125 от 20.09.2026')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));

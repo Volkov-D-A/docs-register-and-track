@@ -27,7 +27,7 @@ func NewAdministrativeOrderRepository(db *database.DB) *AdministrativeOrderRepos
 }
 
 // GetList возвращает список приказов с учетом фильтрации и пагинации.
-func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error) {
+func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*models.CursorResult[models.AdministrativeOrderDocument], error) {
 	where := []string{"d.kind = $1"}
 	args := []interface{}{models.DocumentKindAdministrativeOrder}
 	argIdx := 2
@@ -41,22 +41,22 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 		argIdx++
 	}
 	if filter.DateFrom != "" {
-		where = append(where, fmt.Sprintf("ord.order_date >= $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.registration_date >= $%d", argIdx))
 		args = append(args, filter.DateFrom)
 		argIdx++
 	}
 	if filter.DateTo != "" {
-		where = append(where, fmt.Sprintf("ord.order_date <= $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.registration_date <= $%d", argIdx))
 		args = append(args, filter.DateTo)
 		argIdx++
 	}
 	if filter.Search != "" {
-		where = append(where, fmt.Sprintf("(ord.title ILIKE $%d OR ord.order_number ILIKE $%d OR ord.execution_controller ILIKE $%d)", argIdx, argIdx, argIdx))
+		where = append(where, fmt.Sprintf("(ord.title ILIKE $%d OR d.registration_number ILIKE $%d OR ord.execution_controller ILIKE $%d)", argIdx, argIdx, argIdx))
 		args = append(args, "%"+filter.Search+"%")
 		argIdx++
 	}
 	if filter.OrderNumber != "" {
-		where = append(where, fmt.Sprintf("ord.order_number ILIKE $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.registration_number ILIKE $%d", argIdx))
 		args = append(args, "%"+filter.OrderNumber+"%")
 		argIdx++
 	}
@@ -79,28 +79,17 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 		where = append(where, "ord.is_active = false")
 	}
 
-	var totalCount int
-	if err := applyDocumentCursor(&where, &args, &argIdx, filter.CursorPagination, filter.Cursor); err != nil {
+	if err := applyDocumentCursor(&where, &args, &argIdx, filter.Cursor); err != nil {
 		return nil, err
 	}
-	filter.Page, filter.PageSize = normalizePagination(filter.Page, filter.PageSize)
+	_, filter.PageSize = normalizePagination(1, filter.PageSize)
 	whereClause := strings.Join(where, " AND ")
-	if !filter.CursorPagination {
-		countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM documents d
-			JOIN administrative_order_details ord ON ord.document_id = d.id WHERE %s`, whereClause)
-		if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
-			return nil, fmt.Errorf("failed to count administrative orders: %w", err)
-		}
-	}
-	limit := filter.PageSize
-	if filter.CursorPagination {
-		limit++
-	}
+	limit := filter.PageSize + 1
 
 	query := fmt.Sprintf(`
 		SELECT
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
-			ord.order_number, ord.order_date, ord.title, d.pages_count,
+			d.registration_number, d.registration_date, ord.title, d.pages_count,
 			ord.execution_controller, ord.execution_deadline, ord.is_active, ord.cancelled_at,
 			u.full_name as created_by_name,
 			d.created_at, d.updated_at
@@ -110,12 +99,9 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 		JOIN users u ON d.created_by = u.id
 		WHERE %s
 		ORDER BY d.created_at DESC, d.id DESC
-		LIMIT $%d%s
-	`, whereClause, argIdx, map[bool]string{true: "", false: fmt.Sprintf(" OFFSET $%d", argIdx+1)}[filter.CursorPagination])
+		LIMIT $%d
+	`, whereClause, argIdx)
 	args = append(args, limit)
-	if !filter.CursorPagination {
-		args = append(args, (filter.Page-1)*filter.PageSize)
-	}
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -136,7 +122,7 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	hasMore := filter.CursorPagination && len(items) > filter.PageSize
+	hasMore := len(items) > filter.PageSize
 	if hasMore {
 		items = items[:filter.PageSize]
 		documentIDs = documentIDs[:filter.PageSize]
@@ -160,10 +146,8 @@ func (r *AdministrativeOrderRepository) GetList(filter models.DocumentFilter) (*
 			return nil, err
 		}
 	}
-	return &models.PagedResult[models.AdministrativeOrderDocument]{
+	return &models.CursorResult[models.AdministrativeOrderDocument]{
 		Items:      items,
-		TotalCount: totalCount,
-		Page:       filter.Page,
 		PageSize:   filter.PageSize,
 		NextCursor: nextCursor,
 		HasMore:    hasMore,
@@ -175,7 +159,7 @@ func (r *AdministrativeOrderRepository) GetByID(id uuid.UUID) (*models.Administr
 	row := r.db.QueryRow(`
 		SELECT
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
-			ord.order_number, ord.order_date, ord.title, d.pages_count,
+			d.registration_number, d.registration_date, ord.title, d.pages_count,
 			ord.execution_controller, ord.execution_deadline, ord.is_active, ord.cancelled_at,
 			u.full_name as created_by_name,
 			d.created_at, d.updated_at
@@ -209,7 +193,7 @@ func (r *AdministrativeOrderRepository) GetByIDs(ids []uuid.UUID) ([]models.Admi
 		return []models.AdministrativeOrderDocument{}, nil
 	}
 	rows, err := r.db.Query(`
-        SELECT d.id, ord.order_number, ord.order_date, ord.title, ord.execution_controller, ord.is_active
+        SELECT d.id, d.registration_number, d.registration_date, ord.title, ord.execution_controller, ord.is_active
         FROM documents d
         JOIN administrative_order_details ord ON ord.document_id = d.id
         WHERE d.id = ANY($1) AND d.kind = $2
@@ -230,13 +214,7 @@ func (r *AdministrativeOrderRepository) GetByIDs(ids []uuid.UUID) ([]models.Admi
 	return items, rows.Err()
 }
 
-func (r *AdministrativeOrderRepository) CreateWithJournal(req models.CreateAdministrativeOrderDocRequest, action, detailsFormat string) (*models.AdministrativeOrderDocument, error) {
-	return r.create(req, nil, action, detailsFormat)
-}
-func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOrderDocRequest, effects []models.OutboxEvent, journalAction, journalDetailsFormat string) (*models.AdministrativeOrderDocument, error) {
-	if req.Link != nil && req.CommandHash == "" {
-		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
-	}
+func (r *AdministrativeOrderRepository) CreateWithJournal(req models.CreateAdministrativeOrderDocRequest, journalAction, journalDetailsFormat string) (*models.AdministrativeOrderDocument, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -254,39 +232,25 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 		return r.GetByID(existingCommandID)
 	}
 
-	var registration *registrationNumberResult
+	var registration string
 	if req.AdminNumberOverride != nil {
-		registration, err = resolveAdminRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindAdministrativeOrder, req.NomenclatureID, req.IdempotencyKey, req.AdminNumberOverride)
+		registration, err = resolveAdminRegistrationNumberTx(tx, models.DocumentKindAdministrativeOrder, req.NomenclatureID, req.AdminNumberOverride)
 	} else {
-		registration, err = resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindAdministrativeOrder, req.NomenclatureID, req.IdempotencyKey, req.OrderNumber)
+		registration, err = resolveRegistrationNumberTx(tx, models.DocumentKindAdministrativeOrder, req.NomenclatureID, req.OrderNumber)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if registration.Existing != uuid.Nil {
-		if req.Link != nil {
-			return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
-		}
-		if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, registration.Existing); err != nil {
-			return nil, err
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
-		}
-		return r.GetByID(registration.Existing)
-	}
-	req.OrderNumber = registration.Number
+
+	req.OrderNumber = registration
 
 	var id uuid.UUID
 	err = tx.QueryRow(`
-		INSERT INTO documents (
-			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id
+		INSERT INTO documents (kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)RETURNING id
 	`,
 		models.DocumentKindAdministrativeOrder,
 		req.NomenclatureID,
-		req.IdempotencyKey,
+
 		req.OrderNumber,
 		req.OrderDate,
 		models.DocumentTypeAdministrativeOrder,
@@ -295,17 +259,7 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 		req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
-		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
-			if req.Link != nil {
-				return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
-			}
-			_ = tx.Rollback()
-			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindAdministrativeOrder, req.IdempotencyKey)
-			if lookupErr != nil {
-				return nil, fmt.Errorf("failed to resolve idempotent document: %w", lookupErr)
-			}
-			return r.GetByID(existingID)
-		}
+
 		if isUniqueViolation(err, "idx_documents_kind_registration_number_year") {
 			return nil, models.NewConflict("документ с таким регистрационным номером уже существует")
 		}
@@ -313,12 +267,8 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 	}
 
 	if _, err = tx.Exec(`
-		INSERT INTO administrative_order_details (
-			document_id, order_number, order_date, title,
-			execution_controller, execution_deadline, is_active, cancelled_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`,
-		id, req.OrderNumber, req.OrderDate, req.Title,
+		INSERT INTO administrative_order_details (document_id, title, execution_controller, execution_deadline, is_active, cancelled_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+		id, req.Title,
 		req.ExecutionController, req.ExecutionDeadline, req.IsActive, req.CancelledAt,
 	); err != nil {
 		return nil, fmt.Errorf("failed to create administrative order details: %w", err)
@@ -327,16 +277,7 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 	if err := replaceAdministrativeOrderAcknowledgmentPeopleTx(tx, id, req.AcknowledgmentFullNames, nil); err != nil {
 		return nil, err
 	}
-	if journalAction != "" {
-		if r.outbox == nil {
-			return nil, fmt.Errorf("outbox repository is required for document journal")
-		}
-		payload := fmt.Sprintf(`{"documentId":"%s","userId":"%s","action":%q,"details":%q}`, id, req.CreatedBy, journalAction, fmt.Sprintf(journalDetailsFormat, req.OrderNumber))
-		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "administrative-order:" + id.String() + ":create:journal", Payload: payload}); err != nil {
-			return nil, err
-		}
-	}
-	if err := enqueueOutboxEffects(r.outbox, tx, effects); err != nil {
+	if err := enqueueDocumentCreationJournalTx(r.outbox, tx, id, req.CreatedBy, "administrative-order:"+id.String()+":create:journal", journalAction, journalDetailsFormat, req.OrderNumber); err != nil {
 		return nil, err
 	}
 	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
@@ -354,9 +295,6 @@ func (r *AdministrativeOrderRepository) create(req models.CreateAdministrativeOr
 }
 
 func (r *AdministrativeOrderRepository) UpdateWithOutbox(req models.UpdateAdministrativeOrderDocRequest, effects []models.OutboxEvent) (*models.AdministrativeOrderDocument, error) {
-	return r.update(req, effects)
-}
-func (r *AdministrativeOrderRepository) update(req models.UpdateAdministrativeOrderDocRequest, effects []models.OutboxEvent) (*models.AdministrativeOrderDocument, error) {
 	existingPeople, err := r.GetAcknowledgmentPeople(req.ID)
 	if err != nil {
 		return nil, err
@@ -392,14 +330,13 @@ func (r *AdministrativeOrderRepository) update(req models.UpdateAdministrativeOr
 
 	if _, err = tx.Exec(`
 		UPDATE administrative_order_details SET
-			order_date = $1,
-			title = $2,
-			execution_controller = $3,
-			execution_deadline = $4,
-			is_active = $5,
-			cancelled_at = $6
-		WHERE document_id = $7
-	`, req.OrderDate, req.Title, req.ExecutionController, req.ExecutionDeadline, req.IsActive, req.CancelledAt, req.ID); err != nil {
+			title = $1,
+			execution_controller = $2,
+			execution_deadline = $3,
+			is_active = $4,
+			cancelled_at = $5
+		WHERE document_id = $6
+	`, req.Title, req.ExecutionController, req.ExecutionDeadline, req.IsActive, req.CancelledAt, req.ID); err != nil {
 		return nil, fmt.Errorf("failed to update administrative order details: %w", err)
 	}
 

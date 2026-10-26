@@ -30,7 +30,7 @@ type snapshot struct {
 	PostgresVersion string    `json:"postgresVersion"`
 	DocumentCount   int       `json:"documentCount"`
 	PageSize        int       `json:"pageSize"`
-	DeepPage        int       `json:"deepPage"`
+	CursorDepth     int       `json:"cursorDepth"`
 	Metrics         []metric  `json:"metrics"`
 }
 
@@ -49,7 +49,7 @@ type metric struct {
 	PoolWaitMilliseconds float64         `json:"poolWaitMilliseconds"`
 	PoolOpenConnections  int             `json:"poolOpenConnections"`
 	PoolInUse            int             `json:"poolInUse"`
-	Plan                 explainDocument `json:"plan"`
+	ProbePlan            explainDocument `json:"probePlan"`
 }
 
 type explainDocument struct {
@@ -61,18 +61,18 @@ type explainDocument struct {
 func main() {
 	dsn := flag.String("dsn", os.Getenv("DOCFLOW_INTEGRATION_DSN"), "safe PostgreSQL DSN")
 	outDir := flag.String("out", "build/performance", "directory for local snapshots")
-	documentCount := flag.Int("documents", 500, "number of seeded outgoing documents (at least page-size * deep-page)")
+	documentCount := flag.Int("documents", 500, "number of seeded outgoing documents (at least page-size * cursor-depth)")
 	pageSize := flag.Int("page-size", 50, "list page size to measure")
-	deepPage := flag.Int("deep-page", 0, "deep OFFSET page; defaults to the last full page")
+	cursorDepth := flag.Int("cursor-depth", 0, "cursor page to measure; defaults to the last full page")
 	flag.Parse()
 	if *documentCount < 1 || *pageSize < 1 {
 		fail("-documents and -page-size must be positive")
 	}
-	if *deepPage == 0 {
-		*deepPage = *documentCount / *pageSize
+	if *cursorDepth == 0 {
+		*cursorDepth = *documentCount / *pageSize
 	}
-	if *deepPage < 2 || *deepPage**pageSize > *documentCount {
-		fail("-deep-page must be at least 2 and fit within -documents")
+	if *cursorDepth < 2 || *cursorDepth**pageSize > *documentCount {
+		fail("-cursor-depth must be at least 2 and fit within -documents")
 	}
 	if *dsn == "" {
 		fail("-dsn or DOCFLOW_INTEGRATION_DSN is required")
@@ -103,16 +103,14 @@ func main() {
 	nomenclatureID := seed(db, *documentCount)
 	repoDB := database.Wrap(db)
 	documentRepo := repository.NewOutgoingDocumentRepository(repoDB)
-	statisticsRepo := repository.NewStatisticsRepository(repoDB)
+	statisticsRepo := repository.NewStatisticsRepository(repoDB).ForUser(uuid.MustParse(benchmarkUserID(db)))
 
 	metrics := []metric{
-		measureOutgoingList("outgoing_list_first_page", db, documentRepo, nomenclatureID, "", 1, *pageSize),
-		measureOutgoingList("outgoing_search_first_page", db, documentRepo, nomenclatureID, "performance", 1, *pageSize),
-		measureOutgoingList("outgoing_search_deep_offset", db, documentRepo, nomenclatureID, "performance", *deepPage, *pageSize),
-		measureOutgoingCursor("outgoing_search_deep_cursor", db, documentRepo, nomenclatureID, "performance", *deepPage, *pageSize),
-		measureOutgoingList("outgoing_search_selective", db, documentRepo, nomenclatureID, "needle", 1, *pageSize),
-		measureOutgoingCount("outgoing_search_selective_count", db, nomenclatureID, "needle"),
-		measureOutgoingList("outgoing_number_contains", db, documentRepo, nomenclatureID, "", 1, *pageSize),
+		measureOutgoingList("outgoing_list_first_page", db, documentRepo, nomenclatureID, "", *pageSize),
+		measureOutgoingList("outgoing_search_first_page", db, documentRepo, nomenclatureID, "performance", *pageSize),
+		measureOutgoingCursor("outgoing_search_deep_cursor", db, documentRepo, nomenclatureID, "performance", *cursorDepth, *pageSize),
+		measureOutgoingList("outgoing_search_selective", db, documentRepo, nomenclatureID, "needle", *pageSize),
+		measureOutgoingList("outgoing_number_contains", db, documentRepo, nomenclatureID, "", *pageSize),
 		measure("monthly_document_statistics", db, func() error {
 			items, err := statisticsRepo.GetMonthlyDocumentCountsByKind(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC))
 			if err == nil && len(items) == 0 {
@@ -122,14 +120,14 @@ func main() {
 		}, `SELECT EXTRACT(MONTH FROM registration_date)::int, kind, COUNT(*) FROM documents WHERE registration_date >= $1 AND registration_date < $2 GROUP BY 1, 2`, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)),
 	}
 
-	current := snapshot{CreatedAt: time.Now().UTC(), PostgresVersion: version, DocumentCount: *documentCount, PageSize: *pageSize, DeepPage: *deepPage, Metrics: metrics}
+	current := snapshot{CreatedAt: time.Now().UTC(), PostgresVersion: version, DocumentCount: *documentCount, PageSize: *pageSize, CursorDepth: *cursorDepth, Metrics: metrics}
 	previous := readSnapshot(filepath.Join(*outDir, "latest.json"))
 	if err := os.MkdirAll(filepath.Join(*outDir, "history"), 0o755); err != nil {
 		fail("create output directory: %v", err)
 	}
 	writeSnapshot(filepath.Join(*outDir, "latest.json"), current)
 	writeSnapshot(filepath.Join(*outDir, "history", current.CreatedAt.Format("20060102T150405Z")+".json"), current)
-	printSummary(current, previous)
+	printSummary(current, previous, *outDir)
 }
 
 func benchmarkUserID(db *sql.DB) string {
@@ -140,70 +138,54 @@ func benchmarkUserID(db *sql.DB) string {
 	return id
 }
 
-func measureOutgoingList(name string, db *sql.DB, repo *repository.OutgoingDocumentRepository, nomenclatureID uuid.UUID, search string, page, pageSize int) metric {
+func measureOutgoingList(name string, db *sql.DB, repo *repository.OutgoingDocumentRepository, nomenclatureID uuid.UUID, search string, pageSize int) metric {
 	filter := models.OutgoingDocumentFilter{
 		AccessScope:     &models.DocumentAccessScope{UserID: benchmarkUserID(db)},
-		NomenclatureIDs: []string{nomenclatureID.String()}, Search: search, Page: page, PageSize: pageSize,
+		NomenclatureIDs: []string{nomenclatureID.String()}, Search: search, PageSize: pageSize,
 	}
 	if name == "outgoing_number_contains" {
 		filter.OutgoingNumber = "PF/"
 	}
-	offset := (page - 1) * pageSize
 	where := "d.kind = $1 AND d.nomenclature_id = $2"
 	args := []any{models.DocumentKindOutgoingLetter, nomenclatureID}
 	if filter.Search != "" {
-		where += " AND (d.content ILIKE $3 OR out.outgoing_number ILIKE $3)"
+		where += " AND (d.content ILIKE $3 OR d.registration_number ILIKE $3)"
 		args = append(args, "%"+filter.Search+"%")
 	} else if filter.OutgoingNumber != "" {
-		where += " AND out.outgoing_number ILIKE $3"
+		where += " AND d.registration_number ILIKE $3"
 		args = append(args, "%"+filter.OutgoingNumber+"%")
 	}
-	args = append(args, pageSize, offset)
+	args = append(args, pageSize+1)
 	return measure(name, db, func() error {
 		result, err := repo.GetList(filter)
 		if err == nil && len(result.Items) == 0 {
 			return fmt.Errorf("got no items")
 		}
 		return err
-	}, fmt.Sprintf(`SELECT d.id FROM documents d JOIN outgoing_document_details out ON out.document_id = d.id WHERE %s ORDER BY d.created_at DESC LIMIT $%d OFFSET $%d`, where, len(args)-1, len(args)), args...)
-}
-
-func measureOutgoingCount(name string, db *sql.DB, nomenclatureID uuid.UUID, search string) metric {
-	args := []any{models.DocumentKindOutgoingLetter, nomenclatureID, "%" + search + "%"}
-	query := `
-		SELECT COUNT(*)
-		FROM documents d
-		JOIN outgoing_document_details out ON out.document_id = d.id
-		WHERE d.kind = $1 AND d.nomenclature_id = $2
-		  AND (d.content ILIKE $3 OR out.outgoing_number ILIKE $3)`
-	return measure(name, db, func() error {
-		var total int
-		return db.QueryRow(query, args...).Scan(&total)
-	}, query, args...)
+	}, fmt.Sprintf(`SELECT d.id FROM documents d JOIN outgoing_document_details out ON out.document_id = d.id WHERE %s ORDER BY d.created_at DESC, d.id DESC LIMIT $%d`, where, len(args)), args...)
 }
 
 func measureOutgoingCursor(name string, db *sql.DB, repo *repository.OutgoingDocumentRepository, nomenclatureID uuid.UUID, search string, page, pageSize int) metric {
-	var createdAt time.Time
-	var id uuid.UUID
-	position := (page-1)*pageSize - 1
-	err := db.QueryRow(`SELECT d.created_at, d.id
-		FROM documents d WHERE d.kind = $1 AND d.nomenclature_id = $2
-		ORDER BY d.created_at DESC, d.id DESC LIMIT 1 OFFSET $3`, models.DocumentKindOutgoingLetter, nomenclatureID, position).Scan(&createdAt, &id)
-	if err != nil {
-		fail("read cursor position: %v", err)
-	}
-	cursor, err := models.EncodeDocumentCursor(createdAt, id)
-	if err != nil {
-		fail("encode cursor: %v", err)
-	}
 	filter := models.OutgoingDocumentFilter{
 		AccessScope: &models.DocumentAccessScope{UserID: benchmarkUserID(db)}, NomenclatureIDs: []string{nomenclatureID.String()}, Search: search,
-		PageSize: pageSize, CursorPagination: true, Cursor: cursor,
+		PageSize: pageSize,
 	}
+	for step := 1; step < page; step++ {
+		window, err := repo.GetList(filter)
+		if err != nil || !window.HasMore {
+			fail("prepare cursor page %d: %v", step, err)
+		}
+		filter.Cursor = window.NextCursor
+	}
+	position, err := models.DecodeDocumentCursor(filter.Cursor)
+	if err != nil {
+		fail("decode prepared cursor: %v", err)
+	}
+	createdAt, id := position.CreatedAt, position.ID
 	args := []any{models.DocumentKindOutgoingLetter, nomenclatureID, "%" + search + "%", createdAt, id, pageSize + 1}
 	query := `SELECT d.id FROM documents d JOIN outgoing_document_details out ON out.document_id = d.id
 		WHERE d.kind = $1 AND d.nomenclature_id = $2
-		AND (d.content ILIKE $3 OR out.outgoing_number ILIKE $3)
+		AND (d.content ILIKE $3 OR d.registration_number ILIKE $3)
 		AND (d.created_at, d.id) < ($4, $5)
 		ORDER BY d.created_at DESC, d.id DESC LIMIT $6`
 	return measure(name, db, func() error {
@@ -215,6 +197,8 @@ func measureOutgoingCursor(name string, db *sql.DB, repo *repository.OutgoingDoc
 	}, query, args...)
 }
 
+// Timings execute the repository operation; EXPLAIN describes only the supplied
+// simplified SQL probe and does not include every join or access predicate.
 func measure(name string, db *sql.DB, operation func() error, explainSQL string, args ...any) metric {
 	durations := make([]float64, 0, samples)
 	for range samples {
@@ -227,7 +211,7 @@ func measure(name string, db *sql.DB, operation func() error, explainSQL string,
 	sort.Float64s(durations)
 	plan := explain(db, explainSQL, args...)
 	stats := db.Stats()
-	return metric{Name: name, Samples: samples, MedianMilliseconds: percentile(durations, 0.5), P95Milliseconds: percentile(durations, 0.95), P99Milliseconds: percentile(durations, 0.99), ExplainMilliseconds: plan.ExecutionTime, PlanningMilliseconds: plan.PlanningTime, ActualRows: number(plan.Plan["Actual Rows"]), SharedHitBlocks: planValue(plan.Plan, "Shared Hit Blocks"), SharedReadBlocks: planValue(plan.Plan, "Shared Read Blocks"), PoolWaitCount: stats.WaitCount, PoolWaitMilliseconds: float64(stats.WaitDuration.Microseconds()) / 1000, PoolOpenConnections: stats.OpenConnections, PoolInUse: stats.InUse, Plan: plan}
+	return metric{Name: name, Samples: samples, MedianMilliseconds: percentile(durations, 0.5), P95Milliseconds: percentile(durations, 0.95), P99Milliseconds: percentile(durations, 0.99), ExplainMilliseconds: plan.ExecutionTime, PlanningMilliseconds: plan.PlanningTime, ActualRows: number(plan.Plan["Actual Rows"]), SharedHitBlocks: planValue(plan.Plan, "Shared Hit Blocks"), SharedReadBlocks: planValue(plan.Plan, "Shared Read Blocks"), PoolWaitCount: stats.WaitCount, PoolWaitMilliseconds: float64(stats.WaitDuration.Microseconds()) / 1000, PoolOpenConnections: stats.OpenConnections, PoolInUse: stats.InUse, ProbePlan: plan}
 }
 
 func explain(db *sql.DB, query string, args ...any) explainDocument {
@@ -261,10 +245,10 @@ func seed(db *sql.DB, count int) uuid.UUID {
 		if i%100 == 0 {
 			content += " needle"
 		}
-		if _, err := tx.Exec(`INSERT INTO documents (id, kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, created_by, created_at) VALUES ($1, 'outgoing_letter', $2, $3, $4, $5, $6, $7, 1, $8, $9)`, id, nomID, uuid.New(), number, date, models.DocumentTypeLetter, content, userID, date); err != nil {
+		if _, err := tx.Exec(`INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, created_by, created_at) VALUES ($1, 'outgoing_letter', $2, $3, $4, $5, $6, 1, $7, $8)`, id, nomID, number, date, models.DocumentTypeLetter, content, userID, date); err != nil {
 			fail("seed document: %v", err)
 		}
-		if _, err := tx.Exec(`INSERT INTO outgoing_document_details (document_id, outgoing_number, outgoing_date, sender_signatory, sender_executor, recipient_org_id, addressee) VALUES ($1, $2, $3, 'Signer', 'Executor', $4, 'Addressee')`, id, number, date, orgID); err != nil {
+		if _, err := tx.Exec(`INSERT INTO outgoing_document_details (document_id, sender_signatory, sender_executor, recipient_org_id, addressee) VALUES ($1, 'Signer', 'Executor', $2, 'Addressee')`, id, orgID); err != nil {
 			fail("seed outgoing details: %v", err)
 		}
 	}
@@ -319,9 +303,9 @@ func writeSnapshot(path string, value snapshot) {
 		fail("write snapshot: %v", err)
 	}
 }
-func printSummary(current snapshot, previous *snapshot) {
+func printSummary(current snapshot, previous *snapshot, outDir string) {
 	fmt.Printf("\nPostgreSQL performance summary (%s, PostgreSQL %s)\n", current.CreatedAt.Format(time.RFC3339), current.PostgresVersion)
-	fmt.Println("metric                         median    p95    explain  hit/read  rows    vs previous")
+	fmt.Println("metric                         median    p95     probe   hit/read  rows    vs previous")
 	old := map[string]metric{}
 	if previous != nil {
 		for _, item := range previous.Metrics {
@@ -335,7 +319,7 @@ func printSummary(current snapshot, previous *snapshot) {
 		}
 		fmt.Printf("%-30s %7.2fms %6.2fms %7.2fms %5.0f/%-5.0f %-7.0f %s\n", item.Name, item.MedianMilliseconds, item.P95Milliseconds, item.ExplainMilliseconds, item.SharedHitBlocks, item.SharedReadBlocks, item.ActualRows, delta)
 	}
-	fmt.Println("Snapshots: build/performance/latest.json and build/performance/history/")
+	fmt.Printf("Snapshots: %s and %s\n", filepath.Join(outDir, "latest.json"), filepath.Join(outDir, "history"))
 }
 func fail(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "dbperf: "+format+"\n", args...)

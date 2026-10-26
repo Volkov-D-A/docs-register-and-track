@@ -202,3 +202,18 @@ func TestDocumentVisibilityFailuresAreNotIgnored(t *testing.T) {
 	deps.service.visibility = nil
 	require.ErrorIs(t, deps.service.RequireReadAnyType(id), models.ErrForbidden)
 }
+
+func TestReadableDocumentIDsDoNotLoadDocumentContents(t *testing.T) {
+	deps := setupDocumentAccessService(t, documentAccessUser(false, nil), nil)
+	allowed, denied := uuid.New(), uuid.New()
+	deps.accessRepo.readable[allowed] = true
+	deps.docRepo.err = errors.New("document contents must not be loaded")
+
+	ids, err := deps.service.ResolveReadableDocumentIDs([]uuid.UUID{allowed, denied, allowed, uuid.Nil})
+	require.NoError(t, err)
+	require.Equal(t, map[uuid.UUID]bool{allowed: true}, ids)
+
+	// Graphs still need root metadata and propagate a failure to load it.
+	_, err = deps.service.ResolveReadableDocuments([]uuid.UUID{allowed})
+	require.ErrorIs(t, err, deps.docRepo.err)
+}

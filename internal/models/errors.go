@@ -70,11 +70,6 @@ func NewBadRequestWrapped(msg string, err error) *AppError {
 	return &AppError{Code: 400, Kind: "VALIDATION_ERROR", Message: msg, Internal: err, Production: true}
 }
 
-// NewUnauthorized — ошибка 401 с кастомным сообщением.
-func NewUnauthorized(msg string) *AppError {
-	return &AppError{Code: 401, Kind: "UNAUTHORIZED", Message: msg, Production: true}
-}
-
 // NewForbidden — ошибка 403 с кастомным сообщением.
 func NewForbidden(msg string) *AppError {
 	return &AppError{Code: 403, Kind: "FORBIDDEN", Message: msg, Production: true}

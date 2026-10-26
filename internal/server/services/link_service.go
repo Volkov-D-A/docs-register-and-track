@@ -11,7 +11,6 @@ import (
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	servereffects "github.com/Volkov-D-A/docs-register-and-track/internal/server/effects"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
@@ -24,7 +23,6 @@ type LinkService struct {
 	administrativeOrderRepo ports.AdministrativeOrderDocStore
 	access                  *DocumentAccessService
 	authService             ports.DocumentAccessPrincipal
-	metrics                 *observability.Registry
 }
 
 // NewLinkService создает новый экземпляр LinkService.
@@ -36,7 +34,6 @@ func NewLinkService(
 	administrativeOrderRepo ports.AdministrativeOrderDocStore,
 	access *DocumentAccessService,
 	authService ports.DocumentAccessPrincipal,
-	metrics *observability.Registry,
 ) *LinkService {
 	return &LinkService{
 		repo:                    repo,
@@ -46,7 +43,6 @@ func NewLinkService(
 		administrativeOrderRepo: administrativeOrderRepo,
 		access:                  access,
 		authService:             authService,
-		metrics:                 metrics,
 	}
 }
 
@@ -64,299 +60,287 @@ func linkJournalEffects(link *models.DocumentLink, userID uuid.UUID, action, det
 
 // LinkDocuments создает связь указанного типа между двумя документами.
 func (s *LinkService) LinkDocuments(sourceIDStr, targetIDStr, linkType string) (*dto.DocumentLink, error) {
-	return observability.Measure(s.metrics, "links.create", func() (*dto.DocumentLink, error) {
-		ctx := context.Background()
+	ctx := context.Background()
 
-		userID, err := s.authService.GetCurrentUserUUID()
-		if err != nil {
-			return nil, err
-		}
+	userID, err := s.authService.GetCurrentUserUUID()
+	if err != nil {
+		return nil, err
+	}
 
-		sourceID, err := uuid.Parse(sourceIDStr)
-		if err != nil {
-			return nil, models.NewBadRequestWrapped("неверный ID исходного документа", err)
-		}
-		targetID, err := uuid.Parse(targetIDStr)
-		if err != nil {
-			return nil, models.NewBadRequestWrapped("неверный ID связанного документа", err)
-		}
+	sourceID, err := uuid.Parse(sourceIDStr)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID исходного документа", err)
+	}
+	targetID, err := uuid.Parse(targetIDStr)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID связанного документа", err)
+	}
 
-		// Базовая валидация: запрет связи документа с самим собой
-		if sourceID == targetID {
-			return nil, models.NewBadRequest("нельзя связать документ с самим собой")
-		}
-		sourceDoc, targetDoc, err := s.access.ResolveLink(sourceID, targetID)
-		if err != nil {
-			return nil, err
-		}
-		if err := validateDocumentLinkType(sourceDoc.Kind, targetDoc.Kind, linkType); err != nil {
-			return nil, err
-		}
-		link := &models.DocumentLink{
-			ID:         uuid.New(),
-			SourceKind: sourceDoc.Kind,
-			SourceID:   sourceID,
-			TargetKind: targetDoc.Kind,
-			TargetID:   targetID,
-			LinkType:   linkType,
-			CreatedBy:  userID,
-			CreatedAt:  time.Now(),
-		}
+	// Базовая валидация: запрет связи документа с самим собой
+	if sourceID == targetID {
+		return nil, models.NewBadRequest("нельзя связать документ с самим собой")
+	}
+	sourceDoc, targetDoc, err := s.access.ResolveLink(sourceID, targetID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateDocumentLinkType(sourceDoc.Kind, targetDoc.Kind, linkType); err != nil {
+		return nil, err
+	}
+	link := &models.DocumentLink{
+		ID:         uuid.New(),
+		SourceKind: sourceDoc.Kind,
+		SourceID:   sourceID,
+		TargetKind: targetDoc.Kind,
+		TargetID:   targetID,
+		LinkType:   linkType,
+		CreatedBy:  userID,
+		CreatedAt:  time.Now(),
+	}
 
-		effects, buildErr := linkJournalEffects(link, userID, "LINK_CREATE", "Создана связь с другим документом")
-		if buildErr != nil {
-			return nil, buildErr
-		}
-		if linkType == "order_cancels" {
-			err = s.repo.CreateAndCancelOrderWithOutbox(ctx, link, effects)
-		} else {
-			err = s.repo.CreateWithOutbox(ctx, link, effects)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to create link: %w", err)
-		}
+	effects, buildErr := linkJournalEffects(link, userID, "LINK_CREATE", "Создана связь с другим документом")
+	if buildErr != nil {
+		return nil, buildErr
+	}
+	if linkType == "order_cancels" {
+		err = s.repo.CreateAndCancelOrderWithOutbox(ctx, link, effects)
+	} else {
+		err = s.repo.CreateWithOutbox(ctx, link, effects)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to create link: %w", err)
+	}
 
-		return dto.MapDocumentLink(link), nil
-	})
+	return dto.MapDocumentLink(link), nil
 }
 
 // UnlinkDocument удаляет связь между документами по её ID.
 func (s *LinkService) UnlinkDocument(idStr string) error {
-	return observability.MeasureError(s.metrics, "links.delete", func() error {
-		ctx := context.Background()
+	ctx := context.Background()
 
-		id, err := uuid.Parse(idStr)
-		if err != nil {
-			return models.NewBadRequestWrapped("неверный ID связи", err)
-		}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return models.NewBadRequestWrapped("неверный ID связи", err)
+	}
 
-		link, err := s.repo.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		if link == nil {
-			return nil
-		}
-		if err := s.access.RequireLink(link.SourceID, link.TargetID); err != nil {
-			return err
-		}
+	link, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if link == nil {
+		return nil
+	}
+	if err := s.access.RequireLink(link.SourceID, link.TargetID); err != nil {
+		return err
+	}
 
-		currentUserID, _ := s.authService.GetCurrentUserUUID()
-		effects, buildErr := linkJournalEffects(link, currentUserID, "LINK_DELETE", "Удалена связь с документом")
-		if buildErr != nil {
-			return buildErr
-		}
-		return s.repo.DeleteWithOutbox(ctx, id, effects)
-	})
+	currentUserID, _ := s.authService.GetCurrentUserUUID()
+	effects, buildErr := linkJournalEffects(link, currentUserID, "LINK_DELETE", "Удалена связь с документом")
+	if buildErr != nil {
+		return buildErr
+	}
+	return s.repo.DeleteWithOutbox(ctx, id, effects)
 }
 
 // GetDocumentLinks возвращает список всех прямых связей для указанного документа.
 func (s *LinkService) GetDocumentLinks(docIDStr string) ([]dto.DocumentLink, error) {
-	return observability.Measure(s.metrics, "links.get_list", func() ([]dto.DocumentLink, error) {
-		ctx := context.Background()
+	ctx := context.Background()
 
-		docID, err := uuid.Parse(docIDStr)
-		if err != nil {
-			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
-		}
-		if err := s.access.RequireReadAnyType(docID); err != nil {
-			return nil, err
-		}
-		res, err := s.repo.GetByDocumentID(ctx, docID)
-		if err != nil {
-			return nil, err
-		}
+	docID, err := uuid.Parse(docIDStr)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
+	}
+	if err := s.access.RequireReadAnyType(docID); err != nil {
+		return nil, err
+	}
+	res, err := s.repo.GetByDocumentID(ctx, docID)
+	if err != nil {
+		return nil, err
+	}
 
-		docIDs := make([]uuid.UUID, 0, len(res)*2)
-		for _, link := range res {
-			docIDs = append(docIDs, link.SourceID, link.TargetID)
-		}
-		readableDocs, err := s.access.ResolveReadableDocuments(docIDs)
-		if err != nil {
-			return nil, err
-		}
+	docIDs := make([]uuid.UUID, 0, len(res)*2)
+	for _, link := range res {
+		docIDs = append(docIDs, link.SourceID, link.TargetID)
+	}
+	readableDocs, err := s.access.ResolveReadableDocumentIDs(docIDs)
+	if err != nil {
+		return nil, err
+	}
 
-		filtered := make([]models.DocumentLink, 0, len(res))
-		for _, link := range res {
-			if _, ok := readableDocs[link.SourceID]; !ok {
-				continue
-			}
-			if _, ok := readableDocs[link.TargetID]; !ok {
-				continue
-			}
-			filtered = append(filtered, link)
+	filtered := make([]models.DocumentLink, 0, len(res))
+	for _, link := range res {
+		if !readableDocs[link.SourceID] {
+			continue
 		}
+		if !readableDocs[link.TargetID] {
+			continue
+		}
+		filtered = append(filtered, link)
+	}
 
-		return dto.MapDocumentLinks(filtered), nil
-	})
+	return dto.MapDocumentLinks(filtered), nil
 }
 
 // GetDocumentFlow возвращает граф связей для документа, включая связанные узлы (документы) и ребра (связи) для визуализации.
 func (s *LinkService) GetDocumentFlow(rootIDStr string) (*models.GraphData, error) {
-	return observability.Measure(s.metrics, "links.get_graph", func() (*models.GraphData, error) {
-		ctx := context.Background()
+	ctx := context.Background()
 
-		rootID, err := uuid.Parse(rootIDStr)
-		if err != nil {
-			return nil, models.NewBadRequestWrapped("неверный ID документа", err)
-		}
-		if err := s.access.RequireReadAnyType(rootID); err != nil {
-			return nil, err
+	rootID, err := uuid.Parse(rootIDStr)
+	if err != nil {
+		return nil, models.NewBadRequestWrapped("неверный ID документа", err)
+	}
+	if err := s.access.RequireReadAnyType(rootID); err != nil {
+		return nil, err
+	}
+
+	links, err := s.repo.GetGraph(ctx, rootID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Собираем уникальные ID документов для получения детальной информации
+	docIDs := make(map[uuid.UUID]string) // ID -> тип документа
+
+	// Если связей нет — возвращаем пустой граф
+	if len(links) == 0 {
+		return &models.GraphData{Nodes: []models.GraphNode{}, Edges: []models.GraphEdge{}}, nil
+	}
+
+	for _, l := range links {
+		docIDs[l.SourceID] = string(l.SourceKind)
+		docIDs[l.TargetID] = string(l.TargetKind)
+	}
+
+	readableDocs, err := s.access.ResolveReadableDocuments(mapKeys(docIDs))
+	if err != nil {
+		return nil, err
+	}
+	links = keepReadableGraphLinksReachableFromRoot(rootID, links, readableDocs)
+	if len(links) == 0 {
+		return &models.GraphData{Nodes: []models.GraphNode{}, Edges: []models.GraphEdge{}}, nil
+	}
+
+	docIDs = make(map[uuid.UUID]string)
+	for _, l := range links {
+		docIDs[l.SourceID] = string(l.SourceKind)
+		docIDs[l.TargetID] = string(l.TargetKind)
+	}
+	graphCards, err := s.loadGraphCards(docIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Карточки загружены пакетно по видам: не более одного GetByIDs-запроса
+	// для каждого из четырёх поддерживаемых видов, независимо от числа узлов.
+	nodes := []models.GraphNode{}
+
+	// Цикл только собирает узлы из bulk-карт и не обращается к репозиториям.
+	for id, docType := range docIDs {
+		var label, subject, dateStr, sender, recipient string
+		var isActive *bool
+		if doc, ok := readableDocs[id]; ok && doc != nil {
+			label = doc.RegistrationNumber
+			subject = doc.Content
+			dateStr = doc.RegistrationDate.Format("02.01.2006")
 		}
 
-		links, err := s.repo.GetGraph(ctx, rootID)
-		if err != nil {
-			return nil, err
-		}
-
-		// Собираем уникальные ID документов для получения детальной информации
-		docIDs := make(map[uuid.UUID]string) // ID -> тип документа
-
-		// Если связей нет — возвращаем пустой граф
-		if len(links) == 0 {
-			return &models.GraphData{Nodes: []models.GraphNode{}, Edges: []models.GraphEdge{}}, nil
-		}
-
-		for _, l := range links {
-			docIDs[l.SourceID] = string(l.SourceKind)
-			docIDs[l.TargetID] = string(l.TargetKind)
-		}
-
-		readableDocs, err := s.access.ResolveReadableDocuments(mapKeys(docIDs))
-		if err != nil {
-			return nil, err
-		}
-		links = keepReadableGraphLinksReachableFromRoot(rootID, links, readableDocs)
-		if len(links) == 0 {
-			return &models.GraphData{Nodes: []models.GraphNode{}, Edges: []models.GraphEdge{}}, nil
-		}
-
-		docIDs = make(map[uuid.UUID]string)
-		for _, l := range links {
-			docIDs[l.SourceID] = string(l.SourceKind)
-			docIDs[l.TargetID] = string(l.TargetKind)
-		}
-		graphCards, err := s.loadGraphCards(docIDs)
-		if err != nil {
-			return nil, err
-		}
-
-		// Карточки загружены пакетно по видам: не более одного GetByIDs-запроса
-		// для каждого из четырёх поддерживаемых видов, независимо от числа узлов.
-		nodes := []models.GraphNode{}
-
-		// Цикл только собирает узлы из bulk-карт и не обращается к репозиториям.
-		for id, docType := range docIDs {
-			var label, subject, dateStr, sender, recipient string
-			var isActive *bool
-			if doc, ok := readableDocs[id]; ok && doc != nil {
+		switch models.DocumentKind(docType) {
+		case models.DocumentKindIncomingLetter:
+			if doc, ok := graphCards.incoming[id]; ok {
+				label = doc.IncomingNumber
+				subject = doc.Content
+				dateStr = doc.IncomingDate.Format("02.01.2006")
+				if len(doc.Correspondents) > 0 {
+					sender = doc.Correspondents[0].CorrespondentName
+				}
+				if sender == "" {
+					sender = "Неизвестно"
+				}
+			}
+		case models.DocumentKindOutgoingLetter:
+			if doc, ok := graphCards.outgoing[id]; ok {
+				label = doc.OutgoingNumber
+				subject = doc.Content
+				dateStr = doc.OutgoingDate.Format("02.01.2006")
+				recipient = doc.RecipientOrgName
+				if recipient == "" {
+					recipient = "Неизвестно"
+				}
+			}
+		case models.DocumentKindCitizenAppeal:
+			if doc, ok := graphCards.citizenAppeal[id]; ok {
 				label = doc.RegistrationNumber
 				subject = doc.Content
 				dateStr = doc.RegistrationDate.Format("02.01.2006")
-			}
-
-			switch models.DocumentKind(docType) {
-			case models.DocumentKindIncomingLetter:
-				if doc, ok := graphCards.incoming[id]; ok {
-					label = doc.IncomingNumber
-					subject = doc.Content
-					dateStr = doc.IncomingDate.Format("02.01.2006")
-					if len(doc.Correspondents) > 0 {
-						sender = doc.Correspondents[0].CorrespondentName
-					}
-					if sender == "" {
-						sender = "Неизвестно"
-					}
-				}
-			case models.DocumentKindOutgoingLetter:
-				if doc, ok := graphCards.outgoing[id]; ok {
-					label = doc.OutgoingNumber
-					subject = doc.Content
-					dateStr = doc.OutgoingDate.Format("02.01.2006")
-					recipient = doc.RecipientOrgName
-					if recipient == "" {
-						recipient = "Неизвестно"
-					}
-				}
-			case models.DocumentKindCitizenAppeal:
-				if doc, ok := graphCards.citizenAppeal[id]; ok {
-					label = doc.RegistrationNumber
-					subject = doc.Content
-					dateStr = doc.RegistrationDate.Format("02.01.2006")
-					sender = doc.ApplicantFullName
-					if sender == "" {
-						sender = "Неизвестно"
-					}
-				}
-			case models.DocumentKindAdministrativeOrder:
-				if doc, ok := graphCards.administrativeOrder[id]; ok {
-					label = doc.OrderNumber
-					subject = doc.Title
-					dateStr = doc.OrderDate.Format("02.01.2006")
-					sender = doc.ExecutionController
-					active := doc.IsActive
-					isActive = &active
+				sender = doc.ApplicantFullName
+				if sender == "" {
+					sender = "Неизвестно"
 				}
 			}
-
-			if label == "" {
-				label = "Неизвестно"
+		case models.DocumentKindAdministrativeOrder:
+			if doc, ok := graphCards.administrativeOrder[id]; ok {
+				label = doc.OrderNumber
+				subject = doc.Title
+				dateStr = doc.OrderDate.Format("02.01.2006")
+				sender = doc.ExecutionController
+				active := doc.IsActive
+				isActive = &active
 			}
-
-			nodes = append(nodes, models.GraphNode{
-				ID:        id.String(),
-				Label:     label,
-				KindCode:  docType,
-				Subject:   subject,
-				Date:      dateStr,
-				Sender:    sender,
-				Recipient: recipient,
-				IsActive:  isActive,
-			})
 		}
 
-		sort.Slice(nodes, func(i, j int) bool {
-			if nodes[i].Date != nodes[j].Date {
-				return graphDateSortKey(nodes[i].Date) < graphDateSortKey(nodes[j].Date)
-			}
-			if nodes[i].Label != nodes[j].Label {
-				return nodes[i].Label < nodes[j].Label
-			}
-			if nodes[i].KindCode != nodes[j].KindCode {
-				return nodes[i].KindCode < nodes[j].KindCode
-			}
-			return nodes[i].ID < nodes[j].ID
+		if label == "" {
+			label = "Неизвестно"
+		}
+
+		nodes = append(nodes, models.GraphNode{
+			ID:        id.String(),
+			Label:     label,
+			KindCode:  docType,
+			Subject:   subject,
+			Date:      dateStr,
+			Sender:    sender,
+			Recipient: recipient,
+			IsActive:  isActive,
 		})
+	}
 
-		edges := []models.GraphEdge{}
-		for _, l := range links {
-			edges = append(edges, models.GraphEdge{
-				ID:     l.ID.String(),
-				Source: l.SourceID.String(),
-				Target: l.TargetID.String(),
-				Label:  l.LinkType,
-			})
+	sort.Slice(nodes, func(i, j int) bool {
+		if nodes[i].Date != nodes[j].Date {
+			return graphDateSortKey(nodes[i].Date) < graphDateSortKey(nodes[j].Date)
 		}
-
-		sort.Slice(edges, func(i, j int) bool {
-			if edges[i].Source != edges[j].Source {
-				return edges[i].Source < edges[j].Source
-			}
-			if edges[i].Target != edges[j].Target {
-				return edges[i].Target < edges[j].Target
-			}
-			if edges[i].Label != edges[j].Label {
-				return edges[i].Label < edges[j].Label
-			}
-			return edges[i].ID < edges[j].ID
-		})
-		if s.metrics != nil {
-			s.metrics.SetGauge("links.graph.nodes", float64(len(nodes)))
-			s.metrics.SetGauge("links.graph.edges", float64(len(edges)))
+		if nodes[i].Label != nodes[j].Label {
+			return nodes[i].Label < nodes[j].Label
 		}
-
-		return &models.GraphData{Nodes: nodes, Edges: edges}, nil
+		if nodes[i].KindCode != nodes[j].KindCode {
+			return nodes[i].KindCode < nodes[j].KindCode
+		}
+		return nodes[i].ID < nodes[j].ID
 	})
+
+	edges := []models.GraphEdge{}
+	for _, l := range links {
+		edges = append(edges, models.GraphEdge{
+			ID:     l.ID.String(),
+			Source: l.SourceID.String(),
+			Target: l.TargetID.String(),
+			Label:  l.LinkType,
+		})
+	}
+
+	sort.Slice(edges, func(i, j int) bool {
+		if edges[i].Source != edges[j].Source {
+			return edges[i].Source < edges[j].Source
+		}
+		if edges[i].Target != edges[j].Target {
+			return edges[i].Target < edges[j].Target
+		}
+		if edges[i].Label != edges[j].Label {
+			return edges[i].Label < edges[j].Label
+		}
+		return edges[i].ID < edges[j].ID
+	})
+
+	return &models.GraphData{Nodes: nodes, Edges: edges}, nil
 }
 
 // Dates are displayed as DD.MM.YYYY; compare year, month, and day instead.

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegistrySnapshotCalculatesCountersAndPercentiles(t *testing.T) {
+func TestRegistrySnapshotCalculatesCountersAndP95(t *testing.T) {
 	registry := NewRegistry(100)
 	for i := 1; i <= 100; i++ {
 		var err error
@@ -29,20 +29,17 @@ func TestRegistrySnapshotCalculatesCountersAndPercentiles(t *testing.T) {
 	assert.EqualValues(t, 100, metrics[0].Count)
 	assert.EqualValues(t, 2, metrics[0].Errors)
 	assert.EqualValues(t, 1, metrics[0].DeadlineExceeded)
-	assert.Equal(t, 50*time.Millisecond, metrics[0].P50)
 	assert.Equal(t, 95*time.Millisecond, metrics[0].P95)
-	assert.Equal(t, 99*time.Millisecond, metrics[0].P99)
 }
 
 func TestRegistryRetainsBoundedLatencyWindow(t *testing.T) {
 	registry := NewRegistry(2)
-	registry.Observe("operation", time.Millisecond, nil)
+	registry.Observe("operation", 20*time.Millisecond, nil)
 	registry.Observe("operation", 2*time.Millisecond, nil)
 	registry.Observe("operation", 10*time.Millisecond, nil)
 
 	metric := registry.Snapshot()[0]
 	assert.EqualValues(t, 3, metric.Count)
-	assert.Equal(t, 2*time.Millisecond, metric.P50)
 	assert.Equal(t, 10*time.Millisecond, metric.P95)
 }
 

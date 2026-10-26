@@ -16,7 +16,7 @@ import (
 
 type fakeDocumentQueryAPI struct {
 	card       *dto.DocumentCard
-	list       *dto.PagedResult[dto.DocumentListItem]
+	list       *dto.CursorResult[dto.DocumentListItem]
 	lastID     string
 	lastKind   string
 	lastFilter models.DocumentFilter
@@ -28,7 +28,7 @@ func (q *fakeDocumentQueryAPI) GetByID(id string) (*dto.DocumentCard, error) {
 	return q.card, nil
 }
 
-func (q *fakeDocumentQueryAPI) GetList(kind string, filter models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error) {
+func (q *fakeDocumentQueryAPI) GetList(kind string, filter models.DocumentFilter) (*dto.CursorResult[dto.DocumentListItem], error) {
 	q.lastKind, q.lastFilter = kind, filter
 	return q.list, nil
 }
@@ -38,7 +38,7 @@ func TestDocumentQueryAPIRequiresSessionAndUsesRequestPrincipal(t *testing.T) {
 	id := uuid.NewString()
 	query := &fakeDocumentQueryAPI{
 		card: &dto.DocumentCard{ID: id, KindCode: string(models.DocumentKindIncomingLetter)},
-		list: &dto.PagedResult[dto.DocumentListItem]{Items: []dto.DocumentListItem{{ID: id}}, TotalCount: 1},
+		list: &dto.CursorResult[dto.DocumentListItem]{Items: []dto.DocumentListItem{{ID: id}}},
 	}
 	var principalID uuid.UUID
 	api.documentQueries = func(user *models.User) documentQueryAPI {
@@ -115,4 +115,20 @@ func TestDocumentSearchAPIRequiresSessionAndRejectsClientScopes(t *testing.T) {
 	}
 	require.NotEqual(t, uuid.Nil, principalID)
 	require.Equal(t, dto.DocumentSearchRequest{Query: "ремонт Иванов", Page: 2, PageSize: 20}, query.lastSearch)
+}
+
+func TestDocumentListRejectsRemovedFilterFields(t *testing.T) {
+	api, _, token := authenticatedUserAPI(t, nil)
+	query := &fakeDocumentQueryAPI{}
+	api.documentQueries = func(*models.User) documentQueryAPI { return query }
+	for _, field := range []string{`"page":1`, `"cursorPagination":true`, `"nomenclatureId":"old"`, `"kindCode":"incoming_letter"`} {
+		t.Run(field, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/documents/query", strings.NewReader(`{"kindCode":"incoming_letter","filter":{`+field+`}}`))
+			request.Header.Set("Authorization", "Bearer "+token)
+			response := httptest.NewRecorder()
+			api.Handler().ServeHTTP(response, request)
+			require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+			assert.Empty(t, query.lastKind)
+		})
+	}
 }

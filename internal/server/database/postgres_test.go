@@ -108,7 +108,7 @@ func TestDB_ContextDeadlineCanBeNarrower(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestDB_RecordsExecutionAndPoolMetrics(t *testing.T) {
+func TestDB_RecordsExecutionMetrics(t *testing.T) {
 	dbMock, mock, db := setupMockDB(t)
 	defer dbMock.Close()
 	metrics := observability.NewRegistry(10)
@@ -119,10 +119,9 @@ func TestDB_RecordsExecutionAndPoolMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	operations := metrics.Snapshot()
-	require.Len(t, operations, 2)
-	assert.EqualValues(t, 1, operationSnapshotByName(t, operations, "database.exec").Count)
+	require.Len(t, operations, 1)
 	assert.EqualValues(t, 1, operationSnapshotByName(t, operations, "database.operation").Count)
-	assert.NotEmpty(t, metrics.Gauges())
+	assert.Empty(t, metrics.Gauges())
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

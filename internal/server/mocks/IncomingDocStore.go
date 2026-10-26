@@ -62,23 +62,23 @@ func (_m *IncomingDocStore) GetByIDs(ids []uuid.UUID) ([]models.IncomingDocument
 }
 
 // GetList provides a mock function with given fields: filter
-func (_m *IncomingDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error) {
+func (_m *IncomingDocStore) GetList(filter models.DocumentFilter) (*models.CursorResult[models.IncomingDocument], error) {
 	ret := _m.Called(filter)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetList")
 	}
 
-	var r0 *models.PagedResult[models.IncomingDocument]
+	var r0 *models.CursorResult[models.IncomingDocument]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error)); ok {
+	if rf, ok := ret.Get(0).(func(models.DocumentFilter) (*models.CursorResult[models.IncomingDocument], error)); ok {
 		return rf(filter)
 	}
-	if rf, ok := ret.Get(0).(func(models.DocumentFilter) *models.PagedResult[models.IncomingDocument]); ok {
+	if rf, ok := ret.Get(0).(func(models.DocumentFilter) *models.CursorResult[models.IncomingDocument]); ok {
 		r0 = rf(filter)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.PagedResult[models.IncomingDocument])
+			r0 = ret.Get(0).(*models.CursorResult[models.IncomingDocument])
 		}
 	}
 

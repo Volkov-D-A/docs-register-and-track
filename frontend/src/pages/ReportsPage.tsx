@@ -1,3 +1,4 @@
+import { isDocumentUpdateEvent } from '../events/documentEvents';
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { App, Button, Card, DatePicker, Select, Space, Spin, Table, Typography } from 'antd';
 import { DownloadOutlined, PlayCircleOutlined } from '@ant-design/icons';
@@ -49,7 +50,7 @@ const ReportsPage: React.FC = () => {
 
   useEffect(() => {
     const stop = onServerEvent((event) => {
-      if (!['resync', 'access-changed', 'documents', 'document-changed'].includes(event.topic)) return;
+      if (!isDocumentUpdateEvent(event)) return;
       generation.current += 1; filtersGeneration.current += 1; setResult(undefined); setFilterOptions(undefined);
       setOrganizations([]); setDepartments([]);
       setOrganizationId(undefined); setDepartmentId(undefined); setNomenclatureId(undefined); setUserId(undefined);

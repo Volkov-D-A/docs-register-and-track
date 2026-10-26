@@ -1,3 +1,4 @@
+import { isDocumentUpdateEvent } from '../events/documentEvents';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App, Button, Card, Space, Statistic, Table, Typography } from 'antd';
 import { models } from '../../wailsjs/go/models';
@@ -59,7 +60,7 @@ export default function DeadlineDashboardPage({ onOpenControls, onOpenRegister }
   useEffect(() => {
     const stop = onDeadlinesChanged(() => { void load(); });
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const stopServer = onServerEvent((event) => { if (['resync', 'access-changed', 'documents', 'document-changed'].includes(event.topic)) { setCounts([]); setItems([]); setExecutors({}); clearTimeout(timer); timer = setTimeout(() => { void load(); }, 100); } });
+    const stopServer = onServerEvent((event) => { if (isDocumentUpdateEvent(event)) { setCounts([]); setItems([]); setExecutors({}); clearTimeout(timer); timer = setTimeout(() => { void load(); }, 100); } });
     const resume = () => { if (window.document.visibilityState === 'hidden') return; setRefreshVersion((value) => value + 1); void load(); };
     window.addEventListener('focus', resume);
     window.document.addEventListener('visibilitychange', resume);

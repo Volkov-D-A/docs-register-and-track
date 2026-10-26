@@ -26,7 +26,7 @@ func NewOutgoingDocumentRepository(db *database.DB) *OutgoingDocumentRepository 
 }
 
 // GetList возвращает список исходящих документов с учетом фильтрации и пагинации.
-func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error) {
+func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilter) (*models.CursorResult[models.OutgoingDocument], error) {
 	where := []string{"1=1"}
 	args := []interface{}{}
 	argIdx := 1
@@ -52,22 +52,22 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		argIdx++
 	}
 	if filter.DateFrom != "" {
-		where = append(where, fmt.Sprintf("out.outgoing_date >= $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.registration_date >= $%d", argIdx))
 		args = append(args, filter.DateFrom)
 		argIdx++
 	}
 	if filter.DateTo != "" {
-		where = append(where, fmt.Sprintf("out.outgoing_date <= $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.registration_date <= $%d", argIdx))
 		args = append(args, filter.DateTo)
 		argIdx++
 	}
 	if filter.Search != "" {
-		where = append(where, fmt.Sprintf("(d.content ILIKE $%d OR out.outgoing_number ILIKE $%d)", argIdx, argIdx))
+		where = append(where, fmt.Sprintf("(d.content ILIKE $%d OR d.registration_number ILIKE $%d)", argIdx, argIdx))
 		args = append(args, "%"+filter.Search+"%")
 		argIdx++
 	}
 	if filter.OutgoingNumber != "" {
-		where = append(where, fmt.Sprintf("out.outgoing_number ILIKE $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.registration_number ILIKE $%d", argIdx))
 		args = append(args, "%"+filter.OutgoingNumber+"%")
 		argIdx++
 	}
@@ -77,31 +77,17 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		argIdx++
 	}
 
-	var totalCount int
-	if err := applyDocumentCursor(&where, &args, &argIdx, filter.CursorPagination, filter.Cursor); err != nil {
+	if err := applyDocumentCursor(&where, &args, &argIdx, filter.Cursor); err != nil {
 		return nil, err
 	}
-	filter.Page, filter.PageSize = normalizePagination(filter.Page, filter.PageSize)
+	_, filter.PageSize = normalizePagination(1, filter.PageSize)
 	whereClause := strings.Join(where, " AND ")
-	if !filter.CursorPagination {
-		countQuery := fmt.Sprintf(`
-			SELECT COUNT(*) FROM documents d
-			JOIN outgoing_document_details out ON out.document_id = d.id
-			WHERE %s
-		`, whereClause)
-		if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
-			return nil, fmt.Errorf("failed to count documents: %w", err)
-		}
-	}
 
-	limit := filter.PageSize
-	if filter.CursorPagination {
-		limit++
-	}
+	limit := filter.PageSize + 1
 	query := fmt.Sprintf(`
 		SELECT 
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
-			out.outgoing_number, out.outgoing_date,
+			d.registration_number, d.registration_date,
 			d.document_type,
 			d.content, d.pages_count, d.attachment_pages_count,
 			out.sender_signatory, out.sender_executor,
@@ -115,12 +101,9 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		JOIN users u ON d.created_by = u.id
 		WHERE %s
 		ORDER BY d.created_at DESC, d.id DESC
-		LIMIT $%d%s
-	`, whereClause, argIdx, map[bool]string{true: "", false: fmt.Sprintf(" OFFSET $%d", argIdx+1)}[filter.CursorPagination])
+		LIMIT $%d
+	`, whereClause, argIdx)
 	args = append(args, limit)
-	if !filter.CursorPagination {
-		args = append(args, (filter.Page-1)*filter.PageSize)
-	}
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -151,7 +134,7 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 		return nil, err
 	}
 
-	hasMore := filter.CursorPagination && len(items) > filter.PageSize
+	hasMore := len(items) > filter.PageSize
 	if hasMore {
 		items = items[:filter.PageSize]
 	}
@@ -164,10 +147,8 @@ func (r *OutgoingDocumentRepository) GetList(filter models.OutgoingDocumentFilte
 			return nil, err
 		}
 	}
-	return &models.PagedResult[models.OutgoingDocument]{
+	return &models.CursorResult[models.OutgoingDocument]{
 		Items:      items,
-		TotalCount: totalCount,
-		Page:       filter.Page,
 		PageSize:   filter.PageSize,
 		NextCursor: nextCursor,
 		HasMore:    hasMore,
@@ -180,7 +161,7 @@ func (r *OutgoingDocumentRepository) GetByID(id uuid.UUID) (*models.OutgoingDocu
 	err := r.db.QueryRow(`
 		SELECT 
 			d.id, d.nomenclature_id, n.index || ' — ' || n.name as nomenclature_name,
-			out.outgoing_number, out.outgoing_date,
+			d.registration_number, d.registration_date,
 			d.document_type,
 			d.content, d.pages_count, d.attachment_pages_count,
 			out.sender_signatory, out.sender_executor,
@@ -221,7 +202,7 @@ func (r *OutgoingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Outgoin
 		return []models.OutgoingDocument{}, nil
 	}
 	rows, err := r.db.Query(`
-        SELECT d.id, out.outgoing_number, out.outgoing_date, d.content, ro.name
+        SELECT d.id, d.registration_number, d.registration_date, d.content, ro.name
         FROM documents d
         JOIN outgoing_document_details out ON out.document_id = d.id
         JOIN organizations ro ON out.recipient_org_id = ro.id
@@ -246,14 +227,7 @@ func (r *OutgoingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Outgoin
 // CreateWithJournal records document registration and its journal entry in one
 // transaction. The repository creates the document ID and registration number,
 // so it is the only layer that can build this event before commit.
-func (r *OutgoingDocumentRepository) CreateWithJournal(req models.CreateOutgoingDocRequest, action, detailsFormat string) (*models.OutgoingDocument, error) {
-	return r.create(req, action, detailsFormat)
-}
-
-func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest, journalAction, journalDetailsFormat string) (*models.OutgoingDocument, error) {
-	if req.Link != nil && req.CommandHash == "" {
-		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
-	}
+func (r *OutgoingDocumentRepository) CreateWithJournal(req models.CreateOutgoingDocRequest, journalAction, journalDetailsFormat string) (*models.OutgoingDocument, error) {
 	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
@@ -276,50 +250,26 @@ func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest,
 		return r.GetByID(existingCommandID)
 	}
 
-	var registration *registrationNumberResult
+	var registration string
 	if req.AdminNumberOverride != nil {
-		registration, err = resolveAdminRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindOutgoingLetter, req.NomenclatureID, req.IdempotencyKey, req.AdminNumberOverride)
+		registration, err = resolveAdminRegistrationNumberTx(tx, models.DocumentKindOutgoingLetter, req.NomenclatureID, req.AdminNumberOverride)
 	} else {
-		registration, err = resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindOutgoingLetter, req.NomenclatureID, req.IdempotencyKey, req.OutgoingNumber)
+		registration, err = resolveRegistrationNumberTx(tx, models.DocumentKindOutgoingLetter, req.NomenclatureID, req.OutgoingNumber)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if registration.Existing != uuid.Nil {
-		if req.Link != nil {
-			return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
-		}
-		if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, registration.Existing); err != nil {
-			return nil, err
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
-		}
-		return r.GetByID(registration.Existing)
-	}
-	req.OutgoingNumber = registration.Number
+
+	req.OutgoingNumber = registration
 
 	var id uuid.UUID
 	err = tx.QueryRow(`
-		INSERT INTO documents (
-			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		RETURNING id
+		INSERT INTO documents (kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)RETURNING id
 	`,
-		models.DocumentKindOutgoingLetter, req.NomenclatureID, req.IdempotencyKey, req.OutgoingNumber, req.OutgoingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
+		models.DocumentKindOutgoingLetter, req.NomenclatureID, req.OutgoingNumber, req.OutgoingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
-		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
-			if req.Link != nil {
-				return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
-			}
-			_ = tx.Rollback()
-			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindOutgoingLetter, req.IdempotencyKey)
-			if lookupErr != nil {
-				return nil, fmt.Errorf("failed to resolve idempotent document: %w", lookupErr)
-			}
-			return r.GetByID(existingID)
-		}
+
 		if isUniqueViolation(err, "idx_documents_kind_registration_number_year") {
 			return nil, models.NewConflict("документ с таким регистрационным номером уже существует")
 		}
@@ -327,26 +277,15 @@ func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest,
 	}
 
 	if _, err = tx.Exec(`
-		INSERT INTO outgoing_document_details (
-			document_id, outgoing_number, outgoing_date,
-			sender_signatory, sender_executor,
-			recipient_org_id, addressee
-		) VALUES ($1,$2,$3,$4,$5,$6,$7)
-	`,
-		id, req.OutgoingNumber, req.OutgoingDate,
+		INSERT INTO outgoing_document_details (document_id, sender_signatory, sender_executor, recipient_org_id, addressee) VALUES ($1, $2, $3, $4, $5)`,
+		id,
 		req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee,
 	); err != nil {
 		return nil, fmt.Errorf("failed to create outgoing document details: %w", err)
 	}
-	if journalAction != "" {
-		if r.outbox == nil {
-			return nil, fmt.Errorf("outbox repository is required for document journal")
-		}
-		payload := fmt.Sprintf(`{"documentId":"%s","userId":"%s","action":%q,"details":%q}`, id, req.CreatedBy, journalAction, fmt.Sprintf(journalDetailsFormat, req.OutgoingNumber))
-		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "outgoing:" + id.String() + ":create:journal", Payload: payload}); err != nil {
-			return nil, err
-		}
+	if err := enqueueDocumentCreationJournalTx(r.outbox, tx, id, req.CreatedBy, "outgoing:"+id.String()+":create:journal", journalAction, journalDetailsFormat, req.OutgoingNumber); err != nil {
+		return nil, err
 	}
 	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
 		return nil, err
@@ -363,10 +302,6 @@ func (r *OutgoingDocumentRepository) create(req models.CreateOutgoingDocRequest,
 }
 
 func (r *OutgoingDocumentRepository) UpdateWithOutbox(req models.UpdateOutgoingDocRequest, effects []models.OutboxEvent) (*models.OutgoingDocument, error) {
-	return r.update(req, effects)
-}
-
-func (r *OutgoingDocumentRepository) update(req models.UpdateOutgoingDocRequest, effects []models.OutboxEvent) (*models.OutgoingDocument, error) {
 	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
@@ -395,24 +330,24 @@ func (r *OutgoingDocumentRepository) update(req models.UpdateOutgoingDocRequest,
 			content = $2,
 			pages_count = $3,
 			attachment_pages_count = $4,
+			registration_date = $5,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $5 AND kind = $6
+		WHERE id = $6 AND kind = $7
 	`,
-		req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.ID, models.DocumentKindOutgoingLetter,
+		req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.OutgoingDate, req.ID, models.DocumentKindOutgoingLetter,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update document root: %w", err)
 	}
 
 	if _, err = tx.Exec(`
 		UPDATE outgoing_document_details SET
-			outgoing_date = $1,
-			sender_signatory = $2,
-			sender_executor = $3,
-			recipient_org_id = $4,
-			addressee = $5
-		WHERE document_id = $6
+			sender_signatory = $1,
+			sender_executor = $2,
+			recipient_org_id = $3,
+			addressee = $4
+		WHERE document_id = $5
 	`,
-		req.OutgoingDate, req.SenderSignatory, req.SenderExecutor,
+		req.SenderSignatory, req.SenderExecutor,
 		req.RecipientOrgID, req.Addressee, req.ID,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update outgoing document details: %w", err)

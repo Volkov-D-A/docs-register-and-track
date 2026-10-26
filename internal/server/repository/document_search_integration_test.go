@@ -32,18 +32,18 @@ func TestDocumentSearchIntegration(t *testing.T) {
 		return id
 	}
 	incoming := insert(models.DocumentKindIncomingLetter, "О ремонте дороги и ёлке")
-	execSQL(t, db, `INSERT INTO incoming_document_details (document_id, incoming_number, incoming_date, sender_signatory)
-        VALUES ($1, '123', CURRENT_DATE, 'Иванов И.И.')`, incoming)
+	execSQL(t, db, `INSERT INTO incoming_document_details (document_id, sender_signatory)
+        VALUES ($1, 'Иванов И.И.')`, incoming)
 	execSQL(t, db, `INSERT INTO document_correspondent_registrations (document_id, registration_number, registration_date, correspondent_org_id, position)
         VALUES ($1, '1', CURRENT_DATE, $2, 1), ($1, '2', CURRENT_DATE, $2, 2)`, incoming, org)
 	execSQL(t, db, `INSERT INTO document_resolutions (document_id, resolution, position)
         VALUES ($1, 'Первичная резолюция', 1), ($1, 'Подготовить ответ', 2)`, incoming)
 	outgoing := insert(models.DocumentKindOutgoingLetter, "Согласование проекта")
-	execSQL(t, db, `INSERT INTO outgoing_document_details (document_id, outgoing_number, outgoing_date, sender_signatory, sender_executor, recipient_org_id, addressee)
-        VALUES ($1, '456', CURRENT_DATE, 'Сидоров', 'Неиндексируемый', $2, 'Петров')`, outgoing, org)
+	execSQL(t, db, `INSERT INTO outgoing_document_details (document_id, sender_signatory, sender_executor, recipient_org_id, addressee)
+        VALUES ($1, 'Сидоров', 'Неиндексируемый', $2, 'Петров')`, outgoing, org)
 	order := insert(models.DocumentKindAdministrativeOrder, "Скрытый старый текст")
-	execSQL(t, db, `INSERT INTO administrative_order_details (document_id, order_number, order_date, title)
-        VALUES ($1, '789', CURRENT_DATE, 'О ремонте здания')`, order)
+	execSQL(t, db, `INSERT INTO administrative_order_details (document_id, title)
+        VALUES ($1, 'О ремонте здания')`, order)
 	appeal := insert(models.DocumentKindCitizenAppeal, "Обращение гражданина")
 	execSQL(t, db, `INSERT INTO document_resolutions (document_id, resolution) VALUES ($1, 'Проверить ремонт')`, appeal)
 	search := func(query string, page, size int, access map[models.DocumentKind]models.DocumentAccessScope) *dto.DocumentSearchResult {
@@ -105,6 +105,18 @@ func TestDocumentSearchIntegration(t *testing.T) {
 	execSQL(t, db, `UPDATE organizations SET name = 'Муниципалитет' WHERE id = $1`, org)
 	require.Empty(t, search("администрация", 1, 20, scopes).Items)
 	require.Equal(t, 2, search("муниципалитет", 1, 20, scopes).TotalCount)
+	// Distinct principals and selected kinds must not share each other's visibility.
+	mixed := map[models.DocumentKind]models.DocumentAccessScope{
+		models.DocumentKindIncomingLetter: {UserID: user.String()},
+		models.DocumentKindOutgoingLetter: {UserID: reader.String()},
+	}
+	require.Equal(t, []string{incoming.String()}, ids(search("муниципалитет", 1, 20, mixed)))
+	mixed[models.DocumentKindIncomingLetter] = models.DocumentAccessScope{}
+	require.Empty(t, search("муниципалитет", 1, 20, mixed).Items)
+	execSQL(t, db, `INSERT INTO user_system_permissions(user_id,permission,is_allowed) VALUES($1,'admin',TRUE)`, user)
+	execSQL(t, db, `UPDATE users SET is_active=false WHERE id=$1`, reader)
+	require.Empty(t, search("ремонт", 1, 20, restricted).Items)
+
 	execSQL(t, db, `UPDATE document_resolutions SET resolution = 'Обновленная резолюция' WHERE document_id = $1`, appeal)
 	require.Equal(t, []string{appeal.String()}, ids(search("обновленная", 1, 20, scopes)))
 	require.Empty(t, search("% _", 1, 20, scopes).Items)

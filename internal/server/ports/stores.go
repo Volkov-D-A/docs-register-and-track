@@ -11,21 +11,21 @@ import (
 
 // IncomingDocStore — интерфейс для работы с входящими документами в хранилище.
 type IncomingDocStore interface {
-	GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error)
+	GetList(filter models.DocumentFilter) (*models.CursorResult[models.IncomingDocument], error)
 	GetByID(id uuid.UUID) (*models.IncomingDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.IncomingDocument, error)
 }
 
 // CitizenAppealDocStore — интерфейс для работы с обращениями граждан в хранилище.
 type CitizenAppealDocStore interface {
-	GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error)
+	GetList(filter models.DocumentFilter) (*models.CursorResult[models.CitizenAppealDocument], error)
 	GetByID(id uuid.UUID) (*models.CitizenAppealDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.CitizenAppealDocument, error)
 }
 
 // AdministrativeOrderDocStore — интерфейс для работы с приказами в хранилище.
 type AdministrativeOrderDocStore interface {
-	GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error)
+	GetList(filter models.DocumentFilter) (*models.CursorResult[models.AdministrativeOrderDocument], error)
 	GetByID(id uuid.UUID) (*models.AdministrativeOrderDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.AdministrativeOrderDocument, error)
 	GetAcknowledgmentPersonByID(id uuid.UUID) (*models.AdministrativeOrderAcknowledgmentPerson, error)
@@ -44,7 +44,7 @@ type DocumentAccessStore interface {
 
 // OutgoingDocStore — интерфейс для работы с исходящими документами в хранилище.
 type OutgoingDocStore interface {
-	GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error)
+	GetList(filter models.OutgoingDocumentFilter) (*models.CursorResult[models.OutgoingDocument], error)
 	GetByID(id uuid.UUID) (*models.OutgoingDocument, error)
 	GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocument, error)
 }

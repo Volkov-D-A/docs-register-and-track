@@ -61,8 +61,8 @@ func TestLinkedRegistrationAtomicityAndReplayIntegration(t *testing.T) {
 			execSQL(t, db.SQLDB(), `INSERT INTO organizations(id,name) VALUES($1,'Linked Org')`, orgID)
 			execSQL(t, db.SQLDB(), `INSERT INTO nomenclature(id,name,index,year,kind_code,numbering_mode,next_number) VALUES($1,'New','LINK',2026,$2,'index_and_number',1)`, nomID, kind)
 			execSQL(t, db.SQLDB(), `INSERT INTO nomenclature(id,name,index,year,kind_code) VALUES($1,'Existing','OLD',2026,'administrative_order')`, targetNomID)
-			execSQL(t, db.SQLDB(), `INSERT INTO documents(id,kind,nomenclature_id,registration_number,registration_date,document_type,content,created_by) VALUES($1,'administrative_order',$2,'OLD-1','2026-09-01','Приказ','Existing',$3)`, targetID, targetNomID, userID)
-			execSQL(t, db.SQLDB(), `INSERT INTO administrative_order_details(document_id,order_number,order_date,title) VALUES($1,'OLD-1','2026-09-01','Existing')`, targetID)
+			execSQL(t, db.SQLDB(), `INSERT INTO documents(id, kind, nomenclature_id, registration_number, registration_date, document_type, content, created_by) VALUES($1, 'administrative_order', $2, 'OLD-1', '2026-09-01', 'Приказ', 'Existing', $3)`, targetID, targetNomID, userID)
+			execSQL(t, db.SQLDB(), `INSERT INTO administrative_order_details(document_id, title) VALUES($1, 'Existing')`, targetID)
 			key := uuid.New()
 			link := &models.DocumentRegistrationLink{DocumentID: uuid.New(), LinkType: "related"}
 			if kind == models.DocumentKindAdministrativeOrder {

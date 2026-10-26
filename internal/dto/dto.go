@@ -283,15 +283,12 @@ type DocumentLink struct {
 	TargetSubject string `json:"targetSubject,omitempty"`
 }
 
-// Attachment описывает DTO прикрепленного файла.
 // PagedResult описывает DTO постраничного результата.
 type PagedResult[T any] struct {
-	Items      []T    `json:"items"`
-	TotalCount int    `json:"totalCount"`
-	Page       int    `json:"page"`
-	PageSize   int    `json:"pageSize"`
-	NextCursor string `json:"nextCursor,omitempty"`
-	HasMore    bool   `json:"hasMore"`
+	Items      []T `json:"items"`
+	TotalCount int `json:"totalCount"`
+	Page       int `json:"page"`
+	PageSize   int `json:"pageSize"`
 }
 
 // UserEvent описывает DTO персонального события пользователя.
@@ -348,4 +345,12 @@ type WorkspaceDocument struct {
 	RegisteredAt   time.Time `json:"registeredAt"`
 	Description    string    `json:"description"`
 	Correspondents []string  `json:"correspondents"`
+}
+
+// CursorResult contains a document window and an opaque continuation token.
+type CursorResult[T any] struct {
+	Items      []T    `json:"items"`
+	PageSize   int    `json:"pageSize"`
+	NextCursor string `json:"nextCursor,omitempty"`
+	HasMore    bool   `json:"hasMore"`
 }

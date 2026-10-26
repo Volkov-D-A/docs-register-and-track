@@ -2,7 +2,6 @@ package repository
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/dto"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -13,27 +12,15 @@ import (
 func (r *DocumentRepository) SearchDocuments(request dto.DocumentSearchRequest, scopes map[models.DocumentKind]models.DocumentAccessScope) (*dto.DocumentSearchResult, error) {
 	result := &dto.DocumentSearchResult{Items: []dto.DocumentSearchItem{}, Page: request.Page, PageSize: request.PageSize}
 	args := []interface{}{request.Query}
-	argIdx := 2
-	allowed := []string{}
-	for _, spec := range models.AllDocumentKindSpecs() {
-		scope, ok := scopes[spec.Code]
-		if !ok {
-			continue
-		}
-		where := []string{fmt.Sprintf("d.kind = $%d", argIdx)}
-		args = append(args, string(spec.Code))
-		argIdx++
-		applyDocumentListAccess(&where, &args, &argIdx, scope)
-		allowed = append(allowed, "("+strings.Join(where, " AND ")+")")
-	}
-	if len(allowed) == 0 {
+	visibility, allowed := documentVisibilityScopes(scopes, &args)
+	if allowed == "" {
 		return result, nil
 	}
-	limit, offset := argIdx, argIdx+1
+	limit, offset := len(args)+1, len(args)+2
 	args = append(args, request.PageSize, (request.Page-1)*request.PageSize)
 	// plainto_tsquery requires all meaningful words, regardless of which card
 	// field contains them. Simple configuration also permits stop-word-only queries.
-	query := `WITH query_config AS (
+	query := visibility + `, query_config AS (
         SELECT CASE WHEN numnode(plainto_tsquery('russian', replace(lower($1), 'ё', 'е'))) = 0
             THEN 'simple'::regconfig ELSE 'russian'::regconfig END AS config
     ), search_query AS (
@@ -62,7 +49,7 @@ func (r *DocumentRepository) SearchDocuments(request dto.DocumentSearchRequest, 
             JOIN organizations o ON o.id = cr.correspondent_org_id
             WHERE cr.document_id = d.id
         ) corr ON true
-        WHERE ` + strings.Join(allowed, " OR ") + `
+        WHERE ` + allowed + `
     ), vectors AS (
         SELECT f.*, q.terms,
             setweight(to_tsvector(q.config, replace(lower(content), 'ё', 'е')), 'A') ||

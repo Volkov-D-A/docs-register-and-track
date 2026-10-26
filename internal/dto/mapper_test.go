@@ -459,24 +459,6 @@ func TestMapSlices(t *testing.T) {
 		assert.Equal(t, "O1", res[0].Name)
 	})
 
-	t.Run("MapIncomingDocuments nil", func(t *testing.T) {
-		assert.Nil(t, MapIncomingDocuments(nil))
-	})
-	t.Run("MapIncomingDocuments success", func(t *testing.T) {
-		res := MapIncomingDocuments([]models.IncomingDocument{{ID: uuid.New(), IncomingNumber: "IN1"}})
-		require.Len(t, res, 1)
-		assert.Equal(t, "IN1", res[0].IncomingNumber)
-	})
-
-	t.Run("MapOutgoingDocuments nil", func(t *testing.T) {
-		assert.Nil(t, MapOutgoingDocuments(nil))
-	})
-	t.Run("MapOutgoingDocuments success", func(t *testing.T) {
-		res := MapOutgoingDocuments([]models.OutgoingDocument{{ID: uuid.New(), OutgoingNumber: "OUT1"}})
-		require.Len(t, res, 1)
-		assert.Equal(t, "OUT1", res[0].OutgoingNumber)
-	})
-
 	t.Run("MapDocumentLinks nil", func(t *testing.T) {
 		assert.Nil(t, MapDocumentLinks(nil))
 	})
@@ -711,16 +693,11 @@ func TestMapAdministrativeOrderDocumentCardAndListItem(t *testing.T) {
 
 func TestMapCitizenAppealAndAdministrativeOrderSlices(t *testing.T) {
 	t.Run("citizen appeals nil", func(t *testing.T) {
-		assert.Nil(t, MapCitizenAppealDocuments(nil))
 		assert.Nil(t, MapDocumentListItemsFromCitizenAppeals(nil))
 	})
 
 	t.Run("citizen appeals success", func(t *testing.T) {
 		items := []models.CitizenAppealDocument{{ID: uuid.New(), RegistrationNumber: "CA-1"}}
-		docs := MapCitizenAppealDocuments(items)
-		require.Len(t, docs, 1)
-		assert.Equal(t, "CA-1", docs[0].RegistrationNumber)
-
 		listItems := MapDocumentListItemsFromCitizenAppeals(items)
 		require.Len(t, listItems, 1)
 		assert.Equal(t, "CA-1", listItems[0].RegistrationNumber)

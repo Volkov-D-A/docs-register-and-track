@@ -69,7 +69,7 @@ func setupLinkServiceWithAccessStore(t *testing.T, role string, accessStore port
 
 	accessSvc := NewDocumentAccessService(auth, accessStore, &kindBackedDocumentStore{incoming: incRepo, outgoing: outRepo})
 
-	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, nil, accessSvc, auth, nil)
+	svc := NewLinkService(linkRepo, incRepo, outRepo, nil, nil, accessSvc, auth)
 	return svc, linkRepo, incRepo, outRepo, auth
 }
 
@@ -104,7 +104,7 @@ type mapAdministrativeOrderDocStore struct {
 	docs map[uuid.UUID]*models.AdministrativeOrderDocument
 }
 
-func (s *mapCitizenAppealDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error) {
+func (s *mapCitizenAppealDocStore) GetList(filter models.DocumentFilter) (*models.CursorResult[models.CitizenAppealDocument], error) {
 	return nil, nil
 }
 
@@ -122,7 +122,7 @@ func (s *mapCitizenAppealDocStore) GetByIDs(ids []uuid.UUID) ([]models.CitizenAp
 	return result, nil
 }
 
-func (s *mapAdministrativeOrderDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error) {
+func (s *mapAdministrativeOrderDocStore) GetList(filter models.DocumentFilter) (*models.CursorResult[models.AdministrativeOrderDocument], error) {
 	return nil, nil
 }
 

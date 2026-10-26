@@ -34,7 +34,7 @@ func TestDocumentQueryClientUsesTypedEndpoints(t *testing.T) {
 			filter := body["filter"].(map[string]any)
 			assert.Equal(t, "needle", filter["search"])
 			assert.NotContains(t, filter, "accessScope")
-			return response(http.StatusOK, `{"items":[],"totalCount":0,"page":1,"pageSize":20,"hasMore":false}`), nil
+			return response(http.StatusOK, `{"items":[],"pageSize":20,"hasMore":false}`), nil
 		default:
 			t.Fatalf("unexpected request %d", requestNumber)
 			return nil, nil
@@ -45,7 +45,7 @@ func TestDocumentQueryClientUsesTypedEndpoints(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, id, card.ID)
 	result, err := client.ListDocuments(context.Background(), "incoming_letter", models.DocumentFilter{
-		Search: "needle", Page: 1, PageSize: 20,
+		Search: "needle", PageSize: 20,
 		AccessScope: &models.DocumentAccessScope{},
 	})
 	require.NoError(t, err)

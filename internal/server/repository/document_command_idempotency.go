@@ -10,10 +10,10 @@ import (
 )
 
 func reserveDocumentCommandTx(tx *sql.Tx, principalID uuid.UUID, operation string, key uuid.UUID, requestHash string) (uuid.UUID, error) {
-	if requestHash == "" {
-		return uuid.Nil, nil
+	if key == uuid.Nil {
+		return uuid.Nil, models.NewBadRequest("отсутствует ключ идемпотентности")
 	}
-	if principalID == uuid.Nil || key == uuid.Nil || operation == "" {
+	if principalID == uuid.Nil || operation == "" || requestHash == "" {
 		return uuid.Nil, models.NewBadRequest("неверный ключ идемпотентности команды")
 	}
 
@@ -71,9 +71,6 @@ func reserveDocumentCommandTx(tx *sql.Tx, principalID uuid.UUID, operation strin
 }
 
 func completeDocumentCommandTx(tx *sql.Tx, principalID uuid.UUID, operation string, key uuid.UUID, requestHash string, documentID uuid.UUID) error {
-	if requestHash == "" {
-		return nil
-	}
 	result, err := tx.Exec(`
 		UPDATE document_command_idempotency
 		SET document_id = $5

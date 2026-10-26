@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"database/sql"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/database"
 
@@ -20,8 +19,16 @@ func NewAdminAuditLogRepository(db *database.DB) *AdminAuditLogRepository {
 
 // Create создает новую запись в журнале действий администраторов.
 func (r *AdminAuditLogRepository) Create(req models.CreateAdminAuditLogRequest) (uuid.UUID, error) {
-	return r.create(req, "")
+	query := `
+		INSERT INTO admin_audit_log (user_id, user_name, action, details, outbox_deduplication_key)
+		VALUES ($1, $2, $3, $4, NULLIF($5, '')) ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING
+		RETURNING id
+	`
+	var id uuid.UUID
+	err := r.db.QueryRow(query, req.UserID, req.UserName, req.Action, req.Details, "").Scan(&id)
+	return id, err
 }
+
 func (r *AdminAuditLogRepository) CreateFromOutbox(req models.CreateAdminAuditLogRequest, key string) error {
 	_, err := r.db.Exec(`
 		INSERT INTO admin_audit_log (user_id, user_name, action, details, outbox_deduplication_key)
@@ -29,19 +36,6 @@ func (r *AdminAuditLogRepository) CreateFromOutbox(req models.CreateAdminAuditLo
 		ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING
 	`, req.UserID, req.UserName, req.Action, req.Details, key)
 	return err
-}
-func (r *AdminAuditLogRepository) create(req models.CreateAdminAuditLogRequest, key string) (uuid.UUID, error) {
-	query := `
-		INSERT INTO admin_audit_log (user_id, user_name, action, details, outbox_deduplication_key)
-		VALUES ($1, $2, $3, $4, NULLIF($5, '')) ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING
-		RETURNING id
-	`
-	var id uuid.UUID
-	err := r.db.QueryRow(query, req.UserID, req.UserName, req.Action, req.Details, key).Scan(&id)
-	if err == sql.ErrNoRows && key != "" {
-		return uuid.Nil, nil
-	}
-	return id, err
 }
 
 // GetAll возвращает список записей журнала с пагинацией и общее количество.

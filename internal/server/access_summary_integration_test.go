@@ -41,7 +41,6 @@ func TestCurrentAccessSummaryMatchesIndividualPermissionChecksIntegration(t *tes
 		{"incoming_letter", "department", departmentID.String(), "control_deadlines", true},
 		{"incoming_letter", "user", userID.String(), "control_deadlines", false},
 		{"incoming_letter", "user", userID.String(), "register", true},
-		{"incoming_letter", "role", "clerk", "register", true},
 		{"outgoing_letter", "user", userID.String(), "register", true},
 		{"citizen_appeal", "department", departmentID.String(), "control_deadlines", false},
 		{"administrative_order", "user", otherID.String(), "register", true},

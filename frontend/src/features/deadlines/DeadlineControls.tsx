@@ -1,3 +1,4 @@
+import { isDocumentUpdateEvent } from '../../events/documentEvents';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, DatePicker, Form, Input, InputNumber, Modal, Radio, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import { CalendarOutlined, ClearOutlined, CheckOutlined, CloseOutlined, EditOutlined, HistoryOutlined, PlusOutlined } from '@ant-design/icons';
@@ -73,7 +74,7 @@ export default function DeadlineControls({ documentId = '', documentKind = '', s
     const stopLocal = onDeadlinesChanged(() => { void load(); });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stopServer = onServerEvent((event) => {
-      if (['resync', 'access-changed', 'documents', 'document-changed'].includes(event.topic)) {
+      if (isDocumentUpdateEvent(event)) {
         if (event.topic === 'resync' || event.topic === 'access-changed') { setResult(undefined); setEditor(undefined); setSeries(undefined); }
         clearTimeout(timer); timer = setTimeout(() => { void load(); }, 100);
       }

@@ -28,7 +28,7 @@ func NewIncomingDocumentRepository(db *database.DB) *IncomingDocumentRepository 
 // incomingDocSelectBase — базовый SELECT с JOIN'ами для входящих документов.
 const incomingDocSelectBase = `
 	SELECT d.id, d.nomenclature_id, n.index || ' — ' || n.name,
-		inc.incoming_number, inc.incoming_date,
+		d.registration_number, d.registration_date,
 		d.document_type,
 		d.content, d.pages_count, d.attachment_pages_count,
 		inc.sender_signatory,
@@ -54,17 +54,24 @@ func scanIncomingDoc(scanner interface{ Scan(...interface{}) error }) (*models.I
 	return doc, err
 }
 
-func (r *IncomingDocumentRepository) loadResolution(documentID uuid.UUID) (*models.DocumentResolution, error) {
-	resolution := &models.DocumentResolution{}
+// incomingResolution contains only the first resolution's displayed text.
+// Identity and position remain in SQL ordering, not in the read projection.
+type incomingResolution struct {
+	Resolution          *string
+	ResolutionAuthor    *string
+	ResolutionExecutors *string
+}
+
+func (r *IncomingDocumentRepository) loadResolution(documentID uuid.UUID) (*incomingResolution, error) {
+	resolution := &incomingResolution{}
 	err := r.db.QueryRow(`
-		SELECT id, document_id, resolution, resolution_author, resolution_executors, position
+		SELECT resolution, resolution_author, resolution_executors
 		FROM document_resolutions
 		WHERE document_id = $1
 		ORDER BY position, created_at, id
 		LIMIT 1
 	`, documentID).Scan(
-		&resolution.ID, &resolution.DocumentID, &resolution.Resolution,
-		&resolution.ResolutionAuthor, &resolution.ResolutionExecutors, &resolution.Position,
+		&resolution.Resolution, &resolution.ResolutionAuthor, &resolution.ResolutionExecutors,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -77,14 +84,14 @@ func (r *IncomingDocumentRepository) loadResolution(documentID uuid.UUID) (*mode
 
 func loadFirstDocumentResolutionsByDocumentIDs(db interface {
 	Query(query string, args ...interface{}) (*sql.Rows, error)
-}, documentIDs []uuid.UUID) (map[uuid.UUID]*models.DocumentResolution, error) {
-	result := make(map[uuid.UUID]*models.DocumentResolution, len(documentIDs))
+}, documentIDs []uuid.UUID) (map[uuid.UUID]*incomingResolution, error) {
+	result := make(map[uuid.UUID]*incomingResolution, len(documentIDs))
 	if len(documentIDs) == 0 {
 		return result, nil
 	}
 
 	rows, err := db.Query(`
-		SELECT id, document_id, resolution, resolution_author, resolution_executors, position
+		SELECT document_id, resolution, resolution_author, resolution_executors
 		FROM (
 			SELECT id, document_id, resolution, resolution_author, resolution_executors, position,
 				ROW_NUMBER() OVER (PARTITION BY document_id ORDER BY position, created_at, id) AS rn
@@ -100,14 +107,14 @@ func loadFirstDocumentResolutionsByDocumentIDs(db interface {
 	defer rows.Close()
 
 	for rows.Next() {
-		item := &models.DocumentResolution{}
+		item := &incomingResolution{}
+		var documentID uuid.UUID
 		if err := rows.Scan(
-			&item.ID, &item.DocumentID, &item.Resolution,
-			&item.ResolutionAuthor, &item.ResolutionExecutors, &item.Position,
+			&documentID, &item.Resolution, &item.ResolutionAuthor, &item.ResolutionExecutors,
 		); err != nil {
 			return nil, fmt.Errorf("scan first document resolution error: %w", err)
 		}
-		result[item.DocumentID] = item
+		result[documentID] = item
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("first document resolutions rows error: %w", err)
@@ -116,7 +123,7 @@ func loadFirstDocumentResolutionsByDocumentIDs(db interface {
 	return result, nil
 }
 
-func applyResolution(doc *models.IncomingDocument, resolution *models.DocumentResolution) {
+func applyResolution(doc *models.IncomingDocument, resolution *incomingResolution) {
 	if doc == nil || resolution == nil {
 		return
 	}
@@ -193,8 +200,10 @@ func loadDocumentResolutionsByDocumentIDs(db interface {
 	return result, nil
 }
 
-func (r *IncomingDocumentRepository) loadCorrespondents(documentID uuid.UUID) ([]models.DocumentCorrespondentRegistration, error) {
-	rows, err := r.db.Query(`
+func loadDocumentCorrespondents(db interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}, documentID uuid.UUID) ([]models.DocumentCorrespondentRegistration, error) {
+	rows, err := db.Query(`
 		SELECT cr.id, cr.document_id, cr.registration_number, cr.registration_date,
 			cr.correspondent_org_id, o.name, cr.position
 		FROM document_correspondent_registrations cr
@@ -321,7 +330,7 @@ func replaceResolutions(tx *sql.Tx, documentID uuid.UUID, items []models.Documen
 }
 
 // GetList возвращает список входящих документов с учетом фильтрации и пагинации.
-func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error) {
+func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*models.CursorResult[models.IncomingDocument], error) {
 	where := []string{"1=1"}
 	args := []interface{}{}
 	argIdx := 1
@@ -334,10 +343,6 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 	if len(filter.NomenclatureIDs) > 0 {
 		where = append(where, fmt.Sprintf("d.nomenclature_id = ANY($%d)", argIdx))
 		args = append(args, pq.Array(filter.NomenclatureIDs))
-		argIdx++
-	} else if filter.NomenclatureID != "" {
-		where = append(where, fmt.Sprintf("d.nomenclature_id = $%d", argIdx))
-		args = append(args, filter.NomenclatureID)
 		argIdx++
 	}
 	if filter.DocumentTypeID != "" {
@@ -355,19 +360,19 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		argIdx++
 	}
 	if filter.DateFrom != "" {
-		where = append(where, fmt.Sprintf("inc.incoming_date >= $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.registration_date >= $%d", argIdx))
 		args = append(args, filter.DateFrom)
 		argIdx++
 	}
 	if filter.DateTo != "" {
-		where = append(where, fmt.Sprintf("inc.incoming_date <= $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.registration_date <= $%d", argIdx))
 		args = append(args, filter.DateTo)
 		argIdx++
 	}
 	if filter.Search != "" {
 		where = append(where, fmt.Sprintf(`(
 			d.content ILIKE $%d
-			OR inc.incoming_number ILIKE $%d
+			OR d.registration_number ILIKE $%d
 			OR EXISTS (
 				SELECT 1
 				FROM document_correspondent_registrations cr
@@ -378,7 +383,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		argIdx++
 	}
 	if filter.IncomingNumber != "" {
-		where = append(where, fmt.Sprintf("inc.incoming_number ILIKE $%d", argIdx))
+		where = append(where, fmt.Sprintf("d.registration_number ILIKE $%d", argIdx))
 		args = append(args, "%"+filter.IncomingNumber+"%")
 		argIdx++
 	}
@@ -437,34 +442,20 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 		argIdx++
 	}
 
-	var totalCount int
-	if err := applyDocumentCursor(&where, &args, &argIdx, filter.CursorPagination, filter.Cursor); err != nil {
+	if err := applyDocumentCursor(&where, &args, &argIdx, filter.Cursor); err != nil {
 		return nil, err
 	}
-	filter.Page, filter.PageSize = normalizePagination(filter.Page, filter.PageSize)
+	_, filter.PageSize = normalizePagination(1, filter.PageSize)
 	whereClause := strings.Join(where, " AND ")
-	if !filter.CursorPagination {
-		countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM documents d
-			JOIN incoming_document_details inc ON inc.document_id = d.id WHERE %s`, whereClause)
-		if err := r.db.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
-			return nil, fmt.Errorf("failed to count documents: %w", err)
-		}
-	}
-	limit := filter.PageSize
-	if filter.CursorPagination {
-		limit++
-	}
+	limit := filter.PageSize + 1
 
 	// Основной запрос с использованием базового SELECT
 	dataQuery := fmt.Sprintf(`%s
 		WHERE %s
 		ORDER BY d.created_at DESC, d.id DESC
-		LIMIT $%d%s
-	`, incomingDocSelectBase, whereClause, argIdx, map[bool]string{true: "", false: fmt.Sprintf(" OFFSET $%d", argIdx+1)}[filter.CursorPagination])
+		LIMIT $%d
+	`, incomingDocSelectBase, whereClause, argIdx)
 	args = append(args, limit)
-	if !filter.CursorPagination {
-		args = append(args, (filter.Page-1)*filter.PageSize)
-	}
 
 	rows, err := r.db.Query(dataQuery, args...)
 	if err != nil {
@@ -485,7 +476,7 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows iteration error: %w", err)
 	}
-	hasMore := filter.CursorPagination && len(items) > filter.PageSize
+	hasMore := len(items) > filter.PageSize
 	if hasMore {
 		items = items[:filter.PageSize]
 		documentIDs = documentIDs[:filter.PageSize]
@@ -514,10 +505,8 @@ func (r *IncomingDocumentRepository) GetList(filter models.DocumentFilter) (*mod
 			return nil, err
 		}
 	}
-	return &models.PagedResult[models.IncomingDocument]{
+	return &models.CursorResult[models.IncomingDocument]{
 		Items:      items,
-		TotalCount: totalCount,
-		Page:       filter.Page,
 		PageSize:   filter.PageSize,
 		NextCursor: nextCursor,
 		HasMore:    hasMore,
@@ -536,7 +525,7 @@ func (r *IncomingDocumentRepository) GetByID(id uuid.UUID) (*models.IncomingDocu
 		return nil, fmt.Errorf("failed to get incoming document: %w", err)
 	}
 
-	doc.Correspondents, err = r.loadCorrespondents(doc.ID)
+	doc.Correspondents, err = loadDocumentCorrespondents(r.db, doc.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -556,7 +545,7 @@ func (r *IncomingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Incomin
 		return []models.IncomingDocument{}, nil
 	}
 	rows, err := r.db.Query(`
-        SELECT d.id, inc.incoming_number, inc.incoming_date, d.content, COALESCE(correspondent.name, '')
+        SELECT d.id, d.registration_number, d.registration_date, d.content, COALESCE(correspondent.name, '')
         FROM documents d
         JOIN incoming_document_details inc ON inc.document_id = d.id
         LEFT JOIN LATERAL (
@@ -589,13 +578,7 @@ func (r *IncomingDocumentRepository) GetByIDs(ids []uuid.UUID) ([]models.Incomin
 	return items, rows.Err()
 }
 
-func (r *IncomingDocumentRepository) CreateWithJournal(req models.CreateIncomingDocRequest, action, detailsFormat string) (*models.IncomingDocument, error) {
-	return r.create(req, action, detailsFormat)
-}
-func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest, journalAction, journalDetailsFormat string) (*models.IncomingDocument, error) {
-	if req.Link != nil && req.CommandHash == "" {
-		return nil, models.NewBadRequest("атомарная регистрация со связью требует хеш команды")
-	}
+func (r *IncomingDocumentRepository) CreateWithJournal(req models.CreateIncomingDocRequest, journalAction, journalDetailsFormat string) (*models.IncomingDocument, error) {
 	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")
@@ -618,50 +601,26 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 		return r.GetByID(existingCommandID)
 	}
 
-	var registration *registrationNumberResult
+	var registration string
 	if req.AdminNumberOverride != nil {
-		registration, err = resolveAdminRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.AdminNumberOverride)
+		registration, err = resolveAdminRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, req.NomenclatureID, req.AdminNumberOverride)
 	} else {
-		registration, err = resolveRegistrationNumberTx(tx, req.CreatedBy, models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber)
+		registration, err = resolveRegistrationNumberTx(tx, models.DocumentKindIncomingLetter, req.NomenclatureID, req.IncomingNumber)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if registration.Existing != uuid.Nil {
-		if req.Link != nil {
-			return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
-		}
-		if err := completeDocumentCommandTx(tx, req.CreatedBy, commandOperation, req.IdempotencyKey, req.CommandHash, registration.Existing); err != nil {
-			return nil, err
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, fmt.Errorf("failed to commit idempotent transaction: %w", err)
-		}
-		return r.GetByID(registration.Existing)
-	}
-	req.IncomingNumber = registration.Number
+
+	req.IncomingNumber = registration
 
 	var id uuid.UUID
 	err = tx.QueryRow(`
-		INSERT INTO documents (
-			kind, nomenclature_id, idempotency_key, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		RETURNING id
+		INSERT INTO documents (kind, nomenclature_id, registration_number, registration_date, document_type, content, pages_count, attachment_pages_count, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)RETURNING id
 	`,
-		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IdempotencyKey, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
+		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
 	).Scan(&id)
 	if err != nil {
-		if isUniqueViolation(err, "idx_documents_created_by_kind_idempotency") {
-			if req.Link != nil {
-				return nil, models.NewConflict("ключ регистрации уже использован без атомарной связи")
-			}
-			_ = tx.Rollback()
-			existingID, lookupErr := findExistingDocumentIDByIdempotency(r.db, req.CreatedBy, models.DocumentKindIncomingLetter, req.IdempotencyKey)
-			if lookupErr != nil {
-				return nil, fmt.Errorf("failed to resolve idempotent document: %w", lookupErr)
-			}
-			return r.GetByID(existingID)
-		}
+
 		if isUniqueViolation(err, "idx_documents_kind_registration_number_year") {
 			return nil, models.NewConflict("документ с таким регистрационным номером уже существует")
 		}
@@ -669,12 +628,8 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 	}
 
 	if _, err = tx.Exec(`
-		INSERT INTO incoming_document_details (
-			document_id, incoming_number, incoming_date,
-			sender_signatory
-		) VALUES ($1,$2,$3,$4)
-	`,
-		id, req.IncomingNumber, req.IncomingDate,
+		INSERT INTO incoming_document_details (document_id, sender_signatory) VALUES ($1, $2)`,
+		id,
 		req.SenderSignatory,
 	); err != nil {
 		return nil, fmt.Errorf("failed to create incoming document details: %w", err)
@@ -686,14 +641,8 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 	if err := replaceResolution(tx, id, req.Resolution, req.ResolutionAuthor, req.ResolutionExecutors); err != nil {
 		return nil, err
 	}
-	if journalAction != "" {
-		if r.outbox == nil {
-			return nil, fmt.Errorf("outbox repository is required for document journal")
-		}
-		payload := fmt.Sprintf(`{"documentId":"%s","userId":"%s","action":%q,"details":%q}`, id, req.CreatedBy, journalAction, fmt.Sprintf(journalDetailsFormat, req.IncomingNumber))
-		if err := r.outbox.EnqueueTx(tx, models.OutboxEvent{EventType: models.OutboxEventJournal, DeduplicationKey: "incoming:" + id.String() + ":create:journal", Payload: payload}); err != nil {
-			return nil, err
-		}
+	if err := enqueueDocumentCreationJournalTx(r.outbox, tx, id, req.CreatedBy, "incoming:"+id.String()+":create:journal", journalAction, journalDetailsFormat, req.IncomingNumber); err != nil {
+		return nil, err
 	}
 	if err := createRegistrationLinkTx(tx, r.outbox, id, req.CreatedBy, req.Link); err != nil {
 		return nil, err
@@ -710,9 +659,6 @@ func (r *IncomingDocumentRepository) create(req models.CreateIncomingDocRequest,
 }
 
 func (r *IncomingDocumentRepository) UpdateWithOutbox(req models.UpdateIncomingDocRequest, effects []models.OutboxEvent) (*models.IncomingDocument, error) {
-	return r.update(req, effects)
-}
-func (r *IncomingDocumentRepository) update(req models.UpdateIncomingDocRequest, effects []models.OutboxEvent) (*models.IncomingDocument, error) {
 	req.DocumentTypeID = models.NormalizeDocumentType(req.DocumentTypeID)
 	if !models.IsAllowedDocumentType(req.DocumentTypeID) {
 		return nil, models.NewBadRequest("неверный тип документа")

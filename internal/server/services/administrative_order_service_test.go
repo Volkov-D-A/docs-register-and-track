@@ -24,7 +24,7 @@ type administrativeOrderServiceStore struct {
 	effects      []models.OutboxEvent
 }
 
-func (s *administrativeOrderServiceStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error) {
+func (s *administrativeOrderServiceStore) GetList(filter models.DocumentFilter) (*models.CursorResult[models.AdministrativeOrderDocument], error) {
 	return nil, nil
 }
 

@@ -14,13 +14,13 @@ import (
 
 type queryIncomingDocStore struct {
 	doc        *models.IncomingDocument
-	list       *models.PagedResult[models.IncomingDocument]
+	list       *models.CursorResult[models.IncomingDocument]
 	err        error
 	lastID     uuid.UUID
 	lastFilter models.DocumentFilter
 }
 
-func (s *queryIncomingDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.IncomingDocument], error) {
+func (s *queryIncomingDocStore) GetList(filter models.DocumentFilter) (*models.CursorResult[models.IncomingDocument], error) {
 	s.lastFilter = filter
 	return s.list, s.err
 }
@@ -39,13 +39,13 @@ func (s *queryIncomingDocStore) GetByIDs(ids []uuid.UUID) ([]models.IncomingDocu
 
 type queryOutgoingDocStore struct {
 	doc        *models.OutgoingDocument
-	list       *models.PagedResult[models.OutgoingDocument]
+	list       *models.CursorResult[models.OutgoingDocument]
 	err        error
 	lastID     uuid.UUID
 	lastFilter models.OutgoingDocumentFilter
 }
 
-func (s *queryOutgoingDocStore) GetList(filter models.OutgoingDocumentFilter) (*models.PagedResult[models.OutgoingDocument], error) {
+func (s *queryOutgoingDocStore) GetList(filter models.OutgoingDocumentFilter) (*models.CursorResult[models.OutgoingDocument], error) {
 	s.lastFilter = filter
 	return s.list, s.err
 }
@@ -64,13 +64,13 @@ func (s *queryOutgoingDocStore) GetByIDs(ids []uuid.UUID) ([]models.OutgoingDocu
 
 type queryCitizenAppealDocStore struct {
 	doc        *models.CitizenAppealDocument
-	list       *models.PagedResult[models.CitizenAppealDocument]
+	list       *models.CursorResult[models.CitizenAppealDocument]
 	err        error
 	lastID     uuid.UUID
 	lastFilter models.DocumentFilter
 }
 
-func (s *queryCitizenAppealDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.CitizenAppealDocument], error) {
+func (s *queryCitizenAppealDocStore) GetList(filter models.DocumentFilter) (*models.CursorResult[models.CitizenAppealDocument], error) {
 	s.lastFilter = filter
 	return s.list, s.err
 }
@@ -89,13 +89,13 @@ func (s *queryCitizenAppealDocStore) GetByIDs(ids []uuid.UUID) ([]models.Citizen
 
 type queryAdministrativeOrderDocStore struct {
 	doc        *models.AdministrativeOrderDocument
-	list       *models.PagedResult[models.AdministrativeOrderDocument]
+	list       *models.CursorResult[models.AdministrativeOrderDocument]
 	err        error
 	lastID     uuid.UUID
 	lastFilter models.DocumentFilter
 }
 
-func (s *queryAdministrativeOrderDocStore) GetList(filter models.DocumentFilter) (*models.PagedResult[models.AdministrativeOrderDocument], error) {
+func (s *queryAdministrativeOrderDocStore) GetList(filter models.DocumentFilter) (*models.CursorResult[models.AdministrativeOrderDocument], error) {
 	s.lastFilter = filter
 	return s.list, s.err
 }
@@ -127,11 +127,10 @@ func TestIncomingLetterQueryHandler(t *testing.T) {
 			CreatedAt:      now,
 			UpdatedAt:      now,
 		},
-		list: &models.PagedResult[models.IncomingDocument]{
-			Items:      []models.IncomingDocument{{ID: docID, IncomingNumber: "IN-1", IncomingDate: now}},
-			TotalCount: 1,
-			Page:       1,
-			PageSize:   20,
+		list: &models.CursorResult[models.IncomingDocument]{
+			Items: []models.IncomingDocument{{ID: docID, IncomingNumber: "IN-1", IncomingDate: now}},
+
+			PageSize: 20,
 		},
 	}
 	handler := NewIncomingLetterQueryHandler(store)
@@ -145,10 +144,10 @@ func TestIncomingLetterQueryHandler(t *testing.T) {
 	assert.NotNil(t, card.IncomingLetter)
 	assert.Equal(t, docID, store.lastID)
 
-	res, err := handler.GetList(models.DocumentFilter{Search: "IN", Page: 1, PageSize: 20})
+	res, err := handler.GetList(models.DocumentFilter{Search: "IN", PageSize: 20})
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	assert.Equal(t, 1, res.TotalCount)
+
 	require.Len(t, res.Items, 1)
 	assert.Equal(t, "IN", store.lastFilter.Search)
 	assert.Equal(t, string(models.DocumentKindIncomingLetter), res.Items[0].KindCode)
@@ -165,11 +164,10 @@ func TestOutgoingLetterQueryHandler(t *testing.T) {
 			CreatedAt:      now,
 			UpdatedAt:      now,
 		},
-		list: &models.PagedResult[models.OutgoingDocument]{
-			Items:      []models.OutgoingDocument{{ID: docID, OutgoingNumber: "OUT-1", OutgoingDate: now}},
-			TotalCount: 1,
-			Page:       2,
-			PageSize:   30,
+		list: &models.CursorResult[models.OutgoingDocument]{
+			Items: []models.OutgoingDocument{{ID: docID, OutgoingNumber: "OUT-1", OutgoingDate: now}},
+
+			PageSize: 30,
 		},
 	}
 	handler := NewOutgoingLetterQueryHandler(store)
@@ -194,14 +192,13 @@ func TestOutgoingLetterQueryHandler(t *testing.T) {
 		Search:         "OUT",
 		OutgoingNumber: "OUT-1",
 		RecipientName:  "Recipient",
-		Page:           2,
-		PageSize:       30,
+
+		PageSize: 30,
 	}
 	res, err := handler.GetList(filter)
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	assert.Equal(t, 1, res.TotalCount)
-	assert.Equal(t, string(models.DocumentKindOutgoingLetter), store.lastFilter.KindCode)
+
 	assert.Equal(t, filter.NomenclatureIDs, store.lastFilter.NomenclatureIDs)
 	assert.Equal(t, filter.AccessScope, store.lastFilter.AccessScope)
 	assert.Equal(t, filter.RecipientName, store.lastFilter.RecipientName)
@@ -220,11 +217,10 @@ func TestCitizenAppealQueryHandler(t *testing.T) {
 			CreatedAt:          now,
 			UpdatedAt:          now,
 		},
-		list: &models.PagedResult[models.CitizenAppealDocument]{
-			Items:      []models.CitizenAppealDocument{{ID: docID, RegistrationNumber: "CA-1", RegistrationDate: now, AppealDate: now}},
-			TotalCount: 1,
-			Page:       1,
-			PageSize:   10,
+		list: &models.CursorResult[models.CitizenAppealDocument]{
+			Items: []models.CitizenAppealDocument{{ID: docID, RegistrationNumber: "CA-1", RegistrationDate: now, AppealDate: now}},
+
+			PageSize: 10,
 		},
 	}
 	handler := NewCitizenAppealQueryHandler(store)
@@ -257,11 +253,10 @@ func TestAdministrativeOrderQueryHandler(t *testing.T) {
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		},
-		list: &models.PagedResult[models.AdministrativeOrderDocument]{
-			Items:      []models.AdministrativeOrderDocument{{ID: docID, OrderNumber: "ORD-1", OrderDate: now, Title: "Приказ", IsActive: true}},
-			TotalCount: 1,
-			Page:       1,
-			PageSize:   10,
+		list: &models.CursorResult[models.AdministrativeOrderDocument]{
+			Items: []models.AdministrativeOrderDocument{{ID: docID, OrderNumber: "ORD-1", OrderDate: now, Title: "Приказ", IsActive: true}},
+
+			PageSize: 10,
 		},
 	}
 	handler := NewAdministrativeOrderQueryHandler(store)

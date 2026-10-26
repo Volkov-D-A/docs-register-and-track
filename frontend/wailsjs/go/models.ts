@@ -593,6 +593,165 @@ export namespace dto {
 		    return a;
 		}
 	}
+	export class DocumentListItem {
+	    id: string;
+	    kindCode: string;
+	    kindName: string;
+	    registrationNumber: string;
+	    // Go type: time
+	    registrationDate: any;
+	    nomenclatureId: string;
+	    nomenclatureName?: string;
+	    documentTypeId: string;
+	    content: string;
+	    pagesCount: number;
+	    createdByName?: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    incomingNumber?: string;
+	    // Go type: time
+	    incomingDate?: any;
+	    // Go type: time
+	    appealDate?: any;
+	    outgoingNumber?: string;
+	    // Go type: time
+	    outgoingDate?: any;
+	    correspondents?: DocumentCorrespondentRegistration[];
+	    senderSignatory?: string;
+	    resolution?: string;
+	    resolutionAuthor?: string;
+	    resolutionExecutors?: string;
+	    resolutions?: DocumentResolution[];
+	    recipientOrgName?: string;
+	    addressee?: string;
+	    senderExecutor?: string;
+	    applicantFullName?: string;
+	    registrationAddress?: string;
+	    appealType?: string;
+	    applicantCategory?: string;
+	    attachmentPagesCount?: number;
+	    hasEnvelope?: boolean;
+	    receivedFromPos?: boolean;
+	    orderNumber?: string;
+	    // Go type: time
+	    orderDate?: any;
+	    title?: string;
+	    executionController?: string;
+	    // Go type: time
+	    executionDeadline?: any;
+	    isActive: boolean;
+	    // Go type: time
+	    cancelledAt?: any;
+	    pendingAcknowledgmentsCount?: number;
+	    acknowledgmentPeople?: AdministrativeOrderAcknowledgmentPerson[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentListItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kindCode = source["kindCode"];
+	        this.kindName = source["kindName"];
+	        this.registrationNumber = source["registrationNumber"];
+	        this.registrationDate = this.convertValues(source["registrationDate"], null);
+	        this.nomenclatureId = source["nomenclatureId"];
+	        this.nomenclatureName = source["nomenclatureName"];
+	        this.documentTypeId = source["documentTypeId"];
+	        this.content = source["content"];
+	        this.pagesCount = source["pagesCount"];
+	        this.createdByName = source["createdByName"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.incomingNumber = source["incomingNumber"];
+	        this.incomingDate = this.convertValues(source["incomingDate"], null);
+	        this.appealDate = this.convertValues(source["appealDate"], null);
+	        this.outgoingNumber = source["outgoingNumber"];
+	        this.outgoingDate = this.convertValues(source["outgoingDate"], null);
+	        this.correspondents = this.convertValues(source["correspondents"], DocumentCorrespondentRegistration);
+	        this.senderSignatory = source["senderSignatory"];
+	        this.resolution = source["resolution"];
+	        this.resolutionAuthor = source["resolutionAuthor"];
+	        this.resolutionExecutors = source["resolutionExecutors"];
+	        this.resolutions = this.convertValues(source["resolutions"], DocumentResolution);
+	        this.recipientOrgName = source["recipientOrgName"];
+	        this.addressee = source["addressee"];
+	        this.senderExecutor = source["senderExecutor"];
+	        this.applicantFullName = source["applicantFullName"];
+	        this.registrationAddress = source["registrationAddress"];
+	        this.appealType = source["appealType"];
+	        this.applicantCategory = source["applicantCategory"];
+	        this.attachmentPagesCount = source["attachmentPagesCount"];
+	        this.hasEnvelope = source["hasEnvelope"];
+	        this.receivedFromPos = source["receivedFromPos"];
+	        this.orderNumber = source["orderNumber"];
+	        this.orderDate = this.convertValues(source["orderDate"], null);
+	        this.title = source["title"];
+	        this.executionController = source["executionController"];
+	        this.executionDeadline = this.convertValues(source["executionDeadline"], null);
+	        this.isActive = source["isActive"];
+	        this.cancelledAt = this.convertValues(source["cancelledAt"], null);
+	        this.pendingAcknowledgmentsCount = source["pendingAcknowledgmentsCount"];
+	        this.acknowledgmentPeople = this.convertValues(source["acknowledgmentPeople"], AdministrativeOrderAcknowledgmentPerson);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CursorResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_DocumentListItem_ {
+	    items: DocumentListItem[];
+	    pageSize: number;
+	    nextCursor?: string;
+	    hasMore: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CursorResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_DocumentListItem_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], DocumentListItem);
+	        this.pageSize = source["pageSize"];
+	        this.nextCursor = source["nextCursor"];
+	        this.hasMore = source["hasMore"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Department {
 	    id: string;
 	    name: string;
@@ -811,129 +970,7 @@ export namespace dto {
 	        this.targetSubject = source["targetSubject"];
 	    }
 	}
-	export class DocumentListItem {
-	    id: string;
-	    kindCode: string;
-	    kindName: string;
-	    registrationNumber: string;
-	    // Go type: time
-	    registrationDate: any;
-	    nomenclatureId: string;
-	    nomenclatureName?: string;
-	    documentTypeId: string;
-	    content: string;
-	    pagesCount: number;
-	    createdByName?: string;
-	    // Go type: time
-	    createdAt: any;
-	    // Go type: time
-	    updatedAt: any;
-	    incomingNumber?: string;
-	    // Go type: time
-	    incomingDate?: any;
-	    // Go type: time
-	    appealDate?: any;
-	    outgoingNumber?: string;
-	    // Go type: time
-	    outgoingDate?: any;
-	    correspondents?: DocumentCorrespondentRegistration[];
-	    senderSignatory?: string;
-	    resolution?: string;
-	    resolutionAuthor?: string;
-	    resolutionExecutors?: string;
-	    resolutions?: DocumentResolution[];
-	    recipientOrgName?: string;
-	    addressee?: string;
-	    senderExecutor?: string;
-	    applicantFullName?: string;
-	    registrationAddress?: string;
-	    appealType?: string;
-	    applicantCategory?: string;
-	    attachmentPagesCount?: number;
-	    hasEnvelope?: boolean;
-	    receivedFromPos?: boolean;
-	    orderNumber?: string;
-	    // Go type: time
-	    orderDate?: any;
-	    title?: string;
-	    executionController?: string;
-	    // Go type: time
-	    executionDeadline?: any;
-	    isActive: boolean;
-	    // Go type: time
-	    cancelledAt?: any;
-	    pendingAcknowledgmentsCount?: number;
-	    acknowledgmentPeople?: AdministrativeOrderAcknowledgmentPerson[];
 	
-	    static createFrom(source: any = {}) {
-	        return new DocumentListItem(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.kindCode = source["kindCode"];
-	        this.kindName = source["kindName"];
-	        this.registrationNumber = source["registrationNumber"];
-	        this.registrationDate = this.convertValues(source["registrationDate"], null);
-	        this.nomenclatureId = source["nomenclatureId"];
-	        this.nomenclatureName = source["nomenclatureName"];
-	        this.documentTypeId = source["documentTypeId"];
-	        this.content = source["content"];
-	        this.pagesCount = source["pagesCount"];
-	        this.createdByName = source["createdByName"];
-	        this.createdAt = this.convertValues(source["createdAt"], null);
-	        this.updatedAt = this.convertValues(source["updatedAt"], null);
-	        this.incomingNumber = source["incomingNumber"];
-	        this.incomingDate = this.convertValues(source["incomingDate"], null);
-	        this.appealDate = this.convertValues(source["appealDate"], null);
-	        this.outgoingNumber = source["outgoingNumber"];
-	        this.outgoingDate = this.convertValues(source["outgoingDate"], null);
-	        this.correspondents = this.convertValues(source["correspondents"], DocumentCorrespondentRegistration);
-	        this.senderSignatory = source["senderSignatory"];
-	        this.resolution = source["resolution"];
-	        this.resolutionAuthor = source["resolutionAuthor"];
-	        this.resolutionExecutors = source["resolutionExecutors"];
-	        this.resolutions = this.convertValues(source["resolutions"], DocumentResolution);
-	        this.recipientOrgName = source["recipientOrgName"];
-	        this.addressee = source["addressee"];
-	        this.senderExecutor = source["senderExecutor"];
-	        this.applicantFullName = source["applicantFullName"];
-	        this.registrationAddress = source["registrationAddress"];
-	        this.appealType = source["appealType"];
-	        this.applicantCategory = source["applicantCategory"];
-	        this.attachmentPagesCount = source["attachmentPagesCount"];
-	        this.hasEnvelope = source["hasEnvelope"];
-	        this.receivedFromPos = source["receivedFromPos"];
-	        this.orderNumber = source["orderNumber"];
-	        this.orderDate = this.convertValues(source["orderDate"], null);
-	        this.title = source["title"];
-	        this.executionController = source["executionController"];
-	        this.executionDeadline = this.convertValues(source["executionDeadline"], null);
-	        this.isActive = source["isActive"];
-	        this.cancelledAt = this.convertValues(source["cancelledAt"], null);
-	        this.pendingAcknowledgmentsCount = source["pendingAcknowledgmentsCount"];
-	        this.acknowledgmentPeople = this.convertValues(source["acknowledgmentPeople"], AdministrativeOrderAcknowledgmentPerson);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	
 	export class DocumentSearchItem {
 	    id: string;
@@ -1139,46 +1176,6 @@ export namespace dto {
 	    }
 	}
 	
-	export class PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_DocumentListItem_ {
-	    items: DocumentListItem[];
-	    totalCount: number;
-	    page: number;
-	    pageSize: number;
-	    nextCursor?: string;
-	    hasMore: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_DocumentListItem_(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.items = this.convertValues(source["items"], DocumentListItem);
-	        this.totalCount = source["totalCount"];
-	        this.page = source["page"];
-	        this.pageSize = source["pageSize"];
-	        this.nextCursor = source["nextCursor"];
-	        this.hasMore = source["hasMore"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class UserEvent {
 	    id: string;
 	    documentId: string;
@@ -1237,8 +1234,6 @@ export namespace dto {
 	    totalCount: number;
 	    page: number;
 	    pageSize: number;
-	    nextCursor?: string;
-	    hasMore: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PagedResult_github_com_Volkov_D_A_docs_register_and_track_internal_dto_UserEvent_(source);
@@ -1250,8 +1245,6 @@ export namespace dto {
 	        this.totalCount = source["totalCount"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
-	        this.nextCursor = source["nextCursor"];
-	        this.hasMore = source["hasMore"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2357,9 +2350,7 @@ export namespace models {
 		}
 	}
 	export class DocumentFilter {
-	    nomenclatureId?: string;
 	    nomenclatureIds?: string[];
-	    kindCode?: string;
 	    documentTypeId?: string;
 	    orgId?: string;
 	    dateFrom?: string;
@@ -2382,10 +2373,8 @@ export namespace models {
 	    executionController?: string;
 	    onlyPendingAcknowledgment?: boolean;
 	    orderActiveStatus?: string;
-	    page: number;
 	    pageSize: number;
 	    cursor?: string;
-	    cursorPagination?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new DocumentFilter(source);
@@ -2393,9 +2382,7 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.nomenclatureId = source["nomenclatureId"];
 	        this.nomenclatureIds = source["nomenclatureIds"];
-	        this.kindCode = source["kindCode"];
 	        this.documentTypeId = source["documentTypeId"];
 	        this.orgId = source["orgId"];
 	        this.dateFrom = source["dateFrom"];
@@ -2418,10 +2405,8 @@ export namespace models {
 	        this.executionController = source["executionController"];
 	        this.onlyPendingAcknowledgment = source["onlyPendingAcknowledgment"];
 	        this.orderActiveStatus = source["orderActiveStatus"];
-	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	        this.cursor = source["cursor"];
-	        this.cursorPagination = source["cursorPagination"];
 	    }
 	}
 	export class DocumentStatistics {

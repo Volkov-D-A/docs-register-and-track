@@ -1,3 +1,4 @@
+import { isDocumentUpdateEvent } from '../../events/documentEvents';
 import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { App, Button, Card, Col, DatePicker, Radio, Row, Select, Spin, Table, Typography } from 'antd';
 import { CheckCircleOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -62,7 +63,7 @@ const DeadlineStatisticsTab: React.FC = () => {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stop = onServerEvent((event) => {
-      if (!['resync', 'access-changed', 'documents', 'document-changed'].includes(event.topic)) return;
+      if (!isDocumentUpdateEvent(event)) return;
       invalidateStats(); invalidateFilters(); invalidateReport();
       setStats(null); setReport(null); setFilters({ users: [], kinds: [], nomenclature: [] });
       clearTimeout(timer);

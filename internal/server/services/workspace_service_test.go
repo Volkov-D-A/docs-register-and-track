@@ -26,7 +26,7 @@ func workspaceServiceFixture(t *testing.T, participant bool) (*WorkspaceService,
 	principal.currentUserID = userID
 	access := NewDocumentAccessService(principal, nil, nil)
 	store := &workspaceStoreStub{}
-	return NewWorkspaceService(store, principal, access, nil), store, userID
+	return NewWorkspaceService(store, principal, access), store, userID
 }
 
 func (s *workspaceStoreStub) RecentDocuments(scopes map[models.DocumentKind]models.DocumentAccessScope) ([]models.WorkspaceDocument, error) {

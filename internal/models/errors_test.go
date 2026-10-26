@@ -32,7 +32,6 @@ func TestAppErrorConstructorsAndUnwrap(t *testing.T) {
 	assert.ErrorIs(t, err, internal)
 
 	assert.Equal(t, 400, NewBadRequest("bad").Code)
-	assert.Equal(t, 401, NewUnauthorized("auth").Code)
 	assert.Equal(t, 403, NewForbidden("forbidden").Code)
 	assert.Equal(t, 404, NewNotFound("missing").Code)
 	assert.Equal(t, 409, NewConflict("conflict").Code)

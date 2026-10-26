@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/config"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/testutil/integrationdb"
 	"github.com/google/uuid"
@@ -39,7 +40,7 @@ func TestDatabaseOnlyBackupRestoreIntegration(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO nomenclature(id,name,index,year,kind_code) VALUES($1,'Backup','B',2026,'incoming_letter')`, nom)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO documents(id,kind,nomenclature_id,registration_number,registration_date,document_type,content,created_by) VALUES($1,'incoming_letter',$2,'B/1','2026-10-14','Письмо','Backup',$3)`, doc, nom, user)
+	_, err = db.Exec(`INSERT INTO documents(id, kind, nomenclature_id, registration_number, registration_date, document_type, content, created_by) VALUES($1, 'incoming_letter', $2, 'B/1', '2026-10-14', 'Письмо', 'Backup', $3)`, doc, nom, user)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO deadline_executors(id,name,institution) VALUES($1,'Основной','Учреждение'),($2,'Соисполнитель','Учреждение')`, main, co)
 	require.NoError(t, err)
@@ -61,11 +62,12 @@ func TestDatabaseOnlyBackupRestoreIntegration(t *testing.T) {
 	prepared, err := PrepareRestore(ctx, pg, archive, filepath.Join(t.TempDir(), "verified"), 16<<20, m.Schema)
 	require.NoError(t, err)
 	require.Equal(t, ArchiveFormat, prepared.Manifest.Format)
-	// This reset is confined to the integrationdb-validated disposable database.
-	_, err = db.Exec(`DROP SCHEMA public CASCADE; CREATE SCHEMA public`)
-	require.NoError(t, err)
+	// Exercise the production replacement coordinator on the disposable database.
 	recovery := t.TempDir()
-	require.NoError(t, Restore(ctx, pg, archive, recovery, 16<<20, m.Schema))
+	service.Directory, service.PostgreSQL, service.Schema = recovery, pg, m.Schema
+	op := operation{BackupOperation: models.BackupOperation{ID: uuid.NewString(), CopyID: m.ID, Kind: "restore"}}
+	require.NoError(t, service.coordinateReplacement(ctx, &op, prepared, prepared, service.installReplacement, db.PingContext))
+	require.Equal(t, "completed", op.State)
 	var subject, executor string
 	var coCount int
 	require.NoError(t, db.QueryRow(`SELECT subject,executor_id::text,cardinality(co_executor_ids) FROM document_deadline_controls WHERE id=$1`, control).Scan(&subject, &executor, &coCount))

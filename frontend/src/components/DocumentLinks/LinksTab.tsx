@@ -104,7 +104,6 @@ export const LinksTab = ({ documentId, documentKind }: LinksTabProps) => {
         setSearchLoading(true);
         await latestSearchRequestRef.current.run(
             () => GetList(targetKind, {
-                page: 1,
                 pageSize: 20,
                 search: query,
                 nomenclatureIds: [],

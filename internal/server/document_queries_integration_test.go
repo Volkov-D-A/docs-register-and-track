@@ -41,7 +41,7 @@ func TestDocumentQueryAPIReturnsListAndCardWithServerAccessIntegration(t *testin
 	require.NoError(t, err)
 	documentRepo := repository.NewOutgoingDocumentRepository(db)
 	documentRepo.SetOutbox(repository.NewOutboxRepository(db))
-	document, err := documentRepo.CreateWithJournal(models.CreateOutgoingDocRequest{
+	document, err := documentRepo.CreateWithJournal(models.CreateOutgoingDocRequest{CommandHash: "repository-fixture-hash",
 		NomenclatureID: nomenclatureID, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter,
 		RecipientOrgID: organizationID, CreatedBy: userID, OutgoingDate: time.Now().UTC(), Content: "server query integration",
 		PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee",
@@ -61,7 +61,7 @@ func TestDocumentQueryAPIReturnsListAndCardWithServerAccessIntegration(t *testin
 	}
 	require.NoError(t, json.NewDecoder(loginResponse.Body).Decode(&session))
 
-	list := httptest.NewRequest(http.MethodPost, "/api/v1/documents/query", strings.NewReader(`{"kindCode":"outgoing_letter","filter":{"search":"server query","page":1,"pageSize":20}}`))
+	list := httptest.NewRequest(http.MethodPost, "/api/v1/documents/query", strings.NewReader(`{"kindCode":"outgoing_letter","filter":{"search":"server query","pageSize":20}}`))
 	list.Header.Set("Authorization", "Bearer "+session.AccessToken)
 	listResponse := httptest.NewRecorder()
 	api.Handler().ServeHTTP(listResponse, list)
@@ -101,7 +101,7 @@ func TestDocumentSearchAPIIntegration(t *testing.T) {
 	require.NoError(t, err)
 	repo := repository.NewOutgoingDocumentRepository(db)
 	repo.SetOutbox(repository.NewOutboxRepository(db))
-	document, err := repo.CreateWithJournal(models.CreateOutgoingDocRequest{
+	document, err := repo.CreateWithJournal(models.CreateOutgoingDocRequest{CommandHash: "repository-fixture-hash",
 		NomenclatureID: nomID, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter,
 		RecipientOrgID: orgID, CreatedBy: userID, OutgoingDate: time.Now().UTC(), Content: "О ремонте дороги",
 		PagesCount: 1, SenderSignatory: "Иванов", SenderExecutor: "Сидоров", Addressee: "Петров",

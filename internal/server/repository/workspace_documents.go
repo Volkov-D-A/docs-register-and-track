@@ -1,9 +1,6 @@
 package repository
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/lib/pq"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
@@ -12,41 +9,18 @@ import (
 // RecentDocuments applies each kind's read scope before taking the global top four.
 func (r *WorkspaceRepository) RecentDocuments(scopes map[models.DocumentKind]models.DocumentAccessScope) ([]models.WorkspaceDocument, error) {
 	items := []models.WorkspaceDocument{}
-	// Kinds resolved for the same principal share one recursive visibility CTE.
-	// Repeating the closure in each kind's predicate inflates the parameterized
-	// query's cost and triggers expensive JIT compilation even on tiny databases.
-	users := []string{}
-	kindsByUser := map[string][]string{}
-	for _, spec := range models.AllDocumentKindSpecs() {
-		scope := scopes[spec.Code]
-		if scope.UserID == "" {
-			continue
-		}
-		if _, exists := kindsByUser[scope.UserID]; !exists {
-			users = append(users, scope.UserID)
-		}
-		kindsByUser[scope.UserID] = append(kindsByUser[scope.UserID], string(spec.Code))
-	}
-	if len(users) == 0 {
+	args := []interface{}{}
+	visibility, allowed := documentVisibilityScopes(scopes, &args)
+	if allowed == "" {
 		return items, nil
 	}
-	args := []interface{}{}
-	closures := []string{}
-	allowed := []string{}
-	for index, userID := range users {
-		name := fmt.Sprintf("visible_%d", index)
-		closure := visibleDocumentClosure(fmt.Sprintf("$%d", len(args)+1))
-		closures = append(closures, strings.ReplaceAll(strings.TrimPrefix(closure, "WITH RECURSIVE "), "visible", name))
-		args = append(args, userID, pq.Array(kindsByUser[userID]))
-		allowed = append(allowed, fmt.Sprintf("(d.kind = ANY($%d::text[]) AND d.id IN (SELECT id FROM %s))", len(args), name))
-	}
-	rows, err := r.db.Query(`WITH RECURSIVE `+strings.Join(closures, ", ")+`, latest AS (
-        SELECT d.* FROM documents d WHERE `+strings.Join(allowed, " OR ")+`
+	rows, err := r.db.Query(visibility+`, latest AS (
+        SELECT d.* FROM documents d WHERE `+allowed+`
         ORDER BY d.created_at DESC, d.id DESC LIMIT 4
     )
     SELECT d.id, d.kind,
-        COALESCE(inc.incoming_number, out.outgoing_number, ord.order_number, d.registration_number),
-        COALESCE(inc.incoming_date, out.outgoing_date, ord.order_date, d.registration_date),
+        d.registration_number,
+        d.registration_date,
         d.created_at,
         COALESCE(NULLIF(CASE d.kind
             WHEN 'incoming_letter' THEN corr.names[1]
@@ -56,7 +30,6 @@ func (r *WorkspaceRepository) RecentDocuments(scopes map[models.DocumentKind]mod
         END, ''), NULLIF(d.content, ''), '—'),
         corr.names
     FROM latest d
-    LEFT JOIN incoming_document_details inc ON inc.document_id = d.id
     LEFT JOIN outgoing_document_details out ON out.document_id = d.id
     LEFT JOIN organizations org ON org.id = out.recipient_org_id
     LEFT JOIN citizen_appeal_details appeal ON appeal.document_id = d.id

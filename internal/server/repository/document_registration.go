@@ -20,33 +20,7 @@ const (
 	numberingModeManualOnly     = "manual_only"
 )
 
-type registrationNumberResult struct {
-	Number   string
-	Existing uuid.UUID
-}
-
-type documentIDLookup interface {
-	QueryRow(query string, args ...any) *sql.Row
-}
-
-func resolveRegistrationNumberTx(tx *sql.Tx, createdBy uuid.UUID, kind models.DocumentKind, nomenclatureID, idempotencyKey uuid.UUID, requestedNumber string) (*registrationNumberResult, error) {
-	if idempotencyKey == uuid.Nil {
-		return nil, models.NewBadRequest("отсутствует ключ идемпотентности")
-	}
-
-	var existingID uuid.UUID
-	err := tx.QueryRow(`
-		SELECT id
-		FROM documents
-		WHERE created_by = $1 AND kind = $2 AND idempotency_key = $3
-	`, createdBy, kind, idempotencyKey).Scan(&existingID)
-	if err == nil {
-		return &registrationNumberResult{Existing: existingID}, nil
-	}
-	if err != sql.ErrNoRows {
-		return nil, fmt.Errorf("failed to check document idempotency: %w", err)
-	}
-
+func resolveRegistrationNumberTx(tx *sql.Tx, kind models.DocumentKind, nomenclatureID uuid.UUID, requestedNumber string) (string, error) {
 	var index, separator, numberingMode, kindCode string
 	var nextNumber int
 	if err := tx.QueryRow(`
@@ -56,21 +30,21 @@ func resolveRegistrationNumberTx(tx *sql.Tx, createdBy uuid.UUID, kind models.Do
 		FOR UPDATE
 	`, nomenclatureID).Scan(&index, &separator, &numberingMode, &nextNumber, &kindCode); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, models.NewNotFound("номенклатура не найдена")
+			return "", models.NewNotFound("номенклатура не найдена")
 		}
-		return nil, fmt.Errorf("failed to lock nomenclature: %w", err)
+		return "", fmt.Errorf("failed to lock nomenclature: %w", err)
 	}
 
 	if kindCode != string(kind) {
-		return nil, models.NewBadRequest("выберите номенклатуру для нужного вида документа")
+		return "", models.NewBadRequest("выберите номенклатуру для нужного вида документа")
 	}
 
 	number := strings.TrimSpace(requestedNumber)
 	if numberingMode == numberingModeManualOnly {
 		if number == "" {
-			return nil, models.NewBadRequest("укажите регистрационный номер вручную")
+			return "", models.NewBadRequest("укажите регистрационный номер вручную")
 		}
-		return &registrationNumberResult{Number: number}, nil
+		return number, nil
 	}
 
 	number = formatDocumentNumber(index, separator, numberingMode, nextNumber)
@@ -79,31 +53,15 @@ func resolveRegistrationNumberTx(tx *sql.Tx, createdBy uuid.UUID, kind models.Do
 		SET next_number = next_number + 1
 		WHERE id = $1
 	`, nomenclatureID); err != nil {
-		return nil, fmt.Errorf("failed to increment nomenclature number: %w", err)
+		return "", fmt.Errorf("failed to increment nomenclature number: %w", err)
 	}
 
-	return &registrationNumberResult{Number: number}, nil
+	return number, nil
 }
 
-func resolveAdminRegistrationNumberTx(tx *sql.Tx, createdBy uuid.UUID, kind models.DocumentKind, nomenclatureID, idempotencyKey uuid.UUID, override *models.AdminNumberOverride) (*registrationNumberResult, error) {
+func resolveAdminRegistrationNumberTx(tx *sql.Tx, kind models.DocumentKind, nomenclatureID uuid.UUID, override *models.AdminNumberOverride) (string, error) {
 	if override == nil {
-		return resolveRegistrationNumberTx(tx, createdBy, kind, nomenclatureID, idempotencyKey, "")
-	}
-	if idempotencyKey == uuid.Nil {
-		return nil, models.NewBadRequest("отсутствует ключ идемпотентности")
-	}
-
-	var existingID uuid.UUID
-	err := tx.QueryRow(`
-		SELECT id
-		FROM documents
-		WHERE created_by = $1 AND kind = $2 AND idempotency_key = $3
-	`, createdBy, kind, idempotencyKey).Scan(&existingID)
-	if err == nil {
-		return &registrationNumberResult{Existing: existingID}, nil
-	}
-	if err != sql.ErrNoRows {
-		return nil, fmt.Errorf("failed to check document idempotency: %w", err)
+		return resolveRegistrationNumberTx(tx, kind, nomenclatureID, "")
 	}
 
 	var index, separator, numberingMode, kindCode string
@@ -116,27 +74,27 @@ func resolveAdminRegistrationNumberTx(tx *sql.Tx, createdBy uuid.UUID, kind mode
 		FOR UPDATE
 	`, nomenclatureID).Scan(&index, &separator, &numberingMode, &nextNumber, &kindCode, &isActive); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, models.NewNotFound("номенклатура не найдена")
+			return "", models.NewNotFound("номенклатура не найдена")
 		}
-		return nil, fmt.Errorf("failed to lock nomenclature: %w", err)
+		return "", fmt.Errorf("failed to lock nomenclature: %w", err)
 	}
 	if kindCode != string(kind) {
-		return nil, models.NewBadRequest("выберите номенклатуру для нужного вида документа")
+		return "", models.NewBadRequest("выберите номенклатуру для нужного вида документа")
 	}
 	if !isActive {
-		return nil, models.NewBadRequest("выберите действующее дело номенклатуры")
+		return "", models.NewBadRequest("выберите действующее дело номенклатуры")
 	}
 	if override.Number < 1 {
-		return nil, models.NewBadRequest("укажите номер документа больше 0")
+		return "", models.NewBadRequest("укажите номер документа больше 0")
 	}
 
 	switch override.Mode {
 	case models.AdminNumberModeInsertShift:
 		if strings.TrimSpace(override.Suffix) != "" {
-			return nil, models.NewBadRequest("для вставки со сдвигом укажите номер без литеры")
+			return "", models.NewBadRequest("для вставки со сдвигом укажите номер без литеры")
 		}
 		if err := shiftRegistrationNumbersTx(tx, kind, nomenclatureID, index, separator, numberingMode, override.Number); err != nil {
-			return nil, err
+			return "", err
 		}
 		if override.Number >= nextNumber {
 			nextNumber = override.Number + 1
@@ -148,16 +106,16 @@ func resolveAdminRegistrationNumberTx(tx *sql.Tx, createdBy uuid.UUID, kind mode
 			SET next_number = $2
 			WHERE id = $1
 		`, nomenclatureID, nextNumber); err != nil {
-			return nil, fmt.Errorf("failed to update nomenclature number after admin insert: %w", err)
+			return "", fmt.Errorf("failed to update nomenclature number after admin insert: %w", err)
 		}
 	case models.AdminNumberModeLiteral:
 		// Литерный номер не меняет счетчик и существующие документы.
 	default:
-		return nil, models.NewBadRequest("неверный режим административной нумерации")
+		return "", models.NewBadRequest("неверный режим административной нумерации")
 	}
 
 	number := formatDocumentNumberWithSuffix(index, separator, numberingMode, override.Number, strings.TrimSpace(override.Suffix))
-	return &registrationNumberResult{Number: number}, nil
+	return number, nil
 }
 
 func formatDocumentNumber(index, separator, numberingMode string, number int) string {
@@ -230,7 +188,7 @@ func shiftRegistrationNumbersTx(tx *sql.Tx, kind models.DocumentKind, nomenclatu
 	})
 	for _, doc := range docs {
 		newNumber := formatDocumentNumber(index, separator, numberingMode, doc.number+1)
-		if err := updateDocumentRegistrationNumberTx(tx, kind, doc.id, newNumber); err != nil {
+		if err := updateDocumentRegistrationNumberTx(tx, doc.id, newNumber); err != nil {
 			return err
 		}
 	}
@@ -257,7 +215,7 @@ func parseFormattedDocumentNumber(index, separator, numberingMode, registrationN
 	}
 }
 
-func updateDocumentRegistrationNumberTx(tx *sql.Tx, kind models.DocumentKind, id uuid.UUID, number string) error {
+func updateDocumentRegistrationNumberTx(tx *sql.Tx, id uuid.UUID, number string) error {
 	if _, err := tx.Exec(`
 		UPDATE documents
 		SET registration_number = $1, updated_at = CURRENT_TIMESTAMP
@@ -266,23 +224,6 @@ func updateDocumentRegistrationNumberTx(tx *sql.Tx, kind models.DocumentKind, id
 		return fmt.Errorf("failed to shift document registration number: %w", err)
 	}
 
-	switch kind {
-	case models.DocumentKindIncomingLetter:
-		_, err := tx.Exec(`UPDATE incoming_document_details SET incoming_number = $1 WHERE document_id = $2`, number, id)
-		if err != nil {
-			return fmt.Errorf("failed to shift incoming document number: %w", err)
-		}
-	case models.DocumentKindOutgoingLetter:
-		_, err := tx.Exec(`UPDATE outgoing_document_details SET outgoing_number = $1 WHERE document_id = $2`, number, id)
-		if err != nil {
-			return fmt.Errorf("failed to shift outgoing document number: %w", err)
-		}
-	case models.DocumentKindAdministrativeOrder:
-		_, err := tx.Exec(`UPDATE administrative_order_details SET order_number = $1 WHERE document_id = $2`, number, id)
-		if err != nil {
-			return fmt.Errorf("failed to shift administrative order number: %w", err)
-		}
-	}
 	return nil
 }
 
@@ -295,17 +236,4 @@ func isUniqueViolation(err error, constraint string) bool {
 		return false
 	}
 	return constraint == "" || pqErr.Constraint == constraint
-}
-
-func findExistingDocumentIDByIdempotency(db documentIDLookup, createdBy uuid.UUID, kind models.DocumentKind, idempotencyKey uuid.UUID) (uuid.UUID, error) {
-	var id uuid.UUID
-	err := db.QueryRow(`
-		SELECT id
-		FROM documents
-		WHERE created_by = $1 AND kind = $2 AND idempotency_key = $3
-	`, createdBy, kind, idempotencyKey).Scan(&id)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	return id, nil
 }

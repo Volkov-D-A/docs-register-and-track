@@ -1,3 +1,4 @@
+import { isDocumentUpdateEvent } from '../../events/documentEvents';
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { App, Button, Card, Col, DatePicker, Radio, Row, Select, Spin, Table, Typography } from 'antd';
 import { BarChartOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -67,7 +68,7 @@ const DocumentStatisticsTab: React.FC = () => {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stop = onServerEvent((event) => {
-      if (!['resync', 'access-changed', 'documents', 'document-changed'].includes(event.topic)) return;
+      if (!isDocumentUpdateEvent(event)) return;
       invalidateStats(); invalidateFilters(); invalidateReport();
       setStats(null); setReport(null); setFilters({ users: [], kinds: [], nomenclature: [] });
       clearTimeout(timer);

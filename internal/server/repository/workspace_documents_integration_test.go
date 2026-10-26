@@ -25,9 +25,9 @@ func TestWorkspaceRecentDocumentsIntegration(t *testing.T) {
 		nomenclatures[id] = nom
 		execSQL(t, db, `INSERT INTO nomenclature (id, name, index, year, kind_code, separator, numbering_mode)
             VALUES ($1, 'Recent', $2, 2026, $3, '/', 'index_and_number')`, nom, number, kind)
-		execSQL(t, db, `INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date,
-            document_type, content, created_by, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, 'Письмо', 'Content fallback', $6, $7, '2026-10-01')`, id, kind, nom, number, documentDate, user, registeredAt)
+		execSQL(t, db, `INSERT INTO documents (id, kind, nomenclature_id, registration_number, registration_date, document_type, content, created_by, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, 'Письмо', 'Content fallback', $6, $7, '2026-10-01')`,
+			id, kind, nom, number, documentDate, user, registeredAt)
 	}
 	insert(incoming, "incoming_letter", "125", "2026-09-20", "2026-09-24T12:00:00Z")
 	insert(outgoing, "outgoing_letter", "84", "2026-09-19", "2026-09-24T12:00:00Z")
@@ -35,14 +35,14 @@ func TestWorkspaceRecentDocumentsIntegration(t *testing.T) {
 	insert(appeal, "citizen_appeal", "543", "2026-09-21", "2026-09-22T12:00:00Z")
 	insert(older, "incoming_letter", "126", "2026-09-30", "2026-09-21T12:00:00Z")
 	alpha, beta := insertOrganization(t, db, "Alpha"), insertOrganization(t, db, "Beta")
-	execSQL(t, db, `INSERT INTO incoming_document_details (document_id, incoming_number, incoming_date, sender_signatory)
-        VALUES ($1, '125', '2026-09-20', 'Signer')`, incoming)
+	execSQL(t, db, `INSERT INTO incoming_document_details (document_id, sender_signatory)
+        VALUES ($1, 'Signer')`, incoming)
 	execSQL(t, db, `INSERT INTO document_correspondent_registrations (document_id, registration_number, registration_date, correspondent_org_id, position)
         VALUES ($1, 'external-999', '2026-09-18', $2, 2), ($1, 'external-998', '2026-09-17', $3, 1)`, incoming, beta, alpha)
-	execSQL(t, db, `INSERT INTO outgoing_document_details (document_id, outgoing_number, outgoing_date, sender_signatory, sender_executor, recipient_org_id, addressee)
-        VALUES ($1, '84', '2026-09-19', 'Signer', 'Executor', $2, 'Addressee')`, outgoing, alpha)
-	execSQL(t, db, `INSERT INTO administrative_order_details (document_id, order_number, order_date, title)
-        VALUES ($1, '41', '2026-09-22', 'О назначении')`, order)
+	execSQL(t, db, `INSERT INTO outgoing_document_details (document_id, sender_signatory, sender_executor, recipient_org_id, addressee)
+        VALUES ($1, 'Signer', 'Executor', $2, 'Addressee')`, outgoing, alpha)
+	execSQL(t, db, `INSERT INTO administrative_order_details (document_id, title)
+        VALUES ($1, 'О назначении')`, order)
 	execSQL(t, db, `INSERT INTO citizen_appeal_details (document_id, appeal_date, applicant_full_name, registration_address, appeal_type, applicant_category)
         VALUES ($1, '2026-09-15', 'Петров А.В.', 'Address', 'заявление', 'Category')`, appeal)
 	repo := NewWorkspaceRepository(database.Wrap(db))

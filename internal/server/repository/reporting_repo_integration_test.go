@@ -27,15 +27,15 @@ func TestReportingAggregatesIntegration(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO organizations(id,name) VALUES($1,'First'),($2,'Second')`, firstOrg, secondOrg)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO documents(id,kind,nomenclature_id,registration_number,registration_date,document_type,content,created_by) VALUES
-		($1,'incoming_letter',$3,'R-1','2026-02-10','Письмо','Incoming',$4),
-		($2,'outgoing_letter',$3,'R-2','2026-02-11','Письмо','Outgoing',$4)`, incoming, outgoing, nomenclature, user)
+	_, err = db.Exec(`INSERT INTO documents(id, kind, nomenclature_id, registration_number, registration_date, document_type, content, created_by) VALUES
+		($1, 'incoming_letter', $3, 'R-1', '2026-02-10', 'Письмо', 'Incoming', $4),
+($2, 'outgoing_letter', $3, 'R-2', '2026-02-11', 'Письмо', 'Outgoing', $4)`, incoming, outgoing, nomenclature, user)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO document_correspondent_registrations(document_id,registration_number,registration_date,correspondent_org_id,position) VALUES
 		($1,'C-1','2026-02-10',$2,1),($1,'C-2','2026-02-10',$3,2),($1,'C-3','2026-02-10',$2,3)`, incoming, firstOrg, secondOrg)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO outgoing_document_details(document_id,outgoing_number,outgoing_date,sender_signatory,sender_executor,recipient_org_id,addressee) VALUES
-		($1,'O-1','2026-02-11','Signer','Executor',$2,'Addressee')`, outgoing, firstOrg)
+	_, err = db.Exec(`INSERT INTO outgoing_document_details(document_id, sender_signatory, sender_executor, recipient_org_id, addressee) VALUES
+		($1, 'Signer', 'Executor', $2, 'Addressee')`, outgoing, firstOrg)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO document_deadline_controls(id,document_id,executor_id,created_by,subject,status,due_date,created_at,executed_on,completed_at,completed_by) VALUES
  ($3,$1,$2,$2,'First','completed','2026-02-12','2026-02-10 08:00:00+00','2026-02-12','2026-02-12 08:00:00+00',$2),
@@ -51,8 +51,8 @@ func TestReportingAggregatesIntegration(t *testing.T) {
 	require.Equal(t, 1, orgs[0].Incoming)
 	require.Equal(t, 1, orgs[0].Outgoing)
 	require.Equal(t, 1, orgs[1].Incoming)
-	_, err = db.Exec(`INSERT INTO documents(id,kind,nomenclature_id,registration_number,registration_date,document_type,content,created_by)
-		VALUES($1,'incoming_letter',$2,'R-3','2026-02-12','Письмо','Without organization',$3)`, uuid.New(), nomenclature, user)
+	_, err = db.Exec(`INSERT INTO documents(id, kind, nomenclature_id, registration_number, registration_date, document_type, content, created_by)
+		VALUES($1, 'incoming_letter', $2, 'R-3', '2026-02-12', 'Письмо', 'Without organization', $3)`, uuid.New(), nomenclature, user)
 	require.NoError(t, err)
 	unique, err := repo.UniqueDocumentCount(ctx, start, end, models.ReportRequest{Template: "organizations"})
 	require.NoError(t, err)

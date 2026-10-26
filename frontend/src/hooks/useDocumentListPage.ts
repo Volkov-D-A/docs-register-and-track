@@ -6,7 +6,6 @@ import { useDocumentListRefresh } from './useDocumentRefresh';
 
 type BuildFilter<TFilter> = (params: {
     search: string;
-    page: number;
     pageSize: number;
     filters: TFilter;
 }) => Record<string, unknown>;
@@ -74,12 +73,10 @@ export const useDocumentListPage = <TFilter,>({
         await runLatestRequest(async () => GetList(kindCode, {
                 ...buildFilterRef.current({
                     search,
-                    page,
                     pageSize,
                     filters: filtersRef.current,
                 }),
                 cursor,
-                cursorPagination: true,
             } as any), {
             onSuccess: (result) => {
                 setData(result?.items || []);
@@ -89,7 +86,7 @@ export const useDocumentListPage = <TFilter,>({
             onError: (error) => onErrorRef.current?.(error),
             onSettled: () => setLoading(false),
         });
-    }, [cursor, enabled, isAuthenticated, kindCode, page, pageSize, runLatestRequest, search]);
+    }, [cursor, enabled, isAuthenticated, kindCode, pageSize, runLatestRequest, search]);
 
     useEffect(() => {
         void load();

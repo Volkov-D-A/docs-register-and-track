@@ -23,10 +23,6 @@ func (s *Service) flushAudit(ctx context.Context) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	jobs, err := s.Jobs()
-	if err != nil {
-		return
-	}
 	actors := make(map[string]string)
 	entries, err := s.jobs()
 	if err != nil {
@@ -42,7 +38,7 @@ func (s *Service) flushAudit(ctx context.Context) {
 	for _, op := range ops {
 		actors[op.ID] = op.Actor
 	}
-	for _, job := range jobs {
+	for _, job := range jobViews(entries, ops) {
 		operation := map[string]string{"": "Создание копии", "restore": "Восстановление", "delete": "Удаление"}[job.Kind]
 		if operation == "" || !operationFinished(job.State) {
 			continue
@@ -57,8 +53,8 @@ func (s *Service) flushAudit(ctx context.Context) {
 		if job.Error != "" {
 			details += "; " + job.Error
 		}
-		// Keep the terminal stage key compatible with previously recorded results.
-		key := fmt.Sprintf("backup:%s:%d", job.ID, len(job.Stages)-1)
+		// One durable audit result per operation, independent of progress stages.
+		key := "backup:" + job.ID
 		_, err = s.DB.ExecContext(ctx, `INSERT INTO admin_audit_log (user_id, user_name, action, details, created_at, outbox_deduplication_key) SELECT u.id, COALESCE(u.full_name, CASE WHEN $4 = 'schedule' THEN 'Расписание' ELSE 'Пользователь ' || $4 END), 'BACKUP', $1, $2, $3 FROM (SELECT 1) seed LEFT JOIN users u ON u.id::text = $4 ON CONFLICT (outbox_deduplication_key) WHERE outbox_deduplication_key IS NOT NULL DO NOTHING`, details, job.UpdatedAt, key, actor)
 		if err != nil {
 			return

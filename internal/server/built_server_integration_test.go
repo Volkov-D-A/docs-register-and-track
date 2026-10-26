@@ -67,7 +67,7 @@ func TestBuiltServerControlsIntegration(t *testing.T) {
 		require.NoError(t, err)
 		documents := repository.NewOutgoingDocumentRepository(db)
 		documents.SetOutbox(repository.NewOutboxRepository(db))
-		doc, err := documents.CreateWithJournal(models.CreateOutgoingDocRequest{NomenclatureID: nom, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter, RecipientOrgID: org, CreatedBy: user, OutgoingDate: time.Now().UTC(), Content: "Control persistence", PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee"}, "CREATE", "Created %s")
+		doc, err := documents.CreateWithJournal(models.CreateOutgoingDocRequest{CommandHash: "repository-fixture-hash", NomenclatureID: nom, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter, RecipientOrgID: org, CreatedBy: user, OutgoingDate: time.Now().UTC(), Content: "Control persistence", PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee"}, "CREATE", "Created %s")
 		require.NoError(t, err)
 		body, err := json.Marshal(models.DeadlineControlRequest{DocumentID: doc.ID.String(), ExecutorID: user.String(), Subject: "Проверить сохранность", DueDate: "2026-10-20"})
 		require.NoError(t, err)

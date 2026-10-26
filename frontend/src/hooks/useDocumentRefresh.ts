@@ -1,3 +1,4 @@
+import { isDocumentResyncEvent } from '../events/documentEvents';
 import { useEffect, useRef } from 'react';
 import { onServerEvent, type DocumentResource } from '../events/serverEvents';
 
@@ -14,7 +15,7 @@ export const useDocumentRefresh = (
         if (!enabled || !documentId) return;
         let timer: ReturnType<typeof setTimeout> | undefined;
         const stop = onServerEvent((event) => {
-            const resync = event.topic === 'resync' || event.topic === 'access-changed' || event.topic === 'documents';
+            const resync = isDocumentResyncEvent(event);
             const changed = event.topic === 'document-changed' && event.documentId === documentId
                 && (event.resource === resource || resource === 'journal' || event.resource === 'document'
                     || (resource === 'document' && event.visibilityChanged));
@@ -35,7 +36,7 @@ export const useDocumentListRefresh = (kindCode: string, refresh: () => unknown,
         if (!enabled) return;
         let timer: ReturnType<typeof setTimeout> | undefined;
         const stop = onServerEvent((event) => {
-            const resync = event.topic === 'resync' || event.topic === 'access-changed' || event.topic === 'documents';
+            const resync = isDocumentResyncEvent(event);
             const changed = event.topic === 'document-changed'
                 && (!event.documentKind || event.documentKind === kindCode)
                 && (event.resource === 'document' || event.visibilityChanged);

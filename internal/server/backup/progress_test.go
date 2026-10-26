@@ -2,7 +2,6 @@ package backup
 
 import (
 	"context"
-	"fmt"
 	"github.com/DATA-DOG/go-sqlmock"
 	_ "github.com/lib/pq"
 	"testing"
@@ -87,7 +86,7 @@ func TestAuditRecordsOnlyFinalBackupResults(t *testing.T) {
 				require.NoError(t, s.persistOperation(&verify))
 				pending := Job{ID: "a2b959cd-c532-4904-85d9-bf007a0d2469", State: "staged", CreatedAt: at.Add(time.Second), Actor: "schedule"}
 				require.NoError(t, s.persist(&pending))
-				mock.ExpectExec("INSERT INTO admin_audit_log").WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), fmt.Sprintf("backup:%s:2", id), "schedule").WillReturnResult(sqlmock.NewResult(1, 1))
+				mock.ExpectExec("INSERT INTO admin_audit_log").WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "backup:"+id, "schedule").WillReturnResult(sqlmock.NewResult(1, 1))
 				s.flushAudit(context.Background())
 				require.NoError(t, mock.ExpectationsWereMet())
 			})

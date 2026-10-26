@@ -50,7 +50,7 @@ func TestLinkAndJournalAPIUseServerPrincipalIntegration(t *testing.T) {
 	documents.SetOutbox(repository.NewOutboxRepository(db))
 	documentDate := time.Now().UTC()
 	createDocument := func(content string) *models.OutgoingDocument {
-		document, createErr := documents.CreateWithJournal(models.CreateOutgoingDocRequest{
+		document, createErr := documents.CreateWithJournal(models.CreateOutgoingDocRequest{CommandHash: "repository-fixture-hash",
 			NomenclatureID: nomenclatureID, IdempotencyKey: uuid.New(), DocumentTypeID: models.DocumentTypeLetter,
 			RecipientOrgID: organizationID, CreatedBy: managerID, OutgoingDate: documentDate, Content: content,
 			PagesCount: 1, SenderSignatory: "Signer", SenderExecutor: "Executor", Addressee: "Addressee",

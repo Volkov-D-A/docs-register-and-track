@@ -8,8 +8,8 @@ import (
 
 // applyDocumentCursor adds the continuation predicate for the common stable
 // document ordering: created_at DESC, id DESC.
-func applyDocumentCursor(where *[]string, args *[]interface{}, argIdx *int, enabled bool, value string) error {
-	if !enabled || value == "" {
+func applyDocumentCursor(where *[]string, args *[]interface{}, argIdx *int, value string) error {
+	if value == "" {
 		return nil
 	}
 	cursor, err := models.DecodeDocumentCursor(value)

@@ -99,10 +99,8 @@ func newWithDependencies(cfg *config.Config, deps dependencies) (*App, error) {
 	worker.OnUserEvent = func(userID string) { events.Publish("user:" + userID) }
 	worker.OnDocumentChanged = events.PublishChange
 	worker.OnAccessChanged = func(request models.CreateAdminAuditLogRequest) {
-		// Legacy audit payloads lack an audience and require conservative resync.
-		resource := "access"
-
-		events.PublishChange(liveevents.Change{Resource: resource, Audience: request.AffectedUserIDs})
+		// Directory-wide changes invalidate all sessions; user changes target their audience.
+		events.PublishChange(liveevents.Change{Resource: "access", Audience: request.AffectedUserIDs})
 	}
 	listenAddress := strings.TrimSpace(cfg.Server.ListenAddress)
 	if listenAddress == "" {

@@ -14,7 +14,7 @@ import (
 
 type fakeServerDocumentQueryClient struct {
 	card       *dto.DocumentCard
-	list       *dto.PagedResult[dto.DocumentListItem]
+	list       *dto.CursorResult[dto.DocumentListItem]
 	cardErr    error
 	listErr    error
 	lastID     string
@@ -30,7 +30,7 @@ func (c *fakeServerDocumentQueryClient) GetDocumentCard(_ context.Context, id st
 	return c.card, c.cardErr
 }
 
-func (c *fakeServerDocumentQueryClient) ListDocuments(_ context.Context, kind string, filter models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error) {
+func (c *fakeServerDocumentQueryClient) ListDocuments(_ context.Context, kind string, filter models.DocumentFilter) (*dto.CursorResult[dto.DocumentListItem], error) {
 	c.lastKind, c.lastFilter = kind, filter
 	return c.list, c.listErr
 }
@@ -38,7 +38,7 @@ func (c *fakeServerDocumentQueryClient) ListDocuments(_ context.Context, kind st
 func TestDocumentQueryServiceUsesServerClient(t *testing.T) {
 	client := &fakeServerDocumentQueryClient{
 		card: &dto.DocumentCard{ID: uuid.NewString()},
-		list: &dto.PagedResult[dto.DocumentListItem]{Items: []dto.DocumentListItem{{ID: uuid.NewString()}}, TotalCount: 1},
+		list: &dto.CursorResult[dto.DocumentListItem]{Items: []dto.DocumentListItem{{ID: uuid.NewString()}}},
 	}
 	service := NewDocumentQueryService(client)
 
@@ -47,7 +47,7 @@ func TestDocumentQueryServiceUsesServerClient(t *testing.T) {
 	assert.Same(t, client.card, card)
 	assert.Equal(t, client.card.ID, client.lastID)
 
-	filter := models.DocumentFilter{Search: "contract", Page: 2, PageSize: 25}
+	filter := models.DocumentFilter{Search: "contract", PageSize: 25}
 	result, err := service.GetList(string(models.DocumentKindIncomingLetter), filter)
 	require.NoError(t, err)
 	assert.Same(t, client.list, result)

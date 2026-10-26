@@ -149,19 +149,23 @@ func (s *Service) Jobs() ([]JobView, error) {
 	if err != nil {
 		return nil, err
 	}
-	views := make([]JobView, 0, len(jobs))
-	for _, job := range jobs {
-		views = append(views, job.View())
-	}
 	ops, err := s.operations()
 	if err != nil {
 		return nil, err
+	}
+	return jobViews(jobs, ops), nil
+}
+
+func jobViews(jobs []Job, ops []operation) []JobView {
+	views := make([]JobView, 0, len(jobs))
+	for _, job := range jobs {
+		views = append(views, job.View())
 	}
 	for _, op := range ops {
 		views = append(views, JobView{Stages: op.Stages, ID: op.ID, Kind: op.Kind, CopyID: op.CopyID, State: op.State, CreatedAt: op.CreatedAt, UpdatedAt: op.UpdatedAt, Error: op.Error, ArchiveSize: op.Copy.Size})
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].CreatedAt.After(views[j].CreatedAt) })
-	return views, nil
+	return views
 }
 func (s *Service) jobs() ([]Job, error) {
 	entries, err := os.ReadDir(s.Directory)

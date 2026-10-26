@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Volkov-D-A/docs-register-and-track/internal/models"
-	"github.com/Volkov-D-A/docs-register-and-track/internal/server/observability"
 	"github.com/Volkov-D-A/docs-register-and-track/internal/server/ports"
 )
 
@@ -21,181 +20,170 @@ const statisticsQueryConcurrency = 2
 type StatisticsService struct {
 	repo        ports.StatisticsStore
 	auth        ports.StatisticsPrincipal
-	metrics     *observability.Registry
 	diagnostics ports.SystemDiagnosticsProvider
 }
 
-// StatisticsOptions configures server diagnostics and refresh coordination.
+// StatisticsOptions supplies optional server diagnostics.
 type StatisticsOptions struct {
 	Diagnostics ports.SystemDiagnosticsProvider
-	Metrics     *observability.Registry
 }
 
 func NewStatisticsService(repo ports.StatisticsStore, auth ports.StatisticsPrincipal, options StatisticsOptions) *StatisticsService {
-	return &StatisticsService{repo: repo, auth: auth,
-		diagnostics: options.Diagnostics, metrics: options.Metrics}
+	return &StatisticsService{repo: repo, auth: auth, diagnostics: options.Diagnostics}
 }
 
 // GetDocumentStatistics возвращает обзорную статистику по всем документам за текущий год.
 func (s *StatisticsService) GetDocumentStatistics() (*models.DocumentStatistics, error) {
-	return observability.Measure(s.metrics, "statistics.get_documents", func() (*models.DocumentStatistics, error) {
-		if err := s.auth.RequireAuthenticated(); err != nil {
-			return nil, err
-		}
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
 
-		year, yearStart, yearEnd := currentYearRange()
+	year, yearStart, yearEnd := currentYearRange()
 
-		var total int
-		var byKind, byRegistrar []models.StatisticsSeriesPoint
-		if err := runStatisticsQueries(
-			func() error {
-				var err error
-				total, err = s.repo.GetDocumentTotalByYear(yearStart, yearEnd)
-				return err
-			},
-			func() error {
-				var err error
-				byKind, err = s.repo.GetMonthlyDocumentCountsByKind(yearStart, yearEnd)
-				return err
-			},
-			func() error {
-				var err error
-				byRegistrar, err = s.repo.GetMonthlyDocumentCountsByRegistrar(yearStart, yearEnd)
-				return err
-			},
-		); err != nil {
-			return nil, err
-		}
-		byKind = completeMonthlySeries(withDocumentKindLabels(byKind), documentKindCategories())
-		byRegistrar = completeMonthlySeries(withMonthPeriods(byRegistrar), categoriesFromPoints(byRegistrar))
+	var total int
+	var byKind, byRegistrar []models.StatisticsSeriesPoint
+	if err := runStatisticsQueries(
+		func() error {
+			var err error
+			total, err = s.repo.GetDocumentTotalByYear(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			byKind, err = s.repo.GetMonthlyDocumentCountsByKind(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			byRegistrar, err = s.repo.GetMonthlyDocumentCountsByRegistrar(yearStart, yearEnd)
+			return err
+		},
+	); err != nil {
+		return nil, err
+	}
+	byKind = completeMonthlySeries(byKind, documentKindCategories())
+	byRegistrar = completeMonthlySeries(byRegistrar, categoriesFromPoints(byRegistrar))
 
-		return &models.DocumentStatistics{
-			Year:                        year,
-			TotalYear:                   total,
-			DocumentsByKindMonthly:      byKind,
-			DocumentsByRegistrarMonthly: byRegistrar,
-		}, nil
-	})
+	return &models.DocumentStatistics{
+		Year:                        year,
+		TotalYear:                   total,
+		DocumentsByKindMonthly:      byKind,
+		DocumentsByRegistrarMonthly: byRegistrar,
+	}, nil
 }
 
 // GetDocumentReport возвращает документный отчет за период.
 func (s *StatisticsService) GetDocumentReport(startDateStr, endDateStr, groupBy, kindCode, nomenclatureID, userID string) (*models.DocumentStatisticsReport, error) {
-	return observability.Measure(s.metrics, "statistics.get_document_report", func() (*models.DocumentStatisticsReport, error) {
-		if err := s.auth.RequireAuthenticated(); err != nil {
-			return nil, err
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
+	if groupBy == "" {
+		groupBy = "kind"
+	}
+	if groupBy != "kind" && groupBy != "nomenclature" && groupBy != "user" {
+		return nil, models.NewBadRequest("неподдерживаемая группировка статистики документов")
+	}
+	if kindCode != "" {
+		if _, ok := models.GetDocumentKindSpec(models.DocumentKind(kindCode)); !ok {
+			return nil, models.NewBadRequest("неизвестный вид документа")
 		}
-		if groupBy == "" {
-			groupBy = "kind"
-		}
-		if groupBy != "kind" && groupBy != "nomenclature" && groupBy != "user" {
-			return nil, models.NewBadRequest("неподдерживаемая группировка статистики документов")
-		}
-		if kindCode != "" {
-			if _, ok := models.GetDocumentKindSpec(models.DocumentKind(kindCode)); !ok {
-				return nil, models.NewBadRequest("неизвестный вид документа")
-			}
-		}
-		if err := validateOptionalUUID(nomenclatureID, "некорректная номенклатура"); err != nil {
-			return nil, err
-		}
-		if err := validateOptionalUUID(userID, "некорректный пользователь"); err != nil {
-			return nil, err
-		}
+	}
+	if err := validateOptionalUUID(nomenclatureID, "некорректная номенклатура"); err != nil {
+		return nil, err
+	}
+	if err := validateOptionalUUID(userID, "некорректный пользователь"); err != nil {
+		return nil, err
+	}
 
-		startDate, endDate, err := parseStatisticsDateRange(startDateStr, endDateStr)
-		if err != nil {
-			return nil, err
-		}
+	startDate, endDate, err := parseStatisticsDateRange(startDateStr, endDateStr)
+	if err != nil {
+		return nil, err
+	}
 
-		rows, err := s.repo.GetDocumentReport(startDate, endDate, groupBy, kindCode, nomenclatureID, userID)
-		if err != nil {
-			return nil, err
-		}
-		if groupBy == "kind" {
-			rows = withDocumentKindReportLabels(rows)
-		}
+	rows, err := s.repo.GetDocumentReport(startDate, endDate, groupBy, kindCode, nomenclatureID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if groupBy == "kind" {
+		rows = withDocumentKindReportLabels(rows)
+	}
 
-		return &models.DocumentStatisticsReport{
-			Rows:  rows,
-			Total: sumReportRows(rows),
-		}, nil
-	})
+	return &models.DocumentStatisticsReport{
+		Rows:  rows,
+		Total: sumReportRows(rows),
+	}, nil
 }
 
 // GetDocumentFilterOptions возвращает значения фильтров для документной статистики.
 func (s *StatisticsService) GetDocumentFilterOptions() (*models.DocumentStatisticsFilters, error) {
-	return observability.Measure(s.metrics, "statistics.get_document_filters", func() (*models.DocumentStatisticsFilters, error) {
-		if err := s.auth.RequireAuthenticated(); err != nil {
-			return nil, err
-		}
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
 
-		nomenclature, err := s.repo.GetNomenclatureOptions()
-		if err != nil {
-			return nil, err
-		}
-		users, err := s.repo.GetUserOptions()
-		if err != nil {
-			return nil, err
-		}
+	nomenclature, err := s.repo.GetNomenclatureOptions()
+	if err != nil {
+		return nil, err
+	}
+	users, err := s.repo.GetUserOptions()
+	if err != nil {
+		return nil, err
+	}
 
-		return &models.DocumentStatisticsFilters{
-			Kinds:        documentKindOptions(),
-			Nomenclature: nomenclature,
-			Users:        users,
-		}, nil
-	})
+	return &models.DocumentStatisticsFilters{
+		Kinds:        documentKindOptions(),
+		Nomenclature: nomenclature,
+		Users:        users,
+	}, nil
 }
 
 // GetDeadlineStatistics возвращает обзорную статистику по всем контролям.
 func (s *StatisticsService) GetDeadlineStatistics() (*models.DeadlineStatistics, error) {
-	return observability.Measure(s.metrics, "statistics.get_controls", func() (*models.DeadlineStatistics, error) {
-		if err := s.auth.RequireAuthenticated(); err != nil {
-			return nil, err
-		}
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
 
-		year, yearStart, yearEnd := currentYearRange()
+	year, yearStart, yearEnd := currentYearRange()
 
-		var monthlyTotals []models.DeadlineMonthlyPoint
-		var monthlyByExecutor []models.StatisticsSeriesPoint
-		var overdueRating, statusCounts []models.StatisticsReportRow
-		if err := runStatisticsQueries(
-			func() error {
-				var err error
-				monthlyTotals, err = s.repo.GetDeadlineMonthlyOverview(yearStart, yearEnd)
-				return err
-			},
-			func() error {
-				var err error
-				monthlyByExecutor, err = s.repo.GetDeadlineMonthlyByExecutor(yearStart, yearEnd)
-				return err
-			},
-			func() error {
-				var err error
-				overdueRating, err = s.repo.GetDeadlineOverdueRating(yearStart, yearEnd)
-				return err
-			},
-			func() error {
-				var err error
-				statusCounts, err = s.repo.GetDeadlineStatusCounts()
-				return err
-			},
-		); err != nil {
-			return nil, err
-		}
-		for i := range monthlyTotals {
-			monthlyTotals[i].Period = monthLabel(monthlyTotals[i].Month)
-		}
-		monthlyByExecutor = completeMonthlySeries(withMonthPeriods(monthlyByExecutor), categoriesFromPoints(monthlyByExecutor))
-		statusCounts = withDeadlineStatusLabels(statusCounts)
+	var monthlyTotals []models.DeadlineMonthlyPoint
+	var monthlyByExecutor []models.StatisticsSeriesPoint
+	var overdueRating, statusCounts []models.StatisticsReportRow
+	if err := runStatisticsQueries(
+		func() error {
+			var err error
+			monthlyTotals, err = s.repo.GetDeadlineMonthlyOverview(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			monthlyByExecutor, err = s.repo.GetDeadlineMonthlyByExecutor(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			overdueRating, err = s.repo.GetDeadlineOverdueRating(yearStart, yearEnd)
+			return err
+		},
+		func() error {
+			var err error
+			statusCounts, err = s.repo.GetDeadlineStatusCounts()
+			return err
+		},
+	); err != nil {
+		return nil, err
+	}
+	for i := range monthlyTotals {
+		monthlyTotals[i].Period = monthLabel(monthlyTotals[i].Month)
+	}
+	monthlyByExecutor = completeMonthlySeries(monthlyByExecutor, categoriesFromPoints(monthlyByExecutor))
+	statusCounts = withDeadlineStatusLabels(statusCounts)
 
-		return &models.DeadlineStatistics{
-			Year:              year,
-			MonthlyTotals:     monthlyTotals,
-			MonthlyByExecutor: monthlyByExecutor,
-			OverdueRating:     overdueRating,
-			StatusCounts:      statusCounts,
-		}, nil
-	})
+	return &models.DeadlineStatistics{
+		Year:              year,
+		MonthlyTotals:     monthlyTotals,
+		MonthlyByExecutor: monthlyByExecutor,
+		OverdueRating:     overdueRating,
+		StatusCounts:      statusCounts,
+	}, nil
 }
 
 // runStatisticsQueries runs independent database queries with a deliberately
@@ -239,83 +227,77 @@ func runStatisticsQueries(tasks ...func() error) error {
 
 // GetDeadlineReport возвращает отчет по контролям за период.
 func (s *StatisticsService) GetDeadlineReport(startDateStr, endDateStr string, onlyOverdue bool, userID string) (*models.DeadlineStatisticsReport, error) {
-	return observability.Measure(s.metrics, "statistics.get_control_report", func() (*models.DeadlineStatisticsReport, error) {
-		if err := s.auth.RequireAuthenticated(); err != nil {
-			return nil, err
-		}
-		if err := validateOptionalUUID(userID, "некорректный пользователь"); err != nil {
-			return nil, err
-		}
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
+	if err := validateOptionalUUID(userID, "некорректный пользователь"); err != nil {
+		return nil, err
+	}
 
-		startDate, endDate, err := parseStatisticsDateRange(startDateStr, endDateStr)
-		if err != nil {
-			return nil, err
-		}
+	startDate, endDate, err := parseStatisticsDateRange(startDateStr, endDateStr)
+	if err != nil {
+		return nil, err
+	}
 
-		rows, err := s.repo.GetDeadlineReport(startDate, endDate, onlyOverdue, userID)
-		if err != nil {
-			return nil, err
-		}
+	rows, err := s.repo.GetDeadlineReport(startDate, endDate, onlyOverdue, userID)
+	if err != nil {
+		return nil, err
+	}
 
-		return &models.DeadlineStatisticsReport{
-			Rows:  rows,
-			Total: sumReportRows(rows),
-		}, nil
-	})
+	return &models.DeadlineStatisticsReport{
+		Rows:  rows,
+		Total: sumReportRows(rows),
+	}, nil
 }
 
 // GetDeadlineFilterOptions возвращает значения фильтров для статистики контролей.
 func (s *StatisticsService) GetDeadlineFilterOptions() (*models.DeadlineStatisticsFilters, error) {
-	return observability.Measure(s.metrics, "statistics.get_control_filters", func() (*models.DeadlineStatisticsFilters, error) {
-		if err := s.auth.RequireAuthenticated(); err != nil {
-			return nil, err
-		}
+	if err := s.auth.RequireAuthenticated(); err != nil {
+		return nil, err
+	}
 
-		users, err := s.repo.GetExecutorOptions()
-		if err != nil {
-			return nil, err
-		}
+	users, err := s.repo.GetExecutorOptions()
+	if err != nil {
+		return nil, err
+	}
 
-		return &models.DeadlineStatisticsFilters{Users: users}, nil
-	})
+	return &models.DeadlineStatisticsFilters{Users: users}, nil
 }
 
 // GetSystemStatistics возвращает системную статистику.
 func (s *StatisticsService) GetSystemStatistics() (*models.SystemStatistics, error) {
-	return observability.Measure(s.metrics, "statistics.get_system", func() (*models.SystemStatistics, error) {
-		if err := s.requirePermission(models.SystemPermissionAdmin); err != nil {
-			return nil, err
-		}
+	if err := s.requirePermission(models.SystemPermissionAdmin); err != nil {
+		return nil, err
+	}
 
-		userCount, err := s.repo.GetSystemUserCount()
+	userCount, err := s.repo.GetSystemUserCount()
+	if err != nil {
+		return nil, err
+	}
+	documentCount, err := s.repo.GetSystemDocumentCount()
+	if err != nil {
+		return nil, err
+	}
+
+	result := &models.SystemStatistics{
+		UserCount:      userCount,
+		TotalDocuments: documentCount,
+		DBSize:         s.repo.GetDBSize(),
+		GeneratedAt:    time.Now().UTC(),
+	}
+	if s.diagnostics != nil {
+		diagnostics, err := s.diagnostics.GetSystemDiagnostics()
 		if err != nil {
 			return nil, err
 		}
-		documentCount, err := s.repo.GetSystemDocumentCount()
-		if err != nil {
-			return nil, err
-		}
+		result.Service = diagnostics.Service
+		result.Usage = diagnostics.Usage
+		result.API = diagnostics.API
+		result.Database = diagnostics.Database
+		result.Outbox = diagnostics.Outbox
+	}
 
-		result := &models.SystemStatistics{
-			UserCount:      userCount,
-			TotalDocuments: documentCount,
-			DBSize:         s.repo.GetDBSize(),
-			GeneratedAt:    time.Now().UTC(),
-		}
-		if s.diagnostics != nil {
-			diagnostics, err := s.diagnostics.GetSystemDiagnostics()
-			if err != nil {
-				return nil, err
-			}
-			result.Service = diagnostics.Service
-			result.Usage = diagnostics.Usage
-			result.API = diagnostics.API
-			result.Database = diagnostics.Database
-			result.Outbox = diagnostics.Outbox
-		}
-
-		return result, nil
-	})
+	return result, nil
 }
 
 func (s *StatisticsService) requirePermission(permission string) error {
@@ -386,14 +368,6 @@ func documentKindCategories() map[string]string {
 	return categories
 }
 
-func withDocumentKindLabels(points []models.StatisticsSeriesPoint) []models.StatisticsSeriesPoint {
-	for i := range points {
-		points[i].CategoryName = models.DocumentKind(points[i].CategoryKey).Label()
-		points[i].Period = monthLabel(points[i].Month)
-	}
-	return points
-}
-
 func withDocumentKindReportLabels(rows []models.StatisticsReportRow) []models.StatisticsReportRow {
 	for i := range rows {
 		rows[i].Name = models.DocumentKind(rows[i].Key).Label()
@@ -409,13 +383,6 @@ func withDeadlineStatusLabels(rows []models.StatisticsReportRow) []models.Statis
 		}
 	}
 	return rows
-}
-
-func withMonthPeriods(points []models.StatisticsSeriesPoint) []models.StatisticsSeriesPoint {
-	for i := range points {
-		points[i].Period = monthLabel(points[i].Month)
-	}
-	return points
 }
 
 func categoriesFromPoints(points []models.StatisticsSeriesPoint) map[string]string {

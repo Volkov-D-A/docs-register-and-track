@@ -26,25 +26,6 @@ func NewDeadlineControlRepository(db *database.DB, outbox *OutboxRepository) *De
 	return &DeadlineControlRepository{db: db, outbox: outbox}
 }
 
-// Every seed must refer to the authenticated, active user. UNION terminates cycles
-// and deduplicates multiple executor and link paths before any aggregate/limit.
-func visibleDocumentClosure(user string) string {
-	return `WITH RECURSIVE visible(id) AS (
- SELECT d.id FROM documents d JOIN users u ON u.id=` + user + ` AND u.is_active
- WHERE EXISTS(SELECT 1 FROM document_permissions p WHERE p.kind_code=d.kind AND p.is_allowed
-   AND p.action IN ('register','control_deadlines')
-   AND ((p.subject_type='user' AND p.subject_key=u.id::text)
-     OR (p.subject_type='department' AND p.subject_key=u.department_id::text)))
- OR EXISTS(SELECT 1 FROM department_nomenclature n WHERE n.department_id=u.department_id AND n.nomenclature_id=d.nomenclature_id)
- OR EXISTS(SELECT 1 FROM document_deadline_controls c JOIN deadline_executors e
-   ON (e.id=c.executor_id OR e.id=ANY(c.co_executor_ids))
-   WHERE c.document_id=d.id AND c.status IN ('active','completed') AND e.user_id=u.id)
- UNION
- SELECT CASE WHEN l.source_document_id=v.id THEN l.target_document_id ELSE l.source_document_id END
- FROM visible v JOIN document_links l ON (l.source_document_id=v.id OR l.target_document_id=v.id)
- ) `
-}
-
 const deadlineManagePredicate = `EXISTS(SELECT 1 FROM users u JOIN document_permissions p
  ON ((p.subject_type='user' AND p.subject_key=u.id::text) OR (p.subject_type='department' AND p.subject_key=u.department_id::text))
  WHERE u.id=$1 AND u.is_active AND p.kind_code=d.kind AND p.action='control_deadlines' AND p.is_allowed)`
@@ -246,26 +227,20 @@ func (t *deadlineTransaction) GetControl(id string) (*models.DocumentDeadlineCon
 func (t *deadlineTransaction) GetSeries(id string) (*models.DocumentDeadlineSeries, error) {
 	return scanDeadlineSeries(t.tx.QueryRowContext(t.ctx, `SELECT `+deadlineSeriesColumns+` FROM document_deadline_series WHERE id=$1 AND document_id=$2 FOR UPDATE`, id, t.doc))
 }
-func nullableDeadlineValue(value string) any {
-	if value == "" {
-		return nil
-	}
-	return value
-}
 func (t *deadlineTransaction) SaveControl(c *models.DocumentDeadlineControl, create bool) error {
 	if c.DocumentID != t.doc {
 		return models.ErrForbidden
 	}
 	if create {
 		err := t.tx.QueryRowContext(t.ctx, `INSERT INTO document_deadline_controls(id,document_id,created_by,executor_id,co_executor_ids,subject,due_date,series_id,iteration,planned_due_date)
-   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING version,created_at,updated_at`, c.ID, c.DocumentID, c.CreatedBy, c.ExecutorID, pq.Array(c.CoExecutorIDs), c.Subject, c.DueDate, nullableDeadlineValue(c.SeriesID), c.Iteration, nullableDeadlineValue(c.PlannedDueDate)).Scan(&c.Version, &c.CreatedAt, &c.UpdatedAt)
+   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING version,created_at,updated_at`, c.ID, c.DocumentID, c.CreatedBy, c.ExecutorID, pq.Array(c.CoExecutorIDs), c.Subject, c.DueDate, nullableSQLValue(c.SeriesID), c.Iteration, nullableSQLValue(c.PlannedDueDate)).Scan(&c.Version, &c.CreatedAt, &c.UpdatedAt)
 		c.DocumentKind = t.kind
 		c.DocumentNumber = t.number
 		return err
 	}
 	err := t.tx.QueryRowContext(t.ctx, `UPDATE document_deadline_controls SET executor_id=$1,co_executor_ids=$2,subject=$3,due_date=$4,status=$5,
  executed_on=$6,completed_at=$7,completed_by=$8,comment=$9,cancellation_reason=$10,version=version+1,updated_at=now()
- WHERE id=$11 AND document_id=$12 AND version=$13 AND status='active' RETURNING version,updated_at`, c.ExecutorID, pq.Array(c.CoExecutorIDs), c.Subject, c.DueDate, c.Status, nullableDeadlineValue(c.ExecutedOn), c.CompletedAt, nullableDeadlineValue(c.CompletedBy), c.Comment, c.CancellationReason, c.ID, t.doc, c.Version).Scan(&c.Version, &c.UpdatedAt)
+ WHERE id=$11 AND document_id=$12 AND version=$13 AND status='active' RETURNING version,updated_at`, c.ExecutorID, pq.Array(c.CoExecutorIDs), c.Subject, c.DueDate, c.Status, nullableSQLValue(c.ExecutedOn), c.CompletedAt, nullableSQLValue(c.CompletedBy), c.Comment, c.CancellationReason, c.ID, t.doc, c.Version).Scan(&c.Version, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.NewConflict("контроль изменён или уже закрыт; перечитайте данные")
 	}
@@ -277,10 +252,10 @@ func (t *deadlineTransaction) SaveSeries(s *models.DocumentDeadlineSeries, creat
 	}
 	if create {
 		return t.tx.QueryRowContext(t.ctx, `INSERT INTO document_deadline_series(id,document_id,created_by,executor_id,co_executor_ids,subject,interval_unit,interval_value,day_rule,day_of_month,first_due_date,current_control_id,current_iteration)
-   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING version`, s.ID, s.DocumentID, s.CreatedBy, s.ExecutorID, pq.Array(s.CoExecutorIDs), s.Subject, s.Recurrence.IntervalUnit, s.Recurrence.IntervalValue, s.Recurrence.DayRule, s.Recurrence.DayOfMonth, s.FirstDueDate, nullableDeadlineValue(s.CurrentControlID), s.CurrentIteration).Scan(&s.Version)
+   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING version`, s.ID, s.DocumentID, s.CreatedBy, s.ExecutorID, pq.Array(s.CoExecutorIDs), s.Subject, s.Recurrence.IntervalUnit, s.Recurrence.IntervalValue, s.Recurrence.DayRule, s.Recurrence.DayOfMonth, s.FirstDueDate, nullableSQLValue(s.CurrentControlID), s.CurrentIteration).Scan(&s.Version)
 	}
 	err := t.tx.QueryRowContext(t.ctx, `UPDATE document_deadline_series SET executor_id=$1,co_executor_ids=$2,subject=$3,interval_unit=$4,interval_value=$5,day_rule=$6,day_of_month=$7,
- active=$8,stop_reason=$9,current_control_id=$10,current_iteration=$11,version=version+1 WHERE id=$12 AND document_id=$13 AND version=$14 RETURNING version`, s.ExecutorID, pq.Array(s.CoExecutorIDs), s.Subject, s.Recurrence.IntervalUnit, s.Recurrence.IntervalValue, s.Recurrence.DayRule, s.Recurrence.DayOfMonth, s.Active, s.StopReason, nullableDeadlineValue(s.CurrentControlID), s.CurrentIteration, s.ID, t.doc, s.Version).Scan(&s.Version)
+ active=$8,stop_reason=$9,current_control_id=$10,current_iteration=$11,version=version+1 WHERE id=$12 AND document_id=$13 AND version=$14 RETURNING version`, s.ExecutorID, pq.Array(s.CoExecutorIDs), s.Subject, s.Recurrence.IntervalUnit, s.Recurrence.IntervalValue, s.Recurrence.DayRule, s.Recurrence.DayOfMonth, s.Active, s.StopReason, nullableSQLValue(s.CurrentControlID), s.CurrentIteration, s.ID, t.doc, s.Version).Scan(&s.Version)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.NewConflict("серия изменена; перечитайте данные")
 	}

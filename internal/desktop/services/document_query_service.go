@@ -30,7 +30,7 @@ func (s *DocumentQueryService) GetByID(id string) (*dto.DocumentCard, error) {
 	return s.server.GetDocumentCard(ctx, id)
 }
 
-func (s *DocumentQueryService) GetList(kindCode string, filter models.DocumentFilter) (*dto.PagedResult[dto.DocumentListItem], error) {
+func (s *DocumentQueryService) GetList(kindCode string, filter models.DocumentFilter) (*dto.CursorResult[dto.DocumentListItem], error) {
 	if s.server == nil {
 		return nil, errServerDocumentQueryClientNotConfigured
 	}

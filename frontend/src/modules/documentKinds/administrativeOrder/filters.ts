@@ -20,17 +20,14 @@ export const defaultAdministrativeOrderFilters: AdministrativeOrderFiltersState 
 
 export const buildAdministrativeOrderQueryFilter = ({
     search,
-    page,
     pageSize,
     filters,
 }: {
     search: string;
-    page: number;
     pageSize: number;
     filters: AdministrativeOrderFiltersState;
 }) => ({
     search,
-    page,
     pageSize,
     nomenclatureIds: filters.filterNomenclatureIds,
     dateFrom: filters.filterDateFrom,

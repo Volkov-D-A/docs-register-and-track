@@ -186,7 +186,6 @@ CREATE TABLE documents (
     ),
     content TEXT NOT NULL,
     pages_count INT NOT NULL DEFAULT 1,
-    idempotency_key UUID NOT NULL DEFAULT gen_random_uuid(),
     created_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -202,11 +201,8 @@ CREATE INDEX idx_documents_kind_created_at ON documents (kind, created_at DESC);
 -- Matches the actual document-list scope and ORDER BY created_at DESC.
 CREATE INDEX idx_documents_kind_nomenclature_created_at
     ON documents (kind, nomenclature_id, created_at DESC);
-CREATE UNIQUE INDEX idx_documents_created_by_kind_idempotency
-    ON documents (created_by, kind, idempotency_key);
 
--- Stores the durable result of document commands independently from the
--- document registration key. This also covers updates and admin drafts.
+-- Stores the durable result of registration, update and admin-draft commands.
 CREATE TABLE document_command_idempotency (
     principal_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     operation TEXT NOT NULL,
@@ -248,25 +244,18 @@ CREATE INDEX idx_document_resolutions_document_position ON document_resolutions 
 -- 11. Incoming Document Details
 CREATE TABLE incoming_document_details (
     document_id UUID PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
-    incoming_number VARCHAR(50) NOT NULL,
-    incoming_date DATE NOT NULL,
     sender_signatory VARCHAR(255) NOT NULL
 );
-
-CREATE INDEX idx_incoming_doc_details_date ON incoming_document_details (incoming_date);
 
 -- 12. Outgoing Document Details
 CREATE TABLE outgoing_document_details (
     document_id UUID PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
-    outgoing_number VARCHAR(50) NOT NULL,
-    outgoing_date DATE NOT NULL,
     sender_signatory VARCHAR(255) NOT NULL,
     sender_executor VARCHAR(255) NOT NULL,
     recipient_org_id UUID NOT NULL REFERENCES organizations(id),
     addressee VARCHAR(255) NOT NULL
 );
 
-CREATE INDEX idx_outgoing_doc_details_date ON outgoing_document_details (outgoing_date);
 CREATE INDEX idx_outgoing_doc_details_recipient ON outgoing_document_details (recipient_org_id);
 
 -- 13. Citizen Appeal Details
@@ -289,8 +278,6 @@ CREATE INDEX idx_citizen_appeal_details_type ON citizen_appeal_details (appeal_t
 -- 14. Administrative Order Details
 CREATE TABLE administrative_order_details (
     document_id UUID PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
-    order_number VARCHAR(50) NOT NULL,
-    order_date DATE NOT NULL,
     title TEXT NOT NULL,
     execution_controller VARCHAR(255) NOT NULL DEFAULT '',
     execution_deadline DATE,
@@ -302,7 +289,6 @@ CREATE TABLE administrative_order_details (
     )
 );
 
-CREATE INDEX idx_administrative_order_details_date ON administrative_order_details (order_date);
 CREATE INDEX idx_administrative_order_details_active ON administrative_order_details (is_active);
 
 CREATE TABLE administrative_order_acknowledgment_people (

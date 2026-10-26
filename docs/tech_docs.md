@@ -71,8 +71,8 @@ Wails публикует desktop-сервисы без служебных setter
 
 Приёмка включает Go-тесты, vet, race, PostgreSQL integration, frontend lint/test/build,
 генерацию bindings, сборки server без CGO и desktop Linux/Windows, а также SMB smoke
-и database-only backup/restore v4. Фактически выполненные проверки новой модели
-и оставшиеся ограничения записываются в [журнал изменений](document-deadline-control-changes.md).
+и database-only backup/restore v4. Фактически выполненные проверки и оставшиеся
+ограничения указываются в отчёте соответствующего изменения.
 
 ```text
 Wails desktop app
@@ -97,7 +97,7 @@ Wails desktop app
 │   │   ├── background/ lifecycle фоновых задач и проверка схемы
 │   │   ├── config/    PostgreSQL, backup, Seq и outbox из окружения
 │   │   ├── logging/   серверная настройка slog и доставка в Seq
-│   │   ├── observability/ метрики серверных операций
+│   │   ├── observability/ общие HTTP/SQL-метрики диагностики
 │   │   ├── services/  права и бизнес-операции
 │   │   ├── database/  PostgreSQL connection и embedded migrations
 │   │   ├── repository/ SQL persistence и транзакции
@@ -128,6 +128,10 @@ Wails desktop app
 └── tools/             release gate, release generator и DB performance tooling
 ```
 
+Общая диагностика читает агрегаты `http.request` и `database.operation`, P95,
+счётчики HTTP-ошибок и доставки outbox. Данные пула берутся из `sql.DB.Stats()`;
+отдельные ряды по маршрутам и бизнес-операциям не собираются без потребителя.
+
 ## Слой Frontend
 
 Frontend отвечает за:
@@ -157,7 +161,7 @@ Frontend не должен:
 - `frontend/src/utils/latestRequest.ts` - защита состояния от устаревших async-ответов;
 - `frontend/src/features/settings/ReferenceDirectoriesTab.tsx` - вынесенный feature component справочников.
 
-Журналы документов используют cursor pagination: backend возвращает `nextCursor` и `hasMore`, а hook хранит историю курсоров для кнопок «Назад» и «Вперёд». Любое изменение фильтра, поиска или размера страницы сбрасывает историю. Поле `cursorPagination` включает этот режим; старый `page`-контракт остаётся для внутренних вызовов, которые ещё нуждаются в номере страницы и `totalCount`.
+Журналы документов используют cursor pagination: backend возвращает `nextCursor` и `hasMore`, а hook хранит историю курсоров для кнопок «Назад» и «Вперёд». Любое изменение фильтра, поиска или размера страницы сбрасывает историю. Этот контракт используется всегда, в том числе селектором документа для создания связи: `items`, `pageSize`, `nextCursor`, `hasMore`. Списки документов не выполняют COUNT/OFFSET. Список пользовательских событий и общий поиск документов имеют собственную постраничную пагинацию.
 
 Серверный middleware проверяет bearer-сессию и активность пользователя, затем передаёт его состояние через request context. Document-domain сервисы используют request-local principal; desktop получает профиль и состояние сессии через HTTP API. Локальной проверки сессии через запрос `SessionPrincipal` к БД нет.
 
@@ -219,6 +223,7 @@ Bindings автоматически генерируются Wails при `make 
 
 - SQL не должен расползаться в services/frontend;
 - multi-table domain changes должны быть атомарными;
+- регистрационные номер и дата хранятся только в `documents.registration_number` / `registration_date`; видовые DTO читают их из root, таблицы details содержат специфичные реквизиты;
 - registration number allocation and document create must stay in one transaction;
 - constraints and indexes are part of business safety, not optional decoration;
 - migrations are embedded and must remain deterministic;
@@ -472,8 +477,9 @@ Document kinds are fixed in code and DB. Перевод в справочник 
 
 - registration number unique within `(kind, registration_number, year(registration_date))`;
 - `nomenclature.next_number` можно увеличивать только как часть успешной регистрации;
-- idempotent registration uses backend `idempotency_key`;
-- repeated request with same `(created_by, kind, idempotency_key)` returns existing document;
+- регистрация, изменение и admin drafts используют `document_command_idempotency` с ключом `(principal_id, operation, idempotency_key)` и обязательным hash payload;
+- повтор команды с тем же ключом и hash возвращает существующий результат; другой payload с тем же ключом даёт conflict;
+- отдельного ключа идемпотентности в `documents` нет; резервирование команды, выделение номера, запись документа и outbox выполняются в одной транзакции;
 - repeated request must not create duplicate and must not increment `next_number` again.
 
 ### Nomenclature
@@ -534,7 +540,7 @@ Document kinds are fixed in code and DB. Перевод в справочник 
 
 | Область | Что вызывает обновление |
 | --- | --- |
-| Рабочий стол и контроли | Начальная загрузка, изменение фильтров, локальное изменение контроля, SSE `document-changed` (контроли, реквизиты документа, связи), `documents`, `resync`, `access-changed`; смена дня организации — один таймер на ближайшую полночь |
+| Рабочий стол и контроли | Начальная загрузка, изменение фильтров, локальное изменение контроля, SSE `document-changed` (контроли, реквизиты документа, связи), `resync`, `access-changed`; смена дня организации — один таймер на ближайшую полночь |
 | Рабочий стол после возврата в окно | События `focus` / `visibilitychange`, без периодического запроса |
 | Карточка документа, журналы, связи, поиск | Подходящие SSE-события; поиск — также действия пользователя |
 | Персональные события | SSE `user-events`, `resync`, `access-changed`, отметка прочтения и открытие страниц окна событий |
@@ -623,7 +629,7 @@ Desktop получает последние документы через HTTP/W
 
 ### Модель контроля сроков
 
-Сервер предоставляет модель через `/api/v1/deadline-controls`, `/api/v1/deadline-series` и `/api/v1/deadline-executors`. Desktop использует отдельный HTTP/Wails-сервис `DeadlineControlService`. Карточки, рабочий стол, статистика и отчёты используют общую область чтения. Документные вложения удалены; backup/restore использует PostgreSQL и формат архивов 4. Реализация перехода и результаты изолированных проверок описаны в [журнале изменений](document-deadline-control-changes.md); развёртывание и ручная приёмка остаются отдельными операциями.
+Сервер предоставляет модель через `/api/v1/deadline-controls`, `/api/v1/deadline-series` и `/api/v1/deadline-executors`. Desktop использует отдельный HTTP/Wails-сервис `DeadlineControlService`. Карточки, рабочий стол, статистика и отчёты используют общую область чтения. Документные вложения удалены; backup/restore использует PostgreSQL и формат архивов 4. Развёртывание и ручная приёмка остаются отдельными операциями; выполненные проверки и ограничения фиксируются в отчёте соответствующего изменения.
 
 В новых маршрутах управление требует `control_deadlines` по виду документа, независимо от автора. Контроль имеет одного исполнителя, необязательных соисполнителей и состояния `active`, `completed`, `cancelled`; конечные состояния не открываются повторно. Просрочка вычисляется по календарной дате организации `Asia/Yekaterinburg`. Фактическая дата исполнения отдельна от времени отметки и по умолчанию равна текущему дню; будущая запрещена. Редактирование передаёт версию, перенос срока — также причину.
 
@@ -719,7 +725,7 @@ Desktop получает последние документы через HTTP/W
 
 - migrations `Up()` when no change;
 - organization/resolution executor find-or-create;
-- document registration by `idempotency_key`;
+- document command replay by `(principal_id, operation, idempotency_key)` and payload hash;
 - saving existing system setting value;
 - marking release notes as viewed;
 - saving theme;
@@ -806,7 +812,7 @@ make go-vet
 - Migrations must be embedded and compatible with release build.
 - For constraints/index changes, add focused tests where practical.
 - Do not add performance indexes just because a query has a seq scan on small baseline data.
-- Для production-like планов используйте `make db-performance-check`; по умолчанию он создаёт 10 000 документов, сравнивает глубокие OFFSET- и cursor-страницы поиска и сохраняет полный JSON-план. Размер и pagination-сценарий можно изменить через `PERFORMANCE_DOCUMENTS`, `PERFORMANCE_PAGE_SIZE` и `PERFORMANCE_DEEP_PAGE`, например `make db-performance-check PERFORMANCE_DOCUMENTS=50000 PERFORMANCE_DEEP_PAGE=1000`.
+- Для production-like планов используйте `make db-performance-check`; по умолчанию он создаёт 10 000 документов, измеряет первую и глубокую cursor-страницы журнала и сохраняет JSON-планы вспомогательных упрощённых SQL-проб (`probePlan`). Времена median/p95/p99 относятся к настоящим repository-операциям с правами доступа; EXPLAIN-проба не воспроизводит все JOIN и проверки доступа и не заменяет план реального production-запроса. Размер и pagination-сценарий можно изменить через `PERFORMANCE_DOCUMENTS`, `PERFORMANCE_PAGE_SIZE` и `PERFORMANCE_CURSOR_DEPTH`, например `make db-performance-check PERFORMANCE_DOCUMENTS=50000 PERFORMANCE_CURSOR_DEPTH=1000`.
 - Any new performance index needs before/after `EXPLAIN (ANALYZE, BUFFERS)` and write-latency consideration.
 - Keep rollback impact explicit for destructive `down` migrations.
 

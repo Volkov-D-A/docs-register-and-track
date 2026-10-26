@@ -88,10 +88,28 @@ func TestDocumentCommandAPIAllKindsIntegration(t *testing.T) {
 			} else {
 				update["content"] = "updated"
 			}
-			changed := request(http.MethodPatch, path+"/"+document["id"].(string), uuid.NewString(), update)
+			if tc.kind == "outgoing_letter" {
+				update["outgoingDate"] = "2026-09-10"
+			}
+			updateKey := uuid.NewString()
+			changed := request(http.MethodPatch, path+"/"+document["id"].(string), updateKey, update)
 			require.Equal(t, http.StatusOK, changed.Code, changed.Body.String())
 			require.Contains(t, changed.Body.String(), "updated")
-			filter := map[string]any{"page": 1, "pageSize": 20}
+			replayedUpdate := request(http.MethodPatch, path+"/"+document["id"].(string), updateKey, update)
+			require.Equal(t, http.StatusOK, replayedUpdate.Code, replayedUpdate.Body.String())
+			require.JSONEq(t, changed.Body.String(), replayedUpdate.Body.String())
+			conflictPayload := map[string]any{}
+			for key, value := range update {
+				conflictPayload[key] = value
+			}
+			if tc.kind == "administrative_order" {
+				conflictPayload["title"] = "conflicting update"
+			} else {
+				conflictPayload["content"] = "conflicting update"
+			}
+			conflict := request(http.MethodPatch, path+"/"+document["id"].(string), updateKey, conflictPayload)
+			require.Equal(t, http.StatusConflict, conflict.Code, conflict.Body.String())
+			filter := map[string]any{"pageSize": 20}
 			switch models.DocumentKind(tc.kind) {
 			case models.DocumentKindIncomingLetter:
 				filter["incomingNumber"] = "D/1"
@@ -108,10 +126,26 @@ func TestDocumentCommandAPIAllKindsIntegration(t *testing.T) {
 				"filter":   filter,
 			})
 			require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
-			var page dto.PagedResult[dto.DocumentListItem]
+			var page dto.CursorResult[dto.DocumentListItem]
 			require.NoError(t, json.Unmarshal(listed.Body.Bytes(), &page))
 			require.Len(t, page.Items, 1)
 			require.Equal(t, document["id"], page.Items[0].ID)
+			if tc.kind == "outgoing_letter" {
+				require.Equal(t, "2026-09-10", page.Items[0].RegistrationDate.Format("2006-01-02"))
+				require.Equal(t, "2026-09-10", page.Items[0].OutgoingDate.Format("2006-01-02"))
+				searched := request(http.MethodPost, "/api/v1/documents/search", "", map[string]any{"query": "updated"})
+				require.Equal(t, http.StatusOK, searched.Code, searched.Body.String())
+				var searchResult dto.DocumentSearchResult
+				require.NoError(t, json.Unmarshal(searched.Body.Bytes(), &searchResult))
+				found := false
+				for _, item := range searchResult.Items {
+					if item.ID == document["id"] {
+						found = true
+						require.Equal(t, "2026-09-10", item.RegistrationDate.Format("2006-01-02"))
+					}
+				}
+				require.True(t, found)
+			}
 			expectedType := models.DocumentTypeLetter
 			switch models.DocumentKind(tc.kind) {
 			case models.DocumentKindCitizenAppeal:
