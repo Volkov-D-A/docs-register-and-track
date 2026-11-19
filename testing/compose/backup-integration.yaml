@@ -3,6 +3,7 @@ services:
     build:
       args:
         COVERAGE: "1"
+        GOTOOLCHAIN: ${DOCFLOW_SMOKE_GO_TOOLCHAIN:?Set coverage Go toolchain}
     environment:
       DOCFLOW_BACKUP_DIRECTORY: /var/lib/docflow/backups
       DOCFLOW_SETTINGS_KEY_FILE: /run/secrets/settings_key

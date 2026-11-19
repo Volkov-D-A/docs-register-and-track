@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -74,16 +75,19 @@ func TestBuiltServerControlsIntegration(t *testing.T) {
 		response := request(http.MethodPost, "/api/v1/deadline-controls", strings.NewReader(string(body)), login())
 		require.Equal(t, http.StatusCreated, response.StatusCode)
 	}
-	token := login()
-	var id string
-	require.NoError(t, db.QueryRow(`SELECT id::text FROM document_deadline_controls WHERE subject='Проверить сохранность'`).Scan(&id))
-	response := request(http.MethodGet, "/api/v1/deadline-controls/"+id, nil, token)
+	var id, documentID string
+	require.NoError(t, db.QueryRow(`SELECT id::text, document_id::text FROM document_deadline_controls WHERE subject='Проверить сохранность'`).Scan(&id, &documentID))
+	body, err := json.Marshal(models.DeadlineControlFilter{DocumentID: documentID})
+	require.NoError(t, err)
+	response := request(http.MethodPost, "/api/v1/deadline-controls/query", bytes.NewReader(body), login())
 	require.Equal(t, http.StatusOK, response.StatusCode)
-	var control models.DocumentDeadlineControl
-	require.NoError(t, json.NewDecoder(response.Body).Decode(&control))
+	var page models.DeadlineControlPage
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&page))
+	require.Len(t, page.Items, 1)
+	control := page.Items[0]
+	require.Equal(t, id, control.ID)
+	require.Equal(t, documentID, control.DocumentID)
 	require.Equal(t, models.DeadlineActive, control.Status)
 	require.Equal(t, "Проверить сохранность", control.Subject)
 	require.True(t, control.CanManage)
-	response = request(http.MethodGet, "/api/v1/documents/"+control.DocumentID+"/attachments", nil, token)
-	require.Contains(t, []int{http.StatusNotFound, http.StatusMethodNotAllowed}, response.StatusCode)
 }

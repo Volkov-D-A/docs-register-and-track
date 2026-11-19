@@ -318,8 +318,8 @@ Operator-facing startup behavior, logging and recovery constraints are described
 
 Runtime secrets and recovery are covered in the
 [backup operations guide](docs/instructions.md#серверное-резервирование-и-восстановление).
-Run `make integration-test` with PostgreSQL client tools (`pg_dump`, `pg_restore`)
-compatible with the configured database version. It checks controls and database-only
+Run `make integration-test` with Docker Compose. It runs `pg_dump` and `pg_restore`
+in the test containers and checks controls and database-only
 backup/verify/restore/delete against disposable PostgreSQL and Samba services,
 saving coverage in `build/release-evidence/`. Run `make storage-smoke-test` to
 verify the production Compose example and control persistence after server restarts.

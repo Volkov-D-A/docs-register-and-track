@@ -39,7 +39,7 @@ test('opening marks all read, clears the indicator and supports pages and docume
     await waitFor(() => expect(useUserEventsStore.getState().unreadCount).toBe(0));
     expect(api.MarkAllRead).toHaveBeenCalledTimes(1);
     expect(await screen.findByText('Сообщение 6')).toBeInTheDocument();
-    fireEvent.click(screen.getByTitle('2'));
+    fireEvent.click(screen.getByRole('button', { name: 'Page 2' }));
     await waitFor(() => expect(api.GetCurrentUserEvents).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, pageSize: 20 })));
     expect(api.MarkAllRead).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByText('Сообщение 6'));

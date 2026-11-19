@@ -34,13 +34,17 @@ _check-integration-env:
 	@test -n "$(POSTGRES_VERSION)" || (echo "POSTGRES_VERSION is required for PostgreSQL integration tests" >&2; exit 1)
 
 integration-test: _check-integration-env
-	@command -v pg_dump >/dev/null 2>&1 && command -v pg_restore >/dev/null 2>&1 || (echo "pg_dump and pg_restore compatible with POSTGRES_VERSION are required" >&2; exit 1)
 	@set -eu; \
-		cleanup() { $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
+		pg_tools=$$(mktemp -d); \
+		cleanup() { rm -f "$$pg_tools/pg_dump" "$$pg_tools/pg_restore"; rmdir "$$pg_tools"; $(INTEGRATION_COMPOSE) down -v --remove-orphans; }; \
 		trap cleanup EXIT INT TERM; \
 		$(INTEGRATION_COMPOSE) up -d --build --wait; \
+		pg_container=$$($(INTEGRATION_COMPOSE) ps -q postgres); \
+		test -n "$$pg_container"; \
+		ln -s "$(CURDIR)/testing/scripts/integration-pg-tool.sh" "$$pg_tools/pg_dump"; \
+		ln -s "$(CURDIR)/testing/scripts/integration-pg-tool.sh" "$$pg_tools/pg_restore"; \
 		mkdir -p build/release-evidence; \
-		DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1 -coverprofile=build/release-evidence/integration-go-coverage.out; \
+		PATH="$$pg_tools:$$PATH" DOCFLOW_INTEGRATION_PG_CONTAINER="$$pg_container" DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/... -run Integration -count=1 -p=1 -coverprofile=build/release-evidence/integration-go-coverage.out; \
 		GOCACHE=$(GOCACHE) bash testing/scripts/backup-integration.sh; \
 		python3 tools/merge-go-coverage.py build/release-evidence/integration-combined-coverage.out build/release-evidence/integration-go-coverage.out build/release-evidence/backup-integration/server-coverage.out
 

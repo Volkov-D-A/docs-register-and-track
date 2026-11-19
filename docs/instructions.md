@@ -105,5 +105,5 @@ docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt /tmp/docflow-
 только для согласованного сброса. Старые SeaweedFS volumes не входят в новый Compose
 и автоматически не удаляются. Перед сменой production-сборки выполните пробное
 восстановление и сохраните подтверждение. `make integration-test` использует
-изолированный PostgreSQL/Samba; нужны Docker Compose и совместимые PostgreSQL
-client tools (`pg_dump`, `pg_restore`).
+изолированный PostgreSQL/Samba. Для запуска нужен Docker Compose, а
+`pg_dump` и `pg_restore` запускаются в тестовых контейнерах.

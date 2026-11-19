@@ -9,6 +9,9 @@ if [[ -f "$ROOT/.env" ]]; then compose_env="$ROOT/.env"; fi
 # Keep backup integration ports separate from ordinary integration tests.
 export DOCFLOW_TEST_POSTGRES_PORT=${DOCFLOW_TEST_POSTGRES_PORT:-55433}
 export DOCFLOW_TEST_SERVER_PORT=${DOCFLOW_TEST_SERVER_PORT:-58480}
+# The host tests and the instrumented server must use the same coverage instrumentation.
+DOCFLOW_SMOKE_GO_TOOLCHAIN=$(go env GOVERSION)
+export DOCFLOW_SMOKE_GO_TOOLCHAIN
 # Embed the same local source identity as development desktop builds.
 export DOCFLOW_SMOKE_VERSION
 DOCFLOW_SMOKE_VERSION=$(GOCACHE="${GOCACHE:-/tmp/go-build-cache}" go run ./cmd/docflow-server version)

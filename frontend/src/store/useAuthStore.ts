@@ -198,8 +198,3 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return user?.systemPermissions?.includes(permission) ?? false;
     },
 }));
-
-useAuthStore.subscribe((state, previous) => {
-    if (state.user?.id !== previous.user?.id) {
-    }
-});

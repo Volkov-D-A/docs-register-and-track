@@ -52,7 +52,7 @@ test('blank input never calls the server and pagination repeats the submitted qu
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     submit('ремонт');
     await screen.findByRole('button', { name: '№ 123' });
-    fireEvent.click(screen.getByTitle('2'));
+    fireEvent.click(screen.getByRole('button', { name: 'Page 2' }));
     await screen.findByRole('button', { name: '№ 456' });
     expect(api.search).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'ремонт', page: 2, pageSize: 20 }));
 });
