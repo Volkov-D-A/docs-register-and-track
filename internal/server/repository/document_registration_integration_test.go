@@ -105,6 +105,22 @@ func TestDocumentRegistrationIdempotencyIntegration(t *testing.T) {
 	if second.OutgoingNumber != "01-01/2" {
 		t.Fatalf("second number = %q, want 01-01/2", second.OutgoingNumber)
 	}
+
+	execSQL(t, sqlDB, `UPDATE nomenclature SET is_active = FALSE WHERE id = $1`, nomID)
+	repeated, err = repo.CreateWithJournal(secondReq, "CREATE", "Created %s")
+	if err != nil || repeated.ID != second.ID {
+		t.Fatalf("replay after deactivation = %v, %v, want existing document %s", repeated, err, second.ID)
+	}
+	inactiveReq := secondReq
+	inactiveReq.IdempotencyKey = uuid.New()
+	if _, err := repo.CreateWithJournal(inactiveReq, "CREATE", "Created %s"); err == nil {
+		t.Fatal("expected new registration in an inactive nomenclature to fail")
+	} else if appErr, ok := models.AsAppError(err); !ok || appErr.StatusCode() != 400 {
+		t.Fatalf("inactive nomenclature error = %v, want bad request", err)
+	}
+	assertScalar(t, sqlDB, `SELECT next_number FROM nomenclature WHERE id = $1`, []any{nomID}, 3)
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM documents WHERE created_by = $1`, []any{userID}, 2)
+	assertScalar(t, sqlDB, `SELECT COUNT(*) FROM document_command_idempotency WHERE principal_id = $1 AND idempotency_key = $2`, []any{userID, inactiveReq.IdempotencyKey}, 0)
 }
 
 func TestDocumentRegistrationConcurrencyIntegration(t *testing.T) {

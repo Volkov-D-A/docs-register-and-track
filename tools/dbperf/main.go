@@ -101,6 +101,7 @@ func main() {
 		fail("read PostgreSQL version: %v", err)
 	}
 	nomenclatureID := seed(db, *documentCount)
+	mustExec(db, "ANALYZE")
 	repoDB := database.Wrap(db)
 	documentRepo := repository.NewOutgoingDocumentRepository(repoDB)
 	statisticsRepo := repository.NewStatisticsRepository(repoDB).ForUser(uuid.MustParse(benchmarkUserID(db)))

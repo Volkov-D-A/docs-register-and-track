@@ -57,7 +57,8 @@ db-performance-check: _check-integration-env
 		mkdir -p $(PERFORMANCE_DIR); \
 		$(INTEGRATION_COMPOSE) up -d --build --wait; \
 		if ! DOCFLOW_INTEGRATION_DSN='$(INTEGRATION_DSN)' GOCACHE=$(GOCACHE) go test ./internal/server/repository -run '^$$' -bench Integration -benchmem -count=1 -v > $(PERFORMANCE_DIR)/db-performance.txt 2>&1; then cat $(PERFORMANCE_DIR)/db-performance.txt; exit 1; fi; \
-		GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -cursor-depth $(PERFORMANCE_CURSOR_DEPTH) | tee $(PERFORMANCE_DIR)/summary.txt
+		if ! GOCACHE=$(GOCACHE) go run ./tools/dbperf -dsn '$(INTEGRATION_DSN)' -out $(PERFORMANCE_DIR) -documents $(PERFORMANCE_DOCUMENTS) -page-size $(PERFORMANCE_PAGE_SIZE) -cursor-depth $(PERFORMANCE_CURSOR_DEPTH) > $(PERFORMANCE_DIR)/summary.txt 2>&1; then cat $(PERFORMANCE_DIR)/summary.txt; exit 1; fi; \
+		cat $(PERFORMANCE_DIR)/summary.txt
 
 # Эти цели полезны при ручной отладке интеграционных тестов. Данные не
 # предназначены для сохранения: integration-db-down удаляет volume.

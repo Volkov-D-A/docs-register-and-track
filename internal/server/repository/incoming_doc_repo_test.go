@@ -151,10 +151,10 @@ func TestIncomingDocumentRepository_Create(t *testing.T) {
 
 	mock.ExpectBegin()
 	expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash)
-	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 		WithArgs(req.NomenclatureID).
-		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-			AddRow("01-01", "/", "manual_only", 1, string(models.DocumentKindIncomingLetter)))
+		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+			AddRow("01-01", "/", "manual_only", 1, string(models.DocumentKindIncomingLetter), true))
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 		models.DocumentKindIncomingLetter, req.NomenclatureID, req.IncomingNumber, req.IncomingDate, req.DocumentTypeID, req.Content, req.PagesCount, req.AttachmentPagesCount, req.CreatedBy,
 	).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(docID))
@@ -276,10 +276,10 @@ func TestIncomingDocumentRepository_CreateRootInsertErrors(t *testing.T) {
 
 			mock.ExpectBegin()
 			expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash)
-			mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+			mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 				WithArgs(req.NomenclatureID).
-				WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-					AddRow("01-01", "/", "manual_only", 1, string(models.DocumentKindIncomingLetter)))
+				WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+					AddRow("01-01", "/", "manual_only", 1, string(models.DocumentKindIncomingLetter), true))
 			mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 				models.DocumentKindIncomingLetter,
 				req.NomenclatureID,
@@ -328,10 +328,10 @@ func TestIncomingDocumentRepository_CreateDetailsInsertError(t *testing.T) {
 
 	mock.ExpectBegin()
 	expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindIncomingLetter), req.IdempotencyKey, req.CommandHash)
-	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 		WithArgs(req.NomenclatureID).
-		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-			AddRow("01-01", "/", "manual_only", 1, string(models.DocumentKindIncomingLetter)))
+		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+			AddRow("01-01", "/", "manual_only", 1, string(models.DocumentKindIncomingLetter), true))
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 		models.DocumentKindIncomingLetter,
 		req.NomenclatureID,

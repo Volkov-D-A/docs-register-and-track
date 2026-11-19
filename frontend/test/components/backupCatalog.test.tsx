@@ -5,7 +5,7 @@ import BackupCatalog from '../../src/features/settings/BackupCatalog';
 import { models } from '../../wailsjs/go/models';
 import { installWailsMock, renderWithApp } from '../componentTestUtils';
 
-const copy = models.BackupCopy.createFrom({ id: 'copy-id', format: 3, createdAt: '2026-09-10T00:00:00Z', size: 1024, verification: 'unverified', issue: '', canDelete: true, restoreConfirmation: 'restore copy-id date', deleteConfirmation: 'delete copy-id date' });
+const copy = models.BackupCopy.createFrom({ id: 'copy-id', format: 4, createdAt: '2026-09-10T00:00:00Z', size: 1024, verification: 'unverified', issue: '', canDelete: true, restoreConfirmation: 'restore copy-id date', deleteConfirmation: 'delete copy-id date' });
 
 test('restore requires successful verification and explicit replacement confirmation', async () => {
   const start = vi.fn().mockResolvedValueOnce({ job: { id: 'verification', kind: 'verify', state: 'queued' }, statusToken: 'read-only-token', expiresAt: '2099-01-01T00:00:00Z' }).mockResolvedValueOnce({ job: { id: 'restore', kind: 'restore', state: 'queued' }, statusToken: 'restore-token', expiresAt: '2099-01-01T00:00:00Z' });

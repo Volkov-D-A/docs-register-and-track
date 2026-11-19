@@ -17,7 +17,7 @@ func TestApplyDocumentListAccess(t *testing.T) {
 		applyDocumentListAccess(&where, &args, &index, models.DocumentAccessScope{UserID: "user-id"})
 		predicate := strings.Join(where, " AND ")
 		assert.Contains(t, predicate, "WITH RECURSIVE visible")
-		assert.Contains(t, predicate, "u.id=$2")
+		assert.Contains(t, predicate, "WHERE id=$2 AND is_active")
 		assert.Contains(t, predicate, "document_deadline_controls")
 		assert.Contains(t, predicate, "document_links")
 		assert.NotContains(t, predicate, "assignment_recipients")

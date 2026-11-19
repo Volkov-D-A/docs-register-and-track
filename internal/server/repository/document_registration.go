@@ -23,12 +23,13 @@ const (
 func resolveRegistrationNumberTx(tx *sql.Tx, kind models.DocumentKind, nomenclatureID uuid.UUID, requestedNumber string) (string, error) {
 	var index, separator, numberingMode, kindCode string
 	var nextNumber int
+	var isActive bool
 	if err := tx.QueryRow(`
-		SELECT index, separator, numbering_mode, next_number, kind_code
+		SELECT index, separator, numbering_mode, next_number, kind_code, is_active
 		FROM nomenclature
 		WHERE id = $1
 		FOR UPDATE
-	`, nomenclatureID).Scan(&index, &separator, &numberingMode, &nextNumber, &kindCode); err != nil {
+	`, nomenclatureID).Scan(&index, &separator, &numberingMode, &nextNumber, &kindCode, &isActive); err != nil {
 		if err == sql.ErrNoRows {
 			return "", models.NewNotFound("номенклатура не найдена")
 		}
@@ -37,6 +38,9 @@ func resolveRegistrationNumberTx(tx *sql.Tx, kind models.DocumentKind, nomenclat
 
 	if kindCode != string(kind) {
 		return "", models.NewBadRequest("выберите номенклатуру для нужного вида документа")
+	}
+	if !isActive {
+		return "", models.NewBadRequest("выберите действующее дело номенклатуры")
 	}
 
 	number := strings.TrimSpace(requestedNumber)

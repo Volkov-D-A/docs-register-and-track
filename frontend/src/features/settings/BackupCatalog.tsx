@@ -93,7 +93,7 @@ export default function BackupCatalog({ copies, loading, onChanged }: { copies: 
       {selection && <Space orientation="vertical" style={{ width: '100%' }}>
         <Typography.Text>ID: {selection.copy.id}</Typography.Text>
         <Typography.Text>{new Date(selection.copy.createdAt).toLocaleString()} · {(selection.copy.size / 1024 / 1024).toFixed(1)} МБ</Typography.Text>
-        {selection.kind === 'restore' && <Alert type="warning" showIcon title="Текущие данные будут заменены" description="Документы, файлы, пользователи и права будут заменены данными копии. Потребуется пароль пользователя из архива. После восстановления нужно войти заново, сохранить пароль SMB и явно включить расписание. Поддерживаются только выделенные БД и файловое хранилище Docflow." />}
+        {selection.kind === 'restore' && <Alert type="warning" showIcon title="Текущие данные будут заменены" description="Данные PostgreSQL, включая документы, пользователей и права, будут заменены данными копии. Потребуется пароль пользователя из архива. После восстановления нужно войти заново, сохранить пароль SMB и явно включить расписание." />}
         {selection.kind === 'delete' && <Alert type="warning" title="Удаляются архив и manifest на SMB" description="Локальный архив и история сохранятся. Сервер проверит минимум исправных копий; последнюю проверенную копию удалить нельзя." />}
         {operation && <BackupProgress stages={operation.job.stages} state={operation.job.state} error={operation.job.error} />}
         {error && <Alert type="error" title={error} />}

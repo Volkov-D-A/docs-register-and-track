@@ -42,7 +42,7 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
 			WillReturnError(sql.ErrNoRows)
 
@@ -65,10 +65,10 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
-			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-				AddRow("01-01", "/", numberingModeManualOnly, 1, string(models.DocumentKindOutgoingLetter)))
+			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+				AddRow("01-01", "/", numberingModeManualOnly, 1, string(models.DocumentKindOutgoingLetter), true))
 
 		mock.ExpectRollback()
 		tx, err := db.Begin()
@@ -89,10 +89,10 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
-			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-				AddRow("01-01", "/", numberingModeManualOnly, 1, string(models.DocumentKindIncomingLetter)))
+			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+				AddRow("01-01", "/", numberingModeManualOnly, 1, string(models.DocumentKindIncomingLetter), true))
 
 		mock.ExpectRollback()
 		tx, err := db.Begin()
@@ -113,10 +113,10 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
-			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-				AddRow("01-01", "/", numberingModeIndexAndNumber, 7, string(models.DocumentKindIncomingLetter)))
+			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+				AddRow("01-01", "/", numberingModeIndexAndNumber, 7, string(models.DocumentKindIncomingLetter), true))
 		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = next_number \+ 1\s+WHERE id = \$1`).
 			WithArgs(nomenclatureID).
 			WillReturnResult(sqlmock.NewResult(0, 1))
@@ -140,10 +140,10 @@ func TestResolveRegistrationNumberTx(t *testing.T) {
 		nomenclatureID := uuid.New()
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+		mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 			WithArgs(nomenclatureID).
-			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-				AddRow("01-01", "/", numberingModeNumberOnly, 7, string(models.DocumentKindIncomingLetter)))
+			WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+				AddRow("01-01", "/", numberingModeNumberOnly, 7, string(models.DocumentKindIncomingLetter), true))
 		mock.ExpectExec(`UPDATE nomenclature\s+SET next_number = next_number \+ 1\s+WHERE id = \$1`).
 			WithArgs(nomenclatureID).
 			WillReturnError(sql.ErrConnDone)

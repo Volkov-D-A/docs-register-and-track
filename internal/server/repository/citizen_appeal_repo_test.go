@@ -298,10 +298,10 @@ func TestCitizenAppealRepository_Create(t *testing.T) {
 
 	mock.ExpectBegin()
 	expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash)
-	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 		WithArgs(req.NomenclatureID).
-		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-			AddRow("03-01", "/", "manual_only", 1, string(models.DocumentKindCitizenAppeal)))
+		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+			AddRow("03-01", "/", "manual_only", 1, string(models.DocumentKindCitizenAppeal), true))
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 		models.DocumentKindCitizenAppeal,
 		req.NomenclatureID,
@@ -418,10 +418,10 @@ func TestCitizenAppealRepository_CreateRootInsertErrors(t *testing.T) {
 
 			mock.ExpectBegin()
 			expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash)
-			mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+			mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 				WithArgs(req.NomenclatureID).
-				WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-					AddRow("03-01", "/", "manual_only", 1, string(models.DocumentKindCitizenAppeal)))
+				WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+					AddRow("03-01", "/", "manual_only", 1, string(models.DocumentKindCitizenAppeal), true))
 			mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 				models.DocumentKindCitizenAppeal,
 				req.NomenclatureID,
@@ -472,10 +472,10 @@ func TestCitizenAppealRepository_CreateDetailsInsertError(t *testing.T) {
 
 	mock.ExpectBegin()
 	expectDocumentCommandReservation(mock, req.CreatedBy, "documents.register:"+string(models.DocumentKindCitizenAppeal), req.IdempotencyKey, req.CommandHash)
-	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
+	mock.ExpectQuery(`SELECT index, separator, numbering_mode, next_number, kind_code, is_active\s+FROM nomenclature\s+WHERE id = \$1\s+FOR UPDATE`).
 		WithArgs(req.NomenclatureID).
-		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code"}).
-			AddRow("03-01", "/", "manual_only", 1, string(models.DocumentKindCitizenAppeal)))
+		WillReturnRows(sqlmock.NewRows([]string{"index", "separator", "numbering_mode", "next_number", "kind_code", "is_active"}).
+			AddRow("03-01", "/", "manual_only", 1, string(models.DocumentKindCitizenAppeal), true))
 	mock.ExpectQuery(`INSERT INTO documents`).WithArgs(
 		models.DocumentKindCitizenAppeal,
 		req.NomenclatureID,

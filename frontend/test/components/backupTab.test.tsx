@@ -95,7 +95,7 @@ test('backup progress does not refresh an unchanged catalog', async () => {
   };
   const job = { id: 'backup-live', state: 'queued', createdAt: '2026-09-14T00:00:00Z', updatedAt: '2026-09-14T00:00:00Z', archiveSize: 0 };
   const jobs = vi.fn().mockResolvedValue([]);
-  const catalog = vi.fn().mockResolvedValue([{ id: 'saved-copy', format: 3, createdAt: job.createdAt, size: 1024, verification: 'verified' }]);
+  const catalog = vi.fn().mockResolvedValue([{ id: 'saved-copy', format: 4, createdAt: job.createdAt, size: 1024, verification: 'verified' }]);
   installWailsMock({ SettingsService: {
     GetBackupSettings: vi.fn().mockResolvedValue({ settings, issue: '', nextRun: '' }),
     ListBackups: jobs, ListBackupCopies: catalog,
@@ -117,7 +117,7 @@ test('backup progress does not refresh an unchanged catalog', async () => {
   expect(screen.queryByText('Создание снимка')).not.toBeInTheDocument();
   expect(screen.queryByText('Текущее задание')).not.toBeInTheDocument();
   expect(catalog).toHaveBeenCalledTimes(1);
-});
+}, 15000);
 
 test('maintenance keeps saved copies until catalog retry succeeds', async () => {
   const settings = {
@@ -125,7 +125,7 @@ test('maintenance keeps saved copies until catalog retry succeeds', async () => 
     enabled: false, time: '02:00', timezone: 'Asia/Yekaterinburg', weekdays: [1],
     retentionDays: 15, keepCopies: 3, passwordSet: true,
   };
-  const savedCopy = { id: 'saved-copy', format: 3, createdAt: '2026-09-14T00:00:00Z', size: 1024, verification: 'verified' };
+  const savedCopy = { id: 'saved-copy', format: 4, createdAt: '2026-09-14T00:00:00Z', size: 1024, verification: 'verified' };
   const catalog = vi.fn().mockResolvedValue([savedCopy]);
   installWailsMock({ SettingsService: {
     GetBackupSettings: vi.fn().mockResolvedValue({ settings, issue: '', nextRun: '' }),

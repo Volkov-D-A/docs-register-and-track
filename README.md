@@ -218,10 +218,6 @@ Maintained project documentation:
 - [Setup and backup/restore instructions](docs/instructions.md)
 - [Release notes source](docs/releases.yaml)
 
-Historical one-time analysis documents are kept separately:
-
-- [Archived performance audit plan](docs/archive/performance-audit-plan.md)
-
 Release must be performed from a clean worktree and must not rely on hidden local state except approved secret injection.
 
 Minimum automated gate before producing artifacts:
@@ -242,6 +238,12 @@ Test Compose files, helper scripts and fixture images are grouped in
 [`testing/`](testing/README.md); existing Make targets remain unchanged.
 
 ## Production Build
+
+Wails runs the desktop entry point during binding generation. In a clean checkout, point it at the checked-in sample desktop configuration before building either target:
+
+```bash
+export DOCFLOW_CONFIG_PATH="$PWD/docs/examples/config.example.json"
+```
 
 Linux test build:
 
