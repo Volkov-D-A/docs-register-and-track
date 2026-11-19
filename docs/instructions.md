@@ -4,7 +4,7 @@
  rm -rf /usr/local/go && tar -C /usr/local -xzf go1.26.4.linux-amd64.tar.gz
 
 2. NodeJS
-nvm install 24
+nvm install 26
 
 # Обновление пакетов проекта
 1. Бэкенд
